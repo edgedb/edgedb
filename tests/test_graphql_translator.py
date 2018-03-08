@@ -195,7 +195,8 @@ class TestGraphQLTranslation(TranslatorTest):
 
         """
 
-    @tb.must_fail(GraphQLValidationError, line=3, col=13)
+    @tb.must_fail(GraphQLValidationError, "field 'Bogus' is invalid",
+                  line=3, col=13)
     def test_graphql_translation_query_03(self):
         r"""
         query @edgedb(module: "test") {
@@ -209,7 +210,8 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=5, col=17)
+    @tb.must_fail(GraphQLValidationError, "field 'bogus' is invalid for User",
+                  line=5, col=17)
     def test_graphql_translation_query_04(self):
         r"""
         query @edgedb(module: "test") {
@@ -224,7 +226,8 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=5, col=17)
+    @tb.must_fail(GraphQLValidationError,
+                  "field 'age' is invalid for NamedObject", line=5, col=17)
     def test_graphql_translation_query_05(self):
         r"""
         query @edgedb(module: "test") {

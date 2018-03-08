@@ -6,15 +6,16 @@
 ##
 
 
+from collections import namedtuple
+
 from edgedb.lang import edgeql
 from edgedb.lang.common import ast
 from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.graphql import ast as gqlast, parser as gqlparser
 from edgedb.lang.schema import error as s_error
 
+from . import types as gt
 from .errors import GraphQLValidationError
-from .types import (PY_COERCION_MAP, GQL_TYPE_NAMES_MAP, _GQLType,
-                    GQLSchema, GQLType)
 
 
 class GraphQLTranslatorContext:
@@ -26,21 +27,24 @@ class GraphQLTranslatorContext:
         self.vars = {}
         self.fields = []
         self.path = []
-        self.optype = None
         self.include_base = [False]
-        self.gql_type_map = {
-            '__schema': GQLSchema(schema),
-            '__type': GQLType(schema),
-        }
+        self.gql_type_map = {}
 
 
-def normalize_name(name):
+Step = namedtuple('Step', ['name', 'type'])
+
+
+def normalize_name(name, *, simple=False):
     if isinstance(name, str):
         return name
-    elif name[1] in {'__schema', '__type', '__typename'}:
-        return name[1]
     else:
-        return f'{name[0]}::{name[1]}'
+        if simple:
+            return name[1]
+        else:
+            if not name[0] or name[1] in {'__schema', '__type', '__typename'}:
+                return name[1]
+            else:
+                return f'{name[0]}::{name[1]}'
 
 
 class GraphQLTranslator(ast.NodeVisitor):
@@ -57,7 +61,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         else:
             try:
                 result = self._context.schema.get(name)
-                result = _GQLType(
+                result = gt._GQLType(
                     edb_base=result,
                     schema=self._context.schema,
                     shadow=True,
@@ -74,11 +78,21 @@ class GraphQLTranslator(ast.NodeVisitor):
                 raise
 
     def get_field_type(self, base, name, *, context=None):
-        target = base.get_field_type(name)
+        if not isinstance(name, str):
+            name = (name[1], name[0])
+
+        try:
+            target = base.get_field_type(name)
+        except s_error.SchemaError:
+            if not context:
+                raise
+            target = None
+
         if target is None:
             if context:
                 raise GraphQLValidationError(
-                    f"field {name!r} is invalid for {base.short_name}",
+                    f"field {normalize_name(name, simple=True)!r} is " +
+                    f"invalid for {base.short_name}",
                     context=context)
         else:
             self._context.gql_type_map[target.name] = target
@@ -105,7 +119,6 @@ class GraphQLTranslator(ast.NodeVisitor):
             name: [val, False]
             for name, val in self._context.variables.items()}
         opname = None
-        self._context.optype = None
 
         if node.type is None or node.type == 'query':
             stmt = self._visit_query(node)
@@ -127,12 +140,16 @@ class GraphQLTranslator(ast.NodeVisitor):
         return (opname, (stmt, critvars))
 
     def _visit_query(self, node):
-        self._context.optype = 'query'
         # populate input variables with defaults, where applicable
         if node.variables:
             self.visit(node.variables)
 
         module = self._get_module(node.directives)
+        # base Query needs to be configured specially
+        base = self._context.gql_type_map.get(f'{module}--Query')
+        if not base:
+            base = gt.GQLQuery(self._context.schema, module)
+            self._context.gql_type_map[base.name] = base
 
         # special treatment of the selection_set, different from inner
         # recursion
@@ -146,9 +163,10 @@ class GraphQLTranslator(ast.NodeVisitor):
         )
 
         self._context.fields.append({})
-        self._context.path = [[[module, None]]]
+        self._context.path.append([Step(None, base)])
         query.result.elements = self.visit(node.selection_set)
         self._context.fields.pop()
+        self._context.path.pop()
 
         return query
 
@@ -220,13 +238,13 @@ class GraphQLTranslator(ast.NodeVisitor):
                         context=node.context)
                 self._validate_value(
                     node.name, val,
-                    GQL_TYPE_NAMES_MAP[node.type.name.name],
+                    gt.GQL_TYPE_NAMES_MAP[node.type.name.name],
                     context=node.context,
                     as_sequence=True)
             else:
                 self._validate_value(
                     node.name, val,
-                    GQL_TYPE_NAMES_MAP[node.type.name],
+                    gt.GQL_TYPE_NAMES_MAP[node.type.name],
                     context=node.context,
                     as_sequence=False)
 
@@ -264,55 +282,59 @@ class GraphQLTranslator(ast.NodeVisitor):
     def _is_top_level_field(self, node, fail=None):
         top = False
 
-        base = self._context.path[-1]
+        path = self._context.path[-1]
         # there is different handling of top-level, built-in and inner
         # fields
         top = (len(self._context.path) == 1 and
-               len(base) == 1 and
-               base[0][1] is None)
+               len(path) == 1 and
+               path[0].name is None)
 
-        if top:
-            # handle regular fields
-            base = self._context.path[0][0] = (self._context.path[0][0][0],
-                                               node.name)
-        elif fail:
+        prevt = path[-1].type
+        target = self.get_field_type(prevt, node.name, context=node.context)
+        path.append(Step(name=node.name, type=target))
+
+        if not top and fail:
             raise GraphQLValidationError(
                 f"field {node.name!r} can only appear at the top-level Query",
                 context=node.context)
 
         return top
 
+    def _get_parent_and_current_type(self):
+        path = self._context.path[-1]
+        cur = path[-1].type
+        if len(path) > 1:
+            par = path[-2].type
+        else:
+            par = self._context.path[-2][-1].type
+
+        return par, cur
+
     def visit_Field(self, node):
-        base = self._context.path[-1]
+        path = self._context.path[-1]
         # there is different handling of top-level, built-in and inner
         # fields
-        if self._is_top_level_field(node):
-            result = self._visit_top_field(node)
-            # reset the base
-            self._context.path[0][0] = (base[0][0], None)
-            return result
-        else:
-            return self._visit_inner_field(node)
+        self._is_top_level_field(node)
+        result = self._visit_inner_field(node)
+        # reset the base
+        path.pop()
+        return result
 
     def _visit_inner_field(self, node):
-        base = self._context.path[-1]
-        base.append(node.name)
+        path = self._context.path[-1]
         include_base = self._context.include_base[-1]
 
         if self._is_duplicate_field(node):
             return
 
-        # FIXME: the parent type may be better offloaded to context
-        prevt = target = self.get_type(base[0])
-        for step in base[1:]:
-            prevt = target
-            target = self.get_field_type(target, step, context=node.context)
+        prevt, target = self._get_parent_and_current_type()
 
         # insert normal or specialized link
         steps = []
         if include_base:
+            base = path[0].type
             steps.append(qlast.ClassRef(
-                module=base[0][0], name=base[0][1]))
+                module=base.module, name=base.short_name))
         steps.append(qlast.Ptr(
             ptr=qlast.ClassRef(
                 name=node.name
@@ -321,9 +343,8 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         # determine if there needs to be extra subqueries
         if prevt.shadow:
-            shape = spec = qlast.ShapeElement(
+            filterable = shape = spec = qlast.ShapeElement(
                 expr=qlast.Path(steps=steps),
-                where=self._visit_path_where(node.arguments)
             )
         else:
             # if the parent is NOT a shadowed type, we need an explicit SELECT
@@ -346,19 +367,19 @@ class GraphQLTranslator(ast.NodeVisitor):
                     )
                 )
             )
-            shape = spec.compexpr.result
+            filterable = spec.compexpr
+            shape = filterable.result
 
         if node.selection_set is not None:
             self._context.fields.append({})
             shape.elements = self.visit(node.selection_set)
             self._context.fields.pop()
-            shape.where = self._visit_path_where(node.arguments)
-        base.pop()
+            filterable.where = self._visit_path_where(node.arguments)
 
         return spec
 
     def visit_TypenameField(self, node):
-        base = self._context.path[-1]
+        path = self._context.path[-1]
         include_base = self._context.include_base[-1]
 
         if self._is_duplicate_field(node):
@@ -368,8 +389,9 @@ class GraphQLTranslator(ast.NodeVisitor):
         steps = []
 
         if include_base:
+            base = path[0]
             steps.append(qlast.ClassRef(
-                module=base[0][0], name=base[0][1]))
+                module=base.module, name=base.short_name))
 
         steps.append(qlast.Ptr(
             ptr=qlast.ClassRef(
@@ -378,42 +400,51 @@ class GraphQLTranslator(ast.NodeVisitor):
         ))
 
         if self._is_top_level_field(node):
+            # reset the base, as there's no further recursion
+            path.pop()
             # this field may appear as the top-level Query field
             spec = qlast.ShapeElement(
                 expr=qlast.Path(steps=steps),
                 compexpr=qlast.Constant(value='Query'),
             )
-            # reset the base
-            self._context.path[0][0] = (base[0], None)
 
         else:
-            # get the prefix field type
-            target = self.get_type(base[0])
-            for step in base[1:]:
-                target = self.get_field_type(target, step,
-                                             context=node.context)
+            # reset the base, as there's no further recursion
+            path.pop()
 
-            if not target.shadow:
+            # get the prefix field type
+            prevt = path[-1].type
+
+            if not prevt.shadow:
                 # the parent is a special graphql type of some sort
                 spec = qlast.ShapeElement(
                     expr=qlast.Path(steps=steps),
-                    compexpr=qlast.Constant(value=target.name),
+                    compexpr=qlast.Constant(value=prevt.name),
                 )
             else:
                 # shadowed EdgeDB concepts are pretty straight-forward
 
-                # create the computable path
+                # flatten the path
                 path = [step
                         for psteps in self._context.path
                         for step in psteps]
-                path = path[0:1] + [step for step in path if type(step) is str]
-                path += ['__class__', 'name']
+
+                # find the first shadowed root
+                for i, step in enumerate(path):
+                    base = step.type
+                    if base.shadow:
+                        break
+
+                # trim the rest of the path
+                path = path[i + 1:]
                 typename = [
-                    qlast.ClassRef(module=path[0][0], name=path[0][1])
+                    qlast.ClassRef(module=base.module, name=base.short_name)
                 ]
+                # convert the path to list of str and add a couple more steps
+                path = [step.name for step in path] + ['__class__', 'name']
                 typename.extend(
                     qlast.Ptr(ptr=qlast.ClassRef(name=name))
-                    for name in path[1:]
+                    for name in path
                 )
 
                 spec = qlast.ShapeElement(
@@ -433,7 +464,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         return spec
 
     def visit_SchemaField(self, node):
-        base = self._context.path[-1]
+        path = self._context.path[-1]
 
         # this field cannot be anywhere other than in the top-level Query
         self._is_top_level_field(node, fail=True)
@@ -473,11 +504,11 @@ class GraphQLTranslator(ast.NodeVisitor):
                 context=node.context)
 
         # reset the base
-        self._context.path[0][0] = (base[0], None)
+        path.pop()
         return spec
 
     def visit_TypeField(self, node):
-        base = self._context.path[-1]
+        path = self._context.path[-1]
 
         # this field cannot be anywhere other than in the top-level Query
         self._is_top_level_field(node, fail=True)
@@ -512,7 +543,7 @@ class GraphQLTranslator(ast.NodeVisitor):
                 context=node.context)
 
         # reset the base
-        self._context.path[0][0] = (base[0], None)
+        path.pop()
         return spec
 
     def visit_InlineFragment(self, node):
@@ -538,17 +569,13 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         fragmodule = self._get_module(frag.directives)
         if fragmodule is None:
-            fragmodule = self._context.path[0][0][0]
+            fragmodule = self._context.path[0][0].type.module
 
-        frag_path = (fragmodule, frag.on)
         # validate the base if it's nested
         if len(self._context.path) > 0:
-            base = self._context.path[-1]
-            base_type = self.get_type(base[0])
-            for step in base[1:]:
-                base_type = self.get_field_type(base_type, step)
-
-            frag_type = self.get_type(frag_path)
+            path = self._context.path[-1]
+            base_type = path[-1].type
+            frag_type = self.get_type((fragmodule, frag.on))
 
             if base_type.issubclass(frag_type):
                 # legal hierarchy, no change
@@ -561,45 +588,17 @@ class GraphQLTranslator(ast.NodeVisitor):
                     f"{base_type.short_name} and {frag_type.short_name} " +
                     "are not related", context=spread.context)
 
-        self._context.path.append([frag_path])
+        self._context.path.append([Step(frag.on, frag_type)])
         self._context.include_base.append(is_specialized)
-
-    def _visit_top_field(self, selection):
-        where = None
-
-        # handle regular fields
-        base = self._context.path[0][0]
-        base_type = self.get_type(base, context=selection.context)
-
-        self._context.fields.append({})
-        expr = qlast.Shape(
-            expr=qlast.Path(
-                steps=[qlast.ClassRef(module=base[0], name=base[1])]
-            ),
-            elements=self.visit(selection.selection_set)
-        )
-        self._context.fields.pop()
-        if expr:
-            where = self._visit_where(selection.arguments)
-
-        if expr:
-            return qlast.ShapeElement(
-                expr=qlast.Path(
-                    steps=[qlast.ClassRef(name=selection.name)]
-                ),
-                compexpr=qlast.SelectQuery(
-                    result=expr,
-                    where=where,
-                ),
-            )
 
     def _visit_where(self, arguments):
         if not arguments:
             return None
 
         def get_path_prefix():
-            base = self._context.path[0][0]
-            return [qlast.ClassRef(module=base[0], name=base[1])]
+            path = self._context.path[0]
+            return [qlast.ClassRef(module=path[1].module,
+                                   name=path[1].short_name)]
 
         return self._join_expressions(self._visit_arguments(
             arguments, get_path_prefix=get_path_prefix))
@@ -609,16 +608,25 @@ class GraphQLTranslator(ast.NodeVisitor):
             return None
 
         def get_path_prefix():
+            # flatten the path
             path = [step
-                    for steps in self._context.path
-                    for step in steps]
-            path = path[0:1] + [step for step in path if type(step) is str]
+                    for psteps in self._context.path
+                    for step in psteps]
+
+            # find the first shadowed root
+            for i, step in enumerate(path):
+                base = step.type
+                if base.shadow:
+                    break
+
+            # trim the rest of the path
+            path = path[i + 1:]
             prefix = [
-                qlast.ClassRef(module=path[0][0], name=path[0][1])
+                qlast.ClassRef(module=base.module, name=base.short_name)
             ]
             prefix.extend(
-                qlast.Ptr(ptr=qlast.ClassRef(name=name))
-                for name in path[1:]
+                qlast.Ptr(ptr=qlast.ClassRef(name=step.name))
+                for step in path
             )
             return prefix
 
@@ -650,40 +658,22 @@ class GraphQLTranslator(ast.NodeVisitor):
         else:
             check_value = value.value
 
-        # depending on the operation used, we have a single value
-        # or a sequence to validate
-        if op in (ast.ops.IN, ast.ops.NOT_IN):
-            self._validate_arg(name, check_value,
-                               context=node.context, as_sequence=True)
-            # In EdgeQL `IN` expects a set as a right operand, not an array,
-            # so compile this into array_cointains(right, left)
-            ql_result = qlast.FunctionCall(
-                func=('std', 'array_contains'),
-                args=[qlast.FuncArg(arg=value), qlast.FuncArg(arg=name)]
-            )
-
-            if op == ast.ops.NOT_IN:
-                ql_result = qlast.UnaryOp(
-                    op=ast.ops.NOT,
-                    operand=ql_result
-                )
-        else:
-            self._validate_arg(name, check_value, context=node.context)
-
-            ql_result = qlast.BinOp(left=name, op=op, right=value)
+        self._validate_arg(name, check_value, context=node.context)
+        ql_result = qlast.BinOp(left=name, op=op, right=value)
 
         return ql_result
 
-    def _validate_arg(self, path, value, *, context, as_sequence=False):
+    def _validate_arg(self, qlname, value, *, context, as_sequence=False):
         # None is always valid argument for our case, simply means
         # that no filtering is necessary
         if value is None:
             return
 
-        target = self.get_type(
-            (path.steps[0].module, path.steps[0].name))
-        for step in path.steps[1:]:
+        qlbase = qlname.steps[0]
+        target = self.get_type((qlbase.module, qlbase.name))
+        for step in qlname.steps[1:]:
             target = self.get_field_type(target, step.ptr.name)
+
         base_t = target.get_implementation_type()
 
         self._validate_value(step.ptr.name, value, base_t,
@@ -700,7 +690,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             value = [value]
 
         for val in value:
-            if not issubclass(base_t, PY_COERCION_MAP[type(val)]):
+            if not issubclass(base_t, gt.PY_COERCION_MAP[type(val)]):
                 raise GraphQLValidationError(
                     f"value {val!r} is not of type {base_t} " +
                     f"accepted by {name!r}",

@@ -10,7 +10,7 @@ from edgedb.lang.schema import basetypes as s_types
 
 
 class _GQLType:
-    def __init__(self, name=None, edb_base=None, schema=None, shadow=False):
+    def __init__(self, schema=None, name=None, edb_base=None, shadow=False):
         assert not shadow or (edb_base and schema)
         assert name or edb_base
         # __typename
@@ -18,6 +18,13 @@ class _GQLType:
             self._name = f'{edb_base.name.module}::{edb_base.name.name}'
         else:
             self._name = name
+        # determine module from name is not already specified
+        if not hasattr(self, '_module'):
+            if '::' in self._name:
+                self._module = self._name.split('::', 1)[0]
+            else:
+                self._module = None
+
         # what EdgeDB entity will be the root for queries, if any
         self._edb_base = edb_base
         self._shadow = shadow
@@ -31,6 +38,10 @@ class _GQLType:
     @property
     def short_name(self):
         return self._name.split('::')[-1]
+
+    @property
+    def module(self):
+        return self._module
 
     @property
     def edb_base(self):
@@ -52,20 +63,30 @@ class _GQLType:
 
     def get_field_type(self, name):
         # this is just shadowing a real EdgeDB type
-        if self.shadow:
-            target = self._fields.get(name)
-            if target is None:
+        target = self._fields.get(name)
+
+        if target is None:
+            # special handling of '__typename'
+            if name == '__typename':
+                target = _GQLType(
+                    edb_base=self.schema.get('std::str'),
+                    schema=self.schema,
+                    shadow=True,
+                )
+
+            elif self.shadow:
                 target = self.edb_base.resolve_pointer(self._schema, name)
 
                 if target is not None:
                     target = _GQLType(
                         edb_base=target.target,
-                        schema=self._schema,
+                        schema=self.schema,
                         shadow=True,
                     )
 
             self._fields[name] = target
-            return target
+
+        return target
 
     def issubclass(self, other):
         if isinstance(other, _GQLType):
@@ -82,7 +103,7 @@ class _GQLType:
 class GQLSchema(_GQLType):
     def __init__(self, schema):
         edb_base = schema.get('graphql::Query')
-        super().__init__('__Schema', edb_base, schema)
+        super().__init__(schema, '__Schema', edb_base)
 
     def get_field_type(self, name):
         if name == 'directives':
@@ -99,24 +120,79 @@ class GQLSchema(_GQLType):
 class GQLType(_GQLType):
     def __init__(self, schema):
         edb_base = schema.get('graphql::Query')
-        super().__init__('__Type', edb_base, schema)
+        super().__init__(schema, '__Type', edb_base)
 
-    # def get_field_type(self, name):
-    #     if name == 'directives':
-    #         target = self._fields.get(name)
-    #         if target is None:
-    #             target = GQLDirective(self.schema)
 
-    #         self._fields[name] = target
-    #         return target
+class GQLQuery(_GQLType):
+    def __init__(self, schema, module):
+        edb_base = schema.get('graphql::Query')
+        self._module = module
+        # we give unusual full name, so that it doesn't clash with a
+        # potential Concept `Query` in one of the modules
+        super().__init__(schema, f'{module}--Query', edb_base)
 
-    #     return super().get_field_type(name)
+    @property
+    def short_name(self):
+        return self._name.rsplit('--', 1)[-1]
+
+    def get_field_type(self, name):
+        assert isinstance(name, str)
+        target = super().get_field_type(name)
+
+        # special handling of '__type' and '__schema'
+        if name == '__type':
+            target = GQLType(self.schema)
+        elif name == '__schema':
+            target = GQLSchema(self.schema)
+
+        if target is None:
+            target = self.schema.get((self._module, name))
+
+            if target is not None:
+                target = _GQLType(
+                    edb_base=target,
+                    schema=self.schema,
+                    shadow=True,
+                )
+
+        self._fields[name] = target
+        return target
+
+
+class GQLField(_GQLType):
+    def __init__(self, schema):
+        edb_base = schema.get('graphql::Query')
+        super().__init__(schema, '__Field', edb_base)
+
+
+class GQLInputValue(_GQLType):
+    def __init__(self, schema):
+        edb_base = schema.get('graphql::Query')
+        super().__init__(schema, '__InputValue', edb_base)
+
+
+class GQLEnumValue(_GQLType):
+    def __init__(self, schema):
+        edb_base = schema.get('graphql::Query')
+        super().__init__(schema, '__EnumValue', edb_base)
 
 
 class GQLDirective(_GQLType):
     def __init__(self, schema):
         edb_base = schema.get(('graphql', 'Directive'))
-        super().__init__('__Directive', edb_base, schema, True)
+        super().__init__(schema, '__Directive', edb_base, True)
+
+
+class GQLTypeKind(_GQLType):
+    def __init__(self, schema):
+        edb_base = schema.get(('graphql', 'typeKind'))
+        super().__init__(schema, '__TypeKind', edb_base, True)
+
+
+class GQLDirectiveLocation(_GQLType):
+    def __init__(self, schema):
+        edb_base = schema.get(('graphql', 'directiveLocation'))
+        super().__init__(schema, '__DirectiveLocation', edb_base, True)
 
 
 PY_COERCION_MAP = {
