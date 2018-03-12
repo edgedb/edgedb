@@ -54,13 +54,16 @@ class Constraint(inheriting.InheritingObject):
 
     subject = so.Field(so.Object, default=None, inheritable=False)
 
+    paramnames = so.Field(so.StringList, default=None, coerce=True,
+                          compcoef=0.4)
+
     paramtypes = so.Field(so.TypeList, default=None, coerce=True,
                           compcoef=0.857)
 
     # Number of the variadic parameter (+1)
     varparam = so.Field(int, default=None, compcoef=0.4)
 
-    args = so.Field(s_expr.ExpressionText,
+    args = so.Field(s_expr.ExpressionList,
                     default=None, coerce=True, inheritable=False,
                     compcoef=0.875)
 
@@ -180,11 +183,14 @@ class Constraint(inheriting.InheritingObject):
 
         args_map = None
         if args:
-            args_ql = edgeql_parser.parse(args, module_aliases)
             if constraint.varparam is not None:
                 varparam = constraint.varparam
             else:
                 varparam = None
+
+            args_ql = [
+                edgeql_parser.parse(arg, module_aliases) for arg in args
+            ]
 
             args_map = edgeql_utils.index_parameters(
                 args_ql, varparam=varparam)
@@ -196,6 +202,8 @@ class Constraint(inheriting.InheritingObject):
 
             constraint.errmessage = constraint.errmessage.format(
                 __subject__='{__subject__}', **args_map)
+
+            args = list(args_map.values())
 
         if expr == '__subject__':
             expr_context = \
@@ -383,16 +391,17 @@ class CreateConstraint(ConstraintCommand,
 
         if isinstance(astnode, qlast.CreateConcreteConstraint):
             if astnode.args:
-                args_ql = qlast.Tuple(elements=[
-                    arg.arg for arg in astnode.args])
+                args = []
 
-                args_expr = s_expr.ExpressionText(
-                    edgeql.generate_source(args_ql, pretty=False))
+                for arg in astnode.args:
+                    arg_expr = s_expr.ExpressionText(
+                        edgeql.generate_source(arg.arg, pretty=False))
+                    args.append(arg_expr)
 
                 cmd.add(
                     sd.AlterObjectProperty(
                         property='args',
-                        new_value=args_expr
+                        new_value=args
                     )
                 )
 

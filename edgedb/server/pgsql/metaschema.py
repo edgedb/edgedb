@@ -848,11 +848,9 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
             # so we just need to unnest the array here.
             refattr = 'UNNEST(' + q(pn.name) + ')'
 
-        elif pn.name == 'params' and (
-                mcls is s_funcs.Function or
-                mcls is s_constraints.Constraint):
+        elif pn.name == 'params' and mcls is s_funcs.Function:
             # Func params need special handling as they are defined
-            # in three separate fields.
+            # in sevaral separate fields.
             link_query = f'''
                 SELECT
                     q.id            AS {dbname('std::source')},
@@ -868,6 +866,35 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                             WITH ORDINALITY AS
                                 t(id, maintype, name, collection, subtypes,
                                   dimensions, is_root, num)
+                     WHERE
+                        t.is_root
+                    ) AS q
+            '''
+
+        elif pn.name == 'params' and mcls is s_constraints.Constraint:
+            # Constraint params need special handling as they are defined
+            # in several separate fields.
+            link_query = f'''
+                SELECT
+                    q.id            AS {dbname('std::source')},
+                    edgedb._derive_uuid(q.id, q.num::smallint)
+                                    AS {dbname('std::target')},
+                    q.value         AS {dbname('schema::value')}
+                FROM
+                    (SELECT
+                        s.id        AS id,
+                        t.num - 1   AS num,
+                        tv.value    AS value
+                     FROM
+                        edgedb.{mcls.__name__} AS s,
+                        LATERAL UNNEST((s.paramtypes).types)
+                            WITH ORDINALITY AS
+                                t(id, maintype, name, collection, subtypes,
+                                  dimensions, is_root, num)
+                        LEFT JOIN
+                            LATERAL UNNEST(s.args)
+                                WITH ORDINALITY AS tv(value, num)
+                            ON (t.num = tv.num)
                      WHERE
                         t.is_root
                     ) AS q

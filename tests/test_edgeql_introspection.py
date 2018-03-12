@@ -467,14 +467,22 @@ class TestIntrospection(tb.QueryTestCase):
                 name,
                 subject: {
                     name
-                }
+                },
+                params: {
+                    num,
+                    @value
+                } ORDER BY .num
             } FILTER .subject.name = 'test::body';
         """, [
             [{
                 'name': 'std::maxlength',
                 'subject': {
                     'name': 'test::body'
-                }
+                },
+                'params': [{
+                    'num': 0,
+                    '@value': '10000'
+                }]
             }]
         ])
 

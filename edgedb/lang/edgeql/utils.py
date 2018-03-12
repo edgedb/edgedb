@@ -39,18 +39,12 @@ def inline_parameters(ql_expr: qlast.Base, args: typing.Dict[str, qlast.Base]):
     inliner.visit(ql_expr)
 
 
-def index_parameters(ql_args, *, varparam: typing.Optional[int]=None):
-    if isinstance(ql_args, qlast.SelectQuery):
-        ql_args = ql_args.result
-
-    if not isinstance(ql_args, qlast.Tuple):
-        raise ValueError(
-            'unable to unpack arguments: a tuple was expected')
-
+def index_parameters(ql_args: typing.List[qlast.Base], *,
+                     varparam: typing.Optional[int]=None):
     result = []
     container = result
 
-    for i, e in enumerate(ql_args.elements):
+    for i, e in enumerate(ql_args):
         if isinstance(e, qlast.SelectQuery):
             e = e.result
 

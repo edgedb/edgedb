@@ -439,6 +439,11 @@ CREATE TYPE schema::Parameter {
 };
 
 
+CREATE ABSTRACT LINK schema::params {
+    CREATE PROPERTY schema::value -> std::str;
+};
+
+
 CREATE TYPE schema::Constraint EXTENDING schema::InheritingObject {
     CREATE PROPERTY schema::expr -> std::str;
     CREATE PROPERTY schema::subjectexpr -> std::str;
@@ -447,7 +452,6 @@ CREATE TYPE schema::Constraint EXTENDING schema::InheritingObject {
     CREATE LINK schema::params -> schema::Parameter {
         SET cardinality := '**';
     };
-    CREATE PROPERTY schema::args -> map<std::str, std::str>;
 };
 
 

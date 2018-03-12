@@ -529,12 +529,11 @@ class DeclarationLoader:
             constraint.acquire_ancestor_inheritance(self._schema)
             constraint.sourcectx = constrdecl.context
 
-            args = None
             if constrdecl.args:
-                args = ','.join([
-                    edgeql_codegen.generate_source(arg, pretty=False)
-                    for arg in constrdecl.args])
-                args = f'({args},)'
+                args = [edgeql_codegen.generate_source(arg, pretty=False)
+                        for arg in constrdecl.args]
+            else:
+                args = []
 
             subjectexpr = constrdecl.subject
             if subjectexpr is not None:
