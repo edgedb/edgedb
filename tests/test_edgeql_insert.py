@@ -878,3 +878,56 @@ class TestInsert(tb.QueryTestCase):
                 },
             }]
         )
+
+    @unittest.expectedFailure
+    async def test_edgeql_insert_polymorphic_01(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            INSERT Directive {
+                args: {
+                    val := "something"
+                },
+            };
+
+            WITH MODULE test
+            SELECT Callable {
+                args: {
+                    val
+                }
+            };
+
+            WITH MODULE test
+            SELECT Field {
+                args: {
+                    val
+                }
+            };
+
+            WITH MODULE test
+            SELECT Directive {
+                args: {
+                    val
+                }
+            };
+
+            WITH MODULE test
+            SELECT InputValue {
+                val
+            };
+        ''')
+
+        self.assert_data_shape(
+            res, [
+                [1],
+                [{
+                    'args': {'val': 'something'},
+                }],
+                [],
+                [{
+                    'args': {'val': 'something'},
+                }],
+                [{
+                    'val': 'something',
+                }],
+            ]
+        )

@@ -61,3 +61,19 @@ concept Offer:
 
     # some king of special offer for a specific language
     link special to str
+
+# concepts to test some inheritance issues
+concept InputValue:
+    link val to str
+
+abstract concept Callable:
+    link args to InputValue:
+        mapping := '1*'
+
+concept Field extending Callable:
+    # This link 'args' appears to be overriding the inherited 'args'
+    # from Callable.
+    link args to InputValue:
+        mapping := '1*'
+
+concept Directive extending Callable
