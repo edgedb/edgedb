@@ -233,3 +233,114 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 }]
             }],
         }]])
+
+    async def test_graphql_functional_typename_02(self):
+        result = await self.con.execute(r"""
+            query @edgedb(module: "test") {
+                __typename
+                __schema {
+                    __typename
+                }
+            }
+        """, graphql=True)
+
+        self.assert_data_shape(result, [[{
+            '__typename': 'Query',
+            '__schema': {
+                '__typename': '__Schema',
+            },
+        }]])
+
+    async def test_graphql_functional_schema_01(self):
+        result = await self.con.execute(r"""
+            query @edgedb(module: "test") {
+                __schema {
+                    directives {
+                        name
+                        description
+                        locations
+                        args {
+                            name
+                            description
+                            defaultValue
+                        }
+                    }
+                }
+            }
+        """, graphql=True)
+
+        result[0][0]['__schema']['directives'].sort(key=lambda x: x['name'])
+        self.assert_data_shape(result, [[{
+            '__schema': {
+                'directives': [
+                    {
+                        'name': 'deprecated',
+                        'locations': {'FIELD'},
+                        'description':
+                            'Marks an element of a GraphQL schema as no ' +
+                            'longer supported.',
+                        'args': [
+                            {
+                                'name': 'reason',
+                                'description':
+                                    "Explains why this element was " +
+                                    "deprecated, usually also including " +
+                                    "a suggestion for how to access " +
+                                    "supported similar data. Formatted " +
+                                    "in [Markdown](https://daringfireba" +
+                                    "ll.net/projects/markdown/).",
+                                'defaultValue': '"No longer supported"'
+                            }
+                        ],
+                    },
+                    {
+                        'name': 'edgedb',
+                        'locations': {'QUERY', 'MUTATION',
+                                      'FRAGMENT_DEFINITION', 'FRAGMENT_SPREAD',
+                                      'INLINE_FRAGMENT'},
+                        'description':
+                            'Special EdgeDB compatibility directive that ' +
+                            'specifies which module is being used.',
+                        'args': [
+                            {
+                                'name': 'module',
+                                'description':
+                                    'EdgeDB module that needs to be ' +
+                                    'accessed by the query.',
+                                'defaultValue': None
+                            }
+                        ],
+                    },
+                    {
+                        'name': 'include',
+                        'locations': {'FIELD', 'FRAGMENT_SPREAD',
+                                      'INLINE_FRAGMENT'},
+                        'description':
+                            'Directs the executor to include this field or ' +
+                            'fragment only when the `if` argument is true.',
+                        'args': [
+                            {
+                                'name': 'if',
+                                'description': 'Included when true.',
+                                'defaultValue': None
+                            }
+                        ],
+                    },
+                    {
+                        'name': 'skip',
+                        'locations': {'FIELD', 'FRAGMENT_SPREAD',
+                                      'INLINE_FRAGMENT'},
+                        'description':
+                            'Directs the executor to skip this field or ' +
+                            'fragment when the `if` argument is true.',
+                        'args': [
+                            {
+                                'name': 'if',
+                                'description': 'Excluded when true.',
+                                'defaultValue': None
+                            }
+                        ],
+                    },
+                ],
+            }
+        }]])

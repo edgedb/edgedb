@@ -21,11 +21,44 @@ abstract concept Nameable:
 abstract concept Named extending Nameable:
     required link name to str
 
-concept _Type:
+abstract concept Deprecatable:
+    required link isDeprecated to bool
+    link deprecationReason to str
+
+abstract concept Callable:
+    link args to InputValue:
+        mapping := '1*'
+
+abstract concept Typed:
+    # not required for the moment
+    link type to _Type:
+        mapping := '*1'
+
+concept _Type extending Nameable:
     required link kind to typeKind
 
-concept Directive extending Named:
+concept Field extending Named, Deprecatable, Callable
+
+concept InputValue extending Named:
+    link defaultValue to str
+
+concept EnumValue extending Named, Deprecatable
+
+concept Directive extending Named, Callable:
     required link locations to directiveLocation:
         mapping := '1*'
 
+concept Schema extending Named:
+    # not required for the moment
+    link types to _Type:
+        mapping := '**'
+    link queryType to _Type:
+        mapping := '*1'
+    link mutationType to _Type:
+        mapping := '*1'
+    link directives to Directive:
+        mapping := '**'
+
 concept Query extending Named
+
+concept Mutation extending Named

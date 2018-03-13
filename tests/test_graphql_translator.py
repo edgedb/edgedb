@@ -2073,6 +2073,11 @@ class TestGraphQLTranslation(TranslatorTest):
                     name
                     description
                     locations
+                    args {
+                        name
+                        description
+                        defaultValue
+                    }
                 }
             }
         }
@@ -2081,13 +2086,17 @@ class TestGraphQLTranslation(TranslatorTest):
 
         SELECT (graphql::Query) {
             __schema := (SELECT (graphql::Query) {
-                    directives:= (SELECT (graphql::Directive){
+                directives := (SELECT (graphql::Directive) {
+                    name,
+                    description,
+                    locations,
+                    args: {
                         name,
                         description,
-                        locations
-                    })
-                }
-            )
+                        defaultValue
+                    }
+                })
+            })
         };
         """
 

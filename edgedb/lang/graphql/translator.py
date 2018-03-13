@@ -419,7 +419,7 @@ class GraphQLTranslator(ast.NodeVisitor):
                 # the parent is a special graphql type of some sort
                 spec = qlast.ShapeElement(
                     expr=qlast.Path(steps=steps),
-                    compexpr=qlast.Constant(value=prevt.name),
+                    compexpr=qlast.Constant(value=prevt.short_name),
                 )
             else:
                 # shadowed EdgeDB concepts are pretty straight-forward
