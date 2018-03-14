@@ -1538,6 +1538,7 @@ class TestExpressions(tb.QueryTestCase):
                     SELECT a
                 )
             }
+            FILTER .name LIKE 'schema::%'
             ORDER BY .name LIMIT 1;
         """, [
             [{'name': 'schema::Array', 'foo': {1, 2}}],
@@ -1554,6 +1555,7 @@ class TestExpressions(tb.QueryTestCase):
                     FILTER a < 2
                 )
             }
+            FILTER .name LIKE 'schema::%'
             ORDER BY .name LIMIT 1;
         """, [
             [{'name': 'schema::Array', 'foo': {1}}],
