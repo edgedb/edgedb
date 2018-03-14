@@ -1184,3 +1184,38 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 for c in names
                 for d in names},
         ])
+
+    async def test_edgeql_scope_union_01(self):
+        await self.assert_sorted_query_result(r'''
+            # UNION and `{...}` should create SET OF scoped operands,
+            # therefore `count` should operate on the entire set
+            WITH MODULE test
+            SELECT len(User.name) UNION count(User);
+
+            WITH MODULE test
+            SELECT {len(User.name), count(User)};
+        ''', lambda x: x, [
+            [3, 4, 4, 5, 5],
+            [3, 4, 4, 5, 5],
+        ])
+
+    async def test_edgeql_scope_union_02(self):
+        await self.assert_sorted_query_result(r'''
+            # UNION and `{...}` should create SET OF scoped operands,
+            # therefore FILTER should not be effective
+            WITH MODULE test
+            SELECT len(User.name)
+            FILTER User.name > 'C';
+
+            WITH MODULE test
+            SELECT {len(User.name)}
+            FILTER User.name > 'C';
+
+            WITH MODULE test
+            SELECT {len(User.name), count(User)}
+            FILTER User.name > 'C';
+        ''', lambda x: x, [
+            [4, 5],
+            [3, 4, 5, 5],
+            [3, 4, 4, 5, 5],
+        ])
