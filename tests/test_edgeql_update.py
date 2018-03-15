@@ -518,7 +518,68 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_update_multiple_04(self):
+        res = await self.con.execute(r"""
+            # first add a tag to UpdateTest
+            WITH MODULE test
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'update-test1'
+            SET {
+                tags := (
+                    SELECT Tag
+                    FILTER Tag.name = 'fun'
+                )
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest {
+                name,
+                tags: {
+                    name
+                } ORDER BY .name
+            } FILTER UpdateTest.name = 'update-test1';
+
+            # now add another tag, but keep the existing one, too
+            WITH MODULE test
+            UPDATE UpdateTest
+            FILTER UpdateTest.name = 'update-test1'
+            SET {
+                tags := UpdateTest.tags UNION (
+                    SELECT Tag
+                    FILTER Tag.name = 'wow'
+                )
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest {
+                name,
+                tags: {
+                    name
+                } ORDER BY .name
+            } FILTER UpdateTest.name = 'update-test1';
+        """)
+
+        self.assert_data_shape(res, [
+            [1],
+            [{
+                'name': 'update-test1',
+                'tags': [{
+                    'name': 'fun',
+                }],
+            }],
+            [1],
+            [{
+                'name': 'update-test1',
+                'tags': [{
+                    'name': 'fun',
+                }, {
+                    'name': 'wow',
+                }],
+            }],
+        ])
+
+    async def test_edgeql_update_multiple_05(self):
         res = await self.con.execute(r"""
             WITH
                 MODULE test,
@@ -549,7 +610,7 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    async def test_edgeql_update_multiple_05(self):
+    async def test_edgeql_update_multiple_06(self):
         res = await self.con.execute(r"""
             WITH
                 MODULE test,
@@ -585,7 +646,7 @@ class TestUpdate(tb.QueryTestCase):
             },
         ])
 
-    async def test_edgeql_update_multiple_06(self):
+    async def test_edgeql_update_multiple_07(self):
         res = await self.con.execute(r"""
             WITH
                 MODULE test,
@@ -624,7 +685,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_update_multiple_07(self):
+    async def test_edgeql_update_multiple_08(self):
         res = await self.con.execute(r"""
             # make tests related to the other 2
             WITH
@@ -714,7 +775,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_update_multiple_08(self):
+    async def test_edgeql_update_multiple_09(self):
         res = await self.con.execute(r"""
             # make tests related to the other 2
             WITH
@@ -797,7 +858,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_update_multiple_09(self):
+    async def test_edgeql_update_multiple_10(self):
         res = await self.con.execute(r"""
             # make each test related to 'update-test1'
             WITH
