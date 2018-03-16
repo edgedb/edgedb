@@ -1,7 +1,5 @@
 asyncpg
 click
-pytest
-pytest-cov
 Parsing~=1.6.0
 prompt-toolkit
 setproctitle
