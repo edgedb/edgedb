@@ -10,9 +10,11 @@ import logging
 import os.path
 
 from edgedb.lang import edgeql
+from edgedb.lang import schema as edgedb_schema
 from edgedb.lang.schema import ddl as s_ddl
 
 from edgedb.server import defines as edgedb_defines
+from edgedb.server import protocol as edgedb_protocol
 
 from . import backend
 from . import dbops
@@ -144,8 +146,6 @@ async def _ensure_meta_schema(conn):
 async def _init_std_schema(conn):
     logger.info('Bootstrapping std module...')
 
-    from edgedb.lang import schema as edgedb_schema
-
     stdschema = os.path.join(
         os.path.dirname(edgedb_schema.__file__), '_std.eql')
     with open(stdschema, 'r') as f:
@@ -164,9 +164,6 @@ async def _init_std_schema(conn):
 
 async def _init_graphql_schema(conn, cluster, loop):
     logger.info('Bootstrapping graphql module...')
-
-    from edgedb.lang import schema as edgedb_schema
-    from edgedb.server import protocol as edgedb_protocol
 
     protocol = edgedb_protocol.Protocol(cluster, loop=loop)
     protocol.backend = await backend.open_database(conn)
