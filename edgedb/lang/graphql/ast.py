@@ -68,6 +68,10 @@ class EnumLiteral(Literal):
     pass
 
 
+class NullLiteral(Literal):
+    value: None
+
+
 class ListLiteral(Literal):
     def topython(self):
         return [val.topython() for val in self.value]
@@ -128,6 +132,18 @@ class Field(Selection):
     arguments: list
     directives: list
     selection_set: object
+
+
+class SchemaField(Field):
+    pass
+
+
+class TypeField(Field):
+    pass
+
+
+class TypenameField(Field):
+    pass
 
 
 class FragmentSpread(Selection):

@@ -199,6 +199,7 @@ class BaseEdgeQLCompilerTest(BaseParserTest):
         statements = edgeql.parse_block(script)
 
         schema = s_std.load_std_schema()
+        schema = s_std.load_graphql_schema(schema)
 
         for stmt in statements:
             if isinstance(stmt, qlast.Delta):

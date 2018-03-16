@@ -58,6 +58,7 @@ class TranslatorTest(tb.BaseSyntaxTest, metaclass=BaseSchemaTestMeta):
     def setUpClass(cls):
         super().setUpClass()
         cls.schema = s_std.load_std_schema()
+        cls.schema = s_std.load_graphql_schema(cls.schema)
         s_decl.parse_module_declarations(cls.schema, cls._decls)
 
     def run_test(self, *, source, spec, expected=None):
@@ -120,7 +121,7 @@ class TestGraphQLTranslation(TranslatorTest):
             link after to str
     """
 
-    def test_graphql_translation_query01(self):
+    def test_graphql_translation_query_01(self):
         r"""
         query @edgedb(module: "test") {
             User {
@@ -135,16 +136,20 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            (test::User) {
-                name,
-                groups: {
-                    id,
-                    name
-                }
+            (graphql::Query) {
+                User := (SELECT
+                    (test::User) {
+                        name,
+                        groups: {
+                            id,
+                            name
+                        }
+                    }
+                )
             };
         """
 
-    def test_graphql_translation_query02(self):
+    def test_graphql_translation_query_02(self):
         r"""
         query users @edgedb(module: "test") {
             User {
@@ -167,27 +172,32 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         # query settings
-        SELECT
-            (test::Setting) {
-                name,
-                value
-            };
+        SELECT (graphql::Query) {
+            Setting := (SELECT
+                (test::Setting) {
+                    name,
+                    value
+                })
+        };
 
         # query users
-        SELECT
-            (test::User){
-                id,
-                name,
-                groups: {
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User){
                     id,
-                    name
-                }
-            };
+                    name,
+                    groups: {
+                        id,
+                        name
+                    }
+                })
+        };
 
         """
 
-    @tb.must_fail(GraphQLValidationError, line=3, col=13)
-    def test_graphql_translation_query03(self):
+    @tb.must_fail(GraphQLValidationError, "field 'Bogus' is invalid",
+                  line=3, col=13)
+    def test_graphql_translation_query_03(self):
         r"""
         query @edgedb(module: "test") {
             Bogus {
@@ -200,8 +210,9 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=5, col=17)
-    def test_graphql_translation_query04(self):
+    @tb.must_fail(GraphQLValidationError, "field 'bogus' is invalid for User",
+                  line=5, col=17)
+    def test_graphql_translation_query_04(self):
         r"""
         query @edgedb(module: "test") {
             User {
@@ -215,8 +226,9 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=5, col=17)
-    def test_graphql_translation_query05(self):
+    @tb.must_fail(GraphQLValidationError,
+                  "field 'age' is invalid for NamedObject", line=5, col=17)
+    def test_graphql_translation_query_05(self):
         r"""
         query @edgedb(module: "test") {
             NamedObject {
@@ -230,7 +242,33 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    def test_graphql_translation_fragment01(self):
+    def test_graphql_translation_query_06(self):
+        r"""
+        query mixed @edgedb(module: "test") {
+            User {
+                name
+            }
+            Setting {
+                name,
+            }
+        }
+
+% OK %
+
+        # query mixed
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User){
+                    name
+                }),
+            Setting := (SELECT
+                (test::Setting) {
+                    name
+                })
+        };
+
+        """
+    def test_graphql_translation_fragment_01(self):
         r"""
         fragment groupFrag on UserGroup @edgedb(module: "test") {
             id
@@ -248,17 +286,19 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User) {
-                name,
-                groups: {
-                    id,
-                    name
-                }
-            };
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
+                    name,
+                    groups: {
+                        id,
+                        name
+                    }
+                })
+        };
         """
 
-    def test_graphql_translation_fragment02(self):
+    def test_graphql_translation_fragment_02(self):
         r"""
         fragment userFrag1 on User @edgedb(module: "test") {
             name
@@ -284,17 +324,19 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User) {
-                name,
-                groups: {
-                    id,
-                    name
-                }
-            };
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
+                    name,
+                    groups: {
+                        id,
+                        name
+                    }
+                })
+        };
         """
 
-    def test_graphql_translation_fragment03(self):
+    def test_graphql_translation_fragment_03(self):
         r"""
         fragment userFrag2 on User @edgedb(module: "test") {
             groups {
@@ -318,17 +360,19 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User) {
-                name,
-                groups: {
-                    id,
-                    name
-                }
-            };
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
+                    name,
+                    groups: {
+                        id,
+                        name
+                    }
+                })
+        };
         """
 
-    def test_graphql_translation_fragment04(self):
+    def test_graphql_translation_fragment_04(self):
         r"""
         fragment userFrag1 on User @edgedb(module: "test") {
             name
@@ -352,17 +396,19 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User) {
-                name,
-                groups: {
-                    id,
-                    name
-                }
-            };
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
+                    name,
+                    groups: {
+                        id,
+                        name
+                    }
+                })
+        };
         """
 
-    def test_graphql_translation_directives01(self):
+    def test_graphql_translation_directives_01(self):
         r"""
         query @edgedb(module: "test") {
             User {
@@ -376,13 +422,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User) {
-                name,
-            };
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
+                    name,
+                })
+        };
         """
 
-    def test_graphql_translation_directives02(self):
+    def test_graphql_translation_directives_02(self):
         r"""
         query @edgedb(module: "test") {
             User {
@@ -396,15 +444,17 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User) {
-                groups: {
-                    id,
-                }
-            };
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
+                    groups: {
+                        id,
+                    }
+                })
+        };
         """
 
-    def test_graphql_translation_directives03(self):
+    def test_graphql_translation_directives_03(self):
         r"""
         query @edgedb(module: "test") {
             User {
@@ -419,15 +469,17 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User) {
-                groups: {
-                    id,
-                }
-            };
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
+                    groups: {
+                        id,
+                    }
+                })
+        };
         """
 
-    def test_graphql_translation_directives04(self):
+    def test_graphql_translation_directives_04(self):
         r"""
         fragment userFrag1 on User @edgedb(module: "test") {
             name
@@ -451,13 +503,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User) {
-                name,
-            };
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
+                    name,
+                })
+        };
         """
 
-    def test_graphql_translation_directives05(self):
+    def test_graphql_translation_directives_05(self):
         r"""
         fragment userFrag1 on User @edgedb(module: "test") {
             name
@@ -481,13 +535,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User) {
-                name,
-            };
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
+                    name,
+                })
+        };
         """
 
-    def test_graphql_translation_directives06(self):
+    def test_graphql_translation_directives_06(self):
         r"""
         fragment userFrag1 on User @edgedb(module: "test") {
             name
@@ -511,17 +567,19 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User) {
-                name,
-                groups: {
-                    id,
-                }
-            };
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
+                    name,
+                    groups: {
+                        id,
+                    }
+                })
+        };
         """
 
     @with_variables(nogroup=False)
-    def test_graphql_translation_directives07(self):
+    def test_graphql_translation_directives_07(self):
         r"""
         fragment userFrag1 on User @edgedb(module: "test") {
             name
@@ -546,18 +604,20 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
         # critical variables: $nogroup=False
 
-        SELECT
-            (test::User) {
-                name,
-                groups: {
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
                     name,
-                    id,
-                }
-            };
+                    groups: {
+                        name,
+                        id,
+                    }
+                })
+        };
         """
 
     @with_variables(nogroup=True, irrelevant='foo')
-    def test_graphql_translation_directives08(self):
+    def test_graphql_translation_directives_08(self):
         r"""
         fragment userFrag1 on User @edgedb(module: "test") {
             name
@@ -582,17 +642,19 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
         # critical variables: $nogroup=True
 
-        SELECT
-            (test::User) {
-                name,
-                groups: {
-                    id,
-                }
-            };
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
+                    name,
+                    groups: {
+                        id,
+                    }
+                })
+        };
         """
 
     @with_variables(nogroup=True, novalue=False)
-    def test_graphql_translation_directives09(self):
+    def test_graphql_translation_directives_09(self):
         r"""
         fragment userFrag1 on User @edgedb(module: "test") {
             name
@@ -626,26 +688,30 @@ class TestGraphQLTranslation(TranslatorTest):
         # query settings
         # critical variables: $novalue=False
 
-        SELECT
-            (test::Setting){
-                name,
-                value
-            };
+        SELECT (graphql::Query) {
+            Setting := (SELECT
+                (test::Setting){
+                    name,
+                    value
+                })
+        };
 
         # query users
         # critical variables: $nogroup=True
 
-        SELECT
-            (test::User){
-                name,
-                groups: {
-                    id,
-                }
-            };
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User){
+                    name,
+                    groups: {
+                        id,
+                    }
+                })
+        };
         """
 
     @tb.must_fail(GraphQLValidationError, line=4, col=22)
-    def test_graphql_translation_directives10(self):
+    def test_graphql_translation_directives_10(self):
         r"""
         query @edgedb(module: "test") {
             User {
@@ -656,7 +722,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @tb.must_fail(GraphQLValidationError, line=4, col=22)
-    def test_graphql_translation_directives11(self):
+    def test_graphql_translation_directives_11(self):
         r"""
         query ($val: String = "true") @edgedb(module: "test") {
             User {
@@ -666,7 +732,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    def test_graphql_translation_arguments01(self):
+    def test_graphql_translation_arguments_01(self):
         r"""
         query @edgedb(module: "test") {
             User(name: "John") {
@@ -680,19 +746,21 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User) {
-                name,
-                groups: {
-                    id,
-                    name
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
+                    name,
+                    groups: {
+                        id,
+                        name
+                    }
                 }
-            }
-        FILTER
-            ((test::User).name = 'John');
+            FILTER
+                ((test::User).name = 'John'))
+        };
         """
 
-    def test_graphql_translation_arguments02(self):
+    def test_graphql_translation_arguments_02(self):
         r"""
         query @edgedb(module: "test") {
             User(name: "John", active: true) {
@@ -706,22 +774,24 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User) {
-                name,
-                groups: {
-                    id,
-                    name
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
+                    name,
+                    groups: {
+                        id,
+                        name
+                    }
                 }
-            }
-        FILTER
-            (
-                ((test::User).name = 'John') AND
-                ((test::User).active = True)
-            );
+            FILTER
+                (
+                    ((test::User).name = 'John') AND
+                    ((test::User).active = True)
+                ))
+        };
         """
 
-    def test_graphql_translation_arguments03(self):
+    def test_graphql_translation_arguments_03(self):
         r"""
         query @edgedb(module: "test") {
             User {
@@ -735,185 +805,19 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User) {
-                name,
-                groups: {
-                    id,
-                    name
-                } FILTER ((test::User).groups.name = 'admin')
-            };
-        """
-
-    def test_graphql_translation_arguments04(self):
-        r"""
-        query @edgedb(module: "test") {
-            User(groups__name: "admin") {
-                name,
-                groups {
-                    id
-                    name
-                }
-            }
-        }
-
-% OK %
-
-        SELECT
-            (test::User) {
-                name,
-                groups: {
-                    id,
-                    name
-                }
-            }
-        FILTER
-            ((test::User).groups.name = 'admin');
-        """
-
-    def test_graphql_translation_arguments05(self):
-        r"""
-        query @edgedb(module: "test") {
-            User(groups__name__in: ["admin", "support"]) {
-                name,
-                groups {
-                    id
-                    name
-                }
-            }
-        }
-
-% OK %
-
-        SELECT
-            (test::User) {
-                name,
-                groups: {
-                    id,
-                    name
-                }
-            }
-        FILTER
-            std::array_contains(['admin', 'support'],
-                                (test::User).groups.name)
-
-        """
-
-    def test_graphql_translation_arguments06(self):
-        r"""
-        query @edgedb(module: "test") {
-            User(groups__name__ni: ["admin", "support"]) {
-                name,
-                groups {
-                    id
-                    name
-                }
-            }
-        }
-
-% OK %
-
-        SELECT
-            (test::User) {
-                name,
-                groups: {
-                    id,
-                    name
-                }
-            }
-        FILTER
-            NOT std::array_contains(['admin', 'support'],
-                                    (test::User).groups.name)
-        """
-
-    def test_graphql_translation_arguments07(self):
-        r"""
-        query @edgedb(module: "test") {
-            User(groups__name__ne: "admin") {
-                name,
-                groups {
-                    id
-                    name
-                }
-            }
-        }
-
-% OK %
-
-        SELECT
-            (test::User) {
-                name,
-                groups: {
-                    id,
-                    name
-                }
-            }
-        FILTER
-            ((test::User).groups.name != 'admin');
-        """
-
-    def test_graphql_translation_arguments08(self):
-        r"""
-        query @edgedb(module: "test") {
-            User(groups__name__eq: "admin") {
-                name,
-                groups {
-                    id
-                    name
-                }
-            }
-        }
-
-% OK %
-
-        SELECT
-            (test::User) {
-                name,
-                groups: {
-                    id,
-                    name
-                }
-            }
-        FILTER
-            ((test::User).groups.name = 'admin');
-        """
-
-    def test_graphql_translation_arguments09(self):
-        r"""
-        query @edgedb(module: "test") {
-            User {
-                name,
-                groups {
-                    id
-                    name
-                    settings(name__in: ["level", "description"]) {
-                        name
-                        value
-                    }
-                }
-            }
-        }
-
-% OK %
-
-        SELECT
-            (test::User) {
-                name,
-                groups: {
-                    id,
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
                     name,
-                    settings: {
-                        name,
-                        value
-                    } FILTER
-                        std::array_contains(
-                            ['level', 'description'],
-                            (test::User).groups.settings.name)
-                }
-            };
+                    groups: {
+                        id,
+                        name
+                    } FILTER ((test::User).groups.name = 'admin')
+                })
+        };
         """
 
-    def test_graphql_translation_variables01(self):
+    def test_graphql_translation_variables_01(self):
         r"""
         query($name: String) @edgedb(module: "test") {
             User(name: $name) {
@@ -927,61 +831,21 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User) {
-                name,
-                groups: {
-                    id,
-                    name
-                }
-            }
-        FILTER
-            ((test::User).name = $name);
-        """
-
-    def test_graphql_translation_variables02(self):
-        r"""
-        query(
-            $names: [String],
-            $groups: [String],
-            $setting: String
-        ) @edgedb(module: "test") {
-            User(name__in: $names, groups__name__in: $groups) {
-                name,
-                groups {
-                    id
-                    name
-                    settings(name: $setting) {
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
+                    name,
+                    groups: {
+                        id,
                         name
-                        value
                     }
                 }
-            }
-        }
-
-% OK %
-
-        SELECT
-            (test::User) {
-                name,
-                groups: {
-                    id,
-                    name
-                    settings: {
-                        name,
-                        value
-                    } FILTER
-                        ((test::User).groups.settings.name = $setting)
-                }
-            }
-        FILTER
-            (
-                std::array_contains($names, (test::User).name) AND
-                std::array_contains($groups, (test::User).groups.name)
-            );
+            FILTER
+                ((test::User).name = $name))
+        };
         """
 
-    def test_graphql_translation_variables03(self):
+    def test_graphql_translation_variables_03(self):
         r"""
         query($val: Int = 3) @edgedb(module: "test") {
             User(score: $val) {
@@ -991,15 +855,17 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User) {
-                id,
-            }
-        FILTER
-            ((test::User).score = $val);
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
+                    id,
+                }
+            FILTER
+                ((test::User).score = $val))
+        };
         """
 
-    def test_graphql_translation_variables04(self):
+    def test_graphql_translation_variables_04(self):
         r"""
         query($val: Boolean = true) @edgedb(module: "test") {
             User {
@@ -1015,14 +881,16 @@ class TestGraphQLTranslation(TranslatorTest):
 
         # critical variables: $val=True
 
-        SELECT
-            (test::User) {
-                name,
-            };
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
+                    name,
+                })
+        };
         """
 
     @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    def test_graphql_translation_variables05(self):
+    def test_graphql_translation_variables_05(self):
         r"""
         query($val: Boolean! = true) @edgedb(module: "test") {
             User {
@@ -1033,7 +901,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    def test_graphql_translation_variables06(self):
+    def test_graphql_translation_variables_06(self):
         r"""
         query($val: Boolean!) @edgedb(module: "test") {
             User {
@@ -1043,7 +911,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    def test_graphql_translation_variables07(self):
+    def test_graphql_translation_variables_07(self):
         r"""
         query($val: String = "John") @edgedb(module: "test") {
             User(name: $val) {
@@ -1053,15 +921,17 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User) {
-                id,
-            }
-        FILTER
-            ((test::User).name = $val);
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
+                    id,
+                }
+            FILTER
+                ((test::User).name = $val))
+        };
         """
 
-    def test_graphql_translation_variables08(self):
+    def test_graphql_translation_variables_08(self):
         r"""
         query($val: Int = 20) @edgedb(module: "test") {
             User(age: $val) {
@@ -1071,15 +941,17 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User) {
-                id,
-            }
-        FILTER
-            ((test::User).age = $val);
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
+                    id,
+                }
+            FILTER
+                ((test::User).age = $val))
+        };
         """
 
-    def test_graphql_translation_variables09(self):
+    def test_graphql_translation_variables_09(self):
         r"""
         query($val: Float = 3.5) @edgedb(module: "test") {
             User(score: $val) {
@@ -1089,15 +961,17 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User) {
-                id,
-            }
-        FILTER
-            ((test::User).score = $val);
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
+                    id,
+                }
+            FILTER
+                ((test::User).score = $val))
+        };
         """
 
-    def test_graphql_translation_variables10(self):
+    def test_graphql_translation_variables_10(self):
         r"""
         query($val: Int = 3) @edgedb(module: "test") {
             User(score: $val) {
@@ -1107,15 +981,17 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User) {
-                id,
-            }
-        FILTER
-            ((test::User).score = $val);
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
+                    id,
+                }
+            FILTER
+                ((test::User).score = $val))
+        };
         """
 
-    def test_graphql_translation_variables11(self):
+    def test_graphql_translation_variables_11(self):
         r"""
         query($val: Float = 3) @edgedb(module: "test") {
             User(score: $val) {
@@ -1125,16 +1001,18 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User) {
-                id,
-            }
-        FILTER
-            ((test::User).score = $val);
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
+                    id,
+                }
+            FILTER
+                ((test::User).score = $val))
+        };
         """
 
     @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    def test_graphql_translation_variables12(self):
+    def test_graphql_translation_variables_12(self):
         r"""
         query($val: Boolean = 1) @edgedb(module: "test") {
             User {
@@ -1145,7 +1023,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    def test_graphql_translation_variables13(self):
+    def test_graphql_translation_variables_13(self):
         r"""
         query($val: Boolean = "1") @edgedb(module: "test") {
             User {
@@ -1156,7 +1034,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    def test_graphql_translation_variables14(self):
+    def test_graphql_translation_variables_14(self):
         r"""
         query($val: Boolean = 1.3) @edgedb(module: "test") {
             User {
@@ -1167,7 +1045,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    def test_graphql_translation_variables15(self):
+    def test_graphql_translation_variables_15(self):
         r"""
         query($val: String = 1) @edgedb(module: "test") {
             User(name: $val) {
@@ -1177,7 +1055,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    def test_graphql_translation_variables16(self):
+    def test_graphql_translation_variables_16(self):
         r"""
         query($val: String = 1.1) @edgedb(module: "test") {
             User(name: $val) {
@@ -1187,7 +1065,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    def test_graphql_translation_variables17(self):
+    def test_graphql_translation_variables_17(self):
         r"""
         query($val: String = true) @edgedb(module: "test") {
             User(name: $val) {
@@ -1197,7 +1075,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    def test_graphql_translation_variables18(self):
+    def test_graphql_translation_variables_18(self):
         r"""
         query($val: Int = 1.1) @edgedb(module: "test") {
             User(age: $val) {
@@ -1207,7 +1085,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    def test_graphql_translation_variables19(self):
+    def test_graphql_translation_variables_19(self):
         r"""
         query($val: Int = "1") @edgedb(module: "test") {
             User(age: $val) {
@@ -1217,7 +1095,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    def test_graphql_translation_variables20(self):
+    def test_graphql_translation_variables_20(self):
         r"""
         query($val: Int = true) @edgedb(module: "test") {
             User(age: $val) {
@@ -1227,7 +1105,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    def test_graphql_translation_variables21(self):
+    def test_graphql_translation_variables_21(self):
         r"""
         query($val: Float = "1") @edgedb(module: "test") {
             User(score: $val) {
@@ -1237,7 +1115,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    def test_graphql_translation_variables22(self):
+    def test_graphql_translation_variables_22(self):
         r"""
         query($val: Float = true) @edgedb(module: "test") {
             User(score: $val) {
@@ -1246,7 +1124,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    def test_graphql_translation_variables23(self):
+    def test_graphql_translation_variables_23(self):
         r"""
         query($val: ID = "1") @edgedb(module: "test") {
             User(id: $val) {
@@ -1256,15 +1134,17 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User){
-                name,
-            }
-        FILTER
-            ((test::User).id = $val);
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User){
+                    name,
+                }
+            FILTER
+                ((test::User).id = $val))
+        };
         """
 
-    def test_graphql_translation_variables24(self):
+    def test_graphql_translation_variables_24(self):
         r"""
         query($val: ID = 1) @edgedb(module: "test") {
             User(id: $val) {
@@ -1274,16 +1154,18 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User){
-                name,
-            }
-        FILTER
-            ((test::User).id = $val);
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User){
+                    name,
+                }
+            FILTER
+                ((test::User).id = $val))
+        };
         """
 
     @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    def test_graphql_translation_variables25(self):
+    def test_graphql_translation_variables_25(self):
         r"""
         query($val: ID = 1.1) @edgedb(module: "test") {
             User(id: $val) {
@@ -1293,7 +1175,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    def test_graphql_translation_variables26(self):
+    def test_graphql_translation_variables_26(self):
         r"""
         query($val: ID = true) @edgedb(module: "test") {
             User(id: $val) {
@@ -1303,7 +1185,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    def test_graphql_translation_variables27(self):
+    def test_graphql_translation_variables_27(self):
         r"""
         query($val: [String] = "Foo") @edgedb(module: "test") {
             User(name__in: $val) {
@@ -1314,7 +1196,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     @tb.must_fail(GraphQLValidationError, line=2, col=15)
     @with_variables(val='Foo')
-    def test_graphql_translation_variables28(self):
+    def test_graphql_translation_variables_28(self):
         r"""
         query($val: [String]) @edgedb(module: "test") {
             User(name__in: $val) {
@@ -1324,7 +1206,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    def test_graphql_translation_variables29(self):
+    def test_graphql_translation_variables_29(self):
         r"""
         query($val: [String]!) @edgedb(module: "test") {
             User(name__in: $val) {
@@ -1334,7 +1216,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    def test_graphql_translation_variables30(self):
+    def test_graphql_translation_variables_30(self):
         r"""
         query($val: String!) @edgedb(module: "test") {
             User(name: $val) {
@@ -1344,7 +1226,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    def test_graphql_translation_variables31(self):
+    def test_graphql_translation_variables_31(self):
         r"""
         query($val: [String] = ["Foo", 123]) @edgedb(module: "test") {
             User(name__in: $val) {
@@ -1355,7 +1237,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     @tb.must_fail(GraphQLValidationError, line=2, col=15)
     @with_variables(val=["Foo", 123])
-    def test_graphql_translation_variables32(self):
+    def test_graphql_translation_variables_32(self):
         r"""
         query($val: [String]) @edgedb(module: "test") {
             User(name__in: $val) {
@@ -1364,26 +1246,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    def test_graphql_translation_variables33(self):
-        r"""
-        query($val: [String] = ["Foo", "Bar"]) @edgedb(module: "test") {
-            User(name__in: $val) {
-                id
-            }
-        }
-
-% OK %
-
-        SELECT
-            (test::User){
-                id,
-            }
-        FILTER
-            std::array_contains($val, (test::User).name);
-
-        """
-
-    def test_graphql_translation_enum01(self):
+    def test_graphql_translation_enum_01(self):
         r"""
         query @edgedb(module: "test") {
             # this is an ENUM that gets simply converted to a string in EdgeQL
@@ -1395,16 +1258,18 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::UserGroup){
-                id,
-                name,
-            }
-        FILTER
-            ((test::UserGroup).name = 'admin');
+        SELECT (graphql::Query) {
+            UserGroup := (SELECT
+                (test::UserGroup){
+                    id,
+                    name,
+                }
+            FILTER
+                ((test::UserGroup).name = 'admin'))
+        };
         """
 
-    def test_graphql_translation_arg_type01(self):
+    def test_graphql_translation_arg_type_01(self):
         r"""
         query @edgedb(module: "test") {
             User(name: "John") {
@@ -1414,15 +1279,17 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User){
-                id,
-            }
-        FILTER
-            ((test::User).name = 'John');
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User){
+                    id,
+                }
+            FILTER
+                ((test::User).name = 'John'))
+        };
         """
 
-    def test_graphql_translation_arg_type02(self):
+    def test_graphql_translation_arg_type_02(self):
         r"""
         query @edgedb(module: "test") {
             User(age: 20) {
@@ -1432,15 +1299,17 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User){
-                id,
-            }
-        FILTER
-            ((test::User).age = 20);
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User){
+                    id,
+                }
+            FILTER
+                ((test::User).age = 20))
+        };
         """
 
-    def test_graphql_translation_arg_type03(self):
+    def test_graphql_translation_arg_type_03(self):
         r"""
         query @edgedb(module: "test") {
             User(score: 3.5) {
@@ -1450,15 +1319,17 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User){
-                id,
-            }
-        FILTER
-            ((test::User).score = 3.5);
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User){
+                    id,
+                }
+            FILTER
+                ((test::User).score = 3.5))
+        };
         """
 
-    def test_graphql_translation_arg_type04(self):
+    def test_graphql_translation_arg_type_04(self):
         r"""
         query @edgedb(module: "test") {
             User(score: 3) {
@@ -1468,16 +1339,18 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User){
-                id,
-            }
-        FILTER
-            ((test::User).score = 3);
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User){
+                    id,
+                }
+            FILTER
+                ((test::User).score = 3))
+        };
         """
 
     @with_variables(val="John")
-    def test_graphql_translation_arg_type05(self):
+    def test_graphql_translation_arg_type_05(self):
         r"""
         query($val: String!) @edgedb(module: "test") {
             User(name: $val) {
@@ -1487,16 +1360,18 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User){
-                id,
-            }
-        FILTER
-            ((test::User).name = $val);
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User){
+                    id,
+                }
+            FILTER
+                ((test::User).name = $val))
+        };
         """
 
     @with_variables(val=20)
-    def test_graphql_translation_arg_type06(self):
+    def test_graphql_translation_arg_type_06(self):
         r"""
         query($val: Int!) @edgedb(module: "test") {
             User(age: $val) {
@@ -1506,16 +1381,18 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User){
-                id,
-            }
-        FILTER
-            ((test::User).age = $val);
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User){
+                    id,
+                }
+            FILTER
+                ((test::User).age = $val))
+        };
         """
 
     @with_variables(val=3.5)
-    def test_graphql_translation_arg_type07(self):
+    def test_graphql_translation_arg_type_07(self):
         r"""
         query($val: Float!) @edgedb(module: "test") {
             User(score: $val) {
@@ -1525,16 +1402,18 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User){
-                id,
-            }
-        FILTER
-            ((test::User).score = $val);
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User){
+                    id,
+                }
+            FILTER
+                ((test::User).score = $val))
+        };
         """
 
     @with_variables(val=3)
-    def test_graphql_translation_arg_type08(self):
+    def test_graphql_translation_arg_type_08(self):
         r"""
         query($val: Int!) @edgedb(module: "test") {
             User(score: $val) {
@@ -1544,164 +1423,18 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User){
-                id,
-            }
-        FILTER
-            ((test::User).score = $val);
-        """
-
-    def test_graphql_translation_arg_type09(self):
-        r"""
-        query @edgedb(module: "test") {
-            User(name__in: ["John", "Jane"]) {
-                id,
-            }
-        }
-
-% OK %
-
-        SELECT
-            (test::User){
-                id,
-            }
-        FILTER
-            std::array_contains(['John', 'Jane'], (test::User).name);
-        """
-
-    def test_graphql_translation_arg_type10(self):
-        r"""
-        query @edgedb(module: "test") {
-            User(age__in: [10, 20, 30, 40]) {
-                id,
-            }
-        }
-
-% OK %
-
-        SELECT
-            (test::User){
-                id,
-            }
-        FILTER
-            std::array_contains([10, 20, 30, 40], (test::User).age);
-        """
-
-    def test_graphql_translation_arg_type11(self):
-        r"""
-        query @edgedb(module: "test") {
-            User(score__in: [3.5, 3.6, 3.7]) {
-                id,
-            }
-        }
-
-% OK %
-
-        SELECT
-            (test::User){
-                id,
-            }
-        FILTER
-            std::array_contains([3.5, 3.6, 3.7], (test::User).score);
-        """
-
-    def test_graphql_translation_arg_type12(self):
-        r"""
-        query @edgedb(module: "test") {
-            User(score__in: [1, 2, 3]) {
-                id,
-            }
-        }
-
-% OK %
-
-        SELECT
-            (test::User){
-                id,
-            }
-        FILTER
-            std::array_contains([1, 2, 3], (test::User).score);
-        """
-
-    @with_variables(val=["John", "Jane"])
-    def test_graphql_translation_arg_type13(self):
-        r"""
-        query($val: [String]!) @edgedb(module: "test") {
-            User(name__in: $val) {
-                id,
-            }
-        }
-
-% OK %
-
-        SELECT
-            (test::User){
-                id,
-            }
-        FILTER
-            std::array_contains($val, (test::User).name);
-        """
-
-    @with_variables(val=[10, 20])
-    def test_graphql_translation_arg_type14(self):
-        r"""
-        query($val: [Int]!) @edgedb(module: "test") {
-            User(age__in: $val) {
-                id,
-            }
-        }
-
-% OK %
-
-        SELECT
-            (test::User){
-                id,
-            }
-        FILTER
-            std::array_contains($val, (test::User).age);
-        """
-
-    @with_variables(val=[3, 3.5, 4])
-    def test_graphql_translation_arg_type15(self):
-        r"""
-        query($val: [Float]!) @edgedb(module: "test") {
-            User(score__in: $val) {
-                id,
-            }
-        }
-
-% OK %
-
-        SELECT
-            (test::User){
-                id,
-            }
-        FILTER
-            std::array_contains($val, (test::User).score);
-        """
-
-    @with_variables(val=[1, 2, 3])
-    def test_graphql_translation_arg_type16(self):
-        r"""
-        query($val: [Int]!) @edgedb(module: "test") {
-            User(score__in: $val) {
-                id,
-            }
-        }
-
-% OK %
-
-        SELECT
-            (test::User){
-                id,
-            }
-        FILTER
-            std::array_contains($val, (test::User).score);
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User){
+                    id,
+                }
+            FILTER
+                ((test::User).score = $val))
+        };
         """
 
     @tb.must_fail(GraphQLValidationError, line=3, col=18)
-    def test_graphql_translation_arg_type17(self):
+    def test_graphql_translation_arg_type_17(self):
         r"""
         query @edgedb(module: "test") {
             User(name: 42) {
@@ -1711,7 +1444,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @tb.must_fail(GraphQLValidationError, line=3, col=18)
-    def test_graphql_translation_arg_type18(self):
+    def test_graphql_translation_arg_type_18(self):
         r"""
         query @edgedb(module: "test") {
             User(age: 20.5) {
@@ -1721,7 +1454,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @tb.must_fail(GraphQLValidationError, line=3, col=18)
-    def test_graphql_translation_arg_type19(self):
+    def test_graphql_translation_arg_type_19(self):
         r"""
         query @edgedb(module: "test") {
             User(score: "3.5") {
@@ -1731,7 +1464,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @tb.must_fail(GraphQLValidationError, line=3, col=18)
-    def test_graphql_translation_arg_type20(self):
+    def test_graphql_translation_arg_type_20(self):
         r"""
         query @edgedb(module: "test") {
             User(active: 0) {
@@ -1740,47 +1473,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=3, col=18)
-    def test_graphql_translation_arg_type21(self):
-        r"""
-        query @edgedb(module: "test") {
-            User(name__in: ["John", 42]) {
-                id,
-            }
-        }
-        """
-
-    @tb.must_fail(GraphQLValidationError, line=3, col=18)
-    def test_graphql_translation_arg_type22(self):
-        r"""
-        query @edgedb(module: "test") {
-            User(age__in: [1, 20.5]) {
-                id,
-            }
-        }
-        """
-
-    @tb.must_fail(GraphQLValidationError, line=3, col=18)
-    def test_graphql_translation_arg_type23(self):
-        r"""
-        query @edgedb(module: "test") {
-            User(score__in: [1, "3.5"]) {
-                id,
-            }
-        }
-        """
-
-    @tb.must_fail(GraphQLValidationError, line=3, col=18)
-    def test_graphql_translation_arg_type24(self):
-        r"""
-        query @edgedb(module: "test") {
-            User(active__in: [true, 0]) {
-                id,
-            }
-        }
-        """
-
-    def test_graphql_translation_fragment_type01(self):
+    def test_graphql_translation_fragment_type_01(self):
         r"""
         fragment userFrag on User @edgedb(module: "test") {
             id,
@@ -1795,14 +1488,16 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User){
-                id,
-                name,
-            };
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User){
+                    id,
+                    name,
+                })
+        };
         """
 
-    def test_graphql_translation_fragment_type02(self):
+    def test_graphql_translation_fragment_type_02(self):
         r"""
         fragment namedFrag on NamedObject @edgedb(module: "test") {
             id,
@@ -1817,14 +1512,16 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User){
-                id,
-                name,
-            };
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User){
+                    id,
+                    name,
+                })
+        };
         """
 
-    def test_graphql_translation_fragment_type03(self):
+    def test_graphql_translation_fragment_type_03(self):
         r"""
         fragment namedFrag on NamedObject @edgedb(module: "test") {
             id,
@@ -1844,16 +1541,19 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User){
-                id,
-                name,
-                age,
-            };
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User){
+                    id,
+                    name,
+                    age,
+                })
+        };
         """
 
-    @tb.must_fail(GraphQLValidationError, 'are not related', line=9, col=17)
-    def test_graphql_translation_fragment_type04(self):
+    @tb.must_fail(GraphQLValidationError,
+                  'UserGroup and User are not related', line=9, col=17)
+    def test_graphql_translation_fragment_type_04(self):
         r"""
         fragment userFrag on User @edgedb(module: "test") {
             id,
@@ -1867,8 +1567,9 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, 'are not related', line=8, col=13)
-    def test_graphql_translation_fragment_type05(self):
+    @tb.must_fail(GraphQLValidationError,
+                  'UserGroup and User are not related', line=8, col=13)
+    def test_graphql_translation_fragment_type_05(self):
         r"""
         fragment userFrag on User @edgedb(module: "test") {
             id,
@@ -1889,7 +1590,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    def test_graphql_translation_fragment_type06(self):
+    def test_graphql_translation_fragment_type_06(self):
         r"""
         fragment userFrag on User @edgedb(module: "test") {
            name,
@@ -1905,15 +1606,17 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::NamedObject){
-                id,
-                (test::User).name,
-                (test::User).age,
-            };
+        SELECT (graphql::Query) {
+            NamedObject := (SELECT
+                (test::NamedObject){
+                    id,
+                    (test::User).name,
+                    (test::User).age,
+                })
+        };
         """
 
-    def test_graphql_translation_fragment_type07(self):
+    def test_graphql_translation_fragment_type_07(self):
         r"""
         fragment frag on NamedObject @edgedb(module: "test") {
             id,
@@ -1928,16 +1631,18 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::NamedObject){
-                id,
-                name,
-            };
+        SELECT (graphql::Query) {
+            NamedObject := (SELECT
+                (test::NamedObject){
+                    id,
+                    name,
+                })
+        };
         """
 
     @tb.must_fail(GraphQLValidationError, r'field \S+ is invalid for',
                   line=5, col=13)
-    def test_graphql_translation_fragment_type08(self):
+    def test_graphql_translation_fragment_type_08(self):
         r"""
         fragment frag on NamedObject @edgedb(module: "test") {
             id,
@@ -1954,7 +1659,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     @tb.must_fail(GraphQLValidationError, r'field \S+ is invalid for',
                   line=7, col=21)
-    def test_graphql_translation_fragment_type09(self):
+    def test_graphql_translation_fragment_type_09(self):
         r"""
         query @edgedb(module: "test") {
             User {
@@ -1967,7 +1672,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    def test_graphql_translation_fragment_type10(self):
+    def test_graphql_translation_fragment_type_10(self):
         r"""
         fragment namedFrag on NamedObject @edgedb(module: "test") {
             id,
@@ -1987,15 +1692,17 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::NamedObject){
-                id,
-                name,
-                (test::User).age,
-            };
+        SELECT (graphql::Query) {
+            NamedObject := (SELECT
+                (test::NamedObject){
+                    id,
+                    name,
+                    (test::User).age,
+                })
+        };
         """
 
-    def test_graphql_translation_fragment_type11(self):
+    def test_graphql_translation_fragment_type_11(self):
         r"""
         fragment namedFrag on NamedObject @edgedb(module: "test") {
             id,
@@ -2015,15 +1722,17 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User){
-                id,
-                name,
-                (test::User).age,
-            };
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User){
+                    id,
+                    name,
+                    (test::User).age,
+                })
+        };
         """
 
-    def test_graphql_translation_fragment_type12(self):
+    def test_graphql_translation_fragment_type_12(self):
         r"""
         query @edgedb(module: "test") {
             NamedObject {
@@ -2035,13 +1744,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::NamedObject) {
-                (test::User).age
-            }
+        SELECT (graphql::Query) {
+            NamedObject := (SELECT
+                (test::NamedObject) {
+                    (test::User).age
+                })
+        };
         """
 
-    def test_graphql_translation_import01(self):
+    def test_graphql_translation_import_01(self):
         r"""
         fragment groupFrag on UserGroup @edgedb(module: "test") {
             id
@@ -2060,19 +1771,21 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (mod2::Person) {
-                id,
-                name,
-                groups: {
+        SELECT (graphql::Query) {
+            Person := (SELECT
+                (mod2::Person) {
                     id,
                     name,
-                }
-            };
+                    groups: {
+                        id,
+                        name,
+                    }
+                })
+        };
         """
 
     @tb.must_fail(GraphQLValidationError, line=8, col=13)
-    def test_graphql_translation_import02(self):
+    def test_graphql_translation_import_02(self):
         r"""
         fragment groupFrag on UserGroup @edgedb(module: "test") {
             id
@@ -2088,41 +1801,31 @@ class TestGraphQLTranslation(TranslatorTest):
                 }
             }
         }
+        """
+
+    def test_graphql_translation_duplicates_01(self):
+        r"""
+        query @edgedb(module: "test") {
+            User {
+                id
+                name
+                name
+                name
+            }
+        }
 
 % OK %
 
-        SELECT
-            [mod2.Person]{
-                id,
-                name,
-                groups{
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User){
                     id,
                     name,
-                ],
-            };
+                })
+        };
         """
 
-    def test_graphql_translation_duplicates01(self):
-        r"""
-        query @edgedb(module: "test") {
-            User {
-                id
-                name
-                name
-                name
-            }
-        }
-
-% OK %
-
-        SELECT
-            (test::User){
-                id,
-                name,
-            };
-        """
-
-    def test_graphql_translation_duplicates02(self):
+    def test_graphql_translation_duplicates_02(self):
         r"""
         query @edgedb(module: "test") {
             User {
@@ -2134,14 +1837,16 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User){
-                name,
-                id,
-            };
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User){
+                    name,
+                    id,
+                })
+        };
         """
 
-    def test_graphql_translation_duplicates03(self):
+    def test_graphql_translation_duplicates_03(self):
         r"""
         query @edgedb(module: "test") {
             User {
@@ -2155,14 +1860,16 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User){
-                name,
-                id,
-            };
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User){
+                    name,
+                    id,
+                })
+        };
         """
 
-    def test_graphql_translation_duplicates04(self):
+    def test_graphql_translation_duplicates_04(self):
         r"""
         fragment f1 on User @edgedb(module: "test") {
             name @include(if: true)
@@ -2184,15 +1891,17 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (test::User){
-                id,
-                name,
-            };
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User){
+                    id,
+                    name,
+                })
+        };
         """
 
     @tb.must_fail(GraphQLValidationError, line=6, col=17)
-    def test_graphql_translation_duplicates05(self):
+    def test_graphql_translation_duplicates_05(self):
         r"""
         query @edgedb(module: "test") {
             User {
@@ -2205,7 +1914,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @tb.must_fail(GraphQLValidationError, line=8, col=17)
-    def test_graphql_translation_duplicates06(self):
+    def test_graphql_translation_duplicates_06(self):
         r"""
         query @edgedb(module: "test") {
             User {
@@ -2219,7 +1928,7 @@ class TestGraphQLTranslation(TranslatorTest):
         """
 
     @tb.must_fail(GraphQLValidationError, line=3, col=13)
-    def test_graphql_translation_duplicates07(self):
+    def test_graphql_translation_duplicates_07(self):
         r"""
         fragment f1 on User @edgedb(module: "test") {
             name @skip(if: false)
@@ -2240,7 +1949,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    def test_graphql_translation_quoting01(self):
+    def test_graphql_translation_quoting_01(self):
         r"""
         query @edgedb(module: "123lib") {
             Foo(select: "bar") {
@@ -2251,403 +1960,161 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT
-            (`123lib`::Foo){
-                `select`,
-                after
-            }
-        FILTER
-            ((`123lib`::Foo).`select` = 'bar');
+        SELECT (graphql::Query) {
+            Foo := (SELECT
+                (`123lib`::Foo){
+                    `select`,
+                    after
+                }
+            FILTER
+                ((`123lib`::Foo).`select` = 'bar'))
+        };
         """
 
-    def test_graphql_translation_delete01(self):
+    def test_graphql_translation_typename_01(self):
         r"""
-        mutation @edgedb(module: "test") {
-            delete__User {
-                name,
+        query @edgedb(module: "test") {
+            User {
+                name
+                __typename
                 groups {
                     id
                     name
+                    __typename
                 }
             }
         }
 
 % OK %
 
-        SELECT (
-            DELETE
-                (SELECT (test::User))
-        ) {
-            name,
-            groups: {
-                id,
-                name
-            }
-        };
-        """
-
-    def test_graphql_translation_delete02(self):
-        r"""
-        mutation @edgedb(module: "test") {
-            delete__User(name: "John") {
-                name,
-                groups {
-                    id
-                    name
-                }
-            }
-        }
-
-% OK %
-
-        SELECT (
-            DELETE
-                (SELECT (test::User)
-                 FILTER
-                    ((test::User).name = 'John'))
-        ) {
-            name,
-            groups: {
-                id,
-                name
-            }
-        };
-        """
-
-    def test_graphql_translation_delete03(self):
-        r"""
-        mutation delete @edgedb(module: "test") {
-            delete__User(name: "John", active: true) {
-                id,
-            }
-        }
-
-% OK %
-
-        # mutation delete
-        SELECT (
-            DELETE
-                (SELECT (test::User)
-                 FILTER
-                    (
-                        ((test::User).name = 'John') AND
-                        ((test::User).active = True)
-                    )
-                )
-        ) {
-            id,
-        };
-        """
-
-    def test_graphql_translation_insert01(self):
-        r"""
-        mutation @edgedb(module: "test") {
-            insert__UserGroup(__data: {
-                name: "new"
-            }) {
-                id,
-                name,
-            }
-        }
-
-% OK %
-
-        SELECT (
-            INSERT
-                test::UserGroup {
-                    name := 'new'
-                }
-        ) {
-            id,
-            name
-        };
-        """
-
-    def test_graphql_translation_insert02(self):
-        r"""
-        mutation insert @edgedb(module: "test") {
-            insert__User(__data: {
-                name: "John",
-                active: true,
-                age: 25,
-                score: 3.14
-            }) {
-                id,
-            }
-        }
-
-% OK %
-
-        # mutation insert
-        SELECT (
-            INSERT
-                test::User {
-                    name := 'John',
-                    active := True,
-                    age := 25,
-                    score := 3.14
-                }
-        ) {
-            id,
-        };
-        """
-
-    def test_graphql_translation_insert03(self):
-        r"""
-        mutation insert @edgedb(module: "test") {
-            insert__User(__data: {
-                name: "John",
-                active: true,
-                age: 25,
-                score: 3.14,
-                groups__id: "21e16e2e-e445-494c-acfc-cc9378620501"
-            }) {
-                id,
-                groups {
-                    name
-                }
-            }
-        }
-
-% OK %
-
-        # mutation insert
-        SELECT (
-            INSERT
-                test::User {
-                    name := 'John',
-                    active := True,
-                    age := 25,
-                    score := 3.14,
-                    groups := (
-                        SELECT (std::Object)
-                        FILTER (
-                            (std::Object).id =
-                                <std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501'
-                        )
-                    )
-                }
-        ) {
-            id,
-            groups: {
-                name
-            }
-        };
-        """
-
-    def test_graphql_translation_insert04(self):
-        r"""
-        mutation @edgedb(module: "test") {
-            insert__User(__data: {
-                name: "John",
-                active: true,
-                age: 25,
-                score: 3.14,
-                groups__id: [
-                    "21e16e2e-e445-494c-acfc-cc9378620501",
-                    "fd5f4ad8-2e8c-4224-9243-361d61dee856"
-                ]
-            }) {
-                name,
-                id,
-                groups {
-                    name
-                }
-            }
-        }
-
-% OK %
-
-        SELECT (
-            INSERT
-                test::User {
-                    name := 'John',
-                    active := True,
-                    age := 25,
-                    score := 3.14,
-                    groups := (
-                        SELECT (std::Object)
-                        FILTER (
-                            (std::Object).id IN
-                                [<std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501',
-                                 <std::uuid>'fd5f4ad8-2e8c-4224-9243-361d61dee856']
-                        )
-                    )
-                }
-        ) {
-            name,
-            id,
-            groups: {
-                name
-            }
-        };
-        """
-
-    def test_graphql_translation_insert05(self):
-        r"""
-        # this creates a nested user + profile
-        #
-        mutation @edgedb(module: "test") {
-            insert__User(__data: {
-                name: "John",
-                active: true,
-                age: 25,
-                score: 3.14,
-                profile: {
-                    name: "New Profile",
-                    value: "default"
-                }
-            }) {
-                name,
-                id,
-                profile {
+        SELECT (graphql::Query) {
+            User := (SELECT
+                (test::User) {
                     name,
-                    value
-                }
+                    __typename := (test::User).__class__.name,
+                    groups: {
+                        id,
+                        name,
+                        __typename := (test::User).groups.__class__.name
+                    }
+                })
+        };
+        """
+
+    def test_graphql_translation_typename_02(self):
+        r"""
+        query {
+            __typename
+        }
+
+% OK %
+
+        SELECT (graphql::Query) {
+            __typename := 'Query'
+        };
+        """
+
+    def test_graphql_translation_schema_01(self):
+        r"""
+        query @edgedb(module: "test") {
+            __schema {
+                __typename
             }
         }
 
 % OK %
 
-        SELECT (
-            INSERT
-                test::User {
-                    name := 'John',
-                    active := True,
-                    age := 25,
-                    score := 3.14,
-                    profile: {
-                        name := 'New Profile',
-                        value := 'default'
+        SELECT (graphql::Query) {
+            __schema := (
+                SELECT (graphql::Query) {
+                    __typename := '__Schema'
+                }
+            )
+        };
+        """
+
+    def test_graphql_translation_schema_02(self):
+        r"""
+        query @edgedb(module: "test") {
+            __schema {
+                __typename
+            }
+            __schema {
+                __typename
+            }
+        }
+
+% OK %
+
+        SELECT (graphql::Query) {
+            __schema:= (
+                SELECT (graphql::Query) {
+                    __typename := '__Schema'
+                }
+            )
+        };
+        """
+
+    @tb.must_fail(GraphQLValidationError, line=3, col=22)
+    def test_graphql_translation_schema_03(self):
+        r"""
+        query @edgedb(module: "test") {
+            __schema(name: "foo") {
+                __typename
+            }
+        }
+        """
+
+    def test_graphql_translation_schema_04(self):
+        r"""
+        query @edgedb(module: "test") {
+            __schema {
+                directives {
+                    name
+                    description
+                    locations
+                    args {
+                        name
+                        description
+                        defaultValue
                     }
                 }
-        ) {
-            name,
-            id,
-            profile: {
-                name,
-                value
-            }
-        };
-        """
-
-    def test_graphql_translation_update01(self):
-        r"""
-        mutation @edgedb(module: "test") {
-            update__User(__data: {
-                name: "Jonathan",
-            },
-            name: "John"
-            ) {
-                name,
-                id,
             }
         }
 
 % OK %
 
-        SELECT (
-            UPDATE
-                test::User
-            FILTER
-                ((test::User).name = 'John')
-            SET {
-                name := 'Jonathan'
-            }
-        ) {
-            name,
-            id
+        SELECT (graphql::Query) {
+            __schema := (SELECT (graphql::Query) {
+                directives := (SELECT (graphql::Directive) {
+                    name,
+                    description,
+                    locations,
+                    args: {
+                        name,
+                        description,
+                        defaultValue
+                    }
+                })
+            })
         };
         """
 
-    def test_graphql_translation_update02(self):
+    def test_graphql_translation_type_01(self):
         r"""
-        mutation special_update @edgedb(module: "test") {
-            update__User(__data: {
-                name: "Jonathan",
-                groups__id: "21e16e2e-e445-494c-acfc-cc9378620501"
-            },
-            name: "John"
-            ) {
-                name,
-                id,
-                groups {
-                    name
+        query @edgedb(module: "test") {
+            __type(name: "User") {
+                __typename
+            }
+        }
+
+% OK %
+
+        SELECT (graphql::Query) {
+            __type:= (
+                SELECT (graphql::Query) {
+                    __typename := '__Type'
                 }
-            }
-        }
-
-% OK %
-
-        # mutation special_update
-        SELECT (
-            UPDATE
-                test::User
-            FILTER
-                ((test::User).name = 'John')
-            SET {
-                name := 'Jonathan',
-                groups := (
-                    SELECT (std::Object)
-                    FILTER (
-                        (std::Object).id =
-                            <std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501'
-                    )
-                )
-            }
-        ) {
-            name,
-            id,
-            groups: {
-                name
-            }
-        };
-        """
-
-    def test_graphql_translation_update03(self):
-        r"""
-        mutation special_update @edgedb(module: "test") {
-            update__User(__data: {
-                name: "Jonathan",
-                groups__id: [
-                    "21e16e2e-e445-494c-acfc-cc9378620501",
-                    "fd5f4ad8-2e8c-4224-9243-361d61dee856"
-                ]
-            },
-            name: "John"
-            ) {
-                name,
-                id,
-                groups {
-                    name
-                }
-            }
-        }
-
-% OK %
-
-        # mutation special_update
-        SELECT (
-            UPDATE
-                test::User
-            FILTER
-                ((test::User).name = 'John')
-            SET {
-                name := 'Jonathan',
-                groups := (
-                    SELECT (std::Object)
-                    FILTER (
-                        (std::Object).id IN
-                            [<std::uuid>'21e16e2e-e445-494c-acfc-cc9378620501',
-                             <std::uuid>'fd5f4ad8-2e8c-4224-9243-361d61dee856']
-                    )
-                )
-            }
-        ) {
-            name,
-            id,
-            groups: {
-                name
-            }
+            )
         };
         """

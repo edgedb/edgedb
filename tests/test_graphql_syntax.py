@@ -674,8 +674,6 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(GraphQLParserError, "'null' not allowed as value",
-                  line=3, col=21)
     def test_graphql_syntax_values13(self):
         r"""
         {
@@ -686,8 +684,6 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(GraphQLParserError, "'null' not allowed as value",
-                  line=5, col=28)
     def test_graphql_syntax_values14(self):
         r"""
         {
@@ -721,8 +717,6 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(GraphQLParserError, "'null' not allowed as value",
-                  line=3, col=49)
     def test_graphql_syntax_values18(self):
         r"""
         {
@@ -775,16 +769,6 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         """
 
     def test_graphql_syntax_var02(self):
-        r"""
-        query ($names: [String]!) {
-            User(name__in: $names) {
-                id
-                name
-            }
-        }
-        """
-
-    def test_graphql_syntax_var03(self):
         r"""
         query A($atOtherHomes: Boolean) {
           ...HouseTrainedFragment

@@ -58,7 +58,7 @@ class Rule:
         return '<{} {} {!r}>'.format(self.id, self.token, self.regexp)
 
 
-def group(*literals, _re_alpha=re.compile(r'[^\W\d_]'), asbytes=False):
+def group(*literals, _re_alpha=re.compile(r'^\w+$'), asbytes=False):
     rx = []
     for l in literals:
         if r'\b' not in l:

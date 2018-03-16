@@ -88,7 +88,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
         };
     """
 
-    async def test_graphql_functional_query01(self):
+    async def test_graphql_functional_query_01(self):
         result = await self.con.execute(r"""
             query @edgedb(module: "test") {
                 Setting {
@@ -98,18 +98,18 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             }
         """, graphql=True)
 
-        result[0].sort(key=lambda x: x['name'])
-        self.assert_data_shape(result, [
-            [{
+        result[0][0]['Setting'].sort(key=lambda x: x['name'])
+        self.assert_data_shape(result, [[{
+            'Setting': [{
                 'name': 'perks',
                 'value': 'full',
             }, {
                 'name': 'template',
                 'value': 'blue',
             }],
-        ])
+        }]])
 
-    async def test_graphql_functional_query02(self):
+    async def test_graphql_functional_query_02(self):
         result = await self.con.execute(r"""
             query @edgedb(module: "test") {
                 User {
@@ -123,9 +123,9 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             }
         """, graphql=True)
 
-        result[0].sort(key=lambda x: x['name'])
-        self.assert_data_shape(result, [
-            [{
+        result[0][0]['User'].sort(key=lambda x: x['name'])
+        self.assert_data_shape(result, [[{
+            'User': [{
                 'name': 'Alice',
                 'age': 27,
                 'groups': None
@@ -144,9 +144,9 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     'name': 'basic',
                 }]
             }],
-        ])
+        }]])
 
-    async def test_graphql_functional_query03(self):
+    async def test_graphql_functional_query_03(self):
         result = await self.con.execute(r"""
             query @edgedb(module: "test") {
                 User(name: "John") {
@@ -160,8 +160,8 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             }
         """, graphql=True)
 
-        self.assert_data_shape(result, [
-            [{
+        self.assert_data_shape(result, [[{
+            'User': [{
                 'name': 'John',
                 'age': 25,
                 'groups': [{
@@ -169,109 +169,9 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     'name': 'basic',
                 }]
             }],
-        ])
+        }]])
 
-    async def test_graphql_functional_query04(self):
-        result = await self.con.execute(r"""
-            query @edgedb(module: "test") {
-                User(groups__name: "upgraded") {
-                    name
-                    age
-                    groups {
-                        id
-                        name
-                    }
-                }
-            }
-        """, graphql=True)
-
-        self.assert_data_shape(result, [
-            [{
-                'name': 'Jane',
-                'age': 26,
-                'groups': [{
-                    'id': uuid.UUID,
-                    'name': 'upgraded',
-                }]
-            }],
-        ])
-
-    async def test_graphql_functional_query05(self):
-        result = await self.con.execute(r"""
-            query @edgedb(module: "test") {
-                User(groups__name__in: ["upgraded", "basic"]) {
-                    name
-                    age
-                    groups {
-                        id
-                        name
-                    }
-                }
-            }
-        """, graphql=True)
-
-        result[0].sort(key=lambda x: x['name'])
-        self.assert_data_shape(result, [
-            [{
-                'name': 'Jane',
-                'age': 26,
-                'groups': [{
-                    'id': uuid.UUID,
-                    'name': 'upgraded',
-                }]
-            }, {
-                'name': 'John',
-                'age': 25,
-                'groups': [{
-                    'id': uuid.UUID,
-                    'name': 'basic',
-                }]
-            }],
-        ])
-
-    async def test_graphql_functional_query06(self):
-        result = await self.con.execute(r"""
-            query @edgedb(module: "test") {
-                User(age__ne: 26, name__in: ["Alice", "Jane"]) {
-                    name
-                    age
-                    score
-                }
-            }
-        """, graphql=True)
-
-        self.assert_data_shape(result, [
-            [{
-                'name': 'Alice',
-                'age': 27,
-                'score': 5,
-            }],
-        ])
-
-    async def test_graphql_functional_fragment01(self):
-        result = await self.con.execute(r"""
-            fragment namedFrag on NamedObject @edgedb(module: "test") {
-                name
-            }
-
-            query @edgedb(module: "test") {
-                User(age__ne: 26, name__in: ["Alice", "Jane"]) {
-                    ... namedFrag
-                    age
-                    score
-                }
-            }
-        """, graphql=True)
-
-        self.assert_data_shape(result, [
-            [{
-                'name': 'Alice',
-                'age': 27,
-                'score': 5,
-            }],
-        ])
-
-    async def test_graphql_functional_fragment02(self):
+    async def test_graphql_functional_fragment_02(self):
         result = await self.con.execute(r"""
             fragment userFrag on User @edgedb(module: "test") {
                 age
@@ -286,63 +186,161 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             }
         """, graphql=True)
 
-        self.assert_data_shape(result, [
-            [{
+        self.assert_data_shape(result, [[{
+            'NamedObject': [{
                 'name': 'Alice',
                 'age': 27,
                 'score': 5,
             }],
-        ])
+        }]])
 
-    async def test_graphql_functional_fragment03(self):
-        result = await self.con.execute(r"""
-            fragment namedFrag on NamedObject @edgedb(module: "test") {
-                name
-                ... userFrag
-            }
-
-            fragment userFrag on User @edgedb(module: "test") {
-                age
-            }
-
-            query @edgedb(module: "test") {
-                User(age__ne: 26, name__in: ["Alice", "Jane"]) {
-                    ... namedFrag
-                    score
-                }
-            }
-        """, graphql=True)
-
-        self.assert_data_shape(result, [
-            [{
-                'name': 'Alice',
-                'age': 27,
-                'score': 5,
-            }],
-        ])
-
-    async def test_graphql_functional_fragment04(self):
+    async def test_graphql_functional_typename_01(self):
         result = await self.con.execute(r"""
             query @edgedb(module: "test") {
-                NamedObject(name__in: ["Alice", "basic"]) {
+                User {
                     name
-                    ... on User {
-                        age
-                        score
+                    __typename
+                    groups {
+                        id
+                        name
+                        __typename
                     }
                 }
             }
         """, graphql=True)
 
-        result[0].sort(key=lambda x: x['name'])
-        self.assert_data_shape(result, [
-            [{
+        result[0][0]['User'].sort(key=lambda x: x['name'])
+        self.assert_data_shape(result, [[{
+            'User': [{
                 'name': 'Alice',
-                'age': 27,
-                'score': 5,
+                '__typename': 'test::User',
+                'groups': None
             }, {
-                'name': 'basic',
-                'age': None,
-                'score': None,
+                'name': 'Jane',
+                '__typename': 'test::User',
+                'groups': [{
+                    'id': uuid.UUID,
+                    'name': 'upgraded',
+                    '__typename': 'test::UserGroup',
+                }]
+            }, {
+                'name': 'John',
+                '__typename': 'test::User',
+                'groups': [{
+                    'id': uuid.UUID,
+                    'name': 'basic',
+                    '__typename': 'test::UserGroup',
+                }]
             }],
-        ])
+        }]])
+
+    async def test_graphql_functional_typename_02(self):
+        result = await self.con.execute(r"""
+            query @edgedb(module: "test") {
+                __typename
+                __schema {
+                    __typename
+                }
+            }
+        """, graphql=True)
+
+        self.assert_data_shape(result, [[{
+            '__typename': 'Query',
+            '__schema': {
+                '__typename': '__Schema',
+            },
+        }]])
+
+    async def test_graphql_functional_schema_01(self):
+        result = await self.con.execute(r"""
+            query @edgedb(module: "test") {
+                __schema {
+                    directives {
+                        name
+                        description
+                        locations
+                        args {
+                            name
+                            description
+                            defaultValue
+                        }
+                    }
+                }
+            }
+        """, graphql=True)
+
+        result[0][0]['__schema']['directives'].sort(key=lambda x: x['name'])
+        self.assert_data_shape(result, [[{
+            '__schema': {
+                'directives': [
+                    {
+                        'name': 'deprecated',
+                        'locations': {'FIELD'},
+                        'description':
+                            'Marks an element of a GraphQL schema as no ' +
+                            'longer supported.',
+                        'args': [
+                            {
+                                'name': 'reason',
+                                'description':
+                                    "Explains why this element was " +
+                                    "deprecated, usually also including " +
+                                    "a suggestion for how to access " +
+                                    "supported similar data. Formatted " +
+                                    "in [Markdown](https://daringfireba" +
+                                    "ll.net/projects/markdown/).",
+                                'defaultValue': '"No longer supported"'
+                            }
+                        ],
+                    },
+                    {
+                        'name': 'edgedb',
+                        'locations': {'QUERY', 'MUTATION',
+                                      'FRAGMENT_DEFINITION', 'FRAGMENT_SPREAD',
+                                      'INLINE_FRAGMENT'},
+                        'description':
+                            'Special EdgeDB compatibility directive that ' +
+                            'specifies which module is being used.',
+                        'args': [
+                            {
+                                'name': 'module',
+                                'description':
+                                    'EdgeDB module that needs to be ' +
+                                    'accessed by the query.',
+                                'defaultValue': None
+                            }
+                        ],
+                    },
+                    {
+                        'name': 'include',
+                        'locations': {'FIELD', 'FRAGMENT_SPREAD',
+                                      'INLINE_FRAGMENT'},
+                        'description':
+                            'Directs the executor to include this field or ' +
+                            'fragment only when the `if` argument is true.',
+                        'args': [
+                            {
+                                'name': 'if',
+                                'description': 'Included when true.',
+                                'defaultValue': None
+                            }
+                        ],
+                    },
+                    {
+                        'name': 'skip',
+                        'locations': {'FIELD', 'FRAGMENT_SPREAD',
+                                      'INLINE_FRAGMENT'},
+                        'description':
+                            'Directs the executor to skip this field or ' +
+                            'fragment when the `if` argument is true.',
+                        'args': [
+                            {
+                                'name': 'if',
+                                'description': 'Excluded when true.',
+                                'defaultValue': None
+                            }
+                        ],
+                    },
+                ],
+            }
+        }]])

@@ -1,0 +1,110 @@
+##
+# Copyright (c) 2018-present MagicStack Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+# create some graphql items
+# types
+FOR k IN {<graphql::typeKind>{
+            'SCALAR', 'OBJECT', 'INTERFACE', 'UNION', 'ENUM',
+            'INPUT_OBJECT', 'LIST', 'NON_NULL'}}
+UNION (
+    INSERT graphql::_Type {
+        name := '__placeholder__',
+        kind := k,
+    }
+);
+
+# create our directives
+WITH MODULE graphql
+INSERT Directive {
+    name := 'include',
+    description := 'Directs the executor to include this field or fragment ' +
+                   'only when the `if` argument is true.',
+    locations := <directiveLocation>{
+        "FIELD", "FRAGMENT_SPREAD", "INLINE_FRAGMENT"},
+    args: {
+        name := "if",
+        description := "Included when true.",
+    },
+};
+
+WITH MODULE graphql
+INSERT Directive {
+    name := 'skip',
+    description := 'Directs the executor to skip this field or fragment ' +
+                   'when the `if` argument is true.',
+    locations := <directiveLocation>{
+        "FIELD", "FRAGMENT_SPREAD", "INLINE_FRAGMENT"},
+    args: {
+        name := "if",
+        description := "Excluded when true.",
+    },
+};
+
+WITH MODULE graphql
+INSERT Directive {
+    name := 'deprecated',
+    description :=
+        'Marks an element of a GraphQL schema as no longer supported.',
+    locations := <directiveLocation>{
+        "FIELD"},
+    args: {
+        name := "reason",
+        description := "Explains why this element was deprecated, usually " +
+                       "also including a suggestion for how to access " +
+                       "supported similar data. Formatted in [Markdown]" +
+                       "(https://daringfireball.net/projects/markdown/).",
+        defaultValue := '"No longer supported"',
+    },
+};
+
+WITH MODULE graphql
+INSERT Directive {
+    name := 'edgedb',
+    description :=
+        'Special EdgeDB compatibility directive that specifies which module' +
+        ' is being used.',
+    locations := <directiveLocation>{
+        'QUERY', 'MUTATION', 'FRAGMENT_DEFINITION', 'FRAGMENT_SPREAD',
+        'INLINE_FRAGMENT'},
+    args: {
+        name := "module",
+        description := "EdgeDB module that needs to be accessed by the query.",
+    },
+};
+
+# create Field placeholder
+WITH MODULE graphql
+INSERT Field {
+    name := '__placeholder__',
+    isDeprecated := false,
+};
+
+# create EnumValue placeholder
+WITH MODULE graphql
+INSERT EnumValue {
+    name := '__placeholder__',
+    isDeprecated := false,
+};
+
+# create InputValue placeholder
+WITH MODULE graphql
+INSERT InputValue {
+    name := '__placeholder__',
+};
+
+# create Query
+WITH MODULE graphql
+INSERT Query {
+    name := 'Query',
+};
+
+# create Schema
+WITH MODULE graphql
+INSERT Schema {
+    name := '__Schema',
+};

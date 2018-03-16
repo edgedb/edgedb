@@ -32,6 +32,9 @@ class GraphQLLexer(RegexLexer):
                     query | mutation
                 )\b
             ''', token.Keyword.Reserved),
+
+            (r'\b(__schema|__type|__typename)\b',
+             token.Name.Builtin.Pseudo),
         ],
         'strings': [
             (r'''(?x)
