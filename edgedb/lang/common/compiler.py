@@ -6,6 +6,7 @@
 ##
 
 
+import collections
 import re
 
 
@@ -62,10 +63,16 @@ class CompilerContext:
     current = property(_current)
 
 
-class AliasGenerator:
+class Counter:
     def __init__(self):
-        self.aliascnt = {}
+        self.counts = collections.defaultdict(int)
 
+    def nextval(self, name='default'):
+        self.counts[name] += 1
+        return self.counts[name]
+
+
+class AliasGenerator(Counter):
     def get(self, hint=None):
         if hint is None:
             hint = 'v'
@@ -73,11 +80,7 @@ class AliasGenerator:
         if m:
             hint = hint[:m.start()]
 
-        if hint not in self.aliascnt:
-            self.aliascnt[hint] = 1
-        else:
-            self.aliascnt[hint] += 1
-
-        alias = hint + '~' + str(self.aliascnt[hint])
+        idx = self.nextval(hint)
+        alias = f'{hint}~{idx}'
 
         return alias

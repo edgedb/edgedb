@@ -18,8 +18,12 @@ from edgedb.lang.schema import types as s_types
 
 from edgedb.lang.edgeql import ast as qlast
 
-from .pathid import PathId, ScopeBranchNode, ScopeFenceNode  # noqa
-from .pathid import InvalidScopeConfiguration, WeakNamespace  # noqa
+from .pathid import PathId, WeakNamespace  # noqa
+from .scopetree import InvalidScopeConfiguration, ScopeTreeNode  # noqa
+
+
+def new_scope_tree():
+    return ScopeTreeNode(fenced=True)
 
 
 EdgeDBMatchOperator = qlast.EdgeQLMatchOperator
@@ -68,7 +72,7 @@ class Pointer(Base):
 class Set(Base):
 
     path_id: PathId
-    path_scope: ScopeBranchNode
+    path_scope_id: int
     scls: s_types.Type
     source: Base
     view_source: Base
@@ -88,6 +92,8 @@ class Statement(Base):
     expr: Set
     views: typing.Dict[sn.Name, s_types.Type]
     params: typing.Dict[str, s_types.Type]
+    scope_tree: ScopeTreeNode
+    scope_map: typing.Dict[Set, str]
     source_map: typing.Dict[s_pointers.Pointer,
                             typing.Tuple[qlast.Expr, compiler.ContextLevel]]
 

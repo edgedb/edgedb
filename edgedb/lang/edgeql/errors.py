@@ -24,7 +24,7 @@ class EdgeQLExpressionError(EdgeQLError):
 
 class EdgeQLReferenceError(EdgeQLError):
     def __init__(self, msg, *, hint=None, details=None, source=None,
-                 pointer=None):
-        super().__init__(msg, hint=hint, details=details)
+                 pointer=None, context=None):
+        super().__init__(msg, hint=hint, details=details, context=context)
         self.source = source
         self.pointer = pointer

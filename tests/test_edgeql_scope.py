@@ -143,7 +143,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 User {name, foo := U2 {name}},
                 U2 { name }
             )
-            FILTER U2.name = 'Alice'
+            FILTER x.1.name = 'Alice'
             ORDER BY x.0.name THEN x.1.name;
         ''', [
             [
@@ -934,6 +934,8 @@ class TestEdgeQLScope(tb.QueryTestCase):
              'Air Sprite'],
         ])
 
+    # TODO: this test is no longer correct
+    @unittest.expectedFailure
     async def test_edgeql_scope_nested_04(self):
         await self.assert_query_result(r'''
             # semantically same as control query Q1, with lots of
@@ -948,7 +950,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                     (WITH B := A SELECT B.name) > B.element
                 )
             ORDER BY
-                (WITH B := A SELECT B.name);
+                (WITH C := B SELECT C);
         ''', [
             ['Air Djinn', 'Air Giant eagle', 'Earth Golem', 'Fire Imp',
              'Air Sprite'],
@@ -1071,8 +1073,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
              'Golem3', 'Sprite2', 'Giant eagle2', 'Djinn2'},
         ])
 
-    # TODO: this test is no longer correct
-    @unittest.expectedFailure
     async def test_edgeql_scope_nested_11(self):
         await self.assert_query_result(r'''
             # semantically same as control query Q3, except that some
@@ -1219,3 +1219,46 @@ class TestEdgeQLScope(tb.QueryTestCase):
             [3, 4, 5, 5],
             [3, 4, 4, 5, 5],
         ])
+
+    async def test_edgeql_scope_computables_01(self):
+        # Test that expressions in schema link computables
+        # do not leak out into the query.
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test
+            SELECT x := (User.name, User.deck.name, User.deck_cost)
+            FILTER x.0 = 'Alice'
+            ORDER BY x.1;
+        """, [[
+            ['Alice', 'Bog monster', 11],
+            ['Alice', 'Dragon', 11],
+            ['Alice', 'Giant turtle', 11],
+            ['Alice', 'Imp', 11],
+        ]])
+
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test
+            SELECT x := (User.name, User.deck.name, sum(User.deck.cost))
+            FILTER x.0 = 'Alice'
+            ORDER BY x.1;
+        """, [[
+            ['Alice', 'Bog monster', 2],
+            ['Alice', 'Dragon', 5],
+            ['Alice', 'Giant turtle', 3],
+            ['Alice', 'Imp', 1],
+        ]])
+
+    async def test_edgeql_scope_computables_02(self):
+        # Test that expressions in view link computables
+        # do not leak out into the query.
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test
+            SELECT Card {
+                name,
+                alice := (SELECT User FILTER User.name = 'Alice')
+            } FILTER Card.alice != User AND Card.name = 'Bog monster';
+        """, [[
+            {'name': 'Bog monster'}
+        ]])

@@ -118,6 +118,9 @@ class ContextLevel(compiler.ContextLevel):
     path_id_namespace: typing.Tuple[str, ...]
     """A namespace to use for all path ids."""
 
+    pending_stmt_path_id_namespace: str
+    """A namespace to add for the next new statement."""
+
     view_map: typing.Dict[irast.PathId, irast.Set]
     """Set translation map.  Used for views."""
 
@@ -125,8 +128,14 @@ class ContextLevel(compiler.ContextLevel):
                               typing.List[s_pointers.Pointer]]  # noqa
     """Class output or modification shapes."""
 
-    path_scope: irast.ScopeBranchNode
+    path_scope: irast.ScopeTreeNode
     """Path scope tree, with per-lexical-scope levels."""
+
+    path_scope_map: typing.Dict[irast.Set, irast.ScopeTreeNode]
+    """A forest of scope trees used for views."""
+
+    scope_id_ctr: compiler.Counter
+    """Path scope id counter."""
 
     in_aggregate: bool
     """True if the current location is inside an aggregate function call."""
@@ -172,9 +181,12 @@ class ContextLevel(compiler.ContextLevel):
             self.stmt = None
             self.singletons = set()
             self.path_id_namespace = tuple()
+            self.pending_stmt_path_id_namespace = None
             self.view_map = collections.ChainMap()
             self.class_shapes = collections.defaultdict(list)
             self.path_scope = None
+            self.path_scope_map = {}
+            self.scope_id_ctr = compiler.Counter()
             self.in_aggregate = False
             self.view_scls = None
             self.expr_exposed = False
@@ -198,9 +210,13 @@ class ContextLevel(compiler.ContextLevel):
             self.view_sets = prevlevel.view_sets
 
             self.path_id_namespace = prevlevel.path_id_namespace
+            self.pending_stmt_path_id_namespace = \
+                prevlevel.pending_stmt_path_id_namespace
             self.view_map = prevlevel.view_map
             self.class_shapes = prevlevel.class_shapes
             self.path_scope = prevlevel.path_scope
+            self.path_scope_map = prevlevel.path_scope_map
+            self.scope_id_ctr = prevlevel.scope_id_ctr
             self.view_scls = prevlevel.view_scls
             self.expr_exposed = prevlevel.expr_exposed
             self.toplevel_clause = prevlevel.toplevel_clause
@@ -213,6 +229,8 @@ class ContextLevel(compiler.ContextLevel):
                 self.view_class_map = prevlevel.view_class_map.copy()
                 self.class_view_overrides = \
                     prevlevel.class_view_overrides.copy()
+
+                self.pending_stmt_path_id_namespace = None
 
                 self.view_rptr = None
                 self.view_scls = None
@@ -238,6 +256,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.view_nodes = {}
                 self.view_sets = {}
                 self.path_id_namespace = (self.aliases.get('ns'),)
+                self.pending_stmt_path_id_namespace = None
 
                 self.view_rptr = None
                 self.view_scls = None
@@ -272,22 +291,22 @@ class ContextLevel(compiler.ContextLevel):
                 self.toplevel_result_view_name = \
                     prevlevel.toplevel_result_view_name
 
+            if mode in {ContextSwitchMode.NEWFENCE_TEMP,
+                        ContextSwitchMode.NEWSCOPE_TEMP}:
+                self.path_scope = prevlevel.path_scope.copy()
+
             if mode in {ContextSwitchMode.NEWSCOPE,
                         ContextSwitchMode.NEWSCOPE_TEMP}:
                 self.path_scope = prevlevel.path_scope.add_branch()
 
             if mode in {ContextSwitchMode.NEWFENCE,
                         ContextSwitchMode.NEWFENCE_TEMP}:
-                self.path_scope = prevlevel.path_scope.add_fence()
-
-            if mode in {ContextSwitchMode.NEWFENCE_TEMP,
-                        ContextSwitchMode.NEWSCOPE_TEMP}:
-                self.path_scope.protect_parent = True
+                self.path_scope = prevlevel.path_scope.attach_fence()
 
     def on_pop(self, prevlevel):
         if self.mode in {ContextSwitchMode.NEWFENCE_TEMP,
                          ContextSwitchMode.NEWSCOPE_TEMP}:
-            prevlevel.path_scope.remove_child(self.path_scope)
+            prevlevel.path_scope.remove_subtree(self.path_scope)
 
     def subquery(self):
         return self.new(ContextSwitchMode.SUBQUERY)

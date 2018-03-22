@@ -43,6 +43,8 @@ def compile_Set(
     if ctx.env.singleton_mode:
         return _compile_set_in_singleton_mode(ir_set, ctx=ctx)
 
+    is_toplevel = ctx.toplevel_stmt is None
+
     if isinstance(ir_set.expr, irast.Constant):
         # Avoid creating needlessly complicated constructs for
         # constant expressions.  Besides being an optimization,
@@ -53,7 +55,7 @@ def compile_Set(
         if shape:
             value = _compile_shape(ir_set, shape=shape, ctx=ctx)
 
-    elif ir_set.path_scope is not None:
+    elif ir_set.path_scope_id is not None and not is_toplevel:
         # This Set is behind a scope fence, so compute it
         # in a fenced context.
         with ctx.newscope() as scopectx:
@@ -574,28 +576,21 @@ def compile_Coalesce(
     return pgast.FuncCall(name=('coalesce',), args=pg_args)
 
 
-def _tuple_to_row_expr(tuple_expr, *, ctx):
-    tuple_type = _infer_type(tuple_expr, ctx=ctx)
-    subtypes = tuple_type.element_types
-    row = []
-    for n in subtypes:
-        ref = irutils.new_expression_set(
-            irast.TupleIndirection(
-                expr=tuple_expr,
-                name=n,
-                path_id=irutils.tuple_indirection_path_id(
-                    tuple_expr.path_id, n, subtypes[n])),
-            ctx.env.schema
-        )
-        row.append(dispatch.compile(ref, ctx=ctx))
-
-    return pgast.RowExpr(args=row)
+def _tuple_to_row_expr(
+        tuple_set: irast.Set, *,
+        ctx: context.CompilerContextLevel) -> pgast.ImplicitRowExpr:
+    tuple_val = dispatch.compile(tuple_set, ctx=ctx)
+    if not isinstance(tuple_val, pgast.ImplicitRowExpr):
+        raise RuntimeError('tuple compilation unexpectedly did '
+                           'not return ImplicitRowExpr')
+    return tuple_val
 
 
 def _compile_set(
         ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> pgast.Base:
 
+    is_toplevel = ctx.toplevel_stmt is None
     relgen.get_set_rvar(ir_set, ctx=ctx)
 
     shape = _get_shape(ir_set, ctx=ctx)
@@ -607,8 +602,11 @@ def _compile_set(
         else:
             aspect = 'value'
 
-        value = pathctx.get_path_var(
-            ctx.rel, ir_set.path_id, aspect=aspect, env=ctx.env)
+        if is_toplevel:
+            value = ctx.toplevel_stmt
+        else:
+            value = pathctx.get_path_var(
+                ctx.rel, ir_set.path_id, aspect=aspect, env=ctx.env)
 
     return value
 

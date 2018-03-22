@@ -44,6 +44,28 @@ def process_view(
         is_insert: bool=False,
         is_update: bool=False,
         ctx: context.CompilerContext) -> s_nodes.Node:
+
+    with ctx.newscope(fenced=True, temporary=True) as scopectx:
+        scopectx.path_scope.attach_path(path_id)
+
+        return _process_view(
+            scls=scls, path_id=path_id, elements=elements,
+            view_rptr=view_rptr, view_name=view_name,
+            is_insert=is_insert, is_update=is_update,
+            ctx=scopectx
+        )
+
+
+def _process_view(
+        *,
+        scls: s_nodes.Node,
+        path_id: irast.PathId,
+        elements: typing.List[qlast.ShapeElement],
+        view_rptr: typing.Optional[context.ViewRPtr]=None,
+        view_name: typing.Optional[sn.SchemaName]=None,
+        is_insert: bool=False,
+        is_update: bool=False,
+        ctx: context.CompilerContext) -> s_nodes.Node:
     view_scls = schemactx.derive_view(
         scls, is_insert=is_insert, is_update=is_update,
         derived_name=view_name, ctx=ctx)
@@ -221,7 +243,7 @@ def _normalize_view_ptr_expr(
                 view_scls, ptrcls, is_insert=is_insert, is_update=is_update)
 
             sub_path_id = path_id.extend(ptrcls, target=ptrcls.target)
-            ctx.path_scope.add_path(sub_path_id)
+            ctx.path_scope.attach_path(sub_path_id)
 
             if is_update:
                 for subel in shape_el.elements or []:
@@ -234,12 +256,12 @@ def _normalize_view_ptr_expr(
                             'only references to link properties are allowed '
                             'in nested UPDATE shapes', context=subel.context)
 
-                ptr_target = process_view(
+                ptr_target = _process_view(
                     scls=ptr_target, path_id=sub_path_id,
                     view_rptr=sub_view_rptr,
                     elements=shape_el.elements, is_update=True, ctx=ctx)
             else:
-                ptr_target = process_view(
+                ptr_target = _process_view(
                     scls=ptr_target, path_id=sub_path_id,
                     view_rptr=sub_view_rptr,
                     elements=shape_el.elements, ctx=ctx)
@@ -289,7 +311,7 @@ def _normalize_view_ptr_expr(
 
         qlexpr = astutils.ensure_qlstmt(compexpr)
 
-        with ctx.newscope(fenced=True, temporary=True) as shape_expr_ctx:
+        with ctx.newscope(fenced=True) as shape_expr_ctx:
             # Put current pointer class in context, so
             # that references to link properties in sub-SELECT
             # can be resolved.  This is necessary for proper
@@ -297,6 +319,8 @@ def _normalize_view_ptr_expr(
             # most importantly, in INSERT/UPDATE context.
             shape_expr_ctx.view_rptr = context.ViewRPtr(
                 view_scls, ptrcls, is_insert=is_insert, is_update=is_update)
+
+            shape_expr_ctx.path_scope.unnest_fence = True
 
             if is_mutation:
                 shape_expr_ctx.expr_exposed = True
@@ -461,7 +485,9 @@ def _compile_view_shapes_in_set(
             # mess that scope up, as the shape's source expression
             # should remain behind the SET OF fence of LIMIT.
             with ctx.new() as scopectx:
-                scopectx.path_scope = ir_set.expr.result.path_scope
+                ol_scope = pathctx.get_set_scope(
+                    ir_set.expr.result, ctx=scopectx)
+                scopectx.path_scope = ol_scope
                 pathctx.register_set_in_scope(ir_set, ctx=scopectx)
         else:
             pathctx.register_set_in_scope(ir_set, ctx=ctx)
@@ -470,20 +496,25 @@ def _compile_view_shapes_in_set(
             element = setgen.extend_path(
                 path_tip, ptr, force_computable=is_mutation,
                 unnest_fence=True, ctx=ctx)
-            if element.path_scope is None:
-                element.path_scope = ctx.path_scope.add_fence()
+
+            element_scope = pathctx.get_set_scope(element, ctx=ctx)
+
+            if element_scope is None:
+                element_scope = ctx.path_scope.attach_fence()
+                pathctx.assign_set_scope(element, element_scope, ctx=ctx)
 
             with ctx.new() as scopectx:
-                scopectx.path_scope = element.path_scope
+                scopectx.path_scope = element_scope
                 compile_view_shapes(
                     element, parent_view_type=scls.view_type, ctx=scopectx)
 
             ir_set.shape.append(element)
 
     elif ir_set.expr is not None:
-        if ir_set.path_scope is not None:
+        set_scope = pathctx.get_set_scope(ir_set, ctx=ctx)
+        if set_scope is not None:
             with ctx.new() as scopectx:
-                scopectx.path_scope = ir_set.path_scope
+                scopectx.path_scope = set_scope
                 compile_view_shapes(ir_set.expr, ctx=scopectx)
         else:
             compile_view_shapes(ir_set.expr, ctx=ctx)
@@ -514,9 +545,10 @@ def _compile_view_shapes_in_fcall(
 
     if preserves_type:
         for arg in expr.args:
-            if arg.path_scope is not None:
+            arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
+            if arg_scope is not None:
                 with ctx.new() as scopectx:
-                    scopectx.path_scope = arg.path_scope
+                    scopectx.path_scope = arg_scope
                     compile_view_shapes(arg, ctx=scopectx)
             else:
                 compile_view_shapes(arg, ctx=ctx)

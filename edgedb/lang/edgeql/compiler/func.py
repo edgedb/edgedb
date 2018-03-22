@@ -25,6 +25,7 @@ from edgedb.lang.edgeql import parser as qlparser
 from . import astutils
 from . import context
 from . import dispatch
+from . import pathctx
 from . import setgen
 from . import typegen
 
@@ -187,12 +188,16 @@ def fixup_param_scope(
             if i + 1 == func.varparam:
                 varparam_kind = paramkind
         if paramkind != qlast.SetQualifier.SET_OF:
-            arg.path_scope.parent.unfence(arg.path_scope)
-            arg.path_scope = None
+            arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
+            if arg_scope is not None:
+                arg_scope.collapse()
+                pathctx.assign_set_scope(arg, None, ctx=ctx)
 
     for name, arg in kwargs.items():
         i = func.paramnames.index(name)
         paramkind = func.paramkinds[i]
         if paramkind != qlast.SetQualifier.SET_OF:
-            arg.path_scope.parent.unfence(arg.path_scope)
-            arg.path_scope = None
+            arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
+            if arg_scope is not None:
+                arg_scope.collapse()
+                pathctx.assign_set_scope(arg, None, ctx=ctx)

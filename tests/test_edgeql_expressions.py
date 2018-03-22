@@ -458,7 +458,6 @@ class TestExpressions(tb.QueryTestCase):
                 };
             """)
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_paths_09(self):
         # `Issue` in SET is illegal because it shares a prefix `Issue`
         # with `Issue.related_to` which is defined in an outer scope.
@@ -1317,11 +1316,11 @@ class TestExpressions(tb.QueryTestCase):
                 exc.EdgeQLError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                position=44):
+                position=39):
 
             await self.query('''\
                 WITH MODULE test
-                SELECT Issue.name ORDER BY Issue.watchers.name;
+                SELECT Issue ORDER BY Issue.watchers.name;
             ''')
 
     async def test_edgeql_expr_cardinality_02(self):
@@ -1584,6 +1583,7 @@ class TestExpressions(tb.QueryTestCase):
             [4, 5],
         ])
 
+    # XXX: broken with respect to DETACHED interpretation
     @unittest.expectedFailure
     async def test_edgeql_expr_view_09(self):
         await self.assert_sorted_query_result(r"""

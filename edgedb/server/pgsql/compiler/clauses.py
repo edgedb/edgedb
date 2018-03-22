@@ -23,10 +23,7 @@ def init_stmt(
         stmt: irast.Stmt, ctx: context.CompilerContextLevel,
         parent_ctx: context.CompilerContextLevel) -> None:
     if ctx.toplevel_stmt is None:
-        ctx.toplevel_stmt = ctx.stmt
-        ctx.path_scope = ctx.path_scope.new_child({
-            path_id: ctx.stmt for path_id in ctx.scope_tree.paths
-        })
+        parent_ctx.toplevel_stmt = ctx.toplevel_stmt = ctx.stmt
 
 
 def fini_stmt(
