@@ -622,11 +622,10 @@ class Expr(Nonterm):
 
         else:
             # any other expression is a path with a filter
-            self.val = qlast.Path(
-                steps=[qlast.TypeFilter(
-                    expr=path,
-                    type=qlast.TypeName(maintype=kids[3].val))
-                ])
+            self.val = qlast.TypeFilter(
+                expr=path,
+                type=qlast.TypeName(maintype=kids[3].val)
+            )
 
     def reduce_FuncExpr(self, *kids):
         self.val = kids[0].val

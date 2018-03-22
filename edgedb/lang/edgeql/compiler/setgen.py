@@ -19,6 +19,7 @@ from edgedb.lang.schema import concepts as s_concepts
 from edgedb.lang.schema import expr as s_expr
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import lproperties as s_linkprops
+from edgedb.lang.schema import name as s_name
 from edgedb.lang.schema import nodes as s_nodes
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import sources as s_sources
@@ -42,12 +43,42 @@ PtrDir = s_pointers.PointerDirection
 
 
 def new_set(*, ctx: context.ContextLevel, **kwargs) -> irast.Set:
+    """Create a new ir.Set instance with given attributes.
+
+    Absolutely all ir.Set instances must be created using this
+    constructor.
+    """
     ir_set = irast.Set(**kwargs)
     ctx.all_sets.append(ir_set)
     return ir_set
 
 
+def new_set_from_set(
+        ir_set: irast.Set, *,
+        preserve_scope_ns: bool=False,
+        ctx: context.ContextLevel) -> irast.Set:
+    """Create a new ir.Set from another ir.Set.
+
+    The new Set inherits source Set's scope, schema class, expression,
+    and, if *preserve_scope_ns* is set, path_id.  If *preserve_scope_ns*
+    is False, the new Set's path_id will be namespaced with the currently
+    active scope namespace.
+    """
+    path_id = ir_set.path_id
+    if not preserve_scope_ns:
+        path_id = path_id.merge_namespace(ctx.path_id_namespace)
+    result = new_set(
+        path_id=path_id,
+        path_scope_id=ir_set.path_scope_id,
+        scls=ir_set.scls,
+        expr=ir_set.expr,
+        ctx=ctx
+    )
+    return result
+
+
 def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
+    """Create an ir.Set representing the given EdgeQL path expression."""
     anchors = ctx.anchors
 
     path_tip = None
@@ -60,6 +91,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                                      context=expr.context)
 
     extra_scopes = {}
+    computables = []
+    path_sets = []
 
     for i, step in enumerate(expr.steps):
         if isinstance(step, qlast.Self):
@@ -97,10 +130,9 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 path_tip = class_set(scls, ctx=ctx)
                 view_set = ctx.view_sets.get(scls)
                 if view_set is not None:
-                    path_tip.expr = view_set.expr
-                    path_tip.path_id = view_set.path_id
-                    if view_set.path_scope is not None:
-                        extra_scopes[path_tip] = view_set.path_scope
+                    path_tip = new_set_from_set(view_set, ctx=ctx)
+                    path_scope = ctx.path_scope_map.get(view_set)
+                    extra_scopes[path_tip] = path_scope.copy()
 
                 view_scls = ctx.class_view_overrides.get(scls.name)
                 if view_scls is not None:
@@ -133,13 +165,21 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 source = path_tip.scls
 
             with ctx.newscope(fenced=True, temporary=True) as subctx:
-                # We must treat expression Sources like the same
-                # way we would treat a reference to a view node representing
-                # the same expression.
-                path_tip, _ = path_step(
-                    path_tip, source, ptr_name, direction, ptr_target,
-                    source_context=step.context, ctx=subctx)
-                extra_scopes[path_tip] = subctx.path_scope
+                if isinstance(source, s_types.Tuple):
+                    path_tip = tuple_indirection_set(
+                        path_tip, source=source, ptr_name=ptr_name,
+                        source_context=step.context, ctx=subctx)
+
+                else:
+                    path_tip = ptr_step_set(
+                        path_tip, source=source, ptr_name=ptr_name,
+                        direction=direction, ptr_target=ptr_target,
+                        ignore_computable=True,
+                        source_context=step.context, ctx=subctx)
+
+                    ptrcls = path_tip.rptr.ptrcls
+                    if _is_computable_ptr(ptrcls, ctx=ctx):
+                        computables.append(path_tip)
 
         else:
             # Arbitrary expression
@@ -151,76 +191,103 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 path_tip = ensure_set(
                     dispatch.compile(step, ctx=subctx), ctx=subctx)
 
-            extra_scopes[path_tip] = subctx.path_scope
+                if path_tip.path_id.is_type_indirection_path():
+                    scope_set = path_tip.rptr.source
+                else:
+                    scope_set = path_tip
 
-    mapped = ctx.view_map.get(path_tip.path_id)
-    if mapped is not None:
-        path_tip = new_set(path_id=mapped.path_id, scls=mapped.scls,
-                           expr=mapped.expr, ctx=ctx)
+                extra_scopes[scope_set] = subctx.path_scope
+
+        mapped = ctx.view_map.get(path_tip.path_id)
+        if mapped is not None:
+            path_tip = new_set(
+                path_id=mapped.path_id,
+                scls=path_tip.scls, expr=mapped.expr, ctx=ctx)
+
+        path_sets.append(path_tip)
 
     path_tip.context = expr.context
     pathctx.register_set_in_scope(path_tip, ctx=ctx)
 
+    for ir_set in computables:
+        scope = ctx.path_scope.find_descendant(ir_set.path_id)
+        if scope is None:
+            # The path is already in the scope, no point
+            # in recompiling the computable expression.
+            continue
+
+        with ctx.new() as subctx:
+            subctx.path_scope = scope
+            comp_ir_set = computable_ptr_set(ir_set.rptr, ctx=subctx)
+            i = path_sets.index(ir_set)
+            if i != len(path_sets) - 1:
+                path_sets[i + 1].rptr.source = comp_ir_set
+            else:
+                path_tip = comp_ir_set
+            path_sets[i] = comp_ir_set
+
     for ir_set, scope in extra_scopes.items():
-        if not scope.is_empty():
-            node = ctx.path_scope.find_descendant(ir_set.path_id)
-            if node:
-                node.attach_branch(scope)
-                if ir_set.path_scope is None:
-                    ir_set.path_scope = node
-                elif ir_set.path_scope is scope:
-                    ir_set.path_scope = None
+        node = ctx.path_scope.find_descendant(ir_set.path_id)
+        if node is None:
+            # The path portion not being a descendant means
+            # that is is already present in the scope above us,
+            # along with the view scope.
+            continue
+
+        fuse_scope_branch(ir_set, node, scope, ctx=ctx)
+        if ir_set.path_scope_id is None:
+            pathctx.assign_set_scope(ir_set, node, ctx=ctx)
+
     return path_tip
 
 
-def path_step(
-        path_tip: irast.Set, source: s_sources.Source,
+def fuse_scope_branch(
+        ir_set: irast.Set, parent: irast.ScopeTreeNode,
+        branch: irast.ScopeTreeNode, *,
+        ctx: context.ContextLevel) -> None:
+    if parent.path_id is None:
+        parent.attach_subtree(branch)
+    else:
+        if branch.path_id is None and len(branch.children) == 1:
+            target_branch = next(iter(branch.children))
+        else:
+            target_branch = branch
+
+        if parent.path_id == target_branch.path_id:
+            new_root = irast.new_scope_tree()
+            for child in tuple(target_branch.children):
+                new_root.attach_child(child)
+
+            parent.attach_subtree(new_root)
+        else:
+            parent.attach_subtree(branch)
+
+
+def ptr_step_set(
+        path_tip: irast.Set, *,
+        source: s_sources.Source,
         ptr_name: typing.Tuple[str, str],
         direction: PtrDir,
-        ptr_target: s_nodes.Node,
-        source_context: parsing.ParserContext, *,
-        ctx: context.ContextLevel) \
-        -> typing.Tuple[irast.Set, s_pointers.Pointer]:
+        ptr_target: typing.Optional[s_nodes.Node]=None,
+        source_context: parsing.ParserContext,
+        ignore_computable: bool=False,
+        ctx: context.ContextLevel) -> irast.Set:
+    ptrcls = resolve_ptr(
+        source, ptr_name, direction,
+        target=ptr_target, source_context=source_context,
+        ctx=ctx)
 
-    if isinstance(source, s_types.Tuple):
-        if ptr_name[0] is not None:
-            el_name = '::'.join(ptr_name)
-        else:
-            el_name = ptr_name[1]
+    target = ptrcls.get_far_endpoint(direction)
 
-        if el_name in source.element_types:
-            path_id = irutils.tuple_indirection_path_id(
-                path_tip.path_id, el_name,
-                source.element_types[el_name])
-            expr = irast.TupleIndirection(
-                expr=path_tip, name=el_name, path_id=path_id,
-                context=source_context)
-        else:
-            raise errors.EdgeQLReferenceError(
-                f'{el_name} is not a member of a struct')
+    path_tip = extend_path(
+        path_tip, ptrcls, direction, target,
+        ignore_computable=ignore_computable, ctx=ctx)
 
-        tuple_ind = generated_set(expr, ctx=ctx)
-        return tuple_ind, None
+    if ptr_target is not None and target != ptr_target:
+        path_tip = class_indirection_set(
+            path_tip, ptr_target, optional=False, ctx=ctx)
 
-    else:
-        ptrcls = resolve_ptr(
-            source, ptr_name, direction, target=ptr_target, ctx=ctx)
-
-        target = ptrcls.get_far_endpoint(direction)
-
-        mapped = ctx.view_map.get(path_tip.path_id)
-        if mapped is not None:
-            path_tip = new_set(path_id=mapped.path_id, scls=mapped.scls,
-                               expr=mapped.expr, ctx=ctx)
-
-        path_tip = extend_path(
-            path_tip, ptrcls, direction, target, ctx=ctx)
-
-        if ptr_target is not None and target != ptr_target:
-            path_tip = class_indirection_set(
-                path_tip, ptr_target, optional=False, ctx=ctx)
-
-        return path_tip, ptrcls
+    return path_tip
 
 
 def resolve_ptr(
@@ -228,6 +295,7 @@ def resolve_ptr(
         ptr_name: typing.Tuple[str, str],
         direction: s_pointers.PointerDirection,
         target: typing.Optional[s_nodes.Node]=None, *,
+        source_context: typing.Optional[parsing.ParserContext]=None,
         ctx: context.ContextLevel) -> s_pointers.Pointer:
     ptr_module, ptr_nqname = ptr_name
 
@@ -265,7 +333,8 @@ def resolve_ptr(
             path += f'[IS {target.name}]'
 
         raise errors.EdgeQLReferenceError(
-            f'{path} does not resolve to any known path')
+            f'{path} does not resolve to any known path',
+            context=source_context)
 
     return ptr
 
@@ -275,6 +344,7 @@ def extend_path(
         ptrcls: s_pointers.Pointer,
         direction: PtrDir=PtrDir.Outbound,
         target: typing.Optional[s_nodes.Node]=None, *,
+        ignore_computable: bool=False,
         force_computable: bool=False,
         unnest_fence: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
@@ -296,6 +366,9 @@ def extend_path(
     else:
         path_id = source_set.path_id.extend(ptrcls, direction, target)
 
+    if ctx.path_id_namespace:
+        path_id = path_id.merge_namespace(ctx.path_id_namespace)
+
     target_set = new_set(scls=target, path_id=path_id, ctx=ctx)
 
     ptr = irast.Pointer(
@@ -307,7 +380,8 @@ def extend_path(
 
     target_set.rptr = ptr
 
-    if _is_computable_ptr(ptrcls, force_computable=force_computable, ctx=ctx):
+    if (not ignore_computable and _is_computable_ptr(
+            ptrcls, force_computable=force_computable, ctx=ctx)):
         target_set = computable_ptr_set(
             ptr, unnest_fence=unnest_fence, ctx=ctx)
 
@@ -316,7 +390,7 @@ def extend_path(
 
 def _is_computable_ptr(
         ptrcls, *,
-        force_computable: bool,
+        force_computable: bool=False,
         ctx: context.ContextLevel) -> bool:
     try:
         qlexpr, qlctx = ctx.source_map[ptrcls]
@@ -330,6 +404,33 @@ def _is_computable_ptr(
 
     if force_computable and ptrcls.default is not None:
         return True
+
+
+def tuple_indirection_set(
+        path_tip: irast.Set, *,
+        source: s_sources.Source,
+        ptr_name: typing.Tuple[str, str],
+        source_context: parsing.ParserContext,
+        ctx: context.ContextLevel) -> irast.Set:
+
+    if ptr_name[0] is not None:
+        el_name = '::'.join(ptr_name)
+    else:
+        el_name = ptr_name[1]
+
+    if el_name in source.element_types:
+        path_id = irutils.tuple_indirection_path_id(
+            path_tip.path_id, el_name,
+            source.element_types[el_name])
+        expr = irast.TupleIndirection(
+            expr=path_tip, name=el_name, path_id=path_id,
+            context=source_context)
+    else:
+        raise errors.EdgeQLReferenceError(
+            f'{el_name} is not a member of a tuple',
+            context=source_context)
+
+    return generated_set(expr, ctx=ctx)
 
 
 def class_indirection_set(
@@ -377,11 +478,46 @@ def generated_set(
         ir_typeref = None
 
     alias = ctx.aliases.get('expr')
-    ir_set = irutils.new_expression_set(
-        expr, ctx.schema, path_id, alias=alias, typehint=ir_typeref)
-    ctx.all_sets.append(ir_set)
+    return new_expression_set(
+        expr, path_id, alias=alias, typehint=ir_typeref, ctx=ctx)
 
-    return ir_set
+
+def get_expression_path_id(
+        t: s_types.Type, alias: str, *,
+        ctx: context.ContextLevel) -> irast.PathId:
+    cls_name = s_name.Name(module='__expr__', name=alias)
+    if isinstance(t, (s_types.Collection, s_types.Tuple)):
+        et = t.copy()
+        et.name = cls_name
+    else:
+        et = t.__class__(name=cls_name, bases=[t])
+        et.acquire_ancestor_inheritance(ctx.schema)
+    return pathctx.get_path_id(et, ctx=ctx)
+
+
+def new_expression_set(
+        ir_expr, path_id=None, alias=None,
+        typehint: typing.Optional[irast.TypeRef]=None, *,
+        ctx: context.ContextLevel) -> irast.Set:
+    if isinstance(ir_expr, irast.EmptySet) and typehint is not None:
+        ir_expr = irast.TypeCast(expr=ir_expr, type=typehint)
+
+    result_type = irutils.infer_type(ir_expr, ctx.schema)
+
+    if path_id is None:
+        path_id = getattr(ir_expr, 'path_id', None)
+
+        if not path_id:
+            if alias is None:
+                raise ValueError('either path_id or alias are required')
+            path_id = get_expression_path_id(result_type, alias, ctx=ctx)
+
+    return new_set(
+        path_id=path_id,
+        scls=result_type,
+        expr=ir_expr,
+        ctx=ctx
+    )
 
 
 def scoped_set(
@@ -390,8 +526,8 @@ def scoped_set(
         path_id: typing.Optional[irast.PathId]=None,
         ctx: context.ContextLevel) -> irast.Set:
     ir_set = ensure_set(expr, typehint=typehint, path_id=path_id, ctx=ctx)
-    if ir_set.path_scope is None:
-        ir_set.path_scope = ctx.path_scope
+    if ir_set.path_scope_id is None:
+        pathctx.assign_set_scope(ir_set, ctx.path_scope, ctx=ctx)
     return ir_set
 
 
@@ -454,6 +590,8 @@ def computable_ptr_set(
     subctx.path_scope = ctx.path_scope
     subctx.class_shapes = ctx.class_shapes.copy()
     subctx.all_sets = ctx.all_sets
+    subctx.path_scope_map = ctx.path_scope_map
+    subctx.scope_id_ctr = ctx.scope_id_ctr
 
     if isinstance(ptrcls, s_linkprops.LinkProperty):
         source_path_id = rptr.source.path_id.ptr_path()
@@ -489,15 +627,32 @@ def computable_ptr_set(
         subctx.view_map = qlctx.view_map.new_child()
         subctx.singletons = qlctx.singletons.copy()
         subctx.class_shapes = qlctx.class_shapes.copy()
-        subctx.path_id_namespace = qlctx.path_id_namespace
+        subctx.path_id_namespce = qlctx.path_id_namespace
 
     if qlctx is None:
         # This is a schema-level computable expression, put all
         # class refs into a separate namespace.
         subctx.path_id_namespace = (subctx.aliases.get('ns'),)
     else:
-        inner_path_id = pathctx.get_path_id(self_.scls, ctx=subctx)
-        subctx.view_map[inner_path_id] = rptr.source
+        subns = subctx.pending_stmt_path_id_namespace = \
+            {irast.WeakNamespace(ctx.aliases.get('ns'))}
+
+        self_view = ctx.view_sets.get(self_.scls)
+        if self_view:
+            if self_view.path_id.namespace:
+                subns.update(self_view.path_id.namespace)
+            inner_path_id = self_view.path_id.merge_namespace(
+                subctx.path_id_namespace + tuple(subns))
+        else:
+            if self_.path_id.namespace:
+                subns.update(self_.path_id.namespace)
+            inner_path_id = pathctx.get_path_id(
+                self_.scls, ctx=subctx).merge_namespace(subns)
+
+        remapped_source = new_set_from_set(rptr.source, ctx=subctx)
+        remapped_source.path_id = \
+            remapped_source.path_id.merge_namespace(subns)
+        subctx.view_map[inner_path_id] = remapped_source
 
     if isinstance(qlexpr, qlast.Statement) and unnest_fence:
         subctx.stmt_metadata[qlexpr] = context.StatementMetadata(

@@ -298,7 +298,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             [{'name': 'Open'}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_filter_short_form02(self):
         await self.assert_query_result(r'''
             # test that shape spec is not necessary to use short form
@@ -307,7 +306,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             SELECT Status
             FILTER .name = 'Open';
         ''', [
-            [{'name': 'Open'}],
+            [{}],
         ])
 
     async def test_edgeql_filter_flow01(self):

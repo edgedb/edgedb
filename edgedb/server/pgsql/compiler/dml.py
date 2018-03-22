@@ -155,7 +155,7 @@ def fini_dml_stmt(
         dbobj.add_rel_overlay(ir_stmt.subject.scls, 'except', dml_cte,
                               env=ctx.env)
 
-    if parent_ctx.toplevel_stmt is None:
+    if parent_ctx.toplevel_stmt is wrapper:
         ret_ref = pathctx.get_path_identity_var(
             wrapper, ir_stmt.subject.path_id, env=parent_ctx.env)
         count = pgast.FuncCall(name=('count',), args=[ret_ref])
@@ -479,11 +479,12 @@ def process_update_body(
     toplevel.ctes.append(range_cte)
     toplevel.ctes.append(update_cte)
 
-    with ctx.newrel() as subctx:
+    with ctx.newscope() as subctx:
         # It is necessary to process the expressions in
         # the UpdateStmt shape body in the context of the
         # UPDATE statement so that references to the current
         # values of the updated object are resolved correctly.
+        subctx.path_scope[ir_stmt.subject.path_id] = update_stmt
         subctx.rel = update_stmt
         subctx.expr_exposed = False
         subctx.shape_format = context.ShapeFormat.FLAT
@@ -882,10 +883,11 @@ def process_link_values(
         CTE representing the iterator range in the FOR clause of the
         EdgeQL DML statement.
     """
-    with ctx.newrel() as subrelctx:
+    with ctx.newscope() as newscope, newscope.newrel() as subrelctx:
         row_query = subrelctx.rel
 
         relctx.include_rvar(row_query, dml_rvar, ctx=subrelctx)
+        subrelctx.path_scope[ir_stmt.subject.path_id] = row_query
 
         if iterator_cte is not None:
             iterator_rvar = dbobj.rvar_for_rel(

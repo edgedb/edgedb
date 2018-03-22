@@ -80,8 +80,8 @@ def compile_SelectQuery(
 
             if ctx.toplevel_result_view_name:
                 alias = ctx.aliases.get('expr')
-                stmt.result.path_id = irutils.get_expression_path_id(
-                    stmt.result.scls, alias, ctx.schema)
+                stmt.result.path_id = setgen.get_expression_path_id(
+                    stmt.result.scls, alias, ctx=ctx)
 
             stmt.offset = clauses.compile_limit_offset_clause(
                 expr.offset, ctx=sctx)
@@ -119,20 +119,24 @@ def compile_ForQuery(
             # LIMIT and OFFSET are infix operators with both
             # operands being SET OF, so we need to compile
             # the body of the statement behind a fence.
-            sctx.path_scope = sctx.path_scope.add_fence()
+            sctx.path_scope = sctx.path_scope.attach_fence()
 
         with sctx.newscope(fenced=True) as scopectx:
             iterator = qlstmt.iterator
             if isinstance(iterator, qlast.Set) and len(iterator.elements) == 1:
                 iterator = iterator.elements[0]
 
-            stmt.iterator_stmt = setgen.scoped_set(
-                stmtctx.declare_view(iterator, qlstmt.iterator_alias,
-                                     ctx=scopectx),
-                ctx=scopectx)
+            iterator_view = stmtctx.declare_view(
+                iterator, qlstmt.iterator_alias, ctx=scopectx)
 
-        sctx.singletons.add(stmt.iterator_stmt.path_id)
+            stmt.iterator_stmt = setgen.new_set_from_set(
+                iterator_view, ctx=scopectx)
+
+            iterator_scope = scopectx.path_scope_map.get(iterator_view)
+
         pathctx.register_set_in_scope(stmt.iterator_stmt, ctx=sctx)
+        node = sctx.path_scope.find_descendant(stmt.iterator_stmt.path_id)
+        node.attach_subtree(iterator_scope)
 
         stmt.result = compile_result_clause(
             qlstmt.result,
@@ -332,9 +336,14 @@ def init_stmt(
     ctx.stmt = irstmt
     if ctx.toplevel_stmt is None:
         parent_ctx.toplevel_stmt = ctx.toplevel_stmt = irstmt
-        parent_ctx.path_scope = ctx.path_scope = irast.ScopeFenceNode()
+        parent_ctx.path_scope = ctx.path_scope = irast.new_scope_tree()
     else:
-        ctx.path_scope = parent_ctx.path_scope.add_fence()
+        ctx.path_scope = parent_ctx.path_scope.attach_fence()
+
+    pending_ns = parent_ctx.pending_stmt_path_id_namespace
+    if pending_ns:
+        ctx.path_id_namespace += tuple(pending_ns)
+        ctx.path_scope.namespaces.update(pending_ns)
 
     metadata = ctx.stmt_metadata.get(qlstmt)
     if metadata is not None and metadata.is_unnest_fence:

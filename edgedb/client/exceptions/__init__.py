@@ -46,15 +46,15 @@ class InvalidConstraintDefinitionError(SchemaDefinitionError):
     code = '32101'
 
 
-class EdgeDBSyntaxError(_base.EdgeDBError):
+class EdgeDBLanguageError(_base.EdgeDBError):
     code = '42600'
 
 
-class EdgeQLError(EdgeDBSyntaxError):
+class EdgeQLError(EdgeDBLanguageError):
     code = '42601'
 
 
-class EdgeQLSyntaxError(EdgeDBSyntaxError):
+class EdgeQLSyntaxError(EdgeQLError):
     code = '42602'
 
 
@@ -64,7 +64,7 @@ __all__ = _base.__all__ + (
     'NoActiveTransactionError',
     'MissingRequiredPointerError',
     'ConstraintViolationError',
-    'EdgeDBSyntaxError',
+    'EdgeDBLanguageError',
     'EdgeQLError',
     'EdgeQLSyntaxError'
 )

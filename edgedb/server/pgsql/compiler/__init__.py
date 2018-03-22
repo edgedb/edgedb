@@ -36,10 +36,12 @@ def compile_ir_to_sql_tree(
         # Transform to sql tree
         ctx_stack = context.CompilerContext()
         ctx = ctx_stack.current
-        if isinstance(ir_expr, irast.Statement):
+        expr_is_stmt = isinstance(ir_expr, irast.Statement)
+        if expr_is_stmt:
             views = ir_expr.views
-            ctx.scope_tree = ir_expr.expr.path_scope
-            ir_expr = ir_expr.expr.expr
+            ctx.scope_map = ir_expr.scope_map
+            ctx.scope_tree = ir_expr.scope_tree
+            ir_expr = ir_expr.expr
         else:
             views = {}
         ctx.env = context.Environment(

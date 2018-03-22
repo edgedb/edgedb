@@ -65,6 +65,7 @@ def pull_path_namespace(
 def include_rvar(
         stmt: pgast.Query, rvar: pgast.BaseRangeVar,
         path_id: irast.PathId=None, *,
+        overwrite_path_rvar: bool=False,
         aspect: str='value',
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
     """Ensure that *rvar* is visible in *stmt*.
@@ -92,8 +93,12 @@ def include_rvar(
         pull_path_namespace(target=stmt, source=rvar, ctx=ctx)
 
     if path_id is not None:
-        pathctx.put_path_rvar_if_not_exists(
-            stmt, path_id, rvar, aspect=aspect, env=ctx.env)
+        if overwrite_path_rvar:
+            pathctx.put_path_rvar(
+                stmt, path_id, rvar, aspect=aspect, env=ctx.env)
+        else:
+            pathctx.put_path_rvar_if_not_exists(
+                stmt, path_id, rvar, aspect=aspect, env=ctx.env)
 
     return rvar
 
@@ -432,16 +437,29 @@ def ensure_transient_identity_for_set(
     pathctx.put_path_bond(stmt, ir_set.path_id)
 
 
+def get_scope(
+        ir_set: irast.Set, *,
+        ctx: context.CompilerContextLevel) -> \
+        typing.Optional[irast.ScopeTreeNode]:
+    if ir_set.path_scope_id is None:
+        return None
+    else:
+        return ctx.scope_tree.find_by_unique_id(ir_set.path_scope_id)
+
+
 def update_scope(
         ir_set: irast.Set, stmt: pgast.Query, *,
         ctx: context.CompilerContextLevel) -> None:
 
-    ctx.scope_tree = ir_set.path_scope
+    scope_tree = ctx.scope_tree.root.find_by_unique_id(ir_set.path_scope_id)
+
+    ctx.scope_tree = scope_tree
+
     ctx.path_scope = ctx.path_scope.new_child()
-    child_paths = set(ir_set.path_scope.paths)
-    ctx.path_scope.update({p: stmt for p in child_paths})
-    for child_path in ir_set.path_scope.get_all_paths():
-        parent_scope = ctx.scope_tree.parent
+    ctx.path_scope.update({p.path_id: stmt for p in scope_tree.path_children})
+
+    for child_path in scope_tree.get_all_paths():
+        parent_scope = scope_tree.parent
         if parent_scope is None or not parent_scope.is_visible(child_path):
             stmt.path_id_mask.add(child_path)
 

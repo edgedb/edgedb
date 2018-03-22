@@ -92,10 +92,14 @@ def compile_Set(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     if expr.elements:
         if len(expr.elements) == 1:
+            # From the scope perspective, single-element set
+            # literals are equivalent to a binary UNION with
+            # an empty set, not to the element.
             with ctx.newscope(fenced=True) as scopectx:
-                return setgen.scoped_set(
-                    dispatch.compile(expr.elements[0], ctx=scopectx),
-                    ctx=scopectx)
+                ir_set = dispatch.compile(expr.elements[0], ctx=scopectx)
+                ir_set.path_id = setgen.get_expression_path_id(
+                    ir_set.scls, scopectx.aliases.get('expr'), ctx=scopectx)
+                return setgen.scoped_set(ir_set, ctx=scopectx)
         else:
             elements = flatten_set(expr)
             # a set literal is just sugar for a UNION
@@ -391,7 +395,7 @@ def _cast_expr(
 def compile_TypeFilter(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     # Expr[IS Type] expressions.
-    with ctx.newscope(fenced=True, temporary=True) as scopectx:
+    with ctx.new() as scopectx:
         arg = setgen.ensure_set(
             dispatch.compile(expr.expr, ctx=scopectx),
             ctx=scopectx)
@@ -409,13 +413,7 @@ def compile_TypeFilter(
             f'invalid type filter operand: {typ.name} is not a concept',
             context=expr.type.context)
 
-    result = setgen.class_indirection_set(arg, typ, optional=False, ctx=ctx)
-    pathctx.register_set_in_scope(result, ctx=ctx)
-    node = ctx.path_scope.find_descendant(result.path_id)
-    if node:
-        node.attach_branch(scopectx.path_scope)
-
-    return result
+    return setgen.class_indirection_set(arg, typ, optional=False, ctx=ctx)
 
 
 @dispatch.compile.register(qlast.Indirection)
@@ -549,10 +547,10 @@ def compile_type_check_op(
         right = dispatch.compile(expr.right, ctx=subctx)
 
     ltype = irutils.infer_type(left, ctx.schema)
-    left, _ = setgen.path_step(
-        left, ltype, ('std', '__class__'),
-        s_pointers.PointerDirection.Outbound, None,
-        expr.context, ctx=ctx)
+    left = setgen.ptr_step_set(
+        left, source=ltype, ptr_name=('std', '__class__'),
+        direction=s_pointers.PointerDirection.Outbound,
+        source_context=expr.context, ctx=ctx)
 
     pathctx.register_set_in_scope(left, ctx=ctx)
 

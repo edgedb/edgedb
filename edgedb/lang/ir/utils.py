@@ -6,8 +6,6 @@
 ##
 
 
-import typing
-
 from edgedb.lang.common import ast
 
 from edgedb.lang.schema import concepts as s_concepts
@@ -16,7 +14,6 @@ from edgedb.lang.schema import name as s_name
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import schema as s_schema
 from edgedb.lang.schema import sources as s_sources  # NOQA
-from edgedb.lang.schema import types as s_types
 
 from . import ast as irast
 from .inference import amend_empty_set_type  # NOQA
@@ -183,41 +180,6 @@ def new_empty_set(schema, *, scls=None, alias):
     cls = base_scls.__class__(name=cls_name, bases=[base_scls])
     cls.acquire_ancestor_inheritance(schema)
     return irast.EmptySet(path_id=irast.PathId(cls), scls=scls)
-
-
-def get_expression_path_id(
-        t: s_types.Type, alias: str,
-        schema: s_schema.Schema) -> irast.PathId:
-    cls_name = s_name.Name(module='__expr__', name=alias)
-    if isinstance(t, (s_types.Collection, s_types.Tuple)):
-        et = t.copy()
-        et.name = cls_name
-    else:
-        et = t.__class__(name=cls_name, bases=[t])
-        et.acquire_ancestor_inheritance(schema)
-    return irast.PathId(et)
-
-
-def new_expression_set(ir_expr, schema, path_id=None, alias=None,
-                       typehint: typing.Optional[irast.TypeRef]=None):
-    if isinstance(ir_expr, irast.EmptySet) and typehint is not None:
-        ir_expr = irast.TypeCast(expr=ir_expr, type=typehint)
-
-    result_type = infer_type(ir_expr, schema)
-
-    if path_id is None:
-        path_id = getattr(ir_expr, 'path_id', None)
-
-        if not path_id:
-            if alias is None:
-                raise ValueError('either path_id or alias are required')
-            path_id = get_expression_path_id(result_type, alias, schema)
-
-    return irast.Set(
-        path_id=path_id,
-        scls=result_type,
-        expr=ir_expr,
-    )
 
 
 class TupleIndirectionLink(s_links.Link):

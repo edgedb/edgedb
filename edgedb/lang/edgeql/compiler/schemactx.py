@@ -15,6 +15,7 @@ from edgedb.lang.schema import error as s_err
 from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import nodes as s_nodes
 from edgedb.lang.schema import objects as s_obj
+from edgedb.lang.schema import sources as s_sources
 from edgedb.lang.schema import types as s_types
 
 from edgedb.lang.edgeql import ast as qlast
@@ -108,6 +109,15 @@ def derive_view(
         derived = scls.derive_copy(
             ctx.schema, source, target, *qualifiers, name=derived_name,
             attrs=dict(bases=[scls]), mark_derived=True)
+
+        if isinstance(derived, s_sources.Source):
+            for pn, ptr in derived.own_pointers.items():
+                # This is a view of a view.  Make sure query-level
+                # computable expressions for pointers are carried over.
+                src_ptr = scls.pointers[pn]
+                computable_data = ctx.source_map.get(src_ptr)
+                if computable_data is not None:
+                    ctx.source_map[ptr] = computable_data
 
     if isinstance(derived, s_types.Type):
         if is_insert:

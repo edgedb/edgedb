@@ -95,9 +95,14 @@ def get_set_rvar(
         # about it later.
         subctx.pending_query = stmt
 
+        if ctx.toplevel_stmt is None:
+            # This is a top Set
+            ctx.toplevel_stmt = stmt
+
         if scope_stmt is None:
             scope_stmt = ctx.rel
-            if ir_set.path_scope and ir_set.path_scope.is_visible(path_id):
+            path_scope = relctx.get_scope(ir_set, ctx=subctx)
+            if path_scope is not None and path_scope.is_visible(path_id):
                 subctx.path_scope[path_id] = scope_stmt
 
         stmt.name = ctx.env.aliases.get(get_set_rel_alias(ir_set))
@@ -107,7 +112,7 @@ def get_set_rvar(
                 ir_set=ir_set, stmt=stmt, ctx=subctx)
             subctx.pending_query = subctx.rel = stmt
 
-        if ir_set.path_scope is not None:
+        if ir_set.path_scope_id is not None:
             relctx.update_scope(ir_set, stmt, ctx=subctx)
 
         if irutils.is_subquery_set(ir_set):
@@ -182,7 +187,14 @@ def get_set_rvar(
                                           rvars=rvars, ctx=subctx)
 
         for rvar, pid, aspect in rvars.new:
+            # overwrite_path_rvar is needed because we want
+            # the outermost Set with the given path_id to
+            # represent the path.  Nested Sets with the
+            # same path_id but different expression are
+            # possible when there is a computable pointer
+            # that refers to itself in its expression.
             relctx.include_rvar(scope_stmt, rvar, path_id=pid,
+                                overwrite_path_rvar=True,
                                 aspect=aspect, ctx=ctx)
 
         pathctx.put_path_rvar_if_not_exists(
@@ -638,8 +650,10 @@ def process_set_as_subquery(
         if is_atom_path:
             source_is_visible = True
         else:
-            source_is_visible = ctx.scope_tree.parent_fence.is_visible(
-                ir_source.path_id)
+            # Non-atomic computable pointer.  Theck if path source is
+            # visible in the outer scope.
+            outer_fence = ctx.scope_tree.parent_fence
+            source_is_visible = outer_fence.is_visible(ir_source.path_id)
 
         if source_is_visible:
             get_set_rvar(ir_set.rptr.source, ctx=ctx)
@@ -651,6 +665,7 @@ def process_set_as_subquery(
         inner_set = ir_set.expr.result
         outer_id = ir_set.path_id
         inner_id = inner_set.path_id
+        semi_join = False
 
         if inner_id != outer_id:
             ctx.rel.view_path_id_map[outer_id] = inner_id
@@ -665,26 +680,38 @@ def process_set_as_subquery(
                 newctx.volatility_ref = relctx.maybe_get_path_var(
                     stmt, path_id=ir_source.path_id, aspect='identity',
                     ctx=ctx)
-            elif (not is_atom_path and not source_is_visible and
-                    (ir_set.path_scope is None or
-                        ir_set.path_scope.find_descendant(
-                            ir_source.path_id, respect_fences=False) is None)):
+            elif not is_atom_path and not source_is_visible:
+                path_scope = relctx.get_scope(ir_set, ctx=newctx)
+                if (path_scope is None or
+                        path_scope.find_descendant(ir_source.path_id) is None):
+                    # Non-atomic computable semi-join.
+                    semi_join = True
 
-                # Non-atomic computable semi-join.  This basically just
-                # requires checking that the source set is not empty.
-                with newctx.subrel() as _, _.newscope() as subctx:
-                    get_set_rvar(ir_source, ctx=subctx)
-                    subrel = subctx.rel
+                    with newctx.subrel() as _, _.newscope() as subctx:
+                        get_set_rvar(ir_source, ctx=subctx)
+                        subrel = subctx.rel
 
+                    pathctx.get_path_identity_output(
+                        subrel, path_id=ir_source.path_id, env=ctx.env)
+
+        dispatch.compile(ir_set.expr, ctx=newctx)
+
+        if semi_join:
+            src_ref = pathctx.maybe_get_path_identity_var(
+                stmt, path_id=ir_source.path_id, env=ctx.env)
+
+            if src_ref is not None:
+                cond_expr = astutils.new_binop(src_ref, subrel, 'IN')
+            else:
+                # The link expression does not refer to the source,
+                # so simply check it's not empty.
                 cond_expr = pgast.SubLink(
                     type=pgast.SubLinkType.EXISTS,
                     expr=subrel
                 )
 
-                stmt.where_clause = astutils.extend_binop(
-                    stmt.where_clause, cond_expr)
-
-        dispatch.compile(ir_set.expr, ctx=newctx)
+            stmt.where_clause = astutils.extend_binop(
+                stmt.where_clause, cond_expr)
 
     sub_rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
     return SetRVars(main=sub_rvar, new=[(sub_rvar, ir_set.path_id, 'value')])
@@ -1215,11 +1242,11 @@ def process_set_as_agg_expr(
                         arg_ref = output.output_as_value(
                             arg_ref, env=argctx.env)
 
+                path_scope = relctx.get_scope(ir_arg, ctx=argctx)
                 arg_is_visible = (
-                    ir_arg.path_scope is not None and
-                    ir_arg.path_scope.parent.is_any_prefix_visible(
-                        ir_arg.path_id)
-                )
+                    path_scope is not None and
+                    path_scope.parent.is_any_prefix_visible(ir_arg.path_id))
+
                 if arg_is_visible:
                     # If the argument set is visible above us, we
                     # are aggregating a singleton set, potentially on

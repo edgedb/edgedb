@@ -45,13 +45,13 @@ def compile_orderby_clause(
         return result
 
     with ctx.new() as subctx:
-        subctx.path_scope.unnest_fence = True
         subctx.clause = 'orderby'
         if subctx.stmt.parent_stmt is None:
             subctx.toplevel_clause = subctx.clause
 
         for sortexpr in sortexprs:
             with subctx.newscope(fenced=True) as exprctx:
+                exprctx.path_scope.unnest_fence = True
                 ir_sortexpr = dispatch.compile(sortexpr.path, ctx=exprctx)
                 ir_sortexpr = setgen.scoped_set(ir_sortexpr, ctx=exprctx)
                 ir_sortexpr.context = sortexpr.context
