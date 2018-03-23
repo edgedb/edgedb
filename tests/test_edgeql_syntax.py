@@ -256,9 +256,9 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         SELECT (User.name IN {'Alice', 'Bob'});
         SELECT (User.name NOT IN {'Alice', 'Bob'});
-        SELECT (User.name IS (std::str));
+        SELECT (User.name IS std::str);
         SELECT (User IS SystemUser);
-        SELECT (User.name IS NOT (std::str));
+        SELECT (User.name IS NOT std::str);
         SELECT (User IS NOT SystemUser);
         """
 
@@ -426,10 +426,10 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
         SELECT bar;
         SELECT bar;
-        SELECT (foo::bar);
-        SELECT (foo::bar);
-        SELECT (foo::bar);
-        SELECT (foo::bar);
+        SELECT foo::bar;
+        SELECT foo::bar;
+        SELECT foo::bar;
+        SELECT foo::bar;
         """
 
     def test_edgeql_syntax_name_02(self):
@@ -445,10 +445,10 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
         SELECT bar;
         SELECT bar;
-        SELECT (foo::bar);
-        SELECT (foo::bar);
-        SELECT (foo::bar);
-        SELECT (foo::bar);
+        SELECT foo::bar;
+        SELECT foo::bar;
+        SELECT foo::bar;
+        SELECT foo::bar;
         """
 
     def test_edgeql_syntax_name_03(self):
@@ -464,10 +464,10 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
         SELECT action;
         SELECT action;
-        SELECT (event::action);
-        SELECT (event::action);
-        SELECT (event::action);
-        SELECT (event::action);
+        SELECT event::action;
+        SELECT event::action;
+        SELECT event::action;
+        SELECT event::action;
         """
 
     def test_edgeql_syntax_name_04(self):
@@ -479,10 +479,10 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
 % OK %
 
-        SELECT (event::`select`);
-        SELECT (event::`select`);
-        SELECT (event::`select`);
-        SELECT (event::`select`);
+        SELECT event::`select`;
+        SELECT event::`select`;
+        SELECT event::`select`;
+        SELECT event::`select`;
         """
 
     def test_edgeql_syntax_name_05(self):
@@ -492,33 +492,22 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT `foo.bar`::spam;
         SELECT `foo.bar`::spam.ham;
         SELECT `foo.bar`::`spam.ham`;
+        SELECT (foo).bar;
 
 % OK %
 
         SELECT foo.bar;
         SELECT `foo.bar`;
-        SELECT (`foo.bar`::spam);
-        SELECT (`foo.bar`::spam).ham;
-        SELECT (`foo.bar`::`spam.ham`);
+        SELECT `foo.bar`::spam;
+        SELECT `foo.bar`::spam.ham;
+        SELECT `foo.bar`::`spam.ham`;
+        SELECT foo.bar;
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=20)
     def test_edgeql_syntax_name_06(self):
         """
-        SELECT foo.bar;
-        SELECT (foo).bar;
-        SELECT (foo).(bar);
-        SELECT ((foo).bar);
-        SELECT ((((foo))).bar);
-        SELECT ((((foo))).(((bar))));
-
-% OK %
-
-        SELECT foo.bar;
-        SELECT foo.bar;
-        SELECT foo.bar;
-        SELECT foo.bar;
-        SELECT foo.bar;
-        SELECT foo.bar;
+        SELECT foo.(bar);
         """
 
     def test_edgeql_syntax_name_07(self):
@@ -592,81 +581,41 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_shape_02(self):
         """
         SELECT Foo {bar};
-        SELECT Foo {(bar)};
-        SELECT Foo {(((bar)))};
         SELECT Foo {@bar};
-        SELECT Foo {@(bar)};
-        SELECT Foo {@(((bar)))};
         SELECT Foo {>bar};
-        SELECT Foo {>(bar)};
-        SELECT Foo {>(((bar)))};
         SELECT Foo {<bar};
-        SELECT Foo {<(bar)};
-        SELECT Foo {<(((bar)))};
 
 % OK %
 
         SELECT Foo {bar};
-        SELECT Foo {bar};
-        SELECT Foo {bar};
-        SELECT Foo {@bar};
-        SELECT Foo {@bar};
         SELECT Foo {@bar};
         SELECT Foo {bar};
-        SELECT Foo {bar};
-        SELECT Foo {bar};
-        SELECT Foo {<bar};
-        SELECT Foo {<bar};
         SELECT Foo {<bar};
         """
 
     def test_edgeql_syntax_shape_03(self):
         """
         SELECT Foo {Bar.bar};
-        SELECT Foo {Bar.(bar)};
-        SELECT Foo {Bar.(((bar)))};
         SELECT Foo {Bar.>bar};
-        SELECT Foo {Bar.>(bar)};
-        SELECT Foo {Bar.>(((bar)))};
         SELECT Foo {Bar.<bar};
-        SELECT Foo {Bar.<(bar)};
-        SELECT Foo {Bar.<(((bar)))};
 
 % OK %
 
         SELECT Foo {Bar.bar};
         SELECT Foo {Bar.bar};
-        SELECT Foo {Bar.bar};
-        SELECT Foo {Bar.bar};
-        SELECT Foo {Bar.bar};
-        SELECT Foo {Bar.bar};
-        SELECT Foo {Bar.<bar};
-        SELECT Foo {Bar.<bar};
         SELECT Foo {Bar.<bar};
         """
 
     def test_edgeql_syntax_shape_04(self):
         """
         SELECT Foo {Bar.bar};
-        SELECT Foo {(Bar).(bar)};
-        SELECT Foo {(((Bar))).(((bar)))};
         SELECT Foo {Bar.>bar};
-        SELECT Foo {(Bar).>(bar)};
-        SELECT Foo {(((Bar))).>(((bar)))};
         SELECT Foo {Bar.<bar};
-        SELECT Foo {(Bar).<(bar)};
-        SELECT Foo {(((Bar))).<(((bar)))};
 
 % OK %
 
         SELECT Foo {Bar.bar};
         SELECT Foo {Bar.bar};
-        SELECT Foo {Bar.bar};
-        SELECT Foo {Bar.bar};
-        SELECT Foo {Bar.bar};
-        SELECT Foo {Bar.bar};
-        SELECT Foo {Bar.<bar};
-        SELECT Foo {Bar.<bar};
         SELECT Foo {Bar.<bar};
         """
 
@@ -773,6 +722,20 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected token.*LPAREN", line=2, col=21)
+    def test_edgeql_syntax_shape_15(self):
+        """
+        SELECT Foo {(bar)};
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected token.*LPAREN", line=2, col=25)
+    def test_edgeql_syntax_shape_16(self):
+        """
+        SELECT Foo {Bar.(bar)};
+        """
+
     def test_edgeql_syntax_shape_19(self):
         """
             SELECT
@@ -787,45 +750,33 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
                     number
                 }
             FILTER
-                (((test::Issue)).(number)) = '1';
-
-            SELECT
-                test::Issue {
-                    test::number
-                }
-            FILTER
-                (((test::Issue)).(test::number)) = '1';
+                (((test::Issue)).number) = '1';
 
 % OK %
 
             SELECT
-                (test::Issue) {
+                test::Issue {
                     number
                 }
             FILTER
-                ((test::Issue).number = '1');
+                (test::Issue.number = '1');
 
             SELECT
-                (test::Issue) {
+                test::Issue {
                     number
                 }
             FILTER
-                ((test::Issue).number = '1');
-
-            SELECT
-                (test::Issue) {
-                    (test::number)
-                }
-            FILTER
-                ((test::Issue).(test::number) = '1');
-
+                (test::Issue.number = '1');
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected token.*AT", line=6, col=24)
     def test_edgeql_syntax_shape_20(self):
         """
         INSERT Foo{
             bar: {
                 @weight,
+                # this syntax may be valid in the future
                 BarLink@special,
             }
         };
@@ -1165,29 +1116,10 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo.<event[IS Action];
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=23)
     def test_edgeql_syntax_path_03(self):
         """
-        SELECT Foo.(lib::bar);
-        SELECT Foo.>(lib::bar);
-        SELECT Foo.<(lib::bar);
-        SELECT Foo.(lib::bar)@(lib::spam);
-        SELECT Foo.>(lib::bar)@(lib::spam);
-        SELECT Foo.<(lib::bar)@(lib::spam);
-        SELECT Foo.(lib::bar)[IS lib::Baz];
-        SELECT Foo.>(lib::bar)[IS lib::Baz];
-        SELECT Foo.<(lib::bar)[IS lib::Baz];
-
-% OK %
-
-        SELECT Foo.(lib::bar);
-        SELECT Foo.(lib::bar);
-        SELECT Foo.<(lib::bar);
-        SELECT Foo.(lib::bar)@(lib::spam);
-        SELECT Foo.(lib::bar)@(lib::spam);
-        SELECT Foo.<(lib::bar)@(lib::spam);
-        SELECT Foo.(lib::bar)[IS lib::Baz];
-        SELECT Foo.(lib::bar)[IS lib::Baz];
-        SELECT Foo.<(lib::bar)[IS lib::Baz];
+        SELECT Foo.lib::bar;
         """
 
     def test_edgeql_syntax_path_04(self):
@@ -1247,8 +1179,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_path_13(self):
         """
         SELECT (Foo.bar)[IS Baz];
-        SELECT Foo.(bar)[IS Baz];
-        SELECT Foo.<(bar)[IS Baz];
+        SELECT Foo.bar[IS Baz];
+        SELECT Foo.<bar[IS Baz];
 
 % OK %
 
@@ -1559,7 +1491,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             MODULE test,
             extra := MODULE lib.extra,
             foo := Bar.foo,
-            baz := (SELECT (extra::Foo).baz)
+            baz := (SELECT extra::Foo.baz)
         SELECT Bar {
             spam,
             ham := baz
