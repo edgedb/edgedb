@@ -340,9 +340,9 @@ class ShapePath(Nonterm):
     #   Concept.link
     #   Concept.>link
     #   Concept.<link
-    #   Link@prop
+    #   Link@prop - currently not supported
 
-    def reduce_ShapePathPtr(self, *kids):
+    def reduce_PathPtr(self, *kids):
         from edgedb.lang.schema import pointers as s_pointers
 
         self.val = qlast.Path(
@@ -354,7 +354,7 @@ class ShapePath(Nonterm):
             ]
         )
 
-    def reduce_LinkDirection_ShapePathPtr(self, *kids):
+    def reduce_LinkDirection_PathPtr(self, *kids):
         self.val = qlast.Path(
             steps=[
                 qlast.Ptr(
@@ -364,7 +364,7 @@ class ShapePath(Nonterm):
             ]
         )
 
-    def reduce_AT_ShapePathPtr(self, *kids):
+    def reduce_AT_PathPtr(self, *kids):
         self.val = qlast.Path(
             steps=[
                 qlast.Ptr(
@@ -374,18 +374,7 @@ class ShapePath(Nonterm):
             ]
         )
 
-    def reduce_ShapePathPtr_AT_ShapePathPtr(self, *kids):
-        self.val = qlast.Path(
-            steps=[
-                kids[0].val,
-                qlast.Ptr(
-                    ptr=kids[2].val,
-                    type='property'
-                )
-            ]
-        )
-
-    def reduce_ShapePathPtr_DOT_ShapePathPtr(self, *kids):
+    def reduce_ShapePathPtr_DOT_PathPtr(self, *kids):
         from edgedb.lang.schema import pointers as s_pointers
 
         self.val = qlast.Path(
@@ -398,7 +387,7 @@ class ShapePath(Nonterm):
             ]
         )
 
-    def reduce_ShapePathPtr_DOTFW_ShapePathPtr(self, *kids):
+    def reduce_ShapePathPtr_DOTFW_PathPtr(self, *kids):
         from edgedb.lang.schema import pointers as s_pointers
 
         self.val = qlast.Path(
@@ -411,7 +400,7 @@ class ShapePath(Nonterm):
             ]
         )
 
-    def reduce_ShapePathPtr_DOTBW_ShapePathPtr(self, *kids):
+    def reduce_ShapePathPtr_DOTBW_PathPtr(self, *kids):
         from edgedb.lang.schema import pointers as s_pointers
 
         self.val = qlast.Path(
@@ -429,9 +418,6 @@ class ShapePathPtr(Nonterm):
     def reduce_NodeName(self, *kids):
         self.val = qlast.ClassRef(name=kids[0].val.name,
                                   module=kids[0].val.module)
-
-    def reduce_LPAREN_ShapePathPtr_RPAREN(self, *kids):
-        self.val = kids[1].val
 
 
 class ShapePointer(Nonterm):
@@ -1059,18 +1045,6 @@ class PathStep(Nonterm):
 class PathPtr(Nonterm):
     def reduce_ShortNodeName(self, *kids):
         self.val = kids[0].val
-
-    def reduce_PathPtrParen(self, *kids):
-        self.val = kids[0].val
-
-
-class PathPtrParen(Nonterm):
-    def reduce_LPAREN_PathPtrParen_RPAREN(self, *kids):
-        self.val = kids[1].val
-
-    def reduce_LPAREN_NodeName_RPAREN(self, *kids):
-        self.val = qlast.ClassRef(name=kids[1].val.name,
-                                  module=kids[1].val.module)
 
 
 class LinkDirection(Nonterm):

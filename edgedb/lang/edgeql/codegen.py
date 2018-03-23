@@ -113,7 +113,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_aliases(node)
         self.write('INSERT')
         self._block_ws(1)
-        self.visit(node.subject, parenthesise=False)
+        self.visit(node.subject)
         self._block_ws(-1)
 
         if node.shape:
@@ -134,7 +134,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_aliases(node)
         self.write('UPDATE')
         self._block_ws(1)
-        self.visit(node.subject, parenthesise=False)
+        self.visit(node.subject)
         self._block_ws(-1)
 
         self._visit_filter(node)
@@ -160,12 +160,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('(')
         self._visit_aliases(node)
         self.write('DELETE ')
-        self.visit(node.subject, parenthesise=False)
+        self.visit(node.subject)
 
         if parenthesise:
             self.write(')')
 
-    def visit_SelectQuery(self, node, *, parenthesise=False):
+    def visit_SelectQuery(self, node):
         # XXX: need to parenthesise when SELECT appears as an expression,
         # the actual passed value is ignored.
         parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
@@ -380,7 +380,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(' := ')
         self.visit(node.val)
 
-    def visit_Path(self, node, *, parenthesise=True):
+    def visit_Path(self, node):
         for i, e in enumerate(node.steps):
             if i > 0 or node.partial:
                 if getattr(e, 'type', None) != 'property':
@@ -388,7 +388,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
             if i == 0:
                 if isinstance(e, edgeql_ast.ClassRef):
-                    self.visit(e, parenthesise=parenthesise)
+                    self.visit(e)
                 elif isinstance(e, (edgeql_ast.Self,
                                     edgeql_ast.Subject)):
                     self.visit(e)
@@ -405,7 +405,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             else:
                 self.visit(e)
 
-    def visit_Shape(self, node, *, parenthesise=True):
+    def visit_Shape(self, node):
         if node.expr is not None:
             # shape.expr may be None in Function RETURNING declaration,
             # when the shape is used to described a returned struct.
@@ -427,11 +427,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         elif node.direction and node.direction != '>':
             self.write(node.direction)
 
-        self.visit(node.ptr, parenthesise=True)
+        self.visit(node.ptr)
         if (not isinstance(node.parent.parent, edgeql_ast.ShapeElement) and
                 node.target is not None):
             self.write('[IS ')
-            self.visit(node.target, parenthesise=False)
+            self.visit(node.target)
             self.write(']')
 
     def visit_ShapeElement(self, node):
@@ -475,9 +475,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('$')
         self.write(node.name)
 
-    def visit_Constant(self, node, *, parenthesise=False):
-        # XXX: parenthesise is ignored completely, but exists as a
-        # parameter for compatibility
+    def visit_Constant(self, node):
         if isinstance(node.value, str):
             self.write(edgeql_quote.quote_literal(node.value))
         elif isinstance(node.value, AST):
@@ -563,18 +561,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.index)
         self.write(']')
 
-    def visit_ClassRef(self, node, *, parenthesise=True):
-        if node.module and parenthesise:
-            self.write('(')
-
+    def visit_ClassRef(self, node):
         if node.module:
             self.write(ident_to_str(node.module))
             self.write('::')
 
         self.write(ident_to_str(node.name))
-
-        if node.module and parenthesise:
-            self.write(')')
 
     def visit_Self(self, node):
         self.write('self')
@@ -586,16 +578,16 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.expr)
         self.write(' IS None')
 
-    def visit_TypeName(self, node, *, parenthesise=False):
+    def visit_TypeName(self, node):
         if node.name is not None:
             self.write(ident_to_str(node.name), ': ')
         if isinstance(node.maintype, edgeql_ast.Path):
             self.visit(node.maintype)
         else:
-            self.visit(node.maintype, parenthesise=False)
+            self.visit(node.maintype)
         if node.subtypes:
             self.write('<')
-            self.visit_list(node.subtypes, newlines=False, parenthesise=False)
+            self.visit_list(node.subtypes, newlines=False)
             if node.dimensions is not None:
                 for dim in node.dimensions:
                     if dim is None:
@@ -623,7 +615,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             for i, b in enumerate(node.bases):
                 if i > 0:
                     self.write(', ')
-                self.visit(b, parenthesise=False)
+                self.visit(b)
 
             if len(node.bases) > 1:
                 self.write(')')
@@ -633,7 +625,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_aliases(node)
         self.write('CREATE', *object_keywords, delimiter=' ')
         self.write(' ')
-        self.visit(node.name, parenthesise=False)
+        self.visit(node.name)
         if after_name:
             after_name()
         if node.commands and render_commands:
@@ -647,7 +639,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_aliases(node)
         self.write('ALTER', *object_keywords, delimiter=' ')
         self.write(' ')
-        self.visit(node.name, parenthesise=False)
+        self.visit(node.name)
         if node.commands:
             if len(node.commands) == 1 and allow_short:
                 self.write(' ')
@@ -663,7 +655,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_aliases(node)
         self.write('DROP', *object_keywords, delimiter=' ')
         self.write(' ')
-        self.visit(node.name, parenthesise=False)
+        self.visit(node.name)
         if node.commands:
             self.write(' {')
             self._block_ws(1)
@@ -673,7 +665,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_Rename(self, node):
         self.write('RENAME TO ')
-        self.visit(node.new_name, parenthesise=False)
+        self.visit(node.new_name)
 
     def visit_SetSpecialField(self, node):
         if node.value:
@@ -726,14 +718,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_aliases(node)
         self.write('COMMIT MIGRATION')
         self.write(' ')
-        self.visit(node.name, parenthesise=False)
+        self.visit(node.name)
         self.new_lines = 1
 
     def visit_GetDelta(self, node):
         self._visit_aliases(node)
         self.write('GET MIGRATION')
         self.write(' ')
-        self.visit(node.name, parenthesise=False)
+        self.visit(node.name)
         self.new_lines = 1
 
     def visit_AlterDelta(self, node):
