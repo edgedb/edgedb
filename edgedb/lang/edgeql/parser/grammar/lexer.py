@@ -129,7 +129,7 @@ class EdgeQLLexer(lexer.Lexer):
 
         Rule(token='QIDENT',
              next_state=STATE_KEEP,
-             regexp=r'`.+?`'),
+             regexp=r'`[^@].*?`'),
 
         Rule(token='self',
              next_state=STATE_KEEP,
