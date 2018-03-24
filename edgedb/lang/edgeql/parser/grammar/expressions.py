@@ -1124,11 +1124,6 @@ class BaseName(Nonterm):
         self.val = [kids[0].val]
 
     def reduce_Identifier_DOUBLECOLON_AnyIdentifier(self, *kids):
-        # the identifier following a '::' cannot start with '@'
-        if kids[2].val[0] == '@':
-            raise EdgeQLSyntaxError("name cannot start with '@'",
-                                    context=kids[2].context)
-
         self.val = [kids[0].val, kids[2].val]
 
 
@@ -1223,10 +1218,6 @@ class NodeName(Nonterm):
     # This name is safe to be used anywhere as it starts with IDENT only.
 
     def reduce_BaseName(self, *kids):
-        # NodeName must not start with a '@' in any way
-        if kids[0].val[-1][0] == '@':
-            raise EdgeQLSyntaxError("name cannot start with '@'",
-                                    context=kids[0].context)
         self.val = qlast.ClassRef(
             module='.'.join(kids[0].val[:-1]) or None,
             name=kids[0].val[-1])
@@ -1245,10 +1236,6 @@ class ShortNodeName(Nonterm):
     # quoted or parenthesized.
 
     def reduce_Identifier(self, *kids):
-        # ShortNodeName cannot start with a '@' in any way
-        if kids[0].val[0] == '@':
-            raise EdgeQLSyntaxError("name cannot start with '@'",
-                                    context=kids[0].context)
         self.val = qlast.ClassRef(
             module=None,
             name=kids[0].val)
@@ -1267,10 +1254,6 @@ class AnyNodeName(Nonterm):
     # ambiguity with NodeName, etc.
 
     def reduce_AnyIdentifier(self, *kids):
-        # AnyNodeName cannot start with a '@' in any way
-        if kids[0].val[0] == '@':
-            raise EdgeQLSyntaxError("name cannot start with '@'",
-                                    context=kids[0].context)
         self.val = qlast.ClassRef(
             module=None,
             name=kids[0].val)
