@@ -438,7 +438,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         # PathSpec can only contain LinkExpr or LinkPropExpr,
         # and must not be quoted.
 
-        self.visit(node.expr)
+        if len(node.expr.steps) == 1:
+            self.visit(node.expr)
+        else:
+            self.write('[IS ')
+            self.visit(node.expr.steps[0])
+            self.write('].')
+            self.visit(node.expr.steps[1])
+
         if node.recurse:
             self.write('*')
             if node.recurse_limit:

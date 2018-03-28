@@ -41,7 +41,7 @@ class TestTransactions(tb.QueryTestCase):
 
                 await self.con.execute('''
                     INSERT test::TransactionTest {
-                        test::name := 'Test Transaction'
+                        name := 'Test Transaction'
                     };
                 ''')
 
@@ -72,7 +72,7 @@ class TestTransactions(tb.QueryTestCase):
 
                     await self.con.execute('''
                         INSERT test::TransactionTest {
-                            test::name := 'TXTEST 1'
+                            name := 'TXTEST 1'
                         };
                     ''')
 
@@ -86,7 +86,7 @@ class TestTransactions(tb.QueryTestCase):
 
                         await self.con.execute('''
                             INSERT test::TransactionTest {
-                                test::name := 'TXTEST 2'
+                                name := 'TXTEST 2'
                             };
                         ''')
 

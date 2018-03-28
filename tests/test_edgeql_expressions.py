@@ -348,11 +348,6 @@ class TestExpressions(tb.QueryTestCase):
         cases = [
             "Issue.owner.name",
             "`Issue`.`owner`.`name`",
-            "Issue.(test::owner).name",
-            "`Issue`.(`test`::`owner`).`name`",
-            "Issue.(owner).(name)",
-            "test::`Issue`.(`test`::`owner`).`name`",
-            "Issue.((owner)).(((test::name)))",
         ]
 
         for case in cases:
@@ -360,7 +355,7 @@ class TestExpressions(tb.QueryTestCase):
                 WITH MODULE test
                 SELECT
                     Issue {
-                        test::number
+                        number
                     }
                 FILTER
                     %s = 'Elvis';
@@ -476,10 +471,10 @@ class TestExpressions(tb.QueryTestCase):
         await self.con.execute(r"""
             WITH MODULE test
             SELECT Text {
-                Issue.number,
-                (Issue).related_to,
-                (Issue).((`priority`)),
-                test::Comment.owner: {
+                [IS Issue].number,
+                [IS Issue].related_to,
+                [IS Issue].`priority`,
+                [IS test::Comment].owner: {
                     name
                 }
             };
@@ -488,7 +483,7 @@ class TestExpressions(tb.QueryTestCase):
         await self.con.execute(r"""
             WITH MODULE test
             SELECT Owned {
-                Named.name
+                [IS Named].name
             };
         """)
 
@@ -1165,12 +1160,12 @@ class TestExpressions(tb.QueryTestCase):
             [1, [66, 88], 2],
         ]])
 
-    async def test_edgeql_expr_cannot_assign_dunder_class(self):
+    async def test_edgeql_expr_cannot_assign_dunder_class_01(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError, r'cannot assign to __class__'):
             await self.con.execute(r"""
                 SELECT test::Text {
-                    std::__class__ := 42
+                    __class__ := 42
                 };
             """)
 
