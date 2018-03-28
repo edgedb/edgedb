@@ -16,7 +16,7 @@ concept User extending Named:
     link deck to Card:
         mapping := '**'
 
-    link deck_cost := sum(self.deck.cost)
+    link deck_cost := sum(__self__.deck.cost)
 
     link friends to User:
         mapping := '**'
@@ -25,7 +25,7 @@ concept User extending Named:
 concept Card extending Named:
     required link element to str
     required link cost to int
-    link owners := self.<deck[IS User]
+    link owners := __self__.<deck[IS User]
 
 
 concept SpecialCard extending Card

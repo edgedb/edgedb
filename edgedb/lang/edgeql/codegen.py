@@ -576,7 +576,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(ident_to_str(node.name))
 
     def visit_Self(self, node):
-        self.write('self')
+        self.write('__self__')
 
     def visit_Subject(self, node):
         self.write('__subject__')

@@ -63,6 +63,7 @@ unreserved_keywords = frozenset([
 
 # NOTE: all operators are made into RESERVED keywords for reasons of style.
 reserved_keywords = frozenset([
+    "__self__",
     "__subject__",
     "aggregate",
     "all",
@@ -103,7 +104,6 @@ reserved_keywords = frozenset([
     "partition",
     "rollback",
     "select",
-    "self",
     "set",
     "start",
     "true",
