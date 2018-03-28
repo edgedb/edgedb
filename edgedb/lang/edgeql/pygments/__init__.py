@@ -47,7 +47,7 @@ class EdgeQLLexer(RegexLexer):
                     update | union | with
                 )\b ''', token.Keyword.Reserved),
 
-            (r'\b(?i)(?<![:\.])(self|__subject__)\b',
+            (r'\b(?i)(?<![:\.])(__self__|__subject__)\b',
              token.Name.Builtin.Pseudo),
 
             (r'\b(__class__)\b', token.Name.Builtin.Pseudo),

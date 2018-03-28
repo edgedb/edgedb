@@ -22,7 +22,8 @@ class TestIndexes(tb.DDLTestCase):
                     link first_name to str
                     link last_name to str
 
-                    index name_index on (self.first_name, self.last_name)
+                    index name_index on (__self__.first_name,
+                                         __self__.last_name)
             $$;
 
             COMMIT MIGRATION test::d1;
