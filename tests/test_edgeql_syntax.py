@@ -751,14 +751,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*AT", line=6, col=24)
+                  "Unexpected token.*AT", line=6, col=29)
     def test_edgeql_syntax_shape_20(self):
         """
         INSERT Foo{
             bar: {
                 @weight,
                 # this syntax may be valid in the future
-                BarLink@special,
+                [IS BarLink]@special,
             }
         };
         """
