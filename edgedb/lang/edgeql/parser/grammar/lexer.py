@@ -123,6 +123,20 @@ class EdgeQLLexer(lexer.Lexer):
 
         Rule(token='IDENT',
              next_state=STATE_KEEP,
+             regexp=r'__class__'),
+
+        Rule(token='BADIDENT',
+             next_state=STATE_KEEP,
+             regexp=r'''
+                    __[A-Za-z\200-\377_0-9\$%]*__
+                '''),
+
+        Rule(token='BADIDENT',
+             next_state=STATE_KEEP,
+             regexp=r'`__.*?__`'),
+
+        Rule(token='IDENT',
+             next_state=STATE_KEEP,
              regexp=r'''
                     [A-Za-z\200-\377_%] [A-Za-z\200-\377_0-9\$%]*
                 '''),
@@ -150,6 +164,9 @@ class EdgeQLLexer(lexer.Lexer):
         self._long_token_match = {x[1]: x[0] for x in self.MERGE_TOKENS}
 
     def token_from_text(self, rule_token, txt):
+        if rule_token == 'BADIDENT':
+            self.handle_error(txt)
+
         tok = super().token_from_text(rule_token, txt)
 
         if rule_token == 'self':

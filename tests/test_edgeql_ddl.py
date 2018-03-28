@@ -281,7 +281,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_12(self):
         with self.assertRaisesRegex(
                 client_errors.EdgeQLError,
-                'reference to a non-existent schema class: __subject__'):
+                r'Unknown token.*__subject__'):
             await self.con.execute(r"""
                 CREATE CONCEPT test::TestBadContainerLinkConcept {
                     CREATE LINK test::foo TO std::str {
