@@ -77,7 +77,6 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                 link = qlast.Ptr(
                     ptr=qlast.ClassRef(
                         name=pname.name,
-                        module=pname.module
                     ),
                     direction=rptr.direction,
                     target=target)
@@ -117,7 +116,6 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                         steps=[
                             qlast.Ptr(
                                 ptr=qlast.ClassRef(
-                                    module=pn.module,
                                     name=pn.name
                                 ),
                                 direction=rptr.direction

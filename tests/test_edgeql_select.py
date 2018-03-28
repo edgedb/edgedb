@@ -832,7 +832,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT
                 Text {
-                    Issue.name,
+                    [IS Issue].name,
                     body,
                 }
             ORDER BY Text.body;
@@ -1077,8 +1077,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT
                 (Issue UNION Comment) {
-                    Issue.name,
-                    Text.body
+                    [IS Issue].name,
+                    [IS Text].body
                 };
         """, lambda x: x['body'], [
             [
@@ -1101,8 +1101,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 MODULE test,
                 Obj := (SELECT Issue UNION Comment)
             SELECT Obj {
-                Issue.name,
-                Text.body
+                [IS Issue].name,
+                [IS Text].body
             };
 
             WITH
@@ -2858,7 +2858,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH MODULE test
             SELECT Text{
-                Issue.number,
+                [IS Issue].number,
                 body_length := len(Text.body)
             } ORDER BY len(Text.body);
 

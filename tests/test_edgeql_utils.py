@@ -79,7 +79,7 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
     def test_edgeql_utils_normalize_04(self):
         self._assert_normalize_expr(
             """WITH MODULE test SELECT User{name}""",
-            """SELECT (test::User) { (test::name), (std::id) }"""
+            """SELECT test::User { name, id }"""
         )
 
     def test_edgeql_utils_normalize_05(self):

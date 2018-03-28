@@ -46,7 +46,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
             (10 ** 7, 'good'),
         }
 
-        await self._run_link_tests(data, 'test::Object', 'test::c_length')
+        await self._run_link_tests(data, 'test::Object', 'c_length')
 
         data = {
             (10 ** 10, 'must be no longer than 10 characters.'),
@@ -56,7 +56,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
             (10 ** 8, 'good'),
         }
 
-        await self._run_link_tests(data, 'test::Object', 'test::c_length_2')
+        await self._run_link_tests(data, 'test::Object', 'c_length_2')
 
         data = {
             (10 ** 10, 'must be no longer than 10 characters.'),
@@ -64,7 +64,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
             (10 ** 9 - 1, 'must be no shorter than 10 characters'),
         }
 
-        await self._run_link_tests(data, 'test::Object', 'test::c_length_3')
+        await self._run_link_tests(data, 'test::Object', 'c_length_3')
 
     async def test_constraints_atom_minmax(self):
         data = {
@@ -78,7 +78,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
             (10 ** 8 - 21, 'good'),
         }
 
-        await self._run_link_tests(data, 'test::Object', 'test::c_minmax')
+        await self._run_link_tests(data, 'test::Object', 'c_minmax')
 
     async def test_constraints_atom_strvalue(self):
         data = {
@@ -96,7 +96,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
             ('9999000009', 'good'),
         }
 
-        await self._run_link_tests(data, 'test::Object', 'test::c_strvalue')
+        await self._run_link_tests(data, 'test::Object', 'c_strvalue')
 
     async def test_constraints_atom_enum(self):
         data = {
@@ -105,7 +105,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
             ('foo', 'good'),
         }
 
-        await self._run_link_tests(data, 'test::Object', 'test::c_enum')
+        await self._run_link_tests(data, 'test::Object', 'c_enum')
 
     async def test_constraints_unique_simple(self):
         async with self._run_and_rollback():

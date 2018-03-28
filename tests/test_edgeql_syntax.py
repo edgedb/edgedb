@@ -582,41 +582,22 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         SELECT Foo {bar};
         SELECT Foo {@bar};
-        SELECT Foo {>bar};
-        SELECT Foo {<bar};
 
 % OK %
 
         SELECT Foo {bar};
         SELECT Foo {@bar};
-        SELECT Foo {bar};
-        SELECT Foo {<bar};
         """
 
     def test_edgeql_syntax_shape_03(self):
         """
-        SELECT Foo {Bar.bar};
-        SELECT Foo {Bar.>bar};
-        SELECT Foo {Bar.<bar};
-
-% OK %
-
-        SELECT Foo {Bar.bar};
-        SELECT Foo {Bar.bar};
-        SELECT Foo {Bar.<bar};
+        SELECT Foo {[IS Bar].bar};
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=21)
     def test_edgeql_syntax_shape_04(self):
         """
-        SELECT Foo {Bar.bar};
-        SELECT Foo {Bar.>bar};
-        SELECT Foo {Bar.<bar};
-
-% OK %
-
-        SELECT Foo {Bar.bar};
-        SELECT Foo {Bar.bar};
-        SELECT Foo {Bar.<bar};
+        SELECT Foo {<bar};
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=13)
@@ -684,19 +665,19 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    # NOTE: this is syntactically allowed, but the compiler should
-    # throw an error
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected token.*DOT", line=3, col=21)
     def test_edgeql_syntax_shape_11(self):
         """
         SELECT Foo {
-            __class__.name
+            __type__.name
         };
         """
 
     def test_edgeql_syntax_shape_12(self):
         """
         SELECT Foo {
-            __class__: {
+            __type__: {
                 name,
             }
         };
@@ -705,7 +686,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_shape_13(self):
         """
         SELECT Foo {
-            __class__: {
+            __type__: {
                 name,
                 description,
             }
@@ -730,10 +711,10 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*LPAREN", line=2, col=25)
+                  "Unexpected token.*LPAREN", line=2, col=30)
     def test_edgeql_syntax_shape_16(self):
         """
-        SELECT Foo {Bar.(bar)};
+        SELECT Foo {[IS Bar].(bar)};
         """
 
     def test_edgeql_syntax_shape_19(self):
@@ -857,7 +838,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         SELECT User{
             name,
-            <owner: LogEntry {
+            owned := User.<owner[IS LogEntry] {
                 body
             },
         };
@@ -877,7 +858,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         SELECT User{
             name,
-            <owner: LogEntry {
+            owned := User.<owner[IS LogEntry] {
                 body
             },
         } FILTER (.<owner.body = 'foo');
@@ -1191,7 +1172,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_path_14(self):
         """
-        SELECT User.__class__.name LIMIT 1;
+        SELECT User.__type__.name LIMIT 1;
         """
 
     def test_edgeql_syntax_path_15(self):
@@ -1231,7 +1212,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_path_20(self):
         # illegal semantically, but syntactically valid
         """
-        SELECT __class__;
+        SELECT __type__;
         SELECT `__subject__`;
         SELECT `self`;
         """

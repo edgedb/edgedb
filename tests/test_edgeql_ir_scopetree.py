@@ -206,7 +206,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
     def test_edgeql_ir_scope_tree_11(self):
         """
         SELECT schema::Type {
-            schema::Array.element_type: {
+            [IS schema::Array].element_type: {
                 name
             }
         }
