@@ -93,7 +93,10 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self.write(ident_to_str(node.alias))
 
     def _visit_Declaration(self, node, after_name=None):
-        decl = node.__class__.__name__.lower().replace('declaration', ' ')
+        decl = node.__class__.__name__.lower() \
+            .replace('declaration', ' ') \
+            .replace('objecttype', 'type') \
+            .replace('scalartype', 'scalar type')
         decl = decl.replace('linkproperty', 'link property')
         self.write(decl)
         self.write(ident_to_str(node.name))
@@ -154,7 +157,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
     def visit_ActionDeclaration(self, node):
         self._visit_Declaration(node)
 
-    def visit_AtomDeclaration(self, node):
+    def visit_ScalarTypeDeclaration(self, node):
         self._visit_qualifier(node)
         self._visit_Declaration(node)
 
@@ -167,7 +170,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
 
         self._visit_Declaration(node, after_name=after_name)
 
-    def visit_ConceptDeclaration(self, node):
+    def visit_ObjectTypeDeclaration(self, node):
         self._visit_qualifier(node)
         self._visit_Declaration(node)
 

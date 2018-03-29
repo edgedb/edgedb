@@ -18,10 +18,10 @@ from . import objects as so
 from . import name as sn
 
 
-NamedClass = so.NamedClass
+NamedObject = so.NamedObject
 
 
-class NamedClassList(so.ClassList, type=NamedClass):
+class NamedObjectList(so.ObjectList, type=NamedObject):
     def get_names(self):
         return tuple(ref.name for ref in self)
 
@@ -39,7 +39,7 @@ class NamedClassList(so.ClassList, type=NamedClass):
             return 1.0
 
 
-class NamedClassSet(so.ClassSet, type=NamedClass):
+class NamedObjectSet(so.ObjectSet, type=NamedObject):
     def get_names(self):
         return frozenset(ref.name for ref in self)
 
@@ -57,7 +57,7 @@ class NamedClassSet(so.ClassSet, type=NamedClass):
             return 1.0
 
 
-class NamedClassCommand(sd.ClassCommand):
+class NamedObjectCommand(sd.ObjectCommand):
     classname = so.Field(sn.Name)
 
     @classmethod
@@ -91,9 +91,9 @@ class NamedClassCommand(sd.ClassCommand):
                 nname = metaclass.get_shortname(self.classname)
             else:
                 nname = self.classname
-            name = qlast.ClassRef(module=nname.module, name=nname.name)
+            name = qlast.ObjectRef(module=nname.module, name=nname.name)
         else:
-            name = qlast.ClassRef(module='', name=self.classname)
+            name = qlast.ObjectRef(module='', name=self.classname)
 
         if astnode.get_field('name'):
             op = astnode(name=name)
@@ -109,20 +109,20 @@ class NamedClassCommand(sd.ClassCommand):
             value = qlast.ExpressionText(expr=str(value))
 
         as_expr = isinstance(value, qlast.ExpressionText)
-        name_ref = qlast.ClassRef(
+        name_ref = qlast.ObjectRef(
             name=name, module='')
         node.commands.append(qlast.CreateAttributeValue(
             name=name_ref, value=value, as_expr=as_expr))
 
     def _drop_attribute_ast(self, context, node, name):
-        name_ref = qlast.ClassRef(name=name, module='')
+        name_ref = qlast.ObjectRef(name=name, module='')
         node.commands.append(qlast.DropAttributeValue(name=name_ref))
 
     def _apply_fields_ast(self, context, node):
-        for op in self.get_subcommands(type=RenameNamedClass):
+        for op in self.get_subcommands(type=RenameNamedObject):
             self._append_subcmd_ast(node, op, context)
 
-        for op in self.get_subcommands(type=sd.AlterClassProperty):
+        for op in self.get_subcommands(type=sd.AlterObjectProperty):
             self._apply_field_ast(context, node, op)
 
     def _apply_field_ast(self, context, node, op):
@@ -144,17 +144,17 @@ class NamedClassCommand(sd.ClassCommand):
         self._add_to_schema(schema)
 
 
-class CreateOrAlterNamedClass(NamedClassCommand):
+class CreateOrAlterNamedObject(NamedObjectCommand):
     pass
 
 
-class CreateNamedClass(CreateOrAlterNamedClass, sd.CreateClass):
+class CreateNamedObject(CreateOrAlterNamedObject, sd.CreateObject):
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         cmd.add(
-            sd.AlterClassProperty(
+            sd.AlterObjectProperty(
                 property='name',
                 new_value=cmd.classname
             )
@@ -167,8 +167,8 @@ class CreateNamedClass(CreateOrAlterNamedClass, sd.CreateClass):
             pass
         elif op.property == 'bases':
             node.bases = [
-                qlast.ClassRef(name=b.classname.name,
-                               module=b.classname.module)
+                qlast.ObjectRef(name=b.classname.name,
+                                module=b.classname.module)
                 for b in op.new_value
             ]
         elif op.property == 'mro':
@@ -186,7 +186,7 @@ class CreateNamedClass(CreateOrAlterNamedClass, sd.CreateClass):
             raise ValueError(f'{self.classname!r} already exists in schema')
 
         # apply will add to the schema
-        return sd.CreateClass.apply(self, schema, context)
+        return sd.CreateObject.apply(self, schema, context)
 
     def __repr__(self):
         return '<%s.%s "%s">' % (self.__class__.__module__,
@@ -194,7 +194,7 @@ class CreateNamedClass(CreateOrAlterNamedClass, sd.CreateClass):
                                  self.classname)
 
 
-class RenameNamedClass(NamedClassCommand):
+class RenameNamedObject(NamedObjectCommand):
     _delta_action = 'rename'
 
     astnode = qlast.Rename
@@ -216,7 +216,7 @@ class RenameNamedClass(NamedClassCommand):
         schema.add(scls)
 
         parent_ctx = context.get(sd.CommandContextToken)
-        for subop in parent_ctx.op.get_subcommands(type=NamedClassCommand):
+        for subop in parent_ctx.op.get_subcommands(type=NamedObjectCommand):
             if subop is not self and subop.classname == self.old_name:
                 subop.classname = self.new_name
 
@@ -257,7 +257,7 @@ class RenameNamedClass(NamedClassCommand):
         else:
             new_name = self.new_name
 
-        ref = qlast.ClassRef(
+        ref = qlast.ObjectRef(
             name=new_name.name, module=new_name.module)
         return astnode(new_name=ref)
 
@@ -265,16 +265,16 @@ class RenameNamedClass(NamedClassCommand):
     def _cmd_from_ast(cls, astnode, context, schema):
         parent_ctx = context.get(sd.CommandContextToken)
         parent_class = parent_ctx.op.get_schema_metaclass()
-        rename_class = sd.ClassCommandMeta.get_command_class(
-            RenameNamedClass, parent_class)
+        rename_class = sd.ObjectCommandMeta.get_command_class(
+            RenameNamedObject, parent_class)
         return rename_class._rename_cmd_from_ast(astnode, context)
 
     @classmethod
     def _rename_cmd_from_ast(cls, astnode, context):
         parent_ctx = context.get(sd.CommandContextToken)
         parent_class = parent_ctx.op.get_schema_metaclass()
-        rename_class = sd.ClassCommandMeta.get_command_class(
-            RenameNamedClass, parent_class)
+        rename_class = sd.ObjectCommandMeta.get_command_class(
+            RenameNamedObject, parent_class)
 
         new_name = astnode.new_name
         if new_name.name.startswith('__b32_'):
@@ -292,7 +292,7 @@ class RenameNamedClass(NamedClassCommand):
         )
 
 
-class AlterNamedClass(CreateOrAlterNamedClass, sd.AlterClass):
+class AlterNamedObject(CreateOrAlterNamedObject, sd.AlterObject):
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
@@ -304,7 +304,7 @@ class AlterNamedClass(CreateOrAlterNamedClass, sd.AlterClass):
             for astcmd in astnode.commands:
                 if isinstance(astcmd, qlast.AlterDropInherit):
                     dropped_bases.extend(
-                        so.ClassRef(
+                        so.ObjectRef(
                             classname=sn.Name(
                                 module=b.module,
                                 name=b.name
@@ -315,7 +315,7 @@ class AlterNamedClass(CreateOrAlterNamedClass, sd.AlterClass):
 
                 elif isinstance(astcmd, qlast.AlterAddInherit):
                     bases = [
-                        so.ClassRef(
+                        so.ObjectRef(
                             classname=sn.Name(
                                 module=b.module, name=b.name))
                         for b in astcmd.bases
@@ -334,8 +334,8 @@ class AlterNamedClass(CreateOrAlterNamedClass, sd.AlterClass):
             from . import inheriting
 
             parent_class = cmd.get_schema_metaclass()
-            rebase_class = sd.ClassCommandMeta.get_command_class(
-                inheriting.RebaseNamedClass, parent_class)
+            rebase_class = sd.ObjectCommandMeta.get_command_class(
+                inheriting.RebaseNamedObject, parent_class)
 
             cmd.add(
                 rebase_class(
@@ -354,7 +354,7 @@ class AlterNamedClass(CreateOrAlterNamedClass, sd.AlterClass):
         parent_ctx = context.get(sd.CommandContextToken)
         parent_op = parent_ctx.op
         rebase = next(iter(parent_op.get_subcommands(
-            type=inheriting.RebaseNamedClass)))
+            type=inheriting.RebaseNamedObject)))
 
         dropped = rebase.removed_bases
         added = rebase.added_bases
@@ -363,7 +363,7 @@ class AlterNamedClass(CreateOrAlterNamedClass, sd.AlterClass):
             node.commands.append(
                 qlast.AlterDropInherit(
                     bases=[
-                        qlast.ClassRef(
+                        qlast.ObjectRef(
                             module=b.classname.module,
                             name=b.classname.name
                         )
@@ -376,7 +376,7 @@ class AlterNamedClass(CreateOrAlterNamedClass, sd.AlterClass):
             if isinstance(pos, tuple):
                 pos_node = qlast.Position(
                     position=pos[0],
-                    ref=qlast.ClassRef(
+                    ref=qlast.ObjectRef(
                         module=pos[1].classname.module,
                         name=pos[1].classname.name))
             else:
@@ -385,7 +385,7 @@ class AlterNamedClass(CreateOrAlterNamedClass, sd.AlterClass):
             node.commands.append(
                 qlast.AlterAddInherit(
                     bases=[
-                        qlast.ClassRef(
+                        qlast.ObjectRef(
                             module=b.classname.module,
                             name=b.classname.name
                         )
@@ -419,7 +419,7 @@ class AlterNamedClass(CreateOrAlterNamedClass, sd.AlterClass):
         return node
 
     def _alter_begin(self, schema, context, scls):
-        for op in self.get_subcommands(type=RenameNamedClass):
+        for op in self.get_subcommands(type=RenameNamedObject):
             op.apply(schema, context)
 
         props = self.get_struct_properties(schema)
@@ -450,7 +450,7 @@ class AlterNamedClass(CreateOrAlterNamedClass, sd.AlterClass):
         return scls
 
 
-class DeleteNamedClass(NamedClassCommand, sd.DeleteClass):
+class DeleteNamedObject(NamedObjectCommand, sd.DeleteObject):
     def _delete_begin(self, schema, context, scls):
         pass
 

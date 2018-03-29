@@ -22,7 +22,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'issues_filter_setup.eql')
 
-    async def test_edgeql_filter_two_atomic_conditions01(self):
+    async def test_edgeql_filter_two_scalar_conditions01(self):
         await self.assert_query_result(r'''
             # Find Users who own at least one Issue with simultaneously
             # time_estimate > 9000 and due_date on 2020/01/15.
@@ -38,7 +38,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             [{'name': 'Yury'}],
         ])
 
-    async def test_edgeql_filter_two_atomic_conditions02(self):
+    async def test_edgeql_filter_two_scalar_conditions02(self):
         await self.assert_query_result(r'''
             # NOTE: semantically same as and01, but using OR
             # Find Users who own at least one Issue with simultaneously
@@ -67,7 +67,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             [{'name': 'Yury'}],
         ])
 
-    async def test_edgeql_filter_two_atomic_conditions03(self):
+    async def test_edgeql_filter_two_scalar_conditions03(self):
         await self.assert_query_result(r'''
             # NOTE: same as above, but more human-like
             # Find Users who own at least one Issue with simultaneously
@@ -92,7 +92,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             [{'name': 'Yury'}],
         ])
 
-    async def test_edgeql_filter_two_atomic_conditions04(self):
+    async def test_edgeql_filter_two_scalar_conditions04(self):
         await self.assert_query_result(r'''
             # NOTE: semantically same as and01, but using OR,
             #       separate roots and explicit joining
@@ -187,9 +187,9 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             [{'name': 'Elvis'}, {'name': 'Yury'}],
         ])
 
-    async def test_edgeql_filter_two_atomic_exists01(self):
+    async def test_edgeql_filter_two_scalar_exists01(self):
         await self.assert_query_result(r'''
-            # NOTE: very similar to two_atomic_conditions, same
+            # NOTE: very similar to two_scalar_conditions, same
             #       expected results
             #
             # Find Users who own at least one Issue with simultaneously
@@ -209,7 +209,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             [{'name': 'Yury'}],
         ])
 
-    async def test_edgeql_filter_two_atomic_exists02(self):
+    async def test_edgeql_filter_two_scalar_exists02(self):
         await self.assert_query_result(r'''
             # NOTE: same as above, but using OR
             #
@@ -233,7 +233,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             [{'name': 'Yury'}],
         ])
 
-    async def test_edgeql_filter_two_atomic_exists03(self):
+    async def test_edgeql_filter_two_scalar_exists03(self):
         await self.assert_query_result(r'''
             # NOTE: same as above, but using OR,
             #       separate roots and explicit joining
@@ -259,7 +259,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             [{'name': 'Yury'}],
         ])
 
-    async def test_edgeql_filter_two_atomic_exists04(self):
+    async def test_edgeql_filter_two_scalar_exists04(self):
         await self.assert_query_result(r'''
             # NOTE: same as above, but using OR,
             #       explicit sub-query and explicit joining

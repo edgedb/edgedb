@@ -21,9 +21,7 @@ unreserved_keywords = frozenset([
     "abstract",
     "action",
     "as",
-    "atom",
     "attribute",
-    "concept",
     "constraint",
     "delegated",
     "event",
@@ -36,14 +34,16 @@ unreserved_keywords = frozenset([
     "of",
     "on",
     "required",
+    "scalar",
     "to",
+    "type",
     "value",
     "view",
 ])
 
 
 # We use the same reserved keywords in both eschema and EdgeQL
-# to enforce consistency in naming.  E.g. if a concept name is a reserved
+# to enforce consistency in naming.  E.g. if a type name is a reserved
 # keyword in EdgeQL and needs to be quoted, the same should apply to
 # eschema.
 reserved_keywords = edgeql.keywords.reserved_keywords

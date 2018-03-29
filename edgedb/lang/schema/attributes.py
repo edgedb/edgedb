@@ -18,16 +18,16 @@ from . import types as s_types
 from . import utils
 
 
-class Attribute(inheriting.InheritingClass):
+class Attribute(inheriting.InheritingObject):
     _type = 'attribute'
 
-    type = so.Field(so.Class, compcoef=0.909)
+    type = so.Field(so.Object, compcoef=0.909)
 
 
-class AttributeValue(inheriting.InheritingClass):
+class AttributeValue(inheriting.InheritingObject):
     _type = 'attribute-value'
 
-    subject = so.Field(named.NamedClass, compcoef=1.0)
+    subject = so.Field(named.NamedObject, compcoef=1.0)
     attribute = so.Field(Attribute, compcoef=0.429)
     value = so.Field(object, compcoef=0.909)
 
@@ -40,7 +40,7 @@ class AttributeValue(inheriting.InheritingClass):
     __repr__ = __str__
 
 
-class AttributeSubject(referencing.ReferencingClass):
+class AttributeSubject(referencing.ReferencingObject):
     attributes = referencing.RefDict(ref_cls=AttributeValue, compcoef=0.909)
 
     def __init__(self, **kwargs):
@@ -112,16 +112,16 @@ class AttributeSubject(referencing.ReferencingClass):
                 delta.add(d)
 
 
-class AttributeCommandContext(sd.ClassCommandContext):
+class AttributeCommandContext(sd.ObjectCommandContext):
     pass
 
 
-class AttributeCommand(sd.ClassCommand, schema_metaclass=Attribute,
+class AttributeCommand(sd.ObjectCommand, schema_metaclass=Attribute,
                        context_class=AttributeCommandContext):
     pass
 
 
-class CreateAttribute(AttributeCommand, named.CreateNamedClass):
+class CreateAttribute(AttributeCommand, named.CreateNamedObject):
     astnode = qlast.CreateAttribute
 
     @classmethod
@@ -129,7 +129,7 @@ class CreateAttribute(AttributeCommand, named.CreateNamedClass):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         cmd.add(
-            sd.AlterClassProperty(
+            sd.AlterObjectProperty(
                 property='type',
                 new_value=utils.ast_to_typeref(astnode.type)
             )
@@ -145,7 +145,7 @@ class CreateAttribute(AttributeCommand, named.CreateNamedClass):
                 stt = tp.get_subtypes()
 
                 for st in stt:
-                    eltype = qlast.ClassRef(module=st.module, name=st.name)
+                    eltype = qlast.ObjectRef(module=st.module, name=st.name)
                 tnn = qlast.TypeName(
                     maintype=maintype,
                     subtypes=[eltype])
@@ -158,15 +158,15 @@ class CreateAttribute(AttributeCommand, named.CreateNamedClass):
             super()._apply_field_ast(context, node, op)
 
 
-class RenameAttribute(AttributeCommand, named.RenameNamedClass):
+class RenameAttribute(AttributeCommand, named.RenameNamedObject):
     pass
 
 
-class AlterAttribute(AttributeCommand, named.AlterNamedClass):
+class AlterAttribute(AttributeCommand, named.AlterNamedObject):
     pass
 
 
-class DeleteAttribute(AttributeCommand, named.DeleteNamedClass):
+class DeleteAttribute(AttributeCommand, named.DeleteNamedObject):
     astnode = qlast.DropAttribute
 
 
@@ -174,15 +174,15 @@ class AttributeSubjectCommandContext:
     pass
 
 
-class AttributeSubjectCommand(referencing.ReferencingClassCommand):
+class AttributeSubjectCommand(referencing.ReferencingObjectCommand):
     pass
 
 
-class AttributeValueCommandContext(sd.ClassCommandContext):
+class AttributeValueCommandContext(sd.ObjectCommandContext):
     pass
 
 
-class AttributeValueCommand(sd.ClassCommand, schema_metaclass=AttributeValue,
+class AttributeValueCommand(sd.ObjectCommand, schema_metaclass=AttributeValue,
                             context_class=AttributeValueCommandContext):
     @classmethod
     def _classname_from_ast(cls, astnode, context, schema):
@@ -206,7 +206,7 @@ class AttributeValueCommand(sd.ClassCommand, schema_metaclass=AttributeValue,
             propname = astnode.name.module + '::' + propname
 
         if '::' not in propname:
-            return sd.AlterClassProperty._cmd_tree_from_ast(
+            return sd.AlterObjectProperty._cmd_tree_from_ast(
                 astnode, context, schema)
         else:
             return super()._cmd_tree_from_ast(astnode, context, schema)
@@ -218,7 +218,7 @@ class AttributeValueCommand(sd.ClassCommand, schema_metaclass=AttributeValue,
         parent.del_attribute(attribute_class, schema)
 
 
-class CreateAttributeValue(AttributeValueCommand, named.CreateNamedClass):
+class CreateAttributeValue(AttributeValueCommand, named.CreateNamedObject):
     astnode = qlast.CreateAttributeValue
 
     @classmethod
@@ -228,7 +228,7 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedClass):
             propname = astnode.name.module + '::' + propname
 
         if '::' not in propname:
-            return sd.AlterClassProperty._cmd_tree_from_ast(
+            return sd.AlterObjectProperty._cmd_tree_from_ast(
                 astnode, context, schema)
 
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
@@ -247,15 +247,15 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedClass):
         subject_name = parent_ctx.op.classname
 
         cmd.update((
-            sd.AlterClassProperty(
+            sd.AlterObjectProperty(
                 property='subject',
-                new_value=so.ClassRef(classname=subject_name)
+                new_value=so.ObjectRef(classname=subject_name)
             ),
-            sd.AlterClassProperty(
+            sd.AlterObjectProperty(
                 property='attribute',
-                new_value=so.ClassRef(classname=propname)
+                new_value=so.ObjectRef(classname=propname)
             ),
-            sd.AlterClassProperty(
+            sd.AlterObjectProperty(
                 property='value',
                 new_value=value
             )
@@ -288,13 +288,13 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedClass):
                 attribute = super().apply(schema, context)
                 self.add_attribute(attribute, attrsubj.scls, schema)
             else:
-                attribute = named.AlterNamedClass.apply(
+                attribute = named.AlterNamedObject.apply(
                     self, schema, context)
 
             return attribute
 
 
-class RenameAttributeValue(AttributeValueCommand, named.RenameNamedClass):
+class RenameAttributeValue(AttributeValueCommand, named.RenameNamedObject):
     def apply(self, schema, context):
         result = super().apply(schema, context)
 
@@ -317,12 +317,12 @@ class RenameAttributeValue(AttributeValueCommand, named.RenameNamedClass):
         return result
 
 
-class AlterAttributeValue(AttributeValueCommand, named.AlterNamedClass):
+class AlterAttributeValue(AttributeValueCommand, named.AlterNamedObject):
     astnode = qlast.AlterAttributeValue
 
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)
-        for op in self(sd.AlterClassProperty):
+        for op in self(sd.AlterObjectProperty):
             if op.property == 'value':
                 node.value = qlast.Constant(value=op.new_value)
 
@@ -345,7 +345,7 @@ class AlterAttributeValue(AttributeValueCommand, named.AlterNamedClass):
             return super().apply(schema, context)
 
 
-class DeleteAttributeValue(AttributeValueCommand, named.DeleteNamedClass):
+class DeleteAttributeValue(AttributeValueCommand, named.DeleteNamedObject):
     astnode = qlast.DropAttributeValue
 
     def apply(self, schema, context):

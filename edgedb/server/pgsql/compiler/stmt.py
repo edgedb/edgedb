@@ -7,7 +7,7 @@
 
 from edgedb.lang.ir import ast as irast
 
-from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import concepts as s_objtypes
 
 from edgedb.server.pgsql import ast as pgast
 
@@ -130,9 +130,9 @@ def compile_GroupStmt(
             # function while using the GROUP BY clause as
             # a partition clause.  We use the id of the first
             # object in each partition if GROUP BY input is
-            # a Concept, otherwise we generate the id using
+            # a ObjectType, otherwise we generate the id using
             # row_number().
-            if isinstance(stmt.subject.scls, s_concepts.Concept):
+            if isinstance(stmt.subject.scls, s_objtypes.ObjectType):
                 first_val = pathctx.get_path_identity_var(
                     gquery, stmt.subject.path_id, env=ctx.env)
             else:
@@ -196,7 +196,7 @@ def compile_GroupStmt(
             for group_set in stmt.groupby:
                 dispatch.compile(group_set, ctx=gvctx)
                 path_id = group_set.path_id
-                if path_id.is_concept_path():
+                if path_id.is_objtype_path():
                     pathctx.put_path_bond(gvquery, path_id)
 
             gvquery.distinct_clause = [

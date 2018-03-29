@@ -19,12 +19,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_02(self):
         await self.con.execute("""
-            CREATE LINK test::test_concept_link {
+            CREATE LINK test::test_object_link {
                 CREATE LINK PROPERTY test::test_link_prop TO std::int;
             };
 
-            CREATE CONCEPT test::TestConcept {
-                CREATE LINK test::test_concept_link TO std::str {
+            CREATE TYPE test::TestObjectType {
+                CREATE LINK test::test_object_link TO std::str {
                     CREATE LINK PROPERTY test::test_link_prop TO std::int {
                         SET title := 'Test Property';
                     };
@@ -34,25 +34,25 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_03(self):
         await self.con.execute("""
-            CREATE LINK test::test_concept_link_prop {
+            CREATE LINK test::test_object_link_prop {
                 CREATE LINK PROPERTY test::link_prop1 TO std::str;
             };
         """)
 
     async def test_edgeql_ddl_04(self):
         await self.con.execute("""
-            CREATE CONCEPT test::A;
-            CREATE CONCEPT test::B EXTENDING test::A;
+            CREATE TYPE test::A;
+            CREATE TYPE test::B EXTENDING test::A;
 
-            CREATE CONCEPT test::Object1 {
+            CREATE TYPE test::Object1 {
                 CREATE REQUIRED LINK test::a TO test::A;
             };
 
-            CREATE CONCEPT test::Object2 {
+            CREATE TYPE test::Object2 {
                 CREATE LINK test::a TO test::B;
             };
 
-            CREATE CONCEPT test::Object_12
+            CREATE TYPE test::Object_12
                 EXTENDING (test::Object1, test::Object2);
         """)
 
@@ -175,7 +175,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                                     'could not.*broken_sql.*not constant'):
             await self.con.execute(f"""
                 CREATE FUNCTION test::broken_sql_func1(
-                    std::int=(SELECT schema::Concept))
+                    std::int=(SELECT schema::ObjectType))
                 -> std::str
                 FROM SQL $$
                     SELECT 'spam'::text
@@ -191,11 +191,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 $$;
 
             CREATE FUNCTION test::my_edgeql_func2(std::str)
-                -> schema::Concept
+                -> schema::ObjectType
                 FROM EdgeQL $$
                     SELECT
-                        schema::Concept
-                    FILTER schema::Concept.name = $1
+                        schema::ObjectType
+                    FILTER schema::ObjectType.name = $1
                 $$;
 
             CREATE FUNCTION test::my_edgeql_func3(std::int)
@@ -213,12 +213,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.assert_query_result(r"""
             SELECT test::my_edgeql_func1();
-            SELECT test::my_edgeql_func2('schema::Class').name;
+            SELECT test::my_edgeql_func2('schema::Object').name;
             SELECT test::my_edgeql_func3(1);
             SELECT test::my_edgeql_func4(42);
         """, [
             ['spam'],
-            ['schema::Class'],
+            ['schema::Object'],
             [11],
             [[42, 1, 2, 3]]
         ])
@@ -271,7 +271,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_11(self):
         await self.con.execute("""
-            CREATE CONCEPT test::TestContainerLinkConcept {
+            CREATE TYPE test::TestContainerLinkObjectType {
                 CREATE LINK test::test_array_link TO array<std::str>;
                 CREATE LINK test::test_array_link_2 TO array<std::str[10]>;
                 CREATE LINK test::test_map_link TO map<std::str, std::int>;
@@ -283,7 +283,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 client_errors.EdgeQLError,
                 r'Unknown token.*__subject__'):
             await self.con.execute(r"""
-                CREATE CONCEPT test::TestBadContainerLinkConcept {
+                CREATE TYPE test::TestBadContainerLinkObjectType {
                     CREATE LINK test::foo TO std::str {
                         CREATE CONSTRAINT expression
                             ON (`__subject__` = 'foo');
@@ -296,7 +296,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 client_errors.EdgeQLError,
                 'reference to a non-existent schema class: self'):
             await self.con.execute(r"""
-                CREATE CONCEPT test::TestBadContainerLinkConcept {
+                CREATE TYPE test::TestBadContainerLinkObjectType {
                     CREATE LINK test::foo TO std::str {
                         CREATE CONSTRAINT expression ON (`self` = 'foo');
                     };

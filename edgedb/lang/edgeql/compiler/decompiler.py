@@ -8,7 +8,7 @@
 
 from edgedb.lang.common import ast
 
-from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import concepts as s_objtypes
 from edgedb.lang.schema import lproperties as s_lprops
 
 from edgedb.lang.ir import ast as irast
@@ -66,16 +66,16 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                 ptrcls = rptr.ptrcls
                 pname = ptrcls.shortname
 
-                if isinstance(rptr.target.scls, s_concepts.Concept):
+                if isinstance(rptr.target.scls, s_objtypes.ObjectType):
                     target = rptr.target.scls.shortname
-                    target = qlast.ClassRef(
+                    target = qlast.ObjectRef(
                         name=target.name,
                         module=target.module)
                 else:
                     target = None
 
                 link = qlast.Ptr(
-                    ptr=qlast.ClassRef(
+                    ptr=qlast.ObjectRef(
                         name=pname.name,
                     ),
                     direction=rptr.direction,
@@ -92,10 +92,10 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                 if issubclass(node.show_as_anchor, qlast.Expr):
                     step = node.show_as_anchor()
                 else:
-                    step = qlast.ClassRef(name=node.show_as_anchor)
+                    step = qlast.ObjectRef(name=node.show_as_anchor)
             else:
-                step = qlast.ClassRef(name=node.scls.shortname.name,
-                                      module=node.scls.shortname.module)
+                step = qlast.ObjectRef(name=node.scls.shortname.name,
+                                       module=node.scls.shortname.module)
 
             result.steps.append(step)
             result.steps.extend(reversed(links))
@@ -115,7 +115,7 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                     expr=qlast.Path(
                         steps=[
                             qlast.Ptr(
-                                ptr=qlast.ClassRef(
+                                ptr=qlast.ObjectRef(
                                     name=pn.name
                                 ),
                                 direction=rptr.direction
@@ -200,16 +200,16 @@ class IRDecompiler(ast.visitor.NodeVisitor):
     def visit_TypeCast(self, node):
         if node.type.subtypes:
             typ = qlast.TypeName(
-                maintype=qlast.ClassRef(name=node.type.maintype),
+                maintype=qlast.ObjectRef(name=node.type.maintype),
                 subtypes=[
-                    qlast.ClassRef(
+                    qlast.ObjectRef(
                         module=stn.module, name=stn.name)
                     for stn in node.type.subtypes
                 ]
             )
         else:
             mtn = node.type.maintype
-            mt = qlast.ClassRef(module=mtn.module, name=mtn.name)
+            mt = qlast.ObjectRef(module=mtn.module, name=mtn.name)
             typ = qlast.TypeName(maintype=mt)
 
         result = qlast.TypeCast(expr=self.visit(node.expr), type=typ)

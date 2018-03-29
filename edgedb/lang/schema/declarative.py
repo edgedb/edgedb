@@ -25,9 +25,9 @@ from edgedb.lang.ir import inference as ir_inference
 from . import ast as s_ast
 from . import parser as s_parser
 
-from . import atoms as s_atoms
+from . import atoms as s_scalars
 from . import attributes as s_attrs
-from . import concepts as s_concepts
+from . import concepts as s_objtypes
 from . import constraints as s_constr
 from . import error as s_err
 from . import expr as s_expr
@@ -42,8 +42,8 @@ from . import types as s_types
 
 
 _DECL_MAP = {
-    s_ast.AtomDeclaration: s_atoms.Atom,
-    s_ast.ConceptDeclaration: s_concepts.Concept,
+    s_ast.ScalarTypeDeclaration: s_scalars.ScalarType,
+    s_ast.ObjectTypeDeclaration: s_objtypes.ObjectType,
     s_ast.ConstraintDeclaration: s_constr.Constraint,
     s_ast.LinkDeclaration: s_links.Link,
 }
@@ -128,22 +128,23 @@ class DeclarationLoader:
         # Ditto for attributes.
         attributes = self._sort(module.get_objects(type='attribute'))
 
-        # Atoms depend only on constraints and attributes,
+        # ScalarTypes depend only on constraints and attributes,
         # can process them now.
-        self._init_atoms(objects['atom'])
-        atoms = self._sort(
-            module.get_objects(type='atom'), depsfn=self._get_atom_deps)
+        self._init_scalars(objects['ScalarType'])
+        scalars = self._sort(
+            module.get_objects(type='ScalarType'),
+            depsfn=self._get_scalar_deps)
 
-        # Generic links depend on atoms (via props), constraints
+        # Generic links depend on scalars (via props), constraints
         # and attributes.
         self._init_links(objects['link'])
 
-        # Finaly, we can do the first pass on concepts
-        self._init_concepts(objects['concept'])
+        # Finaly, we can do the first pass on types
+        self._init_objtypes(objects['ObjectType'])
 
         # The inheritance merge pass may produce additional objects,
         # thus, it has to be performed in reverse order (mostly).
-        concepts = self._sort(module.get_objects(type='concept'))
+        objtypes = self._sort(module.get_objects(type='ObjectType'))
         links = self._sort(module.get_objects(type='link'))
         linkprops = self._sort(module.get_objects(type='linkproperty'))
         events = self._sort(module.get_objects(type='event'))
@@ -160,14 +161,14 @@ class DeclarationLoader:
         for link, linkdecl in objects['link'].items():
             self._normalize_link_constraints(link, linkdecl)
 
-        for concept, conceptdecl in objects['concept'].items():
-            self._normalize_concept_constraints(concept, conceptdecl)
+        for objtype, objtypedecl in objects['ObjectType'].items():
+            self._normalize_objtype_constraints(objtype, objtypedecl)
 
         # Arrange classes in the resulting schema according to determined
         # topological order.
         self._schema.reorder(itertools.chain(
             attributes, attrvals, actions, events, constraints,
-            atoms, linkprops, indexes, links, concepts))
+            scalars, linkprops, indexes, links, objtypes))
 
         for obj in module.get_objects():
             obj.finalize(self._schema)
@@ -177,8 +178,8 @@ class DeclarationLoader:
         for link, linkdecl in objects['link'].items():
             self._normalize_link_expressions(link, linkdecl)
 
-        for concept, conceptdecl in objects['concept'].items():
-            self._normalize_concept_expressions(concept, conceptdecl)
+        for objtype, objtypedecl in objects['ObjectType'].items():
+            self._normalize_objtype_expressions(objtype, objtypedecl)
 
     def _process_imports(self, tree):
         for decl in tree.declarations:
@@ -220,13 +221,13 @@ class DeclarationLoader:
             filter(lambda obj: obj.name.module == modname, objs))
 
     def _get_ref_name(self, ref):
-        if isinstance(ref, edgeql.ast.ClassRef):
+        if isinstance(ref, edgeql.ast.ObjectRef):
             if ref.module:
                 return s_name.Name(module=ref.module, name=ref.name)
             else:
                 return ref.name
         else:
-            raise TypeError('ClassRef expected '
+            raise TypeError('ObjectRef expected '
                             '(got type {!r})'.format(type(ref).__name__))
 
     def _get_ref_type(self, ref):
@@ -278,7 +279,7 @@ class DeclarationLoader:
                     default_base_name, module_aliases=self._mod_aliases)
                 bases.append(default_base)
 
-        return s_obj.ClassList(bases)
+        return s_obj.ObjectList(bases)
 
     def _init_constraints(self, constraints):
         module_aliases = {}
@@ -308,19 +309,19 @@ class DeclarationLoader:
 
                 constraint.subjectexpr = subjexpr
 
-    def _init_atoms(self, atoms):
-        for atom, atomdecl in atoms.items():
-            if atomdecl.attributes:
-                self._parse_attribute_values(atom, atomdecl)
+    def _init_scalars(self, scalars):
+        for scalar, scalardecl in scalars.items():
+            if scalardecl.attributes:
+                self._parse_attribute_values(scalar, scalardecl)
 
-            if atomdecl.constraints:
-                self._parse_subject_constraints(atom, atomdecl)
+            if scalardecl.constraints:
+                self._parse_subject_constraints(scalar, scalardecl)
 
-    def _get_atom_deps(self, atom):
+    def _get_scalar_deps(self, scalar):
         deps = set()
 
-        if atom.constraints:
-            for constraint in atom.constraints.values():
+        if scalar.constraints:
+            for constraint in scalar.constraints.values():
                 if constraint.paramtypes:
                     deps.update(constraint.paramtypes)
 
@@ -329,9 +330,9 @@ class DeclarationLoader:
                     deps.update(dep.get_subtypes())
                     deps.discard(dep)
 
-            # Add dependency on all builtin atoms unconditionally
+            # Add dependency on all builtin scalars unconditionally
             std = self._schema.get_module('std')
-            deps.update(std.get_objects(type='atom'))
+            deps.update(std.get_objects(type='ScalarType'))
 
         return deps
 
@@ -531,9 +532,9 @@ class DeclarationLoader:
             subject.add_index(index)
             self._schema.add(index)
 
-    def _init_concepts(self, concepts):
-        for concept, conceptdecl in concepts.items():
-            for linkdecl in conceptdecl.links:
+    def _init_objtypes(self, objtypes):
+        for objtype, objtypedecl in objtypes.items():
+            for linkdecl in objtypedecl.links:
                 link_name = self._get_ref_name(linkdecl.name)
                 link_base = self._schema.get(link_name, type=s_links.Link,
                                              default=None,
@@ -545,7 +546,7 @@ class DeclarationLoader:
                         # link definition. The only attribute that is used for
                         # global definition is the name.
                         link_qname = s_name.Name(
-                            name=link_name, module=concept.name.module)
+                            name=link_name, module=objtype.name.module)
 
                         std_link = self._schema.get(
                             s_links.Link.get_default_base_name(),
@@ -578,14 +579,14 @@ class DeclarationLoader:
                 else:
                     # Multiple explicit targets, create common virtual
                     # parent and use it as target.
-                    spectargets = s_obj.ClassSet(_targets)
+                    spectargets = s_obj.ObjectSet(_targets)
                     target = link_base.get_common_target(
                         self._schema, spectargets)
                     if not self._schema.get(target.name, default=None):
                         self._schema.add(target)
 
                 link = link_base.derive(
-                    self._schema, concept, target, add_to_schema=True)
+                    self._schema, objtype, target, add_to_schema=True)
 
                 link.spectargets = spectargets
 
@@ -598,14 +599,14 @@ class DeclarationLoader:
                     link.computable = True
 
                 self._parse_link_props(link, linkdecl)
-                concept.add_pointer(link)
+                objtype.add_pointer(link)
 
-        for concept, conceptdecl in concepts.items():
-            if conceptdecl.indexes:
-                self._parse_subject_indexes(concept, conceptdecl)
+        for objtype, objtypedecl in objtypes.items():
+            if objtypedecl.indexes:
+                self._parse_subject_indexes(objtype, objtypedecl)
 
-            if conceptdecl.constraints:
-                self._parse_subject_constraints(concept, conceptdecl)
+            if objtypedecl.constraints:
+                self._parse_subject_constraints(objtype, objtypedecl)
 
     def _normalize_link_constraints(self, link, linkdecl):
         if linkdecl.constraints:
@@ -623,34 +624,34 @@ class DeclarationLoader:
                 self._normalize_ptr_default(
                     propdecl.expr, link, spec_prop, propdecl)
 
-    def _normalize_concept_constraints(self, concept, conceptdecl):
-        for linkdecl in conceptdecl.links:
+    def _normalize_objtype_constraints(self, objtype, objtypedecl):
+        for linkdecl in objtypedecl.links:
             if linkdecl.constraints:
                 link_name = self._get_ref_name(linkdecl.name)
                 generic_link = self._schema.get(
                     link_name, module_aliases=self._mod_aliases)
-                spec_link = concept.pointers[generic_link.name]
+                spec_link = objtype.pointers[generic_link.name]
                 self._parse_subject_constraints(spec_link, linkdecl)
 
-    def _normalize_concept_expressions(self, concept, conceptdecl):
-        """Interpret and validate EdgeQL expressions in concept declaration."""
-        for linkdecl in conceptdecl.links:
+    def _normalize_objtype_expressions(self, objtype, objtypedecl):
+        """Interpret and validate EdgeQL expressions in type declaration."""
+        for linkdecl in objtypedecl.links:
             link_name = self._get_ref_name(linkdecl.name)
             generic_link = self._schema.get(
                 link_name, module_aliases=self._mod_aliases)
-            spec_link = concept.pointers[generic_link.name]
+            spec_link = objtype.pointers[generic_link.name]
 
             if linkdecl.expr is not None:
                 # Computable
                 self._normalize_ptr_default(
-                    linkdecl.expr, concept, spec_link, linkdecl)
+                    linkdecl.expr, objtype, spec_link, linkdecl)
 
             for attr in linkdecl.attributes:
                 name = attr.name.name
                 if name == 'default':
                     if isinstance(attr.value, edgeql.ast.SelectQuery):
                         self._normalize_ptr_default(
-                            attr.value, concept, spec_link, linkdecl)
+                            attr.value, objtype, spec_link, linkdecl)
                     else:
                         expr = edgeql.ast.Constant(
                             value=self._get_literal_value(attr.value))
@@ -716,12 +717,12 @@ class DeclarationLoader:
                 'default value query must yield a single result of '
                 'type {!r}'.format(ptr.target.name), context=expr.context)
 
-        if not isinstance(ptr.target, s_atoms.Atom):
+        if not isinstance(ptr.target, s_scalars.ScalarType):
             many_mapping = (s_links.LinkMapping.ManyToOne,
                             s_links.LinkMapping.ManyToMany)
             if ptr.mapping not in many_mapping:
                 raise s_err.SchemaError(
-                    'concept links with query defaults '
+                    'type links with query defaults '
                     'must have either a "*1" or "**" mapping',
                     context=expr.context)
 

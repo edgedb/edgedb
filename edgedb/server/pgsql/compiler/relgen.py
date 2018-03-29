@@ -15,8 +15,8 @@ from edgedb.lang.common import ast
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
-from edgedb.lang.schema import atoms as s_atoms
-from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import atoms as s_scalars
+from edgedb.lang.schema import concepts as s_objtypes
 from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import types as s_types
 
@@ -235,7 +235,7 @@ def set_as_subquery(
                     pgast.ResTarget(val=value)
                 ]
         else:
-            if ir_set.path_id.is_concept_path():
+            if ir_set.path_id.is_objtype_path():
                 aspect = 'identity'
             else:
                 aspect = 'value'
@@ -393,7 +393,7 @@ def finalize_optional_rel(
             setrel, ir_set.path_id, rvars.main,
             aspect=rvars.aspect, env=subctx.env)
 
-        if ir_set.path_id.is_concept_path():
+        if ir_set.path_id.is_objtype_path():
             aspect = 'identity'
         else:
             aspect = 'value'
@@ -403,7 +403,7 @@ def finalize_optional_rel(
 
         if lvar.nullable:
             # The left var is still nullable, which may be the
-            # case for non-required singleton atomic links.
+            # case for non-required singleton scalar links.
             # Filter out NULLs.
             setrel.where_clause = astutils.extend_binop(
                 setrel.where_clause,
@@ -455,7 +455,7 @@ def process_set_as_root(
         ctx: context.CompilerContextLevel) -> SetRVars:
     rvar = relctx.new_root_rvar(ir_set, ctx=ctx)
     rvars = [(rvar, ir_set.path_id, 'value')]
-    if ir_set.path_id.is_concept_path():
+    if ir_set.path_id.is_objtype_path():
         rvars.append((rvar, ir_set.path_id, 'identity'))
     return SetRVars(main=rvar, new=rvars)
 
@@ -465,7 +465,7 @@ def process_set_as_empty(
         ctx: context.CompilerContextLevel) -> SetRVars:
     rvar = relctx.new_empty_rvar(ir_set, ctx=ctx)
     rvars = [(rvar, ir_set.path_id, 'value')]
-    if ir_set.path_id.is_concept_path():
+    if ir_set.path_id.is_objtype_path():
         rvars.append((rvar, ir_set.path_id, 'identity'))
     return SetRVars(main=rvar, new=rvars)
 
@@ -481,7 +481,7 @@ def process_set_as_link_property_ref(
     ptr_info = pg_types.get_pointer_storage_info(
         lprop, resolve_type=False, link_bias=False)
 
-    if ptr_info.table_type == 'concept' or lprop.shortname == 'std::target':
+    if ptr_info.table_type == 'ObjectType' or lprop.shortname == 'std::target':
         # This is a singleton link property stored in source rel,
         # e.g. @target
         val = pathctx.get_rvar_path_var(
@@ -527,10 +527,10 @@ def process_set_as_path(
 
     rvars = []
 
-    # Path is a __class__ reference of a homogeneous set,
-    # e.g {1, 2}.__class__.
-    is_static_clsref = (isinstance(ir_source.scls, s_atoms.Atom) and
-                        ptrcls.shortname == 'std::__class__')
+    # Path is a __type__ reference of a homogeneous set,
+    # e.g {1, 2}.__type__.
+    is_static_clsref = (isinstance(ir_source.scls, s_scalars.ScalarType) and
+                        ptrcls.shortname == 'std::__type__')
     if is_static_clsref:
         main_rvar = relctx.new_static_class_rvar(ir_set, ctx=ctx)
         rvars.append((main_rvar, ir_set.path_id, 'value'))
@@ -551,14 +551,14 @@ def process_set_as_path(
     # Path is a link property.
     is_linkprop = isinstance(ptrcls, s_lprops.LinkProperty)
     # Path is a reference to a relationship stored in the source table.
-    is_inline_ref = ptr_info.table_type == 'concept'
-    is_atom_ref = not isinstance(ptrcls.target, s_concepts.Concept)
-    is_inline_atom_ref = is_inline_ref and is_atom_ref
+    is_inline_ref = ptr_info.table_type == 'ObjectType'
+    is_scalar_ref = not isinstance(ptrcls.target, s_objtypes.ObjectType)
+    is_inline_scalar_ref = is_inline_ref and is_scalar_ref
     source_is_visible = ctx.scope_tree.is_visible(ir_source.path_id)
     semi_join = (
         not source_is_visible and
         ir_source.path_id not in ctx.disable_semi_join and
-        not (is_linkprop or is_atom_ref)
+        not (is_linkprop or is_scalar_ref)
     )
 
     if semi_join:
@@ -576,8 +576,8 @@ def process_set_as_path(
 
             get_set_rvar(ir_source, ctx=srcctx)
 
-            if is_inline_atom_ref:
-                # Semi-join variant for inline atom links,
+            if is_inline_scalar_ref:
+                # Semi-join variant for inline scalar links,
                 # which is, essentially, just filtering out NULLs.
                 relctx.ensure_value_rvar(ir_source, srcctx.rel, ctx=srcctx)
 
@@ -604,7 +604,7 @@ def process_set_as_path(
         main_rvar = srvars.main
         rvars.extend(srvars.new)
 
-    elif is_inline_atom_ref:
+    elif is_inline_scalar_ref:
         main_rvar = relctx.ensure_value_rvar(ir_source, stmt, ctx=ctx)
 
     elif not semi_join:
@@ -615,7 +615,7 @@ def process_set_as_path(
         rvars.append((map_rvar, ir_set.path_id.ptr_path(), 'value'))
 
         # Target set range.
-        if isinstance(ir_set.scls, s_concepts.Concept):
+        if isinstance(ir_set.scls, s_objtypes.ObjectType):
             set_rvar = relctx.new_root_rvar(ir_set, ctx=ctx)
             main_rvar = set_rvar
             if ir_source.path_id not in ctx.unique_paths:
@@ -643,14 +643,14 @@ def process_set_as_path(
 def process_set_as_subquery(
         ir_set: irast.Set, stmt: pgast.Query, *,
         ctx: context.CompilerContextLevel) -> None:
-    is_atom_path = ir_set.path_id.is_atom_path()
+    is_scalar_path = ir_set.path_id.is_scalar_path()
 
     if ir_set.rptr is not None:
         ir_source = ir_set.rptr.source
-        if is_atom_path:
+        if is_scalar_path:
             source_is_visible = True
         else:
-            # Non-atomic computable pointer.  Theck if path source is
+            # Non-scalar computable pointer.  Theck if path source is
             # visible in the outer scope.
             outer_fence = ctx.scope_tree.parent_fence
             source_is_visible = outer_fence.is_visible(ir_source.path_id)
@@ -671,7 +671,7 @@ def process_set_as_subquery(
             ctx.rel.view_path_id_map[outer_id] = inner_id
 
         if ir_source is not None:
-            if is_atom_path and newctx.volatility_ref is None:
+            if is_scalar_path and newctx.volatility_ref is None:
                 # This is a computable pointer.  In order to ensure that
                 # the volatile functions in the pointer expression are called
                 # the necessary number of times, we must inject a
@@ -680,11 +680,11 @@ def process_set_as_subquery(
                 newctx.volatility_ref = relctx.maybe_get_path_var(
                     stmt, path_id=ir_source.path_id, aspect='identity',
                     ctx=ctx)
-            elif not is_atom_path and not source_is_visible:
+            elif not is_scalar_path and not source_is_visible:
                 path_scope = relctx.get_scope(ir_set, ctx=newctx)
                 if (path_scope is None or
                         path_scope.find_descendant(ir_source.path_id) is None):
-                    # Non-atomic computable semi-join.
+                    # Non-scalar computable semi-join.
                     semi_join = True
 
                     with newctx.subrel() as _, _.newscope() as subctx:
@@ -925,7 +925,7 @@ def process_set_as_coalesce(
                             expr.left.path_id
                         dispatch.compile(expr.left, ctx=scopectx)
 
-                        if expr.left.path_id.is_concept_path():
+                        if expr.left.path_id.is_objtype_path():
                             aspect = 'identity'
                         else:
                             aspect = 'value'
@@ -936,7 +936,7 @@ def process_set_as_coalesce(
 
                         if lvar.nullable:
                             # The left var is still nullable, which may be the
-                            # case for non-required singleton atomic links.
+                            # case for non-required singleton scalar links.
                             # Filter out NULLs.
                             larg.where_clause = astutils.extend_binop(
                                 larg.where_clause,
@@ -1065,7 +1065,7 @@ def process_set_as_tuple_indirection(
         ir_set: irast.Set, stmt: pgast.Query, *,
         ctx: context.CompilerContextLevel) -> typing.List[pgast.BaseRangeVar]:
     tuple_set = ir_set.expr.expr
-    aspect = 'identity' if ir_set.path_id.is_concept_path() else 'value'
+    aspect = 'identity' if ir_set.path_id.is_objtype_path() else 'value'
 
     with ctx.new() as subctx:
         subctx.expr_exposed = False
@@ -1123,7 +1123,7 @@ def process_set_as_func_expr(
         set_expr = pgast.FuncCall(
             name=name, args=args, with_ordinality=with_ordinality)
 
-    if ir_set.path_id.is_concept_path():
+    if ir_set.path_id.is_objtype_path():
         aspect = 'identity'
     else:
         aspect = 'value'
@@ -1298,9 +1298,9 @@ def process_set_as_agg_expr(
 
                         query.sort_clause = []
 
-                if (isinstance(ir_arg.scls, s_atoms.Atom) and
+                if (isinstance(ir_arg.scls, s_scalars.ScalarType) and
                         ir_arg.scls.bases):
-                    # Cast atom refs to the base type in aggregate
+                    # Cast scalar refs to the base type in aggregate
                     # expressions, since PostgreSQL does not create array
                     # types for custom domains and will fail to process a
                     # query with custom domains appearing as array

@@ -1,8 +1,8 @@
-concept Status:
+type Status:
     required link name to str:
         constraint unique
 
-concept Tag:
+type Tag:
     required link name to str:
         constraint unique
 
@@ -15,7 +15,7 @@ link weighted_tags:
 link annotated_tests:
     link property note to str
 
-concept UpdateTest:
+type UpdateTest:
     required link name to str
     link comment to str
 

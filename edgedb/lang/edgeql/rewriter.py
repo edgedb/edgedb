@@ -21,7 +21,7 @@ def rewrite_refs(expr, callback):
     tree = qlparser.parse_fragment(expr)
 
     def _cb(node):
-        if isinstance(node, qlast.ClassRef):
+        if isinstance(node, qlast.ObjectRef):
             name = sn.Name(name=node.name, module=node.module)
             upd = callback(name)
             if name != upd:

@@ -22,12 +22,12 @@ from . import named
 from . import objects as so
 
 
-class Module(named.NamedClass):
+class Module(named.NamedObject):
     # Override 'name' to str type, since modules don't have
     # fully-qualified names.
     name = so.Field(str)
 
-    imports = so.Field(so.ClassSet, so.ClassSet)
+    imports = so.Field(so.ObjectSet, so.ObjectSet)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -114,7 +114,7 @@ class Module(named.NamedClass):
             fq_name = '{}::{}'.format(self.name, name)
             scls = self.lookup_qname(fq_name)
 
-            if type is not None and issubclass(type, so.Class):
+            if type is not None and issubclass(type, so.Object):
                 type = type.get_canonical_class()
 
         raise_ = None
@@ -136,7 +136,7 @@ class Module(named.NamedClass):
                 scls = default
 
         if (type is not None and
-                isinstance(scls, so.Class) and
+                isinstance(scls, so.Object) and
                 not isinstance(scls, type)):
             if default is not None:
                 raise_ = (isinstance(default, Exception) or
@@ -204,7 +204,7 @@ class SchemaIterator:
         names = OrderedSet(self.module.index_by_name)
         if self.type is not None:
             typ = self.type
-            if isinstance(self.type, so.MetaClass):
+            if isinstance(self.type, so.ObjectMeta):
                 typ = self.type._type
 
             itertyp = self.module.index_by_type.get(typ)
@@ -231,7 +231,7 @@ class ModuleCommandContext(sd.CommandContextToken):
         self.module = module
 
 
-class ModuleCommand(named.NamedClassCommand, schema_metaclass=Module,
+class ModuleCommand(named.NamedObjectCommand, schema_metaclass=Module,
                     context_class=ModuleCommandContext):
 
     classname = so.Field(str)
@@ -247,7 +247,7 @@ class ModuleCommand(named.NamedClassCommand, schema_metaclass=Module,
         return classname
 
 
-class CreateModule(named.CreateNamedClass, ModuleCommand):
+class CreateModule(named.CreateNamedObject, ModuleCommand):
     astnode = qlast.CreateModule
 
     def apply(self, schema, context):
@@ -258,7 +258,7 @@ class CreateModule(named.CreateNamedClass, ModuleCommand):
         return self.module
 
 
-class AlterModule(named.CreateOrAlterNamedClass, ModuleCommand):
+class AlterModule(named.CreateOrAlterNamedObject, ModuleCommand):
     astnode = qlast.AlterModule
 
     def apply(self, schema, context):

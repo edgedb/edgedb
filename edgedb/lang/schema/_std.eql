@@ -10,39 +10,36 @@ CREATE MODULE std;
 CREATE MODULE stdattrs;  # standard schema attributes need to be in a separate
                          # module to avoid name conflicts.
 
-CREATE ABSTRACT ATOM std::any;
-CREATE ATOM std::typeref;
-CREATE ATOM std::atomref EXTENDING std::typeref;
-CREATE ATOM std::conceptref EXTENDING std::typeref;
+CREATE ABSTRACT SCALAR TYPE std::any;
 
-CREATE ATOM std::bytes;
+CREATE SCALAR TYPE std::bytes;
 
-CREATE ATOM std::datetime;
+CREATE SCALAR TYPE std::datetime;
 
-CREATE ATOM std::uuid;
+CREATE SCALAR TYPE std::uuid;
 
-CREATE ATOM std::str;
+CREATE SCALAR TYPE std::str;
 
-CREATE ATOM std::json;
+CREATE SCALAR TYPE std::json;
 
-CREATE ATOM std::timedelta;
+CREATE SCALAR TYPE std::timedelta;
 
-CREATE ATOM std::date;
+CREATE SCALAR TYPE std::date;
 
-CREATE ATOM std::time;
+CREATE SCALAR TYPE std::time;
 
-CREATE ATOM std::int;
+CREATE SCALAR TYPE std::int;
 
-CREATE ATOM std::float;
+CREATE SCALAR TYPE std::float;
 
-CREATE ATOM std::bool;
+CREATE SCALAR TYPE std::bool;
 
 CREATE ATTRIBUTE std::pattern std::str;
 
-CREATE ABSTRACT ATOM std::sequence;
+CREATE ABSTRACT SCALAR TYPE std::sequence;
 
-CREATE ATOM std::tsvector;
-CREATE ATOM std::tsquery;
+CREATE SCALAR TYPE std::tsvector;
+CREATE SCALAR TYPE std::tsquery;
 
 CREATE ATTRIBUTE stdattrs::precision array<std::int>;
 
@@ -217,7 +214,7 @@ CREATE CONSTRAINT std::unique EXTENDING std::constraint {
     SET expr := std::is_distinct(__subject__);
 };
 
-CREATE ATOM std::decimal_rounding_t EXTENDING std::str {
+CREATE SCALAR TYPE std::decimal_rounding_t EXTENDING std::str {
     CREATE CONSTRAINT std::enum(
         ['ceiling', '05up', 'up', 'half-even',
          'half-up', 'floor', 'down', 'half-down']);
@@ -225,7 +222,7 @@ CREATE ATOM std::decimal_rounding_t EXTENDING std::str {
 
 CREATE ATTRIBUTE std::rounding std::decimal_rounding_t;
 
-CREATE ATOM std::decimal;
+CREATE SCALAR TYPE std::decimal;
 
 CREATE ACTION std::restrict {
     SET title := 'Abort the event if a pointer exists';
@@ -305,7 +302,7 @@ CREATE LINK std::link {
 
 CREATE LINK std::id EXTENDING std::link;
 
-CREATE CONCEPT std::Object {
+CREATE TYPE std::Object {
     CREATE REQUIRED LINK std::id TO std::uuid {
         SET default := (SELECT std::uuid_generate_v1mc());
         SET mapping := '11';
@@ -319,14 +316,19 @@ CREATE CONCEPT std::Object {
 CREATE MODULE schema;
 
 
-CREATE ABSTRACT CONCEPT schema::Class {
+# Base type for all schema entities.
+CREATE ABSTRACT TYPE schema::Object {
     CREATE REQUIRED LINK schema::name TO std::str;
     CREATE LINK schema::description TO std::str;
 };
 
 
-CREATE CONCEPT schema::Attribute EXTENDING schema::Class {
-    CREATE LINK schema::type TO schema::Class;
+# Base type for all *types*.
+CREATE ABSTRACT TYPE schema::Type EXTENDING schema::Object;
+
+
+CREATE TYPE schema::Attribute EXTENDING schema::Object {
+    CREATE LINK schema::type TO schema::Type;
 };
 
 
@@ -335,70 +337,70 @@ CREATE LINK schema::attributes {
 };
 
 
-ALTER CONCEPT schema::Class {
+ALTER TYPE schema::Object {
     CREATE LINK schema::attributes TO schema::Attribute {
         SET mapping := '**';
     };
 };
 
 
-CREATE LINK std::__class__ {
+CREATE LINK std::__type__ {
     SET readonly := True;
 };
 
 
-ALTER CONCEPT std::Object {
-    CREATE LINK std::__class__ TO schema::Class {
+ALTER TYPE std::Object {
+    CREATE LINK std::__type__ TO schema::Type {
         SET readonly := True;
     };
 };
 
 
-CREATE CONCEPT schema::Module EXTENDING schema::Class;
+CREATE TYPE schema::Module EXTENDING schema::Object;
 
 
-CREATE ABSTRACT CONCEPT schema::Type EXTENDING schema::Class;
+CREATE ABSTRACT TYPE schema::ContainerType EXTENDING schema::Type;
 
 
-CREATE CONCEPT schema::Array EXTENDING schema::Type {
+CREATE TYPE schema::Array EXTENDING schema::ContainerType {
     CREATE REQUIRED LINK schema::element_type TO schema::Type;
     CREATE LINK schema::dimensions TO array<std::int>;
 };
 
 
-CREATE CONCEPT schema::Map EXTENDING schema::Type {
+CREATE TYPE schema::Map EXTENDING schema::ContainerType {
     CREATE REQUIRED LINK schema::element_type TO schema::Type;
     CREATE REQUIRED LINK schema::key_type TO schema::Type;
 };
 
 
-CREATE CONCEPT schema::TypeElement {
+CREATE TYPE schema::TypeElement {
     CREATE REQUIRED LINK schema::type TO schema::Type;
     CREATE REQUIRED LINK schema::num TO std::int;
     CREATE LINK schema::name TO std::str;
 };
 
 
-CREATE CONCEPT schema::Tuple EXTENDING schema::Type {
+CREATE TYPE schema::Tuple EXTENDING schema::ContainerType {
     CREATE REQUIRED LINK schema::element_types TO schema::TypeElement {
         SET mapping := '1*';
     };
 };
 
 
-CREATE CONCEPT schema::Delta EXTENDING schema::Class {
+CREATE TYPE schema::Delta EXTENDING schema::Object {
     CREATE LINK schema::parents TO schema::Delta {
         SET mapping := '**';
     };
 };
 
 
-CREATE ABSTRACT CONCEPT schema::InheritingClass EXTENDING schema::Class {
-    CREATE LINK schema::bases TO schema::InheritingClass {
+CREATE ABSTRACT TYPE schema::InheritingObject EXTENDING schema::Object {
+    CREATE LINK schema::bases TO schema::InheritingObject {
         SET mapping := '**';
     };
 
-    CREATE LINK schema::mro TO schema::InheritingClass {
+    CREATE LINK schema::mro TO schema::InheritingObject {
         SET mapping := '**';
     };
 
@@ -412,7 +414,7 @@ CREATE ABSTRACT CONCEPT schema::InheritingClass EXTENDING schema::Class {
 };
 
 
-CREATE CONCEPT schema::Parameter {
+CREATE TYPE schema::Parameter {
     CREATE REQUIRED LINK schema::type TO schema::Type;
     CREATE REQUIRED LINK schema::kind TO std::str;
     CREATE REQUIRED LINK schema::num TO std::int;
@@ -422,7 +424,7 @@ CREATE CONCEPT schema::Parameter {
 };
 
 
-CREATE CONCEPT schema::Constraint EXTENDING schema::InheritingClass {
+CREATE TYPE schema::Constraint EXTENDING schema::InheritingObject {
     CREATE LINK schema::expr TO std::str;
     CREATE LINK schema::subjectexpr TO std::str;
     CREATE LINK schema::finalexpr TO std::str;
@@ -434,84 +436,84 @@ CREATE CONCEPT schema::Constraint EXTENDING schema::InheritingClass {
 };
 
 
-CREATE ABSTRACT CONCEPT schema::ConsistencySubject EXTENDING schema::Class {
+CREATE ABSTRACT TYPE schema::ConsistencySubject EXTENDING schema::Object {
     CREATE LINK schema::constraints TO schema::Constraint {
         SET mapping := '**';
     };
 };
 
 
-CREATE CONCEPT schema::SourceIndex EXTENDING schema::Class {
+CREATE TYPE schema::SourceIndex EXTENDING schema::Object {
     CREATE LINK schema::expr TO std::str;
 };
 
 
-CREATE ABSTRACT CONCEPT schema::Source EXTENDING schema::Class {
+CREATE ABSTRACT TYPE schema::Source EXTENDING schema::Object {
     CREATE LINK schema::indexes TO schema::SourceIndex {
         SET mapping := '1*';
     };
 };
 
 
-CREATE ABSTRACT CONCEPT schema::Pointer EXTENDING schema::Class;
+CREATE ABSTRACT TYPE schema::Pointer EXTENDING schema::Object;
 
 
-CREATE CONCEPT schema::Atom EXTENDING
-        (schema::InheritingClass, schema::ConsistencySubject, schema::Type) {
+CREATE TYPE schema::ScalarType EXTENDING
+        (schema::InheritingObject, schema::ConsistencySubject, schema::Type) {
     CREATE LINK schema::default TO std::str;
 };
 
 
-CREATE CONCEPT schema::Concept EXTENDING
-        (schema::InheritingClass, schema::ConsistencySubject, schema::Type,
+CREATE TYPE schema::ObjectType EXTENDING
+        (schema::InheritingObject, schema::ConsistencySubject, schema::Type,
          schema::Source);
 
 
-CREATE CONCEPT schema::VirtualConcept EXTENDING
-        (schema::InheritingClass, schema::ConsistencySubject, schema::Type,
+CREATE TYPE schema::UnionObjectType EXTENDING
+        (schema::InheritingObject, schema::ConsistencySubject, schema::Type,
          schema::Source);
 
 
-CREATE CONCEPT schema::DerivedConcept EXTENDING
-        (schema::InheritingClass, schema::ConsistencySubject, schema::Type,
+CREATE TYPE schema::DerivedObjectType EXTENDING
+        (schema::InheritingObject, schema::ConsistencySubject, schema::Type,
          schema::Source);
 
 
-CREATE CONCEPT schema::Link EXTENDING
-        (schema::InheritingClass, schema::ConsistencySubject, schema::Pointer,
+CREATE TYPE schema::Link EXTENDING
+        (schema::InheritingObject, schema::ConsistencySubject, schema::Pointer,
          schema::Source);
 
 
-CREATE CONCEPT schema::DerivedLink EXTENDING
-        (schema::InheritingClass, schema::ConsistencySubject, schema::Pointer,
+CREATE TYPE schema::DerivedLink EXTENDING
+        (schema::InheritingObject, schema::ConsistencySubject, schema::Pointer,
          schema::Source);
 
 
-CREATE CONCEPT schema::LinkProperty EXTENDING
-        (schema::InheritingClass, schema::ConsistencySubject, schema::Pointer);
+CREATE TYPE schema::LinkProperty EXTENDING
+        (schema::InheritingObject, schema::ConsistencySubject, schema::Pointer);
 
 
-ALTER CONCEPT schema::Pointer {
+ALTER TYPE schema::Pointer {
     CREATE LINK schema::source TO schema::Source;
     CREATE LINK schema::target TO schema::Type;
 };
 
 
-ALTER CONCEPT schema::Link {
+ALTER TYPE schema::Link {
     CREATE LINK schema::link_properties TO schema::LinkProperty {
         SET mapping := '1*';
     };
 };
 
 
-ALTER CONCEPT schema::Concept {
+ALTER TYPE schema::ObjectType {
     CREATE LINK schema::links TO schema::Link {
         SET mapping := '1*';
     };
 };
 
 
-CREATE CONCEPT schema::Function EXTENDING schema::Class {
+CREATE TYPE schema::Function EXTENDING schema::Object {
     CREATE LINK schema::params TO schema::Parameter {
         SET mapping := '**';
     };

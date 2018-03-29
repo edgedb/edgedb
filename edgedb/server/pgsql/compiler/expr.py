@@ -14,8 +14,8 @@ from edgedb.lang.common import ast
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
-from edgedb.lang.schema import atoms as s_atoms
-from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import atoms as s_scalars
+from edgedb.lang.schema import concepts as s_objtypes
 from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
@@ -171,7 +171,7 @@ def compile_IndexIndirection(
                 target_type=arg_type.element_type,
                 env=ctx.env)
 
-    if isinstance(arg_type, s_atoms.Atom):
+    if isinstance(arg_type, s_scalars.ScalarType):
         b = arg_type.get_topmost_base()
         is_string = b.name == 'std::str'
 
@@ -237,7 +237,7 @@ def compile_SliceIndirection(
     is_string = False
     arg_type = _infer_type(expr.expr, ctx=ctx)
 
-    if isinstance(arg_type, s_atoms.Atom):
+    if isinstance(arg_type, s_scalars.ScalarType):
         b = arg_type.get_topmost_base()
         is_string = b.name == 'std::str'
 
@@ -527,9 +527,9 @@ def compile_TypeRef(
         raise NotImplementedError()
     else:
         cls = schema.get(expr.maintype)
-        concept_id = data_backend.get_concept_id(cls)
+        objtype_id = data_backend.get_objtype_id(cls)
         result = pgast.TypeCast(
-            arg=pgast.Constant(val=concept_id),
+            arg=pgast.Constant(val=objtype_id),
             type_name=pgast.TypeName(
                 name=('uuid',)
             )
@@ -597,7 +597,7 @@ def _compile_set(
     if shape:
         value = _compile_shape(ir_set, shape=shape, ctx=ctx)
     else:
-        if ir_set.path_id.is_concept_path():
+        if ir_set.path_id.is_objtype_path():
             aspect = 'identity'
         else:
             aspect = 'value'
@@ -639,7 +639,7 @@ def _compile_shape(
             is_singleton = ptrcls.singular(ptrdir)
 
             if (irutils.is_subquery_set(el) or
-                    isinstance(el.scls, s_concepts.Concept) or
+                    isinstance(el.scls, s_objtypes.ObjectType) or
                     not is_singleton or
                     not ptrcls.required):
                 wrapper = relgen.set_as_subquery(
@@ -704,7 +704,7 @@ def _compile_set_in_singleton_mode(
                     common.edgedb_name_to_pg_name(ptrcls.shortname)
                 ]
             )
-        elif isinstance(node.scls, s_atoms.Atom):
+        elif isinstance(node.scls, s_scalars.ScalarType):
             colref = pgast.ColumnRef(
                 name=[
                     common.edgedb_name_to_pg_name(node.scls.name)
@@ -722,5 +722,5 @@ def _compile_set_in_singleton_mode(
 
 def _infer_type(
         expr: irast.Base, *,
-        ctx: context.CompilerContextLevel) -> s_obj.Class:
+        ctx: context.CompilerContextLevel) -> s_obj.Object:
     return irutils.infer_type(expr, schema=ctx.env.schema)

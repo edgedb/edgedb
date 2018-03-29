@@ -8,7 +8,7 @@
 
 from edgedb.lang.edgeql import ast as qlast
 
-from . import atoms
+from . import atoms as s_scalars
 from . import constraints
 from . import delta as sd
 from . import inheriting
@@ -61,10 +61,10 @@ class LinkProperty(pointers.Pointer):
         else:
             return super().merge_targets(schema, ptr, t1, t2)
 
-    def atomic(self):
+    def scalar(self):
         assert not self.generic(), \
-            "atomicity is not determined for generic pointers"
-        return isinstance(self.target, atoms.Atom)
+            "scalarity is not determined for generic pointers"
+        return isinstance(self.target, s_scalars.ScalarType)
 
     def singular(self, direction=pointers.PointerDirection.Outbound):
         return True
@@ -91,7 +91,7 @@ class LinkPropertySourceContext(sources.SourceCommandContext):
     pass
 
 
-class LinkPropertySourceCommand(referencing.ReferencingClassCommand):
+class LinkPropertySourceCommand(referencing.ReferencingObjectCommand):
     pass
 
 
@@ -108,7 +108,7 @@ class LinkPropertyCommand(pointers.PointerCommand,
 
 
 class CreateLinkProperty(LinkPropertyCommand,
-                         referencing.CreateReferencedInheritingClass):
+                         referencing.CreateReferencedInheritingObject):
     astnode = [qlast.CreateConcreteLinkProperty,
                qlast.CreateLinkProperty]
 
@@ -122,7 +122,7 @@ class CreateLinkProperty(LinkPropertyCommand,
             target = getattr(astnode, 'target', None)
 
             cmd.add(
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='required',
                     new_value=astnode.is_required
                 )
@@ -132,16 +132,16 @@ class CreateLinkProperty(LinkPropertyCommand,
             source_name = parent_ctx.op.classname
 
             cmd.add(
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='source',
-                    new_value=so.ClassRef(
+                    new_value=so.ObjectRef(
                         classname=source_name
                     )
                 )
             )
 
             cmd.add(
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='target',
                     new_value=utils.ast_to_typeref(target)
                 )
@@ -184,24 +184,24 @@ class CreateLinkProperty(LinkPropertyCommand,
             super()._apply_field_ast(context, node, op)
 
 
-class RenameLinkProperty(LinkPropertyCommand, named.RenameNamedClass):
+class RenameLinkProperty(LinkPropertyCommand, named.RenameNamedObject):
     pass
 
 
 class RebaseLinkProperty(LinkPropertyCommand,
-                         inheriting.RebaseNamedClass):
+                         inheriting.RebaseNamedObject):
     pass
 
 
 class AlterLinkProperty(LinkPropertyCommand,
-                        inheriting.AlterInheritingClass):
+                        inheriting.AlterInheritingObject):
     astnode = [qlast.AlterConcreteLinkProperty,
                qlast.AlterLinkProperty]
 
     def _get_ast_node(self, context):
-        concept = context.get(LinkPropertySourceContext)
+        objtype = context.get(LinkPropertySourceContext)
 
-        if concept:
+        if objtype:
             return qlast.AlterConcreteLinkProperty
         else:
             return qlast.AlterLinkProperty
@@ -220,7 +220,7 @@ class AlterLinkProperty(LinkPropertyCommand,
             if op.new_value:
                 node.commands.append(qlast.AlterTarget(
                     targets=[
-                        qlast.ClassRef(
+                        qlast.ObjectRef(
                             name=op.new_value.classname.name,
                             module=op.new_value.classname.module)
                     ]
@@ -232,14 +232,14 @@ class AlterLinkProperty(LinkPropertyCommand,
 
 
 class DeleteLinkProperty(LinkPropertyCommand,
-                         inheriting.DeleteInheritingClass):
+                         inheriting.DeleteInheritingObject):
     astnode = [qlast.DropConcreteLinkProperty,
                qlast.DropLinkProperty]
 
     def _get_ast_node(self, context):
-        concept = context.get(LinkPropertySourceContext)
+        objtype = context.get(LinkPropertySourceContext)
 
-        if concept:
+        if objtype:
             return qlast.DropConcreteLinkProperty
         else:
             return qlast.DropLinkProperty

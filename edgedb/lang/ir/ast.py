@@ -59,7 +59,7 @@ class Pointer(Base):
 
     source: Base
     target: Base
-    ptrcls: so.Class
+    ptrcls: so.Object
     direction: s_pointers.PointerDirection
     anchor: typing.Union[str, ast.MetaAST]
     show_as_anchor: typing.Union[str, ast.MetaAST]
@@ -206,7 +206,7 @@ class SortExpr(Base):
 
 class FunctionCall(Expr):
 
-    func: so.Class
+    func: so.Object
     args: typing.List[Base]
     kwargs: dict
     agg_sort: typing.List[SortExpr]

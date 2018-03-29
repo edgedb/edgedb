@@ -29,12 +29,12 @@ class EdgeQLLexer(RegexLexer):
             (r'''(?ix)
                 \b(?<![:\.])(
                     abstract | action | after | any | array | as | asc |
-                    atom | attribute | before | by | cardinality |
-                    concept | constraint | database | delegated | desc |
+                    attribute | before | by | cardinality |
+                    constraint | database | delegated | desc |
                     event | final | first | from | index | initial |
                     into | last | link | map | migration | of | on |
-                    policy | property | required | rename | target |
-                    then | to | transaction | tuple | using | value |
+                    policy | property | required | rename | scalar | target |
+                    then | to | transaction | tuple | type | using | value |
                     view |
 
                     aggregate | all | alter | and | commit | create |
@@ -50,7 +50,7 @@ class EdgeQLLexer(RegexLexer):
             (r'\b(?i)(?<![:\.])(__self__|__subject__)\b',
              token.Name.Builtin.Pseudo),
 
-            (r'\b(__class__)\b', token.Name.Builtin.Pseudo),
+            (r'\b(__type__)\b', token.Name.Builtin.Pseudo),
         ],
         'strings': [
             (r'''(?x)

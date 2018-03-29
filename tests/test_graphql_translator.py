@@ -86,20 +86,20 @@ class TranslatorTest(tb.BaseSyntaxTest, metaclass=BaseSchemaTestMeta):
 
 class TestGraphQLTranslation(TranslatorTest):
     SCHEMA_TEST = r"""
-        abstract concept NamedObject:
+        abstract type NamedObject:
             required link name to str
 
-        concept UserGroup extending NamedObject:
+        type UserGroup extending NamedObject:
             link settings to Setting:
                 mapping := '1*'
 
-        concept Setting extending NamedObject:
+        type Setting extending NamedObject:
             required link value to str
 
-        concept Profile extending NamedObject:
+        type Profile extending NamedObject:
             required link value to str
 
-        concept User extending NamedObject:
+        type User extending NamedObject:
             required link active to bool
             link groups to UserGroup:
                 mapping := '**'
@@ -112,11 +112,11 @@ class TestGraphQLTranslation(TranslatorTest):
     SCHEMA_MOD2 = r"""
         import test
 
-        concept Person extending test::User
+        type Person extending test::User
     """
 
     SCHEMA_123LIB = r"""
-        concept Foo:
+        type Foo:
             link `select` to str
             link after to str
     """
@@ -1991,11 +1991,11 @@ class TestGraphQLTranslation(TranslatorTest):
             User := (SELECT
                 test::User {
                     name,
-                    __typename := test::User.__class__.name,
+                    __typename := test::User.__type__.name,
                     groups: {
                         id,
                         name,
-                        __typename := test::User.groups.__class__.name
+                        __typename := test::User.groups.__type__.name
                     }
                 })
         };

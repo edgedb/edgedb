@@ -17,7 +17,7 @@ from edgedb.lang.ir import inference as irinference
 from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import basetypes as s_basetypes
-from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import concepts as s_objtypes
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import types as s_types
 from edgedb.lang.schema import utils as s_utils
@@ -401,16 +401,16 @@ def compile_TypeFilter(
             ctx=scopectx)
 
     arg_type = irutils.infer_type(arg, ctx.schema)
-    if not isinstance(arg_type, s_concepts.Concept):
+    if not isinstance(arg_type, s_objtypes.ObjectType):
         raise errors.EdgeQLError(
             f'invalid type filter operand: {arg_type.name} '
-            f'is not a concept',
+            f'is not an object type',
             context=expr.expr.context)
 
     typ = schemactx.get_schema_object(expr.type.maintype, ctx=ctx)
-    if not isinstance(typ, s_concepts.Concept):
+    if not isinstance(typ, s_objtypes.ObjectType):
         raise errors.EdgeQLError(
-            f'invalid type filter operand: {typ.name} is not a concept',
+            f'invalid type filter operand: {typ.name} is not an object type',
             context=expr.type.context)
 
     return setgen.class_indirection_set(arg, typ, optional=False, ctx=ctx)
@@ -548,7 +548,7 @@ def compile_type_check_op(
 
     ltype = irutils.infer_type(left, ctx.schema)
     left = setgen.ptr_step_set(
-        left, source=ltype, ptr_name=('std', '__class__'),
+        left, source=ltype, ptr_name=('std', '__type__'),
         direction=s_pointers.PointerDirection.Outbound,
         source_context=expr.context, ctx=ctx)
 

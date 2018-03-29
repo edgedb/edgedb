@@ -39,14 +39,14 @@ class Query:
 
             if isinstance(expr_type, tuple):
                 if expr_type[1] == 'type':
-                    expr_typ = s_obj.Class
+                    expr_typ = s_obj.Object
                 else:
                     expr_typ = session.schema.get(expr_type[1])
 
                 expr_type = (expr_type[0], expr_typ)
             else:
                 if expr_type[1] == 'type':
-                    expr_type = s_obj.Class
+                    expr_type = s_obj.Object
                 else:
                     expr_type = session.schema.get(expr_type)
 

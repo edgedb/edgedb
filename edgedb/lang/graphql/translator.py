@@ -156,7 +156,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         query = qlast.SelectQuery(
             result=qlast.Shape(
                 expr=qlast.Path(
-                    steps=[qlast.ClassRef(name='Query', module='graphql')]
+                    steps=[qlast.ObjectRef(name='Query', module='graphql')]
                 ),
                 elements=[]
             ),
@@ -333,10 +333,10 @@ class GraphQLTranslator(ast.NodeVisitor):
         steps = []
         if include_base:
             base = path[0].type
-            steps.append(qlast.ClassRef(
+            steps.append(qlast.ObjectRef(
                 module=base.module, name=base.short_name))
         steps.append(qlast.Ptr(
-            ptr=qlast.ClassRef(
+            ptr=qlast.ObjectRef(
                 name=node.name
             )
         ))
@@ -351,7 +351,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             spec = qlast.ShapeElement(
                 expr=qlast.Path(
                     steps=[qlast.Ptr(
-                        ptr=qlast.ClassRef(
+                        ptr=qlast.ObjectRef(
                             name=node.name
                         )
                     )]
@@ -359,7 +359,7 @@ class GraphQLTranslator(ast.NodeVisitor):
                 compexpr=qlast.SelectQuery(
                     result=qlast.Shape(
                         expr=qlast.Path(
-                            steps=[qlast.ClassRef(
+                            steps=[qlast.ObjectRef(
                                 name=target.edb_base.name.name,
                                 module=target.edb_base.name.module,
                             )]
@@ -390,11 +390,11 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         if include_base:
             base = path[0]
-            steps.append(qlast.ClassRef(
+            steps.append(qlast.ObjectRef(
                 module=base.module, name=base.short_name))
 
         steps.append(qlast.Ptr(
-            ptr=qlast.ClassRef(
+            ptr=qlast.ObjectRef(
                 name=node.name
             )
         ))
@@ -422,7 +422,7 @@ class GraphQLTranslator(ast.NodeVisitor):
                     compexpr=qlast.Constant(value=prevt.short_name),
                 )
             else:
-                # shadowed EdgeDB concepts are pretty straight-forward
+                # shadowed EdgeDB types are pretty straight-forward
 
                 # flatten the path
                 path = [step
@@ -438,12 +438,12 @@ class GraphQLTranslator(ast.NodeVisitor):
                 # trim the rest of the path
                 path = path[i + 1:]
                 typename = [
-                    qlast.ClassRef(module=base.module, name=base.short_name)
+                    qlast.ObjectRef(module=base.module, name=base.short_name)
                 ]
                 # convert the path to list of str and add a couple more steps
-                path = [step.name for step in path] + ['__class__', 'name']
+                path = [step.name for step in path] + ['__type__', 'name']
                 typename.extend(
-                    qlast.Ptr(ptr=qlast.ClassRef(name=name))
+                    qlast.Ptr(ptr=qlast.ObjectRef(name=name))
                     for name in path
                 )
 
@@ -475,7 +475,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         spec = qlast.ShapeElement(
             expr=qlast.Path(
                 steps=[qlast.Ptr(
-                    ptr=qlast.ClassRef(
+                    ptr=qlast.ObjectRef(
                         name=node.name
                     )
                 )]
@@ -483,7 +483,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             compexpr=qlast.SelectQuery(
                 result=qlast.Shape(
                     expr=qlast.Path(
-                        steps=[qlast.ClassRef(name='Query', module='graphql')]
+                        steps=[qlast.ObjectRef(name='Query', module='graphql')]
                     )
                 )
             )
@@ -519,7 +519,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         spec = qlast.ShapeElement(
             expr=qlast.Path(
                 steps=[qlast.Ptr(
-                    ptr=qlast.ClassRef(
+                    ptr=qlast.ObjectRef(
                         name=node.name
                     )
                 )]
@@ -527,7 +527,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             compexpr=qlast.SelectQuery(
                 result=qlast.Shape(
                     expr=qlast.Path(
-                        steps=[qlast.ClassRef(name='Query', module='graphql')]
+                        steps=[qlast.ObjectRef(name='Query', module='graphql')]
                     )
                 )
             )
@@ -597,8 +597,8 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         def get_path_prefix():
             path = self._context.path[0]
-            return [qlast.ClassRef(module=path[1].module,
-                                   name=path[1].short_name)]
+            return [qlast.ObjectRef(module=path[1].module,
+                                    name=path[1].short_name)]
 
         return self._join_expressions(self._visit_arguments(
             arguments, get_path_prefix=get_path_prefix))
@@ -622,10 +622,10 @@ class GraphQLTranslator(ast.NodeVisitor):
             # trim the rest of the path
             path = path[i + 1:]
             prefix = [
-                qlast.ClassRef(module=base.module, name=base.short_name)
+                qlast.ObjectRef(module=base.module, name=base.short_name)
             ]
             prefix.extend(
-                qlast.Ptr(ptr=qlast.ClassRef(name=step.name))
+                qlast.Ptr(ptr=qlast.ObjectRef(name=step.name))
                 for step in path
             )
             return prefix
@@ -646,7 +646,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         name_parts = node.name
 
         name = get_path_prefix()
-        name.append(qlast.Ptr(ptr=qlast.ClassRef(name=name_parts)))
+        name.append(qlast.Ptr(ptr=qlast.ObjectRef(name=name_parts)))
         name = qlast.Path(steps=name)
 
         value = self.visit(node.value)

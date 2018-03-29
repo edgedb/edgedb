@@ -14,20 +14,20 @@ from edgedb.server import _testbase as tb
 class TestGraphQLFunctional(tb.QueryTestCase):
     SETUP = """
         CREATE MIGRATION test::d1 TO eschema $$
-            abstract concept NamedObject:
+            abstract type NamedObject:
                 required link name to str
 
-            concept UserGroup extending NamedObject:
+            type UserGroup extending NamedObject:
                 link settings to Setting:
                     mapping := '**'
 
-            concept Setting extending NamedObject:
+            type Setting extending NamedObject:
                 required link value to str
 
-            concept Profile extending NamedObject:
+            type Profile extending NamedObject:
                 required link value to str
 
-            concept User extending NamedObject:
+            type User extending NamedObject:
                 required link active to bool
                 link groups to UserGroup:
                     mapping := '**'

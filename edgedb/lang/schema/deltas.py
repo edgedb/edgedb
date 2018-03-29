@@ -20,9 +20,9 @@ from . import schema as s_schema
 from . import std as s_std
 
 
-class Delta(named.NamedClass):
-    parents = so.Field(named.NamedClassList,
-                       default=named.NamedClassList,
+class Delta(named.NamedObject):
+    parents = so.Field(named.NamedObjectList,
+                       default=named.NamedObjectList,
                        coerce=True, private=True)
 
     target = so.Field(s_schema.Schema, private=True,
@@ -38,7 +38,7 @@ class DeltaCommandContext(sd.CommandContextToken):
     pass
 
 
-class DeltaCommand(named.NamedClassCommand, schema_metaclass=Delta,
+class DeltaCommand(named.NamedObjectCommand, schema_metaclass=Delta,
                    context_class=DeltaCommandContext):
     @classmethod
     def _classname_from_ast(cls, astnode, context, schema):
@@ -51,7 +51,7 @@ class DeltaCommand(named.NamedClassCommand, schema_metaclass=Delta,
         return classname
 
 
-class CreateDelta(named.CreateNamedClass, DeltaCommand):
+class CreateDelta(named.CreateNamedObject, DeltaCommand):
     astnode = qlast.CreateDelta
 
     @classmethod
@@ -74,17 +74,17 @@ class CreateDelta(named.CreateNamedClass, DeltaCommand):
             diff = sd.delta_module(target, schema, modname)
             migration = list(diff.get_subcommands())
 
-            for op in cmd.get_subcommands(type=sd.AlterClassProperty):
+            for op in cmd.get_subcommands(type=sd.AlterObjectProperty):
                 if op.property == 'commands':
                     op.new_value = migration + op.new_value
                     break
             else:
-                cmd.add(sd.AlterClassProperty(
+                cmd.add(sd.AlterObjectProperty(
                     property='commands',
                     new_value=migration
                 ))
 
-            cmd.add(sd.AlterClassProperty(
+            cmd.add(sd.AlterObjectProperty(
                 property='target',
                 new_value=target
             ))
@@ -99,7 +99,7 @@ class CreateDelta(named.CreateNamedClass, DeltaCommand):
         return delta
 
 
-class AlterDelta(named.CreateOrAlterNamedClass, DeltaCommand):
+class AlterDelta(named.CreateOrAlterNamedObject, DeltaCommand):
     astnode = qlast.AlterDelta
 
     def apply(self, schema, context):

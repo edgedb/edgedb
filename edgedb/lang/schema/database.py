@@ -17,7 +17,7 @@ from . import named
 from . import objects as so
 
 
-class Database(named.NamedClass):
+class Database(named.NamedObject):
     # Override 'name' to str type, since databases don't have
     # fully-qualified names.
     name = so.Field(str)
@@ -27,7 +27,7 @@ class DatabaseCommandContext(sd.CommandContextToken):
     pass
 
 
-class DatabaseCommand(sd.ClassCommand, schema_metaclass=Database,
+class DatabaseCommand(sd.ObjectCommand, schema_metaclass=Database,
                       context_class=DatabaseCommandContext):
     pass
 
@@ -73,7 +73,7 @@ class AlterDatabase(DatabaseCommand):
 
             for link in schema.get_objects(type='link'):
                 if link.target and not isinstance(link.target,
-                                                  so.Class):
+                                                  so.Object):
                     link.target = schema.get(link.target)
 
                 link.acquire_ancestor_inheritance(schema)
@@ -81,12 +81,12 @@ class AlterDatabase(DatabaseCommand):
 
             for link in schema.get_objects(type='computable'):
                 if link.target and not isinstance(link.target,
-                                                  so.Class):
+                                                  so.Object):
                     link.target = schema.get(link.target)
 
-            for concept in schema.get_objects(type='concept'):
-                concept.acquire_ancestor_inheritance(schema)
-                concept.finalize(schema)
+            for objtype in schema.get_objects(type='ObjectType'):
+                objtype.acquire_ancestor_inheritance(schema)
+                objtype.finalize(schema)
 
 
 class DropDatabase(DatabaseCommand):

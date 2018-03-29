@@ -43,25 +43,25 @@ def ast_to_typeref(node: ql_ast.TypeName):
     mtn = sn.Name(module=node.maintype.module,
                   name=node.maintype.name)
 
-    return so.ClassRef(classname=mtn)
+    return so.ObjectRef(classname=mtn)
 
 
-def typeref_to_ast(t: so.Class) -> ql_ast.TypeName:
+def typeref_to_ast(t: so.Object) -> ql_ast.TypeName:
     if not isinstance(t, s_types.Collection):
-        if isinstance(t, so.ClassRef):
+        if isinstance(t, so.ObjectRef):
             name = t.classname
         else:
             name = t.name
 
         result = ql_ast.TypeName(
-            maintype=ql_ast.ClassRef(
+            maintype=ql_ast.ObjectRef(
                 module=name.module,
                 name=name.name
             )
         )
     else:
         result = ql_ast.TypeName(
-            maintype=ql_ast.ClassRef(
+            maintype=ql_ast.ObjectRef(
                 name=t.schema_name
             ),
             subtypes=[
@@ -72,9 +72,9 @@ def typeref_to_ast(t: so.Class) -> ql_ast.TypeName:
     return result
 
 
-def resolve_typeref(ref: so.Class, schema) -> so.Class:
+def resolve_typeref(ref: so.Object, schema) -> so.Object:
     if isinstance(ref, s_types.Tuple):
-        if any(isinstance(st, so.ClassRef) for st in ref.get_subtypes()):
+        if any(isinstance(st, so.ObjectRef) for st in ref.get_subtypes()):
             subtypes = collections.OrderedDict()
             for st_name, st in ref.element_types.items():
                 subtypes[st_name] = schema.get(st.classname)
@@ -85,7 +85,7 @@ def resolve_typeref(ref: so.Class, schema) -> so.Class:
             obj = ref
 
     elif isinstance(ref, s_types.Collection):
-        if any(isinstance(st, so.ClassRef) for st in ref.get_subtypes()):
+        if any(isinstance(st, so.ObjectRef) for st in ref.get_subtypes()):
             subtypes = []
             for st in ref.get_subtypes():
                 subtypes.append(schema.get(st.classname))
@@ -122,7 +122,7 @@ def get_class_nearest_common_ancestor(classes):
 
 
 def minimize_class_set_by_most_generic(classes):
-    """Minimize the given Class set by filtering out all subclasses."""
+    """Minimize the given Object set by filtering out all subclasses."""
 
     classes = list(classes)
     mros = [set(p.get_mro()) for p in classes]
@@ -141,7 +141,7 @@ def minimize_class_set_by_most_generic(classes):
 
 
 def minimize_class_set_by_least_generic(classes):
-    """Minimize the given Class set by filtering out all superclasses."""
+    """Minimize the given Object set by filtering out all superclasses."""
 
     classes = list(classes)
     mros = [set(p.get_mro()) for p in classes]

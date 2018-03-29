@@ -370,7 +370,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         1
                 )
             SELECT
-                sub.__class__.name;
+                sub.__type__.name;
         ''', [
             ['test::Issue']
         ])
@@ -581,7 +581,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT
                 Issue {
                     number,
-                    __class__: {
+                    __type__: {
                         name
                     }
                 }
@@ -590,14 +590,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ''', [
             [{
                 'number': '1',
-                '__class__': {'name': 'test::Issue'},
+                '__type__': {'name': 'test::Issue'},
             }],
         ])
 
     async def test_edgeql_select_type_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            SELECT User.__class__.name LIMIT 1;
+            SELECT User.__type__.name LIMIT 1;
         ''', [
             ['test::User']
         ])
@@ -605,19 +605,19 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_type_03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            SELECT User.name.__class__.name LIMIT 1;
+            SELECT User.name.__type__.name LIMIT 1;
         ''', [
             ['std::str']
         ])
 
     async def test_edgeql_select_type_04(self):
-        # Make sure that the __class__ attribute gets the same object
-        # as a direct schema::Concept query. As long as this is true,
+        # Make sure that the __type__ attribute gets the same object
+        # as a direct schema::ObjectType query. As long as this is true,
         # we can test the schema separately without any other data.
         res1 = await self.con.execute(r'''
             WITH MODULE test
             SELECT User {
-                __class__: {
+                __type__: {
                     name,
                     id,
                 }
@@ -626,13 +626,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         res2 = await self.con.execute(r'''
             WITH MODULE schema
-            SELECT `Concept` {
+            SELECT `ObjectType` {
                 name,
                 id,
-            } FILTER `Concept`.name = 'test::User';
+            } FILTER `ObjectType`.name = 'test::User';
         ''')
 
-        self.assert_data_shape(res1[0][0]['__class__'], res2[0][0])
+        self.assert_data_shape(res1[0][0]['__type__'], res2[0][0])
 
     # Recursion isn't working properly yet
     @unittest.expectedFailure
@@ -1757,7 +1757,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_exists_06(self):
         # using IDs in EXISTS clauses should be semantically identical
-        # to using concepts
+        # to using object types
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
@@ -1781,7 +1781,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_exists_08(self):
         # using IDs in EXISTS clauses should be semantically identical
-        # to using concepts
+        # to using object types
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
@@ -1805,7 +1805,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_exists_10(self):
         # using IDs in EXISTS clauses should be semantically identical
-        # to using concepts
+        # to using object types
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
@@ -1829,7 +1829,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_exists_12(self):
         # using IDs in EXISTS clauses should be semantically identical
-        # to using concepts
+        # to using object types
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
@@ -3371,57 +3371,57 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
-            ).__class__.name;
+            ).__type__.name;
 
             WITH MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
-            ).__class__.name[2];
+            ).__type__.name[2];
 
             WITH MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
-            ).__class__.name[-2];
-
-
-            WITH MODULE test
-            SELECT (
-                SELECT Issue
-                FILTER Issue.number = '1'
-            ).__class__.name[2:4];
-
-            WITH MODULE test
-            SELECT (
-                SELECT Issue
-                FILTER Issue.number = '1'
-            ).__class__.name[2:];
-
-            WITH MODULE test
-            SELECT (
-                SELECT Issue
-                FILTER Issue.number = '1'
-            ).__class__.name[:2];
+            ).__type__.name[-2];
 
 
             WITH MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
-            ).__class__.name[2:-1];
+            ).__type__.name[2:4];
 
             WITH MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
-            ).__class__.name[-2:];
+            ).__type__.name[2:];
 
             WITH MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
-            ).__class__.name[:-2];
+            ).__type__.name[:2];
+
+
+            WITH MODULE test
+            SELECT (
+                SELECT Issue
+                FILTER Issue.number = '1'
+            ).__type__.name[2:-1];
+
+            WITH MODULE test
+            SELECT (
+                SELECT Issue
+                FILTER Issue.number = '1'
+            ).__type__.name[-2:];
+
+            WITH MODULE test
+            SELECT (
+                SELECT Issue
+                FILTER Issue.number = '1'
+            ).__type__.name[:-2];
 
         """, [
             ['test::Issue'],
@@ -3442,10 +3442,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue{
                 name,
-                type_name := Issue.__class__.name,
+                type_name := Issue.__type__.name,
                 a := Issue.name[2],
                 b := Issue.name[2:-1],
-                c := Issue.__class__.name[2:-1],
+                c := Issue.__type__.name[2:-1],
             }
             FILTER Issue.number = '1';
         """, [
@@ -3931,7 +3931,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT Issue {
                 number,
                 references: Named {
-                    __class__: {
+                    __type__: {
                         name
                     },
 
@@ -3954,13 +3954,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 'references': [
                     {
                         'name': 'edgedb.com',
-                        '__class__': {
+                        '__type__': {
                             'name': 'test::URL'
                         }
                     },
                     {
                         'name': 'screenshot.png',
-                        '__class__': {
+                        '__type__': {
                             'name': 'test::File'
                         }
                     }

@@ -25,6 +25,6 @@ async def fetch(
             edgedb._resolve_type_name(c.bases) AS bases,
             c.default AS default
         FROM
-            edgedb.atom c
+            edgedb.ScalarType c
         ORDER BY
             c.id""")

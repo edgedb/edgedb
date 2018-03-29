@@ -15,7 +15,7 @@ from edgedb.lang.common import parsing
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
-from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import concepts as s_objtypes
 from edgedb.lang.schema import expr as s_expr
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import lproperties as s_linkprops
@@ -105,10 +105,10 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             # syntactically and is a known anchor
             path_tip = anchors.get(step.__class__)
 
-        elif isinstance(step, qlast.ClassRef):
+        elif isinstance(step, qlast.ObjectRef):
             if i > 0:
                 raise RuntimeError(
-                    'unexpected ClassRef as a non-first path item')
+                    'unexpected ObjectRef as a non-first path item')
 
             refnode = None
 
@@ -149,10 +149,10 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 # ... link [IS Target]
                 ptr_target = schemactx.get_schema_object(
                     ptr_expr.target, ctx=ctx)
-                if not isinstance(ptr_target, s_concepts.Concept):
+                if not isinstance(ptr_target, s_objtypes.ObjectType):
                     raise errors.EdgeQLError(
                         f'invalid type filter operand: {ptr_target.name} '
-                        f'is not a concept',
+                        f'is not an object type',
                         context=ptr_expr.target.context)
 
             ptr_name = (ptr_expr.ptr.module, ptr_expr.ptr.name)
@@ -319,8 +319,8 @@ def resolve_ptr(
     else:
         if direction == s_pointers.PointerDirection.Outbound:
             bptr = schemactx.get_schema_object(pointer_name, ctx=ctx)
-            schema_cls = ctx.schema.get('schema::Atom')
-            if bptr.shortname == 'std::__class__':
+            schema_cls = ctx.schema.get('schema::ScalarType')
+            if bptr.shortname == 'std::__type__':
                 ptr = bptr.derive(ctx.schema, near_endpoint, schema_cls)
 
     if not ptr:

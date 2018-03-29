@@ -10,7 +10,7 @@ from . import name as sn
 from . import objects as so
 
 
-class DerivableClassBase:
+class DerivableObjectBase:
     # Override name field comparison coefficient on the
     # presumption that the derived names may be different,
     # but base names may be equal.
@@ -113,9 +113,9 @@ class DerivableClassBase:
         return derived
 
 
-class DerivableClass(so.NamedClass, DerivableClassBase):
+class DerivableObject(so.NamedObject, DerivableObjectBase):
     @classmethod
     def inherit_pure(cls, schema, item, source, *, dctx=None):
-        # This method is used by ReferencingClass and must be
+        # This method is used by ReferencingObject and must be
         # defined for all Derivables, not just Inheriting ones.
         return item

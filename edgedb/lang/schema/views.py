@@ -10,14 +10,14 @@ from edgedb.lang.edgeql import ast as qlast
 
 from edgedb.lang.ir import utils as irutils
 
-from . import atoms
+from . import atoms as s_scalars
 from . import attributes
-from . import concepts
+from . import concepts as s_objtypes
 from . import delta as sd
 from . import nodes
 
 
-class ViewCommandContext(sd.ClassCommandContext,
+class ViewCommandContext(sd.ObjectCommandContext,
                          attributes.AttributeSubjectCommandContext,
                          nodes.NodeCommandContext):
     pass
@@ -25,16 +25,16 @@ class ViewCommandContext(sd.ClassCommandContext,
 
 class ViewCommand(nodes.NodeCommand, context_class=ViewCommandContext):
 
-    _atom_cmd_map = {
-        qlast.CreateView: atoms.CreateAtom,
-        qlast.AlterView: atoms.AlterAtom,
-        qlast.DropView: atoms.DeleteAtom,
+    _scalar_cmd_map = {
+        qlast.CreateView: s_scalars.CreateScalarType,
+        qlast.AlterView: s_scalars.AlterScalarType,
+        qlast.DropView: s_scalars.DeleteScalarType,
     }
 
-    _concept_cmd_map = {
-        qlast.CreateView: concepts.CreateConcept,
-        qlast.AlterView: concepts.AlterConcept,
-        qlast.DropView: concepts.DeleteConcept,
+    _objtype_cmd_map = {
+        qlast.CreateView: s_objtypes.CreateObjectType,
+        qlast.AlterView: s_objtypes.AlterObjectType,
+        qlast.DropView: s_objtypes.DeleteObjectType,
     }
 
     @classmethod
@@ -48,10 +48,10 @@ class ViewCommand(nodes.NodeCommand, context_class=ViewCommandContext):
         else:
             scls = schema.get(classname)
 
-        if isinstance(scls, atoms.Atom):
-            mapping = cls._atom_cmd_map
+        if isinstance(scls, s_scalars.ScalarType):
+            mapping = cls._scalar_cmd_map
         else:
-            mapping = cls._concept_cmd_map
+            mapping = cls._objtype_cmd_map
 
         return mapping[type(astnode)]
 

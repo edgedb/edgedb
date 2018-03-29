@@ -23,8 +23,8 @@ from edgedb.lang import schema as so
 from edgedb.lang.schema import delta as sd
 
 from edgedb.lang.schema import attributes as s_attrs
-from edgedb.lang.schema import atoms as s_atoms
-from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import atoms as s_scalars
+from edgedb.lang.schema import concepts as s_objtypes
 from edgedb.lang.schema import constraints as s_constr
 from edgedb.lang.schema import database as s_db
 from edgedb.lang.schema import ddl as s_ddl
@@ -285,12 +285,12 @@ class Backend(s_deltarepo.DeltaProvider):
         self._constr_mech = schemamech.ConstraintMech()
         self._type_mech = schemamech.TypeMech()
 
-        self.atom_cache = {}
+        self.scalar_cache = {}
         self.link_cache = {}
         self.link_property_cache = {}
-        self.concept_cache = {}
+        self.objtype_cache = {}
         self.table_cache = {}
-        self.domain_to_atom_map = {}
+        self.domain_to_scalar_map = {}
         self.table_id_to_class_name_cache = {}
         self.classname_to_table_id_cache = {}
         self.attribute_link_map_cache = {}
@@ -315,10 +315,10 @@ class Backend(s_deltarepo.DeltaProvider):
         t2pn, pn2t = await self._init_relid_cache()
         self.table_id_to_class_name_cache = t2pn
         self.classname_to_table_id_cache = pn2t
-        self.domain_to_atom_map = await self._init_atom_map_cache()
-        # Concept map needed early for type filtering operations
+        self.domain_to_scalar_map = await self._init_scalar_map_cache()
+        # ObjectType map needed early for type filtering operations
         # in schema queries
-        await self.get_concept_map(force_reload=True)
+        await self.get_objtype_map(force_reload=True)
 
     async def _init_relid_cache(self):
         link_tables = await introspection.tables.fetch_tables(
@@ -352,18 +352,18 @@ class Backend(s_deltarepo.DeltaProvider):
             self.connection, schema_pattern='edgedb%', table_pattern='%_data')
         tables = {(t['schema'], t['name']): t for t in tables}
 
-        concept_list = await datasources.schema.concepts.fetch(self.connection)
-        concept_list = collections.OrderedDict((sn.Name(row['name']), row)
-                                               for row in concept_list)
+        objtype_list = await datasources.schema.concepts.fetch(self.connection)
+        objtype_list = collections.OrderedDict((sn.Name(row['name']), row)
+                                               for row in objtype_list)
 
-        for name, row in concept_list.items():
-            table_name = common.concept_name_to_table_name(
+        for name, row in objtype_list.items():
+            table_name = common.objtype_name_to_table_name(
                 name, catenate=False)
             table = tables.get(table_name)
 
             if not table:
                 msg = 'internal metadata incosistency'
-                details = 'Record for concept {!r} exists but the ' \
+                details = 'Record for type {!r} exists but the ' \
                           'table is missing'.format(name)
                 raise s_err.SchemaError(msg, details=details)
 
@@ -376,28 +376,29 @@ class Backend(s_deltarepo.DeltaProvider):
     def table_name_to_object_name(self, table_name):
         return self.table_cache.get(table_name)['name']
 
-    async def _init_atom_map_cache(self):
-        atom_list = await datasources.schema.atoms.fetch(self.connection)
+    async def _init_scalar_map_cache(self):
+        scalar_list = await datasources.schema.atoms.fetch(self.connection)
 
-        domain_to_atom_map = {}
+        domain_to_scalar_map = {}
 
-        for row in atom_list:
+        for row in scalar_list:
             name = sn.Name(row['name'])
 
-            domain_name = common.atom_name_to_domain_name(name, catenate=False)
-            domain_to_atom_map[domain_name] = name
+            domain_name = common.scalar_name_to_domain_name(
+                name, catenate=False)
+            domain_to_scalar_map[domain_name] = name
 
-        return domain_to_atom_map
+        return domain_to_scalar_map
 
     async def readschema(self):
         schema = so.Schema()
         await self._init_introspection_cache()
         await self.read_modules(schema)
-        await self.read_atoms(schema)
+        await self.read_scalars(schema)
         await self.read_attributes(schema)
         await self.read_actions(schema)
         await self.read_events(schema)
-        await self.read_concepts(schema)
+        await self.read_objtypes(schema)
         await self.read_links(schema)
         await self.read_link_properties(schema)
         await self.read_policies(schema)
@@ -409,11 +410,11 @@ class Backend(s_deltarepo.DeltaProvider):
         await self.order_attributes(schema)
         await self.order_actions(schema)
         await self.order_events(schema)
-        await self.order_atoms(schema)
+        await self.order_scalars(schema)
         await self.order_functions(schema)
         await self.order_link_properties(schema)
         await self.order_links(schema)
-        await self.order_concepts(schema)
+        await self.order_objtypes(schema)
         await self.order_policies(schema)
 
         return schema
@@ -530,37 +531,37 @@ class Backend(s_deltarepo.DeltaProvider):
 
         self.link_cache.clear()
         self.link_property_cache.clear()
-        self.concept_cache.clear()
-        self.atom_cache.clear()
+        self.objtype_cache.clear()
+        self.scalar_cache.clear()
         self.table_cache.clear()
-        self.domain_to_atom_map.clear()
+        self.domain_to_scalar_map.clear()
         self.table_id_to_class_name_cache.clear()
         self.classname_to_table_id_cache.clear()
         self.attribute_link_map_cache.clear()
 
-    async def get_concept_map(self, force_reload=False):
-        if not self.concept_cache or force_reload:
+    async def get_objtype_map(self, force_reload=False):
+        if not self.objtype_cache or force_reload:
             cl_ds = datasources.schema.concepts
 
             for row in await cl_ds.fetch(self.connection):
-                self.concept_cache[row['name']] = row['id']
-                self.concept_cache[row['id']] = sn.Name(row['name'])
+                self.objtype_cache[row['name']] = row['id']
+                self.objtype_cache[row['id']] = sn.Name(row['name'])
 
-        return self.concept_cache
+        return self.objtype_cache
 
-    def get_concept_id(self, concept):
-        concept_id = None
+    def get_objtype_id(self, objtype):
+        objtype_id = None
 
-        concept_cache = self.concept_cache
-        if concept_cache:
-            concept_id = concept_cache.get(concept.name)
+        objtype_cache = self.objtype_cache
+        if objtype_cache:
+            objtype_id = objtype_cache.get(objtype.name)
 
-        if concept_id is None:
-            msg = 'could not determine backend id for concept in this context'
-            details = 'Concept: {}'.format(concept.name)
+        if objtype_id is None:
+            msg = 'could not determine backend id for type in this context'
+            details = 'ObjectType: {}'.format(objtype.name)
             raise s_err.SchemaError(msg, details=details)
 
-        return concept_id
+        return objtype_id
 
     def source_name_from_relid(self, table_oid):
         return self.table_id_to_class_name_cache.get(table_oid)
@@ -654,7 +655,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
                     schema.add_module(impmod)
 
-    async def read_atoms(self, schema):
+    async def read_scalars(self, schema):
         seqs = await introspection.sequences.fetch(
             self.connection,
             schema_pattern='edgedb%', sequence_pattern='%_sequence')
@@ -662,14 +663,14 @@ class Backend(s_deltarepo.DeltaProvider):
 
         seen_seqs = set()
 
-        atom_list = await datasources.schema.atoms.fetch(self.connection)
+        scalar_list = await datasources.schema.atoms.fetch(self.connection)
 
         basemap = {}
 
-        for row in atom_list:
+        for row in scalar_list:
             name = sn.Name(row['name'])
 
-            atom_data = {
+            scalar_data = {
                 'name': name,
                 'title': self.json_to_word_combination(row['title']),
                 'description': row['description'],
@@ -683,39 +684,40 @@ class Backend(s_deltarepo.DeltaProvider):
                          if row['expr'] else None)
             }
 
-            self.atom_cache[name] = atom_data
-            atom_data['default'] = self.unpack_default(row['default'])
+            self.scalar_cache[name] = scalar_data
+            scalar_data['default'] = self.unpack_default(row['default'])
 
-            if atom_data['bases']:
-                basemap[name] = atom_data['bases']
+            if scalar_data['bases']:
+                basemap[name] = scalar_data['bases']
 
-            atom = s_atoms.Atom(
-                name=name, default=atom_data['default'],
-                title=atom_data['title'], description=atom_data['description'],
-                is_abstract=atom_data['is_abstract'],
-                is_final=atom_data['is_final'],
-                view_type=atom_data['view_type'],
-                expr=atom_data['expr'])
+            scalar = s_scalars.ScalarType(
+                name=name, default=scalar_data['default'],
+                title=scalar_data['title'],
+                description=scalar_data['description'],
+                is_abstract=scalar_data['is_abstract'],
+                is_final=scalar_data['is_final'],
+                view_type=scalar_data['view_type'],
+                expr=scalar_data['expr'])
 
-            schema.add(atom)
+            schema.add(scalar)
 
-        for atom in schema.get_objects(type='atom'):
+        for scalar in schema.get_objects(type='ScalarType'):
             try:
-                basename = basemap[atom.name]
+                basename = basemap[scalar.name]
             except KeyError:
                 pass
             else:
-                atom.bases = [schema.get(sn.Name(basename[0]))]
+                scalar.bases = [schema.get(sn.Name(basename[0]))]
 
         sequence = schema.get('std::sequence', None)
-        for atom in schema.get_objects(type='atom'):
-            if sequence is not None and atom.issubclass(sequence):
-                seq_name = common.atom_name_to_sequence_name(
-                    atom.name, catenate=False)
+        for scalar in schema.get_objects(type='ScalarType'):
+            if sequence is not None and scalar.issubclass(sequence):
+                seq_name = common.scalar_name_to_sequence_name(
+                    scalar.name, catenate=False)
                 if seq_name not in seqs:
                     msg = 'internal metadata incosistency'
-                    details = 'Missing sequence for sequence atom {!r}'.format(
-                        atom.name)
+                    details = (f'Missing sequence for sequence '
+                               f'scalar {scalar.name}')
                     raise s_err.SchemaError(msg, details=details)
                 seen_seqs.add(seq_name)
 
@@ -726,9 +728,9 @@ class Backend(s_deltarepo.DeltaProvider):
                 ', '.join(common.qname(*t) for t in extra_seqs))
             raise s_err.SchemaError(msg, details=details)
 
-    async def order_atoms(self, schema):
-        for atom in schema.get_objects(type='atom'):
-            atom.acquire_ancestor_inheritance(schema)
+    async def order_scalars(self, schema):
+        for scalar in schema.get_objects(type='ScalarType'):
+            scalar.acquire_ancestor_inheritance(schema)
 
     async def read_functions(self, schema):
         func_list = await datasources.schema.functions.fetch(self.connection)
@@ -1004,7 +1006,7 @@ class Backend(s_deltarepo.DeltaProvider):
             col_type_schema = col['column_type_schema']
             col_type = col['column_type']
 
-        target = self.atom_from_pg_type(col_type, col_type_schema, schema)
+        target = self.scalar_from_pg_type(col_type, col_type_schema, schema)
         return target, col['column_required']
 
     def _get_pointer_attribute_target(
@@ -1023,7 +1025,8 @@ class Backend(s_deltarepo.DeltaProvider):
                 attr['attribute_type_composite_id'])
             target = schema.get(source_name)
         else:
-            target = self.atom_from_pg_type(col_type, col_type_schema, schema)
+            target = self.scalar_from_pg_type(
+                col_type, col_type_schema, schema)
 
         return target, attr['attribute_required']
 
@@ -1037,7 +1040,7 @@ class Backend(s_deltarepo.DeltaProvider):
         links_list = collections.OrderedDict((sn.Name(r['name']), r)
                                              for r in links_list)
 
-        concept_indexes = await self.read_search_indexes()
+        objtype_indexes = await self.read_search_indexes()
         basemap = {}
 
         for name, r in links_list.items():
@@ -1088,15 +1091,16 @@ class Backend(s_deltarepo.DeltaProvider):
 
             link_search = None
 
-            if isinstance(target, s_atoms.Atom) and not source.is_derived:
+            if (isinstance(target, s_scalars.ScalarType) and
+                    not source.is_derived):
                 target, required = await self.read_pointer_target_column(
                     schema, link, None)
 
-                concept_schema, concept_table = \
-                    common.concept_name_to_table_name(source.name,
+                objtype_schema, objtype_table = \
+                    common.objtype_name_to_table_name(source.name,
                                                       catenate=False)
 
-                indexes = concept_indexes.get((concept_schema, concept_table))
+                indexes = objtype_indexes.get((objtype_schema, objtype_table))
 
                 if indexes:
                     col_search_index = indexes.get(bases[0])
@@ -1322,27 +1326,27 @@ class Backend(s_deltarepo.DeltaProvider):
         return await self._type_mech.get_type_attributes(
             type_name, connection, cache)
 
-    async def read_concepts(self, schema):
+    async def read_objtypes(self, schema):
         tables = await introspection.tables.fetch_tables(
             self.connection, schema_pattern='edgedb%', table_pattern='%_data')
         tables = {(t['schema'], t['name']): t for t in tables}
 
-        concept_list = await datasources.schema.concepts.fetch(
+        objtype_list = await datasources.schema.concepts.fetch(
             self.connection)
-        concept_list = collections.OrderedDict((sn.Name(row['name']), row)
-                                               for row in concept_list)
+        objtype_list = collections.OrderedDict((sn.Name(row['name']), row)
+                                               for row in objtype_list)
 
         visited_tables = set()
 
         self.table_cache.update({
-            common.concept_name_to_table_name(n, catenate=False): c
-            for n, c in concept_list.items()
+            common.objtype_name_to_table_name(n, catenate=False): c
+            for n, c in objtype_list.items()
         })
 
         basemap = {}
 
-        for name, row in concept_list.items():
-            concept = {
+        for name, row in objtype_list.items():
+            objtype = {
                 'name': name,
                 'title': self.json_to_word_combination(row['title']),
                 'description': row['description'],
@@ -1354,13 +1358,13 @@ class Backend(s_deltarepo.DeltaProvider):
                          if row['expr'] else None)
             }
 
-            table_name = common.concept_name_to_table_name(
+            table_name = common.objtype_name_to_table_name(
                 name, catenate=False)
             table = tables.get(table_name)
 
             if not table:
                 msg = 'internal metadata incosistency'
-                details = 'Record for concept {!r} exists but ' \
+                details = 'Record for type {!r} exists but ' \
                           'the table is missing'.format(name)
                 raise s_err.SchemaError(msg, details=details)
 
@@ -1371,23 +1375,23 @@ class Backend(s_deltarepo.DeltaProvider):
 
             basemap[name] = bases
 
-            concept = s_concepts.Concept(
-                name=name, title=concept['title'],
-                description=concept['description'],
-                is_abstract=concept['is_abstract'],
-                is_final=concept['is_final'],
-                view_type=concept['view_type'],
-                expr=concept['expr'])
+            objtype = s_objtypes.ObjectType(
+                name=name, title=objtype['title'],
+                description=objtype['description'],
+                is_abstract=objtype['is_abstract'],
+                is_final=objtype['is_final'],
+                view_type=objtype['view_type'],
+                expr=objtype['expr'])
 
-            schema.add(concept)
+            schema.add(objtype)
 
-        for concept in schema.get_objects(type='concept'):
+        for objtype in schema.get_objects(type='ObjectType'):
             try:
-                bases = basemap[concept.name]
+                bases = basemap[objtype.name]
             except KeyError:
                 pass
             else:
-                concept.bases = [schema.get(b) for b in bases]
+                objtype.bases = [schema.get(b) for b in bases]
 
         derived = await datasources.schema.concepts.fetch_derived(
             self.connection)
@@ -1399,8 +1403,8 @@ class Backend(s_deltarepo.DeltaProvider):
             attrs['view_type'] = (s_types.ViewType(attrs['view_type'])
                                   if attrs['view_type'] else None)
             attrs['is_derived'] = True
-            concept = s_concepts.Concept(**attrs)
-            schema.add(concept)
+            objtype = s_objtypes.ObjectType(**attrs)
+            schema.add(objtype)
 
         tabdiff = set(tables.keys()) - visited_tables
         if tabdiff:
@@ -1409,20 +1413,20 @@ class Backend(s_deltarepo.DeltaProvider):
                 ', '.join('"%s.%s"' % t for t in tabdiff))
             raise s_err.SchemaError(msg, details=details)
 
-    async def order_concepts(self, schema):
+    async def order_objtypes(self, schema):
         g = {}
-        for concept in schema.get_objects(type='concept',
+        for objtype in schema.get_objects(type='ObjectType',
                                           include_derived=True):
-            g[concept.name] = {"item": concept, "merge": [], "deps": []}
-            if concept.bases:
-                g[concept.name]["merge"].extend(b.name for b in concept.bases)
+            g[objtype.name] = {"item": objtype, "merge": [], "deps": []}
+            if objtype.bases:
+                g[objtype.name]["merge"].extend(b.name for b in objtype.bases)
 
         topological.normalize(
-            g, merger=s_concepts.Concept.merge, schema=schema)
+            g, merger=s_objtypes.ObjectType.merge, schema=schema)
 
-        for concept in schema.get_objects(type='concept',
+        for objtype in schema.get_objects(type='ObjectType',
                                           include_derived=True):
-            concept.finalize(schema)
+            objtype.finalize(schema)
 
     async def pg_table_inheritance(self, table_name, schema_name):
         inheritance = await introspection.tables.fetch_inheritance(
@@ -1431,11 +1435,11 @@ class Backend(s_deltarepo.DeltaProvider):
         return tuple(i[:2] for i in inheritance[1:])
 
     async def pg_table_inheritance_to_bases(
-            self, table_name, schema_name, table_to_concept_map):
+            self, table_name, schema_name, table_to_objtype_map):
         bases = []
 
         for table in await self.pg_table_inheritance(table_name, schema_name):
-            base = table_to_concept_map[tuple(table[:2])]
+            base = table_to_objtype_map[tuple(table[:2])]
             bases.append(base['name'])
 
         return tuple(bases)
@@ -1445,7 +1449,7 @@ class Backend(s_deltarepo.DeltaProvider):
         typname, typmods = self.type_expr.match(tree)
         return typname, typmods
 
-    def pg_type_to_atom_name_and_constraints(self, typname, typmods):
+    def pg_type_to_scalar_name_and_constraints(self, typname, typmods):
         if len(typname) > 1 and typname[0] != 'pg_catalog':
             return None
         else:
@@ -1462,28 +1466,29 @@ class Backend(s_deltarepo.DeltaProvider):
             return name, constraints
         return None
 
-    def atom_from_pg_type(self, type_expr, atom_schema, schema):
+    def scalar_from_pg_type(self, type_expr, scalar_schema, schema):
         typname = (type_expr,)
         typmods = None
         domain_name = typname[-1]
-        atom_name = self.domain_to_atom_map.get((atom_schema, domain_name))
+        scalar_name = self.domain_to_scalar_map.get(
+            (scalar_schema, domain_name))
 
-        if atom_name:
-            atom = schema.get(atom_name, None)
+        if scalar_name:
+            scalar = schema.get(scalar_name, None)
         else:
-            atom = None
+            scalar = None
 
-        if not atom:
+        if not scalar:
 
-            typeconv = self.pg_type_to_atom_name_and_constraints(
+            typeconv = self.pg_type_to_scalar_name_and_constraints(
                 typname, typmods)
             if typeconv:
                 name, _ = typeconv
-                atom = schema.get(name)
-                atom.acquire_ancestor_inheritance(schema)
+                scalar = schema.get(name)
+                scalar.acquire_ancestor_inheritance(schema)
 
-        assert atom
-        return atom
+        assert scalar
+        return scalar
 
     def json_to_word_combination(self, data):
         if data:

@@ -32,9 +32,9 @@ from . import setgen
 def init_context(
         *,
         schema: s_schema.Schema,
-        arg_types: typing.Optional[typing.Iterable[s_obj.Class]]=None,
+        arg_types: typing.Optional[typing.Iterable[s_obj.Object]]=None,
         modaliases: typing.Optional[typing.Iterable[str]]=None,
-        anchors: typing.Optional[typing.Dict[str, s_obj.Class]]=None,
+        anchors: typing.Optional[typing.Dict[str, s_obj.Object]]=None,
         security_context: typing.Optional[str]=None,
         derived_target_module: typing.Optional[str]=None,
         result_view_name: typing.Optional[str]=None) -> \
@@ -83,7 +83,7 @@ def fini_expression(
 
 
 def populate_anchors(
-        anchors: typing.Dict[str, s_obj.Class], *,
+        anchors: typing.Dict[str, s_obj.Object], *,
         ctx: context.ContextLevel) -> None:
 
     for anchor, scls in anchors.items():
@@ -170,7 +170,7 @@ def declare_view(
 
         view_name = s_name.SchemaName(
             module='_',
-            name=s_obj.NamedClass.get_specialized_name(
+            name=s_obj.NamedObject.get_specialized_name(
                 basename,
                 ctx.aliases.get('w')
             )
@@ -189,7 +189,7 @@ def declare_view(
 
 
 def declare_view_from_schema(
-        viewcls: s_obj.Class, *,
+        viewcls: s_obj.Object, *,
         ctx: context.ContextLevel) -> irast.Set:
     vc = ctx.view_class_map.get(viewcls)
     if vc is not None:

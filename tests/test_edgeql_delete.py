@@ -15,10 +15,10 @@ from edgedb.server import _testbase as tb
 class TestDelete(tb.QueryTestCase):
     SETUP = """
         CREATE MIGRATION test::d_delete01 TO eschema $$
-            concept DeleteTest:
+            type DeleteTest:
                 link name to str
 
-            concept DeleteTest2:
+            type DeleteTest2:
                 link name to str
         $$;
 
@@ -28,7 +28,7 @@ class TestDelete(tb.QueryTestCase):
     async def test_edgeql_delete_bad01(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
-                r'cannot delete non-Concept object',
+                r'cannot delete non-ObjectType object',
                 position=7):
 
             await self.query('''\
@@ -183,7 +183,7 @@ class TestDelete(tb.QueryTestCase):
             INSERT test::DeleteTest {
                 name := 'dt1.3'
             };
-            # create a different concept instance
+            # create a different object
             INSERT test::DeleteTest2 {
                 name := 'dt2.1'
             };
@@ -226,7 +226,7 @@ class TestDelete(tb.QueryTestCase):
             INSERT test::DeleteTest {
                 name := 'dt1.3'
             };
-            # create a different concept instance
+            # create a different object
             INSERT test::DeleteTest2 {
                 name := 'dt2.1'
             };
@@ -268,7 +268,7 @@ class TestDelete(tb.QueryTestCase):
             INSERT test::DeleteTest {
                 name := 'dt1.3'
             };
-            # create a different concept instance
+            # create a different object
             INSERT test::DeleteTest2 {
                 name := 'dt2.1'
             };

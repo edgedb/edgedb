@@ -74,7 +74,7 @@ def is_ql_path(qlexpr):
 
     start = qlexpr.steps[0]
 
-    return isinstance(start, (qlast.Self, qlast.ClassRef, qlast.Ptr))
+    return isinstance(start, (qlast.Self, qlast.ObjectRef, qlast.Ptr))
 
 
 def is_degenerate_select(qlstmt):
@@ -99,7 +99,7 @@ def is_degenerate_select(qlstmt):
 
     return (
         # Not a reference to a view defined in this statement
-        (not isinstance(start, qlast.ClassRef) or
+        (not isinstance(start, qlast.ObjectRef) or
             start.module is not None or start.name not in views) and
         # No FILTER, ORDER BY, OFFSET or LIMIT
         qlstmt.where is None and

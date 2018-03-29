@@ -31,7 +31,7 @@ class UUID(uuid.UUID):
                 super().__init__(hex, bytes, bytes_le, fields, int, version)
 
         except ValueError as e:
-            raise edgedb_error.AtomValueError(e.args[0]) from e
+            raise edgedb_error.ScalarTypeValueError(e.args[0]) from e
 
     def persistent_hash(self):
         return persistent_hash(self.int)

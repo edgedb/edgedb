@@ -39,7 +39,7 @@ _add_impl('std::sequence', Sequence)
 _add_map(Sequence, 'std::sequence')
 
 
-class StdSequence(s_types.SchemaClass, name='std::sequence'):
+class StdSequence(s_types.SchemaObject, name='std::sequence'):
     pass
 
 

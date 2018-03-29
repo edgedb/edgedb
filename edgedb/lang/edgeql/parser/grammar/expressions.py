@@ -88,7 +88,7 @@ AliasedExprSpec = collections.namedtuple(
 # Identifiers as its members (such as CUBE, ROLLUP and grouping sets).
 class ByExpr(Nonterm):
     def reduce_Identifier(self, *kids):
-        self.val = qlast.Path(steps=[qlast.ClassRef(name=kids[0].val)])
+        self.val = qlast.Path(steps=[qlast.ObjectRef(name=kids[0].val)])
 
 
 class ByExprList(ListNonterm, element=ByExpr, separator=tokens.T_COMMA):
@@ -158,19 +158,19 @@ class SimpleInsert(Nonterm):
 
         # check that the insert subject is either a path or a shape
         if isinstance(subj, qlast.Shape):
-            concept = subj.expr
+            objtype = subj.expr
             shape = subj.elements
         else:
-            concept = subj
+            objtype = subj
             shape = []
 
-        if not isinstance(concept, qlast.Path):
+        if not isinstance(objtype, qlast.Path):
             raise EdgeQLSyntaxError(
-                "insert expression must be a concept or a view",
+                "insert expression must be an object type or a view",
                 context=subj.context)
 
         self.val = qlast.InsertQuery(
-            subject=concept,
+            subject=objtype,
             subject_alias=subj_alias,
             shape=shape,
         )
@@ -269,7 +269,7 @@ class TypedShape(Nonterm):
     def reduce_NodeName_Shape(self, *kids):
         self.val = qlast.Shape(
             expr=qlast.Path(
-                steps=[qlast.ClassRef(
+                steps=[qlast.ObjectRef(
                     name=kids[0].val.name,
                     module=kids[0].val.module,
                     context=kids[0].context)
@@ -306,7 +306,7 @@ class ShapeElement(Nonterm):
 
         shape = kids[1].val
 
-        if shape and isinstance(shape[0], qlast.ClassRef):
+        if shape and isinstance(shape[0], qlast.ObjectRef):
             self.val.expr.steps[-1].target = shape[0]
             self.val.elements = shape[1:]
         elif shape and isinstance(shape[0], qlast.TypeName):
@@ -335,7 +335,7 @@ class ShapePath(Nonterm):
     # one-of:
     #   link
     #   @prop
-    #   [IS Concept].link
+    #   [IS ObjectType].link
     #   [IS Link]@prop - currently not supported
 
     def reduce_ShortNodeName(self, *kids):
@@ -892,8 +892,8 @@ class Path(Nonterm):
     @parsing.precedence(precedence.P_DOT)
     def reduce_NodeName(self, *kids):
         self.val = qlast.Path(
-            steps=[qlast.ClassRef(name=kids[0].val.name,
-                                  module=kids[0].val.module)])
+            steps=[qlast.ObjectRef(name=kids[0].val.name,
+                                   module=kids[0].val.module)])
 
     @parsing.precedence(precedence.P_DOT)
     def reduce_Expr_PathStep(self, *kids):
@@ -939,7 +939,7 @@ class Path(Nonterm):
         # context for the AST is established manually here
         return [
             qlast.Ptr(
-                ptr=qlast.ClassRef(
+                ptr=qlast.ObjectRef(
                     name=parts[0],
                     context=token.context,
                 ),
@@ -947,7 +947,7 @@ class Path(Nonterm):
                 context=context,
             ),
             qlast.Ptr(
-                ptr=qlast.ClassRef(
+                ptr=qlast.ObjectRef(
                     name=parts[1],
                     context=token.context,
                 ),
@@ -971,7 +971,7 @@ class PathStep(Nonterm):
         from edgedb.lang.schema import pointers as s_pointers
 
         self.val = qlast.Ptr(
-            ptr=qlast.ClassRef(name=kids[1].val),
+            ptr=qlast.ObjectRef(name=kids[1].val),
             direction=s_pointers.PointerDirection.Outbound
         )
 
@@ -1097,19 +1097,19 @@ class NonArrayTypeName(Nonterm):
     def reduce_MAP_LANGBRACKET_TypeName_COMMA_TypeName_RANGBRACKET(self,
                                                                    *kids):
         self.val = qlast.TypeName(
-            maintype=qlast.ClassRef(name='map'),
+            maintype=qlast.ObjectRef(name='map'),
             subtypes=[kids[2].val, kids[4].val],
         )
 
     def reduce_TUPLE_LANGBRACKET_TypeNameList_RANGBRACKET(self, *kids):
         self.val = qlast.TypeName(
-            maintype=qlast.ClassRef(name='tuple'),
+            maintype=qlast.ObjectRef(name='tuple'),
             subtypes=kids[2].val,
         )
 
     def reduce_TUPLE_LANGBRACKET_NamedTupleTypeList_RANGBRACKET(self, *kids):
         self.val = qlast.TypeName(
-            maintype=qlast.ClassRef(name='tuple'),
+            maintype=qlast.ObjectRef(name='tuple'),
             subtypes=kids[2].val,
         )
 
@@ -1124,7 +1124,7 @@ class TypeName(Nonterm):
         dimensions = kids[3].val
 
         self.val = qlast.TypeName(
-            maintype=qlast.ClassRef(name='array'),
+            maintype=qlast.ObjectRef(name='array'),
             subtypes=[subtype],
             dimensions=dimensions,
         )
@@ -1172,7 +1172,7 @@ class NodeName(Nonterm):
     # This name is safe to be used anywhere as it starts with IDENT only.
 
     def reduce_BaseName(self, *kids):
-        self.val = qlast.ClassRef(
+        self.val = qlast.ObjectRef(
             module='.'.join(kids[0].val[:-1]) or None,
             name=kids[0].val[-1])
 
@@ -1190,7 +1190,7 @@ class ShortNodeName(Nonterm):
     # quoted or parenthesized.
 
     def reduce_Identifier(self, *kids):
-        self.val = qlast.ClassRef(
+        self.val = qlast.ObjectRef(
             module=None,
             name=kids[0].val)
 
@@ -1208,7 +1208,7 @@ class AnyNodeName(Nonterm):
     # ambiguity with NodeName, etc.
 
     def reduce_AnyIdentifier(self, *kids):
-        self.val = qlast.ClassRef(
+        self.val = qlast.ObjectRef(
             module=None,
             name=kids[0].val)
 

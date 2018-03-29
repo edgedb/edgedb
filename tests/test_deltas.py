@@ -24,7 +24,7 @@ class TestDeltas(tb.DDLTestCase):
                 link name:
                     link property lang to str
 
-                concept NamedObject:
+                type NamedObject:
                     required link name to str
             $$;
 
@@ -61,10 +61,10 @@ class TestDeltas(tb.DDLTestCase):
         ])
 
     async def test_delta_drop_01(self):
-        # Check that constraints defined on atoms being dropped are
+        # Check that constraints defined on scalars being dropped are
         # dropped.
         result = await self.con.execute("""
-            CREATE ATOM test::a1 EXTENDING std::str {
+            CREATE SCALAR TYPE test::a1 EXTENDING std::str {
                 CREATE CONSTRAINT std::enum(['a', 'b']) {
                     SET description := 'test_delta_drop_01_constraint';
                 };
@@ -74,7 +74,7 @@ class TestDeltas(tb.DDLTestCase):
             SELECT Constraint {name}
             FILTER Constraint.description = 'test_delta_drop_01_constraint';
 
-            DROP ATOM test::a1;
+            DROP SCALAR TYPE test::a1;
 
             WITH MODULE schema
             SELECT Constraint {name}
@@ -94,10 +94,10 @@ class TestDeltas(tb.DDLTestCase):
         ])
 
     async def test_delta_drop_02(self):
-        # Check that links defined on concepts being dropped are
+        # Check that links defined on types being dropped are
         # dropped.
         result = await self.con.execute("""
-            CREATE CONCEPT test::C1 {
+            CREATE TYPE test::C1 {
                 CREATE LINK test::l1 TO std::str {
                     SET description := 'test_delta_drop_02_link';
                 };
@@ -107,7 +107,7 @@ class TestDeltas(tb.DDLTestCase):
             SELECT Link {name}
             FILTER Link.description = 'test_delta_drop_02_link';
 
-            DROP CONCEPT test::C1;
+            DROP TYPE test::C1;
 
             WITH MODULE schema
             SELECT Link {name}
@@ -145,7 +145,7 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
                 name := 'Target1_linkinh_2'
             };
 
-            INSERT test::Concept01 {
+            INSERT test::ObjectType01 {
                 target := (SELECT test::Target1
                            FILTER test::Target1.name = 'Target1_linkinh_2'
                            LIMIT 1)
@@ -155,7 +155,7 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
                 name := 'Target0_linkinh_2'
             };
 
-            INSERT test::Concept23 {
+            INSERT test::ObjectType23 {
                 target := (SELECT test::Target0
                            FILTER test::Target0.name = 'Target0_linkinh_2'
                            LIMIT 1)
@@ -164,13 +164,13 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
 
         with self.assertRaisesRegex(
                 exceptions.InvalidPointerTargetError,
-                "invalid target for link '\(test::Concept01\)\.target': "
+                "invalid target for link '\(test::ObjectType01\)\.target': "
                 "'test::Target0' \(expecting 'test::Target1'\)"):
-            # Target0 is not allowed to be targeted by Concept01, since
-            # Concept01 inherits from Concept1 which requires more specific
-            # Target1.
+            # Target0 is not allowed to be targeted by ObjectType01, since
+            # ObjectType01 inherits from ObjectType1 which requires more
+            # specific Target1.
             await self.con.execute('''
-                INSERT test::Concept01 {
+                INSERT test::ObjectType01 {
                     target := (
                         SELECT
                             test::Target0
@@ -215,7 +215,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                 link name:
                     link property lang to str
 
-                concept NamedObject:
+                type NamedObject:
                     required link name to str:
                         link property lang to str:
                             title := 'Language'
@@ -241,10 +241,10 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                 SET readonly := False;
                 SET title := 'Base link property';
             };
-            CREATE CONCEPT test::NamedObject EXTENDING std::Object {
+            CREATE TYPE test::NamedObject EXTENDING std::Object {
                 SET is_virtual := False;
             };
-            ALTER CONCEPT test::NamedObject {
+            ALTER TYPE test::NamedObject {
                 CREATE REQUIRED LINK test::name TO std::str {
                     SET is_virtual := False;
                     SET mapping := '*1';
@@ -279,7 +279,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                 link a:
                     link property a_prop to array<str>
 
-                concept NamedObject:
+                type NamedObject:
                     required link a to array<int>
             $$;
 
@@ -303,10 +303,10 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
         SET readonly := False;
         SET title := 'Base link property';
     };
-    CREATE CONCEPT test::NamedObject EXTENDING std::Object {
+    CREATE TYPE test::NamedObject EXTENDING std::Object {
         SET is_virtual := False;
     };
-    ALTER CONCEPT test::NamedObject {
+    ALTER TYPE test::NamedObject {
         CREATE REQUIRED LINK test::a TO array<std::int> {
             SET is_virtual := False;
             SET mapping := '*1';

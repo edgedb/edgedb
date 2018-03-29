@@ -62,17 +62,17 @@ def process_type_ref_elem(
     return result
 
 
-def type_to_ql_typeref(t: s_obj.Class) -> qlast.TypeName:
+def type_to_ql_typeref(t: s_obj.Object) -> qlast.TypeName:
     if not isinstance(t, s_types.Collection):
         result = qlast.TypeName(
-            maintype=qlast.ClassRef(
+            maintype=qlast.ObjectRef(
                 module=t.name.module,
                 name=t.name.name
             )
         )
     else:
         result = qlast.TypeName(
-            maintype=qlast.ClassRef(
+            maintype=qlast.ObjectRef(
                 name=t.schema_name
             ),
             subtypes=[
@@ -109,7 +109,7 @@ def ql_typeref_to_ir_typeref(
 
 def ql_typeref_to_type(
         ql_t: qlast.TypeName, *,
-        ctx: context.ContextLevel) -> s_obj.Class:
+        ctx: context.ContextLevel) -> s_obj.Object:
     if ql_t.subtypes:
         coll = s_types.Collection.get_class(ql_t.maintype.name)
 

@@ -21,9 +21,9 @@ from . import objects as so
 from . import types as s_types
 
 
-class Atom(nodes.Node, constraints.ConsistencySubject,
-           attributes.AttributeSubject):
-    _type = 'atom'
+class ScalarType(nodes.Node, constraints.ConsistencySubject,
+                 attributes.AttributeSubject):
+    _type = 'ScalarType'
 
     default = so.Field(expr.ExpressionText, default=None,
                        coerce=True, compcoef=0.909)
@@ -34,7 +34,7 @@ class Atom(nodes.Node, constraints.ConsistencySubject,
         if self.constraints:
             N = sn.Name
 
-            # Add dependency on all built-in atoms unconditionally
+            # Add dependency on all built-in scalars unconditionally
             deps.add(N(module='std', name='str'))
             deps.add(N(module='std', name='bytes'))
             deps.add(N(module='std', name='int'))
@@ -54,7 +54,7 @@ class Atom(nodes.Node, constraints.ConsistencySubject,
 
                         for subtype in subtypes:
                             if subtype is not self:
-                                if isinstance(subtype, so.ClassRef):
+                                if isinstance(subtype, so.ObjectRef):
                                     if subtype.classname != self.name:
                                         deps.add(subtype.classname)
                                 else:
@@ -68,7 +68,7 @@ class Atom(nodes.Node, constraints.ConsistencySubject,
         return result
 
     def get_implementation_type(self):
-        """Get the underlying Python type that is used to implement this Atom.
+        """Get the underlying Python type that is used to implement this ScalarType.
         """
         base_class = self.get_topmost_base()
         return s_basetypes.BaseTypeMeta.get_implementation(base_class.name)
@@ -83,7 +83,7 @@ class Atom(nodes.Node, constraints.ConsistencySubject,
 
     def iscompatible(self, other: s_types.Type, schema) -> bool:
         if self.issubclass(other) or other.issubclass(self):
-            # Atom compatibility is symmetric, i.e. a superclass instance
+            # ScalarType compatibility is symmetric, i.e. a superclass instance
             # is compatible with subclasses, as they all share the same
             # fundamental type.
             return True
@@ -106,18 +106,18 @@ _compatibility_map = {
 }
 
 
-class AtomCommandContext(sd.ClassCommandContext,
-                         attributes.AttributeSubjectCommandContext,
-                         constraints.ConsistencySubjectCommandContext,
-                         nodes.NodeCommandContext):
+class ScalarTypeCommandContext(sd.ObjectCommandContext,
+                               attributes.AttributeSubjectCommandContext,
+                               constraints.ConsistencySubjectCommandContext,
+                               nodes.NodeCommandContext):
     pass
 
 
-class AtomCommand(constraints.ConsistencySubjectCommand,
-                  attributes.AttributeSubjectCommand,
-                  nodes.NodeCommand,
-                  schema_metaclass=Atom,
-                  context_class=AtomCommandContext):
+class ScalarTypeCommand(constraints.ConsistencySubjectCommand,
+                        attributes.AttributeSubjectCommand,
+                        nodes.NodeCommand,
+                        schema_metaclass=ScalarType,
+                        context_class=ScalarTypeCommandContext):
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
@@ -125,14 +125,14 @@ class AtomCommand(constraints.ConsistencySubjectCommand,
         return cmd
 
 
-class CreateAtom(AtomCommand, inheriting.CreateInheritingClass):
-    astnode = qlast.CreateAtom
+class CreateScalarType(ScalarTypeCommand, inheriting.CreateInheritingObject):
+    astnode = qlast.CreateScalarType
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
-        for sub in cmd.get_subcommands(type=sd.AlterClassProperty):
+        for sub in cmd.get_subcommands(type=sd.AlterObjectProperty):
             if sub.property == 'default':
                 sub.new_value = [sub.new_value]
 
@@ -147,17 +147,17 @@ class CreateAtom(AtomCommand, inheriting.CreateInheritingClass):
             super()._apply_field_ast(context, node, op)
 
 
-class RenameAtom(AtomCommand, named.RenameNamedClass):
+class RenameScalarType(ScalarTypeCommand, named.RenameNamedObject):
     pass
 
 
-class RebaseAtom(AtomCommand, inheriting.RebaseNamedClass):
+class RebaseScalarType(ScalarTypeCommand, inheriting.RebaseNamedObject):
     pass
 
 
-class AlterAtom(AtomCommand, inheriting.AlterInheritingClass):
-    astnode = qlast.AlterAtom
+class AlterScalarType(ScalarTypeCommand, inheriting.AlterInheritingObject):
+    astnode = qlast.AlterScalarType
 
 
-class DeleteAtom(AtomCommand, inheriting.DeleteInheritingClass):
-    astnode = qlast.DropAtom
+class DeleteScalarType(ScalarTypeCommand, inheriting.DeleteInheritingObject):
+    astnode = qlast.DropScalarType

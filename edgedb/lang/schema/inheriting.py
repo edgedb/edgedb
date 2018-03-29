@@ -17,7 +17,7 @@ from . import named
 from . import utils
 
 
-class InheritingClassCommand(named.NamedClassCommand):
+class InheritingObjectCommand(named.NamedObjectCommand):
     def _create_finalize(self, schema, context):
         self.scls.acquire_ancestor_inheritance(schema, dctx=context)
         self.scls.update_descendants(schema)
@@ -26,7 +26,7 @@ class InheritingClassCommand(named.NamedClassCommand):
 
 def delta_bases(old_bases, new_bases):
     dropped = frozenset(old_bases) - frozenset(new_bases)
-    removed_bases = [so.ClassRef(classname=b) for b in dropped]
+    removed_bases = [so.ObjectRef(classname=b) for b in dropped]
     common_bases = [b for b in old_bases if b not in dropped]
 
     added_bases = []
@@ -42,7 +42,7 @@ def delta_bases(old_bases, new_bases):
                 # Found common base, insert the accummulated
                 # list of new bases and continue
                 if added_base_refs:
-                    ref = so.ClassRef(classname=common_bases[j])
+                    ref = so.ObjectRef(classname=common_bases[j])
                     added_bases.append((added_base_refs, ('BEFORE', ref)))
                     added_base_refs = []
                 j += 1
@@ -52,12 +52,12 @@ def delta_bases(old_bases, new_bases):
                     continue
 
             # Base has been inserted at position j
-            added_base_refs.append(so.ClassRef(classname=base))
+            added_base_refs.append(so.ObjectRef(classname=base))
             added_set.add(base)
 
     # Finally, add all remaining bases to the end of the list
     tail_bases = added_base_refs + [
-        so.ClassRef(classname=b) for b in new_bases
+        so.ObjectRef(classname=b) for b in new_bases
         if b not in added_set and b not in common_bases
     ]
 
@@ -72,11 +72,11 @@ class AlterInherit(sd.Command):
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
-        # The base changes are handled by AlterNamedClass
+        # The base changes are handled by AlterNamedObject
         return None
 
 
-class CreateInheritingClass(named.CreateNamedClass, InheritingClassCommand):
+class CreateInheritingObject(named.CreateNamedObject, InheritingObjectCommand):
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
@@ -84,20 +84,20 @@ class CreateInheritingClass(named.CreateNamedClass, InheritingClassCommand):
         bases = cls._classbases_from_ast(astnode, context, schema)
         if bases is not None:
             cmd.add(
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='bases',
                     new_value=bases
                 )
             )
 
         if getattr(astnode, 'is_abstract', False):
-            cmd.add(sd.AlterClassProperty(
+            cmd.add(sd.AlterObjectProperty(
                 property='is_abstract',
                 new_value=True
             ))
 
         if getattr(astnode, 'is_final', False):
-            cmd.add(sd.AlterClassProperty(
+            cmd.add(sd.AlterObjectProperty(
                 property='is_final',
                 new_value=True
             ))
@@ -108,8 +108,8 @@ class CreateInheritingClass(named.CreateNamedClass, InheritingClassCommand):
     def _classbases_from_ast(cls, astnode, context, schema):
         classname = cls._classname_from_ast(astnode, context, schema)
 
-        bases = so.ClassList(
-            so.ClassRef(classname=sn.Name(
+        bases = so.ObjectList(
+            so.ObjectRef(classname=sn.Name(
                 name=b.name, module=b.module or 'std'
             ))
             for b in getattr(astnode, 'bases', None) or []
@@ -120,8 +120,8 @@ class CreateInheritingClass(named.CreateNamedClass, InheritingClassCommand):
             default_base = mcls.get_default_base_name()
 
             if default_base is not None and classname != default_base:
-                bases = so.ClassList([
-                    so.ClassRef(classname=default_base)
+                bases = so.ObjectList([
+                    so.ObjectRef(classname=default_base)
                 ])
 
         return bases
@@ -132,11 +132,11 @@ class CreateInheritingClass(named.CreateNamedClass, InheritingClassCommand):
             schema.drop_inheritance_cache(base)
 
 
-class AlterInheritingClass(named.AlterNamedClass, InheritingClassCommand):
+class AlterInheritingObject(named.AlterNamedObject, InheritingObjectCommand):
     def _alter_begin(self, schema, context, scls):
         super()._alter_begin(schema, context, scls)
 
-        for op in self.get_subcommands(type=RebaseNamedClass):
+        for op in self.get_subcommands(type=RebaseNamedObject):
             op.apply(schema, context)
 
         scls.acquire_ancestor_inheritance(schema)
@@ -144,13 +144,13 @@ class AlterInheritingClass(named.AlterNamedClass, InheritingClassCommand):
         return scls
 
 
-class DeleteInheritingClass(named.DeleteNamedClass, InheritingClassCommand):
+class DeleteInheritingObject(named.DeleteNamedObject, InheritingObjectCommand):
     def _delete_finalize(self, schema, context, scls):
         super()._delete_finalize(schema, context, scls)
         schema.drop_inheritance_cache_for_child(scls)
 
 
-class RebaseNamedClass(named.NamedClassCommand):
+class RebaseNamedObject(named.NamedObjectCommand):
     _delta_action = 'rebase'
 
     new_base = so.Field(tuple, default=tuple())
@@ -236,7 +236,7 @@ def compute_mro(obj):
 
 def create_virtual_parent(schema, children, *,
                           module_name=None, minimize_by=None):
-    from . import atoms, concepts, sources
+    from . import atoms as s_scalars, concepts as s_objtypes, sources
 
     if len(children) == 1:
         return next(iter(children))
@@ -270,42 +270,42 @@ def create_virtual_parent(schema, children, *,
         schema.update_virtual_inheritance(target, children)
         return target
 
-    seen_atoms = False
-    seen_concepts = False
+    seen_scalars = False
+    seen_objtypes = False
 
     for target in children:
-        if isinstance(target, atoms.Atom):
-            if seen_concepts:
+        if isinstance(target, s_scalars.ScalarType):
+            if seen_objtypes:
                 raise schema_error.SchemaError(
-                    'cannot mix atoms and concepts in link target list')
-            seen_atoms = True
+                    'cannot mix scalars and objects in link target list')
+            seen_scalars = True
         else:
-            if seen_atoms:
+            if seen_scalars:
                 raise schema_error.SchemaError(
-                    'cannot mix atoms and concepts in link target list')
-            seen_concepts = True
+                    'cannot mix scalars and objects in link target list')
+            seen_objtypes = True
 
-    if seen_atoms and len(children) > 1:
+    if seen_scalars and len(children) > 1:
         target = utils.get_class_nearest_common_ancestor(children)
         if target is None:
             raise schema_error.SchemaError(
-                'cannot set multiple atom children for a link')
+                'cannot set multiple scalar children for a link')
     else:
-        base = schema.get(concepts.Concept.get_default_base_name())
-        target = concepts.Concept(name=name, is_abstract=True,
-                                  is_virtual=True, bases=[base])
+        base = schema.get(s_objtypes.ObjectType.get_default_base_name())
+        target = s_objtypes.ObjectType(name=name, is_abstract=True,
+                                       is_virtual=True, bases=[base])
         target.acquire_ancestor_inheritance(schema)
         schema.update_virtual_inheritance(target, children)
 
     return target
 
 
-class InheritingClass(derivable.DerivableClass):
-    bases = so.Field(named.NamedClassList,
-                     default=named.NamedClassList,
+class InheritingObject(derivable.DerivableObject):
+    bases = so.Field(named.NamedObjectList,
+                     default=named.NamedObjectList,
                      coerce=True, private=True, compcoef=0.714)
 
-    mro = so.Field(named.NamedClassList,
+    mro = so.Field(named.NamedObjectList,
                    coerce=True, default=None, derived=True)
 
     is_abstract = so.Field(bool, default=False, private=True, compcoef=0.909)
@@ -324,8 +324,8 @@ class InheritingClass(derivable.DerivableClass):
             delta = super().delta(other, reverse=reverse, context=context)
 
             if old and new:
-                rebase = sd.ClassCommandMeta.get_command_class(
-                    RebaseNamedClass, type(self))
+                rebase = sd.ObjectCommandMeta.get_command_class(
+                    RebaseNamedObject, type(self))
 
                 old_base_names = old.get_base_names()
                 new_base_names = new.get_base_names()
@@ -379,7 +379,7 @@ class InheritingClass(derivable.DerivableClass):
     def __getstate__(self):
         state = super().__getstate__()
         state['bases'] = [
-            so.ClassRef(classname=b.name)
+            so.ObjectRef(classname=b.name)
             for b in self.bases
         ]
 

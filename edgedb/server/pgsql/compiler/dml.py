@@ -11,7 +11,7 @@
 # The processing of the DML statement is done in two parts.
 #
 # 1. The statement's *range* query is built: the relation representing
-#    the statement's target Class with any WHERE quals taken into account.
+#    the statement's target Object with any WHERE quals taken into account.
 #
 # 2. The statement body is processed to generate a series of
 #    SQL substatements to modify all relations touched by the statement
@@ -24,7 +24,7 @@ from edgedb.lang.common import ast
 
 from edgedb.lang.ir import ast as irast
 
-from edgedb.lang.schema import atoms as s_atoms
+from edgedb.lang.schema import atoms as s_scalars
 from edgedb.lang.schema import lproperties as s_lprops
 
 from edgedb.server.pgsql import ast as pgast
@@ -57,7 +57,7 @@ def init_dml_stmt(
     :return:
         A (*wrapper*, *dml_cte*, *range_cte*) tuple, where *wrapper* the
         the wrapping SQL statement, *dml_cte* is the CTE representing the
-        SQL DML operation in the main relation of the Class, and
+        SQL DML operation in the main relation of the Object, and
         *range_cte* is the CTE for the subset affected by the statement.
         *range_cte* is None for INSERT statmenets.
     """
@@ -242,14 +242,14 @@ def process_insert_body(
     :param wrapper:
         Top-level SQL query.
     :param insert_cte:
-        CTE representing the SQL INSERT to the main relation of the Class.
+        CTE representing the SQL INSERT to the main relation of the Object.
     """
-    cols = [pgast.ColumnRef(name=['std::__class__'])]
+    cols = [pgast.ColumnRef(name=['std::__type__'])]
     select = pgast.SelectStmt(target_list=[])
     values = select.target_list
 
     # The main INSERT query of this statement will always be
-    # present to insert at least the std::id and std::__class__
+    # present to insert at least the std::id and std::__type__
     # links.
     insert_stmt = insert_cte.query
 
@@ -291,7 +291,7 @@ def process_insert_body(
                 ],
                 from_clause=[
                     pgast.RangeVar(relation=pgast.Relation(
-                        name='concept', schemaname='edgedb'))
+                        name='objecttype', schemaname='edgedb'))
                 ],
                 where_clause=astutils.new_binop(
                     op=ast.ops.EQ,
@@ -336,7 +336,7 @@ def process_insert_body(
             props_only = False
 
             # First, process all local link inserts.
-            if ptr_info.table_type == 'concept':
+            if ptr_info.table_type == 'ObjectType':
                 props_only = True
                 field = pgast.ColumnRef(name=[ptr_info.column_name])
                 cols.append(field)
@@ -467,7 +467,7 @@ def process_update_body(
     :param wrapper:
         Top-level SQL query.
     :param update_cte:
-        CTE representing the SQL UPDATE to the main relation of the Class.
+        CTE representing the SQL UPDATE to the main relation of the Object.
     :param range_cte:
         CTE representing the range affected by the statement.
     """
@@ -499,7 +499,7 @@ def process_update_body(
                     link_bias=False)
 
                 # First, process all internal link updates
-                if ptr_info.table_type == 'concept':
+                if ptr_info.table_type == 'ObjectType':
                     updvalue = pgast.TypeCast(
                         arg=dispatch.compile(updvalue, ctx=scopectx),
                         type_name=typecomp.type_node(ptr_info.column_type))
@@ -573,7 +573,7 @@ def process_link_update(
         Top-level SQL query.
     :param dml_cte:
         CTE representing the SQL INSERT or UPDATE to the main
-        relation of the Class.
+        relation of the Object.
     :param iterator_cte:
         CTE representing the iterator range in the FOR clause of the
         EdgeQL DML statement.
@@ -590,7 +590,7 @@ def process_link_update(
 
     rptr = ir_expr.rptr
     ptrcls = rptr.ptrcls
-    target_is_atom = isinstance(ptrcls.target, s_atoms.Atom)
+    target_is_scalar = isinstance(ptrcls.target, s_scalars.ScalarType)
 
     path_id = rptr.source.path_id.extend(
         ptrcls, rptr.direction, rptr.target.scls)
@@ -626,7 +626,7 @@ def process_link_update(
         mptrcls, '>', include_overlays=False, env=ctx.env)
     target_alias = target_rvar.alias.aliasname
 
-    if target_is_atom:
+    if target_is_scalar:
         target_tab_name = (target_rvar.relation.schemaname,
                            target_rvar.relation.name)
     else:
@@ -691,7 +691,7 @@ def process_link_update(
     data_cte = process_link_values(
         ir_stmt, ir_expr, target_tab_name, tab_cols, col_data,
         dml_cte_rvar, [lname_to_id_rvar],
-        props_only, target_is_atom, iterator_cte, ctx=ctx)
+        props_only, target_is_scalar, iterator_cte, ctx=ctx)
 
     toplevel.ctes.append(data_cte)
 
@@ -793,18 +793,18 @@ def process_linkprop_update(
     :param wrapper:
         Top-level SQL query.
     :param dml_cte:
-        CTE representing the SQL UPDATE to the main relation of the Class.
+        CTE representing the SQL UPDATE to the main relation of the Object.
     """
     toplevel = ctx.toplevel_stmt
 
     rptr = ir_expr.rptr
     ptrcls = rptr.ptrcls
-    target_is_atom = isinstance(rptr.target, s_atoms.Atom)
+    target_is_scalar = isinstance(rptr.target, s_scalars.ScalarType)
 
     target_tab = dbobj.range_for_ptrcls(
         ptrcls, '>', include_overlays=False, env=ctx.env)
 
-    if target_is_atom:
+    if target_is_scalar:
         target_tab_name = (target_tab.schema, target_tab.name)
     else:
         target_tab_name = common.link_name_to_table_name(
@@ -859,7 +859,7 @@ def process_linkprop_update(
 
 def process_link_values(
         ir_stmt, ir_expr, target_tab, tab_cols, col_data,
-        dml_rvar, sources, props_only, target_is_atom, iterator_cte, *,
+        dml_rvar, sources, props_only, target_is_scalar, iterator_cte, *,
         ctx=context.CompilerContext) -> pgast.CommonTableExpr:
     """Unpack data from an update expression into a series of selects.
 
@@ -871,14 +871,14 @@ def process_link_values(
         A sequence of columns in the table being updated.
     :param col_data:
         Expressions used to populate well-known columns of the link
-        table such as std::source and std::__class__.
+        table such as std::source and std::__type__.
     :param sources:
         A list of relations which must be joined into the data query
         to resolve expressions in *col_data*.
     :param props_only:
         Whether this link update only touches link properties.
-    :param target_is_atom:
-        Whether the link target is an Atom.
+    :param target_is_scalar:
+        Whether the link target is an ScalarType.
     :param iterator_cte:
         CTE representing the iterator range in the FOR clause of the
         EdgeQL DML statement.
@@ -936,22 +936,22 @@ def process_link_values(
             if name is None:
                 name = element.path_id[-1].name
             colname = common.edgedb_name_to_pg_name(name)
-            if target_is_atom and colname == 'std::target':
-                colname = 'std::target@atom'
+            if target_is_scalar and colname == 'std::target':
+                colname = 'std::target@inline'
 
             source_data.setdefault(
                 colname, dbobj.get_column(input_rvar, element.name))
     else:
-        if target_is_atom:
+        if target_is_scalar:
             target_ref = pathctx.get_rvar_path_value_var(
                 input_rvar, path_id, env=ctx.env)
-            source_data['std::target@atom'] = target_ref
+            source_data['std::target@inline'] = target_ref
         else:
             target_ref = pathctx.get_rvar_path_identity_var(
                 input_rvar, path_id, env=ctx.env)
             source_data['std::target'] = target_ref
 
-    if not target_is_atom and 'std::target' not in source_data:
+    if not target_is_scalar and 'std::target' not in source_data:
         target_ref = pathctx.get_rvar_path_identity_var(
             input_rvar, path_id, env=ctx.env)
         source_data['std::target'] = target_ref

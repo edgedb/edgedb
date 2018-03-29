@@ -12,8 +12,8 @@ import unittest  # NOQA
 from edgedb.server import _testbase as tb
 
 
-class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
-    '''The scope is to test unusual atomic links.'''
+class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
+    '''The scope is to test unusual scalar links.'''
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'inventory.eschema')
@@ -27,7 +27,8 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             # this test fails if the ...args are not in fact a map
             WITH MODULE schema
             SELECT (
-                SELECT Atom FILTER Atom.name = 'std::decimal_rounding_t'
+                SELECT ScalarType
+                FILTER ScalarType.name = 'std::decimal_rounding_t'
             ).constraints.args['no_such_arg'];
         ''', [
             [],
@@ -97,7 +98,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_links_map_atoms_01(self):
+    async def test_edgeql_links_map_scalars_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {
@@ -143,7 +144,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_links_map_atoms_02(self):
+    async def test_edgeql_links_map_scalars_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {
@@ -189,7 +190,7 @@ class TestEdgeQLLinkToAtoms(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_links_map_atoms_03(self):
+    async def test_edgeql_links_map_scalars_03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {

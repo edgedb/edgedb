@@ -20,10 +20,11 @@ class Int(int):
         try:
             value = super().__new__(cls, value)
         except ValueError as e:
-            raise edgedb_error.AtomValueError(e.args[0]) from e
+            raise edgedb_error.ScalarTypeValueError(e.args[0]) from e
 
         if not -0x7FFFFFFFFFFFFFFF <= value <= 0x7FFFFFFFFFFFFFFF:
-            raise edgedb_error.AtomValueError('value is out of Int range')
+            raise edgedb_error.ScalarTypeValueError(
+                'value is out of Int range')
         return value
 
 
@@ -32,11 +33,11 @@ _add_map(Int, 'std::int')
 _add_map(int, 'std::int')
 
 
-class StdInt(s_types.SchemaClass, name='std::int'):
+class StdInt(s_types.SchemaObject, name='std::int'):
     pass
 
 
-class StdFloat(s_types.SchemaClass, name='std::float'):
+class StdFloat(s_types.SchemaObject, name='std::float'):
     pass
 
 

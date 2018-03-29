@@ -17,5 +17,5 @@ async def fetch(
                 c.id AS id,
                 c.name AS name
             FROM
-                edgedb.NamedClass c
+                edgedb.NamedObject c
     """)

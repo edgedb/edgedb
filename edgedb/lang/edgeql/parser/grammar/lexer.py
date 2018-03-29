@@ -123,7 +123,7 @@ class EdgeQLLexer(lexer.Lexer):
 
         Rule(token='IDENT',
              next_state=STATE_KEEP,
-             regexp=r'__class__'),
+             regexp=r'__type__'),
 
         Rule(token='BADIDENT',
              next_state=STATE_KEEP,

@@ -17,24 +17,24 @@ from . import objects as so
 from . import referencing
 
 
-class Action(inheriting.InheritingClass):
+class Action(inheriting.InheritingObject):
     _type = 'action'
 
 
-class ActionSet(so.ClassSet, type=Action):
+class ActionSet(so.ObjectSet, type=Action):
     pass
 
 
-class Event(inheriting.InheritingClass):
+class Event(inheriting.InheritingObject):
     _type = 'event'
 
 
-class Policy(derivable.DerivableClass):
+class Policy(derivable.DerivableObject):
     _type = 'policy'
 
     # Policy subject, i.e object in the schema to which
     # this policy is applied
-    subject = so.Field(named.NamedClass, compcoef=0.714)
+    subject = so.Field(named.NamedObject, compcoef=0.714)
     # Event
     event = so.Field(Event, compcoef=0.429)
     # Actions in response to an event
@@ -47,7 +47,7 @@ class Policy(derivable.DerivableClass):
         return policy
 
 
-class InternalPolicySubject(referencing.ReferencingClass):
+class InternalPolicySubject(referencing.ReferencingObject):
     policy = referencing.RefDict(ref_cls=Policy, compcoef=0.857)
 
     def add_policy(self, policy, replace=False):
@@ -127,25 +127,25 @@ class PolicySchema:
             return subject_policies.items()
 
 
-class ActionCommandContext(sd.ClassCommandContext):
+class ActionCommandContext(sd.ObjectCommandContext):
     pass
 
 
-class ActionCommand(named.NamedClassCommand, schema_metaclass=Action,
+class ActionCommand(named.NamedObjectCommand, schema_metaclass=Action,
                     context_class=ActionCommandContext):
     pass
 
 
-class EventCommandContext(sd.ClassCommandContext):
+class EventCommandContext(sd.ObjectCommandContext):
     pass
 
 
-class EventCommand(named.NamedClassCommand, schema_metaclass=Event,
+class EventCommand(named.NamedObjectCommand, schema_metaclass=Event,
                    context_class=EventCommandContext):
     pass
 
 
-class PolicyCommandContext(sd.ClassCommandContext):
+class PolicyCommandContext(sd.ObjectCommandContext):
     pass
 
 
@@ -154,44 +154,44 @@ class InternalPolicySubjectCommandContext:
     pass
 
 
-class CreateAction(named.CreateNamedClass, ActionCommand):
+class CreateAction(named.CreateNamedObject, ActionCommand):
     astnode = qlast.CreateAction
 
 
-class RenameAction(named.RenameNamedClass, ActionCommand):
+class RenameAction(named.RenameNamedObject, ActionCommand):
     pass
 
 
-class AlterAction(named.AlterNamedClass, ActionCommand):
+class AlterAction(named.AlterNamedObject, ActionCommand):
     astnode = qlast.AlterAction
 
 
-class DeleteAction(named.DeleteNamedClass, ActionCommand):
+class DeleteAction(named.DeleteNamedObject, ActionCommand):
     astnode = qlast.DropAction
 
 
-class CreateEvent(inheriting.CreateInheritingClass, EventCommand):
+class CreateEvent(inheriting.CreateInheritingObject, EventCommand):
     astnode = qlast.CreateEvent
 
 
-class RenameEvent(named.RenameNamedClass, EventCommand):
+class RenameEvent(named.RenameNamedObject, EventCommand):
     pass
 
 
-class RebaseEvent(inheriting.RebaseNamedClass, EventCommand):
+class RebaseEvent(inheriting.RebaseNamedObject, EventCommand):
     pass
 
 
-class AlterEvent(inheriting.AlterInheritingClass, EventCommand):
+class AlterEvent(inheriting.AlterInheritingObject, EventCommand):
     astnode = qlast.AlterEvent
 
 
-class DeleteEvent(inheriting.DeleteInheritingClass, EventCommand):
+class DeleteEvent(inheriting.DeleteInheritingObject, EventCommand):
     astnode = qlast.DropEvent
 
 
 class PolicyCommand(
-        referencing.ReferencedClassCommand,
+        referencing.ReferencedObjectCommand,
         schema_metaclass=Policy,
         context_class=PolicyCommandContext,
         referrer_context_class=InternalPolicySubjectCommandContext):
@@ -215,7 +215,7 @@ class PolicyCommand(
         super()._apply_fields_ast(context, node)
         if node.event is None:
             event_name = Policy.get_shortname(self.classname)
-            node.event = qlast.ClassRef(
+            node.event = qlast.ObjectRef(
                 name=event_name.name,
                 module=event_name.module
             )
@@ -224,12 +224,12 @@ class PolicyCommand(
         if op.property == 'name':
             pass
         elif op.property == 'event':
-            node.event = qlast.ClassRef(
+            node.event = qlast.ObjectRef(
                 name=op.new_value.classname.name,
                 module=op.new_value.classname.module
             )
         elif op.property == 'actions':
-            node.actions = [qlast.ClassRef(
+            node.actions = [qlast.ObjectRef(
                 name=a.classname.name,
                 module=a.classname.module
             ) for a in op.new_value]
@@ -237,7 +237,7 @@ class PolicyCommand(
             pass
 
 
-class CreatePolicy(PolicyCommand, named.CreateNamedClass):
+class CreatePolicy(PolicyCommand, named.CreateNamedObject):
     astnode = qlast.CreateLocalPolicy
 
     @classmethod
@@ -248,23 +248,23 @@ class CreatePolicy(PolicyCommand, named.CreateNamedClass):
         subject_name = parent_ctx.op.classname
 
         cmd.update((
-            sd.AlterClassProperty(
+            sd.AlterObjectProperty(
                 property='subject',
-                new_value=so.ClassRef(classname=subject_name)
+                new_value=so.ObjectRef(classname=subject_name)
             ),
-            sd.AlterClassProperty(
+            sd.AlterObjectProperty(
                 property='event',
-                new_value=so.ClassRef(
+                new_value=so.ObjectRef(
                     classname=sn.Name(
                         module=astnode.event.module,
                         name=astnode.event.name
                     )
                 )
             ),
-            sd.AlterClassProperty(
+            sd.AlterObjectProperty(
                 property='actions',
-                new_value=so.ClassList(
-                    so.ClassRef(
+                new_value=so.ObjectList(
+                    so.ObjectRef(
                         classname=sn.Name(
                             module=action.module,
                             name=action.name
@@ -278,11 +278,11 @@ class CreatePolicy(PolicyCommand, named.CreateNamedClass):
         return cmd
 
 
-class RenamePolicy(PolicyCommand, named.RenameNamedClass):
+class RenamePolicy(PolicyCommand, named.RenameNamedObject):
     pass
 
 
-class AlterPolicy(PolicyCommand, named.AlterNamedClass):
+class AlterPolicy(PolicyCommand, named.AlterNamedObject):
     astnode = qlast.AlterLocalPolicy
 
     @classmethod
@@ -290,10 +290,10 @@ class AlterPolicy(PolicyCommand, named.AlterNamedClass):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         cmd.update((
-            sd.AlterClassProperty(
+            sd.AlterObjectProperty(
                 property='actions',
-                new_value=so.ClassList(
-                    so.ClassRef(
+                new_value=so.ObjectList(
+                    so.ObjectRef(
                         classname=sn.Name(
                             module=action.module,
                             name=action.name
@@ -307,5 +307,5 @@ class AlterPolicy(PolicyCommand, named.AlterNamedClass):
         return cmd
 
 
-class DeletePolicy(PolicyCommand, named.DeleteNamedClass):
+class DeletePolicy(PolicyCommand, named.DeleteNamedObject):
     pass

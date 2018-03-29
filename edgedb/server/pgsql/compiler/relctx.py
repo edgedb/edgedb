@@ -12,7 +12,7 @@ import typing
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
-from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import concepts as s_objtypes
 from edgedb.lang.schema import pointers as s_pointers
 
 from edgedb.server.pgsql import ast as pgast
@@ -197,7 +197,7 @@ def new_empty_rvar(
     null_ref = pgast.ColumnRef(name=[nullref_alias], nullable=True)
     pathctx.put_rvar_path_output(rvar, ir_set.path_id, aspect='value',
                                  var=null_ref, env=ctx.env)
-    if ir_set.path_id.is_concept_path():
+    if ir_set.path_id.is_objtype_path():
         pathctx.put_rvar_path_output(rvar, ir_set.path_id, aspect='identity',
                                      var=null_ref, env=ctx.env)
     return rvar
@@ -206,8 +206,8 @@ def new_empty_rvar(
 def new_root_rvar(
         ir_set: irast.Set, nullable: bool=False, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
-    if not isinstance(ir_set.scls, s_concepts.Concept):
-        raise ValueError('cannot create root rvar for non-concept path')
+    if not isinstance(ir_set.scls, s_objtypes.ObjectType):
+        raise ValueError('cannot create root rvar for non-object path')
 
     set_rvar = dbobj.range_for_set(ir_set, env=ctx.env)
     set_rvar.nullable = nullable
@@ -218,7 +218,7 @@ def new_root_rvar(
         ptr_info = pg_types.get_pointer_storage_info(
             ir_set.rptr.ptrcls, resolve_type=False, link_bias=False)
 
-        if ptr_info.table_type == 'concept':
+        if ptr_info.table_type == 'ObjectType':
             # Inline link
             rref = dbobj.get_column(None, ptr_info.column_name)
             set_rvar.path_scope.add(ir_set.path_id.src_path())
@@ -248,7 +248,7 @@ def new_pointer_rvar(
     ptr_info = pg_types.get_pointer_storage_info(
         ptrcls, resolve_type=False, link_bias=link_bias)
 
-    if ptr_info.table_type == 'concept':
+    if ptr_info.table_type == 'ObjectType':
         # Inline link
         return _new_inline_pointer_rvar(
             ir_ptr, nullable=nullable, ptr_info=ptr_info,
@@ -315,7 +315,7 @@ def _new_mapped_pointer_rvar(
                                  var=near_ref, env=ctx.env)
 
     tgt_pid = ir_ptr.target.path_id
-    if tgt_pid.is_concept_path():
+    if tgt_pid.is_objtype_path():
         ptr_rvar.path_scope.add(tgt_pid)
         pathctx.put_rvar_path_output(ptr_rvar, tgt_pid, aspect='identity',
                                      var=far_ref, env=ctx.env)
@@ -330,7 +330,7 @@ def new_rel_rvar(
         ir_set: irast.Set, stmt: pgast.Query, *,
         lateral: bool=True,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
-    if irutils.is_atomic_view_set(ir_set):
+    if irutils.is_scalar_view_set(ir_set):
         ensure_bond_for_expr(ir_set, stmt, ctx=ctx)
 
     return dbobj.rvar_for_rel(stmt, lateral=lateral, env=ctx.env)
@@ -360,7 +360,7 @@ def semi_join(
     ptrcls = rptr.ptrcls
     ptr_info = pg_types.get_pointer_storage_info(
         ptrcls, resolve_type=False, link_bias=False)
-    is_inline_ref = ptr_info.table_type == 'concept'
+    is_inline_ref = ptr_info.table_type == 'ObjectType'
 
     # Target set range.
     set_rvar = new_root_rvar(ir_set, ctx=ctx)
@@ -409,8 +409,8 @@ def ensure_value_rvar(
 def ensure_bond_for_expr(
         ir_set: irast.Set, stmt: pgast.Query, *, type='int',
         ctx: context.CompilerContextLevel) -> None:
-    if ir_set.path_id.is_concept_path():
-        # Concepts have inherent identity
+    if ir_set.path_id.is_objtype_path():
+        # ObjectTypes have inherent identity
         return
 
     ensure_transient_identity_for_set(ir_set, stmt, type=type, ctx=ctx)

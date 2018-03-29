@@ -24,8 +24,8 @@ class SourceNode(sources.Source, nodes.Node):
     pass
 
 
-class Concept(SourceNode, constraints.ConsistencySubject):
-    _type = 'concept'
+class ObjectType(SourceNode, constraints.ConsistencySubject):
+    _type = 'ObjectType'
 
     @classmethod
     def get_pointer_class(cls):
@@ -76,12 +76,12 @@ class Concept(SourceNode, constraints.ConsistencySubject):
 
         @classmethod
         def getptr_inherited_from(cls, source, schema,
-                                  base_ptr_class, skip_atomic):
+                                  base_ptr_class, skip_scalar):
             result = set()
             for link in schema.get_objects(type='link'):
                 if link.issubclass(base_ptr_class) \
                         and link.target is not None \
-                        and (not skip_atomic or not link.atomic()) \
+                        and (not skip_scalar or not link.scalar()) \
                         and source.issubclass(link.target):
                     result.add(link)
             return result
@@ -116,28 +116,28 @@ class Concept(SourceNode, constraints.ConsistencySubject):
         return sn.Name(module='std', name='Object')
 
 
-class VirtualConcept(SourceNode,
-                     constraints.ConsistencySubject, s_types.Type):
+class UnionObjectType(SourceNode,
+                      constraints.ConsistencySubject, s_types.Type):
     pass
 
 
-class DerivedConcept(SourceNode,
-                     constraints.ConsistencySubject, s_types.Type):
+class DerivedObjectType(SourceNode,
+                        constraints.ConsistencySubject, s_types.Type):
     pass
 
 
-class ConceptCommandContext(sd.ClassCommandContext,
-                            constraints.ConsistencySubjectCommandContext,
-                            links.LinkSourceCommandContext,
-                            nodes.NodeCommandContext):
+class ObjectTypeCommandContext(sd.ObjectCommandContext,
+                               constraints.ConsistencySubjectCommandContext,
+                               links.LinkSourceCommandContext,
+                               nodes.NodeCommandContext):
     pass
 
 
-class ConceptCommand(constraints.ConsistencySubjectCommand,
-                     sources.SourceCommand, links.LinkSourceCommand,
-                     nodes.NodeCommand,
-                     schema_metaclass=Concept,
-                     context_class=ConceptCommandContext):
+class ObjectTypeCommand(constraints.ConsistencySubjectCommand,
+                        sources.SourceCommand, links.LinkSourceCommand,
+                        nodes.NodeCommand,
+                        schema_metaclass=ObjectType,
+                        context_class=ObjectTypeCommandContext):
     def _apply_field_ast(self, context, node, op):
         if op.property == 'is_derived':
             pass
@@ -151,21 +151,21 @@ class ConceptCommand(constraints.ConsistencySubjectCommand,
         return cmd
 
 
-class CreateConcept(ConceptCommand, inheriting.CreateInheritingClass):
-    astnode = qlast.CreateConcept
+class CreateObjectType(ObjectTypeCommand, inheriting.CreateInheritingObject):
+    astnode = qlast.CreateObjectType
 
 
-class RenameConcept(ConceptCommand, named.RenameNamedClass):
+class RenameObjectType(ObjectTypeCommand, named.RenameNamedObject):
     pass
 
 
-class RebaseConcept(ConceptCommand, referencing.RebaseReferencingClass):
+class RebaseObjectType(ObjectTypeCommand, referencing.RebaseReferencingObject):
     pass
 
 
-class AlterConcept(ConceptCommand, inheriting.AlterInheritingClass):
-    astnode = qlast.AlterConcept
+class AlterObjectType(ObjectTypeCommand, inheriting.AlterInheritingObject):
+    astnode = qlast.AlterObjectType
 
 
-class DeleteConcept(ConceptCommand, inheriting.DeleteInheritingClass):
-    astnode = qlast.DropConcept
+class DeleteObjectType(ObjectTypeCommand, inheriting.DeleteInheritingObject):
+    astnode = qlast.DropObjectType

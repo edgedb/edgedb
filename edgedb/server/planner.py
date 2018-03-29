@@ -39,7 +39,7 @@ def plan_statement(stmt, backend, flags={}, *, timer):
         return s_ddl.cmd_from_ddl(stmt, schema=backend.schema)
 
     elif isinstance(stmt, qlast.DDL):
-        # CREATE/DELETE/ALTER (FUNCTION, CONCEPT, etc)
+        # CREATE/DELETE/ALTER (FUNCTION, TYPE, etc)
         return s_ddl.delta_from_ddl(stmt, schema=backend.schema)
 
     elif isinstance(stmt, qlast.Transaction):

@@ -23,7 +23,7 @@ class ViewType(enum.IntEnum):
     Update = enum.auto()
 
 
-class Type(so.NamedClass, derivable.DerivableClassBase):
+class Type(so.NamedObject, derivable.DerivableObjectBase):
     """A schema class that is a valid *type*."""
 
     # For a type representing a view, this would contain the
@@ -135,15 +135,15 @@ class Collection(Type):
         return ()
 
     def get_subtype(self, schema, typeref):
-        from . import atoms as s_atoms
+        from . import atoms as s_scalars
         from . import types as s_types
 
-        if isinstance(typeref, so.ClassRef):
+        if isinstance(typeref, so.ObjectRef):
             eltype = schema.get(typeref.classname)
         else:
             eltype = typeref
 
-        if isinstance(eltype, s_atoms.Atom):
+        if isinstance(eltype, s_scalars.ScalarType):
             eltype = eltype.get_topmost_base()
             eltype = s_types.BaseTypeMeta.get_implementation(eltype.name)
 
@@ -172,7 +172,7 @@ class Collection(Type):
         strefs = []
 
         for st in self.get_subtypes():
-            strefs.append(so.ClassRef(classname=st.name))
+            strefs.append(so.ObjectRef(classname=st.name))
 
         return (
             self.__class__.from_subtypes(strefs),
@@ -189,7 +189,7 @@ class Collection(Type):
 
 class Array(Collection):
     schema_name = 'array'
-    element_type = so.Field(so.Class)
+    element_type = so.Field(so.Object)
     dimensions = so.Field(typed.IntList, [], coerce=True)
 
     def get_container(self):
@@ -243,8 +243,8 @@ class Array(Collection):
 class Map(Collection):
     schema_name = 'map'
 
-    element_type = so.Field(so.Class)
-    key_type = so.Field(so.Class)
+    element_type = so.Field(so.Object)
+    key_type = so.Field(so.Object)
 
     def get_container(self):
         return dict
@@ -264,7 +264,7 @@ class Tuple(Collection):
     schema_name = 'tuple'
 
     named = so.Field(bool, False)
-    element_types = so.Field(so.ClassDict, coerce=True)
+    element_types = so.Field(so.ObjectDict, coerce=True)
 
     def get_container(self):
         return dict

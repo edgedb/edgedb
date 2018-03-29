@@ -149,7 +149,7 @@ class GQLQuery(_GQLType):
         edb_base = schema.get('graphql::Query')
         self._module = module
         # we give unusual full name, so that it doesn't clash with a
-        # potential Concept `Query` in one of the modules
+        # potential ObjectType `Query` in one of the modules
         super().__init__(schema, f'{module}--Query', edb_base)
 
     @property
@@ -183,7 +183,7 @@ class GQLMutation(_GQLType):
         edb_base = schema.get('graphql::Mutation')
         self._module = module
         # we give unusual full name, so that it doesn't clash with a
-        # potential Concept `Mutation` in one of the modules
+        # potential ObjectType `Mutation` in one of the modules
         super().__init__(schema, f'{module}--Mutation', edb_base)
 
     @property

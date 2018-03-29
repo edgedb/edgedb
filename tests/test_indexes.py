@@ -18,7 +18,7 @@ class TestIndexes(tb.DDLTestCase):
             # setup delta
             #
             CREATE MIGRATION test::d1 TO eschema $$
-                concept Person:
+                type Person:
                     link first_name to str
                     link last_name to str
 
@@ -29,12 +29,12 @@ class TestIndexes(tb.DDLTestCase):
             COMMIT MIGRATION test::d1;
 
             SELECT
-                schema::Concept {
+                schema::ObjectType {
                     indexes: {
                         expr
                     }
                 }
-            FILTER schema::Concept.name = 'test::Person';
+            FILTER schema::ObjectType.name = 'test::Person';
 
             INSERT test::Person {
                 first_name := 'Elon',

@@ -23,7 +23,7 @@ async def fetch(
                 c.view_type AS view_type,
                 c.expr AS expr
             FROM
-                edgedb.concept c
+                edgedb.ObjectType c
     """)
 
 
@@ -41,5 +41,5 @@ async def fetch_derived(
                 c.view_type AS view_type,
                 c.expr AS expr
             FROM
-                edgedb.derivedconcept c
+                edgedb.DerivedObjectType c
     """)

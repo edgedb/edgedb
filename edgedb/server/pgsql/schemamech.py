@@ -14,8 +14,8 @@ from edgedb.lang.ir import utils as ir_utils
 from edgedb.lang.edgeql import compiler as ql_compiler
 from edgedb.lang.edgeql import ast as qlast
 
-from edgedb.lang.schema import atoms as s_atoms
-from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import atoms as s_scalars
+from edgedb.lang.schema import concepts as s_objtypes
 from edgedb.lang.schema import error as s_err
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import lproperties as s_lprops
@@ -90,7 +90,7 @@ class ConstraintMech:
     @classmethod
     def _get_ref_storage_info(cls, schema, refs):
         link_biased = {}
-        concept_biased = {}
+        objtype_biased = {}
 
         ref_ptrs = {}
         for ref in refs:
@@ -116,25 +116,25 @@ class ConstraintMech:
             if ptr_info.table_type == 'link':
                 link_biased[ref] = ptr_info
             else:
-                concept_biased[ref] = ptr_info
+                objtype_biased[ref] = ptr_info
 
-            if link_biased and concept_biased:
+            if link_biased and objtype_biased:
                 break
 
-        if link_biased and concept_biased:
-            for ref in concept_biased.copy():
+        if link_biased and objtype_biased:
+            for ref in objtype_biased.copy():
                 ptr, src = ref_ptrs[ref]
                 ptr_info = types.get_pointer_storage_info(
                     ptr, source=src, resolve_type=False, link_bias=True)
 
                 if ptr_info.table_type == 'link':
                     link_biased[ref] = ptr_info
-                    concept_biased.pop(ref)
+                    objtype_biased.pop(ref)
 
         ref_tables = {}
 
         for ref, ptr_info in itertools.chain(
-                concept_biased.items(), link_biased.items()):
+                objtype_biased.items(), link_biased.items()):
             ptr, src = ref_ptrs[ref]
 
             try:
@@ -179,8 +179,8 @@ class ConstraintMech:
         flt = lambda n: isinstance(n, pg_ast.ColumnRef) and len(n.name) == 1
         refs = set(ast.find_children(sql_expr, flt))
 
-        if isinstance(subject, s_atoms.Atom):
-            # Domain constraint, replace <atom_name> with VALUE
+        if isinstance(subject, s_scalars.ScalarType):
+            # Domain constraint, replace <scalar_name> with VALUE
 
             subject_pg_name = common.edgedb_name_to_pg_name(subject.name)
 
@@ -188,7 +188,7 @@ class ConstraintMech:
                 if ref.name != [subject_pg_name]:
                     raise ValueError(
                         f'unexpected node reference in '
-                        f'Atom constraint: {".".join(ref.name)}'
+                        f'ScalarType constraint: {".".join(ref.name)}'
                     )
 
                 # work around the immutability check
@@ -238,7 +238,7 @@ class ConstraintMech:
         elif ref_tables:
             subject_db_name = next(iter(ref_tables))
         else:
-            subject_db_name = common.atom_name_to_domain_name(
+            subject_db_name = common.scalar_name_to_domain_name(
                 subject.name, catenate=False)
 
         link_bias = ref_tables and next(iter(ref_tables.values()))[0][
@@ -271,7 +271,7 @@ class ConstraintMech:
             pg_constr_data['scope'] = 'row'
             pg_constr_data['type'] = 'check'
 
-        if isinstance(constraint.subject, s_atoms.Atom):
+        if isinstance(constraint.subject, s_scalars.ScalarType):
             constraint = SchemaDomainConstraint(
                 subject=subject, constraint=constraint,
                 pg_constr_data=pg_constr_data)
@@ -507,14 +507,14 @@ class TypeMech:
                     dbops.Column(name='std::target', type='uuid')
                 ])
 
-            elif isinstance(scls, s_concepts.Concept):
-                cols.extend([dbops.Column(name='std::__class__', type='uuid')])
+            elif isinstance(scls, s_objtypes.ObjectType):
+                cols.extend([dbops.Column(name='std::__type__', type='uuid')])
 
             else:
                 assert False
 
-            if isinstance(scls, s_concepts.Concept):
-                expected_table_type = 'concept'
+            if isinstance(scls, s_objtypes.ObjectType):
+                expected_table_type = 'ObjectType'
             else:
                 expected_table_type = 'link'
 
