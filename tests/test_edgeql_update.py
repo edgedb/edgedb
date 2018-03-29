@@ -93,7 +93,7 @@ class TestUpdate(tb.QueryTestCase):
                 status: {
                     name
                 }
-            };
+            } ORDER BY .name;
         """)
 
         self.assert_data_shape(res, [
@@ -119,7 +119,7 @@ class TestUpdate(tb.QueryTestCase):
                 status: {
                     name
                 }
-            } ORDER BY UpdateTest.name;
+            } ORDER BY .name;
         """)
 
         self.assert_data_shape(res[-1], [
@@ -149,7 +149,7 @@ class TestUpdate(tb.QueryTestCase):
             SELECT UpdateTest {
                 name,
                 comment,
-            } ORDER BY UpdateTest.name;
+            } ORDER BY .name;
         """)
 
         self.assert_data_shape(res[-1], [
@@ -186,7 +186,7 @@ class TestUpdate(tb.QueryTestCase):
                 status: {
                     name
                 }
-            } ORDER BY UpdateTest.name;
+            } ORDER BY .name;
         """)
 
         self.assert_data_shape(res[-1], [
