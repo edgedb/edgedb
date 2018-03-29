@@ -134,7 +134,7 @@ CREATE FUNCTION std::len(array<std::any>) -> std::int
 CREATE FUNCTION std::random() -> std::float
     FROM SQL FUNCTION 'random';
 
-CREATE FUNCTION std::re_match(std::str, std::str) -> SET OF array<std::str>
+CREATE FUNCTION std::re_match(std::str, std::str) -> array<std::str>
     FROM SQL $$
         SELECT regexp_matches($1, $2);
     $$;
