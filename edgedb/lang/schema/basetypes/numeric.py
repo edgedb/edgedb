@@ -157,7 +157,7 @@ class Decimal(fpdecimal.FPDecimal, metaclass=DecimalMeta):
             with decimal.localcontext(context), fpcontext:
                 result = fpdecimal.FPDecimal.__new__(cls, value)
         except (ValueError, decimal.InvalidOperation) as e:
-            raise edgedb_error.AtomValueError(e.args[0]) from e
+            raise edgedb_error.ScalarTypeValueError(e.args[0]) from e
 
         return result
 
@@ -181,7 +181,7 @@ class Decimal(fpdecimal.FPDecimal, metaclass=DecimalMeta):
         return self.__class__(super().quantize(exp, context=context, **kwargs))
 
 
-class StdDecimal(s_types.SchemaClass, name='std::decimal'):
+class StdDecimal(s_types.SchemaObject, name='std::decimal'):
     pass
 
 

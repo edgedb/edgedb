@@ -32,7 +32,7 @@ def is_polymorphic_type(t):
         return t.name == 'std::any'
 
 
-def amend_empty_set_type(es: irast.EmptySet, t: s_obj.Class, schema) -> None:
+def amend_empty_set_type(es: irast.EmptySet, t: s_obj.Object, schema) -> None:
     alias = es.path_id[-1].name.name
     scls_name = s_name.Name(module='__expr__', name=alias)
     scls = t.__class__(name=scls_name, bases=[t])
@@ -431,10 +431,10 @@ def infer_type(ir, schema):
     result = _infer_type(ir, schema)
 
     if (result is not None and
-            not isinstance(result, (s_obj.Class, s_obj.MetaClass))):
+            not isinstance(result, (s_obj.Object, s_obj.ObjectMeta))):
 
         raise ql_errors.EdgeQLError(
-            f'infer_type({ir!r}) retured {result!r} instead of a Class',
+            f'infer_type({ir!r}) retured {result!r} instead of a Object',
             context=ir.context)
 
     if result is None or result.name == 'std::any':

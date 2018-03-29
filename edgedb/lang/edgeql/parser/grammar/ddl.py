@@ -62,13 +62,13 @@ class InnerDDLStmt(Nonterm):
     def reduce_DropActionStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_CreateAtomStmt(self, *kids):
+    def reduce_CreateScalarTypeStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_AlterAtomStmt(self, *kids):
+    def reduce_AlterScalarTypeStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_DropAtomStmt(self, *kids):
+    def reduce_DropScalarTypeStmt(self, *kids):
         self.val = kids[0].val
 
     def reduce_CreateAttributeStmt(self, *kids):
@@ -77,13 +77,13 @@ class InnerDDLStmt(Nonterm):
     def reduce_DropAttributeStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_CreateConceptStmt(self, *kids):
+    def reduce_CreateObjectTypeStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_AlterConceptStmt(self, *kids):
+    def reduce_AlterObjectTypeStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_DropConceptStmt(self, *kids):
+    def reduce_DropObjectTypeStmt(self, *kids):
         self.val = kids[0].val
 
     def reduce_CreateViewStmt(self, *kids):
@@ -702,61 +702,61 @@ class DropConcreteConstraintStmt(Nonterm):
 
 
 #
-# CREATE ATOM
+# CREATE SCALAR TYPE
 #
 
-commands_block('CreateAtom', SetFieldStmt, CreateConcreteConstraintStmt)
+commands_block('CreateScalarType', SetFieldStmt, CreateConcreteConstraintStmt)
 
 
-class CreateAtomStmt(Nonterm):
-    def reduce_CreateAbstractAtomStmt(self, *kids):
+class CreateScalarTypeStmt(Nonterm):
+    def reduce_CreateAbstractScalarTypeStmt(self, *kids):
         r"""%reduce \
-            DDLAliasBlock CREATE ABSTRACT ATOM NodeName \
-            OptExtending OptCreateAtomCommandsBlock \
+            DDLAliasBlock CREATE ABSTRACT SCALAR TYPE NodeName \
+            OptExtending OptCreateScalarTypeCommandsBlock \
         """
-        self.val = qlast.CreateAtom(
+        self.val = qlast.CreateScalarType(
             aliases=kids[0].val.aliases,
             cardinality=kids[0].val.cardinality,
-            name=kids[4].val,
+            name=kids[5].val,
             is_abstract=True,
-            bases=kids[5].val,
-            commands=kids[6].val
+            bases=kids[6].val,
+            commands=kids[7].val
         )
 
-    def reduce_CreateFinalAtomStmt(self, *kids):
+    def reduce_CreateFinalScalarTypeStmt(self, *kids):
         r"""%reduce \
-            DDLAliasBlock CREATE FINAL ATOM NodeName \
-            OptExtending OptCreateAtomCommandsBlock \
+            DDLAliasBlock CREATE FINAL SCALAR TYPE NodeName \
+            OptExtending OptCreateScalarTypeCommandsBlock \
         """
-        self.val = qlast.CreateAtom(
+        self.val = qlast.CreateScalarType(
+            aliases=kids[0].val.aliases,
+            cardinality=kids[0].val.cardinality,
+            name=kids[5].val,
+            is_final=True,
+            bases=kids[6].val,
+            commands=kids[7].val
+        )
+
+    def reduce_CreateScalarTypeStmt(self, *kids):
+        r"""%reduce \
+            DDLAliasBlock CREATE SCALAR TYPE NodeName \
+            OptExtending OptCreateScalarTypeCommandsBlock \
+        """
+        self.val = qlast.CreateScalarType(
             aliases=kids[0].val.aliases,
             cardinality=kids[0].val.cardinality,
             name=kids[4].val,
-            is_final=True,
             bases=kids[5].val,
             commands=kids[6].val
-        )
-
-    def reduce_CreateAtomStmt(self, *kids):
-        r"""%reduce \
-            DDLAliasBlock CREATE ATOM NodeName \
-            OptExtending OptCreateAtomCommandsBlock \
-        """
-        self.val = qlast.CreateAtom(
-            aliases=kids[0].val.aliases,
-            cardinality=kids[0].val.cardinality,
-            name=kids[3].val,
-            bases=kids[4].val,
-            commands=kids[5].val
         )
 
 
 #
-# ALTER ATOM
+# ALTER SCALAR TYPE
 #
 
 commands_block(
-    'AlterAtom',
+    'AlterScalarType',
     RenameStmt,
     SetFieldStmt,
     DropFieldStmt,
@@ -768,25 +768,26 @@ commands_block(
 )
 
 
-class AlterAtomStmt(Nonterm):
-    def reduce_AlterAtomStmt(self, *kids):
+class AlterScalarTypeStmt(Nonterm):
+    def reduce_AlterScalarTypeStmt(self, *kids):
         r"""%reduce \
-            DDLAliasBlock ALTER ATOM NodeName AlterAtomCommandsBlock \
+            DDLAliasBlock ALTER SCALAR TYPE NodeName \
+            AlterScalarTypeCommandsBlock \
         """
-        self.val = qlast.AlterAtom(
+        self.val = qlast.AlterScalarType(
             aliases=kids[0].val.aliases,
             cardinality=kids[0].val.cardinality,
-            name=kids[3].val,
-            commands=kids[4].val
+            name=kids[4].val,
+            commands=kids[5].val
         )
 
 
-class DropAtomStmt(Nonterm):
-    def reduce_DDLAliasBlock_DROP_ATOM_NodeName(self, *kids):
-        self.val = qlast.DropAtom(
+class DropScalarTypeStmt(Nonterm):
+    def reduce_DDLAliasBlock_DROP_SCALAR_TYPE_NodeName(self, *kids):
+        self.val = qlast.DropScalarType(
             aliases=kids[0].val.aliases,
             cardinality=kids[0].val.cardinality,
-            name=kids[3].val
+            name=kids[4].val
         )
 
 
@@ -1108,7 +1109,7 @@ class DropLinkStmt(Nonterm):
 
 
 #
-# CREATE CONCEPT ... { CREATE LINK
+# CREATE TYPE ... { CREATE LINK
 #
 
 commands_block(
@@ -1203,24 +1204,24 @@ class DropConcreteLinkStmt(Nonterm):
 
 
 #
-# CREATE CONCEPT
+# CREATE TYPE
 #
 
 commands_block(
-    'CreateConcept',
+    'CreateObjectType',
     SetFieldStmt,
     CreateConcreteLinkStmt,
     CreateIndexStmt
 )
 
 
-class CreateConceptStmt(Nonterm):
-    def reduce_CreateAbstractConceptStmt(self, *kids):
+class CreateObjectTypeStmt(Nonterm):
+    def reduce_CreateAbstractObjectTypeStmt(self, *kids):
         r"""%reduce \
-            DDLAliasBlock CREATE ABSTRACT CONCEPT NodeName \
-            OptExtending OptCreateConceptCommandsBlock \
+            DDLAliasBlock CREATE ABSTRACT TYPE NodeName \
+            OptExtending OptCreateObjectTypeCommandsBlock \
         """
-        self.val = qlast.CreateConcept(
+        self.val = qlast.CreateObjectType(
             aliases=kids[0].val.aliases,
             cardinality=kids[0].val.cardinality,
             name=kids[4].val,
@@ -1229,12 +1230,12 @@ class CreateConceptStmt(Nonterm):
             commands=kids[6].val
         )
 
-    def reduce_CreateRegularConceptStmt(self, *kids):
+    def reduce_CreateRegularObjectTypeStmt(self, *kids):
         r"""%reduce \
-            DDLAliasBlock CREATE CONCEPT NodeName \
-            OptExtending OptCreateConceptCommandsBlock \
+            DDLAliasBlock CREATE TYPE NodeName \
+            OptExtending OptCreateObjectTypeCommandsBlock \
         """
-        self.val = qlast.CreateConcept(
+        self.val = qlast.CreateObjectType(
             aliases=kids[0].val.aliases,
             cardinality=kids[0].val.cardinality,
             name=kids[3].val,
@@ -1245,11 +1246,11 @@ class CreateConceptStmt(Nonterm):
 
 
 #
-# ALTER CONCEPT
+# ALTER TYPE
 #
 
 commands_block(
-    'AlterConcept',
+    'AlterObjectType',
     RenameStmt,
     SetFieldStmt,
     DropFieldStmt,
@@ -1263,13 +1264,13 @@ commands_block(
 )
 
 
-class AlterConceptStmt(Nonterm):
-    def reduce_AlterConceptStmt(self, *kids):
+class AlterObjectTypeStmt(Nonterm):
+    def reduce_AlterObjectTypeStmt(self, *kids):
         r"""%reduce \
-            DDLAliasBlock ALTER CONCEPT NodeName \
-            AlterConceptCommandsBlock \
+            DDLAliasBlock ALTER TYPE NodeName \
+            AlterObjectTypeCommandsBlock \
         """
-        self.val = qlast.AlterConcept(
+        self.val = qlast.AlterObjectType(
             aliases=kids[0].val.aliases,
             cardinality=kids[0].val.cardinality,
             name=kids[3].val,
@@ -1278,23 +1279,24 @@ class AlterConceptStmt(Nonterm):
 
 
 #
-# DROP CONCEPT
+# DROP TYPE
 #
 
 commands_block(
-    'DropConcept',
+    'DropObjectType',
     DropConcreteLinkStmt,
     DropConcreteConstraintStmt,
     DropIndexStmt
 )
 
 
-class DropConceptStmt(Nonterm):
-    def reduce_DropConcept(self, *kids):
+class DropObjectTypeStmt(Nonterm):
+    def reduce_DropObjectType(self, *kids):
         r"""%reduce \
-            DDLAliasBlock DROP CONCEPT NodeName OptDropConceptCommandsBlock \
+            DDLAliasBlock DROP TYPE \
+            NodeName OptDropObjectTypeCommandsBlock \
         """
-        self.val = qlast.DropConcept(
+        self.val = qlast.DropObjectType(
             aliases=kids[0].val.aliases,
             cardinality=kids[0].val.cardinality,
             name=kids[3].val,
@@ -1324,7 +1326,7 @@ class CreateViewStmt(Nonterm):
             name=kids[3].val,
             commands=[
                 qlast.CreateAttributeValue(
-                    name=qlast.ClassRef(name='expr'),
+                    name=qlast.ObjectRef(name='expr'),
                     value=kids[5].val,
                     as_expr=True
                 )
@@ -1413,7 +1415,7 @@ class CreateModuleStmt(Nonterm):
         self.val = qlast.CreateModule(
             aliases=kids[0].val.aliases,
             cardinality=kids[0].val.cardinality,
-            name=qlast.ClassRef(module=None, name='.'.join(kids[3].val)),
+            name=qlast.ObjectRef(module=None, name='.'.join(kids[3].val)),
             commands=kids[4].val
         )
 
@@ -1427,7 +1429,7 @@ class AlterModuleStmt(Nonterm):
         self.val = qlast.AlterModule(
             aliases=kids[0].val.aliases,
             cardinality=kids[0].val.cardinality,
-            name=qlast.ClassRef(module=None, name='.'.join(kids[3].val)),
+            name=qlast.ObjectRef(module=None, name='.'.join(kids[3].val)),
             commands=kids[4].val
         )
 
@@ -1440,7 +1442,7 @@ class DropModuleStmt(Nonterm):
         self.val = qlast.DropModule(
             aliases=kids[0].val.aliases,
             cardinality=kids[0].val.cardinality,
-            name=qlast.ClassRef(module=None, name='.'.join(kids[3].val))
+            name=qlast.ObjectRef(module=None, name='.'.join(kids[3].val))
         )
 
 

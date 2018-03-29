@@ -294,8 +294,8 @@ class TestExpressions(tb.QueryTestCase):
             FILTER _ IN (
                 # Lengths of names for schema::Map, Type, and Array are
                 # 11, 12, and 13, respectively.
-                SELECT len(Concept.name)
-                FILTER Concept.name LIKE 'schema::%'
+                SELECT len(ObjectType.name)
+                FILTER ObjectType.name LIKE 'schema::%'
             );
         """, [
             {13},
@@ -313,8 +313,8 @@ class TestExpressions(tb.QueryTestCase):
             FILTER _ NOT IN (
                 # Lengths of names for schema::Map, Type, and Array are
                 # 11, 12, and 13, respectively.
-                SELECT len(Concept.name)
-                FILTER Concept.name LIKE 'schema::%'
+                SELECT len(ObjectType.name)
+                FILTER ObjectType.name LIKE 'schema::%'
             );
 
         """, [
@@ -592,14 +592,14 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_type_01(self):
         await self.assert_query_result(r"""
-            SELECT 'foo'.__class__.name;
+            SELECT 'foo'.__type__.name;
         """, [
             ['std::str'],
         ])
 
     async def test_edgeql_expr_type_02(self):
         await self.assert_query_result(r"""
-            SELECT (1.0 + 2).__class__.name;
+            SELECT (1.0 + 2).__type__.name;
         """, [
             ['std::float'],
         ])
@@ -622,20 +622,25 @@ class TestExpressions(tb.QueryTestCase):
             WITH
                 MODULE schema,
                 A := DETACHED (
-                    SELECT Concept FILTER Concept.name ILIKE 'schema::a%'),
-                C := DETACHED (
-                    SELECT Concept FILTER Concept.name ILIKE 'schema::c%'),
+                    SELECT ObjectType
+                    FILTER ObjectType.name ILIKE 'schema::a%'),
                 D := DETACHED (
-                    SELECT Concept FILTER Concept.name ILIKE 'schema::d%')
-            SELECT _ := {A, D, C}.name
+                    SELECT ObjectType
+                    FILTER ObjectType.name ILIKE 'schema::d%'),
+                O := DETACHED (
+                    SELECT ObjectType
+                    FILTER ObjectType.name ILIKE 'schema::o%')
+            SELECT _ := {A, D, O}.name
             ORDER BY _;
         """, [
             [
-                'schema::Array', 'schema::Atom', 'schema::Attribute',
-                'schema::Class', 'schema::Concept',
-                'schema::ConsistencySubject', 'schema::Constraint',
-                'schema::Delta', 'schema::DerivedConcept',
-                'schema::DerivedLink'
+                'schema::Array',
+                'schema::Attribute',
+                'schema::Delta',
+                'schema::DerivedLink',
+                'schema::DerivedObjectType',
+                'schema::Object',
+                'schema::ObjectType'
             ],
         ])
 
@@ -1160,12 +1165,12 @@ class TestExpressions(tb.QueryTestCase):
             [1, [66, 88], 2],
         ]])
 
-    async def test_edgeql_expr_cannot_assign_dunder_class_01(self):
+    async def test_edgeql_expr_cannot_assign_dunder_type_01(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot assign to __class__'):
+                exc.EdgeQLError, r'cannot assign to __type__'):
             await self.con.execute(r"""
                 SELECT test::Text {
-                    __class__ := 42
+                    __type__ := 42
                 };
             """)
 
@@ -1249,13 +1254,13 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_setop_08(self):
         res = await self.con.execute('''
             WITH MODULE schema
-            SELECT Concept;
+            SELECT ObjectType;
 
             WITH MODULE schema
             SELECT Attribute;
 
             WITH MODULE schema
-            SELECT Concept UNION Attribute;
+            SELECT ObjectType UNION Attribute;
         ''')
         separate = [obj['id'] for obj in res[0]]
         separate += [obj['id'] for obj in res[1]]
@@ -1289,13 +1294,15 @@ class TestExpressions(tb.QueryTestCase):
         res = await self.con.execute('''
             WITH
                 MODULE schema,
-                C := (SELECT Concept FILTER Concept.name LIKE 'schema::%')
+                C := (SELECT ObjectType
+                      FILTER ObjectType.name LIKE 'schema::%')
             SELECT _ := len(C.name)
             ORDER BY _;
 
             WITH
                 MODULE schema,
-                C := (SELECT Concept FILTER Concept.name LIKE 'schema::%')
+                C := (SELECT ObjectType
+                      FILTER ObjectType.name LIKE 'schema::%')
             SELECT _ := DISTINCT len(C.name)
             ORDER BY _;
         ''')
@@ -1304,7 +1311,7 @@ class TestExpressions(tb.QueryTestCase):
         # on an aggregate function
         self.assertGreater(
             len(res[0]), len(res[1]),
-            'DISTINCT len(Concept.name) failed to filter out dupplicates')
+            'DISTINCT len(ObjectType.name) failed to filter out dupplicates')
 
     async def test_edgeql_expr_cardinality_01(self):
         with self.assertRaisesRegex(
@@ -1405,7 +1412,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_type_filter_01(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
-                r'invalid type filter operand: std::int is not a concept',
+                r'invalid type filter operand: std::int is not an object type',
                 position=7):
 
             await self.query('''\
@@ -1415,7 +1422,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_type_filter_02(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
-                r'invalid type filter operand: std::str is not a concept',
+                r'invalid type filter operand: std::str is not an object type',
                 position=17):
 
             await self.query('''\
@@ -1425,7 +1432,8 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_type_filter_03(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
-                r'invalid type filter operand: std::uuid is not a concept',
+                r'invalid type filter operand: '
+                r'std::uuid is not an object type',
                 position=20):
 
             await self.query('''\
@@ -1525,7 +1533,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_view_05(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
-            SELECT Concept {
+            SELECT ObjectType {
                 name,
                 foo := (
                     WITH a := {1, 2}
@@ -1541,7 +1549,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_view_06(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
-            SELECT Concept {
+            SELECT ObjectType {
                 name,
                 foo := (
                     WITH a := {1, 2}
@@ -1585,7 +1593,7 @@ class TestExpressions(tb.QueryTestCase):
             # set some base cases
             WITH a := {1, 2}
             SELECT a + a;
-            # normally all atomic set literals are "DETACHED"
+            # normally all scalar set literals are "DETACHED"
             SELECT {1, 2} + {1, 2};
 
             # DETACHED literals

@@ -18,10 +18,10 @@ from . import objects as so
 from . import referencing
 
 
-class SourceIndex(inheriting.InheritingClass):
+class SourceIndex(inheriting.InheritingObject):
     _type = 'index'
 
-    subject = so.Field(so.NamedClass)
+    subject = so.Field(so.NamedObject)
     expr = so.Field(str, compcoef=0.909)
 
     def __repr__(self):
@@ -32,7 +32,7 @@ class SourceIndex(inheriting.InheritingClass):
     __str__ = __repr__
 
 
-class IndexableSubject(referencing.ReferencingClass):
+class IndexableSubject(referencing.ReferencingObject):
     indexes = referencing.RefDict(ref_cls=SourceIndex, compcoef=0.909)
 
     def add_index(self, index):
@@ -46,15 +46,15 @@ class IndexSourceCommandContext:
     pass
 
 
-class IndexSourceCommand(referencing.ReferencingClassCommand):
+class IndexSourceCommand(referencing.ReferencingObjectCommand):
     pass
 
 
-class SourceIndexCommandContext(sd.ClassCommandContext):
+class SourceIndexCommandContext(sd.ObjectCommandContext):
     pass
 
 
-class SourceIndexCommand(referencing.ReferencedClassCommand,
+class SourceIndexCommand(referencing.ReferencedObjectCommand,
                          schema_metaclass=SourceIndex,
                          context_class=SourceIndexCommandContext,
                          referrer_context_class=IndexSourceCommandContext):
@@ -71,11 +71,11 @@ class SourceIndexCommand(referencing.ReferencedClassCommand,
         return sn.Name(name=idx_name, module=subject_name.module)
 
     def _create_begin(self, schema, context):
-        return inheriting.InheritingClassCommand._create_begin(
+        return inheriting.InheritingObjectCommand._create_begin(
             self, schema, context)
 
 
-class CreateSourceIndex(SourceIndexCommand, named.CreateNamedClass):
+class CreateSourceIndex(SourceIndexCommand, named.CreateNamedObject):
     astnode = qlast.CreateIndex
 
     @classmethod
@@ -86,11 +86,11 @@ class CreateSourceIndex(SourceIndexCommand, named.CreateNamedClass):
         subject_name = parent_ctx.op.classname
 
         cmd.update((
-            sd.AlterClassProperty(
+            sd.AlterObjectProperty(
                 property='subject',
-                new_value=so.ClassRef(classname=subject_name)
+                new_value=so.ObjectRef(classname=subject_name)
             ),
-            sd.AlterClassProperty(
+            sd.AlterObjectProperty(
                 property='expr',
                 new_value=expr.ExpressionText(
                     edgeql.generate_source(astnode.expr, pretty=False))
@@ -114,13 +114,13 @@ class CreateSourceIndex(SourceIndexCommand, named.CreateNamedClass):
             super()._apply_field_ast(context, node, op)
 
 
-class RenameSourceIndex(SourceIndexCommand, named.RenameNamedClass):
+class RenameSourceIndex(SourceIndexCommand, named.RenameNamedObject):
     pass
 
 
-class AlterSourceIndex(SourceIndexCommand, named.AlterNamedClass):
+class AlterSourceIndex(SourceIndexCommand, named.AlterNamedObject):
     pass
 
 
-class DeleteSourceIndex(SourceIndexCommand, named.DeleteNamedClass):
+class DeleteSourceIndex(SourceIndexCommand, named.DeleteNamedObject):
     astnode = qlast.DropIndex

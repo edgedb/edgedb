@@ -43,11 +43,11 @@ def delta_schemas(schema1, schema2, *, include_derived=False):
 
         create = modules.CreateModule(classname=added_module)
 
-        create.add(AlterClassProperty(property='name', old_value=None,
-                                      new_value=added_module))
+        create.add(AlterObjectProperty(property='name', old_value=None,
+                                       new_value=added_module))
 
-        create.add(AlterClassProperty(property='imports', old_value=None,
-                                      new_value=tuple(my_module.imports)))
+        create.add(AlterObjectProperty(property='imports', old_value=None,
+                                       new_value=tuple(my_module.imports)))
         result.add(create)
 
     for common_module in common_modules:
@@ -57,9 +57,10 @@ def delta_schemas(schema1, schema2, *, include_derived=False):
         if my_module.imports != other_module.imports:
             alter = modules.AlterModule(classname=common_module)
 
-            alter.add(AlterClassProperty(property='imports',
-                                         old_value=tuple(other_module.imports),
-                                         new_value=tuple(my_module.imports)))
+            alter.add(AlterObjectProperty(
+                property='imports',
+                old_value=tuple(other_module.imports),
+                new_value=tuple(my_module.imports)))
             result.add(alter)
 
     global_adds_mods = []
@@ -75,7 +76,7 @@ def delta_schemas(schema1, schema2, *, include_derived=False):
             new = filter(lambda i: i.generic(), new)
             old = filter(lambda i: i.generic(), old)
 
-        adds_mods, dels = so.Class._delta_sets(
+        adds_mods, dels = so.Object._delta_sets(
             old, new, old_schema=schema2, new_schema=schema1)
 
         global_adds_mods.append(adds_mods)
@@ -110,11 +111,11 @@ def delta_module(schema1, schema2, modname):
     if module2 is None:
         create = modules.CreateModule(classname=modname)
 
-        create.add(AlterClassProperty(property='name', old_value=None,
-                                      new_value=modname))
+        create.add(AlterObjectProperty(property='name', old_value=None,
+                                       new_value=modname))
 
-        create.add(AlterClassProperty(property='imports', old_value=None,
-                                      new_value=tuple(module1.imports)))
+        create.add(AlterObjectProperty(property='imports', old_value=None,
+                                       new_value=tuple(module1.imports)))
         result.add(create)
 
     for type in schema1.global_dep_order:
@@ -130,7 +131,7 @@ def delta_module(schema1, schema2, modname):
             new = filter(lambda i: i.generic(), new)
             old = filter(lambda i: i.generic(), old)
 
-        adds_mods, dels = so.Class._delta_sets(
+        adds_mods, dels = so.Object._delta_sets(
             old, new, old_schema=schema2, new_schema=schema1)
 
         global_adds_mods.append(adds_mods)
@@ -444,11 +445,11 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     def _resolve_attr_value(self, value, fname, field, schema):
         ftype = field.type[0]
 
-        if isinstance(ftype, so.MetaClass):
+        if isinstance(ftype, so.ObjectMeta):
             value = self._resolve_type_ref(value, schema)
 
         elif issubclass(ftype, typed.AbstractTypedMapping):
-            if issubclass(ftype.valuetype, so.Class):
+            if issubclass(ftype.valuetype, so.Object):
                 vals = {}
 
                 for k, val in value.items():
@@ -458,7 +459,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
 
         elif issubclass(ftype, (typed.AbstractTypedSequence,
                                 typed.AbstractTypedSet)):
-            if issubclass(ftype.type, so.Class):
+            if issubclass(ftype.type, so.Object):
                 vals = []
 
                 for val in value:
@@ -474,7 +475,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         result = {}
         metaclass = self.get_schema_metaclass()
 
-        for op in self.get_subcommands(type=AlterClassProperty):
+        for op in self.get_subcommands(type=AlterObjectProperty):
             try:
                 field = metaclass.get_field(op.property)
             except KeyError:
@@ -486,14 +487,14 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         return result
 
     def get_attribute_value(self, attr_name):
-        for op in self.get_subcommands(type=AlterClassProperty):
+        for op in self.get_subcommands(type=AlterObjectProperty):
             if op.property == attr_name:
                 return op.new_value
         else:
             return None
 
     def discard_attribute(self, attr_name):
-        for op in self.get_subcommands(type=AlterClassProperty):
+        for op in self.get_subcommands(type=AlterObjectProperty):
             if op.property == attr_name:
                 self.discard(op)
                 return
@@ -546,7 +547,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
 
     def sort_subcommands_by_type(self):
         def _key(c):
-            if isinstance(c, CreateClass):
+            if isinstance(c, CreateObject):
                 return 0
             else:
                 return 2
@@ -628,7 +629,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         node = markup.elements.lang.TreeNode(name=str(self))
 
         for dd in self:
-            if isinstance(dd, AlterClassProperty):
+            if isinstance(dd, AlterObjectProperty):
                 diff = markup.elements.doc.ValueDiff(
                     before=repr(dd.old_value), after=repr(dd.new_value))
 
@@ -754,7 +755,7 @@ class DeltaUpgradeContext(CommandContext):
         self.new_format_ver = new_format_ver
 
 
-class ClassCommandMeta(type(Command)):
+class ObjectCommandMeta(type(Command)):
     _transparent_adapter_subclass = True
     _schema_metaclasses = {}
 
@@ -796,8 +797,8 @@ class ClassCommandMeta(type(Command)):
         return cmdcls
 
 
-class ClassCommand(Command, metaclass=ClassCommandMeta):
-    """Base class for all Class-related commands."""
+class ObjectCommand(Command, metaclass=ObjectCommandMeta):
+    """Base class for all Object-related commands."""
 
     @classmethod
     def get_schema_metaclass(cls):
@@ -808,14 +809,14 @@ class ClassCommand(Command, metaclass=ClassCommandMeta):
     def get_subcommands(self, *, type=None, metaclass=None):
         if metaclass is not None:
             return filter(
-                lambda i: (isinstance(i, ClassCommand) and
+                lambda i: (isinstance(i, ObjectCommand) and
                            issubclass(i.get_schema_metaclass(), metaclass)),
                 self)
         else:
             return super().get_subcommands(type=type)
 
 
-class Ghost(ClassCommand):
+class Ghost(ObjectCommand):
     """A special class to represent deleted delta commands."""
 
     def upgrade(self, context, format_ver, schema):
@@ -830,7 +831,7 @@ class Ghost(ClassCommand):
         pass
 
 
-class ClassCommandContext(CommandContextToken):
+class ObjectCommandContext(CommandContextToken):
     def __init__(self, op, scls=None):
         super().__init__(op)
         self.scls = scls
@@ -840,7 +841,7 @@ class ClassCommandContext(CommandContextToken):
             self.original_class = None
 
 
-class CreateClass(ClassCommand):
+class CreateObject(ObjectCommand):
     _delta_action = 'create'
 
     def _create_begin(self, schema, context):
@@ -864,26 +865,26 @@ class CreateClass(ClassCommand):
         return self.scls
 
 
-class AlterClass(ClassCommand):
+class AlterObject(ObjectCommand):
     _delta_action = 'alter'
 
 
-class DeleteClass(ClassCommand):
+class DeleteObject(ObjectCommand):
     _delta_action = 'delete'
 
 
-class AlterSpecialClassProperty(Command):
+class AlterSpecialObjectProperty(Command):
     astnode = qlast.SetSpecialField
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
-        return AlterClassProperty(
+        return AlterObjectProperty(
             property=astnode.name,
             new_value=astnode.value
         )
 
 
-class AlterClassProperty(Command):
+class AlterObjectProperty(Command):
     property = struct.Field(str)
     old_value = struct.Field(object, None)
     new_value = struct.Field(object, None)
@@ -934,12 +935,12 @@ class AlterClassProperty(Command):
                             subtypes = []
                             for st in v.args[1:]:
                                 stname = s_name.Name(v.args[1].value)
-                                subtypes.append(so.ClassRef(
+                                subtypes.append(so.ObjectRef(
                                     classname=stname))
 
                             v = ct.from_subtypes(subtypes)
                         else:
-                            v = so.ClassRef(
+                            v = so.ObjectRef(
                                 classname=s_name.Name(v.args[0].value))
                     elif isinstance(v, qlast.TypeCast):
                         v = v.expr.value
@@ -974,7 +975,7 @@ class AlterClassProperty(Command):
 
         if new_value_empty and not old_value_empty:
             op = qlast.DropAttributeValue(
-                name=qlast.ClassRef(module='', name=self.property))
+                name=qlast.ObjectRef(module='', name=self.property))
             return op
 
         if new_value_empty and old_value_empty:
@@ -1003,7 +1004,7 @@ class AlterClassProperty(Command):
 
         as_expr = isinstance(value, qlast.ExpressionText)
         op = qlast.CreateAttributeValue(
-            name=qlast.ClassRef(module='', name=self.property),
+            name=qlast.ObjectRef(module='', name=self.property),
             value=value, as_expr=as_expr)
         return op
 

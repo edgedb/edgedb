@@ -6,31 +6,31 @@
 ##
 
 
-concept Target0:
+type Target0:
     link name to str
 
 
-concept Target1 extending Target0:
+type Target1 extending Target0:
     link name to str
 
 
-concept Concept0:
+type ObjectType0:
     link target to Target0
 
 
-concept Concept1:
+type ObjectType1:
     link target to Target0
 
 
-concept Concept01 extending Concept0
+type ObjectType01 extending ObjectType0
 
 
-concept Concept2:
+type ObjectType2:
     required link target to Target0
 
 
-concept Concept3:
+type ObjectType3:
     required link target2 to Target0
 
 
-concept Concept23 extending Concept2, Concept3
+type ObjectType23 extending ObjectType2, ObjectType3

@@ -10,7 +10,7 @@ import typing
 
 from edgedb.lang.ir import ast as irast
 
-from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import concepts as s_objtypes
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
@@ -22,20 +22,20 @@ from edgedb.server.pgsql import types as pgtypes
 from . import context
 
 
-def range_for_material_concept(
-        concept: s_concepts.Concept,
+def range_for_material_objtype(
+        objtype: s_objtypes.ObjectType,
         path_id: irast.PathId, *,
         include_overlays: bool=True,
         env: context.Environment) -> pgast.BaseRangeVar:
 
     from . import pathctx  # XXX: fix cycle
 
-    concept = concept.material_type()
+    objtype = objtype.material_type()
 
-    table_schema_name, table_name = common.concept_name_to_table_name(
-        concept.name, catenate=False)
+    table_schema_name, table_name = common.objtype_name_to_table_name(
+        objtype.name, catenate=False)
 
-    if concept.name.module == 'schema':
+    if objtype.name.module == 'schema':
         # Redirect all queries to schema tables to edgedbss
         table_schema_name = 'edgedbss'
 
@@ -49,11 +49,11 @@ def range_for_material_concept(
     rvar = pgast.RangeVar(
         relation=relation,
         alias=pgast.Alias(
-            aliasname=env.aliases.get(concept.name.name)
+            aliasname=env.aliases.get(objtype.name.name)
         )
     )
 
-    overlays = env.rel_overlays.get(concept.name)
+    overlays = env.rel_overlays.get(objtype.name)
     if overlays and include_overlays:
         set_ops = []
 
@@ -85,31 +85,31 @@ def range_for_material_concept(
 
             set_ops.append((op, qry))
 
-        rvar = range_from_queryset(set_ops, concept, env=env)
+        rvar = range_from_queryset(set_ops, objtype, env=env)
 
     return rvar
 
 
-def range_for_concept(
-        concept: s_concepts.Concept,
+def range_for_objtype(
+        objtype: s_objtypes.ObjectType,
         path_id: irast.PathId, *,
         include_overlays: bool=True,
         env: context.Environment) -> pgast.BaseRangeVar:
     from . import pathctx  # XXX: fix cycle
 
-    if not concept.is_virtual:
-        rvar = range_for_material_concept(
-            concept, path_id, include_overlays=include_overlays, env=env)
+    if not objtype.is_virtual:
+        rvar = range_for_material_objtype(
+            objtype, path_id, include_overlays=include_overlays, env=env)
     else:
-        # Virtual concepts are represented as a UNION of selects
+        # Union object types are represented as a UNION of selects
         # from their children, which is, for most purposes, equivalent
         # to SELECTing from a parent table.
-        children = frozenset(concept.children(env.schema))
+        children = frozenset(objtype.children(env.schema))
 
         set_ops = []
 
         for child in children:
-            c_rvar = range_for_concept(
+            c_rvar = range_for_objtype(
                 child, path_id=path_id,
                 include_overlays=include_overlays, env=env)
 
@@ -122,7 +122,7 @@ def range_for_concept(
 
             set_ops.append(('union', qry))
 
-        rvar = range_from_queryset(set_ops, concept, env=env)
+        rvar = range_from_queryset(set_ops, objtype, env=env)
 
     rvar.query.is_distinct = True
     rvar.query.path_id = path_id
@@ -134,7 +134,7 @@ def range_for_set(
         ir_set: irast.Set, *,
         include_overlays: bool=True,
         env: context.Environment) -> pgast.BaseRangeVar:
-    rvar = range_for_concept(
+    rvar = range_for_objtype(
         ir_set.scls, ir_set.path_id,
         include_overlays=include_overlays, env=env)
 
@@ -256,7 +256,7 @@ def range_for_pointer(
 
 def range_from_queryset(
         set_ops: typing.Sequence[typing.Tuple[str, pgast.BaseRelation]],
-        scls: s_obj.Class, *,
+        scls: s_obj.Object, *,
         env: context.Environment) -> pgast.BaseRangeVar:
     if len(set_ops) > 1:
         # More than one class table, generate a UNION/EXCEPT clause.
@@ -361,7 +361,7 @@ def get_rvar_fieldref(
 
 
 def add_rel_overlay(
-        scls: s_concepts.Concept, op: str, rel: pgast.BaseRelation, *,
+        scls: s_objtypes.ObjectType, op: str, rel: pgast.BaseRelation, *,
         env: context.Environment) -> None:
     overlays = env.rel_overlays[scls.name]
     overlays.append((op, rel))

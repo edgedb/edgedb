@@ -44,46 +44,46 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
 
         """
 
-    def test_eschema_syntax_concept_01(self):
-        """concept User extending builtins::NamedObject"""
+    def test_eschema_syntax_type_01(self):
+        """type User extending builtins::NamedObject"""
 
-    def test_eschema_syntax_concept_02(self):
+    def test_eschema_syntax_type_02(self):
         """
-abstract concept OwnedObject:
+abstract type OwnedObject:
     required link owner to User
         """
 
-    def test_eschema_syntax_concept_03(self):
+    def test_eschema_syntax_type_03(self):
         """
-        abstract concept Text:
+        abstract type Text:
             required link body to str:
                 constraint maxlength (10000)
         """
 
-    def test_eschema_syntax_concept_04(self):
+    def test_eschema_syntax_type_04(self):
         """
-concept LogEntry extending OwnedObject, Text:
+type LogEntry extending OwnedObject, Text:
     required link spent_time to int
         """
 
-    def test_eschema_syntax_concept_05(self):
+    def test_eschema_syntax_type_05(self):
         """
-concept LogEntry extending OwnedObject, Text:
+type LogEntry extending OwnedObject, Text:
    link start_date := SELECT datetime::current_datetime()
         """
 
-    def test_eschema_syntax_concept_06(self):
+    def test_eschema_syntax_type_06(self):
         """
-concept LogEntry extending OwnedObject, Text:
+type LogEntry extending OwnedObject, Text:
     link start_date to datetime:
        default :=
             SELECT datetime::current_datetime()
        title := 'Start Date'
         """
 
-    def test_eschema_syntax_concept_07(self):
+    def test_eschema_syntax_type_07(self):
         """
-concept Issue extending `foo.bar`::NamedObject, OwnedObject, Text:
+type Issue extending `foo.bar`::NamedObject, OwnedObject, Text:
 
     required link number to issue_num_t:
         readonly := true
@@ -113,67 +113,67 @@ concept Issue extending `foo.bar`::NamedObject, OwnedObject, Text:
         cardinality := '**'
         """
 
-    def test_eschema_syntax_concept_08(self):
+    def test_eschema_syntax_type_08(self):
         """
-concept Foo:
+type Foo:
     link time_estimate to int:
        link property unit:
            default := 'minute'
        """
 
-    def test_eschema_syntax_concept_09(self):
+    def test_eschema_syntax_type_09(self):
         """
-concept LogEntry extending OwnedObject, Text:
+type LogEntry extending OwnedObject, Text:
     required link attachment to Post, File, User
         """
 
-    def test_eschema_syntax_concept_10(self):
+    def test_eschema_syntax_type_10(self):
         """
-concept `Log-Entry` extending `OwnedObject`, `Text`:
+type `Log-Entry` extending `OwnedObject`, `Text`:
     required link attachment to `Post`, `File`, `User`
 
 % OK %
 
-concept `Log-Entry` extending OwnedObject, Text:
+type `Log-Entry` extending OwnedObject, Text:
     required link attachment to Post, File, User
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
                   "Unexpected token.*COMMIT",
-                  line=2, col=9)
-    def test_eschema_syntax_concept_11(self):
+                  line=2, col=6)
+    def test_eschema_syntax_type_11(self):
         """
-concept Commit:
+type Commit:
     required link name to std::str
         """
 
-    def test_eschema_syntax_type_01(self):
+    def test_eschema_syntax_link_target_type_01(self):
         """
-concept User:
+type User:
     required link todo to array<str>
         """
 
-    def test_eschema_syntax_type_02(self):
+    def test_eschema_syntax_link_target_type_02(self):
         """
-concept User:
+type User:
     required link dict to map<str, str>
         """
 
-    def test_eschema_syntax_type_03(self):
+    def test_eschema_syntax_link_target_type_03(self):
         """
-concept User:
+type User:
     required link todo to tuple<str, int, float>
         """
 
-    def test_eschema_syntax_type_04(self):
+    def test_eschema_syntax_link_target_type_04(self):
         """
-concept User:
+type User:
     required link todo to tuple<str, map<str, array<str>>, array<float>>
         """
 
     def test_eschema_syntax_index_01(self):
         """
-concept LogEntry extending OwnedObject, Text:
+type LogEntry extending OwnedObject, Text:
     required link owner to User
     index test_index on (SELECT datetime::current_datetime())
         """
@@ -191,13 +191,13 @@ link foobar:
                   r'illegal definition', line=3, col=5)
     def test_eschema_syntax_index_03(self):
         """
-atom foobar:
+scalar type foobar:
     index prop on (self)
         """
 
     def test_eschema_syntax_ws_01(self):
         """
-concept LogEntry extending    OwnedObject,    Text:
+type LogEntry extending    OwnedObject,    Text:
 
     # irrelevant comment indent
             # irrelevant comment indent
@@ -220,7 +220,7 @@ concept LogEntry extending    OwnedObject,    Text:
 
     def test_eschema_syntax_ws_02(self):
         """
-        concept LogEntry extending OwnedObject, Text:
+        type LogEntry extending OwnedObject, Text:
             link start_date to datetime:
                default :=
                     SELECT datetime::current_datetime()
@@ -228,7 +228,7 @@ concept LogEntry extending    OwnedObject,    Text:
         """
 
     def test_eschema_syntax_ws_03(self):
-        """     concept LogEntry extending OwnedObject, Text:
+        """     type LogEntry extending OwnedObject, Text:
                     link start_date to datetime:
                        default :=
                             SELECT datetime::current_datetime()
@@ -237,7 +237,7 @@ concept LogEntry extending    OwnedObject,    Text:
 
     def test_eschema_syntax_ws_04(self):
         """
-        concept LogEntry extending (
+        type LogEntry extending (
                 OwnedObject,
                 Text):
             link start_date to datetime:
@@ -247,7 +247,7 @@ concept LogEntry extending    OwnedObject,    Text:
 
 % OK %
 
-        concept LogEntry extending OwnedObject, Text:
+        type LogEntry extending OwnedObject, Text:
             link start_date to datetime:
                default :=
                     SELECT datetime::current_datetime()
@@ -256,7 +256,7 @@ concept LogEntry extending    OwnedObject,    Text:
 
     def test_eschema_syntax_ws_05(self):
         """
-        concept LogEntry extending (
+        type LogEntry extending (
                 OwnedObject,
                 Text):
             link start_date to datetime:
@@ -271,7 +271,7 @@ concept LogEntry extending    OwnedObject,    Text:
                   line=5, col=28)
     def test_eschema_syntax_ws_06(self):
         r"""
-        concept LogEntry extending OwnedObject, Text:
+        type LogEntry extending OwnedObject, Text:
             link start_date to datetime:
                default :=
                     SELECT \
@@ -281,24 +281,24 @@ concept LogEntry extending    OwnedObject,    Text:
 
     def test_eschema_syntax_ws_07(self):
         """
-        atom newAtom extending str#:
+        scalar type newScalarType extending str#:
         """
 
     def test_eschema_syntax_ws_08(self):
         """
-        atom newAtom0 extending str#:
+        scalar type newScalarType0 extending str#:
 
-        atom newAtom1 extending str#:
+        scalar type newScalarType1 extending str#:
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
                   r"Unexpected token.*INDENT", line=7, col=13)
     def test_eschema_syntax_ws_09(self):
-        # There is no ":" at the end of the concept declaration, so
+        # There is no ":" at the end of the type declaration, so
         # the next declaration is supposed to be on the same level of
         # indentation.
         """
-        concept User extending std::Named
+        type User extending std::Named
         # NamedObject is a standard abstract base class,
         # that provides a name link.
 
@@ -308,32 +308,32 @@ concept LogEntry extending    OwnedObject,    Text:
             link email to str
         """
 
-    def test_eschema_syntax_atom_01(self):
+    def test_eschema_syntax_scalar_01(self):
         """
-atom issue_num_t extending builtins::sequence
+scalar type issue_num_t extending builtins::sequence
         """
 
-    def test_eschema_syntax_atom_02(self):
+    def test_eschema_syntax_scalar_02(self):
         """
-atom issue_num_t extending int:
+scalar type issue_num_t extending int:
     default := 42
         """
 
-    def test_eschema_syntax_atom_03(self):
+    def test_eschema_syntax_scalar_03(self):
         r"""
-atom basic extending int:
-    title := 'Basic Atom'
+scalar type basic extending int:
+    title := 'Basic ScalarType'
     default := 2
     delegated constraint min(0)
     constraint max(123456)
     constraint must_be_even
         """
 
-    def test_eschema_syntax_atom_04(self):
+    def test_eschema_syntax_scalar_04(self):
         """
-atom basic extending int:
+scalar type basic extending int:
 
-    title := 'Basic Atom'
+    title := 'Basic ScalarType'
     default := 2
 
     constraint min(0)
@@ -341,11 +341,11 @@ atom basic extending int:
     delegated constraint expr on (__subject__ % 2 = 0)
         """
 
-    def test_eschema_syntax_atom_05(self):
+    def test_eschema_syntax_scalar_05(self):
         """
-atom basic extending int:
+scalar type basic extending int:
 
-    title := 'Basic Atom'
+    title := 'Basic ScalarType'
     default := 2
 
     constraint expr:
@@ -355,11 +355,11 @@ atom basic extending int:
     constraint max(123456)
         """
 
-    def test_eschema_syntax_atom_06(self):
+    def test_eschema_syntax_scalar_06(self):
         """
-atom basic extending int:
+scalar type basic extending int:
 
-    title := 'Basic Atom'
+    title := 'Basic ScalarType'
     default := 2
 
     constraint min(0)
@@ -368,20 +368,20 @@ atom basic extending int:
         abc := __subject__ % 2 = 0
 
 
-atom inherits_default extending basic
+scalar type inherits_default extending basic
 
-abstract atom abstract_atom extending int
-        """
-
-    def test_eschema_syntax_atom_07(self):
-        """
-final atom none
+abstract scalar type abstract_scalar extending int
         """
 
-    def test_eschema_syntax_atom_08(self):
+    def test_eschema_syntax_scalar_07(self):
         """
-atom basic extending int:
-    title := 'Basic Atom'
+final scalar type none
+        """
+
+    def test_eschema_syntax_scalar_08(self):
+        """
+scalar type basic extending int:
+    title := 'Basic ScalarType'
     default := 2
     constraint special_constraint
         """
@@ -389,29 +389,29 @@ atom basic extending int:
     @tb.must_fail(error.SchemaSyntaxError,
                   r"Unexpected token.*:=",
                   line=3, col=35)
-    def test_eschema_syntax_atom_09(self):
+    def test_eschema_syntax_scalar_09(self):
         """
-atom special extending int:
+scalar type special extending int:
     constraint special_constraint := [42, 100, 9001]
         """
 
-    def test_eschema_syntax_atom_10(self):
+    def test_eschema_syntax_scalar_10(self):
         """
-atom special extending int:
-    title := 'Special Atom'
+scalar type special extending int:
+    title := 'Special ScalarType'
     constraint special_constraint:
         expr := __subject__ % 2 = 0
         """
 
-    def test_eschema_syntax_atom_11(self):
+    def test_eschema_syntax_scalar_11(self):
         """
-atom constraint_length extending str:
+scalar type constraint_length extending str:
      constraint maxlength(16+1, len(([1])))
         """
 
-    def test_eschema_syntax_atom_12(self):
+    def test_eschema_syntax_scalar_12(self):
         """
-atom constraint_length extending str:
+scalar type constraint_length extending str:
      constraint maxlength((16+(4*2))/((4)-1), len(([1])))
         """
 
@@ -475,7 +475,7 @@ constraint maxlength($param) extending max, length
                   line=3, col=5)
     def test_eschema_syntax_constraint_07(self):
         """
-atom special extending int:
+scalar type special extending int:
     abstract constraint length:
         subject := str::len(<str>__subject__)
         """
@@ -634,7 +634,7 @@ abstract link coollink
         """
         import foo
 
-        concept Bar extending foo::Foo:
+        type Bar extending foo::Foo:
             link text to str
         """
 
@@ -642,7 +642,7 @@ abstract link coollink
         """
         import mylib.util.foo
 
-        concept Bar extending `mylib.util.foo`::Foo:
+        type Bar extending `mylib.util.foo`::Foo:
             link text to str
         """
 
@@ -650,7 +650,7 @@ abstract link coollink
         """
         import foo as bar
 
-        concept Bar extending bar::Foo:
+        type Bar extending bar::Foo:
             link text to str
         """
 
@@ -658,7 +658,7 @@ abstract link coollink
         """
         import mylib.util.foo as bar
 
-        concept Bar extending bar::Foo:
+        type Bar extending bar::Foo:
             link text to str
         """
 
@@ -670,7 +670,7 @@ abstract link coollink
     otherlib.bar as bar,
     otherlib.ham as spam)
 
-        concept Bar extending foo::Foo, sfoo::Foo, bar::Bar, spam::Ham:
+        type Bar extending foo::Foo, sfoo::Foo, bar::Bar, spam::Ham:
             link text to str
         """
 
@@ -678,27 +678,27 @@ abstract link coollink
         """
         import action.event.foo
 
-        concept Bar extending `action.event.foo`::Foo:
+        type Bar extending `action.event.foo`::Foo:
             link text to str
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  r'Unexpected token.*DOT', line=4, col=36)
+                  r'Unexpected token.*DOT', line=4, col=33)
     def test_eschema_syntax_import_07(self):
         """
         import mylib.util.foo
 
-        concept Bar extending mylib.util.foo::Foo:
+        type Bar extending mylib.util.foo::Foo:
             link text to str
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  r'Unexpected token.*DOT', line=4, col=37)
+                  r'Unexpected token.*DOT', line=4, col=34)
     def test_eschema_syntax_import_08(self):
         """
         import action.event.foo
 
-        concept Bar extending action.event.foo::Foo:
+        type Bar extending action.event.foo::Foo:
             link text to str
         """
 

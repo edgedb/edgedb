@@ -1200,7 +1200,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_group_atom_01(self):
+    async def test_edgeql_group_scalar_01(self):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,

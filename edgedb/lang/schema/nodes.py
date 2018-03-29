@@ -17,7 +17,7 @@ from . import schema as s_schema
 from . import types as s_types
 
 
-class Node(inheriting.InheritingClass, s_types.Type):
+class Node(inheriting.InheritingObject, s_types.Type):
     def material_type(self):
         t = self
         while t.is_view():
@@ -49,7 +49,7 @@ class NodeCommandContext:
     pass
 
 
-class NodeCommand(named.NamedClassCommand):
+class NodeCommand(named.NamedObjectCommand):
     @classmethod
     def _maybe_get_view_expr(cls, astnode):
         for subcmd in astnode.commands:
@@ -116,7 +116,7 @@ class NodeCommand(named.NamedClassCommand):
                 rt.name = cmd.classname
 
             view_schema = cls._view_schema_from_ir(cmd.classname, ir, schema)
-            if isinstance(astnode, qlast.AlterConcept):
+            if isinstance(astnode, qlast.AlterObjectType):
                 prev = schema.get(cmd.classname)
                 prev_ir = cls._compile_view_expr(
                     prev.expr, cmd.classname, schema, context)
@@ -133,7 +133,7 @@ class NodeCommand(named.NamedClassCommand):
                 for op in list(derived_delta.get_subcommands()):
                     if op.classname == cmd.classname:
                         for subop in op.get_subcommands():
-                            if isinstance(subop, sd.AlterClassProperty):
+                            if isinstance(subop, sd.AlterObjectProperty):
                                 cmd.discard_attribute(subop.property)
                             cmd.add(subop)
 
@@ -141,7 +141,7 @@ class NodeCommand(named.NamedClassCommand):
 
             cmd.update(derived_delta.get_subcommands())
             cmd.discard_attribute('view_type')
-            cmd.add(sd.AlterClassProperty(
+            cmd.add(sd.AlterObjectProperty(
                 property='view_type', new_value=s_types.ViewType.Select))
 
         return cmd

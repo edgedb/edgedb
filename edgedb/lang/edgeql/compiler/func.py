@@ -76,7 +76,7 @@ def compile_FunctionCall(
 
 def check_function(
         func: s_func.Function,
-        arg_types: typing.Iterable[s_obj.Class]) -> bool:
+        arg_types: typing.Iterable[s_obj.Object]) -> bool:
     if not func.paramtypes:
         if not arg_types:
             # Match: `func` is a function without parameters

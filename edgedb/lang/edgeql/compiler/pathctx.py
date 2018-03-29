@@ -19,7 +19,7 @@ from edgedb.lang.edgeql import errors
 from . import context
 
 
-def get_path_id(scls: s_obj.Class, *,
+def get_path_id(scls: s_obj.Object, *,
                 ctx: context.CompilerContext) -> irast.PathId:
     return irast.PathId(scls, namespace=ctx.path_id_namespace)
 

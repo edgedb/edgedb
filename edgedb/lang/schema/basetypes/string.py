@@ -22,7 +22,7 @@ _add_map(Str, 'std::str')
 _add_map(str, 'std::str')
 
 
-class StdStr(s_types.SchemaClass, name='std::str'):
+class StdStr(s_types.SchemaObject, name='std::str'):
     pass
 
 

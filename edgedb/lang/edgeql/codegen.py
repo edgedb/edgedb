@@ -387,7 +387,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     self.write('.')
 
             if i == 0:
-                if isinstance(e, edgeql_ast.ClassRef):
+                if isinstance(e, edgeql_ast.ObjectRef):
                     self.visit(e)
                 elif isinstance(e, (edgeql_ast.Self,
                                     edgeql_ast.Subject)):
@@ -568,7 +568,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.index)
         self.write(']')
 
-    def visit_ClassRef(self, node):
+    def visit_ObjectRef(self, node):
         if node.module:
             self.write(ident_to_str(node.module))
             self.write('::')
@@ -834,22 +834,23 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_DropConcreteConstraint(self, node):
         self._visit_DropObject(node, 'CONSTRAINT')
 
-    def visit_CreateAtom(self, node):
+    def visit_CreateScalarType(self, node):
         keywords = []
         if node.is_abstract:
             keywords.append('ABSTRACT')
         if node.is_final:
             keywords.append('FINAL')
-        keywords.append('ATOM')
+        keywords.append('SCALAR')
+        keywords.append('TYPE')
 
         after_name = lambda: self._ddl_visit_bases(node)
         self._visit_CreateObject(node, *keywords, after_name=after_name)
 
-    def visit_AlterAtom(self, node):
-        self._visit_AlterObject(node, 'ATOM')
+    def visit_AlterScalarType(self, node):
+        self._visit_AlterObject(node, 'SCALAR TYPE')
 
-    def visit_DropAtom(self, node):
-        self._visit_DropObject(node, 'ATOM')
+    def visit_DropScalarType(self, node):
+        self._visit_DropObject(node, 'SCALAR TYPE')
 
     def visit_CreateLinkProperty(self, node):
         self._visit_CreateObject(node, 'LINK PROPERTY')
@@ -910,23 +911,23 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('ALTER TARGET ')
         self.visit_list(node.targets, newlines=False)
 
-    def visit_CreateConcept(self, node):
+    def visit_CreateObjectType(self, node):
         keywords = []
 
         if node.is_abstract:
             keywords.append('ABSTRACT')
         if node.is_final:
             keywords.append('FINAL')
-        keywords.append('CONCEPT')
+        keywords.append('TYPE')
 
         after_name = lambda: self._ddl_visit_bases(node)
         self._visit_CreateObject(node, *keywords, after_name=after_name)
 
-    def visit_AlterConcept(self, node):
-        self._visit_AlterObject(node, 'CONCEPT')
+    def visit_AlterObjectType(self, node):
+        self._visit_AlterObject(node, 'TYPE')
 
-    def visit_DropConcept(self, node):
-        self._visit_DropObject(node, 'CONCEPT')
+    def visit_DropObjectType(self, node):
+        self._visit_DropObject(node, 'TYPE')
 
     def visit_CreateIndex(self, node):
         after_name = lambda: self.write('(', node.expr, ')')

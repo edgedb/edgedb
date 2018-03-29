@@ -25,7 +25,7 @@ class FuncParamKindList(typed.TypedList, type=qlast.SetQualifier):
     pass
 
 
-class Function(so.NamedClass):
+class Function(so.NamedObject):
     _type = 'function'
 
     paramnames = so.Field(so.StringList, default=None, coerce=True,
@@ -42,7 +42,7 @@ class Function(so.NamedClass):
     varparam = so.Field(int, default=None, compcoef=0.4)
 
     paramdefaults = so.Field(expr.ExpressionList, default=None, coerce=True)
-    returntype = so.Field(so.Class, compcoef=0.2)
+    returntype = so.Field(so.Object, compcoef=0.2)
     aggregate = so.Field(bool, default=False, compcoef=0.4)
 
     code = so.Field(str, default=None, compcoef=0.4)
@@ -56,7 +56,7 @@ class Function(so.NamedClass):
     set_returning = so.Field(bool, default=False, compcoef=0.4)
 
 
-class FunctionCommandContext(sd.ClassCommandContext):
+class FunctionCommandContext(sd.ObjectCommandContext):
     pass
 
 
@@ -66,11 +66,11 @@ class FunctionCommandMixin:
         quals = []
         if paramtypes:
             for pt in paramtypes:
-                if isinstance(pt, so.ClassRef):
+                if isinstance(pt, so.ObjectRef):
                     quals.append(pt.classname)
                 elif isinstance(pt, s_types.Collection):
                     quals.append(pt.schema_name)
-                    if isinstance(pt.element_type, so.ClassRef):
+                    if isinstance(pt.element_type, so.ObjectRef):
                         quals.append(pt.element_type.classname)
                     else:
                         quals.append(pt.element_type.name)
@@ -79,7 +79,7 @@ class FunctionCommandMixin:
 
         return sn.Name(
             module=name.module,
-            name=named.NamedClass.get_specialized_name(name, *quals))
+            name=named.NamedObject.get_specialized_name(name, *quals))
 
     @classmethod
     def _parameters_from_ast(cls, astnode):
@@ -105,13 +105,13 @@ class FunctionCommandMixin:
         return paramnames, paramdefaults, paramtypes, paramkinds, variadic
 
 
-class FunctionCommand(named.NamedClassCommand, FunctionCommandMixin,
+class FunctionCommand(named.NamedObjectCommand, FunctionCommandMixin,
                       schema_metaclass=Function,
                       context_class=FunctionCommandContext):
     pass
 
 
-class CreateFunction(named.CreateNamedClass, FunctionCommand):
+class CreateFunction(named.CreateNamedObject, FunctionCommand):
     astnode = qlast.CreateFunction
 
     def get_struct_properties(self, schema):
@@ -141,65 +141,65 @@ class CreateFunction(named.CreateNamedClass, FunctionCommand):
             cls._parameters_from_ast(astnode)
 
         if variadic is not None:
-            cmd.add(sd.AlterClassProperty(
+            cmd.add(sd.AlterObjectProperty(
                 property='varparam',
                 new_value=variadic
             ))
 
-        cmd.add(sd.AlterClassProperty(
+        cmd.add(sd.AlterObjectProperty(
             property='paramnames',
             new_value=paramnames
         ))
 
-        cmd.add(sd.AlterClassProperty(
+        cmd.add(sd.AlterObjectProperty(
             property='paramtypes',
             new_value=paramtypes
         ))
 
-        cmd.add(sd.AlterClassProperty(
+        cmd.add(sd.AlterObjectProperty(
             property='paramkinds',
             new_value=paramkinds
         ))
 
-        cmd.add(sd.AlterClassProperty(
+        cmd.add(sd.AlterObjectProperty(
             property='paramdefaults',
             new_value=paramdefaults
         ))
 
-        cmd.add(sd.AlterClassProperty(
+        cmd.add(sd.AlterObjectProperty(
             property='returntype',
             new_value=utils.ast_to_typeref(astnode.returning)
         ))
 
-        cmd.add(sd.AlterClassProperty(
+        cmd.add(sd.AlterObjectProperty(
             property='aggregate',
             new_value=astnode.aggregate
         ))
 
-        cmd.add(sd.AlterClassProperty(
+        cmd.add(sd.AlterObjectProperty(
             property='set_returning',
             new_value=astnode.set_returning
         ))
 
         if astnode.initial_value is not None:
             iv = codegen.generate_source(astnode.initial_value)
-            cmd.add(sd.AlterClassProperty(
+            cmd.add(sd.AlterObjectProperty(
                 property='initial_value',
                 new_value=iv
             ))
 
         if astnode.code is not None:
-            cmd.add(sd.AlterClassProperty(
+            cmd.add(sd.AlterObjectProperty(
                 property='language',
                 new_value=astnode.code.language
             ))
             if astnode.code.from_name is not None:
-                cmd.add(sd.AlterClassProperty(
+                cmd.add(sd.AlterObjectProperty(
                     property='from_function',
                     new_value=astnode.code.from_name
                 ))
             else:
-                cmd.add(sd.AlterClassProperty(
+                cmd.add(sd.AlterObjectProperty(
                     property='code',
                     new_value=astnode.code.code
                 ))
@@ -207,15 +207,15 @@ class CreateFunction(named.CreateNamedClass, FunctionCommand):
         return cmd
 
 
-class RenameFunction(named.RenameNamedClass, FunctionCommand):
+class RenameFunction(named.RenameNamedObject, FunctionCommand):
     pass
 
 
-class AlterFunction(named.AlterNamedClass, FunctionCommand):
+class AlterFunction(named.AlterNamedObject, FunctionCommand):
     astnode = qlast.AlterFunction
 
 
-class DeleteFunction(named.DeleteNamedClass, FunctionCommand):
+class DeleteFunction(named.DeleteNamedObject, FunctionCommand):
     astnode = qlast.DropFunction
 
     @classmethod

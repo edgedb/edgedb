@@ -1,17 +1,17 @@
-abstract concept Text:
+abstract type Text:
     # This is an abstract object containing text.
     required link body to str:
         # Maximum length of text is 10000 characters.
         constraint maxlength(10000)
 
 
-abstract concept Named:
+abstract type Named:
     required link name to str
 
 
 # Dictionary is a NamedObject variant, that enforces
 # name uniqueness across all instances if its subclass.
-abstract concept Dictionary extending Named:
+abstract type Dictionary extending Named:
     required link name to str:
         delegated constraint unique
 
@@ -21,24 +21,24 @@ link todo:
         default := 42
 
 
-concept User extending Dictionary:
+type User extending Dictionary:
     link todo to Issue:
         mapping := '**'
 
 
-abstract concept Owned:
+abstract type Owned:
     # By default links are optional.
     required link owner to User:
         mapping := '*1'
 
 
-concept Status extending Dictionary
+type Status extending Dictionary
 
 
-concept Priority extending Dictionary
+type Priority extending Dictionary
 
 
-concept LogEntry extending Owned, Text:
+type LogEntry extending Owned, Text:
     # LogEntry is an Owned and a Text, so it
     # will have all of their links and attributes,
     # in particular, owner and text links.
@@ -47,17 +47,17 @@ concept LogEntry extending Owned, Text:
 
 # issue_num_t is defined as a concrete sequence type,
 # used to generate sequential issue numbers.
-atom issue_num_t extending std::sequence
+scalar type issue_num_t extending std::sequence
 
 
-concept Comment extending Text, Owned:
+type Comment extending Text, Owned:
     required link issue to Issue:
         mapping := '*1'
     link parent to Comment:
         mapping := '*1'
 
 
-concept Issue extending Named, Owned, Text:
+type Issue extending Named, Owned, Text:
     required link number to issue_num_t:
         readonly := true
         # The number values are automatically generated,
@@ -72,7 +72,7 @@ concept Issue extending Named, Owned, Text:
 
     link watchers to User:
         mapping := '**'
-        # The watchers link is mapped to User concept in
+        # The watchers link is mapped to User type in
         # many-to-many relation.  The default mapping is
         # *1 -- many-to-one.
 
@@ -92,19 +92,19 @@ concept Issue extending Named, Owned, Text:
     link related_to to Issue:
         mapping := '**'
 
-    # this is used to test virtual concepts
+    # this is used to test virtual types
     link references to File, URL, Publication:
         mapping := '**'
 
     link tags to array<str>
 
 
-concept File extending Named
+type File extending Named
 
 
-concept URL extending Named:
+type URL extending Named:
     required link address to str
 
 
-concept Publication:
+type Publication:
     required link title to str

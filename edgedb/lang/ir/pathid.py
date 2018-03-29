@@ -6,8 +6,8 @@
 ##
 
 
-from edgedb.lang.schema import atoms as s_atoms
-from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import atoms as s_scalars
+from edgedb.lang.schema import concepts as s_objtypes
 from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import types as s_types
@@ -304,16 +304,16 @@ class PathId:
             result._is_ptr = True
             return result
 
-    def is_concept_path(self):
+    def is_objtype_path(self):
         return (
             not self.is_ptr_path() and
-            isinstance(self._path[-1], s_concepts.Concept)
+            isinstance(self._path[-1], s_objtypes.ObjectType)
         )
 
-    def is_atom_path(self):
+    def is_scalar_path(self):
         return (
             not self.is_ptr_path() and
-            isinstance(self._path[-1], s_atoms.Atom)
+            isinstance(self._path[-1], s_scalars.ScalarType)
         )
 
     def is_ptr_path(self):

@@ -12,7 +12,7 @@ import typing
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
-from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import concepts as s_objtypes
 from edgedb.lang.schema import name as s_name
 from edgedb.lang.schema import types as s_types
 
@@ -173,7 +173,7 @@ def compile_GroupQuery(
         stmt = irast.GroupStmt()
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
-        c = s_concepts.Concept(
+        c = s_objtypes.ObjectType(
             name=s_name.Name(
                 module='__group__', name=ctx.aliases.get('Group')),
             bases=[ctx.schema.get('std::Object')]
@@ -262,9 +262,9 @@ def compile_UpdateQuery(
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
         subj_type = irutils.infer_type(subject, ictx.schema)
-        if not isinstance(subj_type, s_concepts.Concept):
+        if not isinstance(subj_type, s_objtypes.ObjectType):
             raise errors.EdgeQLError(
-                f'cannot update non-Concept objects',
+                f'cannot update non-ObjectType objects',
                 context=expr.subject.context
             )
 
@@ -301,9 +301,9 @@ def compile_DeleteQuery(
                 dispatch.compile(expr.subject, ctx=scopectx), ctx=scopectx)
 
         subj_type = irutils.infer_type(subject, ictx.schema)
-        if not isinstance(subj_type, s_concepts.Concept):
+        if not isinstance(subj_type, s_objtypes.ObjectType):
             raise errors.EdgeQLError(
-                f'cannot delete non-Concept objects',
+                f'cannot delete non-ObjectType objects',
                 context=expr.subject.context
             )
 
@@ -427,7 +427,7 @@ def compile_result_clause(
         if result_alias:
             stmtctx.declare_view(result_expr, alias=result_alias, ctx=sctx)
             result_expr = qlast.Path(
-                steps=[qlast.ClassRef(name=result_alias)]
+                steps=[qlast.ObjectRef(name=result_alias)]
             )
 
         expr = setgen.ensure_set(

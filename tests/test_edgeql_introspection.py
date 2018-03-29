@@ -22,14 +22,14 @@ class TestIntrospection(tb.QueryTestCase):
     TEARDOWN = """
     """
 
-    async def test_edgeql_introspection_concept_01(self):
+    async def test_edgeql_introspection_objtype_01(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
-            SELECT `Concept` {
+            SELECT `ObjectType` {
                 name
             }
-            FILTER `Concept`.name LIKE 'test::%'
-            ORDER BY `Concept`.name;
+            FILTER `ObjectType`.name LIKE 'test::%'
+            ORDER BY `ObjectType`.name;
         """, [
             [
                 {'name': 'test::Comment'},
@@ -48,23 +48,23 @@ class TestIntrospection(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_introspection_concept_02(self):
+    async def test_edgeql_introspection_objtype_02(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
-            SELECT `Concept` {
+            SELECT `ObjectType` {
                 name,
                 is_abstract,
                 links: {
                     name,
-                } ORDER BY `Concept`.links.name
+                } ORDER BY `ObjectType`.links.name
             }
-            FILTER `Concept`.name = 'test::User';
+            FILTER `ObjectType`.name = 'test::User';
         """, [
             [{
                 'name': 'test::User',
                 'is_abstract': False,
                 'links': [{
-                    'name': 'std::__class__',
+                    'name': 'std::__type__',
                 }, {
                     'name': 'std::id',
                 }, {
@@ -75,23 +75,23 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_introspection_concept_03(self):
+    async def test_edgeql_introspection_objtype_03(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
-            SELECT `Concept` {
+            SELECT `ObjectType` {
                 name,
                 is_abstract,
                 links: {
                     name,
-                } ORDER BY `Concept`.links.name
+                } ORDER BY `ObjectType`.links.name
             }
-            FILTER `Concept`.name = 'test::Owned';
+            FILTER `ObjectType`.name = 'test::Owned';
         """, [
             [{
                 'name': 'test::Owned',
                 'is_abstract': True,
                 'links': [{
-                    'name': 'std::__class__',
+                    'name': 'std::__type__',
                 }, {
                     'name': 'std::id',
                 }, {
@@ -100,10 +100,10 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_introspection_concept_04(self):
+    async def test_edgeql_introspection_objtype_04(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
-            SELECT `Concept` {
+            SELECT ObjectType {
                 name,
                 is_abstract,
                 links: {
@@ -111,20 +111,20 @@ class TestIntrospection(tb.QueryTestCase):
                     attributes: {
                         name,
                         @value
-                    } FILTER `Concept`.links.attributes.name = 'stdattrs::name'
-                      ORDER BY `Concept`.links.attributes.name
-                } ORDER BY `Concept`.links.name
+                    } FILTER .name = 'stdattrs::name'
+                      ORDER BY .name
+                } ORDER BY .name
             }
-            FILTER `Concept`.name = 'test::User';
+            FILTER ObjectType.name = 'test::User';
         """, [
             [{
                 'name': 'test::User',
                 'is_abstract': False,
                 'links': [{
-                    'name': 'std::__class__',
+                    'name': 'std::__type__',
                     'attributes': [{
                         'name': 'stdattrs::name',
-                        '@value': 'std::__class__'
+                        '@value': 'std::__type__'
                     }]
                 }, {
                     'name': 'std::id',
@@ -148,22 +148,22 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_introspection_concept_05(self):
+    async def test_edgeql_introspection_objtype_05(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
-            SELECT `Concept` {
+            SELECT `ObjectType` {
                 name,
                 is_abstract,
                 links: {
                     attributes: {
                         name,
                         @value
-                    } FILTER EXISTS `Concept`.links.attributes@value
-                      ORDER BY `Concept`.links.attributes.name
-                } FILTER `Concept`.links.name LIKE 'test::%'
-                  ORDER BY `Concept`.links.name
+                    } FILTER EXISTS `ObjectType`.links.attributes@value
+                      ORDER BY `ObjectType`.links.attributes.name
+                } FILTER `ObjectType`.links.name LIKE 'test::%'
+                  ORDER BY `ObjectType`.links.name
             }
-            FILTER `Concept`.name = 'test::User';
+            FILTER `ObjectType`.name = 'test::User';
         """, [
             [{
                 'name': 'test::User',
@@ -194,11 +194,11 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_introspection_concept_06(self):
+    async def test_edgeql_introspection_objtype_06(self):
         await self.assert_query_result(r"""
             # get all links, mappings and target names for Comment
             WITH MODULE schema
-            SELECT `Concept` {
+            SELECT `ObjectType` {
                 name,
                 links: {
                     name,
@@ -209,16 +209,16 @@ class TestIntrospection(tb.QueryTestCase):
                         name,
                         @value
                     } FILTER
-                        `Concept`.links.attributes.name LIKE '%mapping'
-                } ORDER BY `Concept`.links.name
+                        `ObjectType`.links.attributes.name LIKE '%mapping'
+                } ORDER BY `ObjectType`.links.name
             }
-            FILTER `Concept`.name LIKE '%Comment';
+            FILTER `ObjectType`.name LIKE '%Comment';
         """, [
             [{
                 'name': 'test::Comment',
                 'links': [{
-                    'name': 'std::__class__',
-                    'target': {'name': 'schema::Class'},
+                    'name': 'std::__type__',
+                    'target': {'name': 'schema::Type'},
                     'attributes': [{
                         'name': 'stdattrs::mapping',
                         '@value': '*1',
@@ -262,20 +262,20 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_introspection_concept_07(self):
+    async def test_edgeql_introspection_objtype_07(self):
         await self.assert_query_result(r"""
-            # get all user-defined concepts with at least one ** link
+            # get all user-defined object types with at least one ** link
             WITH MODULE schema
-            SELECT `Concept` {
+            SELECT `ObjectType` {
                 name,
             }
             FILTER
-                `Concept`.name LIKE 'test::%'
+                `ObjectType`.name LIKE 'test::%'
                 AND
-                `Concept`.links.attributes.name = 'stdattrs::mapping'
+                `ObjectType`.links.attributes.name = 'stdattrs::mapping'
                 AND
-                `Concept`.links.attributes@value = '**'
-            ORDER BY `Concept`.name;
+                `ObjectType`.links.attributes@value = '**'
+            ORDER BY `ObjectType`.name;
         """, [
             [{
                 'name': 'test::Issue',
@@ -284,52 +284,52 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
-    async def test_edgeql_introspection_concept_08(self):
+    async def test_edgeql_introspection_objtype_08(self):
         await self.assert_query_result(r"""
-            # get all user-defined concepts with at least one 1* link
+            # get all user-defined object types with at least one 1* link
             WITH MODULE schema
-            SELECT `Concept` {
+            SELECT `ObjectType` {
                 name,
             }
             FILTER
-                `Concept`.name LIKE 'test::%'
+                `ObjectType`.name LIKE 'test::%'
                 AND
-                `Concept`.links.attributes.name = 'stdattrs::mapping'
+                `ObjectType`.links.attributes.name = 'stdattrs::mapping'
                 AND
-                `Concept`.links.attributes@value = '1*'
-            ORDER BY `Concept`.name;
+                `ObjectType`.links.attributes@value = '1*'
+            ORDER BY `ObjectType`.name;
         """, [
             [{
                 'name': 'test::Issue',
             }]
         ])
 
-    async def test_edgeql_introspection_concept_09(self):
+    async def test_edgeql_introspection_objtype_09(self):
         await self.assert_query_result(r"""
-            # get all user-defined concepts with at least one 1* link
+            # get all user-defined object types with at least one 1* link
             WITH MODULE schema
-            SELECT `Concept` {
+            SELECT `ObjectType` {
                 name,
             }
             FILTER
-                `Concept`.name LIKE 'test::%'
+                `ObjectType`.name LIKE 'test::%'
                 AND
-                `Concept`.<target[IS `Link`].attributes.name =
+                `ObjectType`.<target[IS `Link`].attributes.name =
                     'stdattrs::mapping'
                 AND
-                `Concept`.<target[IS `Link`].attributes@value = '1*'
-            ORDER BY `Concept`.name;
+                `ObjectType`.<target[IS `Link`].attributes@value = '1*'
+            ORDER BY `ObjectType`.name;
         """, [
             [{
                 'name': 'test::LogEntry',
             }]
         ])
 
-    async def test_edgeql_introspection_concept_10(self):
+    async def test_edgeql_introspection_objtype_10(self):
         await self.assert_query_result(r"""
-            # get all user-defined concepts with at least one 1* link
+            # get all user-defined object types with at least one 1* link
             WITH MODULE schema
-            SELECT `Concept` {
+            SELECT `ObjectType` {
                 links: {
                     target: Array {
                         name,
@@ -448,13 +448,13 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_meta_01(self):
-        # make sure that ALL schema Classes are std::Objects
+        # make sure that ALL schema Objects are std::Objects
         res = await self.con.execute(r"""
             WITH MODULE schema
-            SELECT count(Class);
+            SELECT count(Object);
 
             WITH MODULE schema
-            SELECT Class IS std::Object;
+            SELECT Object IS std::Object;
         """)
 
         self.assert_data_shape(res[1], [True] * res[0][0])
@@ -462,11 +462,11 @@ class TestIntrospection(tb.QueryTestCase):
     async def test_edgeql_introspection_meta_02(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
-            SELECT Class {
+            SELECT Object {
                 name
             }
-            FILTER re_test(Class.name, '^test::\w+$')
-            ORDER BY Class.name;
+            FILTER re_test(Object.name, '^test::\w+$')
+            ORDER BY Object.name;
         """, [
             [
                 {'name': 'test::Comment'},
@@ -521,7 +521,7 @@ class TestIntrospection(tb.QueryTestCase):
     async def test_edgeql_introspection_meta_04(self):
         await self.assert_query_result(r'''
             WITH MODULE schema
-            SELECT Atom[IS Class] IS Atom LIMIT 1;
+            SELECT ScalarType[IS Object] IS ScalarType LIMIT 1;
         ''', [
             [True],
         ])
@@ -530,7 +530,7 @@ class TestIntrospection(tb.QueryTestCase):
     async def test_edgeql_introspection_meta_05(self):
         await self.assert_query_result(r'''
             WITH MODULE schema
-            SELECT Atom[IS Object] IS Atom LIMIT 1;
+            SELECT ScalarType[IS Object] IS ScalarType LIMIT 1;
         ''', [
             [True],
         ])
@@ -574,19 +574,19 @@ class TestIntrospection(tb.QueryTestCase):
         """)
 
         await self.assert_query_result(r"""
-            # Count the number of objects for each concept in module
+            # Count the number of objects for each object type in module
             # test. This is impossible to do without introspection for
-            # concepts that have 0 objects.
+            # object types that have 0 objects.
             WITH MODULE schema
-            SELECT Concept {
+            SELECT ObjectType {
                 name,
                 count := (
                     WITH CARDINALITY '1'
-                    SELECT std::count(Concept.<__class__)
+                    SELECT std::count(ObjectType.<__type__)
                 )
             }
-            FILTER Concept.name LIKE 'test::%'
-            ORDER BY Concept.name;
+            FILTER ObjectType.name LIKE 'test::%'
+            ORDER BY ObjectType.name;
         """, [
             [
                 {'name': 'test::Comment', 'count': 0},

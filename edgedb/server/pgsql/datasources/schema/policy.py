@@ -29,7 +29,7 @@ async def fetch_events(
         SELECT
                 e.id           AS id,
                 e.name         AS name,
-                (SELECT array_agg(name) FROM edgedb.NamedClass
+                (SELECT array_agg(name) FROM edgedb.NamedObject
                  WHERE id = any(e.bases)) AS bases,
                 e.title        AS title,
                 e.description  AS description

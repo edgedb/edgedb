@@ -6,49 +6,49 @@
 ##
 
 
-atom typeKind extending str:
+scalar type typeKind extending str:
      constraint enum(['SCALAR', 'OBJECT', 'INTERFACE', 'UNION', 'ENUM',
                       'INPUT_OBJECT', 'LIST', 'NON_NULL'])
 
-atom directiveLocation extending str:
+scalar type directiveLocation extending str:
      constraint enum(['QUERY', 'MUTATION', 'FIELD', 'FRAGMENT_DEFINITION',
                       'FRAGMENT_SPREAD', 'INLINE_FRAGMENT'])
 
-abstract concept Nameable:
+abstract type Nameable:
     link name to str
     link description to str
 
-abstract concept Named extending Nameable:
+abstract type Named extending Nameable:
     required link name to str
 
-abstract concept Deprecatable:
+abstract type Deprecatable:
     required link isDeprecated to bool
     link deprecationReason to str
 
-abstract concept Callable:
+abstract type Callable:
     link args to InputValue:
         mapping := '1*'
 
-abstract concept Typed:
+abstract type Typed:
     # not required for the moment
     link type to _Type:
         mapping := '*1'
 
-concept _Type extending Nameable:
+type _Type extending Nameable:
     required link kind to typeKind
 
-concept Field extending Named, Deprecatable, Callable
+type Field extending Named, Deprecatable, Callable
 
-concept InputValue extending Named:
+type InputValue extending Named:
     link defaultValue to str
 
-concept EnumValue extending Named, Deprecatable
+type EnumValue extending Named, Deprecatable
 
-concept Directive extending Named, Callable:
+type Directive extending Named, Callable:
     required link locations to directiveLocation:
         mapping := '1*'
 
-concept Schema extending Named:
+type Schema extending Named:
     # not required for the moment
     link types to _Type:
         mapping := '**'
@@ -59,6 +59,6 @@ concept Schema extending Named:
     link directives to Directive:
         mapping := '**'
 
-concept Query extending Named
+type Query extending Named
 
-concept Mutation extending Named
+type Mutation extending Named

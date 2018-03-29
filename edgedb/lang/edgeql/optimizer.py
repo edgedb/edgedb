@@ -227,7 +227,7 @@ class EdgeQLOptimizer:
                 for subtype in expr.subtypes:
                     self._process_expr(context, subtype)
 
-        elif isinstance(expr, qlast.ClassRef):
+        elif isinstance(expr, qlast.ObjectRef):
             expr.module = self._process_module_ref(context, expr.module)
 
         elif isinstance(expr, qlast.Shape):

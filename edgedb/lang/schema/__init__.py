@@ -9,7 +9,7 @@
 from .error import SchemaError, SchemaNameError  # NOQA
 from .name import SchemaName  # NOQA
 
-from .objects import Class, MetaClass  # NOQA
+from .objects import Object, ObjectMeta  # NOQA
 from .schema import Schema  # NOQA
 from .modules import Module  # NOQA
 

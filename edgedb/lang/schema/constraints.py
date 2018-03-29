@@ -36,7 +36,7 @@ class CumulativeBoolExpr(s_expr.ExpressionText):
         return result
 
 
-class Constraint(inheriting.InheritingClass):
+class Constraint(inheriting.InheritingObject):
     _type = 'constraint'
 
     expr = so.Field(s_expr.ExpressionText, default=None, compcoef=0.909,
@@ -52,7 +52,7 @@ class Constraint(inheriting.InheritingClass):
     finalexpr = so.Field(CumulativeBoolExpr, default=None,
                          coerce=True, derived=True, compcoef=0.909)
 
-    subject = so.Field(so.Class, default=None, private=True)
+    subject = so.Field(so.Object, default=None, private=True)
 
     paramtypes = so.Field(so.TypeList, default=None, coerce=True,
                           compcoef=0.857)
@@ -87,11 +87,11 @@ class Constraint(inheriting.InheritingClass):
 
     @classmethod
     def _dummy_subject(cls):
-        from . import atoms
+        from . import atoms as s_scalars
 
         # Point subject placeholder to a dummy pointer to make EdgeQL
         # pipeline happy.
-        return atoms.Atom(name=sn.Name('std::_subject_tgt'))
+        return s_scalars.ScalarType(name=sn.Name('std::_subject_tgt'))
 
     @classmethod
     def _normalize_constraint_expr(cls, schema, module_aliases, expr, subject,
@@ -198,7 +198,7 @@ class Constraint(inheriting.InheritingClass):
         return formatted
 
 
-class ConsistencySubject(referencing.ReferencingClass):
+class ConsistencySubject(referencing.ReferencingObject):
     constraints = referencing.RefDict(ref_cls=Constraint, compcoef=0.887)
 
     @classmethod
@@ -207,7 +207,7 @@ class ConsistencySubject(referencing.ReferencingClass):
 
         if any(c.is_abstract for c in item.constraints.values()):
             # Have abstract constraints, cannot go pure inheritance,
-            # must create a derived Class with materialized
+            # must create a derived Object with materialized
             # constraints.
             generic = item.bases[0]
             item = generic.derive(schema, source=source, add_to_schema=True,
@@ -281,16 +281,16 @@ class ConsistencySubjectCommandContext:
     pass
 
 
-class ConsistencySubjectCommand(referencing.ReferencingClassCommand):
+class ConsistencySubjectCommand(referencing.ReferencingObjectCommand):
     pass
 
 
-class ConstraintCommandContext(sd.ClassCommandContext):
+class ConstraintCommandContext(sd.ObjectCommandContext):
     pass
 
 
 class ConstraintCommand(
-        referencing.ReferencedInheritingClassCommand,
+        referencing.ReferencedInheritingObjectCommand,
         schema_metaclass=Constraint, context_class=ConstraintCommandContext,
         referrer_context_class=ConsistencySubjectCommandContext):
 
@@ -327,7 +327,7 @@ class ConstraintCommand(
 
 
 class CreateConstraint(ConstraintCommand,
-                       referencing.CreateReferencedInheritingClass,
+                       referencing.CreateReferencedInheritingObject,
                        s_func.FunctionCommandMixin):
 
     astnode = [qlast.CreateConcreteConstraint, qlast.CreateConstraint]
@@ -346,7 +346,7 @@ class CreateConstraint(ConstraintCommand,
                     edgeql.generate_source(args_ql, pretty=False))
 
                 cmd.add(
-                    sd.AlterClassProperty(
+                    sd.AlterObjectProperty(
                         property='args',
                         new_value=args_expr
                     )
@@ -379,7 +379,7 @@ class CreateConstraint(ConstraintCommand,
                         raise ql_errors.EdgeQLError(
                             'untyped parameter', context=astnode.context)
 
-                    cmd.add(sd.AlterClassProperty(
+                    cmd.add(sd.AlterObjectProperty(
                         property='paramtypes',
                         new_value=paramtypes
                     ))
@@ -389,7 +389,7 @@ class CreateConstraint(ConstraintCommand,
             subjectexpr = s_expr.ExpressionText(
                 edgeql.generate_source(astnode.subject, pretty=False))
 
-            cmd.add(sd.AlterClassProperty(
+            cmd.add(sd.AlterObjectProperty(
                 property='subjectexpr',
                 new_value=subjectexpr
             ))
@@ -409,11 +409,11 @@ class CreateConstraint(ConstraintCommand,
             super()._apply_field_ast(context, node, op)
 
 
-class RenameConstraint(ConstraintCommand, named.RenameNamedClass):
+class RenameConstraint(ConstraintCommand, named.RenameNamedObject):
     pass
 
 
-class AlterConstraint(ConstraintCommand, named.AlterNamedClass):
+class AlterConstraint(ConstraintCommand, named.AlterNamedObject):
     astnode = [qlast.AlterConcreteConstraint, qlast.AlterConstraint]
     referenced_astnode = qlast.AlterConcreteConstraint
 
@@ -426,14 +426,14 @@ class AlterConstraint(ConstraintCommand, named.AlterNamedClass):
             new_subject_name = None
 
             for op in subject_ctx.op.get_subcommands(
-                    type=named.RenameNamedClass):
+                    type=named.RenameNamedObject):
                 new_subject_name = op.new_name
 
             if new_subject_name is not None:
                 cmd.add(
-                    sd.AlterClassProperty(
+                    sd.AlterObjectProperty(
                         property='subject',
-                        new_value=so.ClassRef(
+                        new_value=so.ObjectRef(
                             classname=new_subject_name
                         )
                     )
@@ -445,7 +445,7 @@ class AlterConstraint(ConstraintCommand, named.AlterNamedClass):
 
             if new_name is not None:
                 cmd.add(
-                    sd.AlterClassProperty(
+                    sd.AlterObjectProperty(
                         property='name',
                         new_value=new_name
                     )
@@ -461,6 +461,6 @@ class AlterConstraint(ConstraintCommand, named.AlterNamedClass):
         super()._apply_field_ast(context, node, op)
 
 
-class DeleteConstraint(ConstraintCommand, named.DeleteNamedClass):
+class DeleteConstraint(ConstraintCommand, named.DeleteNamedObject):
     astnode = [qlast.DropConcreteConstraint, qlast.DropConstraint]
     referenced_astnode = qlast.DropConcreteConstraint

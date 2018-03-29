@@ -71,7 +71,7 @@ class ContextLevel(compiler.ContextLevel):
     or passed to the compiler programmatically.
     """
 
-    arguments: typing.Dict[str, so.Class]
+    arguments: typing.Dict[str, so.Object]
     """A mapping of statement parameter types passed to the compiler
     programmatically."""
 
@@ -95,10 +95,10 @@ class ContextLevel(compiler.ContextLevel):
     """A dictionary of views aliased in a statement body."""
 
     view_class_map: typing.Dict[s_nodes.Node, s_nodes.Node]  # noqa
-    """Class mapping (used by schema-level views)."""
+    """Object mapping (used by schema-level views)."""
 
     class_view_overrides: typing.Dict[s_name.SchemaName, s_nodes.Node]  # noqa
-    """Class mapping used by implicit view override in SELECT."""
+    """Object mapping used by implicit view override in SELECT."""
 
     clause: str
     """Statement clause the compiler is currently in."""
@@ -126,7 +126,7 @@ class ContextLevel(compiler.ContextLevel):
 
     class_shapes: typing.Dict[s_types.Type,                     # noqa
                               typing.List[s_pointers.Pointer]]  # noqa
-    """Class output or modification shapes."""
+    """Object output or modification shapes."""
 
     path_scope: irast.ScopeTreeNode
     """Path scope tree, with per-lexical-scope levels."""

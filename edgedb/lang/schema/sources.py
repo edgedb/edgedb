@@ -55,7 +55,7 @@ class Source(indexes.IndexableSubject):
     def get_children_common_pointers(self, schema):
         "Get a set of compatible pointers defined in children but not in self."
 
-        from . import atoms, concepts
+        from . import atoms as s_scalars, concepts as s_objtypes
 
         pointer_names = None
 
@@ -81,15 +81,15 @@ class Source(indexes.IndexableSubject):
                 if target is None:
                     target = ptr.target
                 else:
-                    if isinstance(ptr.target, atoms.Atom):
-                        if not isinstance(target, atoms.Atom):
+                    if isinstance(ptr.target, s_scalars.ScalarType):
+                        if not isinstance(target, s_scalars.ScalarType):
                             continue
                         elif target.issubclass(ptr.target):
                             target = ptr.target
                         elif not ptr.target.issubclass(target):
                             continue
                     else:
-                        if not isinstance(target, concepts.Concept):
+                        if not isinstance(target, s_objtypes.ObjectType):
                             continue
 
             ptr = ptr.derive_copy(schema, self, target)
@@ -125,11 +125,11 @@ class Source(indexes.IndexableSubject):
 
         @classmethod
         def getptr_inherited_from(cls, source, schema, base_ptr_class,
-                                  skip_atomic):
+                                  skip_scalar):
             result = set()
             for ptr in source.pointers.values():
                 if (ptr.issubclass(base_ptr_class) and
-                        (not skip_atomic or not ptr.atomic())):
+                        (not skip_scalar or not ptr.scalar())):
                     result.add(ptr)
                     break
             return result
@@ -184,9 +184,9 @@ class Source(indexes.IndexableSubject):
             if base_ptr_class:
                 root_class = schema.get(
                     self.get_pointer_class().get_default_base_name())
-                skip_atomic = base_ptr_class.name == root_class.name
+                skip_scalar = base_ptr_class.name == root_class.name
                 ptrs = resolver.getptr_inherited_from(
-                    self, schema, base_ptr_class, skip_atomic)
+                    self, schema, base_ptr_class, skip_scalar)
                 break
 
         return ptrs

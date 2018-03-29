@@ -90,7 +90,7 @@ class Identifier(Nonterm):
 
 class DotName(Nonterm):
     def reduce_Identifier(self, kid):
-        self.val = qlast.ClassRef(name=None, module=kid.val)
+        self.val = qlast.ObjectRef(name=None, module=kid.val)
 
     def reduce_DotName_DOT_Identifier(self, *kids):
         self.val = kids[0].val
@@ -99,7 +99,7 @@ class DotName(Nonterm):
 
 class ObjectName(Nonterm):
     def reduce_Identifier(self, kid):
-        self.val = qlast.ClassRef(name=kid.val)
+        self.val = qlast.ObjectRef(name=kid.val)
 
     def reduce_DotName_DOUBLECOLON_Identifier(self, *kids):
         self.val = kids[0].val
@@ -253,19 +253,19 @@ class DeclarationBase(Nonterm):
         self.val = kids[1].val
         self.val.abstract = True
 
-    def reduce_ABSTRACT_AtomDeclaration(self, *kids):
+    def reduce_ABSTRACT_ScalarTypeDeclaration(self, *kids):
         self.val = kids[1].val
         self.val.abstract = True
 
-    def reduce_ABSTRACT_ConceptDeclaration(self, *kids):
+    def reduce_ABSTRACT_ObjectTypeDeclaration(self, *kids):
         self.val = kids[1].val
         self.val.abstract = True
 
-    def reduce_FINAL_AtomDeclaration(self, *kids):
+    def reduce_FINAL_ScalarTypeDeclaration(self, *kids):
         self.val = kids[1].val
         self.val.final = True
 
-    def reduce_FINAL_ConceptDeclaration(self, *kids):
+    def reduce_FINAL_ObjectTypeDeclaration(self, *kids):
         self.val = kids[1].val
         self.val.final = True
 
@@ -278,13 +278,13 @@ class DeclarationBase(Nonterm):
             'only specialized constraints can be delegated',
             context=kids[0].context)
 
-    def reduce_AtomDeclaration(self, kid):
+    def reduce_ScalarTypeDeclaration(self, kid):
         self.val = kid.val
 
     def reduce_AttributeDeclaration(self, kid):
         self.val = kid.val
 
-    def reduce_ConceptDeclaration(self, kid):
+    def reduce_ObjectTypeDeclaration(self, kid):
         self.val = kid.val
 
     def reduce_ConstraintDeclaration(self, kid):
@@ -325,20 +325,20 @@ class ActionDeclaration(Nonterm):
             attributes=attributes)
 
 
-class AtomDeclaration(Nonterm):
-    def reduce_ATOM_NameAndExtends_NL(self, *kids):
-        np: NameWithParents = kids[1].val
-        self.val = esast.AtomDeclaration(
+class ScalarTypeDeclaration(Nonterm):
+    def reduce_SCALAR_TYPE_NameAndExtends_NL(self, *kids):
+        np: NameWithParents = kids[2].val
+        self.val = esast.ScalarTypeDeclaration(
             name=np.name,
             extends=np.extends)
 
-    def reduce_ATOM_NameAndExtends_DeclarationSpecsBlob(self, *kids):
-        np: NameWithParents = kids[1].val
+    def reduce_SCALAR_TYPE_NameAndExtends_DeclarationSpecsBlob(self, *kids):
+        np: NameWithParents = kids[2].val
 
         constraints = []
         attributes = []
 
-        for spec in kids[2].val:
+        for spec in kids[3].val:
             if isinstance(spec, esast.Constraint):
                 constraints.append(spec)
             elif isinstance(spec, esast.Attribute):
@@ -347,7 +347,7 @@ class AtomDeclaration(Nonterm):
                 raise SchemaSyntaxError(
                     'illegal definition', context=spec.context)
 
-        self.val = esast.AtomDeclaration(
+        self.val = esast.ScalarTypeDeclaration(
             name=np.name,
             extends=np.extends,
             attributes=attributes,
@@ -395,14 +395,14 @@ class OptRawExtending(Nonterm):
         self.val = None
 
 
-class ConceptDeclaration(Nonterm):
-    def reduce_CONCEPT_NameAndExtends_NL(self, *kids):
+class ObjectTypeDeclaration(Nonterm):
+    def reduce_TYPE_NameAndExtends_NL(self, *kids):
         np: NameWithParents = kids[1].val
-        self.val = esast.ConceptDeclaration(
+        self.val = esast.ObjectTypeDeclaration(
             name=np.name,
             extends=np.extends)
 
-    def reduce_CONCEPT_NameAndExtends_DeclarationSpecsBlob(
+    def reduce_TYPE_NameAndExtends_DeclarationSpecsBlob(
             self, *kids):
         np: NameWithParents = kids[1].val
 
@@ -424,7 +424,7 @@ class ConceptDeclaration(Nonterm):
                 raise SchemaSyntaxError(
                     'illegal definition', context=spec.context)
 
-        self.val = esast.ConceptDeclaration(
+        self.val = esast.ObjectTypeDeclaration(
             name=np.name,
             extends=np.extends,
             attributes=attributes,
@@ -652,7 +652,7 @@ class FunctionSpec(Nonterm):
 
     def reduce_INITIAL_VALUE_Value(self, *kids):
         self.val = esast.Attribute(
-            name=qlast.ClassRef(name='initial value'),
+            name=qlast.ObjectRef(name='initial value'),
             value=kids[2].val)
 
 

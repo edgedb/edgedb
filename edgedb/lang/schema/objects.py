@@ -67,7 +67,7 @@ class ComparisonContext:
 
         cls = obj.__class__
 
-        if not issubclass(cls, Class):
+        if not issubclass(cls, Object):
             raise ValueError('invalid argument type for comparison context')
 
         cls = cls.get_canonical_class()
@@ -88,7 +88,7 @@ class ComparisonContext:
         return ComparisonContextWrapper(self, (left, right))
 
 
-class MetaClass(struct.MixedStructMeta):
+class ObjectMeta(struct.MixedStructMeta):
     _schema_metaclasses = []
 
     def __new__(mcls, name, bases, dct, **kwargs):
@@ -102,7 +102,7 @@ class MetaClass(struct.MixedStructMeta):
         if cls._ref_type is None:
             name = cls.__name__ + '_ref'
             dct = {'__module__': cls.__module__}
-            cls._ref_type = cls.__class__(name, (ClassRef, cls), dct)
+            cls._ref_type = cls.__class__(name, (ObjectRef, cls), dct)
 
             for fn, f in list(cls._ref_type._fields.items()):
                 f = f.copy()
@@ -116,7 +116,7 @@ class MetaClass(struct.MixedStructMeta):
         return mcls._schema_metaclasses
 
 
-class Class(struct.MixedStruct, metaclass=MetaClass):
+class Object(struct.MixedStruct, metaclass=ObjectMeta):
     @classmethod
     def get_canonical_class(cls):
         return cls
@@ -170,7 +170,7 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
             self._attr_sources[name] = source
             setattr(self, name, value)
             if dctx is not None:
-                dctx.current().op.add(sd.AlterClassProperty(
+                dctx.current().op.add(sd.AlterObjectProperty(
                     property=name,
                     new_value=value,
                     source=source
@@ -183,7 +183,7 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
     def persistent_hash(self):
         """Compute object 'snapshot' hash.
 
-        This is an explicit method since Class objects are mutable.
+        This is an explicit method since schema Objects are mutable.
         The hash must be externally stable, i.e. stable across the runs
         and thus must not contain default object hashes (addresses),
         including that of None.
@@ -299,8 +299,8 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
             else:
                 command_args['classname'] = name
 
-            alter_class = sd.ClassCommandMeta.get_command_class_or_die(
-                sd.AlterClass, type(self))
+            alter_class = sd.ObjectCommandMeta.get_command_class_or_die(
+                sd.AlterObject, type(self))
             delta = alter_class(**command_args)
             self.delta_properties(delta, other, reverse, context=context)
 
@@ -312,8 +312,8 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
             else:
                 command_args['classname'] = name
 
-            create_class = sd.ClassCommandMeta.get_command_class_or_die(
-                sd.CreateClass, type(self))
+            create_class = sd.ObjectCommandMeta.get_command_class_or_die(
+                sd.CreateObject, type(self))
             delta = create_class(**command_args)
             self.delta_properties(delta, other, reverse, context=context)
 
@@ -325,8 +325,8 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
             else:
                 command_args['classname'] = name
 
-            delete_class = sd.ClassCommandMeta.get_command_class_or_die(
-                sd.DeleteClass, type(self))
+            delete_class = sd.ObjectCommandMeta.get_command_class_or_die(
+                sd.DeleteObject, type(self))
             delta = delete_class(**command_args)
 
         return delta
@@ -361,16 +361,16 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
         return result, frozenset(comparison_v)
 
     def _reduce_refs(self, value):
-        if isinstance(value, ClassDict):
+        if isinstance(value, ObjectDict):
             ref, val = self._reduce_obj_dict(value)
 
-        elif isinstance(value, (ClassList, TypeList)):
+        elif isinstance(value, (ObjectList, TypeList)):
             ref, val = self._reduce_obj_list(value)
 
-        elif isinstance(value, ClassSet):
+        elif isinstance(value, ObjectSet):
             ref, val = self._reduce_obj_set(value)
 
-        elif isinstance(value, Class):
+        elif isinstance(value, Object):
             ref, val = value._reduce_to_ref()
 
         else:
@@ -381,10 +381,10 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
     def _restore_refs(self, field_name, ref, resolve):
         ftype = self.__class__.get_field(field_name).type[0]
 
-        if issubclass(ftype, (ClassSet, ClassList)):
+        if issubclass(ftype, (ObjectSet, ObjectList)):
             val = ftype(r._resolve_ref(resolve) for r in ref)
 
-        elif issubclass(ftype, ClassDict):
+        elif issubclass(ftype, ObjectDict):
             result = []
 
             for k, r in ref.items():
@@ -392,7 +392,7 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
 
             val = ftype(result)
 
-        elif issubclass(ftype, Class):
+        elif issubclass(ftype, Object):
             val = ftype._resolve_ref(resolve)
 
         else:
@@ -414,14 +414,14 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
                 newattr, newattr_v = self._reduce_refs(getattr(new, f))
 
                 if oldattr_v != newattr_v:
-                    delta.add(sd.AlterClassProperty(
+                    delta.add(sd.AlterObjectProperty(
                         property=f, old_value=oldattr, new_value=newattr))
         elif not old:
             for f in fields:
                 value = getattr(new, f)
                 if value is not None:
                     value, _ = self._reduce_refs(value)
-                    delta.add(sd.AlterClassProperty(
+                    delta.add(sd.AlterObjectProperty(
                         property=f, old_value=None, new_value=value))
 
     @classmethod
@@ -540,13 +540,15 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
 
                 altered_idx = {p.classname: p for p in altered}
                 for p in altered:
-                    for op in p.get_subcommands(type=s_named.RenameNamedClass):
+                    for op in p.get_subcommands(
+                            type=s_named.RenameNamedObject):
                         altered_idx[op.new_name] = p
 
                 for p in altered:
                     old_class = old_schema.get(p.classname)
 
-                    for op in p.get_subcommands(type=s_named.RenameNamedClass):
+                    for op in p.get_subcommands(
+                            type=s_named.RenameNamedObject):
                         new_name = op.new_name
                         break
                     else:
@@ -621,14 +623,14 @@ class Class(struct.MixedStruct, metaclass=MetaClass):
         fields = self.setdefaults()
         if dctx is not None and fields:
             for field in fields:
-                dctx.current().op.add(sd.AlterClassProperty(
+                dctx.current().op.add(sd.AlterObjectProperty(
                     property=field,
                     new_value=getattr(self, field),
                     source='default'
                 ))
 
 
-class NamedClass(Class):
+class NamedObject(Object):
     name = Field(sn.Name, private=True, compcoef=0.670)
     title = Field(nlang.WordCombination,
                   default=None, compcoef=0.909, coerce=True)
@@ -686,8 +688,8 @@ class NamedClass(Class):
         from . import delta as sd
         from . import named
 
-        rename_class = sd.ClassCommandMeta.get_command_class_or_die(
-            named.RenameNamedClass, type(self))
+        rename_class = sd.ObjectCommandMeta.get_command_class_or_die(
+            named.RenameNamedObject, type(self))
 
         return rename_class(classname=self.name,
                             new_name=new_name,
@@ -716,10 +718,10 @@ class NamedClass(Class):
     __str__ = __repr__
 
     def _reduce_to_ref(self):
-        return ClassRef(classname=self.name), self.name
+        return ObjectRef(classname=self.name), self.name
 
 
-class ClassRef(Class):
+class ObjectRef(Object):
     classname = Field(sn.SchemaName, coerce=True)
 
     @property
@@ -727,7 +729,7 @@ class ClassRef(Class):
         return self.classname
 
     def __repr__(self):
-        return '<ClassRef "{}" at 0x{:x}>'.format(self.classname, id(self))
+        return '<ObjectRef "{}" at 0x{:x}>'.format(self.classname, id(self))
 
     __str__ = __repr__
 
@@ -738,12 +740,12 @@ class ClassRef(Class):
         return resolve(self.classname)
 
 
-class ClassCollection:
+class ObjectCollection:
     pass
 
 
-class ClassDict(typed.OrderedTypedDict, ClassCollection,
-                keytype=str, valuetype=Class):
+class ObjectDict(typed.OrderedTypedDict, ObjectCollection,
+                 keytype=str, valuetype=Object):
 
     def persistent_hash(self):
         vals = []
@@ -777,7 +779,7 @@ class ClassDict(typed.OrderedTypedDict, ClassCollection,
         return basecoef + (1 - basecoef) * compcoef
 
 
-class ClassSet(typed.TypedSet, ClassCollection, type=Class):
+class ObjectSet(typed.TypedSet, ObjectCollection, type=Object):
     @classmethod
     def merge_values(cls, ours, theirs, schema):
         if ours is None and theirs is not None:
@@ -824,11 +826,11 @@ class ClassSet(typed.TypedSet, ClassCollection, type=Class):
         return self.__class__(self)
 
 
-class ClassList(typed.TypedList, ClassCollection, type=Class):
+class ObjectList(typed.TypedList, ObjectCollection, type=Object):
     pass
 
 
-class TypeList(typed.TypedList, ClassCollection, type=Class):
+class TypeList(typed.TypedList, ObjectCollection, type=Object):
     pass
 
 

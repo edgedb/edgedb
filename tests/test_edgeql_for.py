@@ -206,7 +206,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
     async def test_edgeql_for_filter_03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            # get a combination of names from different concepts
+            # get a combination of names from different object types
             FOR X IN {Card.name, User.name}
             UNION X
             # this FILTER should have no impact

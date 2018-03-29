@@ -143,7 +143,7 @@ class NamespaceAliasDecl(Clause):
     alias: str
 
 
-class ClassRef(Expr):
+class ObjectRef(Expr):
     name: str
     module: str
 
@@ -214,7 +214,7 @@ class UnaryOp(Expr):
 
 
 class Ptr(Base):
-    ptr: ClassRef
+    ptr: ObjectRef
     direction: str
     target: Expr
     type: str
@@ -226,7 +226,7 @@ class _TypeName(Expr):
 
 class TypeName(_TypeName):
     name: str  # name is used for types in named tuples
-    maintype: ClassRef
+    maintype: ObjectRef
     subtypes: typing.List[_TypeName]
     dimensions: typing.Union[typing.List[int], None]
 
@@ -270,7 +270,7 @@ class ExistsPredicate(Expr):
 
 
 class TupleElement(Base):
-    name: ClassRef
+    name: ObjectRef
     val: Expr
 
 
@@ -432,21 +432,21 @@ class ExpressionText(DDL):
 
 
 class AlterAddInherit(DDL):
-    bases: typing.List[ClassRef]
+    bases: typing.List[ObjectRef]
     position: Position
 
 
 class AlterDropInherit(DDL):
-    bases: typing.List[ClassRef]
+    bases: typing.List[ObjectRef]
 
 
 class AlterTarget(DDL):
-    targets: typing.List[ClassRef]
+    targets: typing.List[ObjectRef]
 
 
 class ObjectDDL(CompositeDDL):
     namespaces: list  # XXX: is it even used?
-    name: ClassRef
+    name: ObjectRef
     commands: typing.List[DDL]
 
 
@@ -463,13 +463,13 @@ class DropObject(ObjectDDL):
 
 
 class CreateExtendingObject(CreateObject):
-    bases: typing.List[ClassRef]
+    bases: typing.List[ObjectRef]
     is_abstract: bool = False
     is_final: bool = False
 
 
 class Rename(DDL):
-    new_name: ClassRef
+    new_name: ObjectRef
 
 
 class Delta:
@@ -477,7 +477,7 @@ class Delta:
 
 
 class CreateDelta(CreateObject, Delta):
-    parents: typing.List[ClassRef]
+    parents: typing.List[ObjectRef]
     language: str
     target: object
 
@@ -554,15 +554,15 @@ class DropAttribute(DropObject):
     pass
 
 
-class CreateAtom(CreateExtendingObject):
+class CreateScalarType(CreateExtendingObject):
     pass
 
 
-class AlterAtom(AlterObject):
+class AlterScalarType(AlterObject):
     pass
 
 
-class DropAtom(DropObject):
+class DropScalarType(DropObject):
     pass
 
 
@@ -597,15 +597,15 @@ class SetSpecialField(Base):
     as_expr: bool = False
 
 
-class CreateConcept(CreateExtendingObject):
+class CreateObjectType(CreateExtendingObject):
     pass
 
 
-class AlterConcept(AlterObject):
+class AlterObjectType(AlterObject):
     pass
 
 
-class DropConcept(DropObject):
+class DropObjectType(DropObject):
     pass
 
 
@@ -674,17 +674,17 @@ class DropConcreteConstraint(DropObject):
 
 
 class CreateLocalPolicy(CompositeDDL):
-    event: ClassRef
-    actions: typing.List[ClassRef]
+    event: ObjectRef
+    actions: typing.List[ObjectRef]
 
 
 class AlterLocalPolicy(CompositeDDL):
-    event: ClassRef
-    actions: typing.List[ClassRef]
+    event: ObjectRef
+    actions: typing.List[ObjectRef]
 
 
 class DropLocalPolicy(CompositeDDL):
-    event: ClassRef
+    event: ObjectRef
 
 
 class CreateIndex(CreateObject):

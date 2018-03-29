@@ -87,10 +87,10 @@ def get_path_var(
                 if (src_path_id, 'identity') in rel.path_namespace:
                     return rel.path_namespace[src_path_id, 'identity']
 
-            # Default concept value is its identity.
+            # Default object value is its identity.
             # NOTE: the value may be an explicit tuple, if the
             #       set had an explicit shape.
-            if path_id.is_concept_path() and aspect == 'value':
+            if path_id.is_objtype_path() and aspect == 'value':
                 if (path_id, 'identity') in rel.path_namespace:
                     return rel.path_namespace[path_id, 'identity']
 
@@ -138,7 +138,7 @@ def get_path_var(
 
     if ptrcls is None:
         if len(path_id) == 1:
-            # This is an atomic set derived from an expression.
+            # This is an scalar set derived from an expression.
             src_path_id = path_id
 
     elif isinstance(ptrcls, s_lprops.LinkProperty):
@@ -147,13 +147,13 @@ def get_path_var(
             # step back to link source rvar.
             src_path_id = path_id[:-4]
 
-    elif ptr_info.table_type != 'concept' and not is_inbound:
+    elif ptr_info.table_type != 'ObjectType' and not is_inbound:
         # Ref is in the mapping rvar.
         src_path_id = path_id.ptr_path()
 
     rel_rvar = maybe_get_path_rvar(rel, path_id, aspect=aspect, env=env)
     if rel_rvar is None:
-        if src_path_id.is_concept_path() and aspect == 'identity':
+        if src_path_id.is_objtype_path() and aspect == 'identity':
             src_aspect = 'value'
         else:
             src_aspect = aspect
@@ -174,7 +174,7 @@ def get_path_var(
     drilldown_path_id = map_path_id(path_id, rel.view_path_id_map)
 
     if source_rel in env.root_rels and len(source_rel.path_scope) == 1:
-        if not drilldown_path_id.is_concept_path() and ptrcls is not None:
+        if not drilldown_path_id.is_objtype_path() and ptrcls is not None:
             outer_path_id = drilldown_path_id.src_path()
         else:
             outer_path_id = drilldown_path_id
@@ -463,13 +463,13 @@ def _get_rel_path_output(
         ptr_info: typing.Optional[pg_types.PointerStorageInfo]=None,
         env: context.Environment) -> pgast.OutputVar:
 
-    if path_id.is_concept_path():
+    if path_id.is_objtype_path():
         if aspect == 'value':
             aspect = 'identity'
 
         if aspect != 'identity':
             raise LookupError(
-                f'invalid request for non-atomic path {path_id} {aspect}')
+                f'invalid request for non-scalar path {path_id} {aspect}')
 
         if (path_id == rel.path_id or
                 (rel.path_id.is_type_indirection_path() and
@@ -478,7 +478,7 @@ def _get_rel_path_output(
     else:
         if aspect == 'identity':
             raise LookupError(
-                f'invalid request for atomic path {path_id} {aspect}')
+                f'invalid request for scalar path {path_id} {aspect}')
 
     if path_id.rptr_dir() != s_pointers.PointerDirection.Outbound:
         raise LookupError(

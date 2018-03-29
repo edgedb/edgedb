@@ -17,20 +17,20 @@ from edgedb.lang import _testbase as tb
 
 class TestEdgeQLUtils(tb.BaseSyntaxTest):
     SCHEMA = r"""
-        abstract concept NamedObject:
+        abstract type NamedObject:
             required link name to str
 
-        concept UserGroup extending NamedObject:
+        type UserGroup extending NamedObject:
             link settings to Setting:
                 mapping := '1*'
 
-        concept Setting extending NamedObject:
+        type Setting extending NamedObject:
             required link value to str
 
-        concept Profile extending NamedObject:
+        type Profile extending NamedObject:
             required link value to str
 
-        concept User extending NamedObject:
+        type User extending NamedObject:
             required link active to bool
             link groups to UserGroup:
                 mapping := '**'

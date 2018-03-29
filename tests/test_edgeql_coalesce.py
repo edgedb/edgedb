@@ -23,7 +23,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'issues_coalesce_setup.eql')
 
-    async def test_edgeql_coalesce_atom_01(self):
+    async def test_edgeql_coalesce_scalar_01(self):
         await self.assert_sorted_query_result(r'''
             WITH MODULE test
             SELECT Issue {
@@ -40,7 +40,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_coalesce_atom_02(self):
+    async def test_edgeql_coalesce_scalar_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT (Issue.number, Issue.time_estimate ?? -1)
@@ -56,7 +56,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_coalesce_atom_03(self):
+    async def test_edgeql_coalesce_scalar_03(self):
         await self.assert_sorted_query_result(r'''
             WITH MODULE test
             # Only values present in the graph will be selected.
@@ -71,7 +71,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_coalesce_atom_04(self):
+    async def test_edgeql_coalesce_scalar_04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             # No open issue has a time_estimate, so the first argument
@@ -87,7 +87,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_coalesce_atom_05(self):
+    async def test_edgeql_coalesce_scalar_05(self):
         await self.assert_query_result(r'''
             WITH
                 MODULE test,
@@ -104,7 +104,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_coalesce_atom_06(self):
+    async def test_edgeql_coalesce_scalar_06(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError, r'inconsistent path'):
             await self.con.execute(r"""
@@ -115,7 +115,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                 FILTER NOT EXISTS Issue.time_estimate;
             """)
 
-    async def test_edgeql_coalesce_atom_07(self):
+    async def test_edgeql_coalesce_scalar_07(self):
         await self.assert_sorted_query_result(r'''
             WITH MODULE test
             SELECT Issue {
@@ -133,7 +133,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_coalesce_atom_08(self):
+    async def test_edgeql_coalesce_scalar_08(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT (Issue.number, Issue.time_estimate ?= 60)
@@ -149,7 +149,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_coalesce_atom_09(self):
+    async def test_edgeql_coalesce_scalar_09(self):
         await self.assert_sorted_query_result(r'''
             # Only values present in the graph will be selected.
             WITH MODULE test
@@ -165,7 +165,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_coalesce_atom_10(self):
+    async def test_edgeql_coalesce_scalar_10(self):
         await self.assert_query_result(r'''
             # No open issue has a time_estimate, so the first argument
             # to ?= is an empty set.
@@ -180,7 +180,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_coalesce_atom_11(self):
+    async def test_edgeql_coalesce_scalar_11(self):
         await self.assert_query_result(r'''
             # No open issue has a time_estimate, so the first argument
             # to ?!= is an empty set.
@@ -203,7 +203,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_coalesce_atom_12(self):
+    async def test_edgeql_coalesce_scalar_12(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue {

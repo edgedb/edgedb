@@ -10,7 +10,7 @@ import base64
 
 from edgedb.lang.common import persistent_hash
 
-from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import concepts as s_objtypes
 from edgedb.lang.schema import links as s_links
 
 from edgedb.server.pgsql.parser import keywords as pg_keywords
@@ -96,20 +96,20 @@ def convert_name(name, suffix, catenate=True, prefix='edgedb_'):
         return schema, name
 
 
-def atom_name_to_domain_name(name, catenate=True, prefix='edgedb_'):
+def scalar_name_to_domain_name(name, catenate=True, prefix='edgedb_'):
     return convert_name(name, 'domain', catenate)
 
 
-def atom_name_to_sequence_name(name, catenate=True, prefix='edgedb_'):
+def scalar_name_to_sequence_name(name, catenate=True, prefix='edgedb_'):
     return convert_name(name, 'sequence', catenate)
 
 
-def concept_name_to_table_name(name, catenate=True, prefix='edgedb_'):
+def objtype_name_to_table_name(name, catenate=True, prefix='edgedb_'):
     return convert_name(name, 'data', catenate)
 
 
-def concept_name_to_record_name(name, catenate=False, prefix='edgedb_'):
-    return convert_name(name, 'concept_record', catenate)
+def objtype_name_to_record_name(name, catenate=False, prefix='edgedb_'):
+    return convert_name(name, 'objtype_record', catenate)
 
 
 def link_name_to_table_name(name, catenate=True):
@@ -117,8 +117,8 @@ def link_name_to_table_name(name, catenate=True):
 
 
 def get_table_name(obj, catenate=True):
-    if isinstance(obj, s_concepts.Concept):
-        return concept_name_to_table_name(obj.name, catenate)
+    if isinstance(obj, s_objtypes.ObjectType):
+        return objtype_name_to_table_name(obj.name, catenate)
     elif isinstance(obj, s_links.Link):
         return link_name_to_table_name(obj.name, catenate)
     else:

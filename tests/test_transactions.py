@@ -17,7 +17,7 @@ class TestTransactions(tb.QueryTestCase):
             SET readonly := False;
         };
 
-        CREATE CONCEPT test::TransactionTest EXTENDING std::Object {
+        CREATE TYPE test::TransactionTest EXTENDING std::Object {
             CREATE LINK test::name TO std::str {
                 SET mapping := '11';
                 SET readonly := False;

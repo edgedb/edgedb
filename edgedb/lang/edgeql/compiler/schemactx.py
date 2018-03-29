@@ -25,12 +25,12 @@ from . import context
 
 
 def get_schema_object(
-        name: typing.Union[str, qlast.ClassRef],
+        name: typing.Union[str, qlast.ObjectRef],
         module: typing.Optional[str]=None, *,
         ctx: context.ContextLevel,
-        srcctx: typing.Optional[parsing.ParserContext] = None) -> s_obj.Class:
+        srcctx: typing.Optional[parsing.ParserContext] = None) -> s_obj.Object:
 
-    if isinstance(name, qlast.ClassRef):
+    if isinstance(name, qlast.ObjectRef):
         if srcctx is None:
             srcctx = name.context
         module = name.module
@@ -67,7 +67,7 @@ def resolve_schema_name(
 
 
 def derive_view(
-        scls: s_obj.Class, source: typing.Optional[s_nodes.Node]=None,
+        scls: s_obj.Object, source: typing.Optional[s_nodes.Node]=None,
         target: typing.Optional[s_nodes.Node]=None,
         *qualifiers,
         derived_name: typing.Optional[sn.SchemaName]=None,
@@ -75,7 +75,7 @@ def derive_view(
         is_insert: bool=False,
         is_update: bool=False,
         add_to_schema: bool=True,
-        ctx: context.ContextLevel) -> s_obj.Class:
+        ctx: context.ContextLevel) -> s_obj.Object:
     if source is None:
         source = scls
 

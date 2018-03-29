@@ -21,7 +21,7 @@ _add_map(Bytes, 'std::bytes')
 _add_map(bytes, 'std::bytes')
 
 
-class StdBytes(s_types.SchemaClass, name='std::bytes'):
+class StdBytes(s_types.SchemaObject, name='std::bytes'):
     pass
 
 

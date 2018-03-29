@@ -21,10 +21,10 @@ from edgedb.server.pgsql import metaschema
 from edgedb.server.pgsql.dbops import catalogs as pg_catalogs
 
 
-class SchemaDBObjectMeta(adapter.Adapter, type(s_obj.Class)):
+class SchemaDBObjectMeta(adapter.Adapter, type(s_obj.Object)):
     def __init__(cls, name, bases, dct, *, adapts=None):
         adapter.Adapter.__init__(cls, name, bases, dct, adapts=adapts)
-        type(s_obj.Class).__init__(cls, name, bases, dct)
+        type(s_obj.Object).__init__(cls, name, bases, dct)
 
 
 class SchemaDBObject(metaclass=SchemaDBObjectMeta):
@@ -35,7 +35,7 @@ class SchemaDBObject(metaclass=SchemaDBObjectMeta):
     @classmethod
     def get_canonical_class(cls):
         for base in cls.__bases__:
-            if issubclass(base, s_obj.Class) and not issubclass(
+            if issubclass(base, s_obj.Object) and not issubclass(
                     base, SchemaDBObject):
                 return base
 
@@ -715,7 +715,7 @@ class MappingIndex(dbops.Index):
                 pred=predicate)
 
 
-class MangleExprClassRefs(dbops.Command):
+class MangleExprObjectRefs(dbops.Command):
     def __init__(self, *, scls, field, expr,
                  conditions=None, neg_conditions=None, priority=0):
         super().__init__(

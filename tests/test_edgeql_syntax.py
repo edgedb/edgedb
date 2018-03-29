@@ -666,18 +666,18 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*DOT", line=3, col=22)
+                  "Unexpected token.*DOT", line=3, col=21)
     def test_edgeql_syntax_shape_11(self):
         """
         SELECT Foo {
-            __class__.name
+            __type__.name
         };
         """
 
     def test_edgeql_syntax_shape_12(self):
         """
         SELECT Foo {
-            __class__: {
+            __type__: {
                 name,
             }
         };
@@ -686,7 +686,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_shape_13(self):
         """
         SELECT Foo {
-            __class__: {
+            __type__: {
                 name,
                 description,
             }
@@ -1115,7 +1115,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_path_06(self):
         """
-        SELECT Foo.bar[IS To];  # unreserved keyword as concept name
+        SELECT Foo.bar[IS To];  # unreserved keyword as type name
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=30)
@@ -1172,7 +1172,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_path_14(self):
         """
-        SELECT User.__class__.name LIMIT 1;
+        SELECT User.__type__.name LIMIT 1;
         """
 
     def test_edgeql_syntax_path_15(self):
@@ -1212,7 +1212,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_path_20(self):
         # illegal semantically, but syntactically valid
         """
-        SELECT __class__;
+        SELECT __type__;
         SELECT __subject__;
         SELECT __self__;
         """
@@ -1813,7 +1813,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'insert expression must be a concept or a view',
+                  'insert expression must be an object type or a view',
                   line=2, col=16)
     def test_edgeql_syntax_insert_05(self):
         """
@@ -2203,7 +2203,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_delta_02(self):
         """
-        CREATE MIGRATION test::d_links01_0 TO eschema $$concept Foo$$;
+        CREATE MIGRATION test::d_links01_0 TO eschema $$type Foo$$;
         ALTER MIGRATION test::d_links01_0
             RENAME TO test::pretty_name;
         COMMIT MIGRATION test::d_links01_0;
@@ -2212,22 +2212,22 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_delta_03(self):
         """
-        CREATE MIGRATION test::d_links01_0 TO eschema $$concept Foo$$;
-        CREATE MIGRATION test::d_links01_0 TO ESCHEMA $$concept Foo$$;
-        CREATE MIGRATION test::d_links01_0 TO ESchema $$concept Foo$$;
+        CREATE MIGRATION test::d_links01_0 TO eschema $$type Foo$$;
+        CREATE MIGRATION test::d_links01_0 TO ESCHEMA $$type Foo$$;
+        CREATE MIGRATION test::d_links01_0 TO ESchema $$type Foo$$;
 
 % OK %
 
-        CREATE MIGRATION test::d_links01_0 TO eschema $$concept Foo$$;
-        CREATE MIGRATION test::d_links01_0 TO eschema $$concept Foo$$;
-        CREATE MIGRATION test::d_links01_0 TO eschema $$concept Foo$$;
+        CREATE MIGRATION test::d_links01_0 TO eschema $$type Foo$$;
+        CREATE MIGRATION test::d_links01_0 TO eschema $$type Foo$$;
+        CREATE MIGRATION test::d_links01_0 TO eschema $$type Foo$$;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   'unknown migration language: BadLang', line=2, col=47)
     def test_edgeql_syntax_ddl_delta_04(self):
         """
-        CREATE MIGRATION test::d_links01_0 TO BadLang $$concept Foo$$;
+        CREATE MIGRATION test::d_links01_0 TO BadLang $$type Foo$$;
         """
 
     def test_edgeql_syntax_ddl_action_01(self):
@@ -2308,11 +2308,11 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    def test_edgeql_syntax_ddl_atom_01(self):
+    def test_edgeql_syntax_ddl_scalar_01(self):
         """
-        CREATE ABSTRACT ATOM std::any;
-        CREATE ATOM std::typeref;
-        CREATE ATOM std::atomref EXTENDING std::typeref;
+        CREATE ABSTRACT SCALAR TYPE std::any;
+        CREATE SCALAR TYPE std::typeref;
+        CREATE SCALAR TYPE std::scalarref EXTENDING std::typeref;
         """
 
     def test_edgeql_syntax_ddl_attribute_01(self):
@@ -2480,7 +2480,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_constraint_05(self):
         """
-        CREATE ATOM std::decimal_rounding_t EXTENDING std::str {
+        CREATE SCALAR TYPE std::decimal_rounding_t EXTENDING std::str {
             CREATE CONSTRAINT std::enum(['a', 'b']);
         };
         """
@@ -2496,7 +2496,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_constraint_07(self):
         """
-        CREATE ATOM std::decimal_rounding_t EXTENDING std::str {
+        CREATE SCALAR TYPE std::decimal_rounding_t EXTENDING std::str {
             CREATE CONSTRAINT max(99) ON (<int>__subject__);
         };
         """

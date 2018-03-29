@@ -52,7 +52,7 @@ class RefDict:
                               ref_cls=self.ref_cls, compcoef=self.compcoef)
 
 
-class RebaseReferencingClass(inheriting.RebaseNamedClass):
+class RebaseReferencingObject(inheriting.RebaseNamedObject):
     def apply(self, schema, context):
         this_obj = super().apply(schema, context)
 
@@ -77,7 +77,7 @@ class RebaseReferencingClass(inheriting.RebaseNamedClass):
         return this_obj
 
 
-class ReferencingClassMeta(type(inheriting.InheritingClass)):
+class ReferencingObjectMeta(type(inheriting.InheritingObject)):
     def __new__(mcls, name, bases, clsdict):
         refdicts = collections.OrderedDict()
         mydicts = {k: v for k, v in clsdict.items() if isinstance(v, RefDict)}
@@ -86,7 +86,7 @@ class ReferencingClassMeta(type(inheriting.InheritingClass)):
         for parent in reversed(cls.__mro__):
             if parent is cls:
                 refdicts.update(mydicts)
-            elif isinstance(parent, ReferencingClassMeta):
+            elif isinstance(parent, ReferencingObjectMeta):
                 refdicts.update({k: d.copy()
                                 for k, d in parent.get_own_refdicts().items()})
 
@@ -134,7 +134,7 @@ class ReferencingClassMeta(type(inheriting.InheritingClass)):
         return cls._refdicts_by_refclass[refcls]
 
 
-class ReferencedClassCommandMeta(type(named.NamedClassCommand)):
+class ReferencedObjectCommandMeta(type(named.NamedObjectCommand)):
     _transparent_adapter_subclass = True
 
     def __new__(mcls, name, bases, clsdct, *,
@@ -145,8 +145,8 @@ class ReferencedClassCommandMeta(type(named.NamedClassCommand)):
         return cls
 
 
-class ReferencedClassCommand(named.NamedClassCommand,
-                             metaclass=ReferencedClassCommandMeta):
+class ReferencedObjectCommand(named.NamedObjectCommand,
+                              metaclass=ReferencedObjectCommandMeta):
     _referrer_context_class = None
 
     @classmethod
@@ -256,8 +256,8 @@ class ReferencedClassCommand(named.NamedClassCommand,
             referrer.del_classref(refdict.attr, scls.name, schema)
 
 
-class ReferencedInheritingClassCommand(
-        ReferencedClassCommand, inheriting.InheritingClassCommand):
+class ReferencedInheritingObjectCommand(
+        ReferencedObjectCommand, inheriting.InheritingObjectCommand):
 
     def _create_begin(self, schema, context):
         referrer_ctx = self.get_referrer_context(context)
@@ -274,7 +274,7 @@ class ReferencedInheritingClassCommand(
             super()._create_begin(schema, context)
 
 
-class CreateReferencedInheritingClass(inheriting.CreateInheritingClass):
+class CreateReferencedInheritingObject(inheriting.CreateInheritingObject):
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
@@ -284,10 +284,10 @@ class CreateReferencedInheritingClass(inheriting.CreateInheritingClass):
             nname = objcls.get_shortname(cmd.classname)
 
             cmd.add(
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='bases',
-                    new_value=so.ClassList([
-                        so.ClassRef(
+                    new_value=so.ObjectList([
+                        so.ObjectRef(
                             classname=sn.Name(
                                 module=nname.module,
                                 name=nname.name
@@ -303,9 +303,9 @@ class CreateReferencedInheritingClass(inheriting.CreateInheritingClass):
             refdict = referrer_class.get_refdict_for_class(objcls)
 
             cmd.add(
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property=refdict.backref_attr,
-                    new_value=so.ClassRef(
+                    new_value=so.ObjectRef(
                         classname=referrer_name
                     )
                 )
@@ -313,7 +313,7 @@ class CreateReferencedInheritingClass(inheriting.CreateInheritingClass):
 
             if getattr(astnode, 'is_abstract', None):
                 cmd.add(
-                    sd.AlterClassProperty(
+                    sd.AlterObjectProperty(
                         property='is_abstract',
                         new_value=True
                     )
@@ -333,8 +333,8 @@ class CreateReferencedInheritingClass(inheriting.CreateInheritingClass):
         return bases
 
 
-class ReferencingClass(inheriting.InheritingClass,
-                       metaclass=ReferencingClassMeta):
+class ReferencingObject(inheriting.InheritingObject,
+                        metaclass=ReferencingObjectMeta):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -380,7 +380,7 @@ class ReferencingClass(inheriting.InheritingClass,
                 _objects, _resolve, attr, local_attr)
 
     def copy(self):
-        result = super(ReferencingClass, self).copy()
+        result = super(ReferencingObject, self).copy()
 
         for refdict in self.__class__.get_refdicts():
             attr = refdict.attr
@@ -413,7 +413,7 @@ class ReferencingClass(inheriting.InheritingClass,
                 else:
                     theirs = set()
 
-                ref_similarity = so.ClassSet.compare_values(
+                ref_similarity = so.ObjectSet.compare_values(
                     ours, theirs, context=context, compcoef=refdict.compcoef)
 
                 similarity *= ref_similarity
@@ -424,7 +424,7 @@ class ReferencingClass(inheriting.InheritingClass,
         super().merge(obj, schema=schema, dctx=None)
 
         for refdict in self.__class__.get_refdicts():
-            # Merge Class references in each registered collection.
+            # Merge Object references in each registered collection.
             #
             this_coll = getattr(self, refdict.attr)
             other_coll = getattr(obj, refdict.attr)
@@ -441,7 +441,7 @@ class ReferencingClass(inheriting.InheritingClass,
 
         with context(old, new):
             delta = super().delta(other, reverse=reverse, context=context)
-            if isinstance(delta, sd.CreateClass):
+            if isinstance(delta, sd.CreateObject):
                 # If this is a CREATE delta, we need to make
                 # sure it is returned separately from the creation
                 # of references, which will go into a separate ALTER
@@ -492,7 +492,7 @@ class ReferencingClass(inheriting.InheritingClass,
 
         if not result or farthest:
             bases = (c for c in self.get_mro()[1:]
-                     if isinstance(c, named.NamedClass))
+                     if isinstance(c, named.NamedObject))
 
             for c in bases:
                 if name in getattr(c, local_attr):
@@ -554,8 +554,8 @@ class ReferencingClass(inheriting.InheritingClass,
 
         if values:
             for k, v in values.items():
-                if isinstance(v, named.NamedClass):
-                    v = so.ClassRef(classname=v.name)
+                if isinstance(v, named.NamedObject):
+                    v = so.ObjectRef(classname=v.name)
                 result[k] = v
 
         return result
@@ -565,7 +565,7 @@ class ReferencingClass(inheriting.InheritingClass,
 
         if values:
             for n, v in values.items():
-                if isinstance(v, so.ClassRef):
+                if isinstance(v, so.ObjectRef):
                     values[n] = _resolve(v.classname)
 
     def _resolve_inherited_classref_dict(self, _objects, _resolve,
@@ -582,7 +582,7 @@ class ReferencingClass(inheriting.InheritingClass,
                 except KeyError:
                     if _mro is None:
                         _mro = {c.name: c for c in self.get_mro()
-                                if isinstance(c, named.NamedClass)}
+                                if isinstance(c, named.NamedObject)}
                     subj = _objects[origin] = _mro[origin]
 
                 attrs[an] = getattr(subj, local_attr)[an]
@@ -734,7 +734,7 @@ class ReferencingClass(inheriting.InheritingClass,
             all_coll.update(local_coll)
 
 
-class ReferencingClassCommand(sd.ClassCommand):
+class ReferencingObjectCommand(sd.ObjectCommand):
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)
 
@@ -780,8 +780,8 @@ class ReferencingClassCommand(sd.ClassCommand):
             op.apply(schema, context=context)
 
     def _delete_refs(self, schema, context, scls, refdict):
-        del_cmd = sd.ClassCommandMeta.get_command_class(
-            named.DeleteNamedClass, refdict.ref_cls)
+        del_cmd = sd.ObjectCommandMeta.get_command_class(
+            named.DeleteNamedObject, refdict.ref_cls)
 
         deleted_refs = set()
 

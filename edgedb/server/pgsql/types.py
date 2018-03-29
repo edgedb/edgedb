@@ -10,8 +10,8 @@ import typing
 
 from edgedb.lang.ir import utils as irutils
 
-from edgedb.lang.schema import atoms as s_atoms
-from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import atoms as s_scalars
+from edgedb.lang.schema import concepts as s_objtypes
 from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import objects as s_obj
@@ -63,34 +63,34 @@ base_type_name_map_r = {
 }
 
 
-def get_atom_base(schema, atom):
-    if atom.bases:
-        # Base is another Atom, check if it is fundamental, if not,
+def get_scalar_base(schema, scalar):
+    if scalar.bases:
+        # Base is another ScalarType, check if it is fundamental, if not,
         # then it is another domain.
         #
         try:
-            base = base_type_name_map[atom.bases[0].name]
+            base = base_type_name_map[scalar.bases[0].name]
         except KeyError:
-            base = common.atom_name_to_domain_name(atom.bases[0].name)
+            base = common.scalar_name_to_domain_name(scalar.bases[0].name)
     else:
         # Base is a Python type, must correspond to PostgreSQL type
         try:
-            base = base_type_name_map[atom.name]
+            base = base_type_name_map[scalar.name]
         except KeyError:
             base = 'text'
 
     return base
 
 
-def pg_type_from_atom(
+def pg_type_from_scalar(
         schema: s_schema.Schema,
-        atom: s_atoms.Atom,
+        scalar: s_scalars.ScalarType,
         topbase: bool=False) -> typing.Tuple[str, ...]:
 
     if topbase:
-        base = atom.get_topmost_base()
+        base = scalar.get_topmost_base()
     else:
-        base = get_atom_base(schema, atom)
+        base = get_scalar_base(schema, scalar)
 
     if topbase:
         column_type = base_type_name_map.get(base.name)
@@ -100,23 +100,23 @@ def pg_type_from_atom(
         else:
             column_type = (column_type,)
     else:
-        column_type = base_type_name_map.get(atom.name)
+        column_type = base_type_name_map.get(scalar.name)
         if column_type:
             column_type = (base,)
         else:
-            column_type = common.atom_name_to_domain_name(
-                atom.name, catenate=False)
+            column_type = common.scalar_name_to_domain_name(
+                scalar.name, catenate=False)
 
     return column_type
 
 
 def pg_type_from_object(
         schema: s_schema.Schema,
-        obj: s_obj.Class,
+        obj: s_obj.Object,
         topbase: bool=False) -> typing.Tuple[str, ...]:
 
-    if isinstance(obj, s_atoms.Atom):
-        return pg_type_from_atom(schema, obj, topbase=topbase)
+    if isinstance(obj, s_scalars.ScalarType):
+        return pg_type_from_scalar(schema, obj, topbase=topbase)
 
     elif isinstance(obj, s_types.Tuple):
         return ('record',)
@@ -129,13 +129,13 @@ def pg_type_from_object(
             return ('anyarray',)
         else:
             st = schema.get(obj.element_type.name)
-            tp = pg_type_from_atom(schema, st, topbase=True)
+            tp = pg_type_from_scalar(schema, st, topbase=True)
             if len(tp) == 1:
                 return (tp[0] + '[]',)
             else:
                 return (tp[0], tp[1] + '[]')
 
-    elif isinstance(obj, s_concepts.Concept):
+    elif isinstance(obj, s_objtypes.ObjectType):
         return ('uuid',)
 
     else:
@@ -148,7 +148,7 @@ class PointerStorageInfo:
         table = common.get_table_name(pointer.source, catenate=False)
         ptr_name = pointer.shortname
         col_name = common.edgedb_name_to_pg_name(ptr_name)
-        table_type = 'concept'
+        table_type = 'ObjectType'
 
         return table, table_type, col_name
 
@@ -157,8 +157,8 @@ class PointerStorageInfo:
         table = common.get_table_name(pointer, catenate=False)
         col_name = 'std::target'
 
-        if pointer.atomic():
-            col_name += '@atom'
+        if pointer.scalar():
+            col_name += '@inline'
 
         table_type = 'link'
         col_name = common.edgedb_name_to_pg_name(col_name)
@@ -168,12 +168,12 @@ class PointerStorageInfo:
     @classmethod
     def _resolve_type(cls, pointer, schema):
         if pointer.target is not None:
-            if isinstance(pointer.target, s_concepts.Concept):
+            if isinstance(pointer.target, s_objtypes.ObjectType):
                 column_type = ('uuid',)
             else:
                 column_type = pg_type_from_object(schema, pointer.target)
         else:
-            # The target may not be known in circular concept-to-concept
+            # The target may not be known in circular object-to-object
             # linking scenarios.
             column_type = ('uuid',)
 
@@ -182,9 +182,9 @@ class PointerStorageInfo:
     @classmethod
     def _storable_in_source(cls, pointer):
         return (
-            pointer.singular() and pointer.atomic() or
+            pointer.singular() and pointer.scalar() or
             pointer.shortname in {
-                'std::__class__',
+                'std::__type__',
                 'schema::element_type',
                 'schema::element_types',
                 'schema::key_type',
@@ -195,7 +195,7 @@ class PointerStorageInfo:
     @classmethod
     def _storable_in_pointer(cls, pointer):
         return (
-            not pointer.singular() or not pointer.atomic() or
+            not pointer.singular() or not pointer.scalar() or
             pointer.has_user_defined_properties())
 
     def __new__(
@@ -217,17 +217,17 @@ class PointerStorageInfo:
 
         if isinstance(pointer, irutils.TupleIndirectionLink):
             table = None
-            table_type = 'concept'
+            table_type = 'ObjectType'
             col_name = common.edgedb_name_to_pg_name(pointer.shortname.name)
         elif is_prop:
             table = common.get_table_name(source, catenate=False)
             table_type = 'link'
             col_name = common.edgedb_name_to_pg_name(pointer.shortname)
         else:
-            if isinstance(source, s_atoms.Atom):
-                # This is a pseudo-link on an atom (__class__)
+            if isinstance(source, s_scalars.ScalarType):
+                # This is a pseudo-link on an scalar (__type__)
                 table = None
-                table_type = 'concept'
+                table_type = 'ObjectType'
                 col_name = None
             elif cls._storable_in_source(pointer) and not link_bias:
                 table, table_type, col_name = cls._source_table_info(pointer)

@@ -175,9 +175,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_array_agg_07(self):
         await self.assert_query_result('''
-            SELECT array_agg((SELECT schema::Concept FILTER False));
+            SELECT array_agg((SELECT schema::ObjectType FILTER False));
             SELECT array_agg(
-                (SELECT schema::Concept FILTER <str>schema::Concept.id = '~')
+                (SELECT schema::ObjectType
+                 FILTER <str>schema::ObjectType.id = '~')
             );
         ''', [
             [
@@ -193,11 +194,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             WITH x := <int>{}
             SELECT array_agg(x);
 
-            WITH x := (SELECT schema::Concept FILTER False)
+            WITH x := (SELECT schema::ObjectType FILTER False)
             SELECT array_agg(x);
 
             WITH x := (
-                SELECT schema::Concept FILTER <str>schema::Concept.id = '~'
+                SELECT schema::ObjectType
+                FILTER <str>schema::ObjectType.id = '~'
             )
             SELECT array_agg(x);
         ''', [
@@ -216,19 +218,19 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH MODULE schema
             SELECT
-                Concept {
+                ObjectType {
                     l := array_agg(
-                        Concept.links.name
+                        ObjectType.links.name
                         FILTER
-                            Concept.links.name IN {
+                            ObjectType.links.name IN {
                                 'std::id',
                                 'schema::name'
                             }
-                        ORDER BY Concept.links.name ASC
+                        ORDER BY ObjectType.links.name ASC
                     )
                 }
             FILTER
-                Concept.name = 'schema::Class';
+                ObjectType.name = 'schema::Object';
         """, [
             [{
                 'l': ['schema::name', 'std::id']
@@ -322,7 +324,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_re_match_02(self):
         await self.assert_query_result(r'''
             WITH MODULE schema
-            SELECT x := re_match(Concept.name, '(\w+)::(Link\w*)')
+            SELECT x := re_match(ObjectType.name, '(\w+)::(Link\w*)')
             ORDER BY x;
         ''', [
             [['schema', 'Link'], ['schema', 'LinkProperty']],
@@ -364,9 +366,9 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH
                 MODULE schema,
-                C2 := DETACHED Concept
+                C2 := DETACHED ObjectType
             SELECT
-                count(re_match_all(Concept.name, '(\w+)')) =
+                count(re_match_all(ObjectType.name, '(\w+)')) =
                 2 * count(C2);
         ''', [
             [True],
@@ -404,8 +406,8 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE schema
             SELECT count(
-                Concept FILTER re_test(Concept.name, '(\W\w)bject')
-            ) = 1;
+                ObjectType FILTER re_test(ObjectType.name, '(\W\w)bject$')
+            ) = 2;
         ''', [
             [True],
         ])

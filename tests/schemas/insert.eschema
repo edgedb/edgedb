@@ -5,10 +5,10 @@ link l3:
 link subordinates:
     link property comment to str
 
-concept Subordinate:
+type Subordinate:
     required link name to str
 
-concept InsertTest:
+type InsertTest:
     link name to str
     link l1 to int
     required link l2 to int
@@ -17,17 +17,17 @@ concept InsertTest:
     link subordinates to Subordinate:
         mapping := '1*'
 
-concept Annotation:
+type Annotation:
     required link name to str
     link note to str
     link subject to Object
 
-concept DefaultTest1:
+type DefaultTest1:
     link num to int:
         default := 42
     link foo to str
 
-concept DefaultTest2:
+type DefaultTest2:
     link foo to str
     required link num to int:
         # XXX: circumventing sequence deficiency
@@ -36,17 +36,17 @@ concept DefaultTest2:
             ORDER BY DefaultTest1.num DESC
             LIMIT 1
 
-concept DefaultTest3:
+type DefaultTest3:
     required link foo to float:
         # non-deterministic dynamic value
         default := random()
 
-concept DefaultTest4:
+type DefaultTest4:
     required link bar to int:
         # deterministic dynamic value
         default := (SELECT count(DefaultTest4))
 
-# links and concepts to test atomic links with link properties
+# links and types to test scalar links with link properties
 link special:
     link property lang to str
 
@@ -54,7 +54,7 @@ link title:
     link property lang to str
 
 
-concept Offer:
+type Offer:
     # title translated into multiple languages
     required link title to str:
         mapping := '1*'
@@ -62,18 +62,18 @@ concept Offer:
     # some king of special offer for a specific language
     link special to str
 
-# concepts to test some inheritance issues
-concept InputValue:
+# types to test some inheritance issues
+type InputValue:
     link val to str
 
-abstract concept Callable:
+abstract type Callable:
     link args to InputValue:
         mapping := '1*'
 
-concept Field extending Callable:
+type Field extending Callable:
     # This link 'args' appears to be overriding the inherited 'args'
     # from Callable.
     link args to InputValue:
         mapping := '1*'
 
-concept Directive extending Callable
+type Directive extending Callable

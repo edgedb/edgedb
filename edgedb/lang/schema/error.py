@@ -26,7 +26,7 @@ class SchemaNameError(SchemaError):
     pass
 
 
-class NoClassError(SchemaError):
+class NoObjectError(SchemaError):
     pass
 
 

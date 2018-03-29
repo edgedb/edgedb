@@ -8,7 +8,7 @@
 
 from edgedb.lang.common import ast
 
-from edgedb.lang.schema import concepts as s_concepts
+from edgedb.lang.schema import concepts as s_objtypes
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import name as s_name
 from edgedb.lang.schema import pointers as s_pointers
@@ -83,7 +83,7 @@ def get_id_path_id(
         schema: s_schema.Schema) -> irast.PathId:
     """For PathId representing an object, return (PathId).(std::id)."""
     source: s_sources.Source = path_id[-1]
-    assert isinstance(source, s_concepts.Concept)
+    assert isinstance(source, s_objtypes.ObjectType)
     return path_id.extend(
         source.resolve_pointer(schema, 'std::id'),
         s_pointers.PointerDirection.Outbound,
@@ -121,11 +121,11 @@ def is_subquery_set(ir_expr):
     )
 
 
-def is_atomic_view_set(ir_expr):
+def is_scalar_view_set(ir_expr):
     return (
         isinstance(ir_expr, irast.Set) and
         len(ir_expr.path_id) == 1 and
-        ir_expr.path_id.is_atom_path() and
+        ir_expr.path_id.is_scalar_path() and
         ir_expr.path_id[0].is_view()
     )
 

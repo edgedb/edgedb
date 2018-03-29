@@ -67,12 +67,12 @@ class PointerVector(sn.Name):
             return False
 
 
-class PointerCommandContext(sd.ClassCommandContext):
+class PointerCommandContext(sd.ObjectCommandContext):
     pass
 
 
 class PointerCommand(constraints.ConsistencySubjectCommand,
-                     referencing.ReferencedInheritingClassCommand):
+                     referencing.ReferencedInheritingObjectCommand):
 
     @classmethod
     def _extract_union_operands(cls, expr, operands):
@@ -85,7 +85,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
     @classmethod
     def _parse_default(cls, cmd):
         return
-        for sub in cmd(sd.AlterClassProperty):
+        for sub in cmd(sd.AlterObjectProperty):
             if sub.property == 'default':
                 if isinstance(sub.new_value, sexpr.ExpressionText):
                     expr = edgeql.parse(sub.new_value)
@@ -150,8 +150,8 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
         super()._create_begin(schema, context)
 
 
-class BasePointer(inheriting.InheritingClass):
-    source = so.Field(so.Class, None, compcoef=None)
+class BasePointer(inheriting.InheritingObject):
+    source = so.Field(so.Object, None, compcoef=None)
     target = so.Field(s_types.Type, None, compcoef=0.833)
 
     def material_type(self):
@@ -183,13 +183,14 @@ class BasePointer(inheriting.InheritingClass):
 
     @classmethod
     def merge_targets(cls, schema, ptr, t1, t2):
-        from . import atoms, concepts
+        from . import atoms as s_scalars, concepts as s_objtypes
 
         # When two pointers are merged, check target compatibility
         # and return a target that satisfies both specified targets.
         #
 
-        if isinstance(t1, atoms.Atom) != isinstance(t2, atoms.Atom):
+        if (isinstance(t1, s_scalars.ScalarType) !=
+                isinstance(t2, s_scalars.ScalarType)):
             # Targets are not of the same node type
 
             pn = ptr.shortname
@@ -201,23 +202,23 @@ class BasePointer(inheriting.InheritingClass):
                       'in other parent.')
 
             raise schema_error.SchemaError(
-                f'could not merge "{pn}" pointer: invalid atom/concept ' +
-                'target mix', details=detail)
+                f'could not merge "{pn}" pointer: invalid ' +
+                'target type mix', details=detail)
 
-        elif isinstance(t1, atoms.Atom):
-            # Targets are both atoms
+        elif isinstance(t1, s_scalars.ScalarType):
+            # Targets are both scalars
             if t1 != t2:
                 pn = ptr.shortname
                 raise schema_error.SchemaError(
                     f'could not merge {pn!r} pointer: targets conflict',
-                    details=f'({ptr.source.name}).({pn}) targets atom'
+                    details=f'({ptr.source.name}).({pn}) targets scalar type'
                             f'{t1.name!r} while it also targets incompatible'
-                            f'atom {t2.name!r} in other parent.')
+                            f'scalar type {t2.name!r} in other parent.')
 
             return t1
 
         else:
-            # Targets are both concepts
+            # Targets are both objects
             if t1.is_virtual:
                 tt1 = tuple(t1.children(schema))
             else:
@@ -246,7 +247,7 @@ class BasePointer(inheriting.InheritingClass):
                     pn = ptr.shortname
                     raise schema_error.SchemaError(
                         f'could not merge {pn!r} pointer: targets conflict',
-                        details=f'({ptr.source.name}).({pn}) targets concept'
+                        details=f'({ptr.source.name}).({pn}) targets object'
                                 f' {t2.name!r} which is not related to any of'
                                 f' targets found in other sources being'
                                 f' merged: {t1.name!r}.')
@@ -258,9 +259,9 @@ class BasePointer(inheriting.InheritingClass):
             if len(new_targets) > 1:
                 tnames = (t.name for t in new_targets)
                 module = ptr.source.name.module
-                parent_name = concepts.Concept.gen_virt_parent_name(
+                parent_name = s_objtypes.ObjectType.gen_virt_parent_name(
                     tnames, module)
-                current_target = concepts.Concept(
+                current_target = s_objtypes.ObjectType(
                     name=parent_name, is_abstract=True, is_virtual=True)
                 schema.update_virtual_inheritance(current_target, new_targets)
             else:

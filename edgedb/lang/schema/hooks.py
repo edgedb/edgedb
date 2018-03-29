@@ -72,7 +72,7 @@ def get_access_control_hooks(scls, action):
 
     mro = source.get_mro()
 
-    mro = [cls for cls in mro if isinstance(cls, so.Class)]
+    mro = [cls for cls in mro if isinstance(cls, so.Object)]
 
     hooks = []
 

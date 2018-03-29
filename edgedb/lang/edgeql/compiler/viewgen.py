@@ -93,8 +93,8 @@ def _process_view(
                 continue
 
             default_ql = qlast.ShapeElement(expr=qlast.Path(steps=[
-                qlast.Ptr(ptr=qlast.ClassRef(name=ptrcls.shortname.name,
-                                             module=ptrcls.shortname.module))
+                qlast.Ptr(ptr=qlast.ObjectRef(name=ptrcls.shortname.name,
+                                              module=ptrcls.shortname.module))
             ]))
 
             with ctx.newscope(fenced=True) as scopectx:
@@ -123,7 +123,7 @@ def _process_view(
             source = view_scls
 
         if ptrcls.source is source and isinstance(source, s_sources.Source):
-            # source may be an Atom in shapes that reference __class__,
+            # source may be an ScalarType in shapes that reference __type__,
             # hence the isinstance check.
             source.add_pointer(ptrcls, replace=True)
 
@@ -204,8 +204,8 @@ def _normalize_view_ptr_expr(
         compexpr = qlast.InsertQuery(
             subject=qlast.Path(
                 steps=[
-                    qlast.ClassRef(name=ptrcls.target.name.name,
-                                   module=ptrcls.target.name.module)
+                    qlast.ObjectRef(name=ptrcls.target.name.name,
+                                    module=ptrcls.target.name.module)
                 ]
             ),
             shape=shape_el.elements
@@ -386,8 +386,8 @@ def _normalize_view_ptr_expr(
     if not is_mutation:
         ptrcls.mapping = ptr_cardinality
 
-    if ptrcls.shortname == 'std::__class__' and qlexpr is not None:
-        msg = 'cannot assign to __class__'
+    if ptrcls.shortname == 'std::__type__' and qlexpr is not None:
+        msg = 'cannot assign to __type__'
         raise errors.EdgeQLError(msg, context=shape_el.context)
 
     return ptrcls
@@ -424,7 +424,7 @@ def _compile_view_shapes_in_set(
 
     sources = []
     link_view = False
-    if ir_set.path_id.is_concept_path():
+    if ir_set.path_id.is_objtype_path():
         sources.append(scls)
 
     if rptr is None:
@@ -436,20 +436,20 @@ def _compile_view_shapes_in_set(
         link_view = True
         sources.append(rptr.ptrcls)
 
-    is_concept = ir_set.path_id.is_concept_path()
+    is_objtype = ir_set.path_id.is_objtype_path()
     is_mutation = scls.view_type in (
         s_types.ViewType.Update, s_types.ViewType.Insert)
 
     shape_ptrs = []
 
-    if is_concept or link_view:
+    if is_objtype or link_view:
         for source in sources:
             for ptr in source.pointers.values():
                 if not (ptr.is_id_pointer() or
                         ptr in ctx.class_shapes[source]):
                     continue
 
-                if is_concept and ptr.is_endpoint_pointer():
+                if is_objtype and ptr.is_endpoint_pointer():
                     continue
 
                 if ((scls.view_type == s_types.ViewType.Update or

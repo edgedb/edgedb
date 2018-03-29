@@ -20,7 +20,7 @@ from . import context
 
 def cast(
         node: pgast.Base, *,
-        source_type: s_obj.Class, target_type: s_obj.Class,
+        source_type: s_obj.Object, target_type: s_obj.Object,
         force: bool=False,
         env: context.Environment) -> pgast.Base:
 

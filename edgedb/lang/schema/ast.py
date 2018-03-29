@@ -29,7 +29,7 @@ class Base(ast.AST):
 
 
 class Attribute(Base):
-    name: qlast.ClassRef
+    name: qlast.ObjectRef
     value: qlast.Base
 
 
@@ -37,12 +37,12 @@ class Constraint(Base):
     args: typing.List[qlast.FuncArg]
     attributes: typing.List[Attribute]
     delegated: bool = False
-    name: qlast.ClassRef
+    name: qlast.ObjectRef
     subject: typing.Optional[qlast.Expr]
 
 
 class Pointer(Base):
-    name: qlast.ClassRef
+    name: qlast.ObjectRef
 
     # Computable links don't have a target
     target: typing.Optional[typing.List[qlast.TypeName]]
@@ -52,7 +52,7 @@ class Pointer(Base):
 
 
 class Index(Base):
-    name: qlast.ClassRef
+    name: qlast.ObjectRef
     expression: qlast.Base
 
 
@@ -85,7 +85,7 @@ class ActionDeclaration(Declaration):
     pass
 
 
-class AtomDeclaration(Declaration):
+class ScalarTypeDeclaration(Declaration):
     abstract: bool = False
     final: bool = False
     constraints: typing.List[Constraint]
@@ -95,7 +95,7 @@ class AttributeDeclaration(Declaration):
     type: typing.Optional[qlast.TypeName]
 
 
-class ConceptDeclaration(Declaration):
+class ObjectTypeDeclaration(Declaration):
     abstract: bool = False
     final: bool = False
     links: typing.List[Link]

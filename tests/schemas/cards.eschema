@@ -1,4 +1,4 @@
-abstract concept Named:
+abstract type Named:
     required link name to str:
         delegated constraint unique
 
@@ -12,7 +12,7 @@ link friends:
     #link property favor to array<bool>
 
 
-concept User extending Named:
+type User extending Named:
     link deck to Card:
         mapping := '**'
 
@@ -22,10 +22,10 @@ concept User extending Named:
         mapping := '**'
 
 
-concept Card extending Named:
+type Card extending Named:
     required link element to str
     required link cost to int
     link owners := __self__.<deck[IS User]
 
 
-concept SpecialCard extending Card
+type SpecialCard extending Card

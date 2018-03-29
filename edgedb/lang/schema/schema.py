@@ -25,7 +25,7 @@ class TypeContainer:
 
 class Schema(TypeContainer):
     global_dep_order = ('action', 'event', 'attribute', 'constraint',
-                        'atom', 'link_property', 'link', 'concept')
+                        'ScalarType', 'link_property', 'link', 'ObjectType')
 
     """Schema is a collection of ProtoModules."""
 
@@ -281,8 +281,8 @@ class Schema(TypeContainer):
             for link in self.get_objects(type='link'):
                 link.materialize_policies(self)
 
-            for concept in self.get_objects(type='concept'):
-                concept.materialize_policies(self)
+            for objtype in self.get_objects(type='ObjectType'):
+                objtype.materialize_policies(self)
 
         return self._policy_schema.get(subject_class, event_class)
 

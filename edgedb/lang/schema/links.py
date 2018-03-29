@@ -9,7 +9,7 @@
 from edgedb.lang.common import enum
 from edgedb.lang.edgeql import ast as qlast
 
-from . import atoms
+from . import atoms as s_scalars
 from . import constraints
 from . import database as s_db
 from . import delta as sd
@@ -79,7 +79,7 @@ class LinkMapping(enum.StrEnum):
         return result
 
 
-class LinkSearchConfiguration(so.Class):
+class LinkSearchConfiguration(so.Object):
     weight = so.Field(LinkSearchWeight, default=None, compcoef=0.9,
                       introspectable=False)
 
@@ -87,7 +87,7 @@ class LinkSearchConfiguration(so.Class):
 class Link(sources.Source, pointers.Pointer):
     _type = 'link'
 
-    spectargets = so.Field(named.NamedClassSet, named.NamedClassSet,
+    spectargets = so.Field(named.NamedObjectSet, named.NamedObjectSet,
                            coerce=True)
 
     mapping = so.Field(LinkMapping, default=None,
@@ -148,11 +148,11 @@ class Link(sources.Source, pointers.Pointer):
             return self.mapping in \
                 (LinkMapping.OneToOne, LinkMapping.OneToMany)
 
-    def atomic(self):
+    def scalar(self):
         assert not self.generic(), \
-            "atomicity is not determined for generic links"
+            "scalarity is not determined for generic links"
         return (
-            isinstance(self.target, atoms.Atom) or
+            isinstance(self.target, s_scalars.ScalarType) or
             isinstance(self.target, s_types.Collection)
         )
 
@@ -186,7 +186,7 @@ class Link(sources.Source, pointers.Pointer):
             if dctx is not None:
                 from . import delta as sd
 
-                dctx.current().op.add(sd.AlterClassProperty(
+                dctx.current().op.add(sd.AlterObjectProperty(
                     property='mapping',
                     new_value=self.mapping,
                     source='default'
@@ -196,7 +196,7 @@ class Link(sources.Source, pointers.Pointer):
     def get_root_classes(cls):
         return (
             sn.Name(module='std', name='link'),
-            sn.Name(module='schema', name='__class__'),
+            sn.Name(module='schema', name='__type__'),
         )
 
     @classmethod
@@ -212,7 +212,7 @@ class LinkSourceCommandContext(sources.SourceCommandContext):
     pass
 
 
-class LinkSourceCommand(referencing.ReferencingClassCommand):
+class LinkSourceCommand(referencing.ReferencingObjectCommand):
     pass
 
 
@@ -231,19 +231,19 @@ class LinkCommand(lproperties.LinkPropertySourceCommand,
     pass
 
 
-class CreateLink(LinkCommand, referencing.CreateReferencedInheritingClass):
+class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
     astnode = [qlast.CreateConcreteLink, qlast.CreateLink]
     referenced_astnode = qlast.CreateConcreteLink
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
-        from . import concepts
+        from . import concepts as s_objtypes
 
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         if isinstance(astnode, qlast.CreateConcreteLink):
             cmd.add(
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='required',
                     new_value=astnode.is_required
                 )
@@ -253,7 +253,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingClass):
             parent_ctx = context.get(LinkSourceCommandContext)
             source_name = parent_ctx.op.classname
 
-            for ap in cmd.get_subcommands(type=sd.AlterClassProperty):
+            for ap in cmd.get_subcommands(type=sd.AlterObjectProperty):
                 if ap.property == 'search_weight':
                     ap.property = 'search'
                     ap.new_value = LinkSearchConfiguration(
@@ -265,9 +265,9 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingClass):
 
             if len(astnode.targets) > 1:
                 cmd.add(
-                    sd.AlterClassProperty(
+                    sd.AlterObjectProperty(
                         property='spectargets',
-                        new_value=so.ClassList([
+                        new_value=so.ObjectList([
                             utils.ast_to_typeref(t)
                             for t in astnode.targets
                         ])
@@ -280,27 +280,27 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingClass):
                     module=source_name.module
                 )
 
-                target = so.ClassRef(classname=target_name)
+                target = so.ObjectRef(classname=target_name)
 
-                create_virt_parent = concepts.CreateConcept(
+                create_virt_parent = s_objtypes.CreateObjectType(
                     classname=target_name,
-                    metaclass=concepts.Concept
+                    metaclass=s_objtypes.ObjectType
                 )
 
                 create_virt_parent.update((
-                    sd.AlterClassProperty(
+                    sd.AlterObjectProperty(
                         property='bases',
-                        new_value=so.ClassList([
-                            so.ClassRef(classname=sn.Name(
+                        new_value=so.ObjectList([
+                            so.ObjectRef(classname=sn.Name(
                                 module='std', name='Object'
                             ))
                         ])
                     ),
-                    sd.AlterClassProperty(
+                    sd.AlterObjectProperty(
                         property='name',
                         new_value=target_name
                     ),
-                    sd.AlterClassProperty(
+                    sd.AlterObjectProperty(
                         property='is_virtual',
                         new_value=True
                     )
@@ -309,7 +309,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingClass):
                 alter_db_ctx = context.get(s_db.DatabaseCommandContext)
 
                 for cc in alter_db_ctx.op.get_subcommands(
-                        type=concepts.CreateConcept):
+                        type=s_objtypes.CreateObjectType):
                     if cc.classname == create_virt_parent.classname:
                         break
                 else:
@@ -318,7 +318,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingClass):
                 target = utils.ast_to_typeref(astnode.targets[0])
 
             cmd.add(
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='target',
                     new_value=target
                 )
@@ -335,35 +335,35 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingClass):
                 metaclass=lproperties.LinkProperty
             )
             src_prop.update((
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='name',
                     new_value=src_prop_name
                 ),
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='bases',
                     new_value=[
-                        so.ClassRef(
+                        so.ObjectRef(
                             classname=base_prop_name
                         )
                     ]
                 ),
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='source',
-                    new_value=so.ClassRef(
+                    new_value=so.ObjectRef(
                         classname=cmd.classname
                     )
                 ),
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='target',
-                    new_value=so.ClassRef(
+                    new_value=so.ObjectRef(
                         classname=source_name
                     )
                 ),
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='required',
                     new_value=True
                 ),
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='readonly',
                     new_value=True
                 )
@@ -382,33 +382,33 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingClass):
                 metaclass=lproperties.LinkProperty
             )
             tgt_prop.update((
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='name',
                     new_value=tgt_prop_name
                 ),
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='bases',
                     new_value=[
-                        so.ClassRef(
+                        so.ObjectRef(
                             classname=base_prop_name
                         )
                     ]
                 ),
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='source',
-                    new_value=so.ClassRef(
+                    new_value=so.ObjectRef(
                         classname=cmd.classname
                     )
                 ),
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='target',
                     new_value=target
                 ),
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='required',
                     new_value=False
                 ),
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='readonly',
                     new_value=True
                 ),
@@ -421,23 +421,23 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingClass):
         return cmd
 
     def _get_ast_node(self, context):
-        concept = context.get(LinkSourceCommandContext)
+        objtype = context.get(LinkSourceCommandContext)
 
-        if concept:
+        if objtype:
             return qlast.CreateConcreteLink
         else:
             return qlast.CreateLink
 
     def _apply_field_ast(self, context, node, op):
-        concept = context.get(LinkSourceCommandContext)
+        objtype = context.get(LinkSourceCommandContext)
 
         if op.property == 'is_derived':
             pass
         elif op.property == 'spectargets':
             if op.new_value:
                 node.targets = [
-                    qlast.ClassRef(name=t.classname.name,
-                                   module=t.classname.module)
+                    qlast.ObjectRef(name=t.classname.name,
+                                    module=t.classname.module)
                     for t in op.new_value
                 ]
         elif op.property == 'default':
@@ -450,7 +450,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingClass):
             if op.new_value:
                 v = qlast.Constant(value=str(op.new_value.weight))
                 self._set_attribute_ast(context, node, 'search_weight', v)
-        elif op.property == 'target' and concept:
+        elif op.property == 'target' and objtype:
             if not node.targets:
                 t = op.new_value
                 node.targets = [utils.typeref_to_ast(t)]
@@ -460,9 +460,9 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingClass):
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)
 
-        concept = context.get(LinkSourceCommandContext)
+        objtype = context.get(LinkSourceCommandContext)
 
-        if not concept:
+        if not objtype:
             for op in self.get_subcommands(type=indexes.SourceIndexCommand):
                 self._append_subcmd_ast(node, op, context)
 
@@ -473,11 +473,11 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingClass):
             self._append_subcmd_ast(node, op, context)
 
 
-class RenameLink(LinkCommand, named.RenameNamedClass):
+class RenameLink(LinkCommand, named.RenameNamedObject):
     pass
 
 
-class RebaseLink(LinkCommand, inheriting.RebaseNamedClass):
+class RebaseLink(LinkCommand, inheriting.RebaseNamedObject):
     pass
 
 
@@ -486,11 +486,11 @@ class AlterTarget(sd.Command):
 
     @classmethod
     def _cmd_from_ast(cls, astnode, context, schema):
-        return sd.AlterClassProperty(property='target')
+        return sd.AlterObjectProperty(property='target')
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
-        from . import concepts
+        from . import concepts as s_objtypes
 
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
@@ -501,10 +501,10 @@ class AlterTarget(sd.Command):
             alter_ptr_ctx = context.get(pointers.PointerCommandContext)
 
             alter_ptr_ctx.op.add(
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='spectargets',
-                    new_value=so.ClassList([
-                        so.ClassRef(
+                    new_value=so.ObjectList([
+                        so.ObjectRef(
                             classname=sn.Name(
                                 module=t.module,
                                 name=t.name
@@ -521,23 +521,23 @@ class AlterTarget(sd.Command):
                 module=source_name.module
             )
 
-            target = so.ClassRef(classname=target_name)
+            target = so.ObjectRef(classname=target_name)
 
-            create_virt_parent = concepts.CreateConcept(
+            create_virt_parent = s_objtypes.CreateObjectType(
                 classname=target_name,
-                metaclass=concepts.Concept
+                metaclass=s_objtypes.ObjectType
             )
 
             create_virt_parent.update((
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='name',
                     new_value=target_name
                 ),
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='is_virtual',
                     new_value=True
                 ),
-                sd.AlterClassProperty(
+                sd.AlterObjectProperty(
                     property='is_derived',
                     new_value=True
                 )
@@ -545,13 +545,13 @@ class AlterTarget(sd.Command):
 
             alter_db_ctx = context.get(s_db.DatabaseCommandContext)
 
-            for cc in alter_db_ctx.op(concepts.CreateConcept):
+            for cc in alter_db_ctx.op(s_objtypes.CreateObjectType):
                 if cc.classname == create_virt_parent.classname:
                     break
             else:
                 alter_db_ctx.op.add(create_virt_parent)
         else:
-            target = so.ClassRef(
+            target = so.ObjectRef(
                 classname=sn.Name(
                     module=astnode.targets[0].module,
                     name=astnode.targets[0].name
@@ -563,7 +563,7 @@ class AlterTarget(sd.Command):
         return cmd
 
 
-class AlterLink(LinkCommand, named.AlterNamedClass):
+class AlterLink(LinkCommand, named.AlterNamedObject):
     astnode = [qlast.AlterLink, qlast.AlterConcreteLink]
     referenced_astnode = qlast.AlterConcreteLink
 
@@ -572,7 +572,7 @@ class AlterLink(LinkCommand, named.AlterNamedClass):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         if isinstance(astnode, qlast.AlterConcreteLink):
-            for ap in cmd.get_subcommands(type=sd.AlterClassProperty):
+            for ap in cmd.get_subcommands(type=sd.AlterObjectProperty):
                 if ap.property == 'search_weight':
                     ap.property = 'search'
                     if ap.new_value is not None:
@@ -586,9 +586,9 @@ class AlterLink(LinkCommand, named.AlterNamedClass):
         return cmd
 
     def _get_ast_node(self, context):
-        concept = context.get(LinkSourceCommandContext)
+        objtype = context.get(LinkSourceCommandContext)
 
-        if concept:
+        if objtype:
             return qlast.AlterConcreteLink
         else:
             return qlast.AlterLink
@@ -596,9 +596,9 @@ class AlterLink(LinkCommand, named.AlterNamedClass):
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)
 
-        concept = context.get(LinkSourceCommandContext)
+        objtype = context.get(LinkSourceCommandContext)
 
-        if not concept:
+        if not objtype:
             for op in self.get_subcommands(type=indexes.SourceIndexCommand):
                 self._append_subcmd_ast(node, op, context)
 
@@ -613,8 +613,8 @@ class AlterLink(LinkCommand, named.AlterNamedClass):
             if op.new_value:
                 node.commands.append(qlast.AlterTarget(
                     targets=[
-                        qlast.ClassRef(name=t.classname.name,
-                                       module=t.classname.module)
+                        qlast.ObjectRef(name=t.classname.name,
+                                        module=t.classname.module)
                         for t in op.new_value
                     ]
                 ))
@@ -622,7 +622,7 @@ class AlterLink(LinkCommand, named.AlterNamedClass):
             if op.new_value:
                 node.commands.append(qlast.AlterTarget(
                     targets=[
-                        qlast.ClassRef(
+                        qlast.ObjectRef(
                             name=op.new_value.classname.name,
                             module=op.new_value.classname.module)
                     ]
@@ -639,14 +639,14 @@ class AlterLink(LinkCommand, named.AlterNamedClass):
             super()._apply_field_ast(context, node, op)
 
 
-class DeleteLink(LinkCommand, named.DeleteNamedClass):
+class DeleteLink(LinkCommand, named.DeleteNamedObject):
     astnode = [qlast.DropLink, qlast.DropConcreteLink]
     referenced_astnode = qlast.DropConcreteLink
 
     def _get_ast_node(self, context):
-        concept = context.get(LinkSourceCommandContext)
+        objtype = context.get(LinkSourceCommandContext)
 
-        if concept:
+        if objtype:
             return qlast.DropConcreteLink
         else:
             return qlast.DropLink
@@ -654,12 +654,12 @@ class DeleteLink(LinkCommand, named.DeleteNamedClass):
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)
 
-        concept = context.get(LinkSourceCommandContext)
+        objtype = context.get(LinkSourceCommandContext)
 
         for op in self.get_subcommands(type=lproperties.LinkPropertyCommand):
             self._append_subcmd_ast(node, op, context)
 
-        if not concept:
+        if not objtype:
             for op in self.get_subcommands(type=indexes.SourceIndexCommand):
                 self._append_subcmd_ast(node, op, context)
 

@@ -33,12 +33,12 @@ class EdgeSchemaLexer(lexer.RegexLexer):
 
                   (?# from EdgeQL)
                     action | after | any | array | asc |
-                    atom | attribute | before | by | cardinality |
-                    concept | constraint | database | delegated | desc |
+                    attribute | before | by | cardinality |
+                    constraint | database | delegated | desc |
                     event | first | from | index | initial |
                     into | last | link | map | migration | of | on |
-                    policy | property | rename | target |
-                    then | transaction | tuple | using | value |
+                    policy | property | rename | scalar | target |
+                    then | transaction | tuple | type | using | value |
                     view |
 
                     aggregate | all | alter | and | commit | create |
@@ -60,7 +60,7 @@ class EdgeSchemaLexer(lexer.RegexLexer):
             (r'\b(?i)(?<![:\.])(__self__|__subject__)\b',
              token.Name.Builtin.Pseudo),
 
-            (r'\b(__class__)\b', token.Name.Builtin.Pseudo),
+            (r'\b(__type__)\b', token.Name.Builtin.Pseudo),
         ],
 
         'strings': [

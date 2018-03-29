@@ -44,8 +44,8 @@ class TypeRules:
 
         is_subclass = isinstance(arg, type) and issubclass(arg, sig_arg)
 
-        if not is_subclass and isinstance(arg, s_obj.Class):
-            if not isinstance(sig_arg, s_obj.Class):
+        if not is_subclass and isinstance(arg, s_obj.Object):
+            if not isinstance(sig_arg, s_obj.Object):
                 sig_arg_typ = BaseTypeMeta.type_to_edgedb_builtin(sig_arg)
                 if not sig_arg_typ:
                     return False
@@ -117,10 +117,10 @@ class TypeInfoMeta(type):
 
                     result = args.annotations['return']
 
-                    if not issubclass(result, SchemaClass):
+                    if not issubclass(result, SchemaObject):
                         raise TypeError(
                             'type operation return annotations must '
-                            'be SchemaClass annotations')
+                            'be SchemaObject annotations')
 
                     for argt in itertools.product(*argtypes):
                         TypeRules.add_rule(astop, argt, result.schema_name)
@@ -232,19 +232,19 @@ class BaseTypeMeta:
         return tuple(mixins) if mixins else tuple()
 
 
-class SchemaClassMeta(type):
+class SchemaObjectMeta(type):
     def __new__(mcls, clsname, bases, dct, *, name=None):
         cls = super().__new__(mcls, clsname, bases, dct)
         cls.schema_name = name
         return cls
 
 
-class SchemaClass(metaclass=SchemaClassMeta):
+class SchemaObject(metaclass=SchemaObjectMeta):
     pass
 
 
 def classname_from_type(typ):
-    """Return canonical Class name for a given type.
+    """Return canonical Object name for a given type.
 
     Arguments:
 
@@ -252,7 +252,7 @@ def classname_from_type(typ):
 
     Result:
 
-    Canonical Class name.
+    Canonical Object name.
     """
     is_composite = isinstance(typ, tuple)
 
@@ -270,7 +270,7 @@ def classname_from_type(typ):
     elif isinstance(item_type, s_pointers.Pointer):
         classname = item_type.name
 
-    elif isinstance(item_type, s_obj.MetaClass):
+    elif isinstance(item_type, s_obj.ObjectMeta):
         classname = item_type
 
     else:
@@ -289,12 +289,12 @@ def classname_from_type(typ):
 
 
 def normalize_type(type, schema):
-    """Normalize provided type description into a canonical Class form.
+    """Normalize provided type description into a canonical Object form.
 
     Arguments:
 
     - type             -- Type to normalize
-    - schema     -- Schema to use for Class lookups
+    - schema     -- Schema to use for Object lookups
 
     Result:
 
@@ -314,7 +314,7 @@ def normalize_type(type, schema):
     else:
         item_class_name = classname
 
-    if isinstance(item_class_name, s_obj.MetaClass):
+    if isinstance(item_class_name, s_obj.ObjectMeta):
         item_class = item_class_name
     else:
         item_class = schema.get(item_class_name)

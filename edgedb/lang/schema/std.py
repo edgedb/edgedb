@@ -48,7 +48,7 @@ def load_graphql_schema(schema=None):
             ddl_plan = s_ddl.cmd_from_ddl(stmt, schema=schema)
 
         elif isinstance(stmt, qlast.DDL):
-            # CREATE/DELETE/ALTER (FUNCTION, CONCEPT, etc)
+            # CREATE/DELETE/ALTER (FUNCTION, TYPE, etc)
             ddl_plan = s_ddl.delta_from_ddl(stmt, schema=schema)
 
         context = sd.CommandContext()
