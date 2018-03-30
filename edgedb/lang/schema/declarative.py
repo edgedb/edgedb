@@ -27,6 +27,7 @@ from . import parser as s_parser
 
 from . import scalars as s_scalars
 from . import attributes as s_attrs
+from . import delta as s_delta
 from . import objtypes as s_objtypes
 from . import constraints as s_constr
 from . import error as s_err
@@ -95,6 +96,7 @@ class DeclarationLoader:
                 objcls_kw['final'] = decl.final
 
             obj = objcls(name=name,
+                         sourcectx=decl.context,
                          _setdefaults_=False,
                          _relaxrequired_=True,
                          **objcls_kw)
@@ -170,8 +172,16 @@ class DeclarationLoader:
             attributes, attrvals, actions, events, constraints,
             scalars, linkprops, indexes, links, objtypes))
 
+        dctx = s_delta.CommandContext(declarative=True)
+
         for obj in module.get_objects():
-            obj.finalize(self._schema)
+            cmdcls = s_delta.ObjectCommandMeta.get_command_class_or_die(
+                s_delta.CreateObject, type(obj))
+            ctxcls = cmdcls.get_context_class()
+            cmd = cmdcls(classname=obj.name)
+            ctx = ctxcls(cmd, obj)
+            with dctx(ctx):
+                obj.finalize(self._schema, dctx=dctx)
 
         # Normalization for defaults and other expressions must be
         # *after* finalize() so that all pointers have been inherited.
@@ -392,6 +402,8 @@ class DeclarationLoader:
             prop = prop_base.derive(self._schema, link, prop_target,
                                     add_to_schema=True)
 
+            prop.declared_inherited = propdecl.inherited
+
             link.add_pointer(prop)
 
             if propdecl.attributes:
@@ -446,6 +458,7 @@ class DeclarationLoader:
             attrvalue = s_attrs.AttributeValue(
                 name=dername, subject=subject,
                 attribute=attribute, value=value)
+            attrvalue.sourcectx = attrdecl.context
 
             self._schema.add(attrvalue)
             subject.add_attribute(attrvalue)
@@ -470,6 +483,7 @@ class DeclarationLoader:
             constraint = constr_base.derive(self._schema, subject)
             constraint.is_abstract = constrdecl.delegated
             constraint.acquire_ancestor_inheritance(self._schema)
+            constraint.sourcectx = constrdecl.context
 
             args = None
             if constrdecl.args:
@@ -588,9 +602,13 @@ class DeclarationLoader:
                 link = link_base.derive(
                     self._schema, objtype, target, add_to_schema=True)
 
+                link.sourcectx = linkdecl.context
+
                 link.spectargets = spectargets
 
                 link.required = bool(linkdecl.required)
+                link.declared_inherited = linkdecl.inherited
+
                 cardinality = self._get_literal_attribute(
                     linkdecl, 'cardinality')
                 if cardinality is not None:

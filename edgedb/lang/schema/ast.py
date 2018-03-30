@@ -28,12 +28,16 @@ class Base(ast.AST):
                                            ar)
 
 
-class Attribute(Base):
+class Spec(Base):
+    inherited: bool = False
+
+
+class Attribute(Spec):
     name: qlast.ObjectRef
     value: qlast.Base
 
 
-class Constraint(Base):
+class Constraint(Spec):
     args: typing.List[qlast.FuncArg]
     attributes: typing.List[Attribute]
     delegated: bool = False
@@ -41,7 +45,7 @@ class Constraint(Base):
     subject: typing.Optional[qlast.Expr]
 
 
-class Pointer(Base):
+class Pointer(Spec):
     name: qlast.ObjectRef
 
     # Computable links don't have a target
@@ -51,12 +55,12 @@ class Pointer(Base):
     constraints: typing.List[Constraint]
 
 
-class Index(Base):
+class Index(Spec):
     name: qlast.ObjectRef
     expression: qlast.Base
 
 
-class Policy(Base):
+class Policy(Spec):
     __fields = ['event', 'action']  # TODO: type this
 
 

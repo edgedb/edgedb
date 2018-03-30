@@ -17,6 +17,7 @@ from edgedb.lang import edgeql
 from edgedb.lang.edgeql import ast as qlast
 
 from edgedb.lang.schema import ddl as s_ddl
+from edgedb.lang.schema import declarative as s_decl
 from edgedb.lang.schema import delta as sd
 from edgedb.lang.schema import deltas as s_deltas  # noqa
 from edgedb.lang.schema import std as s_std
@@ -55,7 +56,7 @@ def _set_spec(func, name, attrs):
     spec[name] = attrs
 
 
-class ParserTestMeta(type(unittest.TestCase)):
+class DocTestMeta(type(unittest.TestCase)):
     def __new__(mcls, name, bases, dct):
         for attr, meth in tuple(dct.items()):
             if attr.startswith('test_') and meth.__doc__:
@@ -87,12 +88,9 @@ class ParserTestMeta(type(unittest.TestCase)):
         return super().__new__(mcls, name, bases, dct)
 
 
-class BaseParserTest(unittest.TestCase, metaclass=ParserTestMeta):
+class BaseDocTest(unittest.TestCase, metaclass=DocTestMeta):
     parser_debug_flag = ''
     re_filter = None
-
-    def get_parser(self, *, spec):
-        raise NotImplementedError
 
     def _run_test(self, *, source, spec=None, expected=None):
         if spec and 'must_fail' in spec:
@@ -137,9 +135,12 @@ class BaseParserTest(unittest.TestCase, metaclass=ParserTestMeta):
                 expected, result)
 
 
-class BaseSyntaxTest(BaseParserTest):
+class BaseSyntaxTest(BaseDocTest):
     ast_to_source = None
     markup_dump_lexer = None
+
+    def get_parser(self, *, spec):
+        raise NotImplementedError
 
     def run_test(self, *, source, spec, expected=None):
         debug = bool(os.environ.get(self.parser_debug_flag))
@@ -167,7 +168,7 @@ class BaseSyntaxTest(BaseParserTest):
         self.assert_equal(expected_src, processed_src)
 
 
-class AstValueTest(BaseParserTest):
+class AstValueTest(BaseDocTest):
     def run_test(self, *, source, spec=None, expected=None):
         debug = bool(os.environ.get(self.parser_debug_flag))
         if debug:
@@ -186,7 +187,7 @@ class AstValueTest(BaseParserTest):
             self.assertEqual(var.value.value, val)
 
 
-class BaseEdgeQLCompilerTest(BaseParserTest):
+class BaseEdgeQLCompilerTest(BaseDocTest):
     SCHEMA = None
 
     @classmethod
@@ -248,3 +249,10 @@ class BaseEdgeQLCompilerTest(BaseParserTest):
                 script += f'\nCOMMIT MIGRATION {module_name}::d1;'
 
         return script.strip(' \n')
+
+
+class BaseSchemaTest(BaseDocTest):
+    def run_test(self, *, source, spec, expected=None):
+        schema = s_std.load_std_schema()
+        schema = s_std.load_graphql_schema(schema)
+        s_decl.parse_module_declarations(schema, [('test', source)])

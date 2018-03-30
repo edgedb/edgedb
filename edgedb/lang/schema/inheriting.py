@@ -303,12 +303,13 @@ def create_virtual_parent(schema, children, *,
 class InheritingObject(derivable.DerivableObject):
     bases = so.Field(named.NamedObjectList,
                      default=named.NamedObjectList,
-                     coerce=True, private=True, compcoef=0.714)
+                     coerce=True, inheritable=False, compcoef=0.714)
 
     mro = so.Field(named.NamedObjectList,
-                   coerce=True, default=None, derived=True)
+                   coerce=True, default=None, hashable=False)
 
-    is_abstract = so.Field(bool, default=False, private=True, compcoef=0.909)
+    is_abstract = so.Field(bool, default=False,
+                           inheritable=False, compcoef=0.909)
     is_derived = so.Field(bool, False, compcoef=0.909)
     is_final = so.Field(bool, default=False, compcoef=0.909)
     is_virtual = so.Field(bool, default=False, compcoef=0.5)
@@ -319,6 +320,9 @@ class InheritingObject(derivable.DerivableObject):
 
     def delta(self, other, reverse=False, *, context):
         old, new = (other, self) if not reverse else (self, other)
+
+        if context is None:
+            context = so.ComparisonContext()
 
         with context(old, new):
             delta = super().delta(other, reverse=reverse, context=context)

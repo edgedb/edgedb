@@ -82,7 +82,8 @@ class EdgeDBErrorMeta(type):
 
 
 class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
-    def __init__(self, msg=None, *, hint=None, details=None, **kwargs):
+    def __init__(self, msg=None, *,
+                 hint=None, details=None, context=None, **kwargs):
         super().__init__(msg)
         self._attrs = {}
         if hint is not None:
@@ -94,6 +95,14 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
             add_context(
                 self, DefaultExceptionContext(hint=hint, details=details))
 
+        if context is not None:
+            add_context(
+                self, context)
+
+            if context.start is not None:
+                self._attrs['P'] = context.start.pointer
+                self._attrs['p'] = context.end.pointer
+
         for k, v in kwargs.items():
             if isinstance(v, ExceptionContext):
                 add_context(self, v)
@@ -101,6 +110,10 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
     @property
     def attrs(self):
         return self._attrs
+
+    @property
+    def position(self):
+        return self._attrs.get('P')
 
     def as_text(self):
         buffer = ''

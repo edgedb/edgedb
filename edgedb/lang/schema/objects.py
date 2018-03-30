@@ -10,6 +10,7 @@ import collections.abc
 import itertools
 
 from edgedb.lang.common import nlang
+from edgedb.lang.common import parsing
 from edgedb.lang.common import persistent_hash as phash
 from edgedb.lang.common import topological
 from edgedb.lang.common.ordered import OrderedSet
@@ -28,19 +29,22 @@ def is_named_class(scls):
 
 
 class Field(struct.Field):
-    __name__ = ('compcoef', 'private', 'derived', 'simpledelta',
-                'merge_fn', 'introspectable')
+    __slots__ = ('compcoef', 'inheritable', 'hashable', 'simpledelta',
+                 'merge_fn', 'ephemeral')
 
-    def __init__(self, *args, compcoef=None, private=False, derived=False,
-                 simpledelta=True, merge_fn=None, introspectable=True,
+    def __init__(self, *args, compcoef=None, inheritable=True, hashable=True,
+                 simpledelta=True, merge_fn=None, ephemeral=False,
                  **kwargs):
+        """Schema item core attribute definition.
+
+        """
         super().__init__(*args, **kwargs)
         self.compcoef = compcoef
-        self.private = private
-        self.derived = derived
+        self.inheritable = inheritable
+        self.hashable = hashable
         self.simpledelta = simpledelta
         self.merge_fn = merge_fn
-        self.introspectable = introspectable
+        self.ephemeral = ephemeral
 
 
 class ComparisonContextWrapper:
@@ -117,6 +121,10 @@ class ObjectMeta(struct.MixedStructMeta):
 
 
 class Object(struct.MixedStruct, metaclass=ObjectMeta):
+    sourcectx = Field(parsing.ParserContext, None, compcoef=None,
+                      inheritable=False, ephemeral=True, hashable=False)
+    """Schema source context for this object"""
+
     @classmethod
     def get_canonical_class(cls):
         return cls
@@ -127,7 +135,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
 
     def hash_criteria_fields(self):
         for fn, f in self.__class__.get_fields(sorted=True).items():
-            if not f.derived:
+            if f.hashable:
                 yield fn
 
     def hash_criteria(self):
@@ -190,9 +198,9 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
         """
         return phash.persistent_hash(self.hash_criteria())
 
-    def mergeable_fields(self):
+    def inheritable_fields(self):
         for fn, f in self.__class__.get_fields().items():
-            if not f.private:
+            if f.inheritable:
                 yield fn
 
     def merge(self, obj, *, schema, dctx=None):
@@ -207,7 +215,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
                 (obj.__class__.__name__, self.__class__.__name__)
             raise s_err.SchemaError(msg)
 
-        for field_name in self.mergeable_fields():
+        for field_name in self.inheritable_fields():
             field = self.__class__.get_field(field_name)
             FieldType = field.type[0]
 
@@ -406,7 +414,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
         old, new = (other, self) if not reverse else (self, other)
 
         ff = self.__class__.get_fields(sorted=True).items()
-        fields = [fn for fn, f in ff if f.simpledelta]
+        fields = [fn for fn, f in ff if f.simpledelta and not f.ephemeral]
 
         if old and new:
             for f in fields:
@@ -631,7 +639,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
 
 
 class NamedObject(Object):
-    name = Field(sn.Name, private=True, compcoef=0.670)
+    name = Field(sn.Name, inheritable=False, compcoef=0.670)
     title = Field(nlang.WordCombination,
                   default=None, compcoef=0.909, coerce=True)
     description = Field(str, default=None, compcoef=0.909)

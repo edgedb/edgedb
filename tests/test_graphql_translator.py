@@ -30,7 +30,7 @@ def with_variables(**kwargs):
     return wrap
 
 
-class BaseSchemaTestMeta(tb.ParserTestMeta):
+class BaseSchemaTestMeta(tb.DocTestMeta):
     @classmethod
     def __prepare__(mcls, name, bases, **kwargs):
         return collections.OrderedDict()

@@ -17,10 +17,6 @@ class SchemaSyntaxError(ParserError, EdgeDBSyntaxError):
 class SchemaError(EdgeDBError):
     code = '32000'
 
-    def __init__(self, msg=None, *, hint=None, details=None, context=None):
-        super().__init__(msg, hint=hint, details=details)
-        self.context = context
-
 
 class SchemaNameError(SchemaError):
     pass

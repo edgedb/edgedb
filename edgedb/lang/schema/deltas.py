@@ -23,15 +23,15 @@ from . import std as s_std
 class Delta(named.NamedObject):
     parents = so.Field(named.NamedObjectList,
                        default=named.NamedObjectList,
-                       coerce=True, private=True)
+                       coerce=True, inheritable=False)
 
-    target = so.Field(s_schema.Schema, private=True,
-                      introspectable=False)
+    target = so.Field(s_schema.Schema, inheritable=False,
+                      ephemeral=True)
 
     commands = so.Field(sd.CommandList,
                         default=sd.CommandList,
-                        coerce=True, private=True,
-                        introspectable=False)
+                        coerce=True, inheritable=False,
+                        ephemeral=True)
 
 
 class DeltaCommandContext(sd.CommandContextToken):

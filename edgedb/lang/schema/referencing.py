@@ -11,7 +11,7 @@ import collections
 from edgedb.lang.common import ordered
 
 from . import delta as sd
-from . import error as schema_error
+from . import error as s_err
 from . import inheriting
 from . import objects as so
 from . import name as sn
@@ -20,11 +20,13 @@ from . import named
 
 class RefDict:
     def __init__(self, local_attr=None, *, ordered=False, title=None,
-                 backref='subject', ref_cls, compcoef=None):
+                 backref='subject', requires_explicit_inherit=False,
+                 ref_cls, compcoef=None):
         self.local_attr = local_attr
         self.ordered = ordered
         self.title = title
         self.backref_attr = backref
+        self.requires_explicit_inherit = requires_explicit_inherit
         self.ref_cls = ref_cls
         self.compcoef = compcoef
 
@@ -47,9 +49,11 @@ class RefDict:
         setattr(obj, self.local_attr, self.get_new())
 
     def copy(self):
-        return self.__class__(local_attr=self.local_attr, ordered=self.ordered,
-                              title=self.title, backref=self.backref_attr,
-                              ref_cls=self.ref_cls, compcoef=self.compcoef)
+        return self.__class__(
+            local_attr=self.local_attr, ordered=self.ordered,
+            title=self.title, backref=self.backref_attr,
+            ref_cls=self.ref_cls, compcoef=self.compcoef,
+            requires_explicit_inherit=self.requires_explicit_inherit)
 
 
 class RebaseReferencingObject(inheriting.RebaseNamedObject):
@@ -520,7 +524,7 @@ class ReferencingObject(inheriting.InheritingObject,
         if existing is not None and not replace:
             msg = '{} {!r} is already present in {!r}'.format(
                 coll_obj, key, self.name)
-            raise schema_error.SchemaError(msg)
+            raise s_err.SchemaError(msg, context=obj.sourcectx)
 
         local_coll[key] = obj
         all_coll[key] = obj
@@ -600,6 +604,7 @@ class ReferencingObject(inheriting.InheritingObject,
             local_attr = refdict.local_attr
             backref_attr = refdict.backref_attr
             ref_cls = refdict.ref_cls
+            exp_inh = refdict.requires_explicit_inherit
 
             ref_keys = self.begin_classref_dict_merge(
                 schema, bases=bases, attr=attr)
@@ -609,6 +614,7 @@ class ReferencingObject(inheriting.InheritingObject,
                                      backref_attr=backref_attr,
                                      classrefcls=ref_cls,
                                      classref_keys=ref_keys,
+                                     requires_explicit_inherit=exp_inh,
                                      dctx=dctx)
 
             self.finish_classref_dict_merge(schema, bases=bases, attr=attr)
@@ -619,9 +625,11 @@ class ReferencingObject(inheriting.InheritingObject,
     def finish_classref_dict_merge(self, schema, bases, attr):
         pass
 
-    def merge_classref_dict(self, schema, bases, attr, local_attr,
+    def merge_classref_dict(self, schema, *,
+                            bases, attr, local_attr,
                             backref_attr, classrefcls,
-                            classref_keys=None, *, dctx=None):
+                            classref_keys, requires_explicit_inherit,
+                            dctx=None):
         """Merge reference collections from bases.
 
         :param schema:         The schema.
@@ -647,8 +655,6 @@ class ReferencingObject(inheriting.InheritingObject,
         classrefs = getattr(self, attr)
         local_classrefs = getattr(self, local_attr)
 
-        ODict = collections.OrderedDict
-
         if classref_keys is None:
             classref_keys = classrefs
 
@@ -657,12 +663,10 @@ class ReferencingObject(inheriting.InheritingObject,
 
             base_refs = [getattr(b, attr, {}).get(classref_key) for b in bases]
             inherited = filter(lambda i: i is not None, base_refs)
+            ancestry = {getattr(pref, backref_attr): pref
+                        for pref in inherited}
 
-            # Build a list of (source_class, target_class) tuples
-            # for this key.
-            #
-            inherited = list(ODict((getattr(pref, backref_attr), pref)
-                                   for pref in inherited).values())
+            inherited = list(ancestry.values())
 
             pure_inheritance = False
 
@@ -680,7 +684,7 @@ class ReferencingObject(inheriting.InheritingObject,
                 # Pure inheritance
                 item = inherited[0]
                 # In some cases pure inheritance is not possible, such
-                # as when a pointer has abstract constraints that must
+                # as when a pointer has delegated constraints that must
                 # be materialized on inheritance.  We delegate the
                 # decision to the referenced class here.
                 merged = classrefcls.inherit_pure(
@@ -691,10 +695,33 @@ class ReferencingObject(inheriting.InheritingObject,
                 # Not inherited
                 merged = local
 
+            if (local is not None and local is not merged and
+                    requires_explicit_inherit and
+                    not local.declared_inherited and
+                    dctx is not None and dctx.declarative):
+                # locally defined references *must* use
+                # the `inherited` keyword if ancestors have
+                # a reference under the same name.
+                raise s_err.SchemaError(
+                    f'{self.shortname}: {local.shortname} must be '
+                    f'declared using the `inherited` keyword because '
+                    f'it is defined in the following ancestor(s): '
+                    f'{", ".join(a.shortname for a in ancestry)}',
+                    context=local.sourcectx
+                )
+
+            if merged is local and local.declared_inherited:
+                raise s_err.SchemaError(
+                    f'{self.shortname}: {local.shortname} cannot '
+                    f'be declared `inherited` as there are no ancestors '
+                    f'defining it.',
+                    context=local.sourcectx
+                )
+
             if merged is not local:
                 if not pure_inheritance:
                     if dctx is not None:
-                        delta = merged.delta(local)
+                        delta = merged.delta(local, context=None)
                         if delta.has_subcommands():
                             dctx.current().op.add(delta)
 

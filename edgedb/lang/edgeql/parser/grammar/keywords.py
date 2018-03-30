@@ -36,6 +36,7 @@ unreserved_keywords = frozenset([
     "first",
     "from",
     "index",
+    "inherited",
     "initial",
     "into",
     "last",

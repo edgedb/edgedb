@@ -903,9 +903,20 @@ class Link(Nonterm):
     def reduce_LINK_Spec(self, *kids):
         self.val = self._process_pointerspec(kids[1].val)
 
+    def reduce_INHERITED_LINK_Spec(self, *kids):
+        link = self._process_pointerspec(kids[2].val)
+        link.inherited = True
+        self.val = link
+
     def reduce_REQUIRED_LINK_Spec(self, *kids):
         link = self._process_pointerspec(kids[2].val)
         link.required = True
+        self.val = link
+
+    def reduce_REQUIRED_INHERITED_LINK_Spec(self, *kids):
+        link = self._process_pointerspec(kids[3].val)
+        link.required = True
+        link.inherited = True
         self.val = link
 
 
@@ -932,6 +943,11 @@ class LinkProperty(Nonterm):
 
     def reduce_LINKPROPERTY_Spec(self, *kids):
         self.val = self._process_pointerspec(kids[1].val)
+
+    def reduce_INHERITED_LINKPROPERTY_Spec(self, *kids):
+        prop = self._process_pointerspec(kids[2].val)
+        prop.inherited = True
+        self.val = prop
 
 
 class Policy(Nonterm):
@@ -966,7 +982,8 @@ class OptConstraintCallArguments(Nonterm):
 class Constraint(Nonterm):
     def reduce_constraint(self, *kids):
         r"""%reduce \
-                CONSTRAINT ObjectName OptConstraintCallArguments OptOnExpr NL \
+                CONSTRAINT ObjectName OptConstraintCallArguments \
+                OptOnExpr NL \
         """
         self.val = esast.Constraint(
             name=kids[1].val,
@@ -975,8 +992,8 @@ class Constraint(Nonterm):
 
     def reduce_constraint_with_attributes(self, *kids):
         r"""%reduce \
-                CONSTRAINT ObjectName OptConstraintCallArguments OptOnExpr \
-                COLON NL INDENT Attributes DEDENT \
+                CONSTRAINT ObjectName OptConstraintCallArguments \
+                OptOnExpr COLON NL INDENT Attributes DEDENT \
         """
         self.val = esast.Constraint(
             name=kids[1].val,

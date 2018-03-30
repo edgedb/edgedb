@@ -693,9 +693,10 @@ class CommandContextWrapper:
 
 
 class CommandContext:
-    def __init__(self):
+    def __init__(self, *, declarative=False):
         self.stack = []
         self._cache = {}
+        self.declarative = declarative
 
     def push(self, token):
         self.stack.append(token)

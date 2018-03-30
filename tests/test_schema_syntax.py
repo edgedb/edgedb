@@ -494,6 +494,15 @@ abstract constraint foo($param:Foo) on (len(__subject__.bar)) extending max:
 constraint foo
         """
 
+    def test_eschema_syntax_constraint_10(self):
+        """
+type Foo:
+    constraint maxldistance:
+        errmessage := '{subject} must be no longer than {$param} meters.'
+
+    constraint maxlength(4)
+        """
+
     def test_eschema_syntax_linkproperty_01(self):
         """
 abstract link property foo:

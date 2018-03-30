@@ -756,7 +756,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                 attrs = []
                 for fn in fields:
                     field = metaclass.get_field(fn)
-                    if not field.introspectable:
+                    if field.ephemeral:
                         continue
 
                     ftype = field.type[0]

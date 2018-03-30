@@ -11,7 +11,7 @@ type Target0:
 
 
 type Target1 extending Target0:
-    link name -> str
+    inherited link name -> str
 
 
 type ObjectType0:

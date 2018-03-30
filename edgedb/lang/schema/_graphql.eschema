@@ -19,7 +19,7 @@ abstract type Nameable:
     link description -> str
 
 abstract type Named extending Nameable:
-    required link name -> str
+    required inherited link name -> str
 
 abstract type Deprecatable:
     required link isDeprecated -> bool

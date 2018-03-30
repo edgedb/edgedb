@@ -68,6 +68,7 @@ class StreamingTestSuite(unittest.TestSuite):
                     result.addWarning(test, wmsg)
 
     def _run(self, test, result):
+        result._testRunEntered = True
         self._tearDownPreviousClass(test, result)
         self._handleModuleFixture(test, result)
         self._handleClassSetUp(test, result)
@@ -83,6 +84,7 @@ class StreamingTestSuite(unittest.TestSuite):
 
         result.record_test_stats(test, {'running-time': elapsed})
 
+        result._testRunEntered = False
         return result
 
 

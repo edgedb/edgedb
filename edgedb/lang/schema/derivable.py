@@ -114,6 +114,10 @@ class DerivableObjectBase:
 
 
 class DerivableObject(so.NamedObject, DerivableObjectBase):
+    declared_inherited = so.Field(bool, False, compcoef=None,
+                                  ephemeral=True, inheritable=False)
+    """Indicates that the object has been declared as explicitly inherited."""
+
     @classmethod
     def inherit_pure(cls, schema, item, source, *, dctx=None):
         # This method is used by ReferencingObject and must be

@@ -46,19 +46,19 @@ class Constraint(inheriting.InheritingObject):
                            default=None, compcoef=0.833, coerce=True)
 
     localfinalexpr = so.Field(CumulativeBoolExpr, default=None,
-                              coerce=True, derived=True, private=True,
-                              introspectable=False)
+                              coerce=True, hashable=False, inheritable=False,
+                              ephemeral=True)
 
     finalexpr = so.Field(CumulativeBoolExpr, default=None,
-                         coerce=True, derived=True, compcoef=0.909)
+                         coerce=True, hashable=False, compcoef=0.909)
 
-    subject = so.Field(so.Object, default=None, private=True)
+    subject = so.Field(so.Object, default=None, inheritable=False)
 
     paramtypes = so.Field(so.TypeList, default=None, coerce=True,
                           compcoef=0.857)
 
     args = so.Field(s_expr.ExpressionText,
-                    default=None, coerce=True, private=True,
+                    default=None, coerce=True, inheritable=False,
                     compcoef=0.875)
 
     errmessage = so.Field(str, default=None, compcoef=0.971)

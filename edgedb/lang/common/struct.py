@@ -17,7 +17,7 @@ class NoDefault:
 class Field:
     """``Field`` objects: attributes of :class:`Struct`."""
 
-    __name__ = ('name', 'type', 'default', 'coerce', 'formatters')
+    __slots__ = ('name', 'type', 'default', 'coerce', 'formatters')
 
     def __init__(
             self, type, default=NoDefault, *, coerce=False, str_formatter=str,

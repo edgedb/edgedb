@@ -98,7 +98,7 @@ type UniqueName:
 
 
 type UniqueNameInherited extending UniqueName:
-    link name -> str
+    inherited link name -> str
 
 
 type UniqueNameGrandchild extending UniqueNameInherited
@@ -143,7 +143,7 @@ type ParentUniqueName:
 
 
 type ReceivingParent extending ParentUniqueName:
-    link name -> str
+    inherited link name -> str
 
 
 type LosingParent:
@@ -165,12 +165,12 @@ type AbstractConstraintPureChild extending AbstractConstraintParent
 
 
 type AbstractConstraintMixedChild extending AbstractConstraintParent:
-    link name -> str:
+    inherited link name -> str:
         constraint unique on (lower(__subject__))
 
 
 type AbstractConstraintPropagated extending AbstractConstraintParent:
-    link name -> str:
+    inherited link name -> str:
         delegated constraint unique
 
 

@@ -218,7 +218,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
 
                 type NamedObject:
                     required link name -> str:
-                        link property lang -> str:
+                        inherited link property lang -> str:
                             title := 'Language'
             $$;
 

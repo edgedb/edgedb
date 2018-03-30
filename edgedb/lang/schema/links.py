@@ -81,7 +81,7 @@ class LinkMapping(enum.StrEnum):
 
 class LinkSearchConfiguration(so.Object):
     weight = so.Field(LinkSearchWeight, default=None, compcoef=0.9,
-                      introspectable=False)
+                      ephemeral=True)
 
 
 class Link(sources.Source, pointers.Pointer):
@@ -366,7 +366,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                 sd.AlterObjectProperty(
                     property='readonly',
                     new_value=True
-                )
+                ),
             ))
 
             cmd.add(src_prop)

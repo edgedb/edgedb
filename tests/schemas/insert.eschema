@@ -73,7 +73,7 @@ abstract type Callable:
 type Field extending Callable:
     # This link 'args' appears to be overriding the inherited 'args'
     # from Callable.
-    link args -> InputValue:
+    inherited link args -> InputValue:
         cardinality := '1*'
 
 type Directive extending Callable

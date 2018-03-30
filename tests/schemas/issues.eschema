@@ -12,7 +12,7 @@ abstract type Named:
 # Dictionary is a NamedObject variant, that enforces
 # name uniqueness across all instances if its subclass.
 abstract type Dictionary extending Named:
-    required link name -> str:
+    required inherited link name -> str:
         delegated constraint unique
 
 
