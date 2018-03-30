@@ -2,11 +2,12 @@ abstract type Named:
     required link name -> str:
         delegated constraint unique
 
-link deck:
+
+abstract link deck:
     link property count -> int
 
 
-link friends:
+abstract link friends:
     link property nickname -> str
     # how the friend responded to requests for a favor
     #link property favor -> array<bool>

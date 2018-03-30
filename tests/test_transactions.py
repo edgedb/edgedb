@@ -12,7 +12,7 @@ from edgedb.client import exceptions
 
 class TestTransactions(tb.QueryTestCase):
     SETUP = """
-        CREATE LINK test::name {
+        CREATE ABSTRACT LINK test::name {
             SET cardinality := '11';
             SET readonly := False;
         };

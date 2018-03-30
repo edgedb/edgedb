@@ -2330,129 +2330,131 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_attribute_01(self):
         """
-        CREATE ATTRIBUTE std::paramtypes map<std::str, std::typeref>;
+        CREATE ABSTRACT ATTRIBUTE std::paramtypes map<std::str, std::typeref>;
         """
 
     def test_edgeql_syntax_ddl_attribute_02(self):
         """
-        CREATE ATTRIBUTE stdattrs::precision array<std::int>;
+        CREATE ABSTRACT ATTRIBUTE stdattrs::precision array<std::int>;
         """
 
     def test_edgeql_syntax_ddl_attribute_03(self):
         # test parsing of array types
         #
         """
-        CREATE ATTRIBUTE std::foo array<int>;
-        CREATE ATTRIBUTE std::foo array<int[]>;
-        CREATE ATTRIBUTE std::foo array<int[][]>;
-        CREATE ATTRIBUTE std::foo array<int[][][]>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int[]>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int[][]>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int[][][]>;
 
-        CREATE ATTRIBUTE std::foo array<int[3]>;
-        CREATE ATTRIBUTE std::foo array<int[4][5]>;
-        CREATE ATTRIBUTE std::foo array<int[3][4][5]>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int[3]>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int[4][5]>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int[3][4][5]>;
 
-        CREATE ATTRIBUTE std::foo array<int[][5]>;
-        CREATE ATTRIBUTE std::foo array<int[4][]>;
-        CREATE ATTRIBUTE std::foo array<int[][4][5]>;
-        CREATE ATTRIBUTE std::foo array<int[3][4][]>;
-        CREATE ATTRIBUTE std::foo array<int[][4][]>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int[][5]>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int[4][]>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int[][4][5]>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int[3][4][]>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int[][4][]>;
         """
 
     def test_edgeql_syntax_ddl_attribute_04(self):
         # test parsing of map types
         #
         """
-        CREATE ATTRIBUTE std::foo map<int, str>;
-        CREATE ATTRIBUTE std::foo map<array<int>, str>;
-        CREATE ATTRIBUTE std::foo map<array<int>, tuple<str, str>>;
-        CREATE ATTRIBUTE std::foo map<int, foo::Bar>;
+        CREATE ABSTRACT ATTRIBUTE std::foo map<int, str>;
+        CREATE ABSTRACT ATTRIBUTE std::foo map<array<int>, str>;
+        CREATE ABSTRACT ATTRIBUTE std::foo map<array<int>, tuple<str, str>>;
+        CREATE ABSTRACT ATTRIBUTE std::foo map<int, foo::Bar>;
         """
 
     def test_edgeql_syntax_ddl_attribute_05(self):
         # test parsing of tuple types
         #
         """
-        CREATE ATTRIBUTE std::foo tuple;
-        CREATE ATTRIBUTE std::foo tuple<float>;
-        CREATE ATTRIBUTE std::foo tuple<int, str>;
-        CREATE ATTRIBUTE std::foo tuple<array<int>, str>;
-        CREATE ATTRIBUTE std::foo tuple<array<int>, tuple<str, str>>;
-        CREATE ATTRIBUTE std::foo tuple<int, foo::Bar>;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<float>;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<int, str>;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<array<int>, str>;
+        CREATE ABSTRACT ATTRIBUTE std::foo
+            tuple<array<int>, tuple<str, str>>;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<int, foo::Bar>;
 
-        CREATE ATTRIBUTE std::foo tuple<count: int, name: str>;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<count: int, name: str>;
 
-        CREATE ATTRIBUTE std::foo tuple<Baz, map<int, str>>;
-        CREATE ATTRIBUTE std::foo tuple<Baz, map<array<int>, str>>;
-        CREATE ATTRIBUTE std::foo tuple<Baz, map<array<int>, tuple<str, str>>>;
-        CREATE ATTRIBUTE std::foo tuple<Baz, map<int, foo::Bar>>;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<Baz, map<int, str>>;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<Baz, map<array<int>, str>>;
+        CREATE ABSTRACT ATTRIBUTE std::foo
+            tuple<Baz, map<array<int>, tuple<str, str>>>;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<Baz, map<int, foo::Bar>>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*map", line=2, col=35)
+                  r"Unexpected token.*map", line=2, col=44)
     def test_edgeql_syntax_ddl_attribute_06(self):
         """
-        CREATE ATTRIBUTE std::foo map;
+        CREATE ABSTRACT ATTRIBUTE std::foo map;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*>", line=2, col=42)
+                  r"Unexpected token.*>", line=2, col=51)
     def test_edgeql_syntax_ddl_attribute_07(self):
         """
-        CREATE ATTRIBUTE std::foo map<int>;
+        CREATE ABSTRACT ATTRIBUTE std::foo map<int>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*COMMA", line=2, col=47)
+                  r"Unexpected token.*COMMA", line=2, col=56)
     def test_edgeql_syntax_ddl_attribute_08(self):
         """
-        CREATE ATTRIBUTE std::foo map<int, str, float>;
+        CREATE ABSTRACT ATTRIBUTE std::foo map<int, str, float>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*array", line=2, col=35)
+                  r"Unexpected token.*array", line=2, col=44)
     def test_edgeql_syntax_ddl_attribute_09(self):
         """
-        CREATE ATTRIBUTE std::foo array;
+        CREATE ABSTRACT ATTRIBUTE std::foo array;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*COMMA", line=2, col=44)
+                  r"Unexpected token.*COMMA", line=2, col=53)
     def test_edgeql_syntax_ddl_attribute_10(self):
         """
-        CREATE ATTRIBUTE std::foo array<int, int, int>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int, int, int>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*<", line=2, col=46)
+                  r"Unexpected token.*<", line=2, col=55)
     def test_edgeql_syntax_ddl_attribute_11(self):
         """
-        CREATE ATTRIBUTE std::foo array<array<int[]>>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<array<int[]>>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*COLON", line=2, col=49)
+                  r"Unexpected token.*COLON", line=2, col=58)
     def test_edgeql_syntax_ddl_attribute_12(self):
         """
-        CREATE ATTRIBUTE std::foo tuple<int, foo:int>;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<int, foo:int>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*>", line=2, col=53)
+                  r"Unexpected token.*>", line=2, col=62)
     def test_edgeql_syntax_ddl_attribute_13(self):
         """
-        CREATE ATTRIBUTE std::foo tuple<foo:int, str>;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<foo:int, str>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*SEMICOLON", line=2, col=41)
+                  r"Unexpected token.*SEMICOLON", line=2, col=50)
     def test_edgeql_syntax_ddl_attribute_14(self):
         """
-        CREATE ATTRIBUTE std::paramtypes;
+        CREATE ABSTRACT ATTRIBUTE std::paramtypes;
         """
 
     def test_edgeql_syntax_ddl_constraint_01(self):
         """
-        CREATE CONSTRAINT std::enum(array<std::any>)
+        CREATE ABSTRACT CONSTRAINT std::enum(array<std::any>)
             EXTENDING std::constraint
         {
             SET errmessage := '{subject} must be one of: {param}.';
@@ -2462,7 +2464,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_constraint_02(self):
         """
-        CREATE CONSTRAINT std::enum(array<std::any>) {
+        CREATE ABSTRACT CONSTRAINT std::enum(array<std::any>) {
             SET errmessage := '{subject} must be one of: {param}.';
             SET expr := array_contains($param, __subject__);
         };
@@ -2470,7 +2472,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_constraint_03(self):
         """
-        CREATE CONSTRAINT std::enum {
+        CREATE ABSTRACT CONSTRAINT std::enum {
             SET errmessage := '{subject} must be one of: {param}.';
             SET expr := array_contains($param, __subject__);
         };
@@ -2478,14 +2480,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_constraint_04(self):
         """
-        CREATE CONSTRAINT std::enum() {
+        CREATE ABSTRACT CONSTRAINT std::enum() {
             SET errmessage := '{subject} must be one of: {param}.';
             SET expr := array_contains($param, __subject__);
         };
 
 % OK %
 
-        CREATE CONSTRAINT std::enum {
+        CREATE ABSTRACT CONSTRAINT std::enum {
             SET errmessage := '{subject} must be one of: {param}.';
             SET expr := array_contains($param, __subject__);
         };
@@ -2500,7 +2502,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_constraint_06(self):
         """
-        CREATE CONSTRAINT std::length ON (len(<std::str>__subject__))
+        CREATE ABSTRACT CONSTRAINT std::length ON (len(<std::str>__subject__))
             EXTENDING std::constraint
         {
             SET errmessage := 'invalid {subject}';
@@ -2717,31 +2719,31 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_linkproperty_01(self):
         """
-        CREATE LINK PROPERTY std::linkproperty {
-            SET title := 'Base link property';
-        };
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=21)
-    def test_edgeql_syntax_ddl_linkproperty_02(self):
-        """
-        CREATE LINK LINK PROPERTY std::linkproperty {
-            SET title := 'Base link property';
-        };
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=39)
-    def test_edgeql_syntax_ddl_linkproperty_03(self):
-        """
-        CREATE LINK PROPERTY PROPERTY std::linkproperty {
+        CREATE ABSTRACT LINK PROPERTY std::linkproperty {
             SET title := 'Base link property';
         };
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=30)
+    def test_edgeql_syntax_ddl_linkproperty_02(self):
+        """
+        CREATE ABSTRACT LINK LINK PROPERTY std::linkproperty {
+            SET title := 'Base link property';
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=48)
+    def test_edgeql_syntax_ddl_linkproperty_03(self):
+        """
+        CREATE ABSTRACT LINK PROPERTY PROPERTY std::linkproperty {
+            SET title := 'Base link property';
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=39)
     def test_edgeql_syntax_ddl_linkproperty_04(self):
         """
-        CREATE LINK PROPERTY __type__ {
+        CREATE ABSTRACT LINK PROPERTY __type__ {
             SET title := 'Base link property';
         };
         """

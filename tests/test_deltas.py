@@ -22,7 +22,7 @@ class TestDeltas(tb.DDLTestCase):
             # setup delta
             #
             CREATE MIGRATION test::d1 TO eschema $$
-                link name:
+                abstract link name:
                     link property lang -> str
 
                 type NamedObject:
@@ -213,7 +213,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
             # setup delta
             #
             CREATE MIGRATION test::d1 TO eschema $$
-                link name:
+                abstract link name:
                     link property lang -> str
 
                 type NamedObject:
@@ -228,16 +228,17 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
         self._assert_result(
             result[1],
             '''\
-            CREATE LINK PROPERTY test::lang {
+            CREATE ABSTRACT LINK PROPERTY test::lang {
                 SET is_virtual := False;
                 SET readonly := False;
                 SET title := 'Base link property';
             };
-            CREATE LINK test::name EXTENDING std::link {
+            CREATE ABSTRACT LINK test::name EXTENDING std::link {
                 SET is_virtual := False;
                 SET readonly := False;
             };
-            ALTER LINK test::name CREATE LINK PROPERTY test::lang -> std::str {
+            ALTER ABSTRACT LINK test::name \
+CREATE LINK PROPERTY test::lang -> std::str {
                 SET is_virtual := False;
                 SET readonly := False;
                 SET title := 'Base link property';
@@ -277,7 +278,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
             # setup delta
             #
             CREATE MIGRATION test::d2 TO eschema $$
-                link a:
+                abstract link a:
                     link property a_prop -> array<str>
 
                 type NamedObject:
@@ -290,16 +291,17 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
         self._assert_result(
             result[1],
             '''\
-    CREATE LINK PROPERTY test::a_prop {
+    CREATE ABSTRACT LINK PROPERTY test::a_prop {
         SET is_virtual := False;
         SET readonly := False;
         SET title := 'Base link property';
     };
-    CREATE LINK test::a EXTENDING std::link {
+    CREATE ABSTRACT LINK test::a EXTENDING std::link {
         SET is_virtual := False;
         SET readonly := False;
     };
-    ALTER LINK test::a CREATE LINK PROPERTY test::a_prop -> array<std::str> {
+    ALTER ABSTRACT LINK test::a \
+CREATE LINK PROPERTY test::a_prop -> array<std::str> {
         SET is_virtual := False;
         SET readonly := False;
         SET title := 'Base link property';
@@ -344,11 +346,11 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
         self._assert_result(
             result[1],
             '''\
-            CREATE LINK test::bar EXTENDING std::link {
+            CREATE ABSTRACT LINK test::bar EXTENDING std::link {
                 SET is_virtual := False;
                 SET readonly := False;
             };
-            CREATE LINK test::__typename EXTENDING std::link {
+            CREATE ABSTRACT LINK test::__typename EXTENDING std::link {
                 SET is_virtual := False;
                 SET readonly := False;
             };

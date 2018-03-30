@@ -16,12 +16,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_01(self):
         await self.con.execute("""
-            CREATE LINK test::test_link;
+            CREATE ABSTRACT LINK test::test_link;
         """)
 
     async def test_edgeql_ddl_02(self):
         await self.con.execute("""
-            CREATE LINK test::test_object_link {
+            CREATE ABSTRACT LINK test::test_object_link {
                 CREATE LINK PROPERTY test::test_link_prop -> std::int;
             };
 
@@ -36,7 +36,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_03(self):
         await self.con.execute("""
-            CREATE LINK test::test_object_link_prop {
+            CREATE ABSTRACT LINK test::test_object_link_prop {
                 CREATE LINK PROPERTY test::link_prop1 -> std::str;
             };
         """)

@@ -168,6 +168,8 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
                 self.visit(node.type)
                 self.write(' ')
 
+        if node.abstract:
+            self.write('abstract ')
         self._visit_Declaration(node, after_name=after_name)
 
     def visit_ObjectTypeDeclaration(self, node):
@@ -198,6 +200,8 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self._visit_Declaration(node)
 
     def visit_LinkPropertyDeclaration(self, node):
+        if node.abstract:
+            self.write('abstract ')
         self._visit_Declaration(node)
 
     def visit_ViewDeclaration(self, node):

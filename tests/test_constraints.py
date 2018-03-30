@@ -545,19 +545,19 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
 class TestConstraintsDDL(tb.DDLTestCase):
     async def test_constraints_ddl_01(self):
         qry = """
-            CREATE LINK test::translated_label {
+            CREATE ABSTRACT LINK test::translated_label {
                 SET cardinality := '1*';
                 CREATE LINK PROPERTY test::lang -> std::str;
                 CREATE LINK PROPERTY test::prop1 -> std::str;
             };
 
-            CREATE LINK test::link_with_unique_property {
+            CREATE ABSTRACT LINK test::link_with_unique_property {
                 CREATE LINK PROPERTY test::unique_property -> std::str {
                     CREATE CONSTRAINT std::unique;
                 };
             };
 
-            CREATE LINK test::link_with_unique_property_inherited
+            CREATE ABSTRACT LINK test::link_with_unique_property_inherited
                 EXTENDING test::link_with_unique_property;
 
             CREATE TYPE test::UniqueName {
@@ -589,7 +589,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
         qry = """
             CREATE TYPE test::AbstractConstraintParent {
                 CREATE LINK test::name -> std::str {
-                    CREATE ABSTRACT CONSTRAINT std::unique;
+                    CREATE DELEGATED CONSTRAINT std::unique;
                 };
             };
 
@@ -625,14 +625,16 @@ class TestConstraintsDDL(tb.DDLTestCase):
     async def test_constraints_ddl_02(self):
         # testing the generalized constraint with 'ON (...)' clause
         qry = r"""
-            CREATE CONSTRAINT test::mymax1(std::int) ON (len(__subject__)) {
+            CREATE ABSTRACT CONSTRAINT test::mymax1(std::int)
+                    ON (len(__subject__))
+            {
                 SET errmessage :=
                     '{__subject__} must be no longer than {$0} characters.';
                 SET expr := __subject__ <= $0;
             };
 
-            CREATE CONSTRAINT test::mymax_ext1(std::int) ON (len(__subject__))
-                EXTENDING std::max
+            CREATE ABSTRACT CONSTRAINT test::mymax_ext1(std::int)
+                    ON (len(__subject__)) EXTENDING std::max
             {
                 SET errmessage :=
                     '{__subject__} must be no longer than {$0} characters.';
@@ -705,7 +707,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
     async def test_constraints_ddl_03(self):
         # testing the specialized constraint with 'ON (...)' clause
         qry = r"""
-            CREATE CONSTRAINT test::mymax2(std::int) {
+            CREATE ABSTRACT CONSTRAINT test::mymax2(std::int) {
                 SET errmessage :=
                     '{__subject__} must be no longer than {$0} characters.';
                 SET expr := __subject__ <= $0;
@@ -786,7 +788,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
     async def test_constraints_ddl_04(self):
         # testing an issue with expressions used for 'errmessage'
         qry = r"""
-            CREATE CONSTRAINT test::mymax3(std::int) {
+            CREATE ABSTRACT CONSTRAINT test::mymax3(std::int) {
                 SET errmessage :=
                     '{__subject__} must be no longer ' +
                     'than {$0} characters.';
@@ -820,7 +822,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     exceptions.SchemaDefinitionError,
                     'subjectexpr is not a valid constraint attribute'):
                 await self.con.execute("""
-                    CREATE CONSTRAINT test::len_fail(std::str) {
+                    CREATE ABSTRACT CONSTRAINT test::len_fail(std::str) {
                         SET expr := __subject__ <= $0;
                         SET subjectexpr := len(__subject__);
                     };
@@ -831,7 +833,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     exceptions.SchemaDefinitionError,
                     'subject is not a valid constraint attribute'):
                 await self.con.execute("""
-                    CREATE CONSTRAINT test::len_fail(std::str) {
+                    CREATE ABSTRACT CONSTRAINT test::len_fail(std::str) {
                         SET expr := __subject__ <= $0;
                         # doesn't matter what subject is set to, it's illegal
                         SET subject := len(__subject__);
@@ -843,7 +845,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     exceptions.SchemaDefinitionError,
                     'subjectexpr is not a valid constraint attribute'):
                 await self.con.execute("""
-                    CREATE CONSTRAINT test::len_fail(std::int) {
+                    CREATE ABSTRACT CONSTRAINT test::len_fail(std::int) {
                         SET expr := __subject__ <= $0;
                     };
 
@@ -861,7 +863,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     exceptions.SchemaDefinitionError,
                     'subject is not a valid constraint attribute'):
                 await self.con.execute("""
-                    CREATE CONSTRAINT test::len_fail(std::int) {
+                    CREATE ABSTRACT CONSTRAINT test::len_fail(std::int) {
                         SET expr := __subject__ <= $0;
                     };
 
@@ -882,7 +884,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     exceptions.InvalidConstraintDefinitionError,
                     r"subjectexpr is already defined for .+max_int"):
                 await self.con.execute(r"""
-                    CREATE CONSTRAINT test::max_int(std::int)
+                    CREATE ABSTRACT CONSTRAINT test::max_int(std::int)
                         ON (<int>__subject__)
                     {
                         SET errmessage :=
@@ -903,7 +905,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
     async def test_constraints_ddl_error_03(self):
         # testing various incorrect alter constraint DDL commands
         qry = """
-            CREATE CONSTRAINT test::foo_alter(std::any) {
+            CREATE ABSTRACT CONSTRAINT test::foo_alter(std::any) {
                 SET errmessage := 'foo';
                 SET expr := __subject__ = $0;
             };
@@ -922,7 +924,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     exceptions.SchemaDefinitionError,
                     'subjectexpr is not a valid constraint attribute'):
                 await self.con.execute("""
-                    ALTER CONSTRAINT test::foo_alter {
+                    ALTER ABSTRACT CONSTRAINT test::foo_alter {
                         SET subjectexpr := len(__subject__);
                     };
                 """)
@@ -932,7 +934,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     exceptions.SchemaDefinitionError,
                     'subject is not a valid constraint attribute'):
                 await self.con.execute("""
-                    ALTER CONSTRAINT test::foo_alter {
+                    ALTER ABSTRACT CONSTRAINT test::foo_alter {
                         SET subject := len(__subject__);
                     };
                 """)
@@ -968,7 +970,9 @@ class TestConstraintsDDL(tb.DDLTestCase):
     async def test_constraints_ddl_error_04(self):
         # testing various incorrect DELETE constraint DDL commands
         qry = """
-            CREATE CONSTRAINT test::foo_drop(std::any) ON (len(__subject__)) {
+            CREATE ABSTRACT CONSTRAINT test::foo_drop(std::any) ON
+                    (len(__subject__))
+            {
                 SET errmessage := 'foo';
                 SET expr := __subject__ = $0;
             };
@@ -987,7 +991,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     exceptions.SchemaDefinitionError,
                     'subjectexpr is not a valid constraint attribute'):
                 await self.con.execute("""
-                    ALTER CONSTRAINT test::foo_drop {
+                    ALTER ABSTRACT CONSTRAINT test::foo_drop {
                         DROP ATTRIBUTE subjectexpr;
                     };
                 """)
@@ -997,7 +1001,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     exceptions.SchemaDefinitionError,
                     'subject is not a valid constraint attribute'):
                 await self.con.execute("""
-                    ALTER CONSTRAINT test::foo_drop {
+                    ALTER ABSTRACT CONSTRAINT test::foo_drop {
                         DROP ATTRIBUTE subject;
                     };
                 """)

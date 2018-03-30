@@ -37,14 +37,14 @@ scalar type constraint_enum extending str:
    constraint enum(['foo', 'bar'])
 
 
-link translated_label:
+abstract link translated_label:
     cardinality := '1*'
 
     link property lang -> str
     link property prop1 -> str
 
 
-link link_with_unique_property:
+abstract link link_with_unique_property:
     link property unique_property -> str:
         constraint unique
 
@@ -52,14 +52,14 @@ link link_with_unique_property:
         constraint unique
 
 
-link link_with_unique_property_inherited extending link_with_unique_property
+abstract link link_with_unique_property_inherited extending link_with_unique_property
 
 
-link another_link_with_unique_property:
+abstract link another_link_with_unique_property:
     link property unique_property -> str
 
 
-link another_link_with_unique_property_inherited extending another_link_with_unique_property
+abstract link another_link_with_unique_property_inherited extending another_link_with_unique_property
 
 
 type Object:

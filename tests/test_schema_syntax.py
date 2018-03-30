@@ -180,7 +180,7 @@ type LogEntry extending OwnedObject, Text:
 
     def test_eschema_syntax_index_02(self):
         """
-link foobar:
+abstract link foobar:
     link property foo:
         title := 'Sample property'
 
@@ -418,14 +418,14 @@ scalar type constraint_length extending str:
     def test_eschema_syntax_constraint_01(self):
         """
 # Test empty tuple as subject expression
-constraint max($param:any) on (()):
+abstract constraint max($param:any) on (()):
     expr := __subject__ <= $param
     errmessage := 'Maximum allowed value for {subject} is {$param}.'
 
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  r"only specialized constraints can be delegated",
+                  r"only concrete constraints can be delegated",
                   line=2, col=1)
     def test_eschema_syntax_constraint_02(self):
         """
@@ -435,39 +435,39 @@ delegated constraint length:
 
     def test_eschema_syntax_constraint_03(self):
         """
-constraint maxlength($param:any) extending max, length:
+abstract constraint maxlength($param:any) extending max, length:
     errmessage := '{subject} must be no longer than {$param} characters.'
         """
 
     def test_eschema_syntax_constraint_04(self):
         """
-constraint max($param:any):
+abstract constraint max($param:any):
     expr := __subject__ <= $param
     errmessage := 'Maximum allowed value for {subject} is {$param}.'
 
 abstract constraint length:
     subject := str::len(<str>__subject__)
 
-constraint maxlength($param:any) extending max, length:
+abstract constraint maxlength($param:any) extending max, length:
     errmessage := '{subject} must be no longer than {$param} characters.'
         """
 
     def test_eschema_syntax_constraint_05(self):
         """
-constraint distance:
+abstract constraint distance:
     subject :=
         <float>__subject__
 
-constraint maxldistance extending max, distance:
+abstract constraint maxldistance extending max, distance:
     errmessage := '{subject} must be no longer than {$param} meters.'
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
                   r"missing type declaration.*\$param",
-                  line=2, col=22)
+                  line=2, col=31)
     def test_eschema_syntax_constraint_06(self):
         """
-constraint maxlength($param) extending max, length
+abstract constraint maxlength($param) extending max, length
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
@@ -482,34 +482,50 @@ scalar type special extending int:
 
     def test_eschema_syntax_constraint_08(self):
         """
-constraint foo($param:Foo) on (len(__subject__.bar)) extending max:
+abstract constraint foo($param:Foo) on (len(__subject__.bar)) extending max:
     errmessage := 'bar must be no more than {$param}.'
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r"Unexpected token.*CONSTRAINT",
+                  line=2, col=1)
+    def test_eschema_syntax_constraint_09(self):
+        """
+constraint foo
         """
 
     def test_eschema_syntax_linkproperty_01(self):
         """
-link property foo:
+abstract link property foo:
     title := 'Sample property'
         """
 
     def test_eschema_syntax_linkproperty_02(self):
         """
-link property bar extending foo
+abstract link property bar extending foo
         """
 
     def test_eschema_syntax_linkproperty_03(self):
         """
-link property bar extending foo:
+abstract link property bar extending foo:
     title := 'Another property'
         """
 
     def test_eschema_syntax_linkproperty_04(self):
         """
-link property foo:
+abstract link property foo:
     title := 'Sample property'
 
-link property bar extending foo:
+abstract link property bar extending foo:
     title := 'Another property'
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r"Unexpected token.*LINKPROPERTY",
+                  line=2, col=1)
+    def test_eschema_syntax_linkproperty_05(self):
+        """
+link property foo
         """
 
     def test_eschema_syntax_action_01(self):
@@ -536,23 +552,23 @@ event self_deleted:
 
     def test_eschema_syntax_link_01(self):
         """
-link coollink
+abstract link coollink
         """
 
     def test_eschema_syntax_link_02(self):
         """
-link coollink extending boringlink
+abstract link coollink extending boringlink
         """
 
     def test_eschema_syntax_link_03(self):
         """
-link coollink:
+abstract link coollink:
     link property foo -> int
         """
 
     def test_eschema_syntax_link_04(self):
         """
-link coollink:
+abstract link coollink:
     link property foo -> int
     link property bar -> int
 
@@ -562,13 +578,13 @@ link coollink:
 
     def test_eschema_syntax_link_05(self):
         """
-link property foo:
+abstract link property foo:
     title := 'Sample property'
 
-link property bar extending foo:
+abstract link property bar extending foo:
     title := 'Another property'
 
-link coollink:
+abstract link coollink:
     link property foo -> int:
         default := 2
         constraint min(0)
@@ -594,33 +610,33 @@ event self_deleted:
                   r'Unexpected token.*LINKPROPERTY', line=3, col=22)
     def test_eschema_syntax_link_06(self):
         """
-        link coollink:
+        abstract link coollink:
             required link property foo -> int
         """
 
     def test_eschema_syntax_link_07(self):
         """
-        link time_estimate:
+        abstract link time_estimate:
            link property unit -> str:
                constraint my_constraint(0)
         """
 
     def test_eschema_syntax_link_08(self):
         """
-        link time_estimate:
+        abstract link time_estimate:
            link property unit -> str:
                constraint my_constraint(0, <str>(42^2))
         """
 
     def test_eschema_syntax_link_09(self):
         """
-        link time_estimate:
+        abstract link time_estimate:
            link property unit -> str:
                constraint my_constraint(')', `)`($$)$$))
 
 % OK %
 
-        link time_estimate:
+        abstract link time_estimate:
            link property unit -> str:
                constraint my_constraint(')', `)`(')'))
         """
@@ -628,6 +644,14 @@ event self_deleted:
     def test_eschema_syntax_link_10(self):
         """
 abstract link coollink
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r"Unexpected token.*LINK",
+                  line=2, col=1)
+    def test_eschema_syntax_link_11(self):
+        """
+link foo
         """
 
     def test_eschema_syntax_import_01(self):
@@ -953,84 +977,92 @@ abstract link coollink
 
     def test_eschema_syntax_attribute_01(self):
         """
-        attribute foobar std::str
+        abstract attribute foobar std::str
         """
 
     def test_eschema_syntax_attribute_02(self):
         """
-        attribute foobar test::mystr extending baz
+        abstract attribute foobar test::mystr extending baz
         """
 
     def test_eschema_syntax_attribute_03(self):
         """
-        attribute foobar extending baz
+        abstract attribute foobar extending baz
         """
 
     def test_eschema_syntax_attribute_04(self):
         """
-        attribute foobar std::str:
+        abstract attribute foobar std::str:
             title := 'Some title'
         """
 
     def test_eschema_syntax_attribute_05(self):
         """
-        attribute foobar test::mystr extending baz:
+        abstract attribute foobar test::mystr extending baz:
             title := 'Some title'
         """
 
     def test_eschema_syntax_attribute_06(self):
         """
-        attribute foobar extending baz:
+        abstract attribute foobar extending baz:
             title := 'Some title'
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  r'Unexpected token.*DOUBLECOLON', line=2, col=23)
+                  r'Unexpected token.*DOUBLECOLON', line=2, col=32)
     def test_eschema_syntax_attribute_07(self):
         """
-        attribute test::foobar as std::str
+        abstract attribute test::foobar as std::str
         """
 
     def test_eschema_syntax_attribute_08(self):
         """
-        attribute foobar extending (foo1, foo2)
+        abstract attribute foobar extending (foo1, foo2)
         """
 
     def test_eschema_syntax_attribute_09(self):
         """
-        attribute foobar extending (foo1,
+        abstract attribute foobar extending (foo1,
     foo2)
         """
 
     def test_eschema_syntax_attribute_10(self):
         """
-        attribute foobar extending (foo1,
+        abstract attribute foobar extending (foo1,
     foo2):
             title := 'Title'
         """
 
     def test_eschema_syntax_attribute_11(self):
         """
-        attribute as as extending foo
+        abstract attribute as as extending foo
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  r'Unexpected token:.*EXTENDING', line=2, col=32)
+                  r'Unexpected token:.*EXTENDING', line=2, col=41)
     def test_eschema_syntax_attribute_12(self):
         """
-        attribute as extending extending foo
+        abstract attribute as extending extending foo
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  r'Unexpected token:.*EXTENDING', line=2, col=35)
+                  r'Unexpected token:.*EXTENDING', line=2, col=44)
     def test_eschema_syntax_attribute_13(self):
         """
-        attribute as as extending extending
+        abstract attribute as as extending extending
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  r'Unexpected token:.*NL', line=2, col=25)
+                  r'Unexpected token:.*NL', line=2, col=34)
     def test_eschema_syntax_attribute_14(self):
         """
-        attribute foobar
+        abstract attribute foobar
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r"Unexpected token.*ATTRIBUTE",
+                  line=2, col=1)
+    def test_eschema_syntax_attribute_15(self):
+        """
+attribute foo std::int;
         """

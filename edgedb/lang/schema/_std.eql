@@ -34,44 +34,44 @@ CREATE SCALAR TYPE std::float;
 
 CREATE SCALAR TYPE std::bool;
 
-CREATE ATTRIBUTE std::pattern std::str;
+CREATE ABSTRACT ATTRIBUTE std::pattern std::str;
 
 CREATE ABSTRACT SCALAR TYPE std::sequence;
 
 CREATE SCALAR TYPE std::tsvector;
 CREATE SCALAR TYPE std::tsquery;
 
-CREATE ATTRIBUTE stdattrs::precision array<std::int>;
+CREATE ABSTRACT ATTRIBUTE stdattrs::precision array<std::int>;
 
-CREATE ATTRIBUTE stdattrs::name std::str;
-CREATE ATTRIBUTE stdattrs::is_abstract std::bool;
-CREATE ATTRIBUTE stdattrs::is_final std::bool;
-CREATE ATTRIBUTE stdattrs::is_derived std::bool;
-CREATE ATTRIBUTE stdattrs::is_virtual std::bool;
-CREATE ATTRIBUTE stdattrs::view_type std::int;
-CREATE ATTRIBUTE stdattrs::title std::str;
-CREATE ATTRIBUTE stdattrs::description std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::name std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::is_abstract std::bool;
+CREATE ABSTRACT ATTRIBUTE stdattrs::is_final std::bool;
+CREATE ABSTRACT ATTRIBUTE stdattrs::is_derived std::bool;
+CREATE ABSTRACT ATTRIBUTE stdattrs::is_virtual std::bool;
+CREATE ABSTRACT ATTRIBUTE stdattrs::view_type std::int;
+CREATE ABSTRACT ATTRIBUTE stdattrs::title std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::description std::str;
 
-CREATE ATTRIBUTE stdattrs::expr std::str;
-CREATE ATTRIBUTE stdattrs::subjectexpr std::str;
-CREATE ATTRIBUTE stdattrs::finalexpr std::str;
-CREATE ATTRIBUTE stdattrs::errmessage std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::expr std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::subjectexpr std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::finalexpr std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::errmessage std::str;
 
-CREATE ATTRIBUTE stdattrs::value std::str;
-CREATE ATTRIBUTE stdattrs::required std::bool;
-CREATE ATTRIBUTE stdattrs::readonly std::bool;
-CREATE ATTRIBUTE stdattrs::computable std::bool;
-CREATE ATTRIBUTE stdattrs::default std::str;
-CREATE ATTRIBUTE stdattrs::expression std::str;
-CREATE ATTRIBUTE stdattrs::cardinality std::str;
-CREATE ATTRIBUTE stdattrs::aggregate std::bool;
-CREATE ATTRIBUTE stdattrs::set_returning std::bool;
-CREATE ATTRIBUTE stdattrs::language std::str;
-CREATE ATTRIBUTE stdattrs::code std::str;
-CREATE ATTRIBUTE stdattrs::from_function std::str;
-CREATE ATTRIBUTE stdattrs::initial_value std::str;
-CREATE ATTRIBUTE stdattrs::varparam std::int;
-CREATE ATTRIBUTE stdattrs::args map<std::str, std::str>;
+CREATE ABSTRACT ATTRIBUTE stdattrs::value std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::required std::bool;
+CREATE ABSTRACT ATTRIBUTE stdattrs::readonly std::bool;
+CREATE ABSTRACT ATTRIBUTE stdattrs::computable std::bool;
+CREATE ABSTRACT ATTRIBUTE stdattrs::default std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::expression std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::cardinality std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::aggregate std::bool;
+CREATE ABSTRACT ATTRIBUTE stdattrs::set_returning std::bool;
+CREATE ABSTRACT ATTRIBUTE stdattrs::language std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::code std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::from_function std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::initial_value std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::varparam std::int;
+CREATE ABSTRACT ATTRIBUTE stdattrs::args map<std::str, std::str>;
 
 CREATE FUNCTION std::lower(std::str) -> std::str
     FROM SQL FUNCTION 'lower';
@@ -158,58 +158,79 @@ CREATE FUNCTION std::current_datetime() -> std::datetime
 CREATE FUNCTION std::uuid_generate_v1mc() -> std::uuid
     FROM SQL FUNCTION 'uuid_generate_v1mc';
 
-CREATE CONSTRAINT std::constraint {
-    SET errmessage := 'invalid {__subject__}';
-};
-
-CREATE CONSTRAINT std::expression EXTENDING std::constraint {
-    SET expr := __subject__;
-};
-
-CREATE CONSTRAINT std::max(std::any) EXTENDING std::constraint {
-    SET errmessage := 'Maximum allowed value for {__subject__} is {$0}.';
-    SET expr := __subject__ <= $0;
-};
-
-CREATE CONSTRAINT std::enum(array<std::any>) EXTENDING std::constraint {
-    SET errmessage := '{__subject__} must be one of: {$0}.';
-    SET expr := array_contains($0, __subject__);
-};
-
-CREATE CONSTRAINT std::min(std::any) EXTENDING std::constraint {
-    SET errmessage := 'Minimum allowed value for {__subject__} is {$0}.';
-    SET expr := __subject__ >= $0;
-};
-
-CREATE CONSTRAINT std::minexclusive(std::any) EXTENDING std::min {
-    SET errmessage := '{__subject__} must be greater than {$0}.';
-    SET expr := __subject__ > $0;
-};
-
-CREATE CONSTRAINT std::length ON (len(<std::str>__subject__))
-    EXTENDING std::constraint
+CREATE ABSTRACT CONSTRAINT std::constraint
 {
     SET errmessage := 'invalid {__subject__}';
 };
 
-CREATE CONSTRAINT std::minlength(std::int) EXTENDING (std::min, std::length) {
+CREATE ABSTRACT CONSTRAINT std::expression
+        EXTENDING std::constraint
+{
+    SET expr := __subject__;
+};
+
+CREATE ABSTRACT CONSTRAINT std::max(std::any)
+        EXTENDING std::constraint
+{
+    SET errmessage := 'Maximum allowed value for {__subject__} is {$0}.';
+    SET expr := __subject__ <= $0;
+};
+
+CREATE ABSTRACT CONSTRAINT std::enum(array<std::any>)
+        EXTENDING std::constraint
+{
+    SET errmessage := '{__subject__} must be one of: {$0}.';
+    SET expr := array_contains($0, __subject__);
+};
+
+CREATE ABSTRACT CONSTRAINT std::min(std::any)
+        EXTENDING std::constraint
+{
+    SET errmessage := 'Minimum allowed value for {__subject__} is {$0}.';
+    SET expr := __subject__ >= $0;
+};
+
+CREATE ABSTRACT CONSTRAINT std::minexclusive(std::any)
+        EXTENDING std::min
+{
+    SET errmessage := '{__subject__} must be greater than {$0}.';
+    SET expr := __subject__ > $0;
+};
+
+CREATE ABSTRACT CONSTRAINT std::length ON (len(<std::str>__subject__))
+        EXTENDING std::constraint
+{
+    SET errmessage := 'invalid {__subject__}';
+};
+
+CREATE ABSTRACT CONSTRAINT std::minlength(std::int)
+        EXTENDING (std::min, std::length)
+{
     SET errmessage := '{__subject__} must be no shorter than {$0} characters.';
 };
 
-CREATE CONSTRAINT std::regexp(std::any) EXTENDING std::constraint {
+CREATE ABSTRACT CONSTRAINT std::regexp(std::any)
+        EXTENDING std::constraint
+{
     SET errmessage := 'invalid {__subject__}';
     SET expr := re_test(__subject__, $0);
 };
 
-CREATE CONSTRAINT std::maxlength(std::int) EXTENDING (std::max, std::length) {
+CREATE ABSTRACT CONSTRAINT std::maxlength(std::int)
+        EXTENDING (std::max, std::length)
+{
     SET errmessage := '{__subject__} must be no longer than {$0} characters.';
 };
 
-CREATE CONSTRAINT std::maxexclusive(std::any) EXTENDING std::max {
+CREATE ABSTRACT CONSTRAINT std::maxexclusive(std::any)
+        EXTENDING std::max
+{
     SET errmessage := '{__subject__} must be less than {$0}.';
 };
 
-CREATE CONSTRAINT std::unique EXTENDING std::constraint {
+CREATE ABSTRACT CONSTRAINT std::unique
+        EXTENDING std::constraint
+{
     SET errmessage := '{__subject__} violates unique constraint';
     SET expr := std::is_distinct(__subject__);
 };
@@ -220,7 +241,7 @@ CREATE SCALAR TYPE std::decimal_rounding_t EXTENDING std::str {
          'half-up', 'floor', 'down', 'half-down']);
 };
 
-CREATE ATTRIBUTE std::rounding std::decimal_rounding_t;
+CREATE ABSTRACT ATTRIBUTE std::rounding std::decimal_rounding_t;
 
 CREATE SCALAR TYPE std::decimal;
 
@@ -278,19 +299,19 @@ CREATE EVENT std::cascade_copy EXTENDING std::cascade_base;
 
 CREATE EVENT std::target_deleted EXTENDING std::deleted;
 
-CREATE LINK PROPERTY std::linkproperty {
+CREATE ABSTRACT LINK PROPERTY std::linkproperty {
     SET title := 'Base link property';
 };
 
-CREATE LINK PROPERTY std::source {
+CREATE ABSTRACT LINK PROPERTY std::source {
     SET title := 'Link source';
 };
 
-CREATE LINK PROPERTY std::target {
+CREATE ABSTRACT LINK PROPERTY std::target {
     SET title := 'Link target';
 };
 
-CREATE LINK std::link {
+CREATE ABSTRACT LINK std::link {
     CREATE POLICY FOR std::cascade_session_detach TO std::cascade_loaded;
     CREATE POLICY FOR std::cascade_serialize TO std::cascade_loaded;
     CREATE POLICY FOR std::source_deleted TO std::restrict;
@@ -300,7 +321,7 @@ CREATE LINK std::link {
     CREATE POLICY FOR std::cascade_copy TO std::ignore;
 };
 
-CREATE LINK std::id EXTENDING std::link;
+CREATE ABSTRACT LINK std::id EXTENDING std::link;
 
 CREATE TYPE std::Object {
     CREATE REQUIRED LINK std::id -> std::uuid {
@@ -332,7 +353,7 @@ CREATE TYPE schema::Attribute EXTENDING schema::Object {
 };
 
 
-CREATE LINK schema::attributes {
+CREATE ABSTRACT LINK schema::attributes {
     CREATE LINK PROPERTY schema::value -> std::str;
 };
 
@@ -344,7 +365,7 @@ ALTER TYPE schema::Object {
 };
 
 
-CREATE LINK std::__type__ {
+CREATE ABSTRACT LINK std::__type__ {
     SET readonly := True;
 };
 
@@ -420,6 +441,7 @@ CREATE TYPE schema::Parameter {
     CREATE REQUIRED LINK schema::num -> std::int;
     CREATE LINK schema::name -> std::str;
     CREATE LINK schema::default -> std::str;
+    CREATE LINK schema::variadic -> std::bool;
 };
 
 

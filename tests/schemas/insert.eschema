@@ -1,8 +1,8 @@
-link l3:
+abstract link l3:
     link property comment -> str:
         default := "N/A"
 
-link subordinates:
+abstract link subordinates:
     link property comment -> str
 
 type Subordinate:
@@ -47,10 +47,10 @@ type DefaultTest4:
         default := (SELECT count(DefaultTest4))
 
 # links and types to test scalar links with link properties
-link special:
+abstract link special:
     link property lang -> str
 
-link title:
+abstract link title:
     link property lang -> str
 
 

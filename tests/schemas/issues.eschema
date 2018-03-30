@@ -16,7 +16,7 @@ abstract type Dictionary extending Named:
         delegated constraint unique
 
 
-link todo:
+abstract link todo:
     link property rank -> int:
         default := 42
 

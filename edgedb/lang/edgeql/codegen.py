@@ -769,10 +769,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(' ')
             self.visit(node.type)
 
-        self._visit_CreateObject(node, 'ATTRIBUTE', after_name=after_name)
+        self._visit_CreateObject(node, 'ABSTRACT ATTRIBUTE',
+                                 after_name=after_name)
 
     def visit_DropAttribute(self, node):
-        self._visit_DropObject(node, 'ATTRIBUTE')
+        self._visit_DropObject(node, 'ABSTRACT ATTRIBUTE')
 
     def visit_CreateAttributeValue(self, node):
         self.write('SET ')
@@ -803,13 +804,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
             self._ddl_visit_bases(node)
 
-        self._visit_CreateObject(node, 'CONSTRAINT', after_name=after_name)
+        self._visit_CreateObject(node, 'ABSTRACT CONSTRAINT',
+                                 after_name=after_name)
 
     def visit_AlterConstraint(self, node):
-        self._visit_AlterObject(node, 'CONSTRAINT')
+        self._visit_AlterObject(node, 'ABSTRACT CONSTRAINT')
 
     def visit_DropConstraint(self, node):
-        self._visit_DropObject(node, 'CONSTRAINT')
+        self._visit_DropObject(node, 'ABSTRACT CONSTRAINT')
 
     def visit_CreateConcreteConstraint(self, node):
         def after_name():
@@ -853,13 +855,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'SCALAR TYPE')
 
     def visit_CreateLinkProperty(self, node):
-        self._visit_CreateObject(node, 'LINK PROPERTY')
+        self._visit_CreateObject(node, 'ABSTRACT LINK PROPERTY')
 
     def visit_AlterLinkProperty(self, node):
-        self._visit_AlterObject(node, 'LINK PROPERTY')
+        self._visit_AlterObject(node, 'ABSTRACT LINK PROPERTY')
 
     def visit_DropLinkProperty(self, node):
-        self._visit_DropObject(node, 'LINK PROPERTY')
+        self._visit_DropObject(node, 'ABSTRACT LINK PROPERTY')
 
     def visit_CreateConcreteLinkProperty(self, node):
         keywords = []
@@ -881,13 +883,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_CreateLink(self, node):
         after_name = lambda: self._ddl_visit_bases(node)
-        self._visit_CreateObject(node, 'LINK', after_name=after_name)
+        self._visit_CreateObject(node, 'ABSTRACT LINK', after_name=after_name)
 
     def visit_AlterLink(self, node):
-        self._visit_AlterObject(node, 'LINK')
+        self._visit_AlterObject(node, 'ABSTRACT LINK')
 
     def visit_DropLink(self, node):
-        self._visit_DropObject(node, 'LINK')
+        self._visit_DropObject(node, 'ABSTRACT LINK')
 
     def visit_CreateConcreteLink(self, node):
         keywords = []

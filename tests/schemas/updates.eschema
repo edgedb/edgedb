@@ -6,13 +6,13 @@ type Tag:
     required link name -> str:
         constraint unique
 
-link annotated_status:
+abstract link annotated_status:
     link property note -> str
 
-link weighted_tags:
+abstract link weighted_tags:
     link property weight -> int
 
-link annotated_tests:
+abstract link annotated_tests:
     link property note -> str
 
 type UpdateTest:

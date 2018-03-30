@@ -249,6 +249,17 @@ class DeclarationBase(Nonterm):
     def reduce_ActionDeclaration(self, kid):
         self.val = kid.val
 
+    def reduce_EventDeclaration(self, kid):
+        self.val = kid.val
+
+    def reduce_ABSTRACT_AttributeDeclaration(self, *kids):
+        self.val = kids[1].val
+        self.val.abstract = True
+
+    def reduce_ABSTRACT_LinkPropertyDeclaration(self, *kids):
+        self.val = kids[1].val
+        self.val.abstract = True
+
     def reduce_ABSTRACT_LinkDeclaration(self, *kids):
         self.val = kids[1].val
         self.val.abstract = True
@@ -256,6 +267,9 @@ class DeclarationBase(Nonterm):
     def reduce_ABSTRACT_ScalarTypeDeclaration(self, *kids):
         self.val = kids[1].val
         self.val.abstract = True
+
+    def reduce_ScalarTypeDeclaration(self, kid):
+        self.val = kid.val
 
     def reduce_ABSTRACT_ObjectTypeDeclaration(self, *kids):
         self.val = kids[1].val
@@ -269,35 +283,17 @@ class DeclarationBase(Nonterm):
         self.val = kids[1].val
         self.val.final = True
 
+    def reduce_ObjectTypeDeclaration(self, kid):
+        self.val = kid.val
+
     def reduce_ABSTRACT_ConstraintDeclaration(self, *kids):
         self.val = kids[1].val
         self.val.abstract = True
 
     def reduce_DELEGATED_ConstraintDeclaration(self, *kids):
         raise SchemaSyntaxError(
-            'only specialized constraints can be delegated',
+            'only concrete constraints can be delegated',
             context=kids[0].context)
-
-    def reduce_ScalarTypeDeclaration(self, kid):
-        self.val = kid.val
-
-    def reduce_AttributeDeclaration(self, kid):
-        self.val = kid.val
-
-    def reduce_ObjectTypeDeclaration(self, kid):
-        self.val = kid.val
-
-    def reduce_ConstraintDeclaration(self, kid):
-        self.val = kid.val
-
-    def reduce_LinkDeclaration(self, kid):
-        self.val = kid.val
-
-    def reduce_LinkPropertyDeclaration(self, kid):
-        self.val = kid.val
-
-    def reduce_EventDeclaration(self, kid):
-        self.val = kid.val
 
 
 class ActionDeclaration(Nonterm):
@@ -730,7 +726,7 @@ class ParenRawString(Nonterm):
 
         # XXX: the prefix also includes a module in order to break if
         # the module name is supplied in the schema
-        prefix = 'CREATE ATTRIBUTE foo::'
+        prefix = 'CREATE ABSTRACT ATTRIBUTE foo::'
         eql_query = f'{prefix}{expr}'
         eql = parse_edgeql(eql_query, context, offset_column=-len(prefix))
 
