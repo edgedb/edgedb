@@ -654,6 +654,15 @@ abstract link coollink
 link foo
         """
 
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r"Unexpected token.*DOUBLECOLON",
+                  line=3, col=13)
+    def test_eschema_syntax_link_12(self):
+        """
+type Foo:
+    link mod::name to std::str
+        """
+
     def test_eschema_syntax_import_01(self):
         """
         import foo

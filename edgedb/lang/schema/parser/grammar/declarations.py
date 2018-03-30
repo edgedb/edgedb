@@ -97,9 +97,14 @@ class DotName(Nonterm):
         self.val.module += '.' + kids[2].val
 
 
-class ObjectName(Nonterm):
+class UnqualifiedObjectName(Nonterm):
     def reduce_Identifier(self, kid):
         self.val = qlast.ObjectRef(name=kid.val)
+
+
+class ObjectName(Nonterm):
+    def reduce_UnqualifiedObjectName(self, kid):
+        self.val = kid.val
 
     def reduce_DotName_DOUBLECOLON_Identifier(self, *kids):
         self.val = kids[0].val
@@ -844,24 +849,24 @@ class TurnstileBlob(parsing.Nonterm):
 
 
 class Spec(Nonterm):
-    def reduce_ObjectName_NL(self, *kids):
+    def reduce_UnqualifiedObjectName_NL(self, *kids):
         self.val = PointerSpec(
             name=kids[0].val, target=None, spec=[], expr=None)
 
-    def reduce_ObjectName_DeclarationSpecsBlob(self, *kids):
+    def reduce_UnqualifiedObjectName_DeclarationSpecsBlob(self, *kids):
         self.val = PointerSpec(
             name=kids[0].val, target=None, spec=kids[1].val, expr=None)
 
-    def reduce_ObjectName_ARROW_TypeList_NL(self, *kids):
+    def reduce_UnqualifiedObjectName_ARROW_TypeList_NL(self, *kids):
         self.val = PointerSpec(
             name=kids[0].val, target=kids[2].val, spec=[], expr=None)
 
-    def reduce_ObjectName_ARROW_TypeList_DeclarationSpecsBlob(
+    def reduce_UnqualifiedObjectName_ARROW_TypeList_DeclarationSpecsBlob(
             self, *kids):
         self.val = PointerSpec(
             name=kids[0].val, target=kids[2].val, spec=kids[3].val, expr=None)
 
-    def reduce_ObjectName_TurnstileBlob(self, *kids):
+    def reduce_UnqualifiedObjectName_TurnstileBlob(self, *kids):
         self.val = PointerSpec(
             name=kids[0].val, target=None, spec=[], expr=kids[1].val)
 
