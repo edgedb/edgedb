@@ -23,8 +23,8 @@ from edgedb.lang import schema as so
 from edgedb.lang.schema import delta as sd
 
 from edgedb.lang.schema import attributes as s_attrs
-from edgedb.lang.schema import atoms as s_scalars
-from edgedb.lang.schema import concepts as s_objtypes
+from edgedb.lang.schema import scalars as s_scalars
+from edgedb.lang.schema import objtypes as s_objtypes
 from edgedb.lang.schema import constraints as s_constr
 from edgedb.lang.schema import database as s_db
 from edgedb.lang.schema import ddl as s_ddl
@@ -352,7 +352,7 @@ class Backend(s_deltarepo.DeltaProvider):
             self.connection, schema_pattern='edgedb%', table_pattern='%_data')
         tables = {(t['schema'], t['name']): t for t in tables}
 
-        objtype_list = await datasources.schema.concepts.fetch(self.connection)
+        objtype_list = await datasources.schema.objtypes.fetch(self.connection)
         objtype_list = collections.OrderedDict((sn.Name(row['name']), row)
                                                for row in objtype_list)
 
@@ -377,7 +377,7 @@ class Backend(s_deltarepo.DeltaProvider):
         return self.table_cache.get(table_name)['name']
 
     async def _init_scalar_map_cache(self):
-        scalar_list = await datasources.schema.atoms.fetch(self.connection)
+        scalar_list = await datasources.schema.scalars.fetch(self.connection)
 
         domain_to_scalar_map = {}
 
@@ -541,7 +541,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
     async def get_objtype_map(self, force_reload=False):
         if not self.objtype_cache or force_reload:
-            cl_ds = datasources.schema.concepts
+            cl_ds = datasources.schema.objtypes
 
             for row in await cl_ds.fetch(self.connection):
                 self.objtype_cache[row['name']] = row['id']
@@ -663,7 +663,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
         seen_seqs = set()
 
-        scalar_list = await datasources.schema.atoms.fetch(self.connection)
+        scalar_list = await datasources.schema.scalars.fetch(self.connection)
 
         basemap = {}
 
@@ -1331,7 +1331,7 @@ class Backend(s_deltarepo.DeltaProvider):
             self.connection, schema_pattern='edgedb%', table_pattern='%_data')
         tables = {(t['schema'], t['name']): t for t in tables}
 
-        objtype_list = await datasources.schema.concepts.fetch(
+        objtype_list = await datasources.schema.objtypes.fetch(
             self.connection)
         objtype_list = collections.OrderedDict((sn.Name(row['name']), row)
                                                for row in objtype_list)
@@ -1393,7 +1393,7 @@ class Backend(s_deltarepo.DeltaProvider):
             else:
                 objtype.bases = [schema.get(b) for b in bases]
 
-        derived = await datasources.schema.concepts.fetch_derived(
+        derived = await datasources.schema.objtypes.fetch_derived(
             self.connection)
 
         for row in derived:

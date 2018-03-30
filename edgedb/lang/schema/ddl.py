@@ -14,9 +14,9 @@ from edgedb.lang.schema import delta as s_delta
 # The below must be imported here to make sure we have all
 # necessary mappers from/to DDL AST.
 
-from . import atoms  # NOQA
+from . import scalars  # NOQA
 from . import attributes  # NOQA
-from . import concepts  # NOQA
+from . import objtypes  # NOQA
 from . import constraints  # NOQA
 from . import functions  # NOQA
 from . import indexes  # NOQA

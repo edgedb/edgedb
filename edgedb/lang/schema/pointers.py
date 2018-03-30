@@ -183,7 +183,7 @@ class BasePointer(inheriting.InheritingObject):
 
     @classmethod
     def merge_targets(cls, schema, ptr, t1, t2):
-        from . import atoms as s_scalars, concepts as s_objtypes
+        from . import scalars as s_scalars, objtypes as s_objtypes
 
         # When two pointers are merged, check target compatibility
         # and return a target that satisfies both specified targets.

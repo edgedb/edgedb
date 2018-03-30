@@ -14,8 +14,8 @@ from edgedb.lang.ir import utils as ir_utils
 from edgedb.lang.edgeql import compiler as ql_compiler
 from edgedb.lang.edgeql import ast as qlast
 
-from edgedb.lang.schema import atoms as s_scalars
-from edgedb.lang.schema import concepts as s_objtypes
+from edgedb.lang.schema import scalars as s_scalars
+from edgedb.lang.schema import objtypes as s_objtypes
 from edgedb.lang.schema import error as s_err
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import lproperties as s_lprops

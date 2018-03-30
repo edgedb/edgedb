@@ -236,7 +236,7 @@ def compute_mro(obj):
 
 def create_virtual_parent(schema, children, *,
                           module_name=None, minimize_by=None):
-    from . import atoms as s_scalars, concepts as s_objtypes, sources
+    from . import scalars as s_scalars, objtypes as s_objtypes, sources
 
     if len(children) == 1:
         return next(iter(children))

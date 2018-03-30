@@ -8,7 +8,7 @@
 
 from edgedb.lang.common import ast
 
-from edgedb.lang.schema import concepts as s_objtypes
+from edgedb.lang.schema import objtypes as s_objtypes
 from edgedb.lang.schema import lproperties as s_lprops
 
 from edgedb.lang.ir import ast as irast

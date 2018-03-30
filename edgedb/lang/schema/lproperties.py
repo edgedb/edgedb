@@ -8,7 +8,7 @@
 
 from edgedb.lang.edgeql import ast as qlast
 
-from . import atoms as s_scalars
+from . import scalars as s_scalars
 from . import constraints
 from . import delta as sd
 from . import inheriting

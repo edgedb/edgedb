@@ -14,8 +14,8 @@ from edgedb.lang.common import ast
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
-from edgedb.lang.schema import atoms as s_scalars
-from edgedb.lang.schema import concepts as s_objtypes
+from edgedb.lang.schema import scalars as s_scalars
+from edgedb.lang.schema import objtypes as s_objtypes
 from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers

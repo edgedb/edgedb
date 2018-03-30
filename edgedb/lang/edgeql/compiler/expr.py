@@ -17,7 +17,7 @@ from edgedb.lang.ir import inference as irinference
 from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import basetypes as s_basetypes
-from edgedb.lang.schema import concepts as s_objtypes
+from edgedb.lang.schema import objtypes as s_objtypes
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import types as s_types
 from edgedb.lang.schema import utils as s_utils

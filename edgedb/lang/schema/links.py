@@ -9,7 +9,7 @@
 from edgedb.lang.common import enum
 from edgedb.lang.edgeql import ast as qlast
 
-from . import atoms as s_scalars
+from . import scalars as s_scalars
 from . import constraints
 from . import database as s_db
 from . import delta as sd
@@ -237,7 +237,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
-        from . import concepts as s_objtypes
+        from . import objtypes as s_objtypes
 
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
@@ -490,7 +490,7 @@ class AlterTarget(sd.Command):
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
-        from . import concepts as s_objtypes
+        from . import objtypes as s_objtypes
 
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 

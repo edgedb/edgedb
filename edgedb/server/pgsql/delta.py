@@ -17,8 +17,8 @@ from edgedb.lang.edgeql import compiler as ql_compiler
 from edgedb.lang.edgeql import errors as ql_errors
 
 from edgedb.lang.schema import attributes as s_attrs
-from edgedb.lang.schema import atoms as s_scalars
-from edgedb.lang.schema import concepts as s_objtypes
+from edgedb.lang.schema import scalars as s_scalars
+from edgedb.lang.schema import objtypes as s_objtypes
 from edgedb.lang.schema import constraints as s_constr
 from edgedb.lang.schema import database as s_db
 from edgedb.lang.schema import delta as sd
@@ -2773,7 +2773,7 @@ class CommandContext(sd.CommandContext):
         self.class_name_to_id_map = None
 
     async def _get_class_map(self, reverse=False):
-        classes = await datasources.schema.classes.fetch(self.db)
+        classes = await datasources.schema.objects.fetch(self.db)
         grouped = itertools.groupby(classes, key=lambda i: i['id'])
         if reverse:
             class_map = {k: next(i)['name'] for k, i in grouped}

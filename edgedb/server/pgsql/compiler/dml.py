@@ -24,7 +24,7 @@ from edgedb.lang.common import ast
 
 from edgedb.lang.ir import ast as irast
 
-from edgedb.lang.schema import atoms as s_scalars
+from edgedb.lang.schema import scalars as s_scalars
 from edgedb.lang.schema import lproperties as s_lprops
 
 from edgedb.server.pgsql import ast as pgast

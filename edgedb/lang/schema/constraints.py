@@ -87,7 +87,7 @@ class Constraint(inheriting.InheritingObject):
 
     @classmethod
     def _dummy_subject(cls):
-        from . import atoms as s_scalars
+        from . import scalars as s_scalars
 
         # Point subject placeholder to a dummy pointer to make EdgeQL
         # pipeline happy.
