@@ -10,9 +10,9 @@ from edgedb.lang.edgeql import ast as qlast
 
 from edgedb.lang.ir import utils as irutils
 
-from . import atoms as s_scalars
+from . import scalars as s_scalars
 from . import attributes
-from . import concepts as s_objtypes
+from . import objtypes as s_objtypes
 from . import delta as sd
 from . import nodes
 

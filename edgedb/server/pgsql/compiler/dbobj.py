@@ -10,7 +10,7 @@ import typing
 
 from edgedb.lang.ir import ast as irast
 
-from edgedb.lang.schema import concepts as s_objtypes
+from edgedb.lang.schema import objtypes as s_objtypes
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers

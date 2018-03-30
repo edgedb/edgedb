@@ -25,9 +25,9 @@ from edgedb.lang.ir import inference as ir_inference
 from . import ast as s_ast
 from . import parser as s_parser
 
-from . import atoms as s_scalars
+from . import scalars as s_scalars
 from . import attributes as s_attrs
-from . import concepts as s_objtypes
+from . import objtypes as s_objtypes
 from . import constraints as s_constr
 from . import error as s_err
 from . import expr as s_expr

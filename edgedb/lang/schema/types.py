@@ -135,7 +135,7 @@ class Collection(Type):
         return ()
 
     def get_subtype(self, schema, typeref):
-        from . import atoms as s_scalars
+        from . import scalars as s_scalars
         from . import types as s_types
 
         if isinstance(typeref, so.ObjectRef):

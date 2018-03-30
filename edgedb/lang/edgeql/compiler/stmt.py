@@ -12,7 +12,7 @@ import typing
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
-from edgedb.lang.schema import concepts as s_objtypes
+from edgedb.lang.schema import objtypes as s_objtypes
 from edgedb.lang.schema import name as s_name
 from edgedb.lang.schema import types as s_types
 

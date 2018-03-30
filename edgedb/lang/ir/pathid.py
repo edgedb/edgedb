@@ -6,8 +6,8 @@
 ##
 
 
-from edgedb.lang.schema import atoms as s_scalars
-from edgedb.lang.schema import concepts as s_objtypes
+from edgedb.lang.schema import scalars as s_scalars
+from edgedb.lang.schema import objtypes as s_objtypes
 from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import types as s_types

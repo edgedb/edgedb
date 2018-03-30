@@ -8,7 +8,7 @@
 
 from edgedb.lang.common import ast
 
-from edgedb.lang.schema import concepts as s_objtypes
+from edgedb.lang.schema import objtypes as s_objtypes
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import name as s_name
 from edgedb.lang.schema import pointers as s_pointers

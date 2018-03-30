@@ -15,7 +15,7 @@ from edgedb.lang.common import parsing
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
-from edgedb.lang.schema import concepts as s_objtypes
+from edgedb.lang.schema import objtypes as s_objtypes
 from edgedb.lang.schema import expr as s_expr
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import lproperties as s_linkprops

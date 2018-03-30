@@ -10,7 +10,7 @@ import base64
 
 from edgedb.lang.common import persistent_hash
 
-from edgedb.lang.schema import concepts as s_objtypes
+from edgedb.lang.schema import objtypes as s_objtypes
 from edgedb.lang.schema import links as s_links
 
 from edgedb.server.pgsql.parser import keywords as pg_keywords

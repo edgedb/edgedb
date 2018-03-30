@@ -55,7 +55,7 @@ class Source(indexes.IndexableSubject):
     def get_children_common_pointers(self, schema):
         "Get a set of compatible pointers defined in children but not in self."
 
-        from . import atoms as s_scalars, concepts as s_objtypes
+        from . import scalars as s_scalars, objtypes as s_objtypes
 
         pointer_names = None
 
