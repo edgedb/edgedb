@@ -1212,7 +1212,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_path_20(self):
         # illegal semantically, but syntactically valid
         """
-        SELECT __type__;
         SELECT __subject__;
         SELECT __self__;
         """
@@ -1234,6 +1233,20 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_path_22(self):
         """
         SELECT TUP.0.2e2;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, 'Unexpected token.*DUNDERTYPE',
+                  line=2, col=16)
+    def test_edgeql_syntax_path_23(self):
+        """
+        SELECT __type__;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, 'Unexpected token.*DUNDERTYPE',
+                  line=2, col=24)
+    def test_edgeql_syntax_path_24(self):
+        """
+        SELECT Foo.bar@__type__;
         """
 
     def test_edgeql_syntax_type_interpretation_01(self):
@@ -2718,6 +2731,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_linkproperty_03(self):
         """
         CREATE LINK PROPERTY PROPERTY std::linkproperty {
+            SET title := 'Base link property';
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=30)
+    def test_edgeql_syntax_ddl_linkproperty_04(self):
+        """
+        CREATE LINK PROPERTY __type__ {
             SET title := 'Base link property';
         };
         """
