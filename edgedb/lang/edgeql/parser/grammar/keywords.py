@@ -65,6 +65,7 @@ unreserved_keywords = frozenset([
 reserved_keywords = frozenset([
     "__self__",
     "__subject__",
+    "__type__",
     "aggregate",
     "all",
     "alter",

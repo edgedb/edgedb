@@ -145,6 +145,14 @@ class InnerDDLStmtBlock(ListNonterm, element=InnerDDLStmt):
     pass
 
 
+class LinkName(Nonterm):
+    def reduce_NodeName(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DUNDERTYPE(self, *kids):
+        self.val = qlast.ObjectRef(name=kids[0].val)
+
+
 class DDLAliasBlock(Nonterm):
     def reduce_OptAliasBlock(self, *kids):
         # the purpose of this production is to make sure that DDL
@@ -1029,7 +1037,7 @@ class CreateLinkStmt(Nonterm):
     def reduce_CreateLink(self, *kids):
         r"""%reduce \
             DDLAliasBlock \
-            CREATE LINK NodeName OptExtending \
+            CREATE LINK LinkName OptExtending \
             OptCreateLinkCommandsBlock \
         """
         self.val = qlast.CreateLink(
@@ -1067,10 +1075,10 @@ commands_block(
 
 
 class AlterLinkStmt(Nonterm):
-    def reduce_CreateLink(self, *kids):
+    def reduce_AlterLink(self, *kids):
         r"""%reduce \
             DDLAliasBlock \
-            ALTER LINK NodeName \
+            ALTER LINK LinkName \
             AlterLinkCommandsBlock \
         """
         self.val = qlast.AlterLink(
@@ -1098,7 +1106,7 @@ commands_block(
 class DropLinkStmt(Nonterm):
     def reduce_DropLink(self, *kids):
         r"""%reduce \
-            DDLAliasBlock DROP LINK NodeName OptDropLinkCommandsBlock \
+            DDLAliasBlock DROP LINK LinkName OptDropLinkCommandsBlock \
         """
         self.val = qlast.DropLink(
             aliases=kids[0].val.aliases,
@@ -1124,7 +1132,7 @@ commands_block(
 class CreateConcreteLinkStmt(Nonterm):
     def reduce_CreateRegularRequiredLink(self, *kids):
         r"""%reduce \
-            CREATE REQUIRED LINK NodeName \
+            CREATE REQUIRED LINK LinkName \
             TO TypeNameList OptCreateConcreteLinkCommandsBlock \
         """
         self.val = qlast.CreateConcreteLink(
@@ -1136,7 +1144,7 @@ class CreateConcreteLinkStmt(Nonterm):
 
     def reduce_CreateRegularLink(self, *kids):
         r"""%reduce \
-            CREATE LINK NodeName \
+            CREATE LINK LinkName \
             TO TypeNameList OptCreateConcreteLinkCommandsBlock \
         """
         self.val = qlast.CreateConcreteLink(
@@ -1176,7 +1184,7 @@ commands_block(
 class AlterConcreteLinkStmt(Nonterm):
     def reduce_AlterLink(self, *kids):
         r"""%reduce \
-            ALTER LINK NodeName AlterConcreteLinkCommandsBlock \
+            ALTER LINK LinkName AlterConcreteLinkCommandsBlock \
         """
         self.val = qlast.AlterConcreteLink(
             name=kids[2].val,
@@ -1195,7 +1203,7 @@ commands_block(
 class DropConcreteLinkStmt(Nonterm):
     def reduce_DropLink(self, *kids):
         r"""%reduce \
-            DROP LINK NodeName OptDropConcreteLinkCommandsBlock \
+            DROP LINK LinkName OptDropConcreteLinkCommandsBlock \
         """
         self.val = qlast.DropConcreteLink(
             name=kids[2].val,

@@ -333,12 +333,13 @@ class ShapePath(Nonterm):
     # A form of Path appearing as an element in shapes.
     #
     # one-of:
+    #   __type__
     #   link
     #   @prop
     #   [IS ObjectType].link
     #   [IS Link]@prop - currently not supported
 
-    def reduce_ShortNodeName(self, *kids):
+    def reduce_PathStepName(self, *kids):
         from edgedb.lang.schema import pointers as s_pointers
 
         self.val = qlast.Path(
@@ -360,7 +361,7 @@ class ShapePath(Nonterm):
             ]
         )
 
-    def reduce_ShapePathPtr_DOT_ShortNodeName(self, *kids):
+    def reduce_ShapePathPtr_DOT_PathStepName(self, *kids):
         from edgedb.lang.schema import pointers as s_pointers
 
         self.val = qlast.Path(
@@ -958,7 +959,7 @@ class Path(Nonterm):
 
 
 class PathStep(Nonterm):
-    def reduce_DOT_ShortNodeName(self, *kids):
+    def reduce_DOT_PathStepName(self, *kids):
         from edgedb.lang.schema import pointers as s_pointers
 
         self.val = qlast.Ptr(
@@ -975,7 +976,7 @@ class PathStep(Nonterm):
             direction=s_pointers.PointerDirection.Outbound
         )
 
-    def reduce_DOTFW_ShortNodeName(self, *kids):
+    def reduce_DOTFW_PathStepName(self, *kids):
         from edgedb.lang.schema import pointers as s_pointers
 
         self.val = qlast.Ptr(
@@ -983,7 +984,7 @@ class PathStep(Nonterm):
             direction=s_pointers.PointerDirection.Outbound
         )
 
-    def reduce_DOTBW_ShortNodeName(self, *kids):
+    def reduce_DOTBW_PathStepName(self, *kids):
         from edgedb.lang.schema import pointers as s_pointers
 
         self.val = qlast.Ptr(
@@ -999,6 +1000,14 @@ class PathStep(Nonterm):
             direction=s_pointers.PointerDirection.Outbound,
             type='property'
         )
+
+
+class PathStepName(Nonterm):
+    def reduce_ShortNodeName(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DUNDERTYPE(self, *kids):
+        self.val = qlast.ObjectRef(name=kids[0].val)
 
 
 class LinkDirection(Nonterm):

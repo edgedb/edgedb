@@ -121,10 +121,6 @@ class EdgeQLLexer(lexer.Lexer):
                 (?P=Q)      # match closing quote type with whatever is in Q
              '''),
 
-        Rule(token='IDENT',
-             next_state=STATE_KEEP,
-             regexp=r'__type__'),
-
         Rule(token='BADIDENT',
              next_state=STATE_KEEP,
              regexp=r'''
