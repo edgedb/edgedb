@@ -217,7 +217,7 @@ class Protocol(asyncio.Protocol):
         if graphql:
             with timer.timeit('graphql_translation'):
                 script = graphql_compiler.translate(
-                    self.backend.schema, script, {}) + ';'
+                    self.backend.schema, script, variables={}) + ';'
 
         with timer.timeit('parse_eql'):
             statements = edgeql.parse_block(script)

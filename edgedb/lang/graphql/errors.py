@@ -23,3 +23,11 @@ class GraphQLValidationError(GraphQLError):
             self.col = context.start.column
         else:
             self.line = self.col = self.context = None
+
+
+class GraphQLCoreError(GraphQLError):
+    def __init__(self, msg, *, line=None, col=None):
+        super().__init__(msg)
+
+        self.line = line
+        self.col = col

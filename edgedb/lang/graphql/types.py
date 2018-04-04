@@ -6,17 +6,303 @@
 ##
 
 
-from edgedb.lang.schema import basetypes as s_types
+from collections import OrderedDict
+from functools import partial, lru_cache
+from graphql import (
+    GraphQLSchema,
+    GraphQLObjectType,
+    GraphQLInterfaceType,
+    GraphQLField,
+    GraphQLArgument,
+    GraphQLList,
+    GraphQLNonNull,
+    GraphQLString,
+    GraphQLInt,
+    GraphQLFloat,
+    GraphQLBoolean,
+    GraphQLID,
+)
+import itertools
+
+from edgedb.lang.edgeql import ast as qlast
+from edgedb.lang.edgeql import codegen
+from edgedb.lang.edgeql.parser import parse_fragment
+
+from edgedb.lang.schema import basetypes as s_basetypes
 from edgedb.lang.schema import pointers as s_pointers
+from edgedb.lang.schema import types as s_types
+from edgedb.lang.schema.objtypes import ObjectType
+from edgedb.lang.schema.scalars import ScalarType
 
 
-# TODO: this class needs a generic mechanism for handling available
-# fields that allows introspection. So rather than field names being
-# hardcoded in the methods, there must be a registry.
-class _GQLType:
-    def __init__(self, schema=None, name=None, edb_base=None, shadow=False):
-        assert not shadow or (edb_base and schema)
-        assert name or edb_base
+EDB_TO_GQL_SCALARS_MAP = {
+    'str': GraphQLString,
+    'int64': GraphQLInt,
+    'float64': GraphQLFloat,
+    'bool': GraphQLBoolean,
+    'uuid': GraphQLID,
+}
+
+
+class GQLCoreSchema:
+    def __init__(self, edb_schema, *modules):
+        '''Create a graphql schema based on specific modules from edgedb.'''
+
+        self.edb_schema = edb_schema
+        self.modules = modules
+
+        self._gql_interfaces = {}
+        self._gql_objtypes = {}
+        self._gql_fields = {}
+
+        self._define_types()
+
+        query = self._gql_objtypes['Query'] = GraphQLObjectType(
+            name='Query',
+            fields=self.get_fields('Query'),
+        )
+
+        self._gql_schema = GraphQLSchema(
+            query=query,
+            types=[objt for name, objt in self._gql_objtypes.items()
+                   if name != 'Query'],
+        )
+
+    def get_short_name(self, name):
+        return name.split('::', 1)[-1]
+
+    def _convert_edb_type(self, edb_target):
+        target = None
+
+        # only arrays can be validly wrapped, other containers don't
+        # produce a valid graphql type
+        if isinstance(edb_target, s_types.Array):
+            el_type = self._convert_edb_type(edb_target.element_type)
+            if el_type:
+                target = GraphQLList(GraphQLNonNull(el_type))
+        elif isinstance(edb_target, ObjectType):
+            target = self._gql_interfaces.get(
+                edb_target.name,
+                self._gql_objtypes.get(edb_target.name)
+            )
+        else:
+            target = EDB_TO_GQL_SCALARS_MAP.get(edb_target.name.name)
+
+        return target
+
+    def _get_target(self, ptr):
+        edb_target = ptr.target
+        target = self._convert_edb_type(edb_target)
+
+        if target:
+            # figure out any additional wrappers due to cardinality
+            # and required flags
+            if ptr.cardinality in {s_pointers.PointerCardinality.OneToMany,
+                                   s_pointers.PointerCardinality.ManyToMany}:
+                target = GraphQLList(GraphQLNonNull(target))
+
+            if ptr.required:
+                target = GraphQLNonNull(target)
+
+        return target
+
+    @lru_cache(maxsize=None)
+    def get_fields(self, typename):
+        fields = OrderedDict()
+
+        if typename == 'Query':
+            for name, gqltype in sorted(itertools.chain(
+                    self._gql_interfaces.items(), self._gql_objtypes.items()),
+                    key=lambda x: x[1].name):
+                if name == typename:
+                    continue
+                fields[name.split('::', 1)[1]] = GraphQLField(
+                    GraphQLList(GraphQLNonNull(gqltype)),
+                    args=self.get_args(name),
+                )
+        else:
+            edb_type = self.edb_schema.get(typename)
+            for name in sorted(edb_type.pointers, key=lambda x: x.name):
+                if name.name == '__type__':
+                    continue
+
+                ptr = edb_type.resolve_pointer(self.edb_schema, name)
+                target = self._get_target(ptr)
+                if target:
+                    args = (self.get_args(ptr.target.name)
+                            if isinstance(ptr.target, ObjectType) else None)
+                    fields[name.name] = GraphQLField(target, args=args)
+
+        return fields
+
+    @lru_cache(maxsize=None)
+    def get_args(self, typename):
+        args = OrderedDict()
+
+        edb_type = self.edb_schema.get(typename)
+        for name in sorted(edb_type.pointers, key=lambda x: x.name):
+            if name.name == '__type__':
+                continue
+
+            ptr = edb_type.resolve_pointer(self.edb_schema, name)
+
+            if not isinstance(ptr.target, ScalarType):
+                continue
+
+            target = self._convert_edb_type(ptr.target)
+            if target:
+                args[name.name] = GraphQLArgument(target)
+
+        return args
+
+    def _define_types(self):
+        for modname in self.modules:
+            # get all descendants of this abstract type
+            module = self.edb_schema.get_module(modname)
+
+            abstract_types = [t for t in module.get_objects()
+                              if isinstance(t, ObjectType) and t.is_abstract]
+            obj_types = [t for t in module.get_objects()
+                         if isinstance(t, ObjectType) and not t.is_abstract]
+
+            # interfaces
+            for t in abstract_types:
+                gqltype = GraphQLInterfaceType(
+                    name=self.get_short_name(t.name),
+                    fields=partial(self.get_fields, t.name),
+                    resolve_type=lambda obj, info: obj,
+                )
+                self._gql_interfaces[t.name] = gqltype
+
+            # object types
+            for t in obj_types:
+                interfaces = []
+                # get all super-types of this concrete type
+                for st in t.get_mro():
+                    if (isinstance(st, ObjectType) and st.is_abstract and
+                            st.name in self._gql_interfaces):
+                        interfaces.append(self._gql_interfaces[st.name])
+
+                gqltype = GraphQLObjectType(
+                    name=self.get_short_name(t.name),
+                    fields=partial(self.get_fields, t.name),
+                    interfaces=interfaces,
+                )
+                self._gql_objtypes[t.name] = gqltype
+
+
+def get_fkey(*args):
+    '''Make a hashable key from args.'''
+
+    if not args:
+        return None
+    else:
+        result = []
+        for arg in args:
+            if isinstance(arg, (list, tuple)):
+                result.append(get_fkey(*arg))
+
+            elif isinstance(arg, dict):
+                newargs = [(key, val) for key, val in arg.items()]
+                newargs.sort()
+                result.append(get_fkey(*newargs))
+
+            else:
+                result.append(arg)
+
+    if len(result) == 1:
+        return result[0]
+    else:
+        return tuple(result)
+
+
+class CompleteShadowingFields:
+    def __contains__(self, item):
+        return True
+
+
+ALL_FIELDS = CompleteShadowingFields()
+NO_FIELDS = set()
+
+
+class Schema:
+    '''This is the schema from GQL perspective.'''
+
+    def __init__(self, schema, modules):
+        self._schema = schema
+        self._type_map = {}
+        self.modules = modules
+
+    @property
+    def edb_schema(self):
+        return self._schema
+
+    def get(self, name, **kwargs):
+        '''Get a GQL type either by name or based on EdgeDB type.'''
+        # normalize name and possibly add 'edb_base' to kwargs
+        edb_base = None
+
+        if isinstance(name, str):
+            if '::' not in name:
+                if name in {'__Schema', '__Type', 'Query'}:
+                    name = f'graphql::{name}'
+
+        else:
+            edb_base = name
+            name = f'{edb_base.name.module}::{edb_base.name.name}'
+
+        if not name.startswith('graphql::'):
+            if edb_base is None:
+                if '::' in name:
+                    edb_base = self.edb_schema.get(name)
+                else:
+                    for module in self.modules:
+                        edb_base = self.edb_schema.get(f'{module}::{name}')
+                        if edb_base:
+                            break
+
+            kwargs['edb_base'] = edb_base
+
+        # check if the type already exists
+        fkey = get_fkey(name, kwargs)
+        gqltype = self._type_map.get(fkey)
+
+        if not gqltype:
+            _type = GQLTypeMeta.edb_map.get(name, GQLShadowType)
+            gqltype = _type(schema=self, **kwargs)
+            self._type_map[fkey] = gqltype
+
+        return gqltype
+
+
+class GQLTypeMeta(type):
+    edb_map = {}
+
+    def __new__(mcls, name, bases, dct):
+        cls = super().__new__(mcls, name, bases, dct)
+
+        edb_type = dct.get('edb_type')
+        if edb_type:
+            mcls.edb_map[edb_type] = cls
+
+        return cls
+
+
+class GQLBaseType(metaclass=GQLTypeMeta):
+    edb_type = None
+    shadow_fields = NO_FIELDS
+
+    def __init__(self, schema, **kwargs):
+        name = kwargs.get('name', None)
+        edb_base = kwargs.get('edb_base', None)
+        dummy = kwargs.get('dummy', False)
+
+        if edb_base is None and self.edb_type:
+            edb_base = schema.edb_schema.get(self.edb_type)
+
+        assert edb_base is not None
+        assert schema is not None
+
         # __typename
         if name is None:
             self._name = f'{edb_base.name.module}::{edb_base.name.name}'
@@ -31,9 +317,14 @@ class _GQLType:
 
         # what EdgeDB entity will be the root for queries, if any
         self._edb_base = edb_base
-        self._shadow = shadow
         self._schema = schema
         self._fields = {}
+
+        # XXX clean up needed, but otherwise it means that the type is
+        # used to validate the fields/types/args/etc., but is not
+        # expected to generate non-empty results, so messy EQL is not
+        # needed.
+        self.dummy = dummy
 
     @property
     def name(self):
@@ -52,203 +343,197 @@ class _GQLType:
         return self._edb_base
 
     @property
+    def edb_base_name(self):
+        base = self.edb_base.name
+        return codegen.generate_source(
+            qlast.ObjectRef(
+                module=base.module,
+                name=base.name,
+            )
+        )
+
+    @property
     def shadow(self):
-        return self._shadow
+        return self.shadow_fields == ALL_FIELDS
 
     @property
     def schema(self):
         return self._schema
 
-    def get_fields(self):
-        try:
-            return getattr(self, '_fields')
-        except AttributeError:
-            raise NotImplementedError
+    @property
+    def edb_schema(self):
+        return self._schema.edb_schema
 
-    def convert_edb_to_gql_type(self, base, name):
+    def convert_edb_to_gql_type(self, base, **kwargs):
         if isinstance(base, s_pointers.Pointer):
             base = base.target
-        return _GQLType(
-            edb_base=base,
-            schema=self.schema,
-            shadow=True,
-        )
 
-    def get_field_type(self, name):
+        if self.dummy:
+            kwargs['dummy'] = True
+
+        return self.schema.get(base, **kwargs)
+
+    def is_field_shadowed(self, name):
+        return name in self.shadow_fields
+
+    def get_field_type(self, name, argsmap=None):
+        if self.dummy:
+            return None
+
         # this is just shadowing a real EdgeDB type
-        target = self._fields.get(name)
+        fkey = get_fkey(name, argsmap)
+        target = self._fields.get(fkey)
 
         if target is None:
             # special handling of '__typename'
             if name == '__typename':
-                target = self.convert_edb_to_gql_type(
-                    self.schema.get('std::str'), name)
+                target = self.convert_edb_to_gql_type('std::str')
 
-            elif self.shadow:
-                target = self.edb_base.resolve_pointer(self._schema, name)
+            else:
+                target = self.edb_base.resolve_pointer(self.edb_schema, name)
 
                 if target is not None:
-                    target = self.convert_edb_to_gql_type(target, name)
+                    target = self.convert_edb_to_gql_type(target)
 
-            self._fields[name] = target
+            self._fields[fkey] = target
 
         return target
 
+    def has_native_field(self, name):
+        return self.edb_base.resolve_pointer(
+            self.edb_schema, name) is not None
+
     def issubclass(self, other):
-        if isinstance(other, _GQLType):
+        if isinstance(other, GQLBaseType):
             if self.shadow:
                 return self.edb_base.issubclass(other.edb_base)
 
         return False
 
-    def get_implementation_type(self):
-        if self.shadow:
-            return self.edb_base.get_implementation_type()
+    def get_template(self):
+        '''Provide an EQL AST template to be filled.
+
+        Return the overall ast, a reference to where the shape element
+        with placeholder is, and a reference to the element which may
+        be filtered.
+        '''
+
+        if self.dummy:
+            return parse_fragment(f'''<json>"xxx"'''), None, None
+
+        eql = parse_fragment(f'''
+            SELECT {self.edb_base_name} {{
+                xxx
+            }}
+        ''')
+
+        filterable = eql
+        shape = filterable.result
+
+        return eql, shape, filterable
+
+    def get_field_template(self, name, *, parent=None):
+        if self.dummy:
+            return None
+
+        if name == '__typename':
+            return parse_fragment(
+                f'''graphql::short_name(
+                    {codegen.generate_source(parent)}.__type__.name)''')
+
+        return None
 
 
-class GQLSchema(_GQLType):
-    def __init__(self, schema, module):
-        edb_base = schema.get('graphql::Schema')
-        self._module = module
-        super().__init__(schema, '__Schema', edb_base)
-
-    def get_field_type(self, name):
-        if name == 'directives':
-            target = self._fields.get(name)
-            if target is None:
-                target = GQLDirective(self.schema)
-
-            self._fields[name] = target
-            return target
-        elif name == 'queryType':
-            target = self._fields.get(name)
-            if target is None:
-                target = GQLQuery(self.schema, self.module)
-
-            self._fields[name] = target
-            return target
-        elif name == 'mutationType':
-            target = self._fields.get(name)
-            if target is None:
-                target = GQLMutation(self.schema, self.module)
-
-            self._fields[name] = target
-            return target
-
-        return super().get_field_type(name)
+class GQLShadowType(GQLBaseType):
+    shadow_fields = ALL_FIELDS
 
 
-class GQLType(_GQLType):
-    def __init__(self, schema):
-        edb_base = schema.get('graphql::Query')
-        super().__init__(schema, '__Type', edb_base)
+class GQLSchema(GQLBaseType):
+    edb_type = 'graphql::__Schema'
 
 
-class GQLQuery(_GQLType):
-    def __init__(self, schema, module):
-        edb_base = schema.get('graphql::Query')
-        self._module = module
+class GQLType(GQLBaseType):
+    edb_type = 'graphql::__Type'
+
+
+class GQLQuery(GQLBaseType):
+    edb_type = 'graphql::Query'
+    shadow_fields = {'__typename'}
+
+    def __init__(self, schema, **kwargs):
+        self.modules = kwargs['modules']
+        self.modules.sort()
         # we give unusual full name, so that it doesn't clash with a
         # potential ObjectType `Query` in one of the modules
-        super().__init__(schema, f'{module}--Query', edb_base)
+        kwargs['name'] = f'{self.modules}--Query'
+        super().__init__(schema, **kwargs)
 
     @property
     def short_name(self):
         return self._name.rsplit('--', 1)[-1]
 
-    def get_field_type(self, name):
+    def get_field_type(self, name, argsmap=None):
+        fkey = get_fkey(name, argsmap)
+        target = None
+
         assert isinstance(name, str)
-        target = super().get_field_type(name)
 
-        # special handling of '__type' and '__schema'
         if name == '__type':
-            target = GQLType(self.schema)
+            if fkey in self._fields:
+                return self._fields[fkey]
+
+            target = self.convert_edb_to_gql_type('__Type', dummy=True)
+
         elif name == '__schema':
-            target = GQLSchema(self.schema, self.module)
-            # populate the query type
-            target._fields['queryType'] = self
+            if fkey in self._fields:
+                return self._fields[fkey]
 
-        if target is None:
-            target = self.schema.get((self._module, name))
+            target = self.convert_edb_to_gql_type('__Schema', dummy=True)
 
-            if target is not None:
-                target = self.convert_edb_to_gql_type(target, name)
+        else:
+            target = super().get_field_type(name, argsmap)
 
-        self._fields[name] = target
+            if target is None:
+                for module in self.modules:
+                    target = self.edb_schema.get((module, name))
+                    if target:
+                        break
+
+                if target is not None:
+                    target = self.convert_edb_to_gql_type(target)
+
+        self._fields[fkey] = target
         return target
 
 
-class GQLMutation(_GQLType):
-    def __init__(self, schema, module):
-        edb_base = schema.get('graphql::Mutation')
-        self._module = module
+class GQLMutation(GQLBaseType):
+    edb_type = 'graphql::Mutation'
+
+    def __init__(self, schema, **kwargs):
+        self.modules = kwargs['modules']
+        self.modules.sort()
         # we give unusual full name, so that it doesn't clash with a
         # potential ObjectType `Mutation` in one of the modules
-        super().__init__(schema, f'{module}--Mutation', edb_base)
+        kwargs['name'] = f'{self.modules}--Mutation'
+        super().__init__(schema, **kwargs)
 
     @property
     def short_name(self):
         return self._name.rsplit('--', 1)[-1]
 
 
-class GQLField(_GQLType):
-    def __init__(self, schema):
-        edb_base = schema.get('graphql::Field')
-        super().__init__(schema, '__Field', edb_base)
-
-
-class GQLEnumValue(_GQLType):
-    def __init__(self, schema):
-        edb_base = schema.get('graphql::EnumValue')
-        super().__init__(schema, '__EnumValue', edb_base)
-
-
-class GQLInputValue(_GQLType):
-    def __init__(self, schema):
-        edb_base = schema.get('graphql::InputValue')
-        super().__init__(schema, '__InputValue', edb_base, True)
-
-
-class GQLDirective(_GQLType):
-    def __init__(self, schema):
-        edb_base = schema.get(('graphql', 'Directive'))
-        super().__init__(schema, '__Directive', edb_base, True)
-
-
-class GQLTypeKind(_GQLType):
-    def __init__(self, schema):
-        edb_base = schema.get(('graphql', 'typeKind'))
-        super().__init__(schema, '__TypeKind', edb_base, True)
-
-
-class GQLDirectiveLocation(_GQLType):
-    def __init__(self, schema):
-        edb_base = schema.get(('graphql', 'directiveLocation'))
-        super().__init__(schema, '__DirectiveLocation', edb_base, True)
-
-    def convert_edb_to_gql_type(self, base, name):
-        if name == 'args':
-            return GQLInputValue(
-                edb_base=base.target,
-                schema=self.schema,
-                shadow=True,
-            )
-        else:
-            return super().convert_edb_to_gql_type(base, name)
-
-
 PY_COERCION_MAP = {
-    str: (s_types.string.Str, s_types.uuid.UUID),
-    int: (s_types.int.Int64, s_types.numeric.Float64, s_types.numeric.Numeric,
-          s_types.uuid.UUID),
-    float: (s_types.numeric.Float64, s_types.numeric.Numeric),
-    bool: s_types.boolean.Bool,
+    str: (s_basetypes.string.Str, s_basetypes.uuid.UUID),
+    int: (s_basetypes.int.Int64, s_basetypes.numeric.Float64,
+          s_basetypes.numeric.Numeric, s_basetypes.uuid.UUID),
+    float: (s_basetypes.numeric.Float64, s_basetypes.numeric.Numeric),
+    bool: s_basetypes.boolean.Bool,
 }
 
 GQL_TYPE_NAMES_MAP = {
-    'String': s_types.string.Str,
-    'Int': s_types.int.Int64,
-    'Float': s_types.numeric.Float64,
-    'Boolean': s_types.boolean.Bool,
-    'ID': s_types.uuid.UUID,
+    'String': s_basetypes.string.Str,
+    'Int': s_basetypes.int.Int64,
+    'Float': s_basetypes.numeric.Float64,
+    'Boolean': s_basetypes.boolean.Bool,
+    'ID': s_basetypes.uuid.UUID,
 }

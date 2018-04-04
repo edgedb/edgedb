@@ -19,7 +19,7 @@ _re_ident = re.compile(r'''(?x)
 
 
 def quote_literal(text):
-    return "'" + text.replace("'", R"\'") + "'"
+    return "'" + text.replace(R'\"', R'\\"').replace("'", R"\'") + "'"
 
 
 def dollar_quote_literal(text):

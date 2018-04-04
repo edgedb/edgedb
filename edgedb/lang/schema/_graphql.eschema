@@ -6,11 +6,11 @@
 ##
 
 
-scalar type typeKind extending str:
+scalar type __TypeKind extending str:
      constraint enum(['SCALAR', 'OBJECT', 'INTERFACE', 'UNION', 'ENUM',
                       'INPUT_OBJECT', 'LIST', 'NON_NULL'])
 
-scalar type directiveLocation extending str:
+scalar type __DirectiveLocation extending str:
      constraint enum(['QUERY', 'MUTATION', 'FIELD', 'FRAGMENT_DEFINITION',
                       'FRAGMENT_SPREAD', 'INLINE_FRAGMENT'])
 
@@ -26,39 +26,60 @@ abstract type Deprecatable:
     property deprecationReason -> str
 
 abstract type Callable:
-    link args -> InputValue:
+    link args -> __InputValue:
         cardinality := '1*'
 
 abstract type Typed:
     # not required for the moment
-    link type -> _Type:
+    link type -> __Type
+
+type __Type extending Nameable:
+    property __typename := '__Type'
+    required property kind -> __TypeKind
+    link fields -> __Field:
+        cardinality := '1*'
+    link interfaces -> __Type:
+        cardinality := '1*'
+    link possibleTypes -> __Type:
+        cardinality := '1*'
+    link enumValues -> __EnumValue:
+        cardinality := '1*'
+    link inputFields -> __InputValue:
+        cardinality := '1*'
+    link ofType -> __Type:
         cardinality := '*1'
 
-type _Type extending Nameable:
-    required property kind -> typeKind
+type __Field extending Named, Deprecatable, Callable, Typed:
+    property __typename := '__Field'
 
-type Field extending Named, Deprecatable, Callable
-
-type InputValue extending Named:
+type __InputValue extending Named, Typed:
+    property __typename := '__InputValue'
     property defaultValue -> str
 
-type EnumValue extending Named, Deprecatable
+type __EnumValue extending Named, Deprecatable:
+    property __typename := '__EnumValue'
 
-type Directive extending Named, Callable:
-    required property locations -> directiveLocation:
+type __Directive extending Named, Callable:
+    property __typename := '__Directive'
+    required property locations -> __DirectiveLocation:
         cardinality := '1*'
 
-type Schema extending Named:
+type __Schema extending Named:
+    property __typename := '__Schema'
     # not required for the moment
-    link types -> _Type:
+    link types -> __Type:
         cardinality := '**'
-    link queryType -> _Type:
-        cardinality := '*1'
-    link mutationType -> _Type:
-        cardinality := '*1'
-    link directives -> Directive:
-        cardinality := '**'
+    required link queryType -> __Type
+    link mutationType -> __Type
+    required link directives -> __Directive:
+        cardinality := '1*'
 
-type Query extending Named
+type Query extending Named:
+    property __typename := 'Query'
+    link __schema -> __Schema:
+        cardinality := '11'
+    link __type -> __Type:
+        cardinality := '11'
 
-type Mutation extending Named
+type Mutation extending Named:
+    property __typename := 'Mutation'
