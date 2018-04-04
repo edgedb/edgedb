@@ -7,6 +7,7 @@
 
 
 import re
+import typing
 
 from edgedb.lang.common import ast, parsing
 
@@ -118,20 +119,25 @@ class VariableType(Base):
     list: bool = False
 
 
-class SelectionSet(Base):
-    selections: list
-
-
 class Selection(Base):
     pass
+
+
+class SelectionSet(Base):
+    selections: typing.List[Selection]
+
+
+class Argument(Base):
+    name: str
+    value: object
 
 
 class Field(Selection):
     alias: str
     name: object
-    arguments: list
+    arguments: typing.List[Argument]
     directives: list
-    selection_set: object
+    selection_set: SelectionSet
 
 
 class SchemaField(Field):
@@ -159,12 +165,7 @@ class InlineFragment(Selection):
 
 class Directive(Base):
     name: object
-    arguments: list
-
-
-class Argument(Base):
-    name: object
-    value: object
+    arguments: typing.List[Argument]
 
 
 class ObjectField(Base):

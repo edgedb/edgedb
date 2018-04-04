@@ -12,7 +12,7 @@ from edgedb.server import _testbase as tb
 
 
 class TestGraphQLFunctional(tb.QueryTestCase):
-    SETUP = """
+    SETUP = r"""
         CREATE MIGRATION test::d1 TO eschema $$
             abstract type NamedObject:
                 required property name -> str
@@ -26,6 +26,9 @@ class TestGraphQLFunctional(tb.QueryTestCase):
 
             type Profile extending NamedObject:
                 required property value -> str
+                property tags -> array<str>
+                property odd -> array<int64>:
+                    cardinality := '1*'
 
             type User extending NamedObject:
                 required property active -> bool
@@ -90,7 +93,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
 
     async def test_graphql_functional_query_01(self):
         result = await self.con.execute(r"""
-            query @edgedb(module: "test") {
+            query {
                 Setting {
                     name
                     value
@@ -111,7 +114,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
 
     async def test_graphql_functional_query_02(self):
         result = await self.con.execute(r"""
-            query @edgedb(module: "test") {
+            query {
                 User {
                     name
                     age
@@ -148,7 +151,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
 
     async def test_graphql_functional_query_03(self):
         result = await self.con.execute(r"""
-            query @edgedb(module: "test") {
+            query {
                 User(name: "John") {
                     name
                     age
@@ -173,12 +176,12 @@ class TestGraphQLFunctional(tb.QueryTestCase):
 
     async def test_graphql_functional_fragment_02(self):
         result = await self.con.execute(r"""
-            fragment userFrag on User @edgedb(module: "test") {
+            fragment userFrag on User {
                 age
                 score
             }
 
-            query @edgedb(module: "test") {
+            query {
                 NamedObject(name: "Alice") {
                     name
                     ... userFrag
@@ -196,7 +199,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
 
     async def test_graphql_functional_typename_01(self):
         result = await self.con.execute(r"""
-            query @edgedb(module: "test") {
+            query {
                 User {
                     name
                     __typename
@@ -213,30 +216,30 @@ class TestGraphQLFunctional(tb.QueryTestCase):
         self.assert_data_shape(result, [[{
             'User': [{
                 'name': 'Alice',
-                '__typename': 'test::User',
+                '__typename': 'User',
                 'groups': None
             }, {
                 'name': 'Jane',
-                '__typename': 'test::User',
+                '__typename': 'User',
                 'groups': [{
                     'id': uuid.UUID,
                     'name': 'upgraded',
-                    '__typename': 'test::UserGroup',
+                    '__typename': 'UserGroup',
                 }]
             }, {
                 'name': 'John',
-                '__typename': 'test::User',
+                '__typename': 'User',
                 'groups': [{
                     'id': uuid.UUID,
                     'name': 'basic',
-                    '__typename': 'test::UserGroup',
+                    '__typename': 'UserGroup',
                 }]
             }],
         }]])
 
     async def test_graphql_functional_typename_02(self):
         result = await self.con.execute(r"""
-            query @edgedb(module: "test") {
+            query {
                 __typename
                 __schema {
                     __typename
@@ -253,7 +256,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
 
     async def test_graphql_functional_schema_01(self):
         result = await self.con.execute(r"""
-            query @edgedb(module: "test") {
+            query {
                 __schema {
                     directives {
                         name
@@ -262,7 +265,14 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                         args {
                             name
                             description
-                            defaultValue
+                            type {
+                                kind
+                                name
+                                ofType {
+                                    kind
+                                    name
+                                }
+                            }
                         }
                     }
                 }
@@ -272,75 +282,147 @@ class TestGraphQLFunctional(tb.QueryTestCase):
         result[0][0]['__schema']['directives'].sort(key=lambda x: x['name'])
         self.assert_data_shape(result, [[{
             '__schema': {
-                'directives': [
+                "directives": [
                     {
-                        'name': 'deprecated',
-                        'locations': {'FIELD'},
-                        'description':
-                            'Marks an element of a GraphQL schema as no ' +
-                            'longer supported.',
-                        'args': [
+                        "name": "deprecated",
+                        "description":
+                            "Marks an element of a GraphQL schema as "
+                            "no longer supported.",
+                        "locations": [
+                            "FIELD_DEFINITION",
+                            "ENUM_VALUE"
+                        ],
+                        "args": [
                             {
-                                'name': 'reason',
-                                'description':
-                                    "Explains why this element was " +
-                                    "deprecated, usually also including " +
-                                    "a suggestion for how to access " +
-                                    "supported similar data. Formatted " +
-                                    "in [Markdown](https://daringfireba" +
+                                "name": "reason",
+                                "description":
+
+                                    "Explains why this element was "
+                                    "deprecated, usually also including "
+                                    "a suggestion for how toaccess "
+                                    "supported similar data. Formatted "
+                                    "in [Markdown](https://daringfireba"
                                     "ll.net/projects/markdown/).",
-                                'defaultValue': '"No longer supported"'
+
+                                "type": {
+                                    "kind": "SCALAR",
+                                    "name": "String",
+                                    "ofType": None
+                                }
                             }
-                        ],
+                        ]
                     },
                     {
-                        'name': 'edgedb',
-                        'locations': {'QUERY', 'MUTATION',
-                                      'FRAGMENT_DEFINITION', 'FRAGMENT_SPREAD',
-                                      'INLINE_FRAGMENT'},
-                        'description':
-                            'Special EdgeDB compatibility directive that ' +
-                            'specifies which module is being used.',
-                        'args': [
-                            {
-                                'name': 'module',
-                                'description':
-                                    'EdgeDB module that needs to be ' +
-                                    'accessed by the query.',
-                                'defaultValue': None
-                            }
+                        "name": "include",
+                        "description":
+                            "Directs the executor to include this "
+                            "field or fragment only when the `if` "
+                            "argument is true.",
+                        "locations": [
+                            "FIELD",
+                            "FRAGMENT_SPREAD",
+                            "INLINE_FRAGMENT"
                         ],
+                        "args": [
+                            {
+                                "name": "if",
+                                "description": "Included when true.",
+                                "type": {
+                                    "kind": "NON_NULL",
+                                    "name": None,
+                                    "ofType": {
+                                        "kind": "SCALAR",
+                                        "name": "Boolean"
+                                    }
+                                }
+                            }
+                        ]
                     },
                     {
-                        'name': 'include',
-                        'locations': {'FIELD', 'FRAGMENT_SPREAD',
-                                      'INLINE_FRAGMENT'},
-                        'description':
-                            'Directs the executor to include this field or ' +
-                            'fragment only when the `if` argument is true.',
-                        'args': [
-                            {
-                                'name': 'if',
-                                'description': 'Included when true.',
-                                'defaultValue': None
-                            }
+                        "name": "skip",
+                        "description":
+                            "Directs the executor to skip this field "
+                            "or fragment when the `if` argument is "
+                            "true.",
+                        "locations": [
+                            "FIELD",
+                            "FRAGMENT_SPREAD",
+                            "INLINE_FRAGMENT"
                         ],
-                    },
-                    {
-                        'name': 'skip',
-                        'locations': {'FIELD', 'FRAGMENT_SPREAD',
-                                      'INLINE_FRAGMENT'},
-                        'description':
-                            'Directs the executor to skip this field or ' +
-                            'fragment when the `if` argument is true.',
-                        'args': [
+                        "args": [
                             {
-                                'name': 'if',
-                                'description': 'Excluded when true.',
-                                'defaultValue': None
+                                "name": "if",
+                                "description": "Skipped when true.",
+                                "type": {
+                                    "kind": "NON_NULL",
+                                    "name": None,
+                                    "ofType": {
+                                        "kind": "SCALAR",
+                                        "name": "Boolean"
+                                    }
+                                }
                             }
-                        ],
+                        ]
                     },
-                ],
+                ]
+            }
+        }]])
+
+    async def test_graphql_functional_schema_02(self):
+        result = await self.con.execute(r"""
+            query {
+                __schema {
+                    mutationType {
+                        name
+                    }
+                }
+            }
+        """, graphql=True)
+
+        self.assert_data_shape(result, [[{
+            '__schema': {
+                'mutationType': None
+            }
+        }]])
+
+    async def test_graphql_functional_schema_03(self):
+        result = await self.con.execute(r"""
+            query {
+                __schema {
+                    queryType {
+                        kind
+                        name
+                        description
+                        interfaces {
+                            name
+                        }
+                        possibleTypes {
+                            name
+                        }
+                        enumValues {
+                            name
+                        }
+                        inputFields {
+                            name
+                        }
+                        ofType {
+                            name
+                        }
+                    }
+                }
+            }
+        """, graphql=True)
+
+        self.assert_data_shape(result, [[{
+            '__schema': {
+                'queryType': {
+                    'kind': 'OBJECT',
+                    'name': 'Query',
+                    'description': None,
+                    'interfaces': [],
+                    'possibleTypes': None,
+                    'inputFields': None,
+                    'ofType': None,
+                }
             }
         }]])

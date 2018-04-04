@@ -276,13 +276,13 @@ class AliasedField(Nonterm):
 
 class FieldName(Nonterm):
     def reduce_SCHEMA(self, *kids):
-        self.val = gqlast.SchemaField(name=kids[0].val)
+        self.val = gqlast.Field(name=kids[0].val)
 
     def reduce_TYPE(self, *kids):
-        self.val = gqlast.TypeField(name=kids[0].val)
+        self.val = gqlast.Field(name=kids[0].val)
 
     def reduce_TYPENAME(self, *kids):
-        self.val = gqlast.TypenameField(name=kids[0].val)
+        self.val = gqlast.Field(name=kids[0].val)
 
     def reduce_NameNotDunderTok(self, *kids):
         self.val = gqlast.Field(name=kids[0].val)

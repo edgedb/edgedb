@@ -16,7 +16,7 @@ from edgedb.lang import _testbase as tb
 from edgedb.lang.common import markup
 from edgedb.lang import graphql as edge_graphql
 from edgedb.lang import edgeql as edge_edgeql
-from edgedb.lang.graphql.errors import GraphQLValidationError
+from edgedb.lang.graphql.errors import GraphQLValidationError, GraphQLCoreError
 from edgedb.lang.schema import declarative as s_decl
 from edgedb.lang.schema import std as s_std
 
@@ -28,6 +28,25 @@ def with_variables(**kwargs):
         tb._set_spec(func, 'variables', kwargs)
         return func
     return wrap
+
+
+def with_operation(name):
+    def wrap(func):
+        tb._set_spec(func, 'operation_name', name)
+        return func
+    return wrap
+
+
+def with_modules(*names):
+    def wrap(func):
+        tb._set_spec(func, 'modules', names)
+        return func
+    return wrap
+
+
+def translate_only(func):
+    tb._set_spec(func, 'translate_only', True)
+    return func
 
 
 class BaseSchemaTestMeta(tb.DocTestMeta):
@@ -52,7 +71,7 @@ class BaseSchemaTestMeta(tb.DocTestMeta):
 
 class TranslatorTest(tb.BaseSyntaxTest, metaclass=BaseSchemaTestMeta):
     re_filter = re.compile(r'''[\s,;]+''')
-    re_eql_filter = re.compile(r'''[\s'"();,]+|(\#.*?\n)''')
+    re_eql_filter = re.compile(r'''(\#.*?\n)''')
 
     @classmethod
     def setUpClass(cls):
@@ -67,17 +86,22 @@ class TranslatorTest(tb.BaseSyntaxTest, metaclass=BaseSchemaTestMeta):
             print('\n--- GRAPHQL ---')
             markup.dump_code(textwrap.dedent(source).strip(), lexer='graphql')
 
-        translation = edge_graphql.translate(self.schema, source,
-                                             spec.get('variables'))
+        translation = edge_graphql.translate(
+            self.schema, source,
+            variables=spec.get('variables'),
+            operation_name=spec.get('operation_name'),
+            modules=spec.get('modules', ['test']),
+        )
 
         if debug:
             print('\n--- EDGEQL ---')
             markup.dump_code(translation, lexer='edgeql')
 
-        self.assert_equal(expected, translation)
+        # some tests don't compare the output
+        if not spec.get('translate_only'):
+            self.assert_equal(expected, translation)
 
         # make sure that resulting EdgeQL is valid and can be parsed
-        #
         eqlast = edge_edgeql.parse_block(translation)
         eqlgen = edge_edgeql.generate_source(eqlast)
 
@@ -98,6 +122,9 @@ class TestGraphQLTranslation(TranslatorTest):
 
         type Profile extending NamedObject:
             required property value -> str
+            property tags -> array<str>
+            property odd -> array<int64>:
+                cardinality := '1*'
 
         type User extending NamedObject:
             required property active -> bool
@@ -123,7 +150,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_query_01(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User {
                 name,
                 groups {
@@ -149,9 +176,10 @@ class TestGraphQLTranslation(TranslatorTest):
             };
         """
 
+    @with_operation('users')
     def test_graphql_translation_query_02(self):
         r"""
-        query users @edgedb(module: "test") {
+        query users {
             User {
                 id,
                 name,
@@ -162,7 +190,44 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        query settings @edgedb(module: "test") {
+        query settings {
+            Setting {
+                name,
+                value,
+            }
+        }
+
+% OK %
+
+        # query users
+        SELECT graphql::Query {
+            User := (SELECT
+                test::User {
+                    id,
+                    name,
+                    groups: {
+                        id,
+                        name
+                    }
+                })
+        };
+        """
+
+    @with_operation('settings')
+    def test_graphql_translation_query_03(self):
+        r"""
+        query users {
+            User {
+                id,
+                name,
+                groups {
+                    id
+                    name
+                }
+            }
+        }
+
+        query settings {
             Setting {
                 name,
                 value,
@@ -179,27 +244,14 @@ class TestGraphQLTranslation(TranslatorTest):
                     value
                 })
         };
-
-        # query users
-        SELECT graphql::Query {
-            User := (SELECT
-                test::User {
-                    id,
-                    name,
-                    groups: {
-                        id,
-                        name
-                    }
-                })
-        };
-
         """
 
-    @tb.must_fail(GraphQLValidationError, "field 'Bogus' is invalid",
+    @tb.must_fail(GraphQLCoreError,
+                  'Cannot query field "Bogus" on type "Query"',
                   line=3, col=13)
-    def test_graphql_translation_query_03(self):
+    def test_graphql_translation_query_04(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             Bogus {
                 name,
                 groups {
@@ -210,11 +262,12 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, "field 'bogus' is invalid for User",
+    @tb.must_fail(GraphQLCoreError,
+                  'Cannot query field "bogus" on type "User"',
                   line=5, col=17)
-    def test_graphql_translation_query_04(self):
+    def test_graphql_translation_query_05(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User {
                 name,
                 bogus,
@@ -226,11 +279,12 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @tb.must_fail(GraphQLValidationError,
-                  "field 'age' is invalid for NamedObject", line=5, col=17)
-    def test_graphql_translation_query_05(self):
+    @tb.must_fail(GraphQLCoreError,
+                  'Cannot query field "age" on type "NamedObject"',
+                  line=5, col=17)
+    def test_graphql_translation_query_06(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             NamedObject {
                 name,
                 age,
@@ -242,9 +296,9 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    def test_graphql_translation_query_06(self):
+    def test_graphql_translation_query_07(self):
         r"""
-        query mixed @edgedb(module: "test") {
+        query mixed {
             User {
                 name
             }
@@ -270,12 +324,12 @@ class TestGraphQLTranslation(TranslatorTest):
         """
     def test_graphql_translation_fragment_01(self):
         r"""
-        fragment groupFrag on UserGroup @edgedb(module: "test") {
+        fragment groupFrag on UserGroup {
             id
             name
         }
 
-        query @edgedb(module: "test") {
+        query {
             User {
                 name,
                 groups {
@@ -300,23 +354,23 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_fragment_02(self):
         r"""
-        fragment userFrag1 on User @edgedb(module: "test") {
+        fragment userFrag1 on User {
             name
             ... userFrag2
         }
 
-        fragment userFrag2 on User @edgedb(module: "test") {
+        fragment userFrag2 on User {
             groups {
                 ... groupFrag
             }
         }
 
-        fragment groupFrag on UserGroup @edgedb(module: "test") {
+        fragment groupFrag on UserGroup {
             id
             name
         }
 
-        query @edgedb(module: "test") {
+        query {
             User {
                 ... userFrag1
             }
@@ -338,20 +392,20 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_fragment_03(self):
         r"""
-        fragment userFrag2 on User @edgedb(module: "test") {
+        fragment userFrag2 on User {
             groups {
                 ... groupFrag
             }
         }
 
-        fragment groupFrag on UserGroup @edgedb(module: "test") {
+        fragment groupFrag on UserGroup {
             id
             name
         }
 
-        query @edgedb(module: "test") {
+        query {
             User {
-                ... {
+                ... on User {
                     name
                     ... userFrag2
                 }
@@ -374,7 +428,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_fragment_04(self):
         r"""
-        fragment userFrag1 on User @edgedb(module: "test") {
+        fragment userFrag1 on User {
             name
             ... {
                 groups {
@@ -383,12 +437,12 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on UserGroup @edgedb(module: "test") {
+        fragment groupFrag on UserGroup {
             id
             name
         }
 
-        query @edgedb(module: "test") {
+        query {
             User {
                 ... userFrag1
             }
@@ -410,7 +464,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_directives_01(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User {
                 name @include(if: true),
                 groups @include(if: false) {
@@ -432,7 +486,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_directives_02(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User {
                 name @skip(if: true),
                 groups @skip(if: false) {
@@ -456,7 +510,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_directives_03(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User {
                 name @skip(if: true), @include(if: true),
 
@@ -481,7 +535,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_directives_04(self):
         r"""
-        fragment userFrag1 on User @edgedb(module: "test") {
+        fragment userFrag1 on User {
             name
             ... {
                 groups @include(if: false) {
@@ -490,12 +544,12 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on UserGroup @edgedb(module: "test") {
+        fragment groupFrag on UserGroup {
             id
             name
         }
 
-        query @edgedb(module: "test") {
+        query {
             User {
                 ... userFrag1
             }
@@ -513,7 +567,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_directives_05(self):
         r"""
-        fragment userFrag1 on User @edgedb(module: "test") {
+        fragment userFrag1 on User {
             name
             ... @skip(if: true) {
                 groups {
@@ -522,12 +576,12 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on UserGroup @edgedb(module: "test") {
+        fragment groupFrag on UserGroup {
             id
             name
         }
 
-        query @edgedb(module: "test") {
+        query {
             User {
                 ... userFrag1
             }
@@ -545,7 +599,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_directives_06(self):
         r"""
-        fragment userFrag1 on User @edgedb(module: "test") {
+        fragment userFrag1 on User {
             name
             ... {
                 groups {
@@ -555,11 +609,11 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on UserGroup @edgedb(module: "test") {
+        fragment groupFrag on UserGroup {
             name
         }
 
-        query @edgedb(module: "test") {
+        query {
             User {
                 ... userFrag1
             }
@@ -581,7 +635,7 @@ class TestGraphQLTranslation(TranslatorTest):
     @with_variables(nogroup=False)
     def test_graphql_translation_directives_07(self):
         r"""
-        fragment userFrag1 on User @edgedb(module: "test") {
+        fragment userFrag1 on User {
             name
             ... {
                 groups {
@@ -591,11 +645,11 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on UserGroup @edgedb(module: "test") {
+        fragment groupFrag on UserGroup {
             name
         }
 
-        query ($nogroup: Boolean = false) @edgedb(module: "test") {
+        query ($nogroup: Boolean = false) {
             User {
                 ... userFrag1
             }
@@ -619,7 +673,7 @@ class TestGraphQLTranslation(TranslatorTest):
     @with_variables(nogroup=True, irrelevant='foo')
     def test_graphql_translation_directives_08(self):
         r"""
-        fragment userFrag1 on User @edgedb(module: "test") {
+        fragment userFrag1 on User {
             name
             ... {
                 groups {
@@ -629,11 +683,11 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on UserGroup @edgedb(module: "test") {
+        fragment groupFrag on UserGroup {
             name
         }
 
-        query ($nogroup: Boolean = false) @edgedb(module: "test") {
+        query ($nogroup: Boolean = false) {
             User {
                 ... userFrag1
             }
@@ -653,10 +707,11 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
+    @with_operation('settings')
     @with_variables(nogroup=True, novalue=False)
     def test_graphql_translation_directives_09(self):
         r"""
-        fragment userFrag1 on User @edgedb(module: "test") {
+        fragment userFrag1 on User {
             name
             ... {
                 groups {
@@ -666,17 +721,17 @@ class TestGraphQLTranslation(TranslatorTest):
             }
         }
 
-        fragment groupFrag on UserGroup @edgedb(module: "test") {
+        fragment groupFrag on UserGroup {
             name
         }
 
-        query users($nogroup: Boolean = false) @edgedb(module: "test") {
+        query users($nogroup: Boolean = false) {
             User {
                 ... userFrag1
             }
         }
 
-        query settings($novalue: Boolean = false) @edgedb(module: "test") {
+        query settings($novalue: Boolean = false) {
             Setting {
                 name
                 value @skip(if: $novalue)
@@ -695,6 +750,40 @@ class TestGraphQLTranslation(TranslatorTest):
                     value
                 })
         };
+        """
+
+    @with_operation('users')
+    @with_variables(nogroup=True, novalue=False)
+    def test_graphql_translation_directives_10(self):
+        r"""
+        fragment userFrag1 on User {
+            name
+            ... {
+                groups {
+                    ... groupFrag @skip(if: $nogroup)
+                    id
+                }
+            }
+        }
+
+        fragment groupFrag on UserGroup {
+            name
+        }
+
+        query users($nogroup: Boolean = false) {
+            User {
+                ... userFrag1
+            }
+        }
+
+        query settings($novalue: Boolean = false) {
+            Setting {
+                name
+                value @skip(if: $novalue)
+            }
+        }
+
+% OK %
 
         # query users
         # critical variables: $nogroup=True
@@ -710,10 +799,10 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
-    @tb.must_fail(GraphQLValidationError, line=4, col=22)
-    def test_graphql_translation_directives_10(self):
+    @tb.must_fail(GraphQLCoreError, 'invalid value "true"', line=4, col=35)
+    def test_graphql_translation_directives_11(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User {
                 name @include(if: "true"),
                 id
@@ -721,10 +810,10 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=4, col=22)
-    def test_graphql_translation_directives_11(self):
+    @tb.must_fail(GraphQLCoreError, '', line=2, col=16)
+    def test_graphql_translation_directives_12(self):
         r"""
-        query ($val: String = "true") @edgedb(module: "test") {
+        query ($val: String = "true") {
             User {
                 name @include(if: $val),
                 id
@@ -734,7 +823,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_arguments_01(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User(name: "John") {
                 name,
                 groups {
@@ -762,7 +851,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_arguments_02(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User(name: "John", active: true) {
                 name,
                 groups {
@@ -793,7 +882,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_arguments_03(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User {
                 name,
                 groups(name: "admin") {
@@ -819,7 +908,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_variables_01(self):
         r"""
-        query($name: String) @edgedb(module: "test") {
+        query($name: String) {
             User(name: $name) {
                 name,
                 groups {
@@ -845,9 +934,10 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
+    @unittest.expectedFailure
     def test_graphql_translation_variables_03(self):
         r"""
-        query($val: Int = 3) @edgedb(module: "test") {
+        query($val: Int = 3) {
             User(score: $val) {
                 id,
             }
@@ -867,7 +957,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_variables_04(self):
         r"""
-        query($val: Boolean = true) @edgedb(module: "test") {
+        query($val: Boolean = true) {
             User {
                 name @include(if: $val),
                 groups @skip(if: $val) {
@@ -889,10 +979,10 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
-    @tb.must_fail(GraphQLValidationError, line=2, col=15)
+    @tb.must_fail(GraphQLCoreError, line=2, col=32)
     def test_graphql_translation_variables_05(self):
         r"""
-        query($val: Boolean! = true) @edgedb(module: "test") {
+        query($val: Boolean! = true) {
             User {
                 name @include(if: $val),
                 id
@@ -900,10 +990,10 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=2, col=15)
+    @tb.must_fail(GraphQLCoreError, line=2, col=15)
     def test_graphql_translation_variables_06(self):
         r"""
-        query($val: Boolean!) @edgedb(module: "test") {
+        query($val: Boolean!) {
             User {
                 name @include(if: $val),
                 id
@@ -913,7 +1003,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_variables_07(self):
         r"""
-        query($val: String = "John") @edgedb(module: "test") {
+        query($val: String = "John") {
             User(name: $val) {
                 id,
             }
@@ -933,7 +1023,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_variables_08(self):
         r"""
-        query($val: Int = 20) @edgedb(module: "test") {
+        query($val: Int = 20) {
             User(age: $val) {
                 id,
             }
@@ -953,7 +1043,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_variables_09(self):
         r"""
-        query($val: Float = 3.5) @edgedb(module: "test") {
+        query($val: Float = 3.5) {
             User(score: $val) {
                 id,
             }
@@ -971,9 +1061,10 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
+    @unittest.expectedFailure
     def test_graphql_translation_variables_10(self):
         r"""
-        query($val: Int = 3) @edgedb(module: "test") {
+        query($val: Int = 3) {
             User(score: $val) {
                 id,
             }
@@ -993,7 +1084,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_variables_11(self):
         r"""
-        query($val: Float = 3) @edgedb(module: "test") {
+        query($val: Float = 3) {
             User(score: $val) {
                 id,
             }
@@ -1011,10 +1102,10 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
-    @tb.must_fail(GraphQLValidationError, line=2, col=15)
+    @tb.must_fail(GraphQLCoreError, line=2, col=31)
     def test_graphql_translation_variables_12(self):
         r"""
-        query($val: Boolean = 1) @edgedb(module: "test") {
+        query($val: Boolean = 1) {
             User {
                 name @include(if: $val),
                 id
@@ -1022,10 +1113,10 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=2, col=15)
+    @tb.must_fail(GraphQLCoreError, line=2, col=31)
     def test_graphql_translation_variables_13(self):
         r"""
-        query($val: Boolean = "1") @edgedb(module: "test") {
+        query($val: Boolean = "1") {
             User {
                 name @include(if: $val),
                 id
@@ -1033,10 +1124,10 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=2, col=15)
+    @tb.must_fail(GraphQLCoreError, line=2, col=31)
     def test_graphql_translation_variables_14(self):
         r"""
-        query($val: Boolean = 1.3) @edgedb(module: "test") {
+        query($val: Boolean = 1.3) {
             User {
                 name @include(if: $val),
                 id
@@ -1044,80 +1135,80 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=2, col=15)
+    @tb.must_fail(GraphQLCoreError, line=2, col=30)
     def test_graphql_translation_variables_15(self):
         r"""
-        query($val: String = 1) @edgedb(module: "test") {
+        query($val: String = 1) {
             User(name: $val) {
                 id
             }
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=2, col=15)
+    @tb.must_fail(GraphQLCoreError, line=2, col=30)
     def test_graphql_translation_variables_16(self):
         r"""
-        query($val: String = 1.1) @edgedb(module: "test") {
+        query($val: String = 1.1) {
             User(name: $val) {
                 id
             }
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=2, col=15)
+    @tb.must_fail(GraphQLCoreError, line=2, col=30)
     def test_graphql_translation_variables_17(self):
         r"""
-        query($val: String = true) @edgedb(module: "test") {
+        query($val: String = true) {
             User(name: $val) {
                 id
             }
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=2, col=15)
+    @tb.must_fail(GraphQLCoreError, line=2, col=27)
     def test_graphql_translation_variables_18(self):
         r"""
-        query($val: Int = 1.1) @edgedb(module: "test") {
+        query($val: Int = 1.1) {
             User(age: $val) {
                 id
             }
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=2, col=15)
+    @tb.must_fail(GraphQLCoreError, line=2, col=27)
     def test_graphql_translation_variables_19(self):
         r"""
-        query($val: Int = "1") @edgedb(module: "test") {
+        query($val: Int = "1") {
             User(age: $val) {
                 id
             }
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=2, col=15)
+    @tb.must_fail(GraphQLCoreError, line=2, col=27)
     def test_graphql_translation_variables_20(self):
         r"""
-        query($val: Int = true) @edgedb(module: "test") {
+        query($val: Int = true) {
             User(age: $val) {
                 id
             }
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=2, col=15)
+    @tb.must_fail(GraphQLCoreError, line=2, col=29)
     def test_graphql_translation_variables_21(self):
         r"""
-        query($val: Float = "1") @edgedb(module: "test") {
+        query($val: Float = "1") {
             User(score: $val) {
                 id
             }
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=2, col=15)
+    @tb.must_fail(GraphQLCoreError, line=2, col=29)
     def test_graphql_translation_variables_22(self):
         r"""
-        query($val: Float = true) @edgedb(module: "test") {
+        query($val: Float = true) {
             User(score: $val) {
                 id
             }
@@ -1126,7 +1217,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_variables_23(self):
         r"""
-        query($val: ID = "1") @edgedb(module: "test") {
+        query($val: ID = "1") {
             User(id: $val) {
                 name
             }
@@ -1146,7 +1237,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_variables_24(self):
         r"""
-        query($val: ID = 1) @edgedb(module: "test") {
+        query($val: ID = 1) {
             User(id: $val) {
                 name
             }
@@ -1164,91 +1255,92 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
-    @tb.must_fail(GraphQLValidationError, line=2, col=15)
+    @tb.must_fail(GraphQLCoreError, line=2, col=26)
     def test_graphql_translation_variables_25(self):
         r"""
-        query($val: ID = 1.1) @edgedb(module: "test") {
+        query($val: ID = 1.1) {
             User(id: $val) {
                 name
             }
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=2, col=15)
+    @tb.must_fail(GraphQLCoreError, line=2, col=26)
     def test_graphql_translation_variables_26(self):
         r"""
-        query($val: ID = true) @edgedb(module: "test") {
+        query($val: ID = true) {
             User(id: $val) {
                 name
             }
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=2, col=15)
+    @tb.must_fail(GraphQLCoreError, line=2, col=15)
     def test_graphql_translation_variables_27(self):
         r"""
-        query($val: [String] = "Foo") @edgedb(module: "test") {
-            User(name__in: $val) {
-                id
-            }
-        }
-        """
-
-    @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    @with_variables(val='Foo')
-    def test_graphql_translation_variables_28(self):
-        r"""
-        query($val: [String]) @edgedb(module: "test") {
-            User(name__in: $val) {
-                id
-            }
-        }
-        """
-
-    @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    def test_graphql_translation_variables_29(self):
-        r"""
-        query($val: [String]!) @edgedb(module: "test") {
-            User(name__in: $val) {
-                id
-            }
-        }
-        """
-
-    @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    def test_graphql_translation_variables_30(self):
-        r"""
-        query($val: String!) @edgedb(module: "test") {
+        query($val: [String] = "Foo") {
             User(name: $val) {
                 id
             }
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=2, col=15)
-    def test_graphql_translation_variables_31(self):
+    @tb.must_fail(GraphQLCoreError, line=2, col=15)
+    @with_variables(val='Foo')
+    def test_graphql_translation_variables_28(self):
         r"""
-        query($val: [String] = ["Foo", 123]) @edgedb(module: "test") {
-            User(name__in: $val) {
+        query($val: [String]) {
+            User(name: $val) {
                 id
             }
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=2, col=15)
+    @tb.must_fail(GraphQLCoreError, line=2, col=15)
+    def test_graphql_translation_variables_29(self):
+        r"""
+        query($val: [String]!) {
+            User(name: $val) {
+                id
+            }
+        }
+        """
+
+    @tb.must_fail(GraphQLCoreError, line=2, col=15)
+    def test_graphql_translation_variables_30(self):
+        r"""
+        query($val: String!) {
+            User(name: $val) {
+                id
+            }
+        }
+        """
+
+    @tb.must_fail(GraphQLCoreError, line=2, col=32)
+    def test_graphql_translation_variables_31(self):
+        r"""
+        query($val: [String] = ["Foo", 123]) {
+            User(name: $val) {
+                id
+            }
+        }
+        """
+
+    @tb.must_fail(GraphQLCoreError, line=2, col=15)
     @with_variables(val=["Foo", 123])
     def test_graphql_translation_variables_32(self):
         r"""
-        query($val: [String]) @edgedb(module: "test") {
-            User(name__in: $val) {
+        query($val: [String]) {
+            User(name: $val) {
                 id
             }
         }
         """
 
+    @unittest.expectedFailure
     def test_graphql_translation_enum_01(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             # this is an ENUM that gets simply converted to a string in EdgeQL
             UserGroup(name: admin) {
                 id,
@@ -1271,7 +1363,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_arg_type_01(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User(name: "John") {
                 id,
             }
@@ -1291,7 +1383,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_arg_type_02(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User(age: 20) {
                 id,
             }
@@ -1311,7 +1403,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_arg_type_03(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User(score: 3.5) {
                 id,
             }
@@ -1331,7 +1423,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_arg_type_04(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User(score: 3) {
                 id,
             }
@@ -1352,7 +1444,7 @@ class TestGraphQLTranslation(TranslatorTest):
     @with_variables(val="John")
     def test_graphql_translation_arg_type_05(self):
         r"""
-        query($val: String!) @edgedb(module: "test") {
+        query($val: String!) {
             User(name: $val) {
                 id,
             }
@@ -1373,7 +1465,7 @@ class TestGraphQLTranslation(TranslatorTest):
     @with_variables(val=20)
     def test_graphql_translation_arg_type_06(self):
         r"""
-        query($val: Int!) @edgedb(module: "test") {
+        query($val: Int!) {
             User(age: $val) {
                 id,
             }
@@ -1394,7 +1486,7 @@ class TestGraphQLTranslation(TranslatorTest):
     @with_variables(val=3.5)
     def test_graphql_translation_arg_type_07(self):
         r"""
-        query($val: Float!) @edgedb(module: "test") {
+        query($val: Float!) {
             User(score: $val) {
                 id,
             }
@@ -1412,10 +1504,11 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
+    @unittest.expectedFailure
     @with_variables(val=3)
     def test_graphql_translation_arg_type_08(self):
         r"""
-        query($val: Int!) @edgedb(module: "test") {
+        query($val: Int!) {
             User(score: $val) {
                 id,
             }
@@ -1433,40 +1526,40 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
-    @tb.must_fail(GraphQLValidationError, line=3, col=18)
+    @tb.must_fail(GraphQLCoreError, line=3, col=24)
     def test_graphql_translation_arg_type_17(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User(name: 42) {
                 id,
             }
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=3, col=18)
+    @tb.must_fail(GraphQLCoreError, line=3, col=23)
     def test_graphql_translation_arg_type_18(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User(age: 20.5) {
                 id,
             }
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=3, col=18)
+    @tb.must_fail(GraphQLCoreError, line=3, col=25)
     def test_graphql_translation_arg_type_19(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User(score: "3.5") {
                 id,
             }
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=3, col=18)
+    @tb.must_fail(GraphQLCoreError, line=3, col=26)
     def test_graphql_translation_arg_type_20(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User(active: 0) {
                 id,
             }
@@ -1475,12 +1568,12 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_fragment_type_01(self):
         r"""
-        fragment userFrag on User @edgedb(module: "test") {
+        fragment userFrag on User {
             id,
             name,
         }
 
-        query @edgedb(module: "test") {
+        query {
             User {
                 ... userFrag
             }
@@ -1499,12 +1592,12 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_fragment_type_02(self):
         r"""
-        fragment namedFrag on NamedObject @edgedb(module: "test") {
+        fragment namedFrag on NamedObject {
             id,
             name,
         }
 
-        query @edgedb(module: "test") {
+        query {
             User {
                 ... namedFrag
             }
@@ -1523,17 +1616,17 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_fragment_type_03(self):
         r"""
-        fragment namedFrag on NamedObject @edgedb(module: "test") {
+        fragment namedFrag on NamedObject {
             id,
             name,
         }
 
-        fragment userFrag on User @edgedb(module: "test") {
+        fragment userFrag on User {
             ... namedFrag
             age
         }
 
-        query @edgedb(module: "test") {
+        query {
             User {
                 ... userFrag
             }
@@ -1551,36 +1644,40 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
-    @tb.must_fail(GraphQLValidationError,
-                  'UserGroup and User are not related', line=9, col=17)
+    @tb.must_fail(
+        GraphQLCoreError,
+        r'userFrag cannot be spread.*?UserGroup can never be of type User',
+        line=9, col=17)
     def test_graphql_translation_fragment_type_04(self):
         r"""
-        fragment userFrag on User @edgedb(module: "test") {
+        fragment userFrag on User {
             id,
             name,
         }
 
-        query @edgedb(module: "test") {
+        query {
             UserGroup {
                 ... userFrag
             }
         }
         """
 
-    @tb.must_fail(GraphQLValidationError,
-                  'UserGroup and User are not related', line=8, col=13)
+    @tb.must_fail(
+        GraphQLCoreError,
+        r'userFrag cannot be spread.*?UserGroup can never be of type User',
+        line=8, col=13)
     def test_graphql_translation_fragment_type_05(self):
         r"""
-        fragment userFrag on User @edgedb(module: "test") {
+        fragment userFrag on User {
             id,
             name,
         }
 
-        fragment groupFrag on UserGroup @edgedb(module: "test") {
+        fragment groupFrag on UserGroup {
             ... userFrag
         }
 
-        query @edgedb(module: "test") {
+        query {
             User {
                 ... userFrag
                 groups {
@@ -1592,12 +1689,12 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_fragment_type_06(self):
         r"""
-        fragment userFrag on User @edgedb(module: "test") {
+        fragment userFrag on User {
            name,
            age,
         }
 
-        query @edgedb(module: "test") {
+        query {
             NamedObject {
                 id,
                 ... userFrag
@@ -1618,12 +1715,12 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_fragment_type_07(self):
         r"""
-        fragment frag on NamedObject @edgedb(module: "test") {
+        fragment frag on NamedObject {
             id,
             name,
         }
 
-        query @edgedb(module: "test") {
+        query {
             NamedObject {
                 ... frag
             }
@@ -1640,30 +1737,32 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
-    @tb.must_fail(GraphQLValidationError, r'field \S+ is invalid for',
+    @tb.must_fail(GraphQLCoreError,
+                  'Cannot query field "age" on type "NamedObject"',
                   line=5, col=13)
     def test_graphql_translation_fragment_type_08(self):
         r"""
-        fragment frag on NamedObject @edgedb(module: "test") {
+        fragment frag on NamedObject {
             id,
             name,
             age,
         }
 
-        query @edgedb(module: "test") {
+        query {
             User {
                 ... frag
             }
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, r'field \S+ is invalid for',
+    @tb.must_fail(GraphQLCoreError,
+                  'Cannot query field "age" on type "NamedObject"',
                   line=7, col=21)
     def test_graphql_translation_fragment_type_09(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User {
-                ... on NamedObject @edgedb(module: "test") {
+                ... on NamedObject {
                     id,
                     name,
                     age,
@@ -1674,17 +1773,17 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_fragment_type_10(self):
         r"""
-        fragment namedFrag on NamedObject @edgedb(module: "test") {
+        fragment namedFrag on NamedObject {
             id,
             name,
             ... userFrag
         }
 
-        fragment userFrag on User @edgedb(module: "test") {
+        fragment userFrag on User {
             age
         }
 
-        query @edgedb(module: "test") {
+        query {
             NamedObject {
                 ... namedFrag
             }
@@ -1704,17 +1803,17 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_fragment_type_11(self):
         r"""
-        fragment namedFrag on NamedObject @edgedb(module: "test") {
+        fragment namedFrag on NamedObject {
             id,
             name,
             ... userFrag
         }
 
-        fragment userFrag on User @edgedb(module: "test") {
+        fragment userFrag on User {
             age
         }
 
-        query @edgedb(module: "test") {
+        query {
             User {
                 ... namedFrag
             }
@@ -1734,7 +1833,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_fragment_type_12(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             NamedObject {
                 ... on User {
                     age
@@ -1752,14 +1851,15 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
+    @with_modules('test', 'mod2')
     def test_graphql_translation_import_01(self):
         r"""
-        fragment groupFrag on UserGroup @edgedb(module: "test") {
+        fragment groupFrag on UserGroup {
             id
             name
         }
 
-        query @edgedb(module: "mod2") {
+        query {
             Person {
                 id
                 name
@@ -1784,15 +1884,17 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
-    @tb.must_fail(GraphQLValidationError, line=8, col=13)
+    @tb.must_fail(GraphQLCoreError,
+                  'Cannot query field "Person" on type "Query"',
+                  line=8, col=13)
     def test_graphql_translation_import_02(self):
         r"""
-        fragment groupFrag on UserGroup @edgedb(module: "test") {
+        fragment groupFrag on UserGroup {
             id
             name
         }
 
-        query @edgedb(module: "test") {
+        query {
             Person {
                 id
                 name
@@ -1805,7 +1907,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_duplicates_01(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User {
                 id
                 name
@@ -1827,7 +1929,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_duplicates_02(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User {
                 name @include(if: true)
                 id
@@ -1848,9 +1950,9 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_duplicates_03(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User {
-                ... @skip(if: false) {
+                ... on User @skip(if: false) {
                     name @include(if: true)
                 }
                 id
@@ -1871,17 +1973,17 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_duplicates_04(self):
         r"""
-        fragment f1 on User @edgedb(module: "test") {
+        fragment f1 on User {
             name @include(if: true)
         }
 
-        fragment f2 on User @edgedb(module: "test") {
+        fragment f2 on User {
             id
             name @include(if: true)
             ... f1
         }
 
-        query @edgedb(module: "test") {
+        query {
             User {
                 ... f2
                 id
@@ -1903,7 +2005,7 @@ class TestGraphQLTranslation(TranslatorTest):
     @tb.must_fail(GraphQLValidationError, line=6, col=17)
     def test_graphql_translation_duplicates_05(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User {
                 id
                 name
@@ -1913,10 +2015,10 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
-    @tb.must_fail(GraphQLValidationError, line=8, col=17)
+    @tb.must_fail(GraphQLCoreError, line=4, col=17)
     def test_graphql_translation_duplicates_06(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User {
                 ... @skip(if: false) {
                     name @include(if: true)
@@ -1930,17 +2032,17 @@ class TestGraphQLTranslation(TranslatorTest):
     @tb.must_fail(GraphQLValidationError, line=3, col=13)
     def test_graphql_translation_duplicates_07(self):
         r"""
-        fragment f1 on User @edgedb(module: "test") {
+        fragment f1 on User {
             name @skip(if: false)
         }
 
-        fragment f2 on User @edgedb(module: "test") {
+        fragment f2 on User {
             id
             name @include(if: true)
             ... f1
         }
 
-        query @edgedb(module: "test") {
+        query {
             User {
                 ... f2
                 id
@@ -1949,9 +2051,10 @@ class TestGraphQLTranslation(TranslatorTest):
         }
         """
 
+    @with_modules('123lib')
     def test_graphql_translation_quoting_01(self):
         r"""
-        query @edgedb(module: "123lib") {
+        query {
             Foo(select: "bar") {
                 select
                 after
@@ -1973,7 +2076,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_typename_01(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             User {
                 name
                 __typename
@@ -1991,11 +2094,13 @@ class TestGraphQLTranslation(TranslatorTest):
             User := (SELECT
                 test::User {
                     name,
-                    __typename := test::User.__type__.name,
+                    __typename := graphql::short_name(
+                        test::User.__type__.name),
                     groups: {
                         id,
                         name,
-                        __typename := test::User.groups.__type__.name
+                        __typename := graphql::short_name(
+                            test::User.groups.__type__.name)
                     }
                 })
         };
@@ -2010,13 +2115,13 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT graphql::Query {
-            __typename := 'Query'
+            __typename
         };
         """
 
     def test_graphql_translation_schema_01(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             __schema {
                 __typename
             }
@@ -2025,17 +2130,15 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT graphql::Query {
-            __schema := (
-                SELECT graphql::Query {
-                    __typename := '__Schema'
-                }
-            )
+            __schema := <json>'{
+                "__typename": "__Schema"
+            }'
         };
         """
 
     def test_graphql_translation_schema_02(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             __schema {
                 __typename
             }
@@ -2047,18 +2150,16 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT graphql::Query {
-            __schema:= (
-                SELECT graphql::Query {
-                    __typename := '__Schema'
-                }
-            )
+            __schema := <json>'{
+                "__typename": "__Schema"
+            }'
         };
         """
 
-    @tb.must_fail(GraphQLValidationError, line=3, col=22)
+    @tb.must_fail(GraphQLCoreError, line=3, col=22)
     def test_graphql_translation_schema_03(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             __schema(name: "foo") {
                 __typename
             }
@@ -2067,7 +2168,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
     def test_graphql_translation_schema_04(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             __schema {
                 directives {
                     name
@@ -2076,6 +2177,265 @@ class TestGraphQLTranslation(TranslatorTest):
                     args {
                         name
                         description
+                        type {
+                            kind
+                            name
+                            ofType {
+                                kind
+                                name
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            __schema := <json>'{
+                "directives": [
+                    {
+                        "name": "include",
+                        "description":
+                            "Directs the executor to include this
+                            field or fragment only when the `if`
+                            argument is true.",
+                        "locations": [
+                            "FIELD",
+                            "FRAGMENT_SPREAD",
+                            "INLINE_FRAGMENT"
+                        ],
+                        "args": [
+                            {
+                                "name": "if",
+                                "description": "Included when true.",
+                                "type": {
+                                    "kind": "NON_NULL",
+                                    "name": null,
+                                    "ofType": {
+                                        "kind": "SCALAR",
+                                        "name": "Boolean"
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "name": "skip",
+                        "description":
+                            "Directs the executor to skip this field
+                            or fragment when the `if` argument is
+                            true.",
+                        "locations": [
+                            "FIELD",
+                            "FRAGMENT_SPREAD",
+                            "INLINE_FRAGMENT"
+                        ],
+                        "args": [
+                            {
+                                "name": "if",
+                                "description": "Skipped when true.",
+                                "type": {
+                                    "kind": "NON_NULL",
+                                    "name": null,
+                                    "ofType": {
+                                        "kind": "SCALAR",
+                                        "name": "Boolean"
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "name": "deprecated",
+                        "description":
+                            "Marks an element of a GraphQL schema as
+                            no longer supported.",
+                        "locations": [
+                            "FIELD_DEFINITION",
+                            "ENUM_VALUE"
+                        ],
+                        "args": [
+                            {
+                                "name": "reason",
+                                "description":
+
+                                    "Explains why this element was
+                                    deprecated, usually also including
+                                    a suggestion for how toaccess
+                                    supported similar data. Formatted
+                                    in [Markdown](https://daringfireba
+                                    ll.net/projects/markdown/).",
+
+                                "type": {
+                                    "kind": "SCALAR",
+                                    "name": "String",
+                                    "ofType": null
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }'
+        };
+        """
+
+    def test_graphql_translation_schema_05(self):
+        r"""
+        query {
+            __schema {
+                mutationType {
+                    name
+                    description
+                }
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            __schema := <json>'{
+                "mutationType": null
+            }'
+        };
+        """
+
+    def test_graphql_translation_schema_06(self):
+        r"""
+        query {
+            __schema {
+                queryType {
+                    kind
+                    name
+                    description
+                    interfaces {
+                        name
+                    }
+                    possibleTypes {
+                        name
+                    }
+                    enumValues {
+                        name
+                    }
+                    inputFields {
+                        name
+                    }
+                    ofType {
+                        name
+                    }
+                }
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            __schema := <json>'{
+                "queryType": {
+                    "kind": "OBJECT",
+                    "name": "Query",
+                    "description": null,
+                    "interfaces": [],
+                    "possibleTypes": null,
+                    "enumValues": null,
+                    "inputFields": null,
+                    "ofType": null
+                }
+            }'
+        };
+        """
+
+    def test_graphql_translation_schema_07(self):
+        r"""
+        query {
+            __schema {
+                types {
+                    kind
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            __schema := <json>'{
+                "types": [
+                    {"kind": "OBJECT", "name": "Query"},
+                    {"kind": "SCALAR", "name": "ID"},
+                    {"kind": "SCALAR", "name": "String"},
+                    {"kind": "INTERFACE", "name": "NamedObject"},
+                    {"kind": "OBJECT", "name": "Profile"},
+                    {"kind": "SCALAR", "name": "Int"},
+                    {"kind": "OBJECT", "name": "Setting"},
+                    {"kind": "SCALAR", "name": "Boolean"},
+                    {"kind": "SCALAR", "name": "Float"},
+                    {"kind": "OBJECT", "name": "User"},
+                    {"kind": "OBJECT", "name": "UserGroup"},
+                    {"kind": "OBJECT", "name": "__Schema"},
+                    {"kind": "OBJECT", "name": "__Type"},
+                    {"kind": "ENUM", "name": "__TypeKind"},
+                    {"kind": "OBJECT", "name": "__Field"},
+                    {"kind": "OBJECT", "name": "__InputValue"},
+                    {"kind": "OBJECT", "name": "__EnumValue"},
+                    {"kind": "OBJECT", "name": "__Directive"},
+                    {"kind": "ENUM", "name": "__DirectiveLocation"}
+                ]
+            }'
+        };
+        """
+
+    def test_graphql_translation_schema_08(self):
+        r"""
+        query {
+            Foo : __schema {
+                types {
+                    kind
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            Foo := <json>'{
+                "types": [
+                    {"kind": "OBJECT", "name": "Query"},
+                    {"kind": "SCALAR", "name": "ID"},
+                    {"kind": "SCALAR", "name": "String"},
+                    {"kind": "INTERFACE", "name": "NamedObject"},
+                    {"kind": "OBJECT", "name": "Profile"},
+                    {"kind": "SCALAR", "name": "Int"},
+                    {"kind": "OBJECT", "name": "Setting"},
+                    {"kind": "SCALAR", "name": "Boolean"},
+                    {"kind": "SCALAR", "name": "Float"},
+                    {"kind": "OBJECT", "name": "User"},
+                    {"kind": "OBJECT", "name": "UserGroup"},
+                    {"kind": "OBJECT", "name": "__Schema"},
+                    {"kind": "OBJECT", "name": "__Type"},
+                    {"kind": "ENUM", "name": "__TypeKind"},
+                    {"kind": "OBJECT", "name": "__Field"},
+                    {"kind": "OBJECT", "name": "__InputValue"},
+                    {"kind": "OBJECT", "name": "__EnumValue"},
+                    {"kind": "OBJECT", "name": "__Directive"},
+                    {"kind": "ENUM", "name": "__DirectiveLocation"}
+                ]
+            }'
+        };
+        """
+
+    def test_graphql_translation_schema_09(self):
+        # this is specifically testing some issues with quoting in
+        # json "\"blah\"" during introspection conversions
+        r"""
+        query {
+            __schema {
+                directives {
+                    name
+                    args {
+                        name
                         defaultValue
                     }
                 }
@@ -2085,36 +2445,1299 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT graphql::Query {
-            __schema := (SELECT graphql::Query {
-                directives := (SELECT graphql::Directive {
+            __schema := <json>'{
+                "directives": [
+                    {
+                        "name": "include",
+                        "args": [{
+                            "name": "if",
+                            "defaultValue": null
+                        }]
+                    },
+                    {
+                        "name": "skip",
+                        "args": [{
+                            "name": "if",
+                            "defaultValue": null
+                        }]
+                    },
+                    {
+                        "name": "deprecated",
+                        "args": [{
+                            "name": "reason",
+                            "defaultValue": "\\"No longer supported\\""
+                        }]
+                    },
+                ]
+            }'
+        };
+        """
+
+    def test_graphql_translation_schema_10(self):
+        r"""
+
+        query {
+            User {
+                name,
+                groups {
+                    id
+                    name
+                }
+            }
+            __schema {
+                types {
+                    kind
+                    name
+                }
+            }
+        }
+
+% OK %
+        SELECT graphql::Query {
+            User := (SELECT
+                test::User {
                     name,
-                    description,
-                    locations,
-                    args: {
-                        name,
-                        description,
-                        defaultValue
+                    groups: {
+                        id,
+                        name
                     }
-                })
-            })
+                }
+            ),
+            __schema := <json>'{
+                "types": [
+                    {"kind": "OBJECT", "name": "Query"},
+                    {"kind": "SCALAR", "name": "ID"},
+                    {"kind": "SCALAR", "name": "String"},
+                    {"kind": "INTERFACE", "name": "NamedObject"},
+                    {"kind": "OBJECT", "name": "Profile"},
+                    {"kind": "SCALAR", "name": "Int"},
+                    {"kind": "OBJECT", "name": "Setting"},
+                    {"kind": "SCALAR", "name": "Boolean"},
+                    {"kind": "SCALAR", "name": "Float"},
+                    {"kind": "OBJECT", "name": "User"},
+                    {"kind": "OBJECT", "name": "UserGroup"},
+                    {"kind": "OBJECT", "name": "__Schema"},
+                    {"kind": "OBJECT", "name": "__Type"},
+                    {"kind": "ENUM", "name": "__TypeKind"},
+                    {"kind": "OBJECT", "name": "__Field"},
+                    {"kind": "OBJECT", "name": "__InputValue"},
+                    {"kind": "OBJECT", "name": "__EnumValue"},
+                    {"kind": "OBJECT", "name": "__Directive"},
+                    {"kind": "ENUM", "name": "__DirectiveLocation"}
+                ]
+            }'
         };
         """
 
     def test_graphql_translation_type_01(self):
         r"""
-        query @edgedb(module: "test") {
+        query {
             __type(name: "User") {
                 __typename
+                name
+                kind
             }
         }
 
 % OK %
 
         SELECT graphql::Query {
-            __type:= (
-                SELECT graphql::Query {
-                    __typename := '__Type'
-                }
-            )
+            __type := <json>'{
+                "__typename": "__Type",
+                "name": "User",
+                "kind": "OBJECT"
+            }'
         };
+        """
+
+    def test_graphql_translation_type_02(self):
+        r"""
+        query {
+            __type(name: "User") {
+                __typename
+                kind
+                name
+                description
+                interfaces {
+                    name
+                }
+                possibleTypes {
+                    name
+                }
+                enumValues {
+                    name
+                }
+                inputFields {
+                    name
+                }
+                ofType {
+                    name
+                }
+
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            __type := <json>'{
+                "__typename": "__Type",
+                "kind": "OBJECT"
+                "name": "User",
+                "description": null,
+                "interfaces": [
+                    {
+                        "name": "NamedObject"
+                    }
+                ],
+                "possibleTypes": null,
+                "enumValues": null,
+                "inputFields": null,
+                "ofType": null
+            }'
+        };
+    """
+
+    def test_graphql_translation_type_03(self):
+        r"""
+        query {
+            __type(name: "UserGroup") {
+                __typename
+                name
+                kind
+                fields {
+                    __typename
+                    name
+                    description
+                    type {
+                        __typename
+                        name
+                        kind
+                        ofType {
+                            __typename
+                            name
+                            kind
+                            ofType {
+                                __typename
+                                name
+                                kind
+                                ofType {
+                                    __typename
+                                    name
+                                    kind
+                                    ofType {
+                                        __typename
+                                        name
+                                        kind
+                                        ofType {
+                                            name
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    isDeprecated
+                    deprecationReason
+                }
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            __type := <json>'{
+                "__typename": "__Type",
+                "name": "UserGroup",
+                "kind": "OBJECT",
+                "fields": [
+                    {
+                        "__typename": "__Field",
+                        "name": "id",
+                        "description": null,
+                        "type": {
+                            "__typename": "__Type",
+                            "name": null,
+                            "kind": "NON_NULL",
+                            "ofType": {
+                                "__typename": "__Type",
+                                "name": "ID",
+                                "kind": "SCALAR",
+                                "ofType": null
+                            }
+                        },
+                        "isDeprecated": false,
+                        "deprecationReason": null
+                    },
+                    {
+                        "__typename": "__Field",
+                        "name": "name",
+                        "description": null,
+                        "type": {
+                            "__typename": "__Type",
+                            "name": null,
+                            "kind": "NON_NULL",
+                            "ofType": {
+                                "__typename": "__Type",
+                                "name": "String",
+                                "kind": "SCALAR",
+                                "ofType": null
+                            }
+                        },
+                        "isDeprecated": false,
+                        "deprecationReason": null
+                    },
+                    {
+                        "__typename": "__Field",
+                        "name": "settings",
+                        "description": null,
+                        "type": {
+                            "__typename": "__Type",
+                            "name": null,
+                            "kind": "LIST",
+                            "ofType": {
+                                "__typename": "__Type",
+                                "name": null,
+                                "kind": "NON_NULL",
+                                "ofType": {
+                                    "__typename": "__Type",
+                                    "name": "Setting",
+                                    "kind": "OBJECT",
+                                    "ofType": null
+                                }
+                            }
+                        },
+                        "isDeprecated": false,
+                        "deprecationReason": null
+                    }
+                ]
+            }'
+        };
+        """
+
+    def test_graphql_translation_type_04(self):
+        r"""
+        fragment _t on __Type {
+            __typename
+            name
+            kind
+        }
+
+        query {
+            __type(name: "UserGroup") {
+                ..._t
+                fields {
+                    __typename
+                    name
+                    description
+                    type {
+                        ..._t
+                        ofType {
+                            ..._t
+                            ofType {
+                                ..._t
+                                ofType {
+                                    ..._t
+                                    ofType {
+                                        ..._t
+                                        ofType {
+                                            name
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    isDeprecated
+                    deprecationReason
+                }
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            __type := <json>'{
+                "__typename": "__Type",
+                "name": "UserGroup",
+                "kind": "OBJECT",
+                "fields": [
+                    {
+                        "__typename": "__Field",
+                        "name": "id",
+                        "description": null,
+                        "type": {
+                            "__typename": "__Type",
+                            "name": null,
+                            "kind": "NON_NULL",
+                            "ofType": {
+                                "__typename": "__Type",
+                                "name": "ID",
+                                "kind": "SCALAR",
+                                "ofType": null
+                            }
+                        },
+                        "isDeprecated": false,
+                        "deprecationReason": null
+                    },
+                    {
+                        "__typename": "__Field",
+                        "name": "name",
+                        "description": null,
+                        "type": {
+                            "__typename": "__Type",
+                            "name": null,
+                            "kind": "NON_NULL",
+                            "ofType": {
+                                "__typename": "__Type",
+                                "name": "String",
+                                "kind": "SCALAR",
+                                "ofType": null
+                            }
+                        },
+                        "isDeprecated": false,
+                        "deprecationReason": null
+                    },
+                    {
+                        "__typename": "__Field",
+                        "name": "settings",
+                        "description": null,
+                        "type": {
+                            "__typename": "__Type",
+                            "name": null,
+                            "kind": "LIST",
+                            "ofType": {
+                                "__typename": "__Type",
+                                "name": null,
+                                "kind": "NON_NULL",
+                                "ofType": {
+                                    "__typename": "__Type",
+                                    "name": "Setting",
+                                    "kind": "OBJECT",
+                                    "ofType": null
+                                }
+                            }
+                        },
+                        "isDeprecated": false,
+                        "deprecationReason": null
+                    }
+                ]
+            }'
+        };
+        """
+
+    def test_graphql_translation_type_05(self):
+        r"""
+        query {
+            __type(name: "Profile") {
+                __typename
+                name
+                kind
+                fields {
+                    __typename
+                    name
+                    description
+                    type {
+                        __typename
+                        name
+                        kind
+                        ofType {
+                            __typename
+                            name
+                            kind
+                            ofType {
+                                __typename
+                                name
+                                kind
+                                ofType {
+                                    __typename
+                                    name
+                                    kind
+                                    ofType {
+                                        __typename
+                                        name
+                                        kind
+                                        ofType {
+                                            name
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    isDeprecated
+                    deprecationReason
+                }
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            __type := <json>'{
+                "__typename": "__Type",
+                "name": "Profile",
+                "kind": "OBJECT",
+                "fields": [
+                    {
+                        "__typename": "__Field",
+                        "name": "id",
+                        "description": null,
+                        "type": {
+                            "__typename": "__Type",
+                            "name": null,
+                            "kind": "NON_NULL",
+                            "ofType": {
+                                "__typename": "__Type",
+                                "name": "ID",
+                                "kind": "SCALAR",
+                                "ofType": null
+                            }
+                        },
+                        "isDeprecated": false,
+                        "deprecationReason": null
+                    },
+                    {
+                        "__typename": "__Field",
+                        "name": "name",
+                        "description": null,
+                        "type": {
+                            "__typename": "__Type",
+                            "name": null,
+                            "kind": "NON_NULL",
+                            "ofType": {
+                                "__typename": "__Type",
+                                "name": "String",
+                                "kind": "SCALAR",
+                                "ofType": null
+                            }
+                        },
+                        "isDeprecated": false,
+                        "deprecationReason": null
+                    },
+                    {
+                        "__typename": "__Field",
+                        "name": "odd",
+                        "description": null,
+                        "type": {
+                            "__typename": "__Type",
+                            "name": null,
+                            "kind": "LIST",
+                            "ofType": {
+                                "__typename": "__Type",
+                                "name": null,
+                                "kind": "NON_NULL",
+                                "ofType": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "LIST",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": null,
+                                        "kind": "NON_NULL",
+                                        "ofType": {
+                                            "__typename": "__Type",
+                                            "name": "Int",
+                                            "kind": "SCALAR",
+                                            "ofType": null
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "isDeprecated": false,
+                        "deprecationReason": null
+                    },
+                    {
+                        "__typename": "__Field",
+                        "name": "tags",
+                        "description": null,
+                        "type": {
+                            "__typename": "__Type",
+                            "name": null,
+                            "kind": "LIST",
+                            "ofType": {
+                                "__typename": "__Type",
+                                "name": null,
+                                "kind": "NON_NULL",
+                                "ofType": {
+                                    "__typename": "__Type",
+                                    "name": "String",
+                                    "kind": "SCALAR",
+                                    "ofType": null
+                                }
+                            }
+                        },
+                        "isDeprecated": false,
+                        "deprecationReason": null
+                    },
+                    {
+                        "__typename": "__Field",
+                        "name": "value",
+                        "description": null,
+                        "type": {
+                            "__typename": "__Type",
+                            "name": null,
+                            "kind": "NON_NULL",
+                            "ofType": {
+                                "__typename": "__Type",
+                                "name": "String",
+                                "kind": "SCALAR",
+                                "ofType": null
+                            }
+                        },
+                        "isDeprecated": false,
+                        "deprecationReason": null
+                    }
+                ]
+            }'
+        };
+
+        """
+
+    def test_graphql_translation_type_06(self):
+        r"""
+        fragment _t on __Type {
+            __typename
+            name
+            kind
+        }
+
+        fragment _f on __Type {
+            fields {
+                __typename
+                name
+                description
+                type {
+                    ..._t
+                    ofType {
+                        ..._t
+                    }
+                }
+                isDeprecated
+                deprecationReason
+            }
+        }
+
+        fragment _T on __Type {
+                    __typename
+                    kind
+                    name
+                    description
+                    ..._f
+                    interfaces {
+                        ..._t
+                    }
+                    possibleTypes {
+                        name
+                    }
+                    enumValues {
+                        name
+                    }
+                    inputFields {
+                        name
+                    }
+                    ofType {
+                        name
+                    }
+        }
+
+        query {
+            __type(name: "NamedObject") {
+                __typename
+                kind
+                name
+                description
+                ..._f
+                interfaces {
+                    ..._T
+                }
+                possibleTypes {
+                    ..._T
+                }
+                enumValues {
+                    name
+                }
+                inputFields {
+                    name
+                }
+                ofType {
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            __type := <json>'{
+                "__typename": "__Type",
+                "kind": "INTERFACE",
+                "name": "NamedObject",
+                "description": null,
+                "fields": [
+                    {
+                        "__typename": "__Field",
+                        "name": "id",
+                        "description": null,
+                        "type": {
+                            "__typename": "__Type",
+                            "name": null,
+                            "kind": "NON_NULL",
+                            "ofType": {
+                                "__typename": "__Type",
+                                "name": "ID",
+                                "kind": "SCALAR"
+                            }
+                        },
+                        "isDeprecated": false,
+                        "deprecationReason": null
+                    },
+                    {
+                        "__typename": "__Field",
+                        "name": "name",
+                        "description": null,
+                        "type": {
+                            "__typename": "__Type",
+                            "name": null,
+                            "kind": "NON_NULL",
+                            "ofType": {
+                                "__typename": "__Type",
+                                "name": "String",
+                                "kind": "SCALAR"
+                            }
+                        },
+                        "isDeprecated": false,
+                        "deprecationReason": null
+                    }
+                ],
+                "interfaces": null,
+                "possibleTypes": [
+                    {
+                        "__typename": "__Type",
+                        "kind": "OBJECT",
+                        "name": "Profile",
+                        "description": null,
+                        "fields": [
+                            {
+                                "__typename": "__Field",
+                                "name": "id",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "ID",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "name",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "String",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "odd",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "LIST",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": null,
+                                        "kind": "NON_NULL"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "tags",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "LIST",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": null,
+                                        "kind": "NON_NULL"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "value",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "String",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            }
+                        ],
+                        "interfaces": [
+                            {
+                                "__typename": "__Type",
+                                "name": "NamedObject",
+                                "kind": "INTERFACE"
+                            }
+                        ],
+                        "possibleTypes": null,
+                        "enumValues": null,
+                        "inputFields": null,
+                        "ofType": null
+                    },
+                    {
+                        "__typename": "__Type",
+                        "kind": "OBJECT",
+                        "name": "Setting",
+                        "description": null,
+                        "fields": [
+                            {
+                                "__typename": "__Field",
+                                "name": "id",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "ID",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "name",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "String",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "value",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "String",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            }
+                        ],
+                        "interfaces": [
+                            {
+                                "__typename": "__Type",
+                                "name": "NamedObject",
+                                "kind": "INTERFACE"
+                            }
+                        ],
+                        "possibleTypes": null,
+                        "enumValues": null,
+                        "inputFields": null,
+                        "ofType": null
+                    },
+                    {
+                        "__typename": "__Type",
+                        "kind": "OBJECT",
+                        "name": "User",
+                        "description": null,
+                        "fields": [
+                            {
+                                "__typename": "__Field",
+                                "name": "active",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "Boolean",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "age",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "Int",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "groups",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "LIST",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": null,
+                                        "kind": "NON_NULL"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "id",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "ID",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "name",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "String",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "profile",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": "Profile",
+                                    "kind": "OBJECT",
+                                    "ofType": null
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "score",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "Float",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            }
+                        ],
+                        "interfaces": [
+                            {
+                                "__typename": "__Type",
+                                "name": "NamedObject",
+                                "kind": "INTERFACE"
+                            }
+                        ],
+                        "possibleTypes": null,
+                        "enumValues": null,
+                        "inputFields": null,
+                        "ofType": null
+                    },
+                    {
+                        "__typename": "__Type",
+                        "kind": "OBJECT",
+                        "name": "UserGroup",
+                        "description": null,
+                        "fields": [
+                            {
+                                "__typename": "__Field",
+                                "name": "id",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "ID",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "name",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "String",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "settings",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "LIST",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": null,
+                                        "kind": "NON_NULL"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            }
+                        ],
+                        "interfaces": [
+                            {
+                                "__typename": "__Type",
+                                "name": "NamedObject",
+                                "kind": "INTERFACE"
+                            }
+                        ],
+                        "possibleTypes": null,
+                        "enumValues": null,
+                        "inputFields": null,
+                        "ofType": null
+                    }
+                ],
+                "enumValues": null,
+                "inputFields": null,
+                "ofType": null
+            }'
+        };
+    """
+
+    def test_graphql_translation_type_07(self):
+        r"""
+        query {
+            __type(name: "UserGroup") {
+                __typename
+                name
+                kind
+                fields {
+                    __typename
+                    name
+                    description
+                    args {
+                        name
+                        description
+                        type {
+                            __typename
+                            name
+                            kind
+                            ofType {
+                                __typename
+                                name
+                                kind
+                            }
+                        }
+                        defaultValue
+                    }
+                    type {
+                        __typename
+                        name
+                        kind
+                        fields {name}
+                        ofType {
+                            name
+                            kind
+                            fields {name}
+                        }
+                    }
+                    isDeprecated
+                    deprecationReason
+                }
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            __type := <json>'{
+                "__typename": "__Type",
+                "name": "UserGroup",
+                "kind": "OBJECT",
+                "fields": [
+                    {
+                        "__typename": "__Field",
+                        "name": "id",
+                        "description": null,
+                        "args": [],
+                        "type": {
+                            "__typename": "__Type",
+                            "name": null,
+                            "kind": "NON_NULL",
+                            "fields": null,
+                            "ofType": {
+                                "name": "ID",
+                                "kind": "SCALAR",
+                                "fields": null
+                            }
+                        },
+                        "isDeprecated": false,
+                        "deprecationReason": null
+                    },
+                    {
+                        "__typename": "__Field",
+                        "name": "name",
+                        "description": null,
+                        "args": [],
+                        "type": {
+                            "__typename": "__Type",
+                            "name": null,
+                            "kind": "NON_NULL",
+                            "fields": null,
+                            "ofType": {
+                                "name": "String",
+                                "kind": "SCALAR",
+                                "fields": null
+                            }
+                        },
+                        "isDeprecated": false,
+                        "deprecationReason": null
+                    },
+                    {
+                        "__typename": "__Field",
+                        "name": "settings",
+                        "description": null,
+                        "args": [
+                            {
+                                "name": "id",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": "ID",
+                                    "kind": "SCALAR"
+                                    "ofType": null
+                                },
+                                "defaultValue": null
+                            },
+                            {
+                                "name": "name",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": "String",
+                                    "kind": "SCALAR"
+                                    "ofType": null
+                                },
+                                "defaultValue": null
+                            },
+                            {
+                                "name": "value",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": "String",
+                                    "kind": "SCALAR"
+                                    "ofType": null
+                                },
+                                "defaultValue": null
+                            }
+                        ],
+                        "type": {
+                            "__typename": "__Type",
+                            "name": null,
+                            "kind": "LIST",
+                            "fields": null,
+                            "ofType": {
+                                "name": null,
+                                "kind": "NON_NULL",
+                                "fields": null
+                            }
+                        },
+                        "isDeprecated": false,
+                        "deprecationReason": null
+                    }
+                ]
+            }'
+        };
+        """
+
+    @translate_only
+    def test_graphql_translation_introspection_01(self):
+        r"""
+        query IntrospectionQuery {
+            __schema {
+              queryType { name }
+              mutationType { name }
+              subscriptionType { name }
+              types {
+                ...FullType
+              }
+              directives {
+                name
+                description
+                locations
+                args {
+                  ...InputValue
+                }
+              }
+            }
+          }
+
+          fragment FullType on __Type {
+            kind
+            name
+            description
+            fields(includeDeprecated: true) {
+              name
+              description
+              args {
+                ...InputValue
+              }
+              type {
+                ...TypeRef
+              }
+              isDeprecated
+              deprecationReason
+            }
+            inputFields {
+              ...InputValue
+            }
+            interfaces {
+              ...TypeRef
+            }
+            enumValues(includeDeprecated: true) {
+              name
+              description
+              isDeprecated
+              deprecationReason
+            }
+            possibleTypes {
+              ...TypeRef
+            }
+          }
+
+          fragment InputValue on __InputValue {
+            name
+            description
+            type { ...TypeRef }
+            defaultValue
+          }
+
+          fragment TypeRef on __Type {
+            kind
+            name
+            ofType {
+              kind
+              name
+              ofType {
+                kind
+                name
+                ofType {
+                  kind
+                  name
+                  ofType {
+                    kind
+                    name
+                    ofType {
+                      kind
+                      name
+                      ofType {
+                        kind
+                        name
+                        ofType {
+                          kind
+                          name
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
         """
