@@ -6,6 +6,8 @@
 ##
 
 
+import unittest  # NOQA
+
 from edgedb.client import exceptions as client_errors
 from edgedb.server import _testbase as tb
 
@@ -302,3 +304,98 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     };
                 };
             """)
+
+    @unittest.expectedFailure
+    async def test_edgeql_ddl_14(self):
+        await self.con.execute("""
+            CREATE TYPE test::TestSelfLink1 {
+                CREATE LINK test::foo1 TO std::str;
+                CREATE LINK test::bar1 TO std::str {
+                    SET default := __self__.foo1;
+                };
+            };
+        """)
+
+        await self.assert_query_result(r"""
+            INSERT test::TestSelfLink1 {
+                foo1 := 'Victor'
+            };
+
+            WITH MODULE test
+            SELECT TestSelfLink1 {
+                foo1,
+                bar1,
+            };
+        """, [
+            [1],
+            [{'foo1': 'Victor', 'bar1': 'Victor'}]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_ddl_15(self):
+        await self.con.execute(r"""
+            CREATE TYPE test::TestSelfLink2 {
+                CREATE LINK test::foo2 TO std::str;
+                CREATE LINK test::bar2 TO std::str {
+                    # NOTE: this is a set of all TestSelfLink2.foo2
+                    SET default := test::TestSelfLink2.foo2;
+                    SET mapping := '1*';
+                };
+            };
+        """)
+
+        await self.assert_query_result(r"""
+            INSERT test::TestSelfLink2 {
+                foo2 := 'Victor'
+            };
+            INSERT test::TestSelfLink2 {
+                foo2 := 'Elvis'
+            };
+
+            WITH MODULE test
+            SELECT TestSelfLink2 {
+                foo2,
+                bar2,
+            } FILTER TestSelfLink2.foo2 = 'Victor';
+        """, [
+            [1],
+            [1],
+            [{'foo2': 'Victor', 'bar2': {'Victor', 'Elvis'}}]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_ddl_16(self):
+        # XXX: not sure what the error would say exactly, but
+        # cardinality should be an issue here
+        with self.assertRaisesRegex(client_errors.EdgeQLError):
+            await self.con.execute(r"""
+                CREATE TYPE test::TestSelfLink3 {
+                    CREATE LINK test::foo3 TO std::str;
+                    CREATE LINK test::bar3 TO std::str {
+                        # NOTE: this is a set of all TestSelfLink2.foo3
+                        SET default := test::TestSelfLink2.foo3;
+                    };
+                };
+            """)
+
+    @unittest.expectedFailure
+    async def test_edgeql_ddl_17(self):
+        await self.con.execute("""
+            CREATE TYPE test::TestSelfLink4 {
+                CREATE LINK test::__typename4 TO std::str {
+                    SET default := __self__.__type__.name;
+                };
+            };
+        """)
+
+        await self.assert_query_result(r"""
+            INSERT test::TestSelfLink4;
+
+            WITH MODULE test
+            SELECT TestSelfLink4 {
+                __typename4,
+            };
+        """, [
+            [1],
+            [{'__typename4': 'test::TestSelfLink4'}]
+        ])

@@ -10,6 +10,7 @@ import difflib
 import os.path
 import textwrap
 import uuid
+import unittest  # NOQA
 
 from edgedb.client import exceptions
 from edgedb.server import _testbase as tb
@@ -325,5 +326,144 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
             };
         };
     };
+            '''
+        )
+
+    async def test_delta_ddlgen_03(self):
+        result = await self.con.execute("""
+            # setup delta
+            CREATE MIGRATION test::d3 TO eschema $$
+                abstract type Foo:
+                    link bar to str
+                    link __typename := 'foo'
+            $$;
+
+            GET MIGRATION test::d3;
+        """)
+
+        self._assert_result(
+            result[1],
+            '''\
+            CREATE LINK test::bar EXTENDING std::link {
+                SET is_virtual := False;
+                SET readonly := False;
+            };
+            CREATE LINK test::__typename EXTENDING std::link {
+                SET is_virtual := False;
+                SET readonly := False;
+            };
+            CREATE ABSTRACT TYPE test::Foo EXTENDING std::Object {
+                SET is_virtual := False;
+            };
+            ALTER TYPE test::Foo {
+                CREATE LINK test::bar TO std::str {
+                    SET is_virtual := False;
+                    SET mapping := '*1';
+                    SET readonly := False;
+                };
+                CREATE LINK test::__typename TO std::str {
+                    SET computable := True;
+                    SET default := SELECT
+                        'foo'
+                    ;
+                    SET is_virtual := False;
+                    SET mapping := '*1';
+                    SET readonly := False;
+                };
+                ALTER LINK test::bar {
+                    CREATE LINK PROPERTY std::source TO test::Foo {
+                        SET is_virtual := False;
+                        SET readonly := False;
+                        SET title := 'Link source';
+                    };
+                    CREATE LINK PROPERTY std::target TO std::str {
+                        SET is_virtual := False;
+                        SET readonly := False;
+                        SET title := 'Link target';
+                    };
+                };
+                ALTER LINK test::__typename {
+                    CREATE LINK PROPERTY std::source TO test::Foo {
+                        SET is_virtual := False;
+                        SET readonly := False;
+                        SET title := 'Link source';
+                    };
+                    CREATE LINK PROPERTY std::target TO std::str {
+                        SET is_virtual := False;
+                        SET readonly := False;
+                        SET title := 'Link target';
+                    };
+                };
+            };
+            '''
+        )
+
+    @unittest.expectedFailure
+    async def test_delta_ddlgen_04(self):
+        result = await self.con.execute("""
+            # setup delta
+            CREATE MIGRATION test::d3 TO eschema $$
+                abstract type Foo:
+                    link bar to str
+                    link __typename := __self__.__type__.name
+            $$;
+
+            GET MIGRATION test::d3;
+        """)
+
+        self._assert_result(
+            result[1],
+            '''\
+            CREATE LINK test::bar EXTENDING std::link {
+                SET is_virtual := False;
+                SET readonly := False;
+            };
+            CREATE LINK test::__typename EXTENDING std::link {
+                SET is_virtual := False;
+                SET readonly := False;
+            };
+            CREATE ABSTRACT TYPE test::Foo EXTENDING std::Object {
+                SET is_virtual := False;
+            };
+            ALTER TYPE test::Foo {
+                CREATE LINK test::bar TO std::str {
+                    SET is_virtual := False;
+                    SET mapping := '*1';
+                    SET readonly := False;
+                };
+                CREATE LINK test::__typename TO std::str {
+                    SET computable := True;
+                    SET default := SELECT
+                        __self__.__type__[IS schema::Type].name
+                    ;
+                    SET is_virtual := False;
+                    SET mapping := '*1';
+                    SET readonly := False;
+                };
+                ALTER LINK test::bar {
+                    CREATE LINK PROPERTY std::source TO test::Foo {
+                        SET is_virtual := False;
+                        SET readonly := False;
+                        SET title := 'Link source';
+                    };
+                    CREATE LINK PROPERTY std::target TO std::str {
+                        SET is_virtual := False;
+                        SET readonly := False;
+                        SET title := 'Link target';
+                    };
+                };
+                ALTER LINK test::__typename {
+                    CREATE LINK PROPERTY std::source TO test::Foo {
+                        SET is_virtual := False;
+                        SET readonly := False;
+                        SET title := 'Link source';
+                    };
+                    CREATE LINK PROPERTY std::target TO std::str {
+                        SET is_virtual := False;
+                        SET readonly := False;
+                        SET title := 'Link target';
+                    };
+                };
+            };
             '''
         )
