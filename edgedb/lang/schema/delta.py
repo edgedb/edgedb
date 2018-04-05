@@ -982,7 +982,7 @@ class AlterObjectProperty(Command):
             return
 
         if isinstance(value, s_expr.ExpressionText):
-            value = qlast.ExpressionText(expr=str(value))
+            value = edgeql.parse(str(value))
         elif utils.is_nontrivial_container(value):
             value = qlast.Tuple(elements=[
                 qlast.Constant(value=el) for el in value
