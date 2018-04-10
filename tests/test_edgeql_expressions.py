@@ -723,6 +723,37 @@ class TestExpressions(tb.QueryTestCase):
             [[1, 2, 3, 4]],
         ])
 
+    @unittest.expectedFailure
+    async def test_edgeql_expr_array_06(self):
+        await self.assert_query_result('''
+            SELECT [1, <int>{}];
+        ''', [
+            [],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_array_07(self):
+        await self.assert_query_result('''
+            WITH
+                A := {1, 2},
+                B := <int>{}
+            SELECT [A, B];
+        ''', [
+            [],
+        ])
+
+    async def test_edgeql_expr_array_08(self):
+        await self.assert_query_result('''
+            WITH
+                MODULE schema,
+                A := {'a', 'b'},
+                # B is an empty set
+                B := (SELECT Type FILTER Type.name = 'n/a').name
+            SELECT [A, B];
+        ''', [
+            [],
+        ])
+
     async def test_edgeql_expr_map_01(self):
         await self.assert_query_result(r"""
             SELECT ['fo' + 'o' -> 42];
@@ -878,6 +909,37 @@ class TestExpressions(tb.QueryTestCase):
             [[[1]]],
             [[1]],
             [1],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_map_07(self):
+        await self.assert_query_result('''
+            SELECT ['a' -> <int>{}];
+        ''', [
+            [],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_map_08(self):
+        await self.assert_query_result('''
+            WITH
+                A := {'a', 'b'},
+                B := <int>{}
+            SELECT [A -> B];
+        ''', [
+            [],
+        ])
+
+    async def test_edgeql_expr_map_09(self):
+        await self.assert_query_result('''
+            WITH
+                MODULE schema,
+                A := {'a', 'b'},
+                # B is an empty set
+                B := (SELECT Type FILTER Type.name = 'n/a').name
+            SELECT [A -> B];
+        ''', [
+            [],
         ])
 
     async def test_edgeql_expr_coalesce_01(self):
@@ -1076,6 +1138,37 @@ class TestExpressions(tb.QueryTestCase):
         """, [
             [[1, ['a', 'b', [0.1, 0.2]], 2, 3]],
             [[1, ['a', 'b', [0.1, 0.2]], 2, 3]],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_tuple_14(self):
+        await self.assert_query_result('''
+            SELECT (1, <int>{});
+        ''', [
+            [],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_tuple_15(self):
+        await self.assert_query_result('''
+            WITH
+                A := {1, 2},
+                B := <int>{}
+            SELECT (A, B);
+        ''', [
+            [],
+        ])
+
+    async def test_edgeql_expr_tuple_15(self):
+        await self.assert_query_result('''
+            WITH
+                MODULE schema,
+                A := {'a', 'b'},
+                # B is an empty set
+                B := (SELECT Type FILTER Type.name = 'n/a').name
+            SELECT (A, B);
+        ''', [
+            [],
         ])
 
     async def test_edgeql_expr_tuple_indirection_01(self):
