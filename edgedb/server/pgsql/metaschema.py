@@ -924,11 +924,13 @@ def _generate_param_view(schema):
                  WHERE name = 'schema::Parameter')
                             AS {dbname('std::__type__')},
             q.type_id       AS {dbname('schema::type')},
-            q.kind          AS {dbname('schema::kind')},
+            (CASE q.varparam=q.num
+             WHEN TRUE THEN 'VARIADIC'
+             ELSE q.kind
+             END)   AS {dbname('schema::kind')},
             q.num           AS {dbname('schema::num')},
             q.name          AS {dbname('schema::name')},
-            q.def           AS {dbname('schema::default')},
-            q.varparam=q.num AS {dbname('schema::variadic')}
+            q.def           AS {dbname('schema::default')}
         FROM
             (SELECT
                 f.id        AS id,

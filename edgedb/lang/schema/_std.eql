@@ -420,7 +420,6 @@ CREATE TYPE schema::Parameter {
     CREATE REQUIRED LINK schema::num TO std::int;
     CREATE LINK schema::name TO std::str;
     CREATE LINK schema::default TO std::str;
-    CREATE LINK schema::variadic TO std::bool;
 };
 
 

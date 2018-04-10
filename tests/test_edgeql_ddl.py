@@ -117,7 +117,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     SELECT $1::text
                 $$;
 
-            CREATE FUNCTION test::my_sql_func4(*std::str)
+            CREATE FUNCTION test::my_sql_func4(VARIADIC std::str)
                 -> std::str
                 FROM SQL $$
                     SELECT array_to_string($1, '-')
@@ -166,7 +166,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             DROP FUNCTION test::my_sql_func1();
             DROP FUNCTION test::my_sql_func2($foo: std::str);
             DROP FUNCTION test::my_sql_func3(std::str);
-            DROP FUNCTION test::my_sql_func4(*std::str);
+            DROP FUNCTION test::my_sql_func4(VARIADIC std::str);
             DROP FUNCTION test::{long_func_name}();
             DROP FUNCTION test::my_sql_func6(std::str='a' + 'b');
             DROP FUNCTION test::my_sql_func7(array<std::int>);

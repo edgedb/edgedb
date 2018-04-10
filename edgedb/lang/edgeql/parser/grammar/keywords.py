@@ -110,6 +110,7 @@ reserved_keywords = frozenset([
     "true",
     "update",
     "union",
+    "variadic",
     "with",
 ])
 

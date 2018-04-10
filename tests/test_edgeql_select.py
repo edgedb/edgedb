@@ -1529,7 +1529,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_func_05(self):
         await self.con.execute(r'''
-            CREATE FUNCTION test::concat1(*std::any) -> std::str
+            CREATE FUNCTION test::concat1(VARIADIC std::any) -> std::str
                 FROM SQL FUNCTION 'concat';
         ''')
 
@@ -1537,7 +1537,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT schema::Function {
                 params: {
                     num,
-                    variadic,
+                    kind,
                     type: {
                         name
                     }
@@ -1547,7 +1547,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'params': [
                 {
                     'num': 1,
-                    'variadic': True,
+                    'kind': 'VARIADIC',
                     'type': {
                         'name': 'std::any'
                     }
@@ -1566,12 +1566,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
         await self.con.execute(r'''
-            DROP FUNCTION test::concat1(*std::any);
+            DROP FUNCTION test::concat1(VARIADIC std::any);
         ''')
 
     async def test_edgeql_select_func_06(self):
         await self.con.execute(r'''
-            CREATE FUNCTION test::concat2(*std::str) -> std::str
+            CREATE FUNCTION test::concat2(VARIADIC std::str) -> std::str
                 FROM SQL FUNCTION 'concat';
         ''')
 
@@ -1581,7 +1581,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_func_07(self):
         await self.con.execute(r'''
-            CREATE FUNCTION test::concat3($sep: std::str, *std::str)
+            CREATE FUNCTION test::concat3($sep: std::str, VARIADIC std::str)
                     -> std::str
                 FROM SQL FUNCTION 'concat_ws';
         ''')
@@ -1591,7 +1591,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 params: {
                     num,
                     name,
-                    variadic,
+                    kind,
                     type: {
                         name
                     }
@@ -1602,7 +1602,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {
                     'num': 1,
                     'name': 'sep',
-                    'variadic': False,
+                    'kind': '',
                     'type': {
                         'name': 'std::str'
                     }
@@ -1610,7 +1610,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {
                     'num': 2,
                     'name': None,
-                    'variadic': True,
+                    'kind': 'VARIADIC',
                     'type': {
                         'name': 'std::str'
                     }
@@ -1635,7 +1635,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
         await self.con.execute(r'''
-            DROP FUNCTION test::concat3($sep: std::str, *std::str);
+            DROP FUNCTION test::concat3($sep: std::str, VARIADIC std::str);
         ''')
 
     async def test_edgeql_select_func_08(self):

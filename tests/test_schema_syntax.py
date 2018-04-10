@@ -736,7 +736,7 @@ abstract link coollink
         """
         # the line continuation is just to allow long single line
         function myfunc($arg1: str, $arg2: str = 'DEFAULT',
-                        *$arg3:std::int) -> \
+                        $arg3: variadic std::int) -> \
                         set of int:
             volatile := true
             description :>
@@ -746,7 +746,7 @@ abstract link coollink
 
 % OK %
         function myfunc($arg1: str, $arg2: str = 'DEFAULT',
-                        *$arg3:std::int) -> \
+                        $arg3: variadic std::int) -> \
                         set of int:
             volatile := true
             description :=
@@ -759,7 +759,7 @@ abstract link coollink
         """
         function myfunc($arg1: str,
                         $arg2: str = 'DEFAULT',
-                        *$arg3: std::int) -> set of int:
+                        $arg3: variadic std::int) -> set of int:
             from edgeql :=
                 SELECT blarg
         """
@@ -910,7 +910,7 @@ abstract link coollink
     def test_eschema_syntax_aggregate_04(self):
         """
         aggregate myfunc($arg1: str, $arg2: str = 'DEFAULT',
-                         *$arg3:std::int) -> int:
+                         $arg3: variadic std::int) -> int:
             initial value := 42
             volatile := true
             description := 'myfunc sample'
@@ -927,13 +927,12 @@ abstract link coollink
             from sql function: length
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
-                  r"missing type declaration.*\$arg3",
-                  line=3, col=27)
+    @tb.must_fail(error.SchemaSyntaxError, r"Unexpected token:.*RPAREN",
+                  line=3, col=41)
     def test_eschema_syntax_aggregate_06(self):
         """
         aggregate myfunc($arg1: str, $arg2: str = 'DEFAULT',
-                         *$arg3) -> int:
+                         $arg3: variadic) -> int:
             initial value := 42
         """
 
