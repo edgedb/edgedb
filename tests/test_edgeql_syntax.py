@@ -2562,24 +2562,26 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'non-variadic argument follows', line=2, col=63)
+                  'non-variadic argument follows', line=3, col=37)
     def test_edgeql_syntax_ddl_function_08(self):
         """
-        CREATE FUNCTION std::strlen(*$string: std::str = '1', $abc: std::str)
+        CREATE FUNCTION std::strlen($string: VARIADIC std::str = '1',
+                                    $abc: std::str)
             -> std::int;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'more than one variadic argument', line=2, col=63)
+                  'more than one variadic argument', line=3, col=37)
     def test_edgeql_syntax_ddl_function_09(self):
         """
-        CREATE FUNCTION std::strlen(*$string: std::str = '1', *$abc: std::str)
+        CREATE FUNCTION std::strlen($string: VARIADIC std::str = '1',
+                                    $abc: VARIADIC std::str)
             -> std::int;
         """
 
     def test_edgeql_syntax_ddl_function_10(self):
         """
-        CREATE FUNCTION std::strlen(std::str = '1', *std::str)
+        CREATE FUNCTION std::strlen(std::str = '1', VARIADIC std::str)
             -> std::int
             FROM SQL FUNCTION 'strlen';
         """
@@ -2676,34 +2678,35 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'missing type declaration.*\$arg3', line=2, col=74)
+    @tb.must_fail(errors.EdgeQLSyntaxError, r'Unexpected token:.*RPAREN',
+                  line=3, col=52)
     def test_edgeql_syntax_ddl_function_30(self):
         """
-        CREATE FUNCTION std::foobar($arg1: str, $arg2: str = 'DEFAULT', *$arg3)
+        CREATE FUNCTION std::foobar($arg1: str, $arg2: str = 'DEFAULT',
+                                    $arg3: VARIADIC)
             -> std::int
             FROM EdgeQL $$$$;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Unexpected token.*STAR', line=2, col=41)
+                  'Unexpected token.*VARIADIC', line=2, col=41)
     def test_edgeql_syntax_ddl_function_31(self):
         """
-        CREATE FUNCTION std::foo(SET OF *std::str) -> std::int;
+        CREATE FUNCTION std::foo(SET OF VARIADIC std::str) -> std::int;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'variadic parameter cannot be a set', line=2, col=36)
+                  'Unexpected token.*SET', line=2, col=43)
     def test_edgeql_syntax_ddl_function_32(self):
         """
-        CREATE FUNCTION std::foo(* SET OF std::str) -> std::int;
+        CREATE FUNCTION std::foo(VARIADIC SET OF std::str) -> std::int;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'variadic parameter cannot be a set', line=2, col=41)
+                  'Unexpected token.*SET', line=2, col=49)
     def test_edgeql_syntax_ddl_function_33(self):
         """
-        CREATE FUNCTION std::foo(*$bar: SET OF std::str) -> std::int;
+        CREATE FUNCTION std::foo($bar: VARIADIC SET OF std::str) -> std::int;
         """
 
     def test_edgeql_syntax_ddl_function_34(self):

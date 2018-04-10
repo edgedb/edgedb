@@ -101,6 +101,7 @@ AggNONE = SetModifier.NONE
 class SetQualifier(s_enum.StrEnum):
     SET_OF = 'SET OF'
     OPTIONAL = 'OPTIONAL'
+    VARIADIC = 'VARIADIC'
     DEFAULT = ''
 
 
@@ -235,7 +236,6 @@ class FuncParam(Base):
     name: str
     type: TypeName
     qualifier: SetQualifier = SetQualifier.DEFAULT
-    variadic: bool = False
     default: Expr  # noqa (pyflakes bug)
 
 

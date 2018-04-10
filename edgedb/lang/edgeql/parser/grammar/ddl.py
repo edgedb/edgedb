@@ -1467,48 +1467,30 @@ class OptDefault(Nonterm):
         self.val = kids[1].val
 
 
-class OptVariadic(Nonterm):
-    def reduce_empty(self):
-        self.val = False
-
-    def reduce_STAR(self, *kids):
-        self.val = True
-
-
 class FuncDeclArg(Nonterm):
-    def reduce_OptVariadic_ArgQualifier_TypeName_OptDefault(self, *kids):
-        # variadic parameters are effectively arrays, so they cannot
-        # be arrays of sets
-        if kids[0].val and kids[1].val:
-            raise EdgeQLSyntaxError(
-                'variadic parameter cannot be a set', context=kids[1].context)
+    def reduce_ArgQualifier_TypeName_OptDefault(self, *kids):
         self.val = qlast.FuncParam(
-            variadic=kids[0].val,
             name=None,
-            qualifier=kids[1].val,
-            type=kids[2].val,
-            default=kids[3].val
+            qualifier=kids[0].val,
+            type=kids[1].val,
+            default=kids[2].val
         )
 
     def reduce_kwarg(self, *kids):
-        r"""%reduce OptVariadic DOLLAR Identifier COLON \
+        r"""%reduce DOLLAR Identifier COLON \
                 ArgQualifier TypeName OptDefault \
         """
-        if kids[0].val and kids[4].val:
-            raise EdgeQLSyntaxError(
-                'variadic parameter cannot be a set', context=kids[4].context)
         self.val = qlast.FuncParam(
-            variadic=kids[0].val,
-            name=kids[2].val,
-            qualifier=kids[4].val,
-            type=kids[5].val,
-            default=kids[6].val
+            name=kids[1].val,
+            qualifier=kids[3].val,
+            type=kids[4].val,
+            default=kids[5].val
         )
 
-    def reduce_OptVariadic_DOLLAR_Identifier_OptDefault(self, *kids):
+    def reduce_DOLLAR_Identifier_OptDefault(self, *kids):
         raise EdgeQLSyntaxError(
-            f'missing type declaration for function parameter ${kids[2].val}',
-            context=kids[1].context)
+            f'missing type declaration for function parameter ${kids[1].val}',
+            context=kids[0].context)
 
 
 class FuncDeclArgList(ListNonterm, element=FuncDeclArg,
@@ -1526,7 +1508,7 @@ class CreateFunctionArgs(Nonterm):
         default_arg_seen = False
         variadic_arg_seen = False
         for arg in args:
-            if arg.variadic:
+            if arg.qualifier == qlast.SetQualifier.VARIADIC:
                 if variadic_arg_seen:
                     raise EdgeQLSyntaxError('more than one variadic argument',
                                             context=arg.context)
@@ -1539,7 +1521,8 @@ class CreateFunctionArgs(Nonterm):
                         context=arg.context)
 
             if arg.default is None:
-                if default_arg_seen and not arg.variadic:
+                if (default_arg_seen and
+                        not arg.qualifier == qlast.SetQualifier.VARIADIC):
                     raise EdgeQLSyntaxError(
                         'non-default argument follows default argument',
                         context=arg.context)
@@ -1651,6 +1634,9 @@ class ArgQualifier(Nonterm):
     def reduce_OPTIONAL(self, *kids):
         self.val = qlast.SetQualifier.OPTIONAL
 
+    def reduce_VARIADIC(self, *kids):
+        self.val = qlast.SetQualifier.VARIADIC
+
     def reduce_empty(self):
         self.val = qlast.SetQualifier.DEFAULT
 
@@ -1661,6 +1647,10 @@ class CreateFunctionStmt(Nonterm, _ProcessFunctionBlockMixin):
                 ARROW ArgQualifier FunctionType \
                 CreateFunctionCommandsBlock
         """
+        if kids[6].val == qlast.SetQualifier.VARIADIC:
+            raise EdgeQLSyntaxError('Unexpected token: {}'.format(kids[6]),
+                                    context=kids[6].context)
+
         self.val = qlast.CreateFunction(
             aliases=kids[0].val.aliases,
             cardinality=kids[0].val.cardinality,

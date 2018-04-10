@@ -993,8 +993,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'FUNCTION')
 
     def visit_FuncParam(self, node):
-        if node.variadic:
-            self.write('*')
         if node.name is not None:
             self.write('$', ident_to_str(node.name), ': ')
         if node.qualifier:

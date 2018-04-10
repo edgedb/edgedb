@@ -99,7 +99,7 @@ class FunctionCommandMixin:
 
             paramtypes.append(utils.ast_to_typeref(arg.type))
 
-            if arg.variadic:
+            if arg.qualifier == qlast.SetQualifier.VARIADIC:
                 variadic = argi
 
         return paramnames, paramdefaults, paramtypes, paramkinds, variadic
