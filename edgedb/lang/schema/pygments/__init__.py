@@ -1,7 +1,16 @@
 from pygments import lexer, token
-
+from edgedb.lang.edgeql.parser.grammar import keywords as eql_keywords
+from edgedb.lang.schema.parser.grammar import keywords as sch_keywords
 
 __all__ = ['EdgeSchemaLexer']
+
+
+unreserved_keywords = (
+    (eql_keywords.unreserved_keywords | sch_keywords.unreserved_keywords) -
+    {'true', 'false', 'abstract', 'final', 'required', 'as', 'import', 'to'}
+)
+reserved_keywords = sch_keywords.reserved_keywords - {
+    '__self__', '__self__', '__type__'}
 
 
 class EdgeSchemaLexer(lexer.RegexLexer):
@@ -27,28 +36,11 @@ class EdgeSchemaLexer(lexer.RegexLexer):
         ],
 
         'keywords': [
-            (r'''(?ix)
+            (rf'''(?ix)
                 \b(?<![:\.])(
-                  (?# schema-scpecific)
-
-                  (?# from EdgeQL)
-                    action | after | any | array | asc |
-                    attribute | before | by | cardinality |
-                    constraint | database | delegated | desc |
-                    event | first | from | index | initial |
-                    into | last | link | map | migration | of | on |
-                    policy | property | rename | scalar | target |
-                    then | transaction | tuple | type | using | value |
-                    view |
-
-                    aggregate | all | alter | and | commit | create |
-                    delete | distinct | drop | each | else | empty |
-                    exists | explain | extending | filter |
-                    for | function | get | group | if | ilike | in |
-                    insert | is | like | limit | module | not | offset |
-                    optional | or | order | over | partition |
-                    rollback | select | set | start |
-                    update | union | with
+                    {' | '.join(unreserved_keywords)}
+                    |
+                    {' | '.join(reserved_keywords)}
                 )\b
             ''', token.Keyword.Reserved),
 
