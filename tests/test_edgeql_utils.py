@@ -22,7 +22,7 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
 
         type UserGroup extending NamedObject:
             link settings to Setting:
-                mapping := '1*'
+                cardinality := '1*'
 
         type Setting extending NamedObject:
             required link value to str
@@ -33,11 +33,11 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
         type User extending NamedObject:
             required link active to bool
             link groups to UserGroup:
-                mapping := '**'
+                cardinality := '**'
             required link age to int
             required link score to float
             link profile to Profile:
-                mapping := '*1'
+                cardinality := '*1'
     """
 
     @classmethod

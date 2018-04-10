@@ -1068,16 +1068,16 @@ class Backend(s_deltarepo.DeltaProvider):
 
             required = r['required']
 
-            if r['mapping']:
-                mapping = s_links.LinkMapping(r['mapping'])
+            if r['cardinality']:
+                cardinality = s_links.LinkMapping(r['cardinality'])
             else:
-                mapping = None
+                cardinality = None
 
             basemap[name] = bases
 
             link = s_links.Link(
                 name=name, source=source, target=target,
-                spectargets=spectargets, mapping=mapping,
+                spectargets=spectargets, cardinality=cardinality,
                 required=required,
                 title=title, description=description,
                 is_abstract=r['is_abstract'], is_final=r['is_final'],

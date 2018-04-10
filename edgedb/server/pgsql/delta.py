@@ -2212,7 +2212,7 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
         self.attach_alter_table(context)
 
         if not link.generic(
-        ) and link.mapping != s_links.LinkMapping.ManyToMany:
+        ) and link.cardinality != s_links.LinkMapping.ManyToMany:
             self.schedule_mapping_update(link, schema, context)
 
         return link
@@ -2326,7 +2326,7 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
             if isinstance(link.target, s_scalars.ScalarType):
                 self.alter_pointer_default(link, schema, context)
 
-            if not link.generic() and old_link.mapping != link.mapping:
+            if not link.generic() and old_link.cardinality != link.cardinality:
                 self.schedule_mapping_update(link, schema, context)
 
         return link
@@ -2369,7 +2369,7 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
         self.cancel_mapping_update(result, schema, context)
 
         if not result.generic(
-        ) and result.mapping != s_links.LinkMapping.ManyToMany:
+        ) and result.cardinality != s_links.LinkMapping.ManyToMany:
             self.schedule_mapping_update(result, schema, context)
 
         self.pgops.add(
@@ -2526,21 +2526,21 @@ class DeleteLinkProperty(
 
 
 class CreateMappingIndexes(MetaCommand):
-    def __init__(self, table_name, mapping, maplinks):
+    def __init__(self, table_name, cardinality, maplinks):
         super().__init__()
 
         key = str(table_name[1])
-        if mapping == s_links.LinkMapping.OneToOne:
+        if cardinality == s_links.LinkMapping.OneToOne:
             # Each source can have only one target and
             # each target can have only one source
             sides = ('std::source', 'std::target')
 
-        elif mapping == s_links.LinkMapping.OneToMany:
+        elif cardinality == s_links.LinkMapping.OneToMany:
             # Each target can have only one source, but
             # one source can have many targets
             sides = ('std::target', )
 
-        elif mapping == s_links.LinkMapping.ManyToOne:
+        elif cardinality == s_links.LinkMapping.ManyToOne:
             # Each source can have only one target, but
             # one target can have many sources
             sides = ('std::source', )
@@ -2550,21 +2550,21 @@ class CreateMappingIndexes(MetaCommand):
 
         for side in sides:
             index = deltadbops.MappingIndex(
-                key + '_%s' % side, mapping, maplinks, table_name)
+                key + '_%s' % side, cardinality, maplinks, table_name)
             index.add_columns((side, 'link_type_id'))
             self.pgops.add(dbops.CreateIndex(index, priority=3))
 
 
 class AlterMappingIndexes(MetaCommand):
-    def __init__(self, idx_names, table_name, mapping, maplinks):
+    def __init__(self, idx_names, table_name, cardinality, maplinks):
         super().__init__()
 
-        self.pgops.add(DropMappingIndexes(idx_names, table_name, mapping))
-        self.pgops.add(CreateMappingIndexes(table_name, mapping, maplinks))
+        self.pgops.add(DropMappingIndexes(idx_names, table_name, cardinality))
+        self.pgops.add(CreateMappingIndexes(table_name, cardinality, maplinks))
 
 
 class DropMappingIndexes(MetaCommand):
-    def __init__(self, idx_names, table_name, mapping):
+    def __init__(self, idx_names, table_name, cardinality):
         super().__init__()
 
         table_exists = dbops.TableExists(table_name)
@@ -2586,7 +2586,7 @@ class UpdateMappingIndexes(MetaCommand):
         super().__init__(**kwargs)
         self.links = {}
         self.idx_name_re = re.compile(
-            r'.*(?P<mapping>[1*]{2})_link_mapping_idx$')
+            r'.*(?P<cardinality>[1*]{2})_link_mapping_idx$')
         self.idx_pred_re = re.compile(
             r'''
                               \( \s* link_type_id \s* = \s*
@@ -2607,7 +2607,7 @@ class UpdateMappingIndexes(MetaCommand):
             raise s_err.SchemaError(
                 'could not interpret index %s' % index_name)
 
-        mapping = m.group('mapping')
+        cardinality = m.group('cardinality')
 
         m = self.idx_pred_re.match(index_predicate)
         if not m:
@@ -2629,7 +2629,7 @@ class UpdateMappingIndexes(MetaCommand):
             except KeyError:
                 pass
 
-        return mapping, links
+        return cardinality, links
 
     def interpret_indexes(self, table_name, indexes, link_map):
         for idx_data in indexes:
@@ -2638,7 +2638,7 @@ class UpdateMappingIndexes(MetaCommand):
 
     def _group_indexes(self, indexes):
         """Group indexes by link name."""
-        for index_name, (mapping, link_names) in indexes:
+        for index_name, (cardinality, link_names) in indexes:
             for link_name in link_names:
                 yield link_name, index_name
 
@@ -2698,7 +2698,7 @@ class UpdateMappingIndexes(MetaCommand):
                         raise RuntimeError('duplicate CreateLink: {}'.format(
                             scls.name))
 
-                    new_indexes[scls.mapping].append(
+                    new_indexes[scls.cardinality].append(
                         (scls.name, None, None))
 
                 elif isinstance(op, AlterLink):
@@ -2720,24 +2720,25 @@ class UpdateMappingIndexes(MetaCommand):
                     # commands for the same link, we need to respect only the
                     # last state.
                     if already_processed:
-                        if already_processed != scls.mapping:
+                        if already_processed != scls.cardinality:
                             queue[already_processed].remove(item)
 
-                            if not ex_idx or ex_idx[0] != scls.mapping:
-                                queue[scls.mapping].append(item)
+                            if not ex_idx or ex_idx[0] != scls.cardinality:
+                                queue[scls.cardinality].append(item)
 
-                    elif not ex_idx or ex_idx[0] != scls.mapping:
-                        queue[scls.mapping].append(item)
+                    elif not ex_idx or ex_idx[0] != scls.cardinality:
+                        queue[scls.cardinality].append(item)
 
-                processed[scls.name] = scls.mapping
+                processed[scls.name] = scls.cardinality
 
-            for mapping, maplinks in new_indexes.items():
+            for cardinality, maplinks in new_indexes.items():
                 if maplinks:
                     maplinks = list(i[0] for i in maplinks)
                     self.pgops.add(
-                        CreateMappingIndexes(table_name, mapping, maplinks))
+                        CreateMappingIndexes(
+                            table_name, cardinality, maplinks))
 
-            for mapping, maplinks in alter_indexes.items():
+            for cardinality, maplinks in alter_indexes.items():
                 new = []
                 alter = {}
                 for maplink in maplinks:
@@ -2753,17 +2754,17 @@ class UpdateMappingIndexes(MetaCommand):
 
                 if new:
                     self.pgops.add(
-                        CreateMappingIndexes(table_name, mapping, new))
+                        CreateMappingIndexes(table_name, cardinality, new))
 
                 for idx_names, altlinks in alter.items():
                     if not altlinks:
                         self.pgops.add(
                             DropMappingIndexes(
-                                ex_idx_names, table_name, mapping))
+                                ex_idx_names, table_name, cardinality))
                     else:
                         self.pgops.add(
                             AlterMappingIndexes(
-                                idx_names, table_name, mapping, altlinks))
+                                idx_names, table_name, cardinality, altlinks))
 
 
 class CommandContext(sd.CommandContext):

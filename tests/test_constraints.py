@@ -546,7 +546,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
     async def test_constraints_ddl_01(self):
         qry = """
             CREATE LINK test::translated_label {
-                SET mapping := '1*';
+                SET cardinality := '1*';
                 CREATE LINK PROPERTY test::lang TO std::str;
                 CREATE LINK PROPERTY test::prop1 TO std::str;
             };

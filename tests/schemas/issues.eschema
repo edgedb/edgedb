@@ -23,13 +23,13 @@ link todo:
 
 type User extending Dictionary:
     link todo to Issue:
-        mapping := '**'
+        cardinality := '**'
 
 
 abstract type Owned:
     # By default links are optional.
     required link owner to User:
-        mapping := '*1'
+        cardinality := '*1'
 
 
 type Status extending Dictionary
@@ -52,9 +52,9 @@ scalar type issue_num_t extending std::sequence
 
 type Comment extending Text, Owned:
     required link issue to Issue:
-        mapping := '*1'
+        cardinality := '*1'
     link parent to Comment:
-        mapping := '*1'
+        cardinality := '*1'
 
 
 type Issue extending Named, Owned, Text:
@@ -65,22 +65,22 @@ type Issue extending Named, Owned, Text:
         constraint unique
 
     required link status to Status:
-        mapping := '*1'
+        cardinality := '*1'
 
     link priority to Priority:
-        mapping := '*1'
+        cardinality := '*1'
 
     link watchers to User:
-        mapping := '**'
+        cardinality := '**'
         # The watchers link is mapped to User type in
-        # many-to-many relation.  The default mapping is
+        # many-to-many relation.  The default cardinality is
         # *1 -- many-to-one.
 
     link time_estimate to int
 
     link time_spent_log to LogEntry:
-        mapping := '1*'
-        # 1* -- one-to-many mapping.
+        cardinality := '1*'
+        # 1* -- one-to-many cardinality.
 
     link start_date to datetime:
         default := SELECT current_datetime()
@@ -90,11 +90,11 @@ type Issue extending Named, Owned, Text:
     link due_date to datetime
 
     link related_to to Issue:
-        mapping := '**'
+        cardinality := '**'
 
     # this is used to test virtual types
     link references to File, URL, Publication:
-        mapping := '**'
+        cardinality := '**'
 
     link tags to array<str>
 

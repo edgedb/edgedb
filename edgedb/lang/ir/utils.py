@@ -224,7 +224,7 @@ class TypeIndirectionLink(s_links.Link):
             direction=s_pointers.PointerDirection.Outbound
         )
         self.optional = optional
-        self.mapping = cardinality
+        self.cardinality = cardinality
 
     def __hash__(self):
         return hash((self.__class__, self.name, self.source, self.target))

@@ -15,7 +15,7 @@ type InsertTest:
     link l3 to str:
         default := "test"
     link subordinates to Subordinate:
-        mapping := '1*'
+        cardinality := '1*'
 
 type Annotation:
     required link name to str
@@ -57,7 +57,7 @@ link title:
 type Offer:
     # title translated into multiple languages
     required link title to str:
-        mapping := '1*'
+        cardinality := '1*'
 
     # some king of special offer for a specific language
     link special to str
@@ -68,12 +68,12 @@ type InputValue:
 
 abstract type Callable:
     link args to InputValue:
-        mapping := '1*'
+        cardinality := '1*'
 
 type Field extending Callable:
     # This link 'args' appears to be overriding the inherited 'args'
     # from Callable.
     link args to InputValue:
-        mapping := '1*'
+        cardinality := '1*'
 
 type Directive extending Callable

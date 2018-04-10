@@ -14,12 +14,12 @@ link friends:
 
 type User extending Named:
     link deck to Card:
-        mapping := '**'
+        cardinality := '**'
 
     link deck_cost := sum(__self__.deck.cost)
 
     link friends to User:
-        mapping := '**'
+        cardinality := '**'
 
 
 type Card extending Named:

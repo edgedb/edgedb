@@ -19,7 +19,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
 
             type UserGroup extending NamedObject:
                 link settings to Setting:
-                    mapping := '**'
+                    cardinality := '**'
 
             type Setting extending NamedObject:
                 required link value to str
@@ -30,11 +30,11 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             type User extending NamedObject:
                 required link active to bool
                 link groups to UserGroup:
-                    mapping := '**'
+                    cardinality := '**'
                 required link age to int
                 required link score to float
                 link profile to Profile:
-                    mapping := '*1'
+                    cardinality := '*1'
         $$;
 
         COMMIT MIGRATION test::d1;

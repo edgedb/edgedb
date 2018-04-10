@@ -170,22 +170,22 @@ class TestIntrospection(tb.QueryTestCase):
                 'is_abstract': False,
                 'links': [{
                     'attributes': [
+                        {'name': 'stdattrs::cardinality', '@value': '*1'},
                         {'name': 'stdattrs::is_abstract', '@value': 'false'},
                         {'name': 'stdattrs::is_derived', '@value': 'false'},
                         {'name': 'stdattrs::is_final', '@value': 'false'},
                         {'name': 'stdattrs::is_virtual', '@value': 'false'},
-                        {'name': 'stdattrs::mapping', '@value': '*1'},
                         {'name': 'stdattrs::name', '@value': 'test::name'},
                         {'name': 'stdattrs::readonly', '@value': 'false'},
                         {'name': 'stdattrs::required', '@value': 'true'},
                     ]
                 }, {
                     'attributes': [
+                        {'name': 'stdattrs::cardinality', '@value': '**'},
                         {'name': 'stdattrs::is_abstract', '@value': 'false'},
                         {'name': 'stdattrs::is_derived', '@value': 'false'},
                         {'name': 'stdattrs::is_final', '@value': 'false'},
                         {'name': 'stdattrs::is_virtual', '@value': 'false'},
-                        {'name': 'stdattrs::mapping', '@value': '**'},
                         {'name': 'stdattrs::name', '@value': 'test::todo'},
                         {'name': 'stdattrs::readonly', '@value': 'false'},
                         {'name': 'stdattrs::required', '@value': 'false'},
@@ -209,7 +209,7 @@ class TestIntrospection(tb.QueryTestCase):
                         name,
                         @value
                     } FILTER
-                        `ObjectType`.links.attributes.name LIKE '%mapping'
+                        `ObjectType`.links.attributes.name LIKE '%cardinality'
                 } ORDER BY `ObjectType`.links.name
             }
             FILTER `ObjectType`.name LIKE '%Comment';
@@ -220,42 +220,42 @@ class TestIntrospection(tb.QueryTestCase):
                     'name': 'std::__type__',
                     'target': {'name': 'schema::Type'},
                     'attributes': [{
-                        'name': 'stdattrs::mapping',
+                        'name': 'stdattrs::cardinality',
                         '@value': '*1',
                     }],
                 }, {
                     'name': 'std::id',
                     'target': {'name': 'std::uuid'},
                     'attributes': [{
-                        'name': 'stdattrs::mapping',
+                        'name': 'stdattrs::cardinality',
                         '@value': '11',
                     }],
                 }, {
                     'name': 'test::body',
                     'target': {'name': 'std::str'},
                     'attributes': [{
-                        'name': 'stdattrs::mapping',
+                        'name': 'stdattrs::cardinality',
                         '@value': '*1',
                     }],
                 }, {
                     'name': 'test::issue',
                     'target': {'name': 'test::Issue'},
                     'attributes': [{
-                        'name': 'stdattrs::mapping',
+                        'name': 'stdattrs::cardinality',
                         '@value': '*1',
                     }],
                 }, {
                     'name': 'test::owner',
                     'target': {'name': 'test::User'},
                     'attributes': [{
-                        'name': 'stdattrs::mapping',
+                        'name': 'stdattrs::cardinality',
                         '@value': '*1',
                     }],
                 }, {
                     'name': 'test::parent',
                     'target': {'name': 'test::Comment'},
                     'attributes': [{
-                        'name': 'stdattrs::mapping',
+                        'name': 'stdattrs::cardinality',
                         '@value': '*1',
                     }],
                 }]
@@ -272,7 +272,7 @@ class TestIntrospection(tb.QueryTestCase):
             FILTER
                 `ObjectType`.name LIKE 'test::%'
                 AND
-                `ObjectType`.links.attributes.name = 'stdattrs::mapping'
+                `ObjectType`.links.attributes.name = 'stdattrs::cardinality'
                 AND
                 `ObjectType`.links.attributes@value = '**'
             ORDER BY `ObjectType`.name;
@@ -294,7 +294,7 @@ class TestIntrospection(tb.QueryTestCase):
             FILTER
                 `ObjectType`.name LIKE 'test::%'
                 AND
-                `ObjectType`.links.attributes.name = 'stdattrs::mapping'
+                `ObjectType`.links.attributes.name = 'stdattrs::cardinality'
                 AND
                 `ObjectType`.links.attributes@value = '1*'
             ORDER BY `ObjectType`.name;
@@ -315,7 +315,7 @@ class TestIntrospection(tb.QueryTestCase):
                 `ObjectType`.name LIKE 'test::%'
                 AND
                 `ObjectType`.<target[IS `Link`].attributes.name =
-                    'stdattrs::mapping'
+                    'stdattrs::cardinality'
                 AND
                 `ObjectType`.<target[IS `Link`].attributes@value = '1*'
             ORDER BY `ObjectType`.name;

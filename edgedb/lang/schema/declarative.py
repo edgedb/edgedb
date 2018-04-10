@@ -591,9 +591,10 @@ class DeclarationLoader:
                 link.spectargets = spectargets
 
                 link.required = bool(linkdecl.required)
-                mapping = self._get_literal_attribute(linkdecl, 'mapping')
-                if mapping is not None:
-                    link.mapping = mapping
+                cardinality = self._get_literal_attribute(
+                    linkdecl, 'cardinality')
+                if cardinality is not None:
+                    link.cardinality = cardinality
 
                 if linkdecl.expr is not None:
                     link.computable = True
@@ -692,8 +693,8 @@ class DeclarationLoader:
                 tgt_prop = ptr.pointers[pname]
                 tgt_prop.target = expr_type
 
-            mapping = self._get_literal_attribute(ptrdecl, 'mapping')
-            if mapping is not None:
+            cardinality = self._get_literal_attribute(ptrdecl, 'cardinality')
+            if cardinality is not None:
                 raise s_err.SchemaError(
                     'computable links must not define explicit cardinality',
                     context=expr.context)
@@ -706,9 +707,9 @@ class DeclarationLoader:
                 ir_inference.infer_cardinality(ir, singletons, self._schema)
 
             if cardinality == qlast.Cardinality.MANY:
-                ptr.mapping = s_links.LinkMapping.ManyToMany
+                ptr.cardinality = s_links.LinkMapping.ManyToMany
             else:
-                ptr.mapping = s_links.LinkMapping.ManyToOne
+                ptr.cardinality = s_links.LinkMapping.ManyToOne
 
         if (not isinstance(expr_type, s_types.Type) or
                 (ptr.target is not None and
@@ -720,10 +721,10 @@ class DeclarationLoader:
         if not isinstance(ptr.target, s_scalars.ScalarType):
             many_mapping = (s_links.LinkMapping.ManyToOne,
                             s_links.LinkMapping.ManyToMany)
-            if ptr.mapping not in many_mapping:
+            if ptr.cardinality not in many_mapping:
                 raise s_err.SchemaError(
                     'type links with query defaults '
-                    'must have either a "*1" or "**" mapping',
+                    'must have either a "*1" or "**" cardinality',
                     context=expr.context)
 
 

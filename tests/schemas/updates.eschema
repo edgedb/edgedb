@@ -25,12 +25,12 @@ type UpdateTest:
 
     # for testing links to sets
     link tags to Tag:
-        mapping := '**'
+        cardinality := '**'
     link weighted_tags to Tag:
-        mapping := '**'
+        cardinality := '**'
 
     # for testing links to sets of the same type as originator
     link related to UpdateTest:
-        mapping := '**'
+        cardinality := '**'
     link annotated_tests to UpdateTest:
-        mapping := '**'
+        cardinality := '**'

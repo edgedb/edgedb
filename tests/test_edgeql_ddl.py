@@ -339,7 +339,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE LINK test::bar2 TO std::str {
                     # NOTE: this is a set of all TestSelfLink2.foo2
                     SET default := test::TestSelfLink2.foo2;
-                    SET mapping := '1*';
+                    SET cardinality := '1*';
                 };
             };
         """)

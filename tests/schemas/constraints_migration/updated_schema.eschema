@@ -38,7 +38,7 @@ scalar type constraint_enum extending str:
 
 
 link translated_label:
-    mapping := '1*'
+    cardinality := '1*'
 
     link property lang to str
     link property prop1 to str

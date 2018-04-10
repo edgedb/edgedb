@@ -236,7 +236,7 @@ def _normalize_view_ptr_expr(
         if is_linkprop:
             ptr_cardinality = None
         else:
-            ptr_cardinality = ptrcls.mapping
+            ptr_cardinality = ptrcls.cardinality
 
         if shape_el.elements:
             sub_view_rptr = context.ViewRPtr(
@@ -384,7 +384,7 @@ def _normalize_view_ptr_expr(
             ptrcls.computable = True
 
     if not is_mutation:
-        ptrcls.mapping = ptr_cardinality
+        ptrcls.cardinality = ptr_cardinality
 
     if ptrcls.shortname == 'std::__type__' and qlexpr is not None:
         msg = 'cannot assign to __type__'

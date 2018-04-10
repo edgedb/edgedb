@@ -671,11 +671,11 @@ class AlterTableDropInheritableConstraint(AlterTableInheritableConstraintBase):
 
 
 class MappingIndex(dbops.Index):
-    def __init__(self, name_prefix, mapping, link_names, table_name):
+    def __init__(self, name_prefix, cardinality, link_names, table_name):
         super().__init__(None, table_name, True)
         self.link_names = link_names
         self.name_prefix = name_prefix
-        self.mapping = mapping
+        self.cardinality = cardinality
 
     async def creation_code(self, context):
         link_map = await context.get_class_map()
@@ -684,7 +684,7 @@ class MappingIndex(dbops.Index):
         id_str = '_'.join(str(i) for i in ids)
 
         name = '%s_%s_%s_link_mapping_idx' % (
-            self.name_prefix, id_str, self.mapping)
+            self.name_prefix, id_str, self.cardinality)
         name = common.edgedb_name_to_pg_name(name)
         predicate = 'link_type_id IN (%s)' % ', '.join(str(id) for id in ids)
 
@@ -700,7 +700,7 @@ class MappingIndex(dbops.Index):
 
     def __repr__(self):
         name = '%s_%s_%s_link_mapping_idx' % (
-            self.name_prefix, '<HASH>', self.mapping)
+            self.name_prefix, '<HASH>', self.cardinality)
         predicate = 'link_type_id IN (%s)' % ', '.join(
             str(n) for n in self.link_names)
 

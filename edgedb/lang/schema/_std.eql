@@ -63,7 +63,7 @@ CREATE ATTRIBUTE stdattrs::readonly std::bool;
 CREATE ATTRIBUTE stdattrs::computable std::bool;
 CREATE ATTRIBUTE stdattrs::default std::str;
 CREATE ATTRIBUTE stdattrs::expression std::str;
-CREATE ATTRIBUTE stdattrs::mapping std::str;
+CREATE ATTRIBUTE stdattrs::cardinality std::str;
 CREATE ATTRIBUTE stdattrs::aggregate std::bool;
 CREATE ATTRIBUTE stdattrs::set_returning std::bool;
 CREATE ATTRIBUTE stdattrs::language std::str;
@@ -305,7 +305,7 @@ CREATE LINK std::id EXTENDING std::link;
 CREATE TYPE std::Object {
     CREATE REQUIRED LINK std::id TO std::uuid {
         SET default := (SELECT std::uuid_generate_v1mc());
-        SET mapping := '11';
+        SET cardinality := '11';
         SET readonly := True;
     };
 };
@@ -339,7 +339,7 @@ CREATE LINK schema::attributes {
 
 ALTER TYPE schema::Object {
     CREATE LINK schema::attributes TO schema::Attribute {
-        SET mapping := '**';
+        SET cardinality := '**';
     };
 };
 
@@ -383,25 +383,25 @@ CREATE TYPE schema::TypeElement {
 
 CREATE TYPE schema::Tuple EXTENDING schema::ContainerType {
     CREATE REQUIRED LINK schema::element_types TO schema::TypeElement {
-        SET mapping := '1*';
+        SET cardinality := '1*';
     };
 };
 
 
 CREATE TYPE schema::Delta EXTENDING schema::Object {
     CREATE LINK schema::parents TO schema::Delta {
-        SET mapping := '**';
+        SET cardinality := '**';
     };
 };
 
 
 CREATE ABSTRACT TYPE schema::InheritingObject EXTENDING schema::Object {
     CREATE LINK schema::bases TO schema::InheritingObject {
-        SET mapping := '**';
+        SET cardinality := '**';
     };
 
     CREATE LINK schema::mro TO schema::InheritingObject {
-        SET mapping := '**';
+        SET cardinality := '**';
     };
 
     CREATE LINK schema::is_abstract TO std::bool {
@@ -429,7 +429,7 @@ CREATE TYPE schema::Constraint EXTENDING schema::InheritingObject {
     CREATE LINK schema::finalexpr TO std::str;
     CREATE LINK schema::errmessage TO std::str;
     CREATE LINK schema::params TO schema::Parameter {
-        SET mapping := '**';
+        SET cardinality := '**';
     };
     CREATE LINK schema::args TO map<std::str, std::str>;
 };
@@ -437,7 +437,7 @@ CREATE TYPE schema::Constraint EXTENDING schema::InheritingObject {
 
 CREATE ABSTRACT TYPE schema::ConsistencySubject EXTENDING schema::Object {
     CREATE LINK schema::constraints TO schema::Constraint {
-        SET mapping := '**';
+        SET cardinality := '**';
     };
 };
 
@@ -449,7 +449,7 @@ CREATE TYPE schema::SourceIndex EXTENDING schema::Object {
 
 CREATE ABSTRACT TYPE schema::Source EXTENDING schema::Object {
     CREATE LINK schema::indexes TO schema::SourceIndex {
-        SET mapping := '1*';
+        SET cardinality := '1*';
     };
 };
 
@@ -500,21 +500,21 @@ ALTER TYPE schema::Pointer {
 
 ALTER TYPE schema::Link {
     CREATE LINK schema::link_properties TO schema::LinkProperty {
-        SET mapping := '1*';
+        SET cardinality := '1*';
     };
 };
 
 
 ALTER TYPE schema::ObjectType {
     CREATE LINK schema::links TO schema::Link {
-        SET mapping := '1*';
+        SET cardinality := '1*';
     };
 };
 
 
 CREATE TYPE schema::Function EXTENDING schema::Object {
     CREATE LINK schema::params TO schema::Parameter {
-        SET mapping := '**';
+        SET cardinality := '**';
     };
     CREATE LINK schema::returntype TO schema::Type;
     CREATE LINK schema::aggregate TO std::bool;

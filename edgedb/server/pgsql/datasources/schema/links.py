@@ -20,7 +20,7 @@ async def fetch(
                 edgedb._resolve_type_name(l.spectargets) AS spectargets,
                 l.name AS name,
                 edgedb._resolve_type_name(l.bases) AS bases,
-                l.mapping,
+                l.cardinality,
                 l.required,
                 l.computable,
                 l.title,
