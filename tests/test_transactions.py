@@ -13,13 +13,13 @@ from edgedb.client import exceptions
 class TestTransactions(tb.QueryTestCase):
     SETUP = """
         CREATE LINK test::name {
-            SET mapping := '11';
+            SET cardinality := '11';
             SET readonly := False;
         };
 
         CREATE TYPE test::TransactionTest EXTENDING std::Object {
             CREATE LINK test::name TO std::str {
-                SET mapping := '11';
+                SET cardinality := '11';
                 SET readonly := False;
             };
         };

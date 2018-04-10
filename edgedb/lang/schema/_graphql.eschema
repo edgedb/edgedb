@@ -27,12 +27,12 @@ abstract type Deprecatable:
 
 abstract type Callable:
     link args to InputValue:
-        mapping := '1*'
+        cardinality := '1*'
 
 abstract type Typed:
     # not required for the moment
     link type to _Type:
-        mapping := '*1'
+        cardinality := '*1'
 
 type _Type extending Nameable:
     required link kind to typeKind
@@ -46,18 +46,18 @@ type EnumValue extending Named, Deprecatable
 
 type Directive extending Named, Callable:
     required link locations to directiveLocation:
-        mapping := '1*'
+        cardinality := '1*'
 
 type Schema extending Named:
     # not required for the moment
     link types to _Type:
-        mapping := '**'
+        cardinality := '**'
     link queryType to _Type:
-        mapping := '*1'
+        cardinality := '*1'
     link mutationType to _Type:
-        mapping := '*1'
+        cardinality := '*1'
     link directives to Directive:
-        mapping := '**'
+        cardinality := '**'
 
 type Query extending Named
 

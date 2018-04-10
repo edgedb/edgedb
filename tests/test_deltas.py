@@ -247,8 +247,8 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
             };
             ALTER TYPE test::NamedObject {
                 CREATE REQUIRED LINK test::name TO std::str {
+                    SET cardinality := '*1';
                     SET is_virtual := False;
-                    SET mapping := '*1';
                     SET readonly := False;
                 };
                 ALTER LINK test::name {
@@ -309,8 +309,8 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
     };
     ALTER TYPE test::NamedObject {
         CREATE REQUIRED LINK test::a TO array<std::int> {
+            SET cardinality := '*1';
             SET is_virtual := False;
-            SET mapping := '*1';
             SET readonly := False;
         };
         ALTER LINK test::a {
@@ -357,17 +357,17 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
             };
             ALTER TYPE test::Foo {
                 CREATE LINK test::bar TO std::str {
+                    SET cardinality := '*1';
                     SET is_virtual := False;
-                    SET mapping := '*1';
                     SET readonly := False;
                 };
                 CREATE LINK test::__typename TO std::str {
+                    SET cardinality := '*1';
                     SET computable := True;
                     SET default := SELECT
                         'foo'
                     ;
                     SET is_virtual := False;
-                    SET mapping := '*1';
                     SET readonly := False;
                 };
                 ALTER LINK test::bar {
@@ -427,8 +427,8 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
             };
             ALTER TYPE test::Foo {
                 CREATE LINK test::bar TO std::str {
+                    SET cardinality := '*1';
                     SET is_virtual := False;
-                    SET mapping := '*1';
                     SET readonly := False;
                 };
                 CREATE LINK test::__typename TO std::str {
@@ -436,8 +436,8 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                     SET default := SELECT
                         __self__.__type__[IS schema::Type].name
                     ;
+                    SET cardinality := '*1';
                     SET is_virtual := False;
-                    SET mapping := '*1';
                     SET readonly := False;
                 };
                 ALTER LINK test::bar {

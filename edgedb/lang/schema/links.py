@@ -90,8 +90,8 @@ class Link(sources.Source, pointers.Pointer):
     spectargets = so.Field(named.NamedObjectSet, named.NamedObjectSet,
                            coerce=True)
 
-    mapping = so.Field(LinkMapping, default=None,
-                       compcoef=0.833, coerce=True)
+    cardinality = so.Field(LinkMapping, default=None,
+                           compcoef=0.833, coerce=True)
 
     search = so.Field(LinkSearchConfiguration, default=None, compcoef=0.909)
 
@@ -142,10 +142,10 @@ class Link(sources.Source, pointers.Pointer):
 
     def singular(self, direction=pointers.PointerDirection.Outbound):
         if direction == pointers.PointerDirection.Outbound:
-            return self.mapping in \
+            return self.cardinality in \
                 (LinkMapping.OneToOne, LinkMapping.ManyToOne)
         else:
-            return self.mapping in \
+            return self.cardinality in \
                 (LinkMapping.OneToOne, LinkMapping.OneToMany)
 
     def scalar(self):
@@ -180,15 +180,15 @@ class Link(sources.Source, pointers.Pointer):
     def finalize(self, schema, bases=None, *, dctx=None):
         super().finalize(schema, bases=bases, dctx=dctx)
 
-        if not self.generic() and self.mapping is None:
-            self.mapping = LinkMapping.ManyToOne
+        if not self.generic() and self.cardinality is None:
+            self.cardinality = LinkMapping.ManyToOne
 
             if dctx is not None:
                 from . import delta as sd
 
                 dctx.current().op.add(sd.AlterObjectProperty(
-                    property='mapping',
-                    new_value=self.mapping,
+                    property='cardinality',
+                    new_value=self.cardinality,
                     source='default'
                 ))
 

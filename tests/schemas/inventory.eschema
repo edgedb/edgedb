@@ -4,13 +4,13 @@ abstract type Named:
 
 type Item extending Named:
     link tag_set1 to str:
-        mapping := '1*'
+        cardinality := '1*'
 
     # for scalar links there should not be any practical difference
-    # between a 1* and ** mapping
+    # between a 1* and ** cardinality
     #
     link tag_set2 to str:
-        mapping := '**'
+        cardinality := '**'
 
     link tag_array to array<str>
 
