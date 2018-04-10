@@ -1,8 +1,14 @@
 from pygments.lexer import RegexLexer, include
 from pygments import token
+from edgedb.lang.edgeql.parser.grammar import keywords
 
 
 __all__ = ['EdgeQLLexer']
+
+
+unreserved_keywords = keywords.unreserved_keywords - {'true', 'false'}
+reserved_keywords = keywords.reserved_keywords - {
+    '__self__', '__self__', '__type__'}
 
 
 class EdgeQLLexer(RegexLexer):
@@ -26,25 +32,11 @@ class EdgeQLLexer(RegexLexer):
             (r'#.*?\n', token.Comment.Singleline),
         ],
         'keywords': [
-            (r'''(?ix)
+            (fr'''(?ix)
                 \b(?<![:\.])(
-                    abstract | action | after | any | array | as | asc |
-                    attribute | before | by | cardinality |
-                    constraint | database | delegated | desc |
-                    event | final | first | from | index | initial |
-                    into | last | link | map | migration | of | on |
-                    policy | property | required | rename | scalar | target |
-                    then | to | transaction | tuple | type | using | value |
-                    view |
-
-                    aggregate | all | alter | and | commit | create |
-                    delete | detached | distinct | drop | each | else |
-                    empty | exists | explain | extending | filter |
-                    for | function | get | group | if | ilike | in |
-                    insert | is | like | limit | module | not | offset |
-                    optional | or | order | over | partition |
-                    rollback | select | set | start |
-                    update | union | with
+                    {' | '.join(unreserved_keywords)}
+                    |
+                    {' | '.join(reserved_keywords)}
                 )\b ''', token.Keyword.Reserved),
 
             (r'\b(?i)(?<![:\.])(__self__|__subject__)\b',
