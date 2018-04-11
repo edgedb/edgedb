@@ -1159,7 +1159,7 @@ class TestExpressions(tb.QueryTestCase):
             [],
         ])
 
-    async def test_edgeql_expr_tuple_15(self):
+    async def test_edgeql_expr_tuple_16(self):
         await self.assert_query_result('''
             WITH
                 MODULE schema,
