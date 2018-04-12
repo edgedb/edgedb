@@ -1,35 +1,35 @@
 link l3:
-    link property comment to str:
+    link property comment -> str:
         default := "N/A"
 
 link subordinates:
-    link property comment to str
+    link property comment -> str
 
 type Subordinate:
-    required link name to str
+    required link name -> str
 
 type InsertTest:
-    link name to str
-    link l1 to int
-    required link l2 to int
-    link l3 to str:
+    link name -> str
+    link l1 -> int
+    required link l2 -> int
+    link l3 -> str:
         default := "test"
-    link subordinates to Subordinate:
+    link subordinates -> Subordinate:
         cardinality := '1*'
 
 type Annotation:
-    required link name to str
-    link note to str
-    link subject to Object
+    required link name -> str
+    link note -> str
+    link subject -> Object
 
 type DefaultTest1:
-    link num to int:
+    link num -> int:
         default := 42
-    link foo to str
+    link foo -> str
 
 type DefaultTest2:
-    link foo to str
-    required link num to int:
+    link foo -> str
+    required link num -> int:
         # XXX: circumventing sequence deficiency
         default :=
             SELECT DefaultTest1.num + 1
@@ -37,43 +37,43 @@ type DefaultTest2:
             LIMIT 1
 
 type DefaultTest3:
-    required link foo to float:
+    required link foo -> float:
         # non-deterministic dynamic value
         default := random()
 
 type DefaultTest4:
-    required link bar to int:
+    required link bar -> int:
         # deterministic dynamic value
         default := (SELECT count(DefaultTest4))
 
 # links and types to test scalar links with link properties
 link special:
-    link property lang to str
+    link property lang -> str
 
 link title:
-    link property lang to str
+    link property lang -> str
 
 
 type Offer:
     # title translated into multiple languages
-    required link title to str:
+    required link title -> str:
         cardinality := '1*'
 
     # some king of special offer for a specific language
-    link special to str
+    link special -> str
 
 # types to test some inheritance issues
 type InputValue:
-    link val to str
+    link val -> str
 
 abstract type Callable:
-    link args to InputValue:
+    link args -> InputValue:
         cardinality := '1*'
 
 type Field extending Callable:
     # This link 'args' appears to be overriding the inherited 'args'
     # from Callable.
-    link args to InputValue:
+    link args -> InputValue:
         cardinality := '1*'
 
 type Directive extending Callable

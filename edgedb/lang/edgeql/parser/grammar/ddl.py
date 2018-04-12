@@ -866,7 +866,7 @@ class DropIndexStmt(Nonterm):
 
 
 class AlterTargetStmt(Nonterm):
-    def reduce_ALTER_TARGET_NodeNameList(self, *kids):
+    def reduce_ALTER_TYPE_NodeNameList(self, *kids):
         self.val = qlast.AlterTarget(targets=kids[2].val)
 
 
@@ -948,7 +948,7 @@ class CreateConcreteLinkPropertyStmt(Nonterm):
     def reduce_CreateRegularRequiredLinkProperty(self, *kids):
         r"""%reduce \
             CREATE REQUIRED LINKPROPERTY NodeName \
-            TO TypeName OptCreateConcreteLinkPropertyCommandsBlock \
+            ARROW TypeName OptCreateConcreteLinkPropertyCommandsBlock \
         """
         self.val = qlast.CreateConcreteLinkProperty(
             name=kids[3].val,
@@ -960,7 +960,7 @@ class CreateConcreteLinkPropertyStmt(Nonterm):
     def reduce_CreateRegularLinkProperty(self, *kids):
         r"""%reduce \
             CREATE LINKPROPERTY NodeName \
-            TO TypeName OptCreateConcreteLinkPropertyCommandsBlock \
+            ARROW TypeName OptCreateConcreteLinkPropertyCommandsBlock \
         """
         self.val = qlast.CreateConcreteLinkProperty(
             name=kids[2].val,
@@ -1133,7 +1133,7 @@ class CreateConcreteLinkStmt(Nonterm):
     def reduce_CreateRegularRequiredLink(self, *kids):
         r"""%reduce \
             CREATE REQUIRED LINK LinkName \
-            TO TypeNameList OptCreateConcreteLinkCommandsBlock \
+            ARROW TypeNameList OptCreateConcreteLinkCommandsBlock \
         """
         self.val = qlast.CreateConcreteLink(
             name=kids[3].val,
@@ -1145,7 +1145,7 @@ class CreateConcreteLinkStmt(Nonterm):
     def reduce_CreateRegularLink(self, *kids):
         r"""%reduce \
             CREATE LINK LinkName \
-            TO TypeNameList OptCreateConcreteLinkCommandsBlock \
+            ARROW TypeNameList OptCreateConcreteLinkCommandsBlock \
         """
         self.val = qlast.CreateConcreteLink(
             name=kids[2].val,

@@ -7,30 +7,30 @@
 
 
 type Target0:
-    link name to str
+    link name -> str
 
 
 type Target1 extending Target0:
-    link name to str
+    link name -> str
 
 
 type ObjectType0:
-    link target to Target0
+    link target -> Target0
 
 
 type ObjectType1:
-    link target to Target0
+    link target -> Target0
 
 
 type ObjectType01 extending ObjectType0
 
 
 type ObjectType2:
-    required link target to Target0
+    required link target -> Target0
 
 
 type ObjectType3:
-    required link target2 to Target0
+    required link target2 -> Target0
 
 
 type ObjectType23 extending ObjectType2, ObjectType3

@@ -869,7 +869,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         keywords.append('LINK PROPERTY')
 
         def after_name():
-            self.write(' TO ')
+            self.write(' -> ')
             self.visit(node.target)
         self._visit_CreateObject(node, *keywords, after_name=after_name)
 
@@ -897,7 +897,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         keywords.append('LINK')
 
         def after_name():
-            self.write(' TO ')
+            self.write(' -> ')
             self.visit_list(node.targets, newlines=False)
         self._visit_CreateObject(node, *keywords, after_name=after_name)
 
@@ -908,7 +908,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'LINK')
 
     def visit_AlterTarget(self, node):
-        self.write('ALTER TARGET ')
+        self.write('ALTER TYPE ')
         self.visit_list(node.targets, newlines=False)
 
     def visit_CreateObjectType(self, node):

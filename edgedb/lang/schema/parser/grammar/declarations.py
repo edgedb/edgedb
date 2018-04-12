@@ -856,11 +856,11 @@ class Spec(Nonterm):
         self.val = PointerSpec(
             name=kids[0].val, target=None, spec=kids[1].val, expr=None)
 
-    def reduce_ObjectName_TO_TypeList_NL(self, *kids):
+    def reduce_ObjectName_ARROW_TypeList_NL(self, *kids):
         self.val = PointerSpec(
             name=kids[0].val, target=kids[2].val, spec=[], expr=None)
 
-    def reduce_ObjectName_TO_TypeList_DeclarationSpecsBlob(
+    def reduce_ObjectName_ARROW_TypeList_DeclarationSpecsBlob(
             self, *kids):
         self.val = PointerSpec(
             name=kids[0].val, target=kids[2].val, spec=kids[3].val, expr=None)

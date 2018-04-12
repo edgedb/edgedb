@@ -125,16 +125,6 @@ class EdgeSchemaLexer(lexer.Lexer):
              next_state=STATE_KEEP,
              regexp=r'\bLINK\b'),
 
-        # need to handle 'TO' differently based on whether it's
-        # followed by '('
-        Rule(token='TO',
-             next_state=STATE_RAW_TYPE,
-             regexp=r'\bTO\b(?!$|\s*\()'),
-
-        Rule(token='TO',
-             next_state=STATE_KEEP,
-             regexp=r'\bTO\b'),
-
         # need to handle 'EXTENDING' differently based on whether it's
         # followed by '('
         Rule(token='EXTENDING',
@@ -187,8 +177,14 @@ class EdgeSchemaLexer(lexer.Lexer):
              next_state=STATE_KEEP,
              regexp=r':'),
 
+        # need to handle '->' differently based on whether it's
+        # followed by '('
         Rule(token='ARROW',
              next_state=STATE_RAW_TYPE,
+             regexp=r'->(?!$|\s*\()'),
+
+        Rule(token='ARROW',
+             next_state=STATE_KEEP,
              regexp=r'->'),
 
         Rule(token='DOT',
