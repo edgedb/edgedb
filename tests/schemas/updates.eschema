@@ -1,36 +1,36 @@
 type Status:
-    required link name to str:
+    required link name -> str:
         constraint unique
 
 type Tag:
-    required link name to str:
+    required link name -> str:
         constraint unique
 
 link annotated_status:
-    link property note to str
+    link property note -> str
 
 link weighted_tags:
-    link property weight to int
+    link property weight -> int
 
 link annotated_tests:
-    link property note to str
+    link property note -> str
 
 type UpdateTest:
-    required link name to str
-    link comment to str
+    required link name -> str
+    link comment -> str
 
     # for testing singleton links
-    link status to Status
-    link annotated_status to Status
+    link status -> Status
+    link annotated_status -> Status
 
     # for testing links to sets
-    link tags to Tag:
+    link tags -> Tag:
         cardinality := '**'
-    link weighted_tags to Tag:
+    link weighted_tags -> Tag:
         cardinality := '**'
 
     # for testing links to sets of the same type as originator
-    link related to UpdateTest:
+    link related -> UpdateTest:
         cardinality := '**'
-    link annotated_tests to UpdateTest:
+    link annotated_tests -> UpdateTest:
         cardinality := '**'

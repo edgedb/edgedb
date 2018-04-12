@@ -115,7 +115,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         if node.expr:
             self._visit_turnstile(node.expr)
         elif node.target:
-            self.write(' to ')
+            self.write(' -> ')
             if isinstance(node.target, list):
                 for qname in node.target[:-1]:
                     self.visit(qname)

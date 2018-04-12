@@ -22,12 +22,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_02(self):
         await self.con.execute("""
             CREATE LINK test::test_object_link {
-                CREATE LINK PROPERTY test::test_link_prop TO std::int;
+                CREATE LINK PROPERTY test::test_link_prop -> std::int;
             };
 
             CREATE TYPE test::TestObjectType {
-                CREATE LINK test::test_object_link TO std::str {
-                    CREATE LINK PROPERTY test::test_link_prop TO std::int {
+                CREATE LINK test::test_object_link -> std::str {
+                    CREATE LINK PROPERTY test::test_link_prop -> std::int {
                         SET title := 'Test Property';
                     };
                 };
@@ -37,7 +37,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_03(self):
         await self.con.execute("""
             CREATE LINK test::test_object_link_prop {
-                CREATE LINK PROPERTY test::link_prop1 TO std::str;
+                CREATE LINK PROPERTY test::link_prop1 -> std::str;
             };
         """)
 
@@ -47,11 +47,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE test::B EXTENDING test::A;
 
             CREATE TYPE test::Object1 {
-                CREATE REQUIRED LINK test::a TO test::A;
+                CREATE REQUIRED LINK test::a -> test::A;
             };
 
             CREATE TYPE test::Object2 {
-                CREATE LINK test::a TO test::B;
+                CREATE LINK test::a -> test::B;
             };
 
             CREATE TYPE test::Object_12
@@ -274,9 +274,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_11(self):
         await self.con.execute("""
             CREATE TYPE test::TestContainerLinkObjectType {
-                CREATE LINK test::test_array_link TO array<std::str>;
-                CREATE LINK test::test_array_link_2 TO array<std::str[10]>;
-                CREATE LINK test::test_map_link TO map<std::str, std::int>;
+                CREATE LINK test::test_array_link -> array<std::str>;
+                CREATE LINK test::test_array_link_2 -> array<std::str[10]>;
+                CREATE LINK test::test_map_link -> map<std::str, std::int>;
             };
         """)
 
@@ -286,7 +286,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r'Unknown token.*__subject__'):
             await self.con.execute(r"""
                 CREATE TYPE test::TestBadContainerLinkObjectType {
-                    CREATE LINK test::foo TO std::str {
+                    CREATE LINK test::foo -> std::str {
                         CREATE CONSTRAINT expression
                             ON (`__subject__` = 'foo');
                     };
@@ -299,7 +299,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 'reference to a non-existent schema class: self'):
             await self.con.execute(r"""
                 CREATE TYPE test::TestBadContainerLinkObjectType {
-                    CREATE LINK test::foo TO std::str {
+                    CREATE LINK test::foo -> std::str {
                         CREATE CONSTRAINT expression ON (`self` = 'foo');
                     };
                 };
@@ -309,8 +309,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_14(self):
         await self.con.execute("""
             CREATE TYPE test::TestSelfLink1 {
-                CREATE LINK test::foo1 TO std::str;
-                CREATE LINK test::bar1 TO std::str {
+                CREATE LINK test::foo1 -> std::str;
+                CREATE LINK test::bar1 -> std::str {
                     SET default := __self__.foo1;
                 };
             };
@@ -335,8 +335,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_15(self):
         await self.con.execute(r"""
             CREATE TYPE test::TestSelfLink2 {
-                CREATE LINK test::foo2 TO std::str;
-                CREATE LINK test::bar2 TO std::str {
+                CREATE LINK test::foo2 -> std::str;
+                CREATE LINK test::bar2 -> std::str {
                     # NOTE: this is a set of all TestSelfLink2.foo2
                     SET default := test::TestSelfLink2.foo2;
                     SET cardinality := '1*';
@@ -370,8 +370,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(client_errors.EdgeQLError):
             await self.con.execute(r"""
                 CREATE TYPE test::TestSelfLink3 {
-                    CREATE LINK test::foo3 TO std::str;
-                    CREATE LINK test::bar3 TO std::str {
+                    CREATE LINK test::foo3 -> std::str;
+                    CREATE LINK test::bar3 -> std::str {
                         # NOTE: this is a set of all TestSelfLink2.foo3
                         SET default := test::TestSelfLink2.foo3;
                     };
@@ -382,7 +382,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_17(self):
         await self.con.execute("""
             CREATE TYPE test::TestSelfLink4 {
-                CREATE LINK test::__typename4 TO std::str {
+                CREATE LINK test::__typename4 -> std::str {
                     SET default := __self__.__type__.name;
                 };
             };

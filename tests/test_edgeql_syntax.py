@@ -2758,3 +2758,33 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         CREATE MODULE `foo.bar`;
         CREATE MODULE `all.abstract.bar`;
         """
+
+    def test_edgeql_syntax_ddl_type_01(self):
+        """
+        CREATE ABSTRACT TYPE schema::Type EXTENDING schema::Object;
+        """
+
+    def test_edgeql_syntax_ddl_type_02(self):
+        """
+        CREATE TYPE schema::TypeElement {
+            CREATE REQUIRED LINK schema::type -> schema::Type;
+            CREATE REQUIRED LINK schema::num -> std::int;
+            CREATE LINK schema::name -> std::str;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_03(self):
+        """
+        ALTER TYPE schema::Object {
+            CREATE LINK schema::attributes -> schema::Attribute {
+                SET cardinality := '**';
+            };
+        };
+
+% OK %
+
+        ALTER TYPE schema::Object
+            CREATE LINK schema::attributes -> schema::Attribute {
+                SET cardinality := '**';
+            };
+        """

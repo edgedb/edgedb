@@ -303,7 +303,7 @@ CREATE LINK std::link {
 CREATE LINK std::id EXTENDING std::link;
 
 CREATE TYPE std::Object {
-    CREATE REQUIRED LINK std::id TO std::uuid {
+    CREATE REQUIRED LINK std::id -> std::uuid {
         SET default := (SELECT std::uuid_generate_v1mc());
         SET cardinality := '11';
         SET readonly := True;
@@ -318,8 +318,8 @@ CREATE MODULE schema;
 
 # Base type for all schema entities.
 CREATE ABSTRACT TYPE schema::Object {
-    CREATE REQUIRED LINK schema::name TO std::str;
-    CREATE LINK schema::description TO std::str;
+    CREATE REQUIRED LINK schema::name -> std::str;
+    CREATE LINK schema::description -> std::str;
 };
 
 
@@ -328,17 +328,17 @@ CREATE ABSTRACT TYPE schema::Type EXTENDING schema::Object;
 
 
 CREATE TYPE schema::Attribute EXTENDING schema::Object {
-    CREATE LINK schema::type TO schema::Type;
+    CREATE LINK schema::type -> schema::Type;
 };
 
 
 CREATE LINK schema::attributes {
-    CREATE LINK PROPERTY schema::value TO std::str;
+    CREATE LINK PROPERTY schema::value -> std::str;
 };
 
 
 ALTER TYPE schema::Object {
-    CREATE LINK schema::attributes TO schema::Attribute {
+    CREATE LINK schema::attributes -> schema::Attribute {
         SET cardinality := '**';
     };
 };
@@ -350,7 +350,7 @@ CREATE LINK std::__type__ {
 
 
 ALTER TYPE std::Object {
-    CREATE LINK std::__type__ TO schema::Type {
+    CREATE LINK std::__type__ -> schema::Type {
         SET readonly := True;
     };
 };
@@ -363,92 +363,92 @@ CREATE ABSTRACT TYPE schema::ContainerType EXTENDING schema::Type;
 
 
 CREATE TYPE schema::Array EXTENDING schema::ContainerType {
-    CREATE REQUIRED LINK schema::element_type TO schema::Type;
-    CREATE LINK schema::dimensions TO array<std::int>;
+    CREATE REQUIRED LINK schema::element_type -> schema::Type;
+    CREATE LINK schema::dimensions -> array<std::int>;
 };
 
 
 CREATE TYPE schema::Map EXTENDING schema::ContainerType {
-    CREATE REQUIRED LINK schema::element_type TO schema::Type;
-    CREATE REQUIRED LINK schema::key_type TO schema::Type;
+    CREATE REQUIRED LINK schema::element_type -> schema::Type;
+    CREATE REQUIRED LINK schema::key_type -> schema::Type;
 };
 
 
 CREATE TYPE schema::TypeElement {
-    CREATE REQUIRED LINK schema::type TO schema::Type;
-    CREATE REQUIRED LINK schema::num TO std::int;
-    CREATE LINK schema::name TO std::str;
+    CREATE REQUIRED LINK schema::type -> schema::Type;
+    CREATE REQUIRED LINK schema::num -> std::int;
+    CREATE LINK schema::name -> std::str;
 };
 
 
 CREATE TYPE schema::Tuple EXTENDING schema::ContainerType {
-    CREATE REQUIRED LINK schema::element_types TO schema::TypeElement {
+    CREATE REQUIRED LINK schema::element_types -> schema::TypeElement {
         SET cardinality := '1*';
     };
 };
 
 
 CREATE TYPE schema::Delta EXTENDING schema::Object {
-    CREATE LINK schema::parents TO schema::Delta {
+    CREATE LINK schema::parents -> schema::Delta {
         SET cardinality := '**';
     };
 };
 
 
 CREATE ABSTRACT TYPE schema::InheritingObject EXTENDING schema::Object {
-    CREATE LINK schema::bases TO schema::InheritingObject {
+    CREATE LINK schema::bases -> schema::InheritingObject {
         SET cardinality := '**';
     };
 
-    CREATE LINK schema::mro TO schema::InheritingObject {
+    CREATE LINK schema::mro -> schema::InheritingObject {
         SET cardinality := '**';
     };
 
-    CREATE LINK schema::is_abstract TO std::bool {
+    CREATE LINK schema::is_abstract -> std::bool {
         SET default := false;
     };
 
-    CREATE LINK schema::is_final TO std::bool {
+    CREATE LINK schema::is_final -> std::bool {
         SET default := false;
     };
 };
 
 
 CREATE TYPE schema::Parameter {
-    CREATE REQUIRED LINK schema::type TO schema::Type;
-    CREATE REQUIRED LINK schema::kind TO std::str;
-    CREATE REQUIRED LINK schema::num TO std::int;
-    CREATE LINK schema::name TO std::str;
-    CREATE LINK schema::default TO std::str;
+    CREATE REQUIRED LINK schema::type -> schema::Type;
+    CREATE REQUIRED LINK schema::kind -> std::str;
+    CREATE REQUIRED LINK schema::num -> std::int;
+    CREATE LINK schema::name -> std::str;
+    CREATE LINK schema::default -> std::str;
 };
 
 
 CREATE TYPE schema::Constraint EXTENDING schema::InheritingObject {
-    CREATE LINK schema::expr TO std::str;
-    CREATE LINK schema::subjectexpr TO std::str;
-    CREATE LINK schema::finalexpr TO std::str;
-    CREATE LINK schema::errmessage TO std::str;
-    CREATE LINK schema::params TO schema::Parameter {
+    CREATE LINK schema::expr -> std::str;
+    CREATE LINK schema::subjectexpr -> std::str;
+    CREATE LINK schema::finalexpr -> std::str;
+    CREATE LINK schema::errmessage -> std::str;
+    CREATE LINK schema::params -> schema::Parameter {
         SET cardinality := '**';
     };
-    CREATE LINK schema::args TO map<std::str, std::str>;
+    CREATE LINK schema::args -> map<std::str, std::str>;
 };
 
 
 CREATE ABSTRACT TYPE schema::ConsistencySubject EXTENDING schema::Object {
-    CREATE LINK schema::constraints TO schema::Constraint {
+    CREATE LINK schema::constraints -> schema::Constraint {
         SET cardinality := '**';
     };
 };
 
 
 CREATE TYPE schema::SourceIndex EXTENDING schema::Object {
-    CREATE LINK schema::expr TO std::str;
+    CREATE LINK schema::expr -> std::str;
 };
 
 
 CREATE ABSTRACT TYPE schema::Source EXTENDING schema::Object {
-    CREATE LINK schema::indexes TO schema::SourceIndex {
+    CREATE LINK schema::indexes -> schema::SourceIndex {
         SET cardinality := '1*';
     };
 };
@@ -459,7 +459,7 @@ CREATE ABSTRACT TYPE schema::Pointer EXTENDING schema::Object;
 
 CREATE TYPE schema::ScalarType EXTENDING
         (schema::InheritingObject, schema::ConsistencySubject, schema::Type) {
-    CREATE LINK schema::default TO std::str;
+    CREATE LINK schema::default -> std::str;
 };
 
 
@@ -493,30 +493,30 @@ CREATE TYPE schema::LinkProperty EXTENDING
 
 
 ALTER TYPE schema::Pointer {
-    CREATE LINK schema::source TO schema::Source;
-    CREATE LINK schema::target TO schema::Type;
+    CREATE LINK schema::source -> schema::Source;
+    CREATE LINK schema::target -> schema::Type;
 };
 
 
 ALTER TYPE schema::Link {
-    CREATE LINK schema::link_properties TO schema::LinkProperty {
+    CREATE LINK schema::link_properties -> schema::LinkProperty {
         SET cardinality := '1*';
     };
 };
 
 
 ALTER TYPE schema::ObjectType {
-    CREATE LINK schema::links TO schema::Link {
+    CREATE LINK schema::links -> schema::Link {
         SET cardinality := '1*';
     };
 };
 
 
 CREATE TYPE schema::Function EXTENDING schema::Object {
-    CREATE LINK schema::params TO schema::Parameter {
+    CREATE LINK schema::params -> schema::Parameter {
         SET cardinality := '**';
     };
-    CREATE LINK schema::returntype TO schema::Type;
-    CREATE LINK schema::aggregate TO std::bool;
-    CREATE LINK schema::set_returning TO std::bool;
+    CREATE LINK schema::returntype -> schema::Type;
+    CREATE LINK schema::aggregate -> std::bool;
+    CREATE LINK schema::set_returning -> std::bool;
 };

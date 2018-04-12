@@ -23,10 +23,10 @@ class TestDeltas(tb.DDLTestCase):
             #
             CREATE MIGRATION test::d1 TO eschema $$
                 link name:
-                    link property lang to str
+                    link property lang -> str
 
                 type NamedObject:
-                    required link name to str
+                    required link name -> str
             $$;
 
             COMMIT MIGRATION test::d1;
@@ -99,7 +99,7 @@ class TestDeltas(tb.DDLTestCase):
         # dropped.
         result = await self.con.execute("""
             CREATE TYPE test::C1 {
-                CREATE LINK test::l1 TO std::str {
+                CREATE LINK test::l1 -> std::str {
                     SET description := 'test_delta_drop_02_link';
                 };
             };
@@ -214,11 +214,11 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
             #
             CREATE MIGRATION test::d1 TO eschema $$
                 link name:
-                    link property lang to str
+                    link property lang -> str
 
                 type NamedObject:
-                    required link name to str:
-                        link property lang to str:
+                    required link name -> str:
+                        link property lang -> str:
                             title := 'Language'
             $$;
 
@@ -237,7 +237,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                 SET is_virtual := False;
                 SET readonly := False;
             };
-            ALTER LINK test::name CREATE LINK PROPERTY test::lang TO std::str {
+            ALTER LINK test::name CREATE LINK PROPERTY test::lang -> std::str {
                 SET is_virtual := False;
                 SET readonly := False;
                 SET title := 'Base link property';
@@ -246,23 +246,23 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                 SET is_virtual := False;
             };
             ALTER TYPE test::NamedObject {
-                CREATE REQUIRED LINK test::name TO std::str {
+                CREATE REQUIRED LINK test::name -> std::str {
                     SET cardinality := '*1';
                     SET is_virtual := False;
                     SET readonly := False;
                 };
                 ALTER LINK test::name {
-                    CREATE LINK PROPERTY std::source TO test::NamedObject {
+                    CREATE LINK PROPERTY std::source -> test::NamedObject {
                         SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Link source';
                     };
-                    CREATE LINK PROPERTY std::target TO std::str {
+                    CREATE LINK PROPERTY std::target -> std::str {
                         SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Link target';
                     };
-                    CREATE LINK PROPERTY test::lang TO std::str {
+                    CREATE LINK PROPERTY test::lang -> std::str {
                         SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Base link property';
@@ -278,10 +278,10 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
             #
             CREATE MIGRATION test::d2 TO eschema $$
                 link a:
-                    link property a_prop to array<str>
+                    link property a_prop -> array<str>
 
                 type NamedObject:
-                    required link a to array<int>
+                    required link a -> array<int>
             $$;
 
             GET MIGRATION test::d2;
@@ -299,7 +299,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
         SET is_virtual := False;
         SET readonly := False;
     };
-    ALTER LINK test::a CREATE LINK PROPERTY test::a_prop TO array<std::str> {
+    ALTER LINK test::a CREATE LINK PROPERTY test::a_prop -> array<std::str> {
         SET is_virtual := False;
         SET readonly := False;
         SET title := 'Base link property';
@@ -308,18 +308,18 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
         SET is_virtual := False;
     };
     ALTER TYPE test::NamedObject {
-        CREATE REQUIRED LINK test::a TO array<std::int> {
+        CREATE REQUIRED LINK test::a -> array<std::int> {
             SET cardinality := '*1';
             SET is_virtual := False;
             SET readonly := False;
         };
         ALTER LINK test::a {
-            CREATE LINK PROPERTY std::source TO test::NamedObject {
+            CREATE LINK PROPERTY std::source -> test::NamedObject {
                 SET is_virtual := False;
                 SET readonly := False;
                 SET title := 'Link source';
             };
-            CREATE LINK PROPERTY std::target TO array<std::int> {
+            CREATE LINK PROPERTY std::target -> array<std::int> {
                 SET is_virtual := False;
                 SET readonly := False;
                 SET title := 'Link target';
@@ -334,7 +334,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
             # setup delta
             CREATE MIGRATION test::d3 TO eschema $$
                 abstract type Foo:
-                    link bar to str
+                    link bar -> str
                     link __typename := 'foo'
             $$;
 
@@ -356,12 +356,12 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                 SET is_virtual := False;
             };
             ALTER TYPE test::Foo {
-                CREATE LINK test::bar TO std::str {
+                CREATE LINK test::bar -> std::str {
                     SET cardinality := '*1';
                     SET is_virtual := False;
                     SET readonly := False;
                 };
-                CREATE LINK test::__typename TO std::str {
+                CREATE LINK test::__typename -> std::str {
                     SET cardinality := '*1';
                     SET computable := True;
                     SET default := SELECT
@@ -371,24 +371,24 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                     SET readonly := False;
                 };
                 ALTER LINK test::bar {
-                    CREATE LINK PROPERTY std::source TO test::Foo {
+                    CREATE LINK PROPERTY std::source -> test::Foo {
                         SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Link source';
                     };
-                    CREATE LINK PROPERTY std::target TO std::str {
+                    CREATE LINK PROPERTY std::target -> std::str {
                         SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Link target';
                     };
                 };
                 ALTER LINK test::__typename {
-                    CREATE LINK PROPERTY std::source TO test::Foo {
+                    CREATE LINK PROPERTY std::source -> test::Foo {
                         SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Link source';
                     };
-                    CREATE LINK PROPERTY std::target TO std::str {
+                    CREATE LINK PROPERTY std::target -> std::str {
                         SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Link target';
@@ -404,7 +404,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
             # setup delta
             CREATE MIGRATION test::d3 TO eschema $$
                 abstract type Foo:
-                    link bar to str
+                    link bar -> str
                     link __typename := __self__.__type__.name
             $$;
 
@@ -426,12 +426,12 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                 SET is_virtual := False;
             };
             ALTER TYPE test::Foo {
-                CREATE LINK test::bar TO std::str {
+                CREATE LINK test::bar -> std::str {
                     SET cardinality := '*1';
                     SET is_virtual := False;
                     SET readonly := False;
                 };
-                CREATE LINK test::__typename TO std::str {
+                CREATE LINK test::__typename -> std::str {
                     SET computable := True;
                     SET default := SELECT
                         __self__.__type__[IS schema::Type].name
@@ -441,24 +441,24 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                     SET readonly := False;
                 };
                 ALTER LINK test::bar {
-                    CREATE LINK PROPERTY std::source TO test::Foo {
+                    CREATE LINK PROPERTY std::source -> test::Foo {
                         SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Link source';
                     };
-                    CREATE LINK PROPERTY std::target TO std::str {
+                    CREATE LINK PROPERTY std::target -> std::str {
                         SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Link target';
                     };
                 };
                 ALTER LINK test::__typename {
-                    CREATE LINK PROPERTY std::source TO test::Foo {
+                    CREATE LINK PROPERTY std::source -> test::Foo {
                         SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Link source';
                     };
-                    CREATE LINK PROPERTY std::target TO std::str {
+                    CREATE LINK PROPERTY std::target -> std::str {
                         SET is_virtual := False;
                         SET readonly := False;
                         SET title := 'Link target';

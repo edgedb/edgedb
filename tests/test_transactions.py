@@ -18,7 +18,7 @@ class TestTransactions(tb.QueryTestCase):
         };
 
         CREATE TYPE test::TransactionTest EXTENDING std::Object {
-            CREATE LINK test::name TO std::str {
+            CREATE LINK test::name -> std::str {
                 SET cardinality := '11';
                 SET readonly := False;
             };

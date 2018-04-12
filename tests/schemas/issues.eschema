@@ -1,34 +1,34 @@
 abstract type Text:
     # This is an abstract object containing text.
-    required link body to str:
+    required link body -> str:
         # Maximum length of text is 10000 characters.
         constraint maxlength(10000)
 
 
 abstract type Named:
-    required link name to str
+    required link name -> str
 
 
 # Dictionary is a NamedObject variant, that enforces
 # name uniqueness across all instances if its subclass.
 abstract type Dictionary extending Named:
-    required link name to str:
+    required link name -> str:
         delegated constraint unique
 
 
 link todo:
-    link property rank to int:
+    link property rank -> int:
         default := 42
 
 
 type User extending Dictionary:
-    link todo to Issue:
+    link todo -> Issue:
         cardinality := '**'
 
 
 abstract type Owned:
     # By default links are optional.
-    required link owner to User:
+    required link owner -> User:
         cardinality := '*1'
 
 
@@ -42,7 +42,7 @@ type LogEntry extending Owned, Text:
     # LogEntry is an Owned and a Text, so it
     # will have all of their links and attributes,
     # in particular, owner and text links.
-    required link spent_time to int
+    required link spent_time -> int
 
 
 # issue_num_t is defined as a concrete sequence type,
@@ -51,60 +51,60 @@ scalar type issue_num_t extending std::sequence
 
 
 type Comment extending Text, Owned:
-    required link issue to Issue:
+    required link issue -> Issue:
         cardinality := '*1'
-    link parent to Comment:
+    link parent -> Comment:
         cardinality := '*1'
 
 
 type Issue extending Named, Owned, Text:
-    required link number to issue_num_t:
+    required link number -> issue_num_t:
         readonly := true
         # The number values are automatically generated,
         # and are not supposed to be directly writable.
         constraint unique
 
-    required link status to Status:
+    required link status -> Status:
         cardinality := '*1'
 
-    link priority to Priority:
+    link priority -> Priority:
         cardinality := '*1'
 
-    link watchers to User:
+    link watchers -> User:
         cardinality := '**'
         # The watchers link is mapped to User type in
         # many-to-many relation.  The default cardinality is
         # *1 -- many-to-one.
 
-    link time_estimate to int
+    link time_estimate -> int
 
-    link time_spent_log to LogEntry:
+    link time_spent_log -> LogEntry:
         cardinality := '1*'
         # 1* -- one-to-many cardinality.
 
-    link start_date to datetime:
+    link start_date -> datetime:
         default := SELECT current_datetime()
         # The default value of start_date will be a
         # result of the EdgeQL expression above.
 
-    link due_date to datetime
+    link due_date -> datetime
 
-    link related_to to Issue:
+    link related_to -> Issue:
         cardinality := '**'
 
     # this is used to test virtual types
-    link references to File, URL, Publication:
+    link references -> File, URL, Publication:
         cardinality := '**'
 
-    link tags to array<str>
+    link tags -> array<str>
 
 
 type File extending Named
 
 
 type URL extending Named:
-    required link address to str
+    required link address -> str
 
 
 type Publication:
-    required link title to str
+    required link title -> str

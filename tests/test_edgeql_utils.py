@@ -18,25 +18,25 @@ from edgedb.lang import _testbase as tb
 class TestEdgeQLUtils(tb.BaseSyntaxTest):
     SCHEMA = r"""
         abstract type NamedObject:
-            required link name to str
+            required link name -> str
 
         type UserGroup extending NamedObject:
-            link settings to Setting:
+            link settings -> Setting:
                 cardinality := '1*'
 
         type Setting extending NamedObject:
-            required link value to str
+            required link value -> str
 
         type Profile extending NamedObject:
-            required link value to str
+            required link value -> str
 
         type User extending NamedObject:
-            required link active to bool
-            link groups to UserGroup:
+            required link active -> bool
+            link groups -> UserGroup:
                 cardinality := '**'
-            required link age to int
-            required link score to float
-            link profile to Profile:
+            required link age -> int
+            required link score -> float
+            link profile -> Profile:
                 cardinality := '*1'
     """
 

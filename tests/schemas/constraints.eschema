@@ -40,12 +40,12 @@ scalar type constraint_enum extending str:
 link translated_label:
     cardinality := '1*'
 
-    link property lang to str
-    link property prop1 to str
+    link property lang -> str
+    link property prop1 -> str
 
 
 link link_with_unique_property:
-    link property unique_property to str:
+    link property unique_property -> str:
         constraint unique
 
 
@@ -53,7 +53,7 @@ link link_with_unique_property_inherited extending link_with_unique_property
 
 
 link another_link_with_unique_property:
-    link property unique_property to str:
+    link property unique_property -> str:
         constraint unique
 
 
@@ -61,48 +61,48 @@ link another_link_with_unique_property_inherited extending another_link_with_uni
 
 
 type Object:
-    link name to str
-    link c_length to constraint_length
-    link c_length_2 to constraint_length_2
-    link c_length_3 to constraint_length_2:
+    link name -> str
+    link c_length -> constraint_length
+    link c_length_2 -> constraint_length_2
+    link c_length_3 -> constraint_length_2:
         constraint minlength(10)
 
-    link c_minmax to constraint_minmax
-    link c_strvalue to constraint_strvalue
-    link c_enum to constraint_enum
+    link c_minmax -> constraint_minmax
+    link c_strvalue -> constraint_strvalue
+    link c_enum -> constraint_enum
 
 
 type UniqueName:
-    link name to str:
+    link name -> str:
         constraint unique
 
-    link link_with_unique_property to str
+    link link_with_unique_property -> str
 
-    link link_with_unique_property_inherited to str
+    link link_with_unique_property_inherited -> str
 
-    link translated_label to str:
+    link translated_label -> str:
         constraint unique on (__subject__@source, __subject__@lang)
         constraint unique on (__subject__@prop1)
 
 
 type UniqueNameInherited extending UniqueName:
-    link name to str
+    link name -> str
 
 
 type UniqueDescription:
-    link description to str:
+    link description -> str:
         constraint unique
 
-    link another_link_with_unique_property to str
+    link another_link_with_unique_property -> str
 
-    link another_link_with_unique_property_inherited to str
+    link another_link_with_unique_property_inherited -> str
 
 
 type UniqueDescriptionInherited extending UniqueDescription
 
 
 type UniqueName_2:
-    link name to str:
+    link name -> str:
         constraint unique
 
 
@@ -110,7 +110,7 @@ type UniqueName_2_Inherited extending UniqueName_2
 
 
 type UniqueName_3 extending UniqueName_2:
-    link name to str:
+    link name -> str:
         constraint unique on (lower(__subject__))
 
 
@@ -118,34 +118,34 @@ type UniqueName_4 extending UniqueName_2_Inherited
 
 
 type MultiConstraint:
-    link name to str:
+    link name -> str:
         constraint unique
         constraint unique on (lower(__subject__))
 
-    link m1 to str
+    link m1 -> str
 
 
 type ParentUniqueName:
-    link name to str:
+    link name -> str:
         constraint unique
 
 
 type ReceivingParent:
-    link name to str
+    link name -> str
 
 
 type LosingParent extending ParentUniqueName:
-    link name to str
-    link lp to str
+    link name -> str
+    link lp -> str
 
 
 type AbstractConstraintParent:
-    link name to str:
+    link name -> str:
         delegated constraint unique
 
 
 type AbstractConstraintParent2:
-    link name to str:
+    link name -> str:
         delegated constraint unique on (lower(__subject__))
 
 
@@ -153,23 +153,23 @@ type AbstractConstraintPureChild extending AbstractConstraintParent
 
 
 type AbstractConstraintMixedChild extending AbstractConstraintParent:
-    link name to str:
+    link name -> str:
         constraint unique on (lower(__subject__))
 
 
 type AbstractConstraintPropagated extending AbstractConstraintParent:
-    link name to str:
+    link name -> str:
         delegated constraint unique
 
 
 type AbstractConstraintParent3:
-    link name to str:
+    link name -> str:
         delegated constraint unique
         delegated constraint unique on (lower(__subject__))
 
 
 type AbstractConstraintMultipleParentsFlattening extending AbstractConstraintParent, AbstractConstraintParent2:
-    link flat to str
+    link flat -> str
 
 
 type LosingAbstractConstraintParent extending AbstractConstraintParent
@@ -179,7 +179,7 @@ type LosingAbstractConstraintParent2 extending AbstractConstraintParent
 
 
 type BecomingAbstractConstraint:
-    link name to str:
+    link name -> str:
         constraint unique
 
 
@@ -187,7 +187,7 @@ type BecomingAbstractConstraintChild extending BecomingAbstractConstraint
 
 
 type BecomingConcreteConstraint:
-    link name to str:
+    link name -> str:
         delegated constraint unique
 
 
@@ -195,7 +195,7 @@ type BecomingConcreteConstraintChild extending BecomingConcreteConstraint
 
 
 type AbstractInheritingNonAbstract extending ParentUniqueName:
-    link name to str:
+    link name -> str:
         delegated constraint unique
 
 
