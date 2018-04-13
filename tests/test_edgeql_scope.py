@@ -1089,6 +1089,25 @@ class TestEdgeQLScope(tb.QueryTestCase):
              'Golem3', 'Sprite2', 'Giant eagle2', 'Djinn2'},
         ])
 
+    @unittest.expectedFailure
+    async def test_edgeql_scope_nested_12(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test
+            SELECT Card {
+                name,
+                owner := (
+                    SELECT User {
+                        # masking a real `name` link
+                        name := 'Elvis'
+                    }
+                    # this filter should be impossible with the new `name`
+                    FILTER User.name = 'Alice'
+                )
+            }
+            FILTER Card.name = 'Dragon';
+        ''', [])
+
     async def test_edgeql_scope_detached_01(self):
         names = {'Alice', 'Bob', 'Carol', 'Dave'}
 
