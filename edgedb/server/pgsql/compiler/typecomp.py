@@ -238,6 +238,14 @@ def cast(
                     op='->>'
                 )
 
+            elif target_type.name == 'std::json':
+                return pgast.TypeCast(
+                    arg=node,
+                    type_name=pgast.TypeName(
+                        name=('jsonb',)
+                    )
+                )
+
         else:
             const_type = pg_types.pg_type_from_object(
                 schema, target_type, topbase=True)
