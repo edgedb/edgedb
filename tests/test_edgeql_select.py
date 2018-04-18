@@ -4149,3 +4149,27 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 'number': '4'
             },
         ]])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_json_01(self):
+        await self.assert_query_result(r'''
+            # cast an ad-hoc view into a set of json
+            WITH MODULE test
+            SELECT (
+                SELECT <json>Issue {
+                    number,
+                    time_estimate
+                } FILTER Issue.number = '1'
+            ) = <json>'{"number": "1", "time_estimate": 3000}';
+
+            WITH MODULE test
+            SELECT (
+                SELECT <json>Issue {
+                    number,
+                    time_estimate
+                } FILTER Issue.number = '2'
+            ) = <json>'{"number": "2", "time_estimate": null}';
+        ''', lambda x: x['number'], [
+            [True],
+            [True],
+        ])

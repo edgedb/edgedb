@@ -1014,6 +1014,197 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT '123'['1'];
             """)
 
+    async def test_edgeql_expr_json_01(self):
+        await self.assert_query_result("""
+            SELECT <json>'"qwerty"';
+            SELECT <json>'1';
+            SELECT <json>'2.3e-2';
+
+            SELECT <json>'true';
+            SELECT <json>'false';
+            SELECT <json>'null';
+
+            SELECT <json>'[2, "a", 3.456]';
+            SELECT <json>'[2, "a", 3.456, [["b", 1]]]';
+
+            SELECT <json>'{
+                "a": 1,
+                "b": 2.87,
+                "c": [2, "a", 3.456],
+                "d": {
+                    "d1": 1,
+                    "d2": {
+                        "d3": true
+                    }
+                },
+                "e": null,
+                "f": false
+            }';
+        """, [
+            ['qwerty'],
+            [1],
+            [0.023],
+
+            [True],
+            [False],
+            [None],
+
+            [[2, 'a', 3.456]],
+            [[2, 'a', 3.456, [['b', 1]]]],
+
+            [{
+                'a': 1,
+                'b': 2.87,
+                'c': [2, 'a', 3.456],
+                'd': {
+                    'd1': 1,
+                    'd2': {
+                        'd3': True
+                    }
+                },
+                'e': None,
+                'f': False
+            }],
+        ])
+
+    async def test_edgeql_expr_json_02(self):
+        await self.assert_query_result("""
+            SELECT <str><json>'"qwerty"';
+            SELECT <int><json>'1';
+            SELECT <float><json>'2.3e-2';
+
+            SELECT <bool><json>'true';
+            SELECT <bool><json>'false';
+
+            SELECT <array<int>><json>'[2, 3, 5]';
+        """, [
+            ['qwerty'],
+            [1],
+            [0.023],
+
+            [True],
+            [False],
+
+            [[2, 3, 5]],
+        ])
+
+    async def test_edgeql_expr_json_03(self):
+        await self.assert_query_result("""
+            SELECT <str><json>'null';
+            SELECT <int><json>'null';
+            SELECT <float><json>'null';
+            SELECT <bool><json>'null';
+        """, [
+            [],
+            [],
+            [],
+            [],
+        ])
+
+    async def test_edgeql_expr_json_04(self):
+        await self.assert_query_result("""
+            SELECT <str><json>'null' ?= <str>{};
+            SELECT <int><json>'null' ?= <int>{};
+            SELECT <float><json>'null' ?= <float>{};
+            SELECT <bool><json>'null' ?= <bool>{};
+        """, [
+            [True],
+            [True],
+            [True],
+            [True],
+        ])
+
+    async def test_edgeql_expr_json_05(self):
+        await self.assert_query_result("""
+            SELECT <json>{} ?= (SELECT x := <json>'1' FILTER x = <json>'2');
+            SELECT <json>{} ?= <json>'null';
+        """, [
+            [True],
+            [False],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_json_06(self):
+        await self.assert_query_result("""
+            SELECT <array<int>><json>'[null]' ?= <array<int>>{};
+            SELECT <array<int>><json>'[1, null]' ?= <array<int>>{};
+        """, [
+            [True],
+            [True],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_json_07(self):
+        await self.assert_query_result("""
+            SELECT json_typeof(<json>'2');
+            SELECT json_typeof(<json>'2');
+            SELECT json_typeof(<json>'"foo"');
+            SELECT json_typeof(<json>'true');
+            SELECT json_typeof(<json>'false');
+            SELECT json_typeof(<json>'null');
+            SELECT json_typeof(<json>'[]');
+            SELECT json_typeof(<json>'[2]');
+            SELECT json_typeof(<json>'{}');
+            SELECT json_typeof(<json>'{"a": 2}');
+        """, [
+            ['number'],
+            ['number'],
+            ['string'],
+            ['boolean'],
+            ['boolean'],
+            ['null'],
+            ['array'],
+            ['array'],
+            ['object'],
+            ['object'],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_json_08(self):
+        await self.assert_query_result("""
+            SELECT json_array_unpack(<json>'[1, "a", null]');
+        """, [
+            [1, 'a', None],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_json_09(self):
+        await self.assert_query_result("""
+            SELECT json_object_unpack(<json>'{"q": 1, "w": "a", "e": null}');
+        """, [
+            [{
+                'q': 1,
+                'w': 'a',
+                'e': None
+            }],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_json_10(self):
+        await self.assert_query_result("""
+            SELECT <json>'[1, 'a', 3]'[0] = <json>1;
+            SELECT <json>'[1, 'a', 3]'[1] = <json>'a';
+            SELECT <json>'[1, 'a', 3]'[2] = <json>3;
+            SELECT <json>'[1, 'a', 3]'[3] ?= <json>{};
+        """, [
+            [True],
+            [True],
+            [True],
+            [True],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_json_11(self):
+        await self.assert_query_result("""
+            SELECT <json>'{"a": 1, "b": null}'["a"] = <json>1;
+            SELECT <json>'{"a": 1, "b": null}'["b"] = <json>'null';
+            SELECT <json>'{"a": 1, "b": null}'["c"] ?= <json>{};
+        """, [
+            [True],
+            [True],
+            [True],
+        ])
+
     async def test_edgeql_expr_tuple_01(self):
         await self.assert_query_result(r"""
             SELECT (1, 'foo');
