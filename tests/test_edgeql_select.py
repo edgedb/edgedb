@@ -1033,6 +1033,77 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         ])
 
+    async def test_edgeql_select_view_06(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT User {
+                name,
+                foo := (
+                    SELECT (
+                        SELECT Status
+                        FILTER Status.name = 'Open'
+                    ).name
+                )
+            } FILTER User.name = 'Elvis';
+        """, [
+            [
+                {
+                    'name': 'Elvis',
+                    'foo': 'Open',
+                },
+            ],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_view_07(self):
+        await self.assert_query_result(r"""
+            # semantically identical to the previous test
+            WITH MODULE test
+            SELECT User {
+                name,
+                foo := {
+                    (
+                        SELECT Status
+                        FILTER Status.name = 'Open'
+                    ).name
+                }
+            } FILTER User.name = 'Elvis';
+            # FIXME: please also fix the error message to be less
+            # arcane with some sort of reference to where things go
+            # wrong in the query
+        """, [
+            [
+                {
+                    'name': 'Elvis',
+                    'foo': 'Open',
+                },
+            ],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_view_08(self):
+        await self.assert_query_result(r"""
+            # semantically similar to previous test, but involving
+            # schema (since schema often has special handling)
+            WITH MODULE test
+            SELECT User {
+                name,
+                foo := {
+                    (
+                        SELECT schema::ObjectType
+                        FILTER schema::ObjectType.name = 'test::User'
+                    ).name
+                }
+            } FILTER User.name = 'Elvis';
+        """, [
+            [
+                {
+                    'name': 'Elvis',
+                    'foo': ['test::User'],
+                },
+            ],
+        ])
+
     async def test_edgeql_select_instance_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -1072,13 +1143,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_select_setops_01(self):
         await self.assert_sorted_query_result(r"""
             WITH MODULE test
             SELECT
                 (Issue UNION Comment) {
-                    [IS Issue].name,
-                    [IS Text].body
+                    [IS Issue].name,  # name is not in the duck type
+                    body  # body should appear in the duck type
                 };
         """, lambda x: x['body'], [
             [
@@ -1105,6 +1177,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 [IS Text].body
             };
 
+            # XXX: I think we should be able to drop [IS Text] from
+            # the query below.
             WITH
                 MODULE test,
                 Obj := (SELECT Issue UNION Comment)
@@ -1391,6 +1465,34 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {'body': 'Rewriting everything.'},
             ],
         ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_setops_14(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'.*.>\(number\) does not resolve to any known path'):
+            await self.con.execute(r"""
+                # the computable in the view is omitted from the duck
+                # type of the UNION
+                WITH MODULE test
+                SELECT {
+                    Issue{number := 'foo'}, Issue
+                }.number;
+            """)
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_setops_15(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'.*.>\(number\) does not resolve to any known path'):
+            await self.con.execute(r"""
+                # the computable in the view is omitted from the duck
+                # type of the UNION
+                WITH
+                    MODULE test,
+                    I := Issue{number := 'foo'}
+                SELECT {I, Issue}.number;
+            """)
 
     async def test_edgeql_select_order_01(self):
         await self.assert_query_result(r'''
