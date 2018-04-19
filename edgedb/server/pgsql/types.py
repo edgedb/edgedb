@@ -61,7 +61,7 @@ base_type_name_map_r = {
     'bytea': sn.Name('std::bytes'),
     'tsquery': sn.Name('std::tsquery'),
     'tsvector': sn.Name('std::tsvector'),
-    'json': sn.Name('std::json'),
+    'jsonb': sn.Name('std::json'),
 }
 
 
