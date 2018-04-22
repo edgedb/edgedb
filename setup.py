@@ -12,10 +12,20 @@ from setuptools import setup
 from edgedb.lang import build
 
 
+RUNTIME_DEPS = [
+    'asyncpg',
+    'click',
+    'pytest',
+    'Parsing',
+    'prompt-toolkit',
+    'setproctitle',
+]
+
+
 setup(
     setup_requires=[
         'setuptools_scm',
-    ],
+    ] + RUNTIME_DEPS,
     use_scm_version=True,
     name='edgedb-server',
     description='EdgeDB Server',
@@ -35,13 +45,6 @@ setup(
             'et = edgedb.tools.et:etcommands'
         ]
     },
-    install_requires=[
-        'asyncpg',
-        'click',
-        'pytest',
-        'Parsing',
-        'prompt-toolkit',
-        'setproctitle',
-    ],
+    install_requires=RUNTIME_DEPS,
     test_suite='tests.suite',
 )
