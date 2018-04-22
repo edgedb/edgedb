@@ -797,7 +797,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.visit_list(node.args, newlines=False)
                 self.write(')')
             if node.subject:
-                self.write(' on (')
+                self.write(' ON (')
                 self.visit(node.subject)
                 self.write(')')
 
