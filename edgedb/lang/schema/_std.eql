@@ -192,7 +192,7 @@ CREATE CONSTRAINT std::length ON (len(<std::str>__subject__))
     SET errmessage := 'invalid {__subject__}';
 };
 
-CREATE CONSTRAINT std::minlength(std::any) EXTENDING (std::min, std::length) {
+CREATE CONSTRAINT std::minlength(std::int) EXTENDING (std::min, std::length) {
     SET errmessage := '{__subject__} must be no shorter than {$0} characters.';
 };
 
@@ -201,7 +201,7 @@ CREATE CONSTRAINT std::regexp(std::any) EXTENDING std::constraint {
     SET expr := re_test(__subject__, $0);
 };
 
-CREATE CONSTRAINT std::maxlength(std::any) EXTENDING (std::max, std::length) {
+CREATE CONSTRAINT std::maxlength(std::int) EXTENDING (std::max, std::length) {
     SET errmessage := '{__subject__} must be no longer than {$0} characters.';
 };
 
