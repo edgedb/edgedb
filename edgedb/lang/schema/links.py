@@ -6,13 +6,13 @@
 ##
 
 
-from edgedb.lang.common import enum
+from edgedb.lang import edgeql
 from edgedb.lang.edgeql import ast as qlast
 
-from . import scalars as s_scalars
 from . import constraints
 from . import database as s_db
 from . import delta as sd
+from . import error as s_err
 from . import indexes
 from . import inheriting
 from . import lproperties
@@ -23,65 +23,7 @@ from . import pointers
 from . import policy
 from . import referencing
 from . import sources
-from . import types as s_types
 from . import utils
-
-
-class LinkSearchWeight(enum.StrEnum):
-    A = 'A'
-    B = 'B'
-    C = 'C'
-    D = 'D'
-
-
-class LinkMapping(enum.StrEnum):
-    OneToOne = '11'
-    OneToMany = '1*'
-    ManyToOne = '*1'
-    ManyToMany = '**'
-
-    def __and__(self, other):
-        if not isinstance(other, LinkMapping):
-            return NotImplemented
-
-        if self == LinkMapping.OneToOne:
-            return self
-        elif other == LinkMapping.OneToOne:
-            return other
-        elif self == LinkMapping.OneToMany:
-            if other == LinkMapping.ManyToOne:
-                err = 'mappings %r and %r are mutually incompatible'
-                raise ValueError(err % (self, other))
-            return self
-        elif self == LinkMapping.ManyToOne:
-            if other == LinkMapping.OneToMany:
-                err = 'mappings %r and %r are mutually incompatible'
-                raise ValueError(err % (self, other))
-            return self
-        else:
-            return other
-
-    def __or__(self, other):
-        if not isinstance(other, LinkMapping):
-            return NotImplemented
-        # We use the fact that '*' is less than '1'
-        return self.__class__(min(self[0], other[0]) + min(self[1], other[1]))
-
-    @classmethod
-    def merge_values(cls, ours, theirs, schema):
-        if ours and theirs and ours != theirs:
-            result = ours & theirs
-        elif not ours and theirs:
-            result = theirs
-        else:
-            result = ours
-
-        return result
-
-
-class LinkSearchConfiguration(so.Object):
-    weight = so.Field(LinkSearchWeight, default=None, compcoef=0.9,
-                      ephemeral=True)
 
 
 class Link(sources.Source, pointers.Pointer):
@@ -89,15 +31,6 @@ class Link(sources.Source, pointers.Pointer):
 
     spectargets = so.Field(named.NamedObjectSet, named.NamedObjectSet,
                            coerce=True)
-
-    cardinality = so.Field(LinkMapping, default=None,
-                           compcoef=0.833, coerce=True)
-
-    search = so.Field(LinkSearchConfiguration, default=None, compcoef=0.909)
-
-    @classmethod
-    def get_pointer_class(cls):
-        return lproperties.LinkProperty
 
     @classmethod
     def get_special_pointers(cls):
@@ -140,21 +73,11 @@ class Link(sources.Source, pointers.Pointer):
 
         return ptr
 
-    def singular(self, direction=pointers.PointerDirection.Outbound):
-        if direction == pointers.PointerDirection.Outbound:
-            return self.cardinality in \
-                (LinkMapping.OneToOne, LinkMapping.ManyToOne)
-        else:
-            return self.cardinality in \
-                (LinkMapping.OneToOne, LinkMapping.OneToMany)
+    def is_link_property(self):
+        return False
 
     def scalar(self):
-        assert not self.generic(), \
-            "scalarity is not determined for generic links"
-        return (
-            isinstance(self.target, s_scalars.ScalarType) or
-            isinstance(self.target, s_types.Collection)
-        )
+        return False
 
     def has_user_defined_properties(self):
         return bool([p for p in self.pointers.values()
@@ -162,7 +85,7 @@ class Link(sources.Source, pointers.Pointer):
 
     def compare(self, other, context=None):
         if not isinstance(other, Link):
-            if isinstance(other, pointers.BasePointer):
+            if isinstance(other, pointers.Pointer):
                 return 0.0
             else:
                 return NotImplemented
@@ -181,7 +104,7 @@ class Link(sources.Source, pointers.Pointer):
         super().finalize(schema, bases=bases, dctx=dctx)
 
         if not self.generic() and self.cardinality is None:
-            self.cardinality = LinkMapping.ManyToOne
+            self.cardinality = pointers.PointerCardinality.ManyToOne
 
             if dctx is not None:
                 from . import delta as sd
@@ -219,12 +142,12 @@ class LinkSourceCommand(referencing.ReferencingObjectCommand):
 class LinkCommandContext(pointers.PointerCommandContext,
                          constraints.ConsistencySubjectCommandContext,
                          policy.InternalPolicySubjectCommandContext,
-                         lproperties.LinkPropertySourceContext,
+                         lproperties.PropertySourceContext,
                          indexes.IndexSourceCommandContext):
     pass
 
 
-class LinkCommand(lproperties.LinkPropertySourceCommand,
+class LinkCommand(lproperties.PropertySourceCommand,
                   pointers.PointerCommand,
                   schema_metaclass=Link, context_class=LinkCommandContext,
                   referrer_context_class=LinkSourceCommandContext):
@@ -237,6 +160,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
+        from edgedb.lang.ir import utils as ir_utils
         from . import objtypes as s_objtypes
 
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
@@ -252,16 +176,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
             # "source" attribute is set automatically as a refdict back-attr
             parent_ctx = context.get(LinkSourceCommandContext)
             source_name = parent_ctx.op.classname
-
-            for ap in cmd.get_subcommands(type=sd.AlterObjectProperty):
-                if ap.property == 'search_weight':
-                    ap.property = 'search'
-                    ap.new_value = LinkSearchConfiguration(
-                        weight=LinkSearchWeight(
-                            ap.new_value
-                        )
-                    )
-                    break
+            target_type = None
 
             if len(astnode.targets) > 1:
                 cmd.add(
@@ -315,7 +230,77 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                 else:
                     alter_db_ctx.op.add(create_virt_parent)
             else:
-                target = utils.ast_to_typeref(astnode.targets[0])
+                target_expr = astnode.targets[0]
+                if isinstance(target_expr, qlast.TypeName):
+                    target = utils.ast_to_typeref(target_expr)
+                else:
+                    # computable
+                    source = schema.get(source_name, default=None)
+                    if source is None:
+                        raise s_err.SchemaDefinitionError(
+                            f'cannot define link computables in CREATE TYPE',
+                            hint='Perform a CREATE TYPE without the link '
+                                 'followed by ALTER TYPE defining the '
+                                 'computable',
+                            context=target_expr.context
+                        )
+
+                    ir, _, target_expr = edgeql.utils.normalize_tree(
+                        target_expr, schema,
+                        anchors={qlast.Self: source})
+
+                    try:
+                        target_type = ir_utils.infer_type(ir, schema)
+                    except edgeql.EdgeQLError as e:
+                        raise s_err.SchemaDefinitionError(
+                            'could not determine the result type of '
+                            'computable expression',
+                            context=target_expr.context) from e
+
+                    target = utils.reduce_to_typeref(target_type)
+
+                    cmd.add(
+                        sd.AlterObjectProperty(
+                            property='default',
+                            new_value=target_expr
+                        )
+                    )
+
+                    cmd.add(
+                        sd.AlterObjectProperty(
+                            property='computable',
+                            new_value=True
+                        )
+                    )
+
+                    if ir.cardinality == qlast.Cardinality.ONE:
+                        link_card = pointers.PointerCardinality.ManyToOne
+                    else:
+                        link_card = pointers.PointerCardinality.ManyToMany
+
+                    cmd.add(
+                        sd.AlterObjectProperty(
+                            property='cardinality',
+                            new_value=link_card
+                        )
+                    )
+
+            if (isinstance(target, so.ObjectRef) and
+                    target.classname == source_name):
+                # Special case for loop links.  Since the target
+                # is the same as the source, we know it's a proper
+                # type.
+                pass
+            else:
+                if target_type is None:
+                    target_type = utils.resolve_typeref(target, schema=schema)
+
+                if not isinstance(target_type, s_objtypes.ObjectType):
+                    raise s_err.SchemaDefinitionError(
+                        f'invalid link target, expected object type, got '
+                        f'{target_type.__class__.__name__}',
+                        context=astnode.targets[0].context
+                    )
 
             cmd.add(
                 sd.AlterObjectProperty(
@@ -325,14 +310,14 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
             )
 
             base_prop_name = sn.Name('std::source')
-            s_name = lproperties.LinkProperty.get_specialized_name(
+            s_name = lproperties.Property.get_specialized_name(
                 base_prop_name, cmd.classname)
             src_prop_name = sn.Name(name=s_name,
                                     module=cmd.classname.module)
 
-            src_prop = lproperties.CreateLinkProperty(
+            src_prop = lproperties.CreateProperty(
                 classname=src_prop_name,
-                metaclass=lproperties.LinkProperty
+                metaclass=lproperties.Property
             )
             src_prop.update((
                 sd.AlterObjectProperty(
@@ -372,14 +357,14 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
             cmd.add(src_prop)
 
             base_prop_name = sn.Name('std::target')
-            s_name = lproperties.LinkProperty.get_specialized_name(
+            s_name = lproperties.Property.get_specialized_name(
                 base_prop_name, cmd.classname)
             tgt_prop_name = sn.Name(name=s_name,
                                     module=cmd.classname.module)
 
-            tgt_prop = lproperties.CreateLinkProperty(
+            tgt_prop = lproperties.CreateProperty(
                 classname=tgt_prop_name,
-                metaclass=lproperties.LinkProperty
+                metaclass=lproperties.Property
             )
             tgt_prop.update((
                 sd.AlterObjectProperty(
@@ -567,24 +552,6 @@ class AlterLink(LinkCommand, named.AlterNamedObject):
     astnode = [qlast.AlterLink, qlast.AlterConcreteLink]
     referenced_astnode = qlast.AlterConcreteLink
 
-    @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
-
-        if isinstance(astnode, qlast.AlterConcreteLink):
-            for ap in cmd.get_subcommands(type=sd.AlterObjectProperty):
-                if ap.property == 'search_weight':
-                    ap.property = 'search'
-                    if ap.new_value is not None:
-                        ap.new_value = LinkSearchConfiguration(
-                            weight=LinkSearchWeight(
-                                ap.new_value
-                            )
-                        )
-                    break
-
-        return cmd
-
     def _get_ast_node(self, context):
         objtype = context.get(LinkSourceCommandContext)
 
@@ -656,7 +623,7 @@ class DeleteLink(LinkCommand, named.DeleteNamedObject):
 
         objtype = context.get(LinkSourceCommandContext)
 
-        for op in self.get_subcommands(type=lproperties.LinkPropertyCommand):
+        for op in self.get_subcommands(type=lproperties.PropertyCommand):
             self._append_subcmd_ast(node, op, context)
 
         if not objtype:

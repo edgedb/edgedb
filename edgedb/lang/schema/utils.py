@@ -72,6 +72,11 @@ def typeref_to_ast(t: so.Object) -> ql_ast.TypeName:
     return result
 
 
+def reduce_to_typeref(t: s_types.Type) -> so.Object:
+    ref, _ = t._reduce_to_ref()
+    return ref
+
+
 def resolve_typeref(ref: so.Object, schema) -> so.Object:
     if isinstance(ref, s_types.Tuple):
         if any(isinstance(st, so.ObjectRef) for st in ref.get_subtypes()):

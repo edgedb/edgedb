@@ -28,131 +28,67 @@ class PointerDirection(enum.StrEnum):
     Inbound = '<'
 
 
-class PointerVector(sn.Name):
-    __slots__ = ('module', 'name', 'direction', 'target', 'is_linkprop')
+class PointerCardinality(enum.StrEnum):
+    OneToOne = '11'
+    OneToMany = '1*'
+    ManyToOne = '*1'
+    ManyToMany = '**'
 
-    def __new__(cls, name, module=None, direction=PointerDirection.Outbound,
-                target=None, is_linkprop=False):
-        result = super().__new__(cls, name, module=module)
-        result.direction = direction
-        result.target = target
-        result.is_linkprop = is_linkprop
+    def __and__(self, other):
+        if not isinstance(other, PointerCardinality):
+            return NotImplemented
+
+        if self == PointerCardinality.OneToOne:
+            return self
+        elif other == PointerCardinality.OneToOne:
+            return other
+        elif self == PointerCardinality.OneToMany:
+            if other == PointerCardinality.ManyToOne:
+                err = 'mappings %r and %r are mutually incompatible'
+                raise ValueError(err % (self, other))
+            return self
+        elif self == PointerCardinality.ManyToOne:
+            if other == PointerCardinality.OneToMany:
+                err = 'mappings %r and %r are mutually incompatible'
+                raise ValueError(err % (self, other))
+            return self
+        else:
+            return other
+
+    def __or__(self, other):
+        if not isinstance(other, PointerCardinality):
+            return NotImplemented
+        # We use the fact that '*' is less than '1'
+        return self.__class__(min(self[0], other[0]) + min(self[1], other[1]))
+
+    @classmethod
+    def merge_values(cls, ours, theirs, schema):
+        if ours and theirs and ours != theirs:
+            result = ours & theirs
+        elif not ours and theirs:
+            result = theirs
+        else:
+            result = ours
+
         return result
 
-    def __repr__(self):
-        return '<edgedb.schema.PointerVector {}>'.format(self)
 
-    def __mm_serialize__(self):
-        return dict(
-            name=str(self),
-            direction=self.direction,
-            target=self.target,
-            is_linkprop=self.is_linkprop,
-        )
+class Pointer(constraints.ConsistencySubject,
+              policy.PolicySubject, policy.InternalPolicySubject):
 
-    def __hash__(self):
-        if self.direction == PointerDirection.Outbound:
-            return super().__hash__()
-        else:
-            return hash((str(self), self.direction))
-
-    def __eq__(self, other):
-        if isinstance(other, PointerVector):
-            return (str(self) == str(other) and
-                    self.direction == other.direction)
-        elif isinstance(other, str):
-            return (str(self) == other and
-                    self.direction == PointerDirection.Outbound)
-        else:
-            return False
-
-
-class PointerCommandContext(sd.ObjectCommandContext):
-    pass
-
-
-class PointerCommand(constraints.ConsistencySubjectCommand,
-                     referencing.ReferencedInheritingObjectCommand):
-
-    @classmethod
-    def _extract_union_operands(cls, expr, operands):
-        if expr.op == qlast.UNION:
-            cls._extract_union_operands(expr.op_larg, operands)
-            cls._extract_union_operands(expr.op_rarg, operands)
-        else:
-            operands.append(expr)
-
-    @classmethod
-    def _parse_default(cls, cmd):
-        return
-        for sub in cmd(sd.AlterObjectProperty):
-            if sub.property == 'default':
-                if isinstance(sub.new_value, sexpr.ExpressionText):
-                    expr = edgeql.parse(sub.new_value)
-
-                    if expr.op == qlast.UNION:
-                        candidates = []
-                        cls._extract_union_operands(expr, candidates)
-                        deflt = []
-
-                        for candidate in candidates:
-                            cexpr = candidate.result
-                            if isinstance(cexpr, qlast.Constant):
-                                deflt.append(cexpr.value)
-                            else:
-                                text = edgeql.generate_source(candidate,
-                                                              pretty=False)
-                                deflt.append(sexpr.ExpressionText(text))
-                    else:
-                        deflt = [sub.new_value]
-
-                else:
-                    deflt = [sub.new_value]
-
-                sub.new_value = deflt
-
-    def _encode_default(self, context, node, op):
-        if op.new_value:
-            expr = op.new_value
-            if not isinstance(expr, sexpr.ExpressionText):
-                expr_t = qlast.SelectQuery(
-                    result=qlast.Constant(value=expr)
-                )
-                expr = edgeql.generate_source(expr_t, pretty=False)
-
-                op.new_value = sexpr.ExpressionText(expr)
-            super()._apply_field_ast(context, node, op)
-
-    def _create_begin(self, schema, context):
-        referrer_ctx = self.get_referrer_context(context)
-        if referrer_ctx is not None:
-            # This is a specialized pointer, check that appropriate
-            # generic parent exists, and if not, create it.
-            base_ref = self.get_attribute_value('bases')[0]
-            base_name = base_ref.classname
-            base = schema.get(base_name, default=None)
-            if base is None:
-                cls = self.get_schema_metaclass()
-                std_link = schema.get(cls.get_default_base_name())
-                base = cls(name=base_name, bases=[std_link])
-                delta = base.delta(None)
-                delta.apply(schema, context=context.at_top())
-                top_ctx = referrer_ctx
-                refref_cls = getattr(
-                    top_ctx.op, 'referrer_context_class', None)
-                if refref_cls is not None:
-                    refref_ctx = context.get(refref_cls)
-                    if refref_ctx is not None:
-                        top_ctx = refref_ctx
-
-                top_ctx.op.after(delta)
-
-        super()._create_begin(schema, context)
-
-
-class BasePointer(inheriting.InheritingObject):
     source = so.Field(so.Object, None, compcoef=None)
     target = so.Field(s_types.Type, None, compcoef=0.833)
+
+    required = so.Field(bool, default=False, compcoef=0.909,
+                        merge_fn=utils.merge_sticky_bool)
+    readonly = so.Field(bool, default=False, compcoef=0.909,
+                        merge_fn=utils.merge_sticky_bool)
+    computable = so.Field(bool, default=None, compcoef=0.909,
+                          merge_fn=utils.merge_weak_bool)
+    default = so.Field(sexpr.ExpressionText, default=None,
+                       coerce=True, compcoef=0.909)
+    cardinality = so.Field(PointerCardinality, default=None,
+                           compcoef=0.833, coerce=True)
 
     def material_type(self):
         if self.generic():
@@ -344,21 +280,16 @@ class BasePointer(inheriting.InheritingObject):
         return self.shortname in {'std::source', 'std::target', 'std::id',
                                   'std::linkid'}
 
-
-class Pointer(BasePointer, constraints.ConsistencySubject,
-              policy.PolicySubject, policy.InternalPolicySubject):
-
-    required = so.Field(bool, default=False, compcoef=0.909,
-                        merge_fn=utils.merge_sticky_bool)
-    readonly = so.Field(bool, default=False, compcoef=0.909,
-                        merge_fn=utils.merge_sticky_bool)
-    computable = so.Field(bool, default=None, compcoef=0.909,
-                          merge_fn=utils.merge_weak_bool)
-    default = so.Field(sexpr.ExpressionText, default=None,
-                       coerce=True, compcoef=0.909)
-
     def generic(self):
         return self.source is None
+
+    def singular(self, direction=PointerDirection.Outbound):
+        if direction == PointerDirection.Outbound:
+            return self.cardinality in \
+                (PointerCardinality.OneToOne, PointerCardinality.ManyToOne)
+        else:
+            return self.cardinality in \
+                (PointerCardinality.OneToOne, PointerCardinality.OneToMany)
 
     def merge_defaults(self, other):
         if not self.default:
@@ -367,3 +298,125 @@ class Pointer(BasePointer, constraints.ConsistencySubject,
 
     def normalize_defaults(self):
         pass
+
+
+class PointerVector(sn.Name):
+    __slots__ = ('module', 'name', 'direction', 'target', 'is_linkprop')
+
+    def __new__(cls, name, module=None, direction=PointerDirection.Outbound,
+                target=None, is_linkprop=False):
+        result = super().__new__(cls, name, module=module)
+        result.direction = direction
+        result.target = target
+        result.is_linkprop = is_linkprop
+        return result
+
+    def __repr__(self):
+        return '<edgedb.schema.PointerVector {}>'.format(self)
+
+    def __mm_serialize__(self):
+        return dict(
+            name=str(self),
+            direction=self.direction,
+            target=self.target,
+            is_linkprop=self.is_linkprop,
+        )
+
+    def __hash__(self):
+        if self.direction == PointerDirection.Outbound:
+            return super().__hash__()
+        else:
+            return hash((str(self), self.direction))
+
+    def __eq__(self, other):
+        if isinstance(other, PointerVector):
+            return (str(self) == str(other) and
+                    self.direction == other.direction)
+        elif isinstance(other, str):
+            return (str(self) == other and
+                    self.direction == PointerDirection.Outbound)
+        else:
+            return False
+
+
+class PointerCommandContext(sd.ObjectCommandContext):
+    pass
+
+
+class PointerCommand(constraints.ConsistencySubjectCommand,
+                     referencing.ReferencedInheritingObjectCommand):
+
+    @classmethod
+    def _extract_union_operands(cls, expr, operands):
+        if expr.op == qlast.UNION:
+            cls._extract_union_operands(expr.op_larg, operands)
+            cls._extract_union_operands(expr.op_rarg, operands)
+        else:
+            operands.append(expr)
+
+    @classmethod
+    def _parse_default(cls, cmd):
+        return
+        for sub in cmd(sd.AlterObjectProperty):
+            if sub.property == 'default':
+                if isinstance(sub.new_value, sexpr.ExpressionText):
+                    expr = edgeql.parse(sub.new_value)
+
+                    if expr.op == qlast.UNION:
+                        candidates = []
+                        cls._extract_union_operands(expr, candidates)
+                        deflt = []
+
+                        for candidate in candidates:
+                            cexpr = candidate.result
+                            if isinstance(cexpr, qlast.Constant):
+                                deflt.append(cexpr.value)
+                            else:
+                                text = edgeql.generate_source(candidate,
+                                                              pretty=False)
+                                deflt.append(sexpr.ExpressionText(text))
+                    else:
+                        deflt = [sub.new_value]
+
+                else:
+                    deflt = [sub.new_value]
+
+                sub.new_value = deflt
+
+    def _encode_default(self, context, node, op):
+        if op.new_value:
+            expr = op.new_value
+            if not isinstance(expr, sexpr.ExpressionText):
+                expr_t = qlast.SelectQuery(
+                    result=qlast.Constant(value=expr)
+                )
+                expr = edgeql.generate_source(expr_t, pretty=False)
+
+                op.new_value = sexpr.ExpressionText(expr)
+            super()._apply_field_ast(context, node, op)
+
+    def _create_begin(self, schema, context):
+        referrer_ctx = self.get_referrer_context(context)
+        if referrer_ctx is not None:
+            # This is a specialized pointer, check that appropriate
+            # generic parent exists, and if not, create it.
+            base_ref = self.get_attribute_value('bases')[0]
+            base_name = base_ref.classname
+            base = schema.get(base_name, default=None)
+            if base is None:
+                cls = self.get_schema_metaclass()
+                std_link = schema.get(cls.get_default_base_name())
+                base = cls(name=base_name, bases=[std_link])
+                delta = base.delta(None)
+                delta.apply(schema, context=context.at_top())
+                top_ctx = referrer_ctx
+                refref_cls = getattr(
+                    top_ctx.op, 'referrer_context_class', None)
+                if refref_cls is not None:
+                    refref_ctx = context.get(refref_cls)
+                    if refref_ctx is not None:
+                        top_ctx = refref_ctx
+
+                top_ctx.op.after(delta)
+
+        super()._create_begin(schema, context)

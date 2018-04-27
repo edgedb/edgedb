@@ -56,14 +56,14 @@ abstract type OwnedObject:
     def test_eschema_syntax_type_03(self):
         """
         abstract type Text:
-            required link body -> str:
+            required property body -> str:
                 constraint maxlength (10000)
         """
 
     def test_eschema_syntax_type_04(self):
         """
 type LogEntry extending OwnedObject, Text:
-    required link spent_time -> int
+    required property spent_time -> int
         """
 
     def test_eschema_syntax_type_05(self):
@@ -75,7 +75,7 @@ type LogEntry extending OwnedObject, Text:
     def test_eschema_syntax_type_06(self):
         """
 type LogEntry extending OwnedObject, Text:
-    link start_date -> datetime:
+    property start_date -> datetime:
        default :=
             SELECT datetime::current_datetime()
        title := 'Start Date'
@@ -95,30 +95,33 @@ type Issue extending `foo.bar`::NamedObject, OwnedObject, Text:
     link watchers -> User:
         cardinality := '**'
 
-    link time_estimate -> int
-
     link time_spent_log -> LogEntry:
         cardinality := '1*'
 
     link start_date := SELECT datetime::current_datetime()
 
-    link start_date -> datetime:
+    link related_to -> Issue:
+        cardinality := '**'
+
+    property time_estimate -> int
+
+    property start_date -> datetime:
        default :=
             SELECT datetime::current_datetime()
        title := 'Start Date'
 
-    link due_date -> datetime
-
-    link related_to -> Issue:
-        cardinality := '**'
+    property due_date -> datetime
         """
 
+    @tb.must_fail(error.SchemaSyntaxError,
+                  "illegal definition",
+                  line=4, col=9)
     def test_eschema_syntax_type_08(self):
         """
 type Foo:
-    link time_estimate -> int:
-       link property unit:
-           default := 'minute'
+    property time_estimate -> int:
+        property unit:
+            default := 'minute'
        """
 
     def test_eschema_syntax_type_09(self):
@@ -144,7 +147,7 @@ type `Log-Entry` extending OwnedObject, Text:
     def test_eschema_syntax_type_11(self):
         """
 type Commit:
-    required link name -> std::str
+    required property name -> std::str
         """
 
     def test_eschema_syntax_link_target_type_01(self):
@@ -181,7 +184,7 @@ type LogEntry extending OwnedObject, Text:
     def test_eschema_syntax_index_02(self):
         """
 abstract link foobar:
-    link property foo:
+    property foo:
         title := 'Sample property'
 
     index prop on (self@foo)
@@ -203,7 +206,7 @@ type LogEntry extending    OwnedObject,    Text:
             # irrelevant comment indent
         # irrelevant comment indent
 
-  link start_date -> datetime:
+  property start_date -> datetime:
 
 
                        default :=
@@ -221,7 +224,7 @@ type LogEntry extending    OwnedObject,    Text:
     def test_eschema_syntax_ws_02(self):
         """
         type LogEntry extending OwnedObject, Text:
-            link start_date -> datetime:
+            property start_date -> datetime:
                default :=
                     SELECT datetime::current_datetime()
                title := 'Start Date'
@@ -229,7 +232,7 @@ type LogEntry extending    OwnedObject,    Text:
 
     def test_eschema_syntax_ws_03(self):
         """     type LogEntry extending OwnedObject, Text:
-                    link start_date -> datetime:
+                    property start_date -> datetime:
                        default :=
                             SELECT datetime::current_datetime()
                        title := 'Start Date'
@@ -240,7 +243,7 @@ type LogEntry extending    OwnedObject,    Text:
         type LogEntry extending (
                 OwnedObject,
                 Text):
-            link start_date -> datetime:
+            property start_date -> datetime:
                default :=
                     SELECT datetime::current_datetime()
                title := 'Start Date'
@@ -248,7 +251,7 @@ type LogEntry extending    OwnedObject,    Text:
 % OK %
 
         type LogEntry extending OwnedObject, Text:
-            link start_date -> datetime:
+            property start_date -> datetime:
                default :=
                     SELECT datetime::current_datetime()
                title := 'Start Date'
@@ -259,7 +262,7 @@ type LogEntry extending    OwnedObject,    Text:
         type LogEntry extending (
                 OwnedObject,
                 Text):
-            link start_date -> datetime:
+            property start_date -> datetime:
                default :=
                     SELECT
                     datetime::current_datetime()
@@ -272,7 +275,7 @@ type LogEntry extending    OwnedObject,    Text:
     def test_eschema_syntax_ws_06(self):
         r"""
         type LogEntry extending OwnedObject, Text:
-            link start_date -> datetime:
+            property start_date -> datetime:
                default :=
                     SELECT \
                     datetime::current_datetime()
@@ -303,9 +306,9 @@ type LogEntry extending    OwnedObject,    Text:
         # that provides a name link.
 
             # A few more optional links:
-            link first_name -> str
-            link last_name -> str
-            link email -> str
+            property first_name -> str
+            property last_name -> str
+            property email -> str
         """
 
     def test_eschema_syntax_scalar_01(self):
@@ -503,38 +506,38 @@ type Foo:
     constraint maxlength(4)
         """
 
-    def test_eschema_syntax_linkproperty_01(self):
+    def test_eschema_syntax_property_01(self):
         """
-abstract link property foo:
+abstract property foo:
     title := 'Sample property'
         """
 
-    def test_eschema_syntax_linkproperty_02(self):
+    def test_eschema_syntax_property_02(self):
         """
-abstract link property bar extending foo
+abstract property bar extending foo
         """
 
-    def test_eschema_syntax_linkproperty_03(self):
+    def test_eschema_syntax_property_03(self):
         """
-abstract link property bar extending foo:
+abstract property bar extending foo:
     title := 'Another property'
         """
 
-    def test_eschema_syntax_linkproperty_04(self):
+    def test_eschema_syntax_property_04(self):
         """
-abstract link property foo:
+abstract property foo:
     title := 'Sample property'
 
-abstract link property bar extending foo:
+abstract property bar extending foo:
     title := 'Another property'
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  r"Unexpected token.*LINKPROPERTY",
+                  r"Unexpected token.*PROPERTY",
                   line=2, col=1)
-    def test_eschema_syntax_linkproperty_05(self):
+    def test_eschema_syntax_property_05(self):
         """
-link property foo
+property foo
         """
 
     def test_eschema_syntax_action_01(self):
@@ -572,14 +575,14 @@ abstract link coollink extending boringlink
     def test_eschema_syntax_link_03(self):
         """
 abstract link coollink:
-    link property foo -> int
+    property foo -> int
         """
 
     def test_eschema_syntax_link_04(self):
         """
 abstract link coollink:
-    link property foo -> int
-    link property bar -> int
+    property foo -> int
+    property bar -> int
 
     constraint expr:
         expr := self.foo = self.bar
@@ -587,21 +590,21 @@ abstract link coollink:
 
     def test_eschema_syntax_link_05(self):
         """
-abstract link property foo:
+abstract property foo:
     title := 'Sample property'
 
-abstract link property bar extending foo:
+abstract property bar extending foo:
     title := 'Another property'
 
 abstract link coollink:
-    link property foo -> int:
+    property foo -> int:
         default := 2
         constraint min(0)
         constraint max(123456)
         constraint expr on (__subject__ % 2 = 0):
             title := 'aaa'
 
-    link property bar -> int
+    property bar -> int
 
     constraint expr on (self.foo = self.bar)
 
@@ -616,37 +619,37 @@ event self_deleted:
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  r'Unexpected token.*LINKPROPERTY', line=3, col=22)
+                  r'Link properties cannot be "required".', line=3, col=13)
     def test_eschema_syntax_link_06(self):
         """
         abstract link coollink:
-            required link property foo -> int
+            required property foo -> int
         """
 
     def test_eschema_syntax_link_07(self):
         """
         abstract link time_estimate:
-           link property unit -> str:
+           property unit -> str:
                constraint my_constraint(0)
         """
 
     def test_eschema_syntax_link_08(self):
         """
         abstract link time_estimate:
-           link property unit -> str:
+           property unit -> str:
                constraint my_constraint(0, <str>(42^2))
         """
 
     def test_eschema_syntax_link_09(self):
         """
         abstract link time_estimate:
-           link property unit -> str:
+           property unit -> str:
                constraint my_constraint(')', `)`($$)$$))
 
 % OK %
 
         abstract link time_estimate:
-           link property unit -> str:
+           property unit -> str:
                constraint my_constraint(')', `)`(')'))
         """
 
@@ -677,7 +680,7 @@ type Foo:
         import foo
 
         type Bar extending foo::Foo:
-            link text -> str
+            property text -> str
         """
 
     def test_eschema_syntax_import_02(self):
@@ -685,7 +688,7 @@ type Foo:
         import mylib.util.foo
 
         type Bar extending `mylib.util.foo`::Foo:
-            link text -> str
+            property text -> str
         """
 
     def test_eschema_syntax_import_03(self):
@@ -693,7 +696,7 @@ type Foo:
         import foo as bar
 
         type Bar extending bar::Foo:
-            link text -> str
+            property text -> str
         """
 
     def test_eschema_syntax_import_04(self):
@@ -701,7 +704,7 @@ type Foo:
         import mylib.util.foo as bar
 
         type Bar extending bar::Foo:
-            link text -> str
+            property text -> str
         """
 
     def test_eschema_syntax_import_05(self):
@@ -713,7 +716,7 @@ type Foo:
     otherlib.ham as spam)
 
         type Bar extending foo::Foo, sfoo::Foo, bar::Bar, spam::Ham:
-            link text -> str
+            property text -> str
         """
 
     def test_eschema_syntax_import_06(self):
@@ -721,7 +724,7 @@ type Foo:
         import action.event.foo
 
         type Bar extending `action.event.foo`::Foo:
-            link text -> str
+            property text -> str
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
@@ -731,7 +734,7 @@ type Foo:
         import mylib.util.foo
 
         type Bar extending mylib.util.foo::Foo:
-            link text -> str
+            property text -> str
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
@@ -741,7 +744,7 @@ type Foo:
         import action.event.foo
 
         type Bar extending action.event.foo::Foo:
-            link text -> str
+            property text -> str
         """
 
     def test_eschema_syntax_function_01(self):

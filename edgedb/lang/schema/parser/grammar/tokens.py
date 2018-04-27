@@ -117,10 +117,6 @@ class T_ANYTHING(Token):
     pass
 
 
-class T_LINKPROPERTY(Token):
-    pass
-
-
 def _gen_keyword_tokens():
     # Define keyword tokens
 

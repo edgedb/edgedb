@@ -15,7 +15,7 @@ import asyncpg
 
 from edgedb.lang.common import topological
 from edgedb.lang.common import debug
-from edgedb.lang.common import markup, nlang
+from edgedb.lang.common import nlang
 
 from edgedb.lang.common import exceptions as edgedb_error
 
@@ -35,9 +35,10 @@ from edgedb.lang.schema import expr as s_expr
 from edgedb.lang.schema import functions as s_funcs
 from edgedb.lang.schema import indexes as s_indexes
 from edgedb.lang.schema import links as s_links
-from edgedb.lang.schema import lproperties as s_lprops
+from edgedb.lang.schema import lproperties as s_props
 from edgedb.lang.schema import modules as s_mod
 from edgedb.lang.schema import name as sn
+from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import policy as s_policy
 from edgedb.lang.schema import types as s_types
 
@@ -154,7 +155,7 @@ class Query(backend_query.Query):
 class ErrorMech:
     error_res = {
         asyncpg.IntegrityConstraintViolationError: collections.OrderedDict((
-            ('link_mapping', re.compile(r'^.*".*_link_mapping_idx".*$')),
+            ('cardinality', re.compile(r'^.*".*_cardinality_idx".*$')),
             ('link_target', re.compile(r'^.*link target constraint$')),
             ('constraint', re.compile(r'^.*;schemaconstr(?:#\d+)?".*$')),
             ('id', re.compile(r'^.*"(?:\w+)_data_pkey".*$')), ))
@@ -205,9 +206,9 @@ class ErrorMech:
             else:
                 return edgedb_error.EdgeDBBackendError(err.message)
 
-            if error_type == 'link_mapping':
-                err = 'link mapping cardinality violation'
-                errcls = edgedb_error.LinkMappingCardinalityViolationError
+            if error_type == 'cardinality':
+                err = 'cardinality violation'
+                errcls = edgedb_error.PointerCardinalityViolationError
                 return errcls(err, source=source, pointer=pointer)
 
             elif error_type == 'link_target':
@@ -885,52 +886,6 @@ class Backend(s_deltarepo.DeltaProvider):
                 result = val['value']
         return result
 
-    def interpret_search_index(self, index):
-        m = self.search_idx_name_re.match(index.name)
-        if not m:
-            msg = 'could not interpret index {}'.format(index.name)
-            raise s_err.SchemaError(msg)
-
-        language = m.group('language')
-        index_class = m.group('index_class')
-
-        tree = self.parser.parse(index.expr)
-        columns = self.search_idx_expr.match(tree)
-
-        if columns is None:
-            msg = 'could not interpret index {!r}'.format(str(index.name))
-            details = 'Could not match expression:\n{}'.format(
-                markup.dumps(tree))
-            hint = 'Take a look at the matching pattern and adjust'
-            raise s_err.SchemaError(msg, details=details, hint=hint)
-
-        return index_class, language, columns
-
-    def interpret_search_indexes(self, table_name, indexes):
-        for idx_data in indexes:
-            index = dbops.Index.from_introspection(table_name, idx_data)
-            yield self.interpret_search_index(index)
-
-    async def read_search_indexes(self):
-        indexes = {}
-        idx_data = await introspection.tables.fetch_indexes(
-            self.connection,
-            schema_pattern='edgedb%', index_pattern='%_search_idx')
-
-        for row in idx_data:
-            table_name = tuple(row['table_name'])
-            tabidx = indexes[table_name] = {}
-
-            si = self.interpret_search_indexes(table_name, row['indexes'])
-
-            for index_class, language, columns in si:
-                for column_name, column_config in columns.items():
-                    idx = tabidx.setdefault(column_name, {})
-                    idx[(index_class, column_config[0])] = \
-                        s_links.LinkSearchWeight(column_config[1])
-
-        return indexes
-
     def interpret_indexes(self, table_name, indexes):
         for idx_data in indexes:
             yield dbops.Index.from_introspection(table_name, idx_data)
@@ -1040,7 +995,6 @@ class Backend(s_deltarepo.DeltaProvider):
         links_list = collections.OrderedDict((sn.Name(r['name']), r)
                                              for r in links_list)
 
-        objtype_indexes = await self.read_search_indexes()
         basemap = {}
 
         for name, r in links_list.items():
@@ -1069,7 +1023,7 @@ class Backend(s_deltarepo.DeltaProvider):
             required = r['required']
 
             if r['cardinality']:
-                cardinality = s_links.LinkMapping(r['cardinality'])
+                cardinality = s_pointers.PointerCardinality(r['cardinality'])
             else:
                 cardinality = None
 
@@ -1099,15 +1053,6 @@ class Backend(s_deltarepo.DeltaProvider):
                 objtype_schema, objtype_table = \
                     common.objtype_name_to_table_name(source.name,
                                                       catenate=False)
-
-                indexes = objtype_indexes.get((objtype_schema, objtype_table))
-
-                if indexes:
-                    col_search_index = indexes.get(bases[0])
-                    if col_search_index:
-                        weight = col_search_index[('default', 'english')]
-                        link_search = s_links.LinkSearchConfiguration(
-                            weight=weight)
 
             link.target = target
 
@@ -1151,14 +1096,15 @@ class Backend(s_deltarepo.DeltaProvider):
         basemap = {}
 
         for name, r in link_props.items():
+
             bases = ()
 
             if r['source']:
-                bases = (s_lprops.LinkProperty.get_shortname(name), )
+                bases = (s_props.Property.get_shortname(name), )
             elif r['bases']:
                 bases = tuple(sn.Name(b) for b in r['bases'])
-            elif name != 'std::linkproperty':
-                bases = (sn.Name('std::linkproperty'), )
+            elif name != 'std::property':
+                bases = (sn.Name('std::property'), )
 
             title = self.json_to_word_combination(r['title'])
             description = r['description']
@@ -1167,25 +1113,29 @@ class Backend(s_deltarepo.DeltaProvider):
             default = self.unpack_default(r['default'])
 
             required = r['required']
-            target = None
+            target = self.unpack_typeref(r['target'], schema)
             basemap[name] = bases
 
-            prop = s_lprops.LinkProperty(
+            if r['cardinality']:
+                cardinality = s_pointers.PointerCardinality(r['cardinality'])
+            else:
+                cardinality = None
+
+            prop = s_props.Property(
                 name=name, source=source, target=target, required=required,
                 title=title, description=description, readonly=r['readonly'],
-                computable=r['computable'], default=default)
+                computable=r['computable'], default=default,
+                cardinality=cardinality)
 
-            if source and bases[0] not in {'std::target', 'std::source'}:
-                # The property is attached to a link, check out
-                # link table columns for target information.
+            if bases and bases[0] in {'std::target', 'std::source'}:
+                if bases[0] == 'std::target' and source is not None:
+                    target = source.target
+                elif bases[0] == 'std::source' and source is not None:
+                    target = source.source
+
+            elif isinstance(target, s_scalars.ScalarType):
                 target, required = \
                     await self.read_pointer_target_column(schema, prop, None)
-            else:
-                if bases:
-                    if bases[0] == 'std::target' and source is not None:
-                        target = source.target
-                    elif bases[0] == 'std::source' and source is not None:
-                        target = source.source
 
             prop.target = target
 
@@ -1202,7 +1152,7 @@ class Backend(s_deltarepo.DeltaProvider):
                 pass
             else:
                 prop.bases = [
-                    schema.get(b, type=s_lprops.LinkProperty) for b in bases
+                    schema.get(b, type=s_props.Property) for b in bases
                 ]
 
     async def order_link_properties(self, schema):
@@ -1214,7 +1164,7 @@ class Backend(s_deltarepo.DeltaProvider):
                 g[prop.name]['merge'].extend(b.name for b in prop.bases)
 
         topological.normalize(
-            g, merger=s_lprops.LinkProperty.merge, schema=schema)
+            g, merger=s_props.Property.merge, schema=schema)
 
         for prop in schema.get_objects(type='link_property'):
             prop.finalize(schema)

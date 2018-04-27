@@ -25,7 +25,6 @@ from edgedb.lang.common import ast
 from edgedb.lang.ir import ast as irast
 
 from edgedb.lang.schema import scalars as s_scalars
-from edgedb.lang.schema import lproperties as s_lprops
 
 from edgedb.server.pgsql import ast as pgast
 from edgedb.server.pgsql import common
@@ -324,7 +323,7 @@ def process_insert_body(
             rptr = shape_el.rptr
             ptrcls = rptr.ptrcls.material_type()
 
-            if (isinstance(ptrcls, s_lprops.LinkProperty) and
+            if (ptrcls.is_link_property() and
                     rptr.source.path_id != ir_stmt.subject.path_id):
                 parent_link_props.append(shape_el)
                 continue
@@ -552,8 +551,7 @@ def is_props_only_update(shape_el: irast.Set) -> bool:
     :return:
         `True` if *shape_el* represents a link property-only update.
     """
-    return all(isinstance(el.rptr.ptrcls, s_lprops.LinkProperty)
-               for el in shape_el.shape)
+    return all(el.rptr.ptrcls.is_link_property() for el in shape_el.shape)
 
 
 def process_link_update(
@@ -580,13 +578,13 @@ def process_link_update(
     """
     toplevel = ctx.toplevel_stmt
 
-    edgedb_link = pgast.RangeVar(
+    edgedb_ptr_tab = pgast.RangeVar(
         relation=pgast.Relation(
-            schemaname='edgedb', name='link'
+            schemaname='edgedb', name='pointer'
         ),
-        alias=pgast.Alias(aliasname=ctx.env.aliases.get(hint='l')))
+        alias=pgast.Alias(aliasname=ctx.env.aliases.get(hint='ptr')))
 
-    ltab_alias = edgedb_link.alias.aliasname
+    ltab_alias = edgedb_ptr_tab.alias.aliasname
 
     rptr = ir_expr.rptr
     ptrcls = rptr.ptrcls
@@ -604,7 +602,7 @@ def process_link_update(
     lname_to_id = pgast.CommonTableExpr(
         query=pgast.SelectStmt(
             from_clause=[
-                edgedb_link
+                edgedb_ptr_tab
             ],
             target_list=[
                 pgast.ResTarget(
@@ -646,7 +644,7 @@ def process_link_update(
     )
 
     col_data = {
-        'link_type_id': pgast.ColumnRef(
+        'ptr_item_id': pgast.ColumnRef(
             name=[
                 lname_to_id.name,
                 'id'
@@ -711,7 +709,7 @@ def process_link_update(
     # is executed in the snapshot where the above DELETE from
     # the link table is not visible.  Hence, we need to use
     # the ON CONFLICT clause to resolve this.
-    conflict_cols = ['std::source', 'std::target', 'link_type_id']
+    conflict_cols = ['std::source', 'std::target', 'ptr_item_id']
     conflict_inference = []
     conflict_exc_row = []
 
@@ -936,20 +934,17 @@ def process_link_values(
             if name is None:
                 name = element.path_id[-1].name
             colname = common.edgedb_name_to_pg_name(name)
-            if target_is_scalar and colname == 'std::target':
-                colname = 'std::target@inline'
-
             source_data.setdefault(
                 colname, dbobj.get_column(input_rvar, element.name))
     else:
         if target_is_scalar:
             target_ref = pathctx.get_rvar_path_value_var(
                 input_rvar, path_id, env=ctx.env)
-            source_data['std::target@inline'] = target_ref
         else:
             target_ref = pathctx.get_rvar_path_identity_var(
                 input_rvar, path_id, env=ctx.env)
-            source_data['std::target'] = target_ref
+
+        source_data['std::target'] = target_ref
 
     if not target_is_scalar and 'std::target' not in source_data:
         target_ref = pathctx.get_rvar_path_identity_var(

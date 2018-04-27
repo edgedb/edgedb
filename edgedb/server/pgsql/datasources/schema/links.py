@@ -44,6 +44,7 @@ async def fetch_properties(
                 p.name                  AS name,
                 edgedb._resolve_type_name(p.bases)
                                         AS bases,
+                p.cardinality           AS cardinality,
                 p.title                 AS title,
                 p.description           AS description,
                 p.required              AS required,
@@ -55,7 +56,7 @@ async def fetch_properties(
                 edgedb._resolve_type(p.target)
                                         AS target
             FROM
-                edgedb.LinkProperty p
+                edgedb.Property p
             ORDER BY
                 p.id, p.target NULLS FIRST
     """)

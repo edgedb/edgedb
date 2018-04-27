@@ -19,8 +19,8 @@ class TestIndexes(tb.DDLTestCase):
             #
             CREATE MIGRATION test::d1 TO eschema $$
                 type Person:
-                    link first_name -> str
-                    link last_name -> str
+                    property first_name -> str
+                    property last_name -> str
 
                     index name_index on (__self__.first_name,
                                          __self__.last_name)

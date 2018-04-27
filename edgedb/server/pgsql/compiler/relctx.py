@@ -12,6 +12,7 @@ import typing
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
+from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import objtypes as s_objtypes
 from edgedb.lang.schema import pointers as s_pointers
 
@@ -289,14 +290,24 @@ def _new_mapped_pointer_rvar(
     ptr_rvar = dbobj.range_for_pointer(ir_ptr, env=ctx.env)
     ptr_rvar.nullable = nullable
     # Set up references according to the link direction.
-    src_ptr_info = pg_types.get_pointer_storage_info(
-        ptrcls.getptr(ctx.env.schema, 'std::source'), resolve_type=False)
-    src_col = src_ptr_info.column_name
+    if isinstance(ptrcls, s_links.Link):
+        # XXX: fix this once Properties are Sources
+        src_ptr_info = pg_types.get_pointer_storage_info(
+            ptrcls.getptr(ctx.env.schema, 'std::source'), resolve_type=False)
+        src_col = src_ptr_info.column_name
+    else:
+        src_col = common.edgedb_name_to_pg_name('std::source')
+
     source_ref = dbobj.get_column(None, src_col)
 
-    tgt_ptr_info = pg_types.get_pointer_storage_info(
-        ptrcls.getptr(ctx.env.schema, 'std::target'), resolve_type=False)
-    tgt_col = tgt_ptr_info.column_name
+    if isinstance(ptrcls, s_links.Link):
+        # XXX: fix this once Properties are Sources
+        tgt_ptr_info = pg_types.get_pointer_storage_info(
+            ptrcls.getptr(ctx.env.schema, 'std::target'), resolve_type=False)
+        tgt_col = tgt_ptr_info.column_name
+    else:
+        tgt_col = common.edgedb_name_to_pg_name('std::target')
+
     target_ref = dbobj.get_column(None, tgt_col)
 
     if ir_ptr.direction == s_pointers.PointerDirection.Inbound:

@@ -41,7 +41,7 @@ class ConstraintViolationError(IntegrityConstraintViolationError):
     code = '23514'
 
 
-class LinkMappingCardinalityViolationError(IntegrityConstraintViolationError):
+class PointerCardinalityViolationError(IntegrityConstraintViolationError):
     code = '23600'
 
 

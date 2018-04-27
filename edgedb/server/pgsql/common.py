@@ -12,6 +12,7 @@ from edgedb.lang.common import persistent_hash
 
 from edgedb.lang.schema import objtypes as s_objtypes
 from edgedb.lang.schema import links as s_links
+from edgedb.lang.schema import lproperties as s_props
 
 from edgedb.server.pgsql.parser import keywords as pg_keywords
 
@@ -108,12 +109,12 @@ def objtype_name_to_table_name(name, catenate=True, prefix='edgedb_'):
     return convert_name(name, 'data', catenate)
 
 
-def objtype_name_to_record_name(name, catenate=False, prefix='edgedb_'):
-    return convert_name(name, 'objtype_record', catenate)
-
-
 def link_name_to_table_name(name, catenate=True):
     return convert_name(name, 'link', catenate)
+
+
+def prop_name_to_table_name(name, catenate=True):
+    return convert_name(name, 'prop', catenate)
 
 
 def get_table_name(obj, catenate=True):
@@ -121,6 +122,8 @@ def get_table_name(obj, catenate=True):
         return objtype_name_to_table_name(obj.name, catenate)
     elif isinstance(obj, s_links.Link):
         return link_name_to_table_name(obj.name, catenate)
+    elif isinstance(obj, s_props.Property):
+        return prop_name_to_table_name(obj.name, catenate)
     else:
         raise ValueError(f'cannot determine table for {obj!r}')
 

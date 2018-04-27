@@ -16,7 +16,6 @@ from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import scalars as s_scalars
 from edgedb.lang.schema import objtypes as s_objtypes
-from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import types as s_types
@@ -694,7 +693,7 @@ def _compile_set_in_singleton_mode(
             ptrcls = node.rptr.ptrcls
             source = node.rptr.source
 
-            if not isinstance(ptrcls, s_lprops.LinkProperty):
+            if not ptrcls.is_link_property():
                 if source.rptr:
                     raise RuntimeError(
                         'unexpectedly long path in simple expr')

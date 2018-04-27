@@ -220,13 +220,13 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT
                 ObjectType {
                     l := array_agg(
-                        ObjectType.links.name
+                        ObjectType.properties.name
                         FILTER
-                            ObjectType.links.name IN {
+                            ObjectType.properties.name IN {
                                 'std::id',
                                 'schema::name'
                             }
-                        ORDER BY ObjectType.links.name ASC
+                        ORDER BY ObjectType.properties.name ASC
                     )
                 }
             FILTER
@@ -324,10 +324,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_re_match_02(self):
         await self.assert_query_result(r'''
             WITH MODULE schema
-            SELECT x := re_match(ObjectType.name, '(\w+)::(Link\w*)')
+            SELECT x := re_match(ObjectType.name, '(\w+)::(Link|Property)')
             ORDER BY x;
         ''', [
-            [['schema', 'Link'], ['schema', 'LinkProperty']],
+            [['schema', 'Link'], ['schema', 'Property']],
         ])
 
     async def test_edgeql_functions_re_match_all_01(self):

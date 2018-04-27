@@ -2717,34 +2717,33 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             std::int FROM SQL FUNCTION 'aaa';
         """
 
-    def test_edgeql_syntax_ddl_linkproperty_01(self):
+    def test_edgeql_syntax_ddl_property_01(self):
         """
-        CREATE ABSTRACT LINK PROPERTY std::linkproperty {
-            SET title := 'Base link property';
+        CREATE ABSTRACT PROPERTY std::property {
+            SET title := 'Base property';
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=30)
-    def test_edgeql_syntax_ddl_linkproperty_02(self):
+    def test_edgeql_syntax_ddl_property_02(self):
         """
-        CREATE ABSTRACT LINK LINK PROPERTY std::linkproperty {
-            SET title := 'Base link property';
+        CREATE ABSTRACT PROPERTY std::property {
+            SET title := 'Base property';
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=48)
-    def test_edgeql_syntax_ddl_linkproperty_03(self):
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=43)
+    def test_edgeql_syntax_ddl_property_03(self):
         """
-        CREATE ABSTRACT LINK PROPERTY PROPERTY std::linkproperty {
-            SET title := 'Base link property';
+        CREATE ABSTRACT PROPERTY PROPERTY std::property {
+            SET title := 'Base property';
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=39)
-    def test_edgeql_syntax_ddl_linkproperty_04(self):
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=34)
+    def test_edgeql_syntax_ddl_property_04(self):
         """
-        CREATE ABSTRACT LINK PROPERTY __type__ {
-            SET title := 'Base link property';
+        CREATE ABSTRACT PROPERTY __type__ {
+            SET title := 'Base property';
         };
         """
 

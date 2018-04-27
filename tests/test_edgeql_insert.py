@@ -836,49 +836,6 @@ class TestInsert(tb.QueryTestCase):
             ]
         )
 
-    async def test_edgeql_insert_linkprops_01(self):
-        res = await self.con.execute(r'''
-            INSERT test::Offer {
-                title := (SELECT 'Super offer' {@lang := 'en-US'})
-            };
-
-            INSERT test::Offer {
-                title := (SELECT 'Sample' {@lang := 'en-CA'}),
-                special := (SELECT 'Unavailable, sorry.' {@lang := 'en-CA'})
-            };
-
-            WITH MODULE test
-            SELECT Offer {
-                title: {
-                    @target,
-                    @lang
-                } ORDER BY Offer.title@lang,
-                special: {
-                    @target,
-                    @lang
-                }
-            }
-            ORDER BY Offer.special;
-        ''')
-
-        self.assert_data_shape(
-            res[-1], [{
-                'title': [{
-                    '@target': 'Super offer',
-                    '@lang': 'en-US',
-                }],
-            }, {
-                'title': [{
-                    '@target': 'Sample',
-                    '@lang': 'en-CA',
-                }],
-                'special': {
-                    '@target': 'Unavailable, sorry.',
-                    '@lang': 'en-CA',
-                },
-            }]
-        )
-
     @unittest.expectedFailure
     async def test_edgeql_insert_polymorphic_01(self):
         res = await self.con.execute(r'''

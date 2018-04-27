@@ -18,6 +18,10 @@ class EdgeQLSyntaxError(ParserError, EdgeDBSyntaxError):
     code = '42602'
 
 
+class EdgeQLDefinitionError(EdgeDBSyntaxError):
+    code = '42603'
+
+
 class EdgeQLExpressionError(EdgeQLError):
     pass
 

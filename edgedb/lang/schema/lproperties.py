@@ -8,9 +8,9 @@
 
 from edgedb.lang.edgeql import ast as qlast
 
-from . import scalars as s_scalars
 from . import constraints
 from . import delta as sd
+from . import error as s_err
 from . import inheriting
 from . import name as sn
 from . import named
@@ -18,11 +18,13 @@ from . import objects as so
 from . import pointers
 from . import policy
 from . import referencing
+from . import scalars
 from . import sources
+from . import types
 from . import utils
 
 
-class LinkProperty(pointers.Pointer):
+class Property(pointers.Pointer):
     _type = 'link_property'
 
     def derive(self, schema, source, target=None, attrs=None, **kwargs):
@@ -40,13 +42,19 @@ class LinkProperty(pointers.Pointer):
         return ptr
 
     def compare(self, other, context):
-        # Make std::source link property ignore differences in its target.
-        # This is consistent with skipping the comparison on Pointer.source
-        # in general.
+        if not isinstance(other, Property):
+            if isinstance(other, pointers.Pointer):
+                return 0.0
+            else:
+                return NotImplemented
+
         similarity = super().compare(other, context)
         if (not self.generic() and not other.generic() and
                 self.shortname == 'std::source' and
                 other.shortname == 'std::source'):
+            # Make std::source link property ignore differences in its target.
+            # This is consistent with skipping the comparison on Pointer.source
+            # in general.
             field = self.__class__.get_field('target')
             target_coef = field.type[0].compare_values(
                 self.target, other.target, context, field.compcoef)
@@ -62,12 +70,15 @@ class LinkProperty(pointers.Pointer):
             return super().merge_targets(schema, ptr, t1, t2)
 
     def scalar(self):
-        assert not self.generic(), \
-            "scalarity is not determined for generic pointers"
-        return isinstance(self.target, s_scalars.ScalarType)
-
-    def singular(self, direction=pointers.PointerDirection.Outbound):
         return True
+
+    def has_user_defined_properties(self):
+        return False
+
+    def is_link_property(self):
+        if self.source is None:
+            raise ValueError(f'{self.name} is abstract')
+        return isinstance(self.source, pointers.Pointer)
 
     def copy(self):
         result = super().copy()
@@ -76,49 +87,64 @@ class LinkProperty(pointers.Pointer):
         result.default = self.default
         return result
 
+    def finalize(self, schema, bases=None, *, dctx=None):
+        super().finalize(schema, bases=bases, dctx=dctx)
+
+        if not self.generic() and self.cardinality is None:
+            self.cardinality = pointers.PointerCardinality.OneToOne
+
+            if dctx is not None:
+                from . import delta as sd
+
+                dctx.current().op.add(sd.AlterObjectProperty(
+                    property='cardinality',
+                    new_value=self.cardinality,
+                    source='default'
+                ))
+
     @classmethod
     def get_root_classes(cls):
         return (
-            sn.Name(module='std', name='linkproperty'),
+            sn.Name(module='std', name='property'),
         )
 
     @classmethod
     def get_default_base_name(self):
-        return 'std::linkproperty'
+        return 'std::property'
 
 
-class LinkPropertySourceContext(sources.SourceCommandContext):
+class PropertySourceContext(sources.SourceCommandContext):
     pass
 
 
-class LinkPropertySourceCommand(referencing.ReferencingObjectCommand):
+class PropertySourceCommand(referencing.ReferencingObjectCommand):
     pass
 
 
-class LinkPropertyCommandContext(pointers.PointerCommandContext,
-                                 constraints.ConsistencySubjectCommandContext):
+class PropertyCommandContext(pointers.PointerCommandContext,
+                             constraints.ConsistencySubjectCommandContext):
     pass
 
 
-class LinkPropertyCommand(pointers.PointerCommand,
-                          schema_metaclass=LinkProperty,
-                          context_class=LinkPropertyCommandContext,
-                          referrer_context_class=LinkPropertySourceContext):
+class PropertyCommand(pointers.PointerCommand,
+                      schema_metaclass=Property,
+                      context_class=PropertyCommandContext,
+                      referrer_context_class=PropertySourceContext):
     pass
 
 
-class CreateLinkProperty(LinkPropertyCommand,
-                         referencing.CreateReferencedInheritingObject):
-    astnode = [qlast.CreateConcreteLinkProperty,
-               qlast.CreateLinkProperty]
+class CreateProperty(PropertyCommand,
+                     referencing.CreateReferencedInheritingObject):
+    astnode = [qlast.CreateConcreteProperty,
+               qlast.CreateProperty]
 
-    referenced_astnode = qlast.CreateConcreteLinkProperty
+    referenced_astnode = qlast.CreateConcreteProperty
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
-        if isinstance(astnode, qlast.CreateConcreteLinkProperty):
+        if isinstance(astnode, qlast.CreateConcreteProperty):
             target = getattr(astnode, 'target', None)
 
             cmd.add(
@@ -128,7 +154,7 @@ class CreateLinkProperty(LinkPropertyCommand,
                 )
             )
 
-            parent_ctx = context.get(LinkPropertySourceContext)
+            parent_ctx = context.get(PropertySourceContext)
             source_name = parent_ctx.op.classname
 
             cmd.add(
@@ -140,10 +166,21 @@ class CreateLinkProperty(LinkPropertyCommand,
                 )
             )
 
+            target_ref = utils.ast_to_typeref(target)
+            target_type = utils.resolve_typeref(target_ref, schema=schema)
+
+            if not isinstance(target_type, (scalars.ScalarType,
+                                            types.Collection)):
+                raise s_err.SchemaDefinitionError(
+                    f'invalid property target, expected primitive type, got '
+                    f'{target_type.__class__.__name__}',
+                    context=astnode.targets[0].context
+                )
+
             cmd.add(
                 sd.AlterObjectProperty(
                     property='target',
-                    new_value=utils.ast_to_typeref(target)
+                    new_value=target_ref
                 )
             )
 
@@ -152,11 +189,11 @@ class CreateLinkProperty(LinkPropertyCommand,
         return cmd
 
     def _get_ast_node(self, context):
-        link = context.get(LinkPropertySourceContext)
+        link = context.get(PropertySourceContext)
         if link:
-            return qlast.CreateConcreteLinkProperty
+            return qlast.CreateConcreteProperty
         else:
-            return qlast.CreateLinkProperty
+            return qlast.CreateProperty
 
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)
@@ -168,7 +205,7 @@ class CreateLinkProperty(LinkPropertyCommand,
             self._append_subcmd_ast(node, op, context)
 
     def _apply_field_ast(self, context, node, op):
-        link = context.get(LinkPropertySourceContext)
+        link = context.get(PropertySourceContext)
 
         if op.property == 'is_derived':
             pass
@@ -184,27 +221,25 @@ class CreateLinkProperty(LinkPropertyCommand,
             super()._apply_field_ast(context, node, op)
 
 
-class RenameLinkProperty(LinkPropertyCommand, named.RenameNamedObject):
+class RenameProperty(PropertyCommand, named.RenameNamedObject):
     pass
 
 
-class RebaseLinkProperty(LinkPropertyCommand,
-                         inheriting.RebaseNamedObject):
+class RebaseProperty(PropertyCommand, inheriting.RebaseNamedObject):
     pass
 
 
-class AlterLinkProperty(LinkPropertyCommand,
-                        inheriting.AlterInheritingObject):
-    astnode = [qlast.AlterConcreteLinkProperty,
-               qlast.AlterLinkProperty]
+class AlterProperty(PropertyCommand, inheriting.AlterInheritingObject):
+    astnode = [qlast.AlterConcreteProperty,
+               qlast.AlterProperty]
 
     def _get_ast_node(self, context):
-        objtype = context.get(LinkPropertySourceContext)
+        objtype = context.get(PropertySourceContext)
 
         if objtype:
-            return qlast.AlterConcreteLinkProperty
+            return qlast.AlterConcreteProperty
         else:
-            return qlast.AlterLinkProperty
+            return qlast.AlterProperty
 
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)
@@ -231,18 +266,17 @@ class AlterLinkProperty(LinkPropertyCommand,
             super()._apply_field_ast(context, node, op)
 
 
-class DeleteLinkProperty(LinkPropertyCommand,
-                         inheriting.DeleteInheritingObject):
-    astnode = [qlast.DropConcreteLinkProperty,
-               qlast.DropLinkProperty]
+class DeleteProperty(PropertyCommand, inheriting.DeleteInheritingObject):
+    astnode = [qlast.DropConcreteProperty,
+               qlast.DropProperty]
 
     def _get_ast_node(self, context):
-        objtype = context.get(LinkPropertySourceContext)
+        objtype = context.get(PropertySourceContext)
 
         if objtype:
-            return qlast.DropConcreteLinkProperty
+            return qlast.DropConcreteProperty
         else:
-            return qlast.DropLinkProperty
+            return qlast.DropProperty
 
     def _apply_fields_ast(self, context, node):
         super()._apply_fields_ast(context, node)

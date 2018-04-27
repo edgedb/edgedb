@@ -14,25 +14,25 @@ class TestSchema(tb.BaseSchemaTest):
     def test_schema_inherited_01(self):
         """
             type UniqueName:
-                link name -> str:
+                property name -> str:
                     constraint unique
 
             type UniqueName_2 extending UniqueName:
-                inherited link name -> str:
+                inherited property name -> str:
                     constraint unique
         """
 
     @tb.must_fail(s_err.SchemaError,
                   'test::name must be declared using the `inherited` keyword',
-                  position=171)
+                  position=175)
     def test_schema_inherited_02(self):
         """
             type UniqueName:
-                link name -> str:
+                property name -> str:
                     constraint unique
 
             type UniqueName_2 extending UniqueName:
-                link name -> str:
+                property name -> str:
                     constraint unique
         """
 
@@ -42,5 +42,43 @@ class TestSchema(tb.BaseSchemaTest):
     def test_schema_inherited_03(self):
         """
             type UniqueName:
-                inherited link name -> str
+                inherited property name -> str
+        """
+
+    @tb.must_fail(s_err.SchemaError,
+                  'invalid link target, expected object type, got ScalarType',
+                  position=54)
+    def test_schema_bad_link_01(self):
+        """
+            type Object:
+                link foo -> str
+        """
+
+    @tb.must_fail(s_err.SchemaError,
+                  'invalid link target, expected object type, got ScalarType',
+                  position=51)
+    def test_schema_bad_link_02(self):
+        """
+            type Object:
+                link foo := 1 + 1
+        """
+
+    @tb.must_fail(s_err.SchemaError,
+                  'invalid property target, expected primitive type, '
+                  'got ObjectType',
+                  position=58)
+    def test_schema_bad_prop_01(self):
+        """
+            type Object:
+                property foo -> Object
+        """
+
+    @tb.must_fail(s_err.SchemaError,
+                  'invalid property target, expected primitive type, '
+                  'got ObjectType',
+                  position=55)
+    def test_schema_bad_prop_02(self):
+        """
+            type Object:
+                property foo := (SELECT Object)
         """

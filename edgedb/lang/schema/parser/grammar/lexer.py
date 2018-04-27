@@ -116,11 +116,6 @@ class EdgeSchemaLexer(lexer.Lexer):
                      if tok[0] not in {'LINK', 'TO', 'EXTENDING', 'ATTRIBUTE'}]
 
     common_rules = keyword_rules + [
-        # "link property" needs to be parsed as a single token
-        Rule(token='LINKPROPERTY',
-             next_state=STATE_KEEP,
-             regexp=r'\bLINK\s+PROPERTY\b'),
-
         Rule(token='LINK',
              next_state=STATE_KEEP,
              regexp=r'\bLINK\b'),

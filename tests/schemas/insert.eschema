@@ -1,35 +1,31 @@
-abstract link l3:
-    link property comment -> str:
-        default := "N/A"
-
 abstract link subordinates:
-    link property comment -> str
+    property comment -> str
 
 type Subordinate:
-    required link name -> str
+    required property name -> str
 
 type InsertTest:
-    link name -> str
-    link l1 -> int
-    required link l2 -> int
-    link l3 -> str:
+    property name -> str
+    property l1 -> int
+    required property l2 -> int
+    property l3 -> str:
         default := "test"
     link subordinates -> Subordinate:
         cardinality := '1*'
 
 type Annotation:
-    required link name -> str
-    link note -> str
+    required property name -> str
+    property note -> str
     link subject -> Object
 
 type DefaultTest1:
-    link num -> int:
+    property num -> int:
         default := 42
-    link foo -> str
+    property foo -> str
 
 type DefaultTest2:
-    link foo -> str
-    required link num -> int:
+    property foo -> str
+    required property num -> int:
         # XXX: circumventing sequence deficiency
         default :=
             SELECT DefaultTest1.num + 1
@@ -37,34 +33,18 @@ type DefaultTest2:
             LIMIT 1
 
 type DefaultTest3:
-    required link foo -> float:
+    required property foo -> float:
         # non-deterministic dynamic value
         default := random()
 
 type DefaultTest4:
-    required link bar -> int:
+    required property bar -> int:
         # deterministic dynamic value
         default := (SELECT count(DefaultTest4))
 
-# links and types to test scalar links with link properties
-abstract link special:
-    link property lang -> str
-
-abstract link title:
-    link property lang -> str
-
-
-type Offer:
-    # title translated into multiple languages
-    required link title -> str:
-        cardinality := '1*'
-
-    # some king of special offer for a specific language
-    link special -> str
-
 # types to test some inheritance issues
 type InputValue:
-    link val -> str
+    property val -> str
 
 abstract type Callable:
     link args -> InputValue:

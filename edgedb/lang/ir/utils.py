@@ -242,7 +242,7 @@ class TypeIndirectionLink(s_links.Link):
 
 
 def type_indirection_path_id(path_id, target_type, *, optional: bool,
-                             cardinality: s_links.LinkMapping):
+                             cardinality: s_pointers.PointerCardinality):
     return path_id.extend(
         TypeIndirectionLink(path_id[-1], target_type,
                             optional=optional, cardinality=cardinality),

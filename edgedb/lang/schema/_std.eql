@@ -299,17 +299,11 @@ CREATE EVENT std::cascade_copy EXTENDING std::cascade_base;
 
 CREATE EVENT std::target_deleted EXTENDING std::deleted;
 
-CREATE ABSTRACT LINK PROPERTY std::linkproperty {
-    SET title := 'Base link property';
-};
+CREATE ABSTRACT PROPERTY std::property;
 
-CREATE ABSTRACT LINK PROPERTY std::source {
-    SET title := 'Link source';
-};
+CREATE ABSTRACT PROPERTY std::source;
 
-CREATE ABSTRACT LINK PROPERTY std::target {
-    SET title := 'Link target';
-};
+CREATE ABSTRACT PROPERTY std::target;
 
 CREATE ABSTRACT LINK std::link {
     CREATE POLICY FOR std::cascade_session_detach TO std::cascade_loaded;
@@ -321,10 +315,10 @@ CREATE ABSTRACT LINK std::link {
     CREATE POLICY FOR std::cascade_copy TO std::ignore;
 };
 
-CREATE ABSTRACT LINK std::id EXTENDING std::link;
+CREATE ABSTRACT PROPERTY std::id EXTENDING std::property;
 
 CREATE TYPE std::Object {
-    CREATE REQUIRED LINK std::id -> std::uuid {
+    CREATE REQUIRED PROPERTY std::id -> std::uuid {
         SET default := (SELECT std::uuid_generate_v1mc());
         SET cardinality := '11';
         SET readonly := True;
@@ -339,8 +333,8 @@ CREATE MODULE schema;
 
 # Base type for all schema entities.
 CREATE ABSTRACT TYPE schema::Object {
-    CREATE REQUIRED LINK schema::name -> std::str;
-    CREATE LINK schema::description -> std::str;
+    CREATE REQUIRED PROPERTY schema::name -> std::str;
+    CREATE PROPERTY schema::description -> std::str;
 };
 
 
@@ -354,7 +348,7 @@ CREATE TYPE schema::Attribute EXTENDING schema::Object {
 
 
 CREATE ABSTRACT LINK schema::attributes {
-    CREATE LINK PROPERTY schema::value -> std::str;
+    CREATE PROPERTY schema::value -> std::str;
 };
 
 
@@ -385,7 +379,7 @@ CREATE ABSTRACT TYPE schema::ContainerType EXTENDING schema::Type;
 
 CREATE TYPE schema::Array EXTENDING schema::ContainerType {
     CREATE REQUIRED LINK schema::element_type -> schema::Type;
-    CREATE LINK schema::dimensions -> array<std::int>;
+    CREATE PROPERTY schema::dimensions -> array<std::int>;
 };
 
 
@@ -397,8 +391,8 @@ CREATE TYPE schema::Map EXTENDING schema::ContainerType {
 
 CREATE TYPE schema::TypeElement {
     CREATE REQUIRED LINK schema::type -> schema::Type;
-    CREATE REQUIRED LINK schema::num -> std::int;
-    CREATE LINK schema::name -> std::str;
+    CREATE REQUIRED PROPERTY schema::num -> std::int;
+    CREATE PROPERTY schema::name -> std::str;
 };
 
 
@@ -425,11 +419,11 @@ CREATE ABSTRACT TYPE schema::InheritingObject EXTENDING schema::Object {
         SET cardinality := '**';
     };
 
-    CREATE LINK schema::is_abstract -> std::bool {
+    CREATE PROPERTY schema::is_abstract -> std::bool {
         SET default := false;
     };
 
-    CREATE LINK schema::is_final -> std::bool {
+    CREATE PROPERTY schema::is_final -> std::bool {
         SET default := false;
     };
 };
@@ -437,23 +431,23 @@ CREATE ABSTRACT TYPE schema::InheritingObject EXTENDING schema::Object {
 
 CREATE TYPE schema::Parameter {
     CREATE REQUIRED LINK schema::type -> schema::Type;
-    CREATE REQUIRED LINK schema::kind -> std::str;
-    CREATE REQUIRED LINK schema::num -> std::int;
-    CREATE LINK schema::name -> std::str;
-    CREATE LINK schema::default -> std::str;
-    CREATE LINK schema::variadic -> std::bool;
+    CREATE REQUIRED PROPERTY schema::kind -> std::str;
+    CREATE REQUIRED PROPERTY schema::num -> std::int;
+    CREATE PROPERTY schema::name -> std::str;
+    CREATE PROPERTY schema::default -> std::str;
+    CREATE PROPERTY schema::variadic -> std::bool;
 };
 
 
 CREATE TYPE schema::Constraint EXTENDING schema::InheritingObject {
-    CREATE LINK schema::expr -> std::str;
-    CREATE LINK schema::subjectexpr -> std::str;
-    CREATE LINK schema::finalexpr -> std::str;
-    CREATE LINK schema::errmessage -> std::str;
+    CREATE PROPERTY schema::expr -> std::str;
+    CREATE PROPERTY schema::subjectexpr -> std::str;
+    CREATE PROPERTY schema::finalexpr -> std::str;
+    CREATE PROPERTY schema::errmessage -> std::str;
     CREATE LINK schema::params -> schema::Parameter {
         SET cardinality := '**';
     };
-    CREATE LINK schema::args -> map<std::str, std::str>;
+    CREATE PROPERTY schema::args -> map<std::str, std::str>;
 };
 
 
@@ -465,7 +459,7 @@ CREATE ABSTRACT TYPE schema::ConsistencySubject EXTENDING schema::Object {
 
 
 CREATE TYPE schema::SourceIndex EXTENDING schema::Object {
-    CREATE LINK schema::expr -> std::str;
+    CREATE PROPERTY schema::expr -> std::str;
 };
 
 
@@ -479,9 +473,16 @@ CREATE ABSTRACT TYPE schema::Source EXTENDING schema::Object {
 CREATE ABSTRACT TYPE schema::Pointer EXTENDING schema::Object;
 
 
+ALTER TYPE schema::Source {
+    CREATE LINK schema::pointers -> schema::Pointer {
+        SET cardinality := '1*';
+    };
+};
+
+
 CREATE TYPE schema::ScalarType EXTENDING
         (schema::InheritingObject, schema::ConsistencySubject, schema::Type) {
-    CREATE LINK schema::default -> std::str;
+    CREATE PROPERTY schema::default -> std::str;
 };
 
 
@@ -510,7 +511,7 @@ CREATE TYPE schema::DerivedLink EXTENDING
          schema::Source);
 
 
-CREATE TYPE schema::LinkProperty EXTENDING
+CREATE TYPE schema::Property EXTENDING
         (schema::InheritingObject, schema::ConsistencySubject, schema::Pointer);
 
 
@@ -521,16 +522,16 @@ ALTER TYPE schema::Pointer {
 
 
 ALTER TYPE schema::Link {
-    CREATE LINK schema::link_properties -> schema::LinkProperty {
-        SET cardinality := '1*';
-    };
+    CREATE LINK schema::properties := __self__.pointers;
 };
 
 
 ALTER TYPE schema::ObjectType {
-    CREATE LINK schema::links -> schema::Link {
-        SET cardinality := '1*';
-    };
+    CREATE LINK schema::links := (SELECT __self__.pointers FILTER
+                                  __self__.pointers IS schema::Link);
+
+    CREATE LINK schema::properties := (SELECT __self__.pointers FILTER
+                                       __self__.pointers IS schema::Property);
 };
 
 
@@ -539,6 +540,6 @@ CREATE TYPE schema::Function EXTENDING schema::Object {
         SET cardinality := '**';
     };
     CREATE LINK schema::returntype -> schema::Type;
-    CREATE LINK schema::aggregate -> std::bool;
-    CREATE LINK schema::set_returning -> std::bool;
+    CREATE PROPERTY schema::aggregate -> std::bool;
+    CREATE PROPERTY schema::set_returning -> std::bool;
 };

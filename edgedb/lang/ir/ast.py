@@ -92,6 +92,7 @@ class Statement(Base):
     expr: Set
     views: typing.Dict[sn.Name, s_types.Type]
     params: typing.Dict[str, s_types.Type]
+    cardinality: Cardinality
     scope_tree: ScopeTreeNode
     scope_map: typing.Dict[Set, str]
     source_map: typing.Dict[s_pointers.Pointer,

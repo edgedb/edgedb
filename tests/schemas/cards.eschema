@@ -1,31 +1,31 @@
 abstract type Named:
-    required link name -> str:
+    required property name -> str:
         delegated constraint unique
 
 
 abstract link deck:
-    link property count -> int
+    property count -> int
 
 
 abstract link friends:
-    link property nickname -> str
+    property nickname -> str
     # how the friend responded to requests for a favor
-    #link property favor -> array<bool>
+    #property favor -> array<bool>
 
 
 type User extending Named:
     link deck -> Card:
         cardinality := '**'
 
-    link deck_cost := sum(__self__.deck.cost)
+    property deck_cost := sum(__self__.deck.cost)
 
     link friends -> User:
         cardinality := '**'
 
 
 type Card extending Named:
-    required link element -> str
-    required link cost -> int
+    required property element -> str
+    required property cost -> int
     link owners := __self__.<deck[IS User]
 
 

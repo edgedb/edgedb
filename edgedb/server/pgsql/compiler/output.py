@@ -7,8 +7,6 @@
 """Compilation helpers for output formatting and serialization."""
 
 
-from edgedb.lang.schema import lproperties as s_lprops
-
 from edgedb.server.pgsql import ast as pgast
 
 from . import context
@@ -30,7 +28,7 @@ def tuple_var_as_json_object(tvar, *, env):
                 name = element.path_id[-1].name.name
             else:
                 name = rptr.shortname.name
-                if isinstance(rptr, s_lprops.LinkProperty):
+                if rptr.is_link_property():
                     name = '@' + name
             keyvals.append(pgast.Constant(val=name))
             if isinstance(element.val, pgast.TupleVar):

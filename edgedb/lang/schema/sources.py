@@ -11,6 +11,7 @@ from edgedb.lang.common.persistent_hash import persistent_hash
 from . import error as schema_error
 from . import indexes
 from . import name as sn
+from . import pointers
 from . import referencing
 from . import utils
 
@@ -29,12 +30,8 @@ class Source(indexes.IndexableSubject):
                                    ordered=True,
                                    requires_explicit_inherit=True,
                                    backref='source',
-                                   ref_cls='get_pointer_class',
+                                   ref_cls=pointers.Pointer,
                                    compcoef=0.857)
-
-    @classmethod
-    def get_pointer_class(cls):
-        raise NotImplementedError
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -183,11 +180,8 @@ class Source(indexes.IndexableSubject):
         for ptr_name in ptr_names:
             base_ptr_class = schema.get(ptr_name, default=None)
             if base_ptr_class:
-                root_class = schema.get(
-                    self.get_pointer_class().get_default_base_name())
-                skip_scalar = base_ptr_class.name == root_class.name
                 ptrs = resolver.getptr_inherited_from(
-                    self, schema, base_ptr_class, skip_scalar)
+                    self, schema, base_ptr_class, False)
                 break
 
         return ptrs

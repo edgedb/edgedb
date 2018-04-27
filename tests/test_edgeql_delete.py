@@ -16,10 +16,10 @@ class TestDelete(tb.QueryTestCase):
     SETUP = """
         CREATE MIGRATION test::d_delete01 TO eschema $$
             type DeleteTest:
-                link name -> str
+                property name -> str
 
             type DeleteTest2:
-                link name -> str
+                property name -> str
         $$;
 
         COMMIT MIGRATION test::d_delete01;

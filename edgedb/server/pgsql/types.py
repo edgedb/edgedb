@@ -12,7 +12,6 @@ from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import scalars as s_scalars
 from edgedb.lang.schema import objtypes as s_objtypes
-from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import schema as s_schema
@@ -158,10 +157,6 @@ class PointerStorageInfo:
     def _pointer_table_info(cls, pointer):
         table = common.get_table_name(pointer, catenate=False)
         col_name = 'std::target'
-
-        if pointer.scalar():
-            col_name += '@inline'
-
         table_type = 'link'
         col_name = common.edgedb_name_to_pg_name(col_name)
 
@@ -200,28 +195,28 @@ class PointerStorageInfo:
             not pointer.singular() or not pointer.scalar() or
             pointer.has_user_defined_properties())
 
-    def __new__(
-            cls, schema, pointer, source=None, resolve_type=True,
-            link_bias=False):
-        is_prop = isinstance(pointer, s_lprops.LinkProperty)
+    def __new__(cls, schema, pointer, source=None, resolve_type=True,
+                link_bias=False):
+
+        if source is None:
+            source = pointer.source
+
+        is_lprop = pointer.is_link_property()
 
         if resolve_type and schema is None:
             msg = 'PointerStorageInfo needs a schema to resolve column_type'
             raise ValueError(msg)
 
-        if source is None:
-            source = pointer.source
-
-        if is_prop and pointer.shortname == 'std::target':
+        if is_lprop and pointer.shortname == 'std::target':
             # Normalize link@target to link
             pointer = source
-            is_prop = False
+            is_lprop = False
 
         if isinstance(pointer, irutils.TupleIndirectionLink):
             table = None
             table_type = 'ObjectType'
             col_name = common.edgedb_name_to_pg_name(pointer.shortname.name)
-        elif is_prop:
+        elif is_lprop:
             table = common.get_table_name(source, catenate=False)
             table_type = 'link'
             col_name = common.edgedb_name_to_pg_name(pointer.shortname)

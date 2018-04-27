@@ -14,6 +14,7 @@ from edgedb.lang.common import ast
 from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.edgeql import errors as ql_errors
 
+from edgedb.lang.schema import objtypes as s_objtypes
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import schema as s_schema
 from edgedb.lang.schema import sources as s_sources
@@ -146,16 +147,22 @@ def __infer_typecast(ir, singletons, schema):
 
 
 def _is_ptr_or_self_ref(
-        ir_set: irast.Set,
+        ir_expr: irast.Base,
         srccls: s_sources.Source,
         schema: s_schema.Schema) -> bool:
-    return (
-        ir_set.expr is None and
-        ir_set.scls == srccls or (
-            ir_set.rptr is not None and
-            srccls.getptr(schema, ir_set.rptr.ptrcls.shortname) is not None
+    if not isinstance(ir_expr, irast.Set):
+        return False
+    else:
+        ir_set = ir_expr
+
+        return (
+            isinstance(srccls, s_objtypes.ObjectType) and
+            ir_set.expr is None and
+            (ir_set.scls == srccls or (
+                ir_set.rptr is not None and
+                srccls.getptr(schema, ir_set.rptr.ptrcls.shortname) is not None
+            ))
         )
-    )
 
 
 def _extract_filters(

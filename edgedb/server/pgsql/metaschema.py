@@ -630,6 +630,10 @@ async def bootstrap(conn):
         dbops.CreateTable(table)
         for table in list(metaclass_tables.values())[1:])
 
+    commands.add_commands(
+        dbops.Comment(table, f'schema::{mcls.__name__}')
+        for mcls, table in list(metaclass_tables.items())[1:])
+
     commands.add_commands([
         dbops.CreateFunction(RaiseExceptionFunction()),
         dbops.CreateFunction(DeriveUUIDFunction()),
@@ -1161,6 +1165,9 @@ async def generate_views(conn, schema):
         cols = []
 
         for pn, ptr in schema_cls.pointers.items():
+            if ptr.is_pure_computable():
+                continue
+
             field = mcls.get_field(pn.name)
             refdict = None
             if field is None:
@@ -1217,9 +1224,9 @@ async def generate_views(conn, schema):
                 if (pn.name == 'name' and
                         issubclass(mcls, (s_inheriting.InheritingObject,
                                           s_funcs.Function))):
-                    col_expr = 'edgedb.get_shortname({})'.format(q(pn.name))
+                    col_expr = 'edgedb.get_shortname(t.{})'.format(q(pn.name))
                 else:
-                    col_expr = q(pn.name)
+                    col_expr = f't.{q(pn.name)}'
 
                 cols.append((col_expr, dbname(ptr.shortname)))
             else:
@@ -1234,10 +1241,15 @@ async def generate_views(conn, schema):
         view_query = f'''
             SELECT
                 {coltext.strip()},
-                (SELECT id FROM edgedb.NamedObject
-                 WHERE name = '{schema_cls.name}') AS "std::__type__"
+                no.id AS "std::__type__"
             FROM
-                edgedb.{mcls.__name__}
+                edgedb.{mcls.__name__} AS t
+                INNER JOIN pg_class AS c
+                    ON (t.tableoid = c.oid)
+                INNER JOIN pg_description AS cmt
+                    ON (c.oid = cmt.objoid AND c.tableoid = cmt.classoid)
+                INNER JOIN edgedb.NamedObject AS no
+                    ON (no.name = cmt.description)
         '''
 
         view = dbops.View(name=tabname(schema_cls), query=view_query)
