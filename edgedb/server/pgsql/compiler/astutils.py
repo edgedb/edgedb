@@ -8,7 +8,6 @@
 
 from edgedb.lang.common import ast
 
-from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import pointers as s_pointers
 
 from edgedb.server.pgsql import ast as pgast
@@ -26,7 +25,7 @@ def tuple_element_for_shape_el(shape_el, value):
     attr_name = s_pointers.PointerVector(
         name=ptrname.name, module=ptrname.module,
         direction=ptrdir, target=ptrcls.get_far_endpoint(ptrdir),
-        is_linkprop=isinstance(ptrcls, s_lprops.LinkProperty))
+        is_linkprop=ptrcls.is_link_property())
 
     return pgast.TupleElement(
         path_id=shape_el.path_id,

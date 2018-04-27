@@ -25,7 +25,6 @@ from edgedb.lang.ir import inference as ir_inference
 from . import ast as s_ast
 from . import parser as s_parser
 
-from . import scalars as s_scalars
 from . import attributes as s_attrs
 from . import delta as s_delta
 from . import objtypes as s_objtypes
@@ -34,10 +33,12 @@ from . import error as s_err
 from . import expr as s_expr
 from . import indexes as s_indexes
 from . import links as s_links
-from . import lproperties as s_lprops
+from . import lproperties as s_props
 from . import modules as s_mod
 from . import name as s_name
 from . import objects as s_obj
+from . import pointers as s_pointers
+from . import scalars as s_scalars
 from . import schema as s_schema
 from . import types as s_types
 
@@ -148,7 +149,7 @@ class DeclarationLoader:
         # thus, it has to be performed in reverse order (mostly).
         objtypes = self._sort(module.get_objects(type='ObjectType'))
         links = self._sort(module.get_objects(type='link'))
-        linkprops = self._sort(module.get_objects(type='linkproperty'))
+        props = self._sort(module.get_objects(type='property'))
         events = self._sort(module.get_objects(type='event'))
         actions = self._sort(module.get_objects(type='action'))
         attrvals = module.get_objects(type='attribute-value')
@@ -170,7 +171,7 @@ class DeclarationLoader:
         # topological order.
         self._schema.reorder(itertools.chain(
             attributes, attrvals, actions, events, constraints,
-            scalars, linkprops, indexes, links, objtypes))
+            scalars, props, indexes, links, objtypes))
 
         dctx = s_delta.CommandContext(declarative=True)
 
@@ -348,19 +349,19 @@ class DeclarationLoader:
 
     def _init_links(self, links):
         for link, decl in links.items():
-            self._parse_link_props(link, decl)
+            self._parse_source_props(link, decl)
 
-    def _parse_link_props(self, link, linkdecl):
-        for propdecl in linkdecl.properties:
+    def _parse_source_props(self, source, sourcedecl):
+        for propdecl in sourcedecl.properties:
             prop_name = self._get_ref_name(propdecl.name)
             prop_base = self._schema.get(prop_name,
-                                         type=s_lprops.LinkProperty,
+                                         type=s_props.Property,
                                          default=None,
                                          module_aliases=self._mod_aliases)
             prop_target = None
 
             if prop_base is None:
-                if not link.generic():
+                if not source.generic():
                     # Only generic links can implicitly define properties
                     raise s_err.SchemaError('reference to an undefined '
                                             'property {!r}'.format(prop_name))
@@ -371,13 +372,13 @@ class DeclarationLoader:
                     # property definition. The only attribute that is used for
                     # global definition is the name.
                     prop_qname = s_name.Name(
-                        name=prop_name, module=link.name.module)
+                        name=prop_name, module=source.name.module)
 
                     std_lprop = self._schema.get(
-                        s_lprops.LinkProperty.get_default_base_name(),
+                        s_props.Property.get_default_base_name(),
                         module_aliases=self._mod_aliases)
 
-                    prop_base = s_lprops.LinkProperty(
+                    prop_base = s_props.Property(
                         name=prop_qname, bases=[std_lprop])
 
                     self._schema.add(prop_base)
@@ -388,23 +389,41 @@ class DeclarationLoader:
 
             if propdecl.target is not None:
                 prop_target = self._get_ref_type(propdecl.target[0])
+                if not isinstance(prop_target, (s_scalars.ScalarType,
+                                                s_types.Collection)):
+                    raise s_err.SchemaDefinitionError(
+                        f'invalid property target, expected primitive type, '
+                        f'got {prop_target.__class__.__name__}',
+                        context=propdecl.target[0].context
+                    )
 
-            elif not link.generic():
-                link_base = link.bases[0]
+            elif not source.generic():
+                link_base = source.bases[0]
                 propdef = link_base.pointers.get(prop_qname)
                 if not propdef:
                     raise s_err.SchemaError(
                         'link {!r} does not define property '
-                        '{!r}'.format(link.name, prop_qname))
+                        '{!r}'.format(source.name, prop_qname))
 
                 prop_qname = propdef.shortname
 
-            prop = prop_base.derive(self._schema, link, prop_target,
+            prop = prop_base.derive(self._schema, source, prop_target,
                                     add_to_schema=True)
 
-            prop.declared_inherited = propdecl.inherited
+            prop.sourcectx = propdecl.context
 
-            link.add_pointer(prop)
+            prop.declared_inherited = propdecl.inherited
+            prop.required = bool(propdecl.required)
+
+            cardinality = self._get_literal_attribute(
+                propdecl, 'cardinality')
+            if cardinality is not None:
+                prop.cardinality = cardinality
+
+            if propdecl.expr is not None:
+                prop.computable = True
+
+            source.add_pointer(prop)
 
             if propdecl.attributes:
                 for attrdecl in propdecl.attributes:
@@ -412,7 +431,7 @@ class DeclarationLoader:
                     if name == 'default':
                         # the default can be computable or static
                         #
-                        self._parse_ptr_default(attrdecl.value, link, prop)
+                        self._parse_ptr_default(attrdecl.value, source, prop)
                         break
 
             if propdecl.constraints:
@@ -548,6 +567,8 @@ class DeclarationLoader:
 
     def _init_objtypes(self, objtypes):
         for objtype, objtypedecl in objtypes.items():
+            self._parse_source_props(objtype, objtypedecl)
+
             for linkdecl in objtypedecl.links:
                 link_name = self._get_ref_name(linkdecl.name)
                 link_base = self._schema.get(link_name, type=s_links.Link,
@@ -581,10 +602,8 @@ class DeclarationLoader:
                     # temporarily.
                     _targets = [self._schema.get('std::any')]
 
-                elif linkdecl.target:
-                    _targets = [self._get_ref_type(t) for t in linkdecl.target]
                 else:
-                    _targets = [self._get_ref_type(linkdecl.target)]
+                    _targets = [self._get_ref_type(t) for t in linkdecl.target]
 
                 if len(_targets) == 1:
                     # Usual case, just one target
@@ -598,6 +617,14 @@ class DeclarationLoader:
                         self._schema, spectargets)
                     if not self._schema.get(target.name, default=None):
                         self._schema.add(target)
+
+                if (target.name != 'std::any' and
+                        not isinstance(target, s_objtypes.ObjectType)):
+                    raise s_err.SchemaDefinitionError(
+                        f'invalid link target, expected object type, got '
+                        f'{target.__class__.__name__}',
+                        context=linkdecl.target[0].context
+                    )
 
                 link = link_base.derive(
                     self._schema, objtype, target, add_to_schema=True)
@@ -617,7 +644,7 @@ class DeclarationLoader:
                 if linkdecl.expr is not None:
                     link.computable = True
 
-                self._parse_link_props(link, linkdecl)
+                self._parse_source_props(link, linkdecl)
                 objtype.add_pointer(link)
 
         for objtype, objtypedecl in objtypes.items():
@@ -640,8 +667,11 @@ class DeclarationLoader:
                 generic_prop = self._schema.get(
                     prop_name, module_aliases=self._mod_aliases)
                 spec_prop = link.pointers[generic_prop.name]
-                self._normalize_ptr_default(
-                    propdecl.expr, link, spec_prop, propdecl)
+
+                if propdecl.expr is not None:
+                    # Computable
+                    self._normalize_ptr_default(
+                        propdecl.expr, link, spec_prop, propdecl)
 
     def _normalize_objtype_constraints(self, objtype, objtypedecl):
         for linkdecl in objtypedecl.links:
@@ -652,25 +682,25 @@ class DeclarationLoader:
                 spec_link = objtype.pointers[generic_link.name]
                 self._parse_subject_constraints(spec_link, linkdecl)
 
-    def _normalize_objtype_expressions(self, objtype, objtypedecl):
+    def _normalize_objtype_expressions(self, objtype, typedecl):
         """Interpret and validate EdgeQL expressions in type declaration."""
-        for linkdecl in objtypedecl.links:
-            link_name = self._get_ref_name(linkdecl.name)
+        for ptrdecl in itertools.chain(typedecl.links, typedecl.properties):
+            link_name = self._get_ref_name(ptrdecl.name)
             generic_link = self._schema.get(
                 link_name, module_aliases=self._mod_aliases)
             spec_link = objtype.pointers[generic_link.name]
 
-            if linkdecl.expr is not None:
+            if ptrdecl.expr is not None:
                 # Computable
                 self._normalize_ptr_default(
-                    linkdecl.expr, objtype, spec_link, linkdecl)
+                    ptrdecl.expr, objtype, spec_link, ptrdecl)
 
-            for attr in linkdecl.attributes:
+            for attr in ptrdecl.attributes:
                 name = attr.name.name
                 if name == 'default':
                     if isinstance(attr.value, edgeql.ast.SelectQuery):
                         self._normalize_ptr_default(
-                            attr.value, objtype, spec_link, linkdecl)
+                            attr.value, objtype, spec_link, ptrdecl)
                     else:
                         expr = edgeql.ast.Constant(
                             value=self._get_literal_value(attr.value))
@@ -707,6 +737,22 @@ class DeclarationLoader:
             ptr.target = expr_type
 
             if isinstance(ptr, s_links.Link):
+                if not isinstance(expr_type, s_objtypes.ObjectType):
+                    raise s_err.SchemaDefinitionError(
+                        f'invalid link target, expected object type, got '
+                        f'{expr_type.__class__.__name__}',
+                        context=ptrdecl.expr.context
+                    )
+            else:
+                if not isinstance(expr_type, (s_scalars.ScalarType,
+                                              s_types.Collection)):
+                    raise s_err.SchemaDefinitionError(
+                        f'invalid property target, expected primitive type, '
+                        f'got {expr_type.__class__.__name__}',
+                        context=ptrdecl.expr.context
+                    )
+
+            if isinstance(ptr, s_links.Link):
                 pname = s_name.Name('std::target')
                 tgt_prop = ptr.pointers[pname]
                 tgt_prop.target = expr_type
@@ -725,9 +771,9 @@ class DeclarationLoader:
                 ir_inference.infer_cardinality(ir, singletons, self._schema)
 
             if cardinality == qlast.Cardinality.MANY:
-                ptr.cardinality = s_links.LinkMapping.ManyToMany
+                ptr.cardinality = s_pointers.PointerCardinality.ManyToMany
             else:
-                ptr.cardinality = s_links.LinkMapping.ManyToOne
+                ptr.cardinality = s_pointers.PointerCardinality.ManyToOne
 
         if (not isinstance(expr_type, s_types.Type) or
                 (ptr.target is not None and
@@ -737,8 +783,8 @@ class DeclarationLoader:
                 'type {!r}'.format(ptr.target.name), context=expr.context)
 
         if not isinstance(ptr.target, s_scalars.ScalarType):
-            many_mapping = (s_links.LinkMapping.ManyToOne,
-                            s_links.LinkMapping.ManyToMany)
+            many_mapping = (s_pointers.PointerCardinality.ManyToOne,
+                            s_pointers.PointerCardinality.ManyToMany)
             if ptr.cardinality not in many_mapping:
                 raise s_err.SchemaError(
                     'type links with query defaults '

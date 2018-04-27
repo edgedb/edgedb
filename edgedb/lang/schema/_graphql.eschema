@@ -15,15 +15,15 @@ scalar type directiveLocation extending str:
                       'FRAGMENT_SPREAD', 'INLINE_FRAGMENT'])
 
 abstract type Nameable:
-    link name -> str
-    link description -> str
+    property name -> str
+    property description -> str
 
 abstract type Named extending Nameable:
-    required inherited link name -> str
+    required inherited property name -> str
 
 abstract type Deprecatable:
-    required link isDeprecated -> bool
-    link deprecationReason -> str
+    required property isDeprecated -> bool
+    property deprecationReason -> str
 
 abstract type Callable:
     link args -> InputValue:
@@ -35,17 +35,17 @@ abstract type Typed:
         cardinality := '*1'
 
 type _Type extending Nameable:
-    required link kind -> typeKind
+    required property kind -> typeKind
 
 type Field extending Named, Deprecatable, Callable
 
 type InputValue extending Named:
-    link defaultValue -> str
+    property defaultValue -> str
 
 type EnumValue extending Named, Deprecatable
 
 type Directive extending Named, Callable:
-    required link locations -> directiveLocation:
+    required property locations -> directiveLocation:
         cardinality := '1*'
 
 type Schema extending Named:

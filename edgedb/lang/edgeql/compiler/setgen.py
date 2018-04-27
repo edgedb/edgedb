@@ -18,7 +18,6 @@ from edgedb.lang.ir import utils as irutils
 from edgedb.lang.schema import objtypes as s_objtypes
 from edgedb.lang.schema import expr as s_expr
 from edgedb.lang.schema import links as s_links
-from edgedb.lang.schema import lproperties as s_linkprops
 from edgedb.lang.schema import name as s_name
 from edgedb.lang.schema import nodes as s_nodes
 from edgedb.lang.schema import pointers as s_pointers
@@ -352,7 +351,7 @@ def extend_path(
     if target is None:
         target = ptrcls.get_far_endpoint(direction)
 
-    if isinstance(ptrcls, s_linkprops.LinkProperty):
+    if ptrcls.is_link_property():
         path_id = source_set.path_id.ptr_path().extend(
             ptrcls, direction, target)
     elif direction != s_pointers.PointerDirection.Inbound:
@@ -442,9 +441,9 @@ def class_indirection_set(
     poly_set = new_set(scls=target_scls, ctx=ctx)
     rptr = source_set.rptr
     if rptr is not None and not rptr.ptrcls.singular(rptr.direction):
-        cardinality = s_links.LinkMapping.ManyToMany
+        cardinality = s_pointers.PointerCardinality.ManyToMany
     else:
-        cardinality = s_links.LinkMapping.ManyToOne
+        cardinality = s_pointers.PointerCardinality.ManyToOne
     poly_set.path_id = irutils.type_indirection_path_id(
         source_set.path_id, target_scls, optional=optional,
         cardinality=cardinality)
@@ -593,7 +592,7 @@ def computable_ptr_set(
     subctx.path_scope_map = ctx.path_scope_map
     subctx.scope_id_ctr = ctx.scope_id_ctr
 
-    if isinstance(ptrcls, s_linkprops.LinkProperty):
+    if ptrcls.is_link_property():
         source_path_id = rptr.source.path_id.ptr_path()
     else:
         source_path_id = rptr.target.path_id.src_path()

@@ -7,11 +7,11 @@
 
 
 type Target0:
-    link name -> str
+    property name -> str
 
 
 type Target1 extending Target0:
-    inherited link name -> str
+    inherited property name -> str
 
 
 type ObjectType0:

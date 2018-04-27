@@ -66,7 +66,7 @@ class _GQLType:
             raise NotImplementedError
 
     def convert_edb_to_gql_type(self, base, name):
-        if isinstance(base, s_pointers.BasePointer):
+        if isinstance(base, s_pointers.Pointer):
             base = base.target
         return _GQLType(
             edb_base=base,

@@ -1,23 +1,23 @@
 abstract type Text:
     # This is an abstract object containing text.
-    required link body -> str:
+    required property body -> str:
         # Maximum length of text is 10000 characters.
         constraint maxlength(10000)
 
 
 abstract type Named:
-    required link name -> str
+    required property name -> str
 
 
 # Dictionary is a NamedObject variant, that enforces
 # name uniqueness across all instances if its subclass.
 abstract type Dictionary extending Named:
-    required inherited link name -> str:
+    required inherited property name -> str:
         delegated constraint unique
 
 
 abstract link todo:
-    link property rank -> int:
+    property rank -> int:
         default := 42
 
 
@@ -42,7 +42,7 @@ type LogEntry extending Owned, Text:
     # LogEntry is an Owned and a Text, so it
     # will have all of their links and attributes,
     # in particular, owner and text links.
-    required link spent_time -> int
+    required property spent_time -> int
 
 
 # issue_num_t is defined as a concrete sequence type,
@@ -58,7 +58,7 @@ type Comment extending Text, Owned:
 
 
 type Issue extending Named, Owned, Text:
-    required link number -> issue_num_t:
+    required property number -> issue_num_t:
         readonly := true
         # The number values are automatically generated,
         # and are not supposed to be directly writable.
@@ -76,18 +76,18 @@ type Issue extending Named, Owned, Text:
         # many-to-many relation.  The default cardinality is
         # *1 -- many-to-one.
 
-    link time_estimate -> int
+    property time_estimate -> int
 
     link time_spent_log -> LogEntry:
         cardinality := '1*'
         # 1* -- one-to-many cardinality.
 
-    link start_date -> datetime:
+    property start_date -> datetime:
         default := SELECT current_datetime()
         # The default value of start_date will be a
         # result of the EdgeQL expression above.
 
-    link due_date -> datetime
+    property due_date -> datetime
 
     link related_to -> Issue:
         cardinality := '**'
@@ -96,15 +96,15 @@ type Issue extending Named, Owned, Text:
     link references -> File, URL, Publication:
         cardinality := '**'
 
-    link tags -> array<str>
+    property tags -> array<str>
 
 
 type File extending Named
 
 
 type URL extending Named:
-    required link address -> str
+    required property address -> str
 
 
 type Publication:
-    required link title -> str
+    required property title -> str

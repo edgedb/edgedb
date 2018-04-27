@@ -113,13 +113,13 @@ class InnerDDLStmt(Nonterm):
     def reduce_DropLinkStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_CreateLinkPropertyStmt(self, *kids):
+    def reduce_CreatePropertyStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_AlterLinkPropertyStmt(self, *kids):
+    def reduce_AlterPropertyStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_DropLinkPropertyStmt(self, *kids):
+    def reduce_DropPropertyStmt(self, *kids):
         self.val = kids[0].val
 
     def reduce_CreateEventStmt(self, *kids):
@@ -870,16 +870,16 @@ class AlterTargetStmt(Nonterm):
 
 
 #
-# CREATE LINK PROPERTY
+# CREATE PROPERTY
 #
-class CreateLinkPropertyStmt(Nonterm):
-    def reduce_CreateLinkProperty(self, *kids):
+class CreatePropertyStmt(Nonterm):
+    def reduce_CreateProperty(self, *kids):
         r"""%reduce \
             DDLAliasBlock \
-            CREATE ABSTRACT LINKPROPERTY NodeName OptExtending \
+            CREATE ABSTRACT PROPERTY NodeName OptExtending \
             OptCreateCommandsBlock \
         """
-        self.val = qlast.CreateLinkProperty(
+        self.val = qlast.CreateProperty(
             aliases=kids[0].val.aliases,
             cardinality=kids[0].val.cardinality,
             name=kids[4].val,
@@ -889,11 +889,11 @@ class CreateLinkPropertyStmt(Nonterm):
 
 
 #
-# ALTER LINK PROPERTY
+# ALTER PROPERTY
 #
 
 commands_block(
-    'AlterLinkProperty',
+    'AlterProperty',
     RenameStmt,
     SetFieldStmt,
     DropFieldStmt,
@@ -901,14 +901,14 @@ commands_block(
 )
 
 
-class AlterLinkPropertyStmt(Nonterm):
-    def reduce_AlterLinkProperty(self, *kids):
+class AlterPropertyStmt(Nonterm):
+    def reduce_AlterProperty(self, *kids):
         r"""%reduce \
             DDLAliasBlock \
-            ALTER ABSTRACT LINKPROPERTY NodeName \
-            AlterLinkPropertyCommandsBlock \
+            ALTER ABSTRACT PROPERTY NodeName \
+            AlterPropertyCommandsBlock \
         """
-        self.val = qlast.AlterLinkProperty(
+        self.val = qlast.AlterProperty(
             aliases=kids[0].val.aliases,
             cardinality=kids[0].val.cardinality,
             name=kids[4].val,
@@ -917,15 +917,15 @@ class AlterLinkPropertyStmt(Nonterm):
 
 
 #
-# DROP LINK PROPERTY
+# DROP PROPERTY
 #
-class DropLinkPropertyStmt(Nonterm):
-    def reduce_DropLinkProperty(self, *kids):
+class DropPropertyStmt(Nonterm):
+    def reduce_DropProperty(self, *kids):
         r"""%reduce \
             DDLAliasBlock \
-            DROP ABSTRACT LINKPROPERTY NodeName \
+            DROP ABSTRACT PROPERTY NodeName \
         """
-        self.val = qlast.DropLinkProperty(
+        self.val = qlast.DropProperty(
             aliases=kids[0].val.aliases,
             cardinality=kids[0].val.cardinality,
             name=kids[4].val
@@ -933,54 +933,54 @@ class DropLinkPropertyStmt(Nonterm):
 
 
 #
-# CREATE LINK ... { CREATE LINK PROPERTY
+# CREATE LINK ... { CREATE PROPERTY
 #
 
 commands_block(
-    'CreateConcreteLinkProperty',
+    'CreateConcreteProperty',
     SetFieldStmt,
     CreateConcreteConstraintStmt
 )
 
 
-class CreateConcreteLinkPropertyStmt(Nonterm):
-    def reduce_CreateRegularRequiredLinkProperty(self, *kids):
+class CreateConcretePropertyStmt(Nonterm):
+    def reduce_CreateRegularRequiredProperty(self, *kids):
         r"""%reduce \
-            CREATE REQUIRED LINKPROPERTY NodeName \
-            ARROW TypeName OptCreateConcreteLinkPropertyCommandsBlock \
+            CREATE REQUIRED PROPERTY NodeName \
+            ARROW TypeName OptCreateConcretePropertyCommandsBlock \
         """
-        self.val = qlast.CreateConcreteLinkProperty(
+        self.val = qlast.CreateConcreteProperty(
             name=kids[3].val,
             is_required=True,
             target=kids[5].val,
             commands=kids[6].val
         )
 
-    def reduce_CreateRegularLinkProperty(self, *kids):
+    def reduce_CreateRegularProperty(self, *kids):
         r"""%reduce \
-            CREATE LINKPROPERTY NodeName \
-            ARROW TypeName OptCreateConcreteLinkPropertyCommandsBlock \
+            CREATE PROPERTY NodeName \
+            ARROW TypeName OptCreateConcretePropertyCommandsBlock \
         """
-        self.val = qlast.CreateConcreteLinkProperty(
+        self.val = qlast.CreateConcreteProperty(
             name=kids[2].val,
             is_required=False,
             target=kids[4].val,
             commands=kids[5].val
         )
 
-    def reduce_CREATE_LINKPROPERTY_NodeName_AS_Expr(self, *kids):
-        self.val = qlast.CreateConcreteLinkProperty(
+    def reduce_CREATE_PROPERTY_NodeName_AS_Expr(self, *kids):
+        self.val = qlast.CreateConcreteProperty(
             name=kids[2].val,
             target=kids[4].val
         )
 
 
 #
-# ALTER LINK ... { ALTER LINK PROPERTY
+# ALTER LINK ... { ALTER PROPERTY
 #
 
 commands_block(
-    'AlterConcreteLinkProperty',
+    'AlterConcreteProperty',
     RenameStmt,
     SetFieldStmt,
     DropFieldStmt,
@@ -992,28 +992,28 @@ commands_block(
 )
 
 
-class AlterConcreteLinkPropertyStmt(Nonterm):
-    def reduce_AlterLinkProperty(self, *kids):
+class AlterConcretePropertyStmt(Nonterm):
+    def reduce_AlterProperty(self, *kids):
         r"""%reduce \
-            ALTER LINKPROPERTY NodeName \
-            AlterConcreteLinkPropertyCommandsBlock \
+            ALTER PROPERTY NodeName \
+            AlterConcretePropertyCommandsBlock \
         """
-        self.val = qlast.AlterConcreteLinkProperty(
+        self.val = qlast.AlterConcreteProperty(
             name=kids[2].val,
             commands=kids[3].val
         )
 
 
 #
-# ALTER LINK ... { DROP LINK PROPERTY
+# ALTER LINK ... { DROP PROPERTY
 #
 
-class DropConcreteLinkPropertyStmt(Nonterm):
-    def reduce_DropLinkProperty(self, *kids):
+class DropConcretePropertyStmt(Nonterm):
+    def reduce_DropProperty(self, *kids):
         r"""%reduce \
-            DROP LINKPROPERTY NodeName \
+            DROP PROPERTY NodeName \
         """
-        self.val = qlast.DropConcreteLinkProperty(
+        self.val = qlast.DropConcreteProperty(
             name=kids[2].val
         )
 
@@ -1026,7 +1026,7 @@ commands_block(
     'CreateLink',
     SetFieldStmt,
     CreateConcreteConstraintStmt,
-    CreateConcreteLinkPropertyStmt,
+    CreateConcretePropertyStmt,
     CreateIndexStmt,
     CreateLocalPolicyStmt
 )
@@ -1061,9 +1061,9 @@ commands_block(
     CreateConcreteConstraintStmt,
     AlterConcreteConstraintStmt,
     DropConcreteConstraintStmt,
-    CreateConcreteLinkPropertyStmt,
-    AlterConcreteLinkPropertyStmt,
-    DropConcreteLinkPropertyStmt,
+    CreateConcretePropertyStmt,
+    AlterConcretePropertyStmt,
+    DropConcretePropertyStmt,
     CreateIndexStmt,
     DropIndexStmt,
     CreateLocalPolicyStmt,
@@ -1096,7 +1096,7 @@ commands_block(
     'DropLink',
     DropConcreteConstraintStmt,
     DropConcreteConstraintStmt,
-    DropConcreteLinkPropertyStmt,
+    DropConcretePropertyStmt,
     DropIndexStmt,
     DropLocalPolicyStmt,
 )
@@ -1124,7 +1124,7 @@ commands_block(
     'CreateConcreteLink',
     SetFieldStmt,
     CreateConcreteConstraintStmt,
-    CreateConcreteLinkPropertyStmt,
+    CreateConcretePropertyStmt,
     CreateLocalPolicyStmt
 )
 
@@ -1154,7 +1154,7 @@ class CreateConcreteLinkStmt(Nonterm):
             commands=kids[5].val
         )
 
-    def reduce_CREATE_LINK_NodeName_AS_Expr(self, *kids):
+    def reduce_CREATE_LINK_NodeName_TURNSTILE_Expr(self, *kids):
         self.val = qlast.CreateConcreteLink(
             name=kids[2].val,
             targets=[kids[4].val]
@@ -1171,9 +1171,9 @@ commands_block(
     CreateConcreteConstraintStmt,
     AlterConcreteConstraintStmt,
     DropConcreteConstraintStmt,
-    CreateConcreteLinkPropertyStmt,
-    AlterConcreteLinkPropertyStmt,
-    DropConcreteLinkPropertyStmt,
+    CreateConcretePropertyStmt,
+    AlterConcretePropertyStmt,
+    DropConcretePropertyStmt,
     CreateLocalPolicyStmt,
     AlterLocalPolicyStmt,
     DropLocalPolicyStmt,
@@ -1195,7 +1195,7 @@ class AlterConcreteLinkStmt(Nonterm):
 commands_block(
     'DropConcreteLink',
     DropConcreteConstraintStmt,
-    DropConcreteLinkPropertyStmt,
+    DropConcretePropertyStmt,
     DropLocalPolicyStmt,
 )
 
@@ -1218,6 +1218,7 @@ class DropConcreteLinkStmt(Nonterm):
 commands_block(
     'CreateObjectType',
     SetFieldStmt,
+    CreateConcretePropertyStmt,
     CreateConcreteLinkStmt,
     CreateIndexStmt
 )
@@ -1263,6 +1264,9 @@ commands_block(
     SetFieldStmt,
     DropFieldStmt,
     AlterExtending,
+    CreateConcretePropertyStmt,
+    AlterConcretePropertyStmt,
+    DropConcretePropertyStmt,
     CreateConcreteLinkStmt,
     AlterConcreteLinkStmt,
     DropConcreteLinkStmt,
@@ -1292,6 +1296,7 @@ class AlterObjectTypeStmt(Nonterm):
 
 commands_block(
     'DropObjectType',
+    DropConcretePropertyStmt,
     DropConcreteLinkStmt,
     DropConcreteConstraintStmt,
     DropIndexStmt

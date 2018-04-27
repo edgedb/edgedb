@@ -12,8 +12,6 @@ import typing
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
-from edgedb.lang.schema import links as s_links
-from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import name as s_name
 from edgedb.lang.schema import objects as s_obj
 from edgedb.lang.schema import pointers as s_pointers
@@ -26,6 +24,7 @@ from edgedb.lang.edgeql import parser as qlparser
 from . import astutils
 from . import context
 from . import dispatch
+from . import pathctx
 from . import setgen
 
 
@@ -71,12 +70,17 @@ def fini_expression(
             if node.path_id.namespace:
                 node.path_id = node.path_id.strip_weak_namespaces()
 
+        cardinality = pathctx.infer_cardinality(ir, ctx=ctx)
+    else:
+        cardinality = irast.Cardinality.ONE
+
     result = irast.Statement(
         expr=ir,
         params=ctx.arguments,
         views=ctx.view_nodes,
         source_map=ctx.source_map,
         scope_tree=ctx.path_scope,
+        cardinality=cardinality,
     )
     irutils.infer_type(result, schema=ctx.schema)
     return result
@@ -92,7 +96,8 @@ def populate_anchors(
             step.anchor = anchor
             step.show_as_anchor = anchor
 
-        elif isinstance(scls, s_links.Link):
+        elif (isinstance(scls, s_pointers.Pointer) and
+                not scls.is_link_property()):
             if scls.source:
                 path = setgen.extend_path(
                     setgen.class_set(scls.source, ctx=ctx), scls,
@@ -114,7 +119,7 @@ def populate_anchors(
             step.anchor = anchor
             step.show_as_anchor = anchor
 
-        elif isinstance(scls, s_lprops.LinkProperty):
+        elif isinstance(scls, s_pointers.Pointer) and scls.is_link_property():
             if scls.source.source:
                 path = setgen.extend_path(
                     setgen.class_set(scls.source.source, ctx=ctx),

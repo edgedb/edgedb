@@ -854,32 +854,32 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_DropScalarType(self, node):
         self._visit_DropObject(node, 'SCALAR TYPE')
 
-    def visit_CreateLinkProperty(self, node):
-        self._visit_CreateObject(node, 'ABSTRACT LINK PROPERTY')
+    def visit_CreateProperty(self, node):
+        self._visit_CreateObject(node, 'ABSTRACT PROPERTY')
 
-    def visit_AlterLinkProperty(self, node):
-        self._visit_AlterObject(node, 'ABSTRACT LINK PROPERTY')
+    def visit_AlterProperty(self, node):
+        self._visit_AlterObject(node, 'ABSTRACT PROPERTY')
 
-    def visit_DropLinkProperty(self, node):
-        self._visit_DropObject(node, 'ABSTRACT LINK PROPERTY')
+    def visit_DropProperty(self, node):
+        self._visit_DropObject(node, 'ABSTRACT PROPERTY')
 
-    def visit_CreateConcreteLinkProperty(self, node):
+    def visit_CreateConcreteProperty(self, node):
         keywords = []
 
         if node.is_required:
             keywords.append('REQUIRED')
-        keywords.append('LINK PROPERTY')
+        keywords.append('PROPERTY')
 
         def after_name():
             self.write(' -> ')
             self.visit(node.target)
         self._visit_CreateObject(node, *keywords, after_name=after_name)
 
-    def visit_AlterConcreteLinkProperty(self, node):
-        self._visit_AlterObject(node, 'LINK PROPERTY', allow_short=False)
+    def visit_AlterConcreteProperty(self, node):
+        self._visit_AlterObject(node, 'PROPERTY', allow_short=False)
 
-    def visit_DropConcreteLinkProperty(self, node):
-        self._visit_DropObject(node, 'LINK PROPERTY')
+    def visit_DropConcreteProperty(self, node):
+        self._visit_DropObject(node, 'PROPERTY')
 
     def visit_CreateLink(self, node):
         after_name = lambda: self._ddl_visit_bases(node)

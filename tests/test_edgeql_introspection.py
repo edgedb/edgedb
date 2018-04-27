@@ -7,7 +7,6 @@
 
 
 import os.path
-import unittest
 
 from edgedb.server import _testbase as tb
 
@@ -51,19 +50,19 @@ class TestIntrospection(tb.QueryTestCase):
     async def test_edgeql_introspection_objtype_02(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
-            SELECT `ObjectType` {
+            SELECT ObjectType {
                 name,
                 is_abstract,
-                links: {
+                pointers: {
                     name,
-                } ORDER BY `ObjectType`.links.name
+                } ORDER BY .name
             }
-            FILTER `ObjectType`.name = 'test::User';
+            FILTER ObjectType.name = 'test::User';
         """, [
             [{
                 'name': 'test::User',
                 'is_abstract': False,
-                'links': [{
+                'pointers': [{
                     'name': 'std::__type__',
                 }, {
                     'name': 'std::id',
@@ -78,19 +77,19 @@ class TestIntrospection(tb.QueryTestCase):
     async def test_edgeql_introspection_objtype_03(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
-            SELECT `ObjectType` {
+            SELECT ObjectType {
                 name,
                 is_abstract,
-                links: {
+                pointers: {
                     name,
-                } ORDER BY `ObjectType`.links.name
+                } ORDER BY .name
             }
-            FILTER `ObjectType`.name = 'test::Owned';
+            FILTER ObjectType.name = 'test::Owned';
         """, [
             [{
                 'name': 'test::Owned',
                 'is_abstract': True,
-                'links': [{
+                'pointers': [{
                     'name': 'std::__type__',
                 }, {
                     'name': 'std::id',
@@ -106,7 +105,7 @@ class TestIntrospection(tb.QueryTestCase):
             SELECT ObjectType {
                 name,
                 is_abstract,
-                links: {
+                pointers: {
                     name,
                     attributes: {
                         name,
@@ -120,7 +119,7 @@ class TestIntrospection(tb.QueryTestCase):
             [{
                 'name': 'test::User',
                 'is_abstract': False,
-                'links': [{
+                'pointers': [{
                     'name': 'std::__type__',
                     'attributes': [{
                         'name': 'stdattrs::name',
@@ -151,26 +150,26 @@ class TestIntrospection(tb.QueryTestCase):
     async def test_edgeql_introspection_objtype_05(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
-            SELECT `ObjectType` {
+            SELECT ObjectType {
                 name,
                 is_abstract,
-                links: {
+                pointers: {
                     attributes: {
                         name,
                         @value
-                    } FILTER EXISTS `ObjectType`.links.attributes@value
-                      ORDER BY `ObjectType`.links.attributes.name
-                } FILTER `ObjectType`.links.name LIKE 'test::%'
-                  ORDER BY `ObjectType`.links.name
+                    } FILTER EXISTS @value
+                      ORDER BY .name
+                } FILTER .name LIKE 'test::%'
+                  ORDER BY .name
             }
-            FILTER `ObjectType`.name = 'test::User';
+            FILTER ObjectType.name = 'test::User';
         """, [
             [{
                 'name': 'test::User',
                 'is_abstract': False,
-                'links': [{
+                'pointers': [{
                     'attributes': [
-                        {'name': 'stdattrs::cardinality', '@value': '*1'},
+                        {'name': 'stdattrs::cardinality', '@value': '11'},
                         {'name': 'stdattrs::is_abstract', '@value': 'false'},
                         {'name': 'stdattrs::is_derived', '@value': 'false'},
                         {'name': 'stdattrs::is_final', '@value': 'false'},
@@ -198,41 +197,26 @@ class TestIntrospection(tb.QueryTestCase):
         await self.assert_query_result(r"""
             # get all links, mappings and target names for Comment
             WITH MODULE schema
-            SELECT `ObjectType` {
+            SELECT ObjectType {
                 name,
                 links: {
                     name,
-                    `target`: {
+                    target: {
                         name
                     },
                     attributes: {
                         name,
                         @value
-                    } FILTER
-                        `ObjectType`.links.attributes.name LIKE '%cardinality'
-                } ORDER BY `ObjectType`.links.name
+                    } FILTER .name LIKE '%cardinality'
+                } ORDER BY .name
             }
-            FILTER `ObjectType`.name LIKE '%Comment';
+            FILTER .name LIKE '%Comment';
         """, [
             [{
                 'name': 'test::Comment',
                 'links': [{
                     'name': 'std::__type__',
                     'target': {'name': 'schema::Type'},
-                    'attributes': [{
-                        'name': 'stdattrs::cardinality',
-                        '@value': '*1',
-                    }],
-                }, {
-                    'name': 'std::id',
-                    'target': {'name': 'std::uuid'},
-                    'attributes': [{
-                        'name': 'stdattrs::cardinality',
-                        '@value': '11',
-                    }],
-                }, {
-                    'name': 'test::body',
-                    'target': {'name': 'std::str'},
                     'attributes': [{
                         'name': 'stdattrs::cardinality',
                         '@value': '*1',
@@ -266,16 +250,16 @@ class TestIntrospection(tb.QueryTestCase):
         await self.assert_query_result(r"""
             # get all user-defined object types with at least one ** link
             WITH MODULE schema
-            SELECT `ObjectType` {
+            SELECT ObjectType {
                 name,
             }
             FILTER
-                `ObjectType`.name LIKE 'test::%'
+                ObjectType.name LIKE 'test::%'
                 AND
-                `ObjectType`.links.attributes.name = 'stdattrs::cardinality'
+                ObjectType.links.attributes.name = 'stdattrs::cardinality'
                 AND
-                `ObjectType`.links.attributes@value = '**'
-            ORDER BY `ObjectType`.name;
+                ObjectType.links.attributes@value = '**'
+            ORDER BY ObjectType.name;
         """, [
             [{
                 'name': 'test::Issue',
@@ -327,10 +311,11 @@ class TestIntrospection(tb.QueryTestCase):
 
     async def test_edgeql_introspection_objtype_10(self):
         await self.assert_query_result(r"""
-            # get all user-defined object types with at least one 1* link
+            # get all user-defined object types with at least one
+            # array property
             WITH MODULE schema
-            SELECT `ObjectType` {
-                links: {
+            SELECT ObjectType {
+                properties: {
                     target: Array {
                         name,
                         element_type: {
@@ -343,7 +328,7 @@ class TestIntrospection(tb.QueryTestCase):
                 .name = 'test::Issue';
         """, [
             [{
-                'links': [
+                'properties': [
                     {
                         'target': {
                             'name': 'array',
@@ -359,19 +344,19 @@ class TestIntrospection(tb.QueryTestCase):
     async def test_edgeql_introspection_link_01(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
-            SELECT `Link` {
+            SELECT Link {
                 name,
-                link_properties: {
+                properties: {
                     name,
-                } ORDER BY `Link`.link_properties.name
+                } ORDER BY Link.properties.name
             }
             FILTER
-                `Link`.name = 'test::todo'
-                AND EXISTS `Link`.source;
+                Link.name = 'test::todo'
+                AND EXISTS Link.source;
         """, [
             [{
                 'name': 'test::todo',
-                'link_properties': [{
+                'properties': [{
                     'name': 'std::source',
                 }, {
                     'name': 'std::target',
@@ -517,17 +502,7 @@ class TestIntrospection(tb.QueryTestCase):
         # just test that there's a non-empty return set for this query
         self.assertTrue(res[0])
 
-    @unittest.expectedFailure
     async def test_edgeql_introspection_meta_04(self):
-        await self.assert_query_result(r'''
-            WITH MODULE schema
-            SELECT ScalarType[IS Object] IS ScalarType LIMIT 1;
-        ''', [
-            [True],
-        ])
-
-    @unittest.expectedFailure
-    async def test_edgeql_introspection_meta_05(self):
         await self.assert_query_result(r'''
             WITH MODULE schema
             SELECT ScalarType[IS Object] IS ScalarType LIMIT 1;

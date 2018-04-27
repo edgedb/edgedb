@@ -261,11 +261,11 @@ class DeclarationBase(Nonterm):
         self.val = kids[1].val
         self.val.abstract = True
 
-    def reduce_ABSTRACT_LinkPropertyDeclaration(self, *kids):
+    def reduce_ABSTRACT_LinkDeclaration(self, *kids):
         self.val = kids[1].val
         self.val.abstract = True
 
-    def reduce_ABSTRACT_LinkDeclaration(self, *kids):
+    def reduce_ABSTRACT_PropertyDeclaration(self, *kids):
         self.val = kids[1].val
         self.val.abstract = True
 
@@ -409,6 +409,7 @@ class ObjectTypeDeclaration(Nonterm):
 
         constraints = []
         links = []
+        properties = []
         attributes = []
         indexes = []
 
@@ -421,6 +422,8 @@ class ObjectTypeDeclaration(Nonterm):
                 indexes.append(spec)
             elif isinstance(spec, esast.Link):
                 links.append(spec)
+            elif isinstance(spec, esast.Property):
+                properties.append(spec)
             else:
                 raise SchemaSyntaxError(
                     'illegal definition', context=spec.context)
@@ -431,7 +434,8 @@ class ObjectTypeDeclaration(Nonterm):
             attributes=attributes,
             constraints=constraints,
             indexes=indexes,
-            links=links)
+            links=links,
+            properties=properties)
 
 
 class ConstraintCallableAndExtends(Nonterm):
@@ -494,7 +498,11 @@ class LinkDeclaration(Nonterm):
                 constraints.append(spec)
             elif isinstance(spec, esast.Attribute):
                 attributes.append(spec)
-            elif isinstance(spec, esast.LinkProperty):
+            elif isinstance(spec, esast.Property):
+                if spec.required:
+                    raise SchemaSyntaxError(
+                        'Link properties cannot be "required".',
+                        context=spec.context)
                 properties.append(spec)
             elif isinstance(spec, esast.Policy):
                 policies.append(spec)
@@ -514,14 +522,14 @@ class LinkDeclaration(Nonterm):
             policies=policies)
 
 
-class LinkPropertyDeclaration(Nonterm):
-    def reduce_LINKPROPERTY_NameAndExtends_NL(self, *kids):
+class PropertyDeclaration(Nonterm):
+    def reduce_PROPERTY_NameAndExtends_NL(self, *kids):
         np: NameWithParents = kids[1].val
-        self.val = esast.LinkPropertyDeclaration(
+        self.val = esast.PropertyDeclaration(
             name=np.name,
             extends=np.extends)
 
-    def reduce_LINKPROPERTY_NameAndExtends_DeclarationSpecsBlob(
+    def reduce_PROPERTY_NameAndExtends_DeclarationSpecsBlob(
             self, *kids):
         np: NameWithParents = kids[1].val
 
@@ -534,7 +542,7 @@ class LinkPropertyDeclaration(Nonterm):
                 raise SchemaSyntaxError(
                     'illegal definition', context=spec.context)
 
-        self.val = esast.LinkPropertyDeclaration(
+        self.val = esast.PropertyDeclaration(
             name=np.name,
             extends=np.extends,
             attributes=attributes)
@@ -818,7 +826,7 @@ class DeclarationSpecBase(Nonterm):
     def reduce_Constraint(self, kid):
         self.val = kid.val
 
-    def reduce_LinkProperty(self, kid):
+    def reduce_Property(self, kid):
         self.val = kid.val
 
     def reduce_Attribute(self, kid):
@@ -883,7 +891,7 @@ class Link(Nonterm):
                 constraints.append(spec)
             elif isinstance(spec, esast.Attribute):
                 attributes.append(spec)
-            elif isinstance(spec, esast.LinkProperty):
+            elif isinstance(spec, esast.Property):
                 properties.append(spec)
             elif isinstance(spec, esast.Policy):
                 policies.append(spec)
@@ -920,32 +928,47 @@ class Link(Nonterm):
         self.val = link
 
 
-class LinkProperty(Nonterm):
+class Property(Nonterm):
     def _process_pointerspec(self, p: PointerSpec):
         constraints = []
         attributes = []
+        policies = []
 
         for spec in p.spec:
             if isinstance(spec, esast.Constraint):
                 constraints.append(spec)
             elif isinstance(spec, esast.Attribute):
                 attributes.append(spec)
+            elif isinstance(spec, esast.Policy):
+                policies.append(spec)
             else:
                 raise SchemaSyntaxError(  # TODO: better error message
                     'illegal definition', context=spec.context)
 
-        return esast.LinkProperty(
+        return esast.Property(
             name=p.name,
             target=p.target,
             expr=p.expr,
             attributes=attributes,
-            constraints=constraints)
+            constraints=constraints,
+            policies=policies)
 
-    def reduce_LINKPROPERTY_Spec(self, *kids):
+    def reduce_PROPERTY_Spec(self, *kids):
         self.val = self._process_pointerspec(kids[1].val)
 
-    def reduce_INHERITED_LINKPROPERTY_Spec(self, *kids):
+    def reduce_INHERITED_PROPERTY_Spec(self, *kids):
         prop = self._process_pointerspec(kids[2].val)
+        prop.inherited = True
+        self.val = prop
+
+    def reduce_REQUIRED_PROPERTY_Spec(self, *kids):
+        prop = self._process_pointerspec(kids[2].val)
+        prop.required = True
+        self.val = prop
+
+    def reduce_REQUIRED_INHERITED_PROPERTY_Spec(self, *kids):
+        prop = self._process_pointerspec(kids[3].val)
+        prop.required = True
         prop.inherited = True
         self.val = prop
 

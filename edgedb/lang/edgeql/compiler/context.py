@@ -293,14 +293,16 @@ class ContextLevel(compiler.ContextLevel):
 
             if mode in {ContextSwitchMode.NEWFENCE_TEMP,
                         ContextSwitchMode.NEWSCOPE_TEMP}:
-                self.path_scope = prevlevel.path_scope.copy()
+                if prevlevel.path_scope is None:
+                    prevlevel.path_scope = irast.new_scope_tree()
 
-            if mode in {ContextSwitchMode.NEWSCOPE,
-                        ContextSwitchMode.NEWSCOPE_TEMP}:
-                self.path_scope = prevlevel.path_scope.add_branch()
+                self.path_scope = prevlevel.path_scope.copy()
 
             if mode in {ContextSwitchMode.NEWFENCE,
                         ContextSwitchMode.NEWFENCE_TEMP}:
+                if prevlevel.path_scope is None:
+                    prevlevel.path_scope = irast.new_scope_tree()
+
                 self.path_scope = prevlevel.path_scope.attach_fence()
 
     def on_pop(self, prevlevel):

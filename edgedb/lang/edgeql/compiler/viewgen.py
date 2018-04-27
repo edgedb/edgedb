@@ -14,7 +14,7 @@ from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import links as s_links
-from edgedb.lang.schema import lproperties as s_lprops
+from edgedb.lang.schema import lproperties as s_props
 from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import nodes as s_nodes
 from edgedb.lang.schema import pointers as s_pointers
@@ -109,7 +109,7 @@ def _process_view(
     # If so, we do not need to derive a new target view.
     lprops_only = True
     for ptrcls in pointers:
-        if not isinstance(ptrcls, s_lprops.LinkProperty):
+        if not ptrcls.is_link_property():
             lprops_only = False
             break
 
@@ -117,7 +117,7 @@ def _process_view(
         view_scls = scls
 
     for ptrcls in pointers:
-        if isinstance(ptrcls, s_lprops.LinkProperty):
+        if ptrcls.is_link_property():
             source = view_rptr.derived_ptrcls
         else:
             source = view_scls
@@ -233,10 +233,7 @@ def _normalize_view_ptr_expr(
         else:
             ptr_target = ptrcls.target
 
-        if is_linkprop:
-            ptr_cardinality = None
-        else:
-            ptr_cardinality = ptrcls.cardinality
+        ptr_cardinality = ptrcls.cardinality
 
         if shape_el.elements:
             sub_view_rptr = context.ViewRPtr(
@@ -302,7 +299,7 @@ def _normalize_view_ptr_expr(
             )
 
             if is_linkprop:
-                ptr_metacls = s_lprops.LinkProperty
+                ptr_metacls = s_props.Property
             else:
                 ptr_metacls = s_links.Link
 
@@ -335,9 +332,9 @@ def _normalize_view_ptr_expr(
 
         inferred_cardinality = pathctx.infer_cardinality(irexpr, ctx=ctx)
         if inferred_cardinality == irast.Cardinality.MANY:
-            ptr_cardinality = s_links.LinkMapping.ManyToMany
+            ptr_cardinality = s_pointers.PointerCardinality.ManyToMany
         else:
-            ptr_cardinality = s_links.LinkMapping.ManyToOne
+            ptr_cardinality = s_pointers.PointerCardinality.ManyToOne
 
         ptr_target = irutils.infer_type(irexpr, ctx.schema)
         if ptr_target is None:
@@ -361,7 +358,7 @@ def _normalize_view_ptr_expr(
 
     if qlexpr is not None or ptr_target is not ptrcls.target:
         if not ptrcls_is_derived:
-            if isinstance(ptrcls, s_lprops.LinkProperty):
+            if ptrcls.is_link_property():
                 rptrcls = view_rptr.derived_ptrcls
                 if rptrcls is None:
                     rptrcls = schemactx.derive_view(
@@ -394,8 +391,11 @@ def _normalize_view_ptr_expr(
 
 
 def _link_has_shape(
-        ptrcls: s_links.Link, *,
+        ptrcls: s_pointers.Pointer, *,
         ctx: context.ContextLevel) -> bool:
+    if not isinstance(ptrcls, s_links.Link):
+        return False
+
     for p in ptrcls.pointers.values():
         if p.is_special_pointer() or p not in ctx.class_shapes[ptrcls]:
             continue
@@ -431,7 +431,7 @@ def _compile_view_shapes_in_set(
         rptr = ir_set.rptr
 
     if (rptr is not None and
-            not isinstance(rptr.ptrcls, s_lprops.LinkProperty) and
+            not rptr.ptrcls.is_link_property() and
             _link_has_shape(rptr.ptrcls, ctx=ctx)):
         link_view = True
         sources.append(rptr.ptrcls)
@@ -465,7 +465,7 @@ def _compile_view_shapes_in_set(
                         ptr.default is None and ptr not in ctx.source_map):
                     continue
 
-                if (isinstance(ptr, s_lprops.LinkProperty) and
+                if (ptr.is_link_property() and
                         ir_set.path_id != rptr.target.path_id):
                     path_tip = rptr.target
                 else:

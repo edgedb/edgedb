@@ -27,13 +27,15 @@ from edgedb.lang.schema import expr as s_expr
 from edgedb.lang.schema import functions as s_funcs
 from edgedb.lang.schema import indexes as s_indexes
 from edgedb.lang.schema import links as s_links
-from edgedb.lang.schema import lproperties as s_lprops
+from edgedb.lang.schema import lproperties as s_props
 from edgedb.lang.schema import modules as s_mod
 from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import named as s_named
 from edgedb.lang.schema import objects as s_obj
+from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import policy as s_policy
 from edgedb.lang.schema import referencing as s_referencing
+from edgedb.lang.schema import sources as s_sources
 from edgedb.lang.schema import types as s_types
 
 from edgedb.lang.common import ordered
@@ -1154,7 +1156,7 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
         if objtype:
             source, pointer = objtype, link
         elif link:
-            property = context.get(s_lprops.LinkPropertyCommandContext)
+            property = context.get(s_props.PropertyCommandContext)
             source, pointer = link, property
         else:
             source = pointer = None
@@ -1297,7 +1299,7 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
         else:
             nameconv = common.link_name_to_table_name
             source_ctx = context.get(s_links.LinkCommandContext)
-            ptr_cmd = s_lprops.CreateLinkProperty
+            ptr_cmd = s_props.CreateProperty
 
         alter_table = source_ctx.op.get_alter_table(context, force_new=True)
 
@@ -1802,11 +1804,11 @@ class DeletePolicy(
     pass
 
 
-class ScheduleLinkMappingUpdate(MetaCommand):
+class SchedulePointerCardinalityUpdate(MetaCommand):
     pass
 
 
-class CancelLinkMappingUpdate(MetaCommand):
+class CancelPointerCardinalityUpdate(MetaCommand):
     pass
 
 
@@ -1815,7 +1817,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
     def get_host(self, schema, context):
         if context:
             link = context.get(s_links.LinkCommandContext)
-            if link and isinstance(self, s_lprops.LinkPropertyCommand):
+            if link and isinstance(self, s_props.PropertyCommand):
                 return link
             objtype = context.get(s_objtypes.ObjectTypeCommandContext)
             if objtype:
@@ -1950,11 +1952,8 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             host = self.get_host(schema, context)
 
             if host and old_name != new_name:
-                if new_name == 'std::target' and pointer.scalar():
-                    new_name += '@inline'
-
-                if new_name.endswith('std::source') and not host.scls.generic(
-                ):
+                if (new_name.endswith('std::source') and
+                        not host.scls.generic()):
                     pass
                 else:
                     old_col_name = common.edgedb_name_to_pg_name(old_name)
@@ -1995,16 +1994,18 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                     'name', str(self.classname))], priority=1))
 
     @classmethod
-    def has_table(cls, link, schema):
-        if link.is_pure_computable() or link.is_derived:
+    def has_table(cls, src, schema):
+        if isinstance(src, s_objtypes.ObjectType):
+            return True
+        elif src.is_pure_computable() or src.is_derived:
             return False
-        elif link.generic():
-            if link.name == 'std::link':
+        elif src.generic():
+            if src.name == 'std::link':
                 return True
-            elif link.has_user_defined_properties():
+            elif src.has_user_defined_properties():
                 return True
             else:
-                for l in link.children(schema):
+                for l in src.children(schema):
                     if not l.generic():
                         ptr_stor_info = types.get_pointer_storage_info(
                             l, resolve_type=False)
@@ -2013,8 +2014,22 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
 
                 return False
         else:
-            return not link.scalar() or not link.singular(
-            ) or link.has_user_defined_properties()
+            return (not src.scalar() or not src.singular() or
+                    src.has_user_defined_properties())
+
+    def create_table(self, ptr, schema, context, conditional=False):
+        c = self._create_table(ptr, schema, context, conditional=conditional)
+        self.pgops.add(c)
+
+    def provide_table(self, ptr, schema, context):
+        if not ptr.generic():
+            gen_ptr = ptr.bases[0]
+
+            if self.has_table(gen_ptr, schema):
+                self.create_table(gen_ptr, schema, context, conditional=True)
+
+        if self.has_table(ptr, schema):
+            self.create_table(ptr, schema, context, conditional=True)
 
 
 class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
@@ -2045,12 +2060,12 @@ class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
                     comment='std::target'))
             columns.append(
                 dbops.Column(
-                    name='link_type_id', type='uuid', required=True))
+                    name='ptr_item_id', type='uuid', required=True))
 
         constraints.append(
             dbops.UniqueConstraint(
                 table_name=new_table_name,
-                columns=[src_col, tgt_col, 'link_type_id']))
+                columns=[src_col, tgt_col, 'ptr_item_id']))
 
         if not link.generic() and link.scalar():
             try:
@@ -2116,20 +2131,6 @@ class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
 
         return create_c
 
-    def create_table(self, link, schema, context, conditional=False):
-        c = self._create_table(link, schema, context, conditional=conditional)
-        self.pgops.add(c)
-
-    def provide_table(self, link, schema, context):
-        if not link.generic():
-            gen_link = link.bases[0]
-
-            if self.has_table(gen_link, schema):
-                self.create_table(gen_link, schema, context, conditional=True)
-
-        if self.has_table(link, schema):
-            self.create_table(link, schema, context, conditional=True)
-
     def schedule_mapping_update(self, link, schema, context):
         if self.has_table(link, schema):
             mapping_indexes = context.get(
@@ -2138,13 +2139,13 @@ class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
             if not ops:
                 mapping_indexes.links[link.name] = ops = []
             ops.append((self, link))
-            self.pgops.add(ScheduleLinkMappingUpdate())
+            self.pgops.add(SchedulePointerCardinalityUpdate())
 
     def cancel_mapping_update(self, link, schema, context):
         mapping_indexes = context.get(
             s_db.DatabaseCommandContext).op.update_mapping_indexes
         mapping_indexes.links.pop(link.name, None)
-        self.pgops.add(CancelLinkMappingUpdate())
+        self.pgops.add(CancelPointerCardinalityUpdate())
 
 
 class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
@@ -2175,8 +2176,6 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
         if not link.generic():
             ptr_stor_info = types.get_pointer_storage_info(
                 link, resolve_type=False)
-
-            objtype = context.get(s_objtypes.ObjectTypeCommandContext)
 
             if ptr_stor_info.table_type == 'ObjectType':
                 default_value = self.get_pointer_default(link, schema, context)
@@ -2212,7 +2211,7 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
         self.attach_alter_table(context)
 
         if not link.generic(
-        ) and link.cardinality != s_links.LinkMapping.ManyToMany:
+        ) and link.cardinality != s_pointers.PointerCardinality.ManyToMany:
             self.schedule_mapping_update(link, schema, context)
 
         return link
@@ -2369,7 +2368,7 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
         self.cancel_mapping_update(result, schema, context)
 
         if not result.generic(
-        ) and result.cardinality != s_links.LinkMapping.ManyToMany:
+        ) and result.cardinality != s_pointers.PointerCardinality.ManyToMany:
             self.schedule_mapping_update(result, schema, context)
 
         self.pgops.add(
@@ -2379,61 +2378,157 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
         return result
 
 
-class LinkPropertyMetaCommand(NamedObjectMetaCommand, PointerMetaCommand):
-    table = metaschema.get_metaclass_table(s_lprops.LinkProperty)
+class PropertyMetaCommand(NamedObjectMetaCommand, PointerMetaCommand):
+    table = metaschema.get_metaclass_table(s_props.Property)
+
+    @classmethod
+    def _create_table(
+            cls, prop, schema, context, conditional=False, create_bases=True,
+            create_children=True):
+        new_table_name = common.get_table_name(prop, catenate=False)
+
+        create_c = dbops.CommandGroup()
+
+        constraints = []
+        columns = []
+
+        src_col = common.edgedb_name_to_pg_name('std::source')
+
+        if prop.name == 'std::property':
+            columns.append(
+                dbops.Column(
+                    name=src_col, type='uuid', required=True,
+                    comment='std::source'))
+            columns.append(
+                dbops.Column(
+                    name='ptr_item_id', type='uuid', required=True))
+
+        index_name = common.convert_name(prop.name, 'idx0', catenate=True)
+
+        pg_index = dbops.Index(
+            name=index_name, table_name=new_table_name,
+            unique=False, columns=[src_col])
+
+        ci = dbops.CreateIndex(pg_index)
+
+        if not prop.generic():
+            tgt_ptr = types.get_pointer_storage_info(
+                prop, link_bias=True, schema=schema)
+            columns.append(
+                dbops.Column(
+                    name=tgt_ptr.column_name,
+                    type=common.qname(*tgt_ptr.column_type)))
+
+            constraints.append(
+                dbops.UniqueConstraint(
+                    table_name=new_table_name,
+                    columns=[src_col, tgt_ptr.column_name, 'ptr_item_id']))
+
+        table = dbops.Table(name=new_table_name)
+        table.add_columns(columns)
+        table.constraints = constraints
+
+        if prop.bases:
+            bases = []
+
+            for parent in prop.bases:
+                if isinstance(parent, s_obj.Object):
+                    if create_bases:
+                        bc = cls._create_table(
+                            parent, schema, context, conditional=True,
+                            create_children=False)
+                        create_c.add_command(bc)
+
+                    tabname = common.get_table_name(parent, catenate=False)
+                    bases.append(dbops.Table(name=tabname))
+
+            table.add_bases(bases)
+
+        ct = dbops.CreateTable(table=table)
+
+        if conditional:
+            c = dbops.CommandGroup(
+                neg_conditions=[dbops.TableExists(new_table_name)])
+        else:
+            c = dbops.CommandGroup()
+
+        c.add_command(ct)
+        c.add_command(ci)
+
+        c.add_command(dbops.Comment(table, prop.name))
+
+        create_c.add_command(c)
+
+        if create_children:
+            for p_descendant in prop.descendants(schema):
+                if cls.has_table(p_descendant, schema):
+                    pc = PropertyMetaCommand._create_table(
+                        p_descendant, schema, context, conditional=True,
+                        create_bases=False, create_children=False)
+                    create_c.add_command(pc)
+
+        return create_c
 
 
-class CreateLinkProperty(
-        LinkPropertyMetaCommand, adapts=s_lprops.CreateLinkProperty):
+class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
     def apply(self, schema, context):
-        property = s_lprops.CreateLinkProperty.apply(self, schema, context)
-        LinkPropertyMetaCommand.apply(self, schema, context)
+        prop = s_props.CreateProperty.apply(self, schema, context)
+        PropertyMetaCommand.apply(self, schema, context)
 
-        link = context.get(s_links.LinkCommandContext)
+        src = context.get(s_sources.SourceCommandContext)
 
-        with context(s_lprops.LinkPropertyCommandContext(self, property)):
-            rec, updates = self.record_metadata(
-                property, None, schema, context)
+        self.provide_table(prop, schema, context)
+
+        with context(s_props.PropertyCommandContext(self, prop)):
+            rec, updates = self.record_metadata(prop, None, schema, context)
             self.updates = updates
 
-        if link and self.has_table(link.scls, schema):
-            link.op.provide_table(link.scls, schema, context)
-            alter_table = link.op.get_alter_table(context)
+        if src and self.has_table(src.scls, schema):
+            if isinstance(src, s_links.Link):
+                src.op.provide_table(src.scls, schema, context)
 
-            default_value = self.get_pointer_default(property, schema, context)
+            ptr_stor_info = types.get_pointer_storage_info(
+                prop, resolve_type=False)
 
-            cols = self.get_columns(property, schema, default_value)
+            if (not isinstance(src.scls, s_objtypes.ObjectType) or
+                    ptr_stor_info.table_type == 'ObjectType'):
+                alter_table = src.op.get_alter_table(context)
 
-            for col in cols:
-                # The column may already exist as inherited from parent table
-                cond = dbops.ColumnExists(
-                    table_name=alter_table.name, column_name=col.name)
+                default_value = self.get_pointer_default(prop, schema, context)
 
-                if property.required:
-                    # For some reason, Postgres allows dropping NOT NULL
-                    # constraints from inherited columns, but we really should
-                    # only always increase constraints down the inheritance
-                    # chain.
-                    cmd = dbops.AlterTableAlterColumnNull(
-                        column_name=col.name, null=not property.required)
-                    alter_table.add_operation((cmd, (cond, ), None))
+                cols = self.get_columns(prop, schema, default_value)
 
-                cmd = dbops.AlterTableAddColumn(col)
-                alter_table.add_operation((cmd, None, (cond, )))
+                for col in cols:
+                    # The column may already exist as inherited from
+                    # parent table
+                    cond = dbops.ColumnExists(
+                        table_name=alter_table.name, column_name=col.name)
+
+                    if prop.required:
+                        # For some reason, Postgres allows dropping NOT NULL
+                        # constraints from inherited columns, but we really
+                        # should only always increase constraints down the
+                        # inheritance chain.
+                        cmd = dbops.AlterTableAlterColumnNull(
+                            column_name=col.name, null=not prop.required)
+                        alter_table.add_operation((cmd, (cond, ), None))
+
+                    cmd = dbops.AlterTableAddColumn(col)
+                    alter_table.add_operation((cmd, None, (cond, )))
 
         # Priority is set to 2 to make sure that INSERT is run after the host
         # link is INSERTed into edgedb.link.
         self.pgops.add(
             dbops.Insert(table=self.table, records=[rec], priority=2))
 
-        return property
+        return prop
 
 
-class RenameLinkProperty(
-        LinkPropertyMetaCommand, adapts=s_lprops.RenameLinkProperty):
+class RenameProperty(
+        PropertyMetaCommand, adapts=s_props.RenameProperty):
     def apply(self, schema, context=None):
-        result = s_lprops.RenameLinkProperty.apply(self, schema, context)
-        LinkPropertyMetaCommand.apply(self, schema, context)
+        result = s_props.RenameProperty.apply(self, schema, context)
+        PropertyMetaCommand.apply(self, schema, context)
 
         self.rename_pointer(
             result, schema, context, self.classname, self.new_name)
@@ -2441,16 +2536,16 @@ class RenameLinkProperty(
         return result
 
 
-class AlterLinkProperty(
-        LinkPropertyMetaCommand, adapts=s_lprops.AlterLinkProperty):
+class AlterProperty(
+        PropertyMetaCommand, adapts=s_props.AlterProperty):
     def apply(self, schema, context=None):
         metaclass = self.get_schema_metaclass()
         self.old_prop = old_prop = schema.get(
             self.classname, type=metaclass).copy()
-        prop = s_lprops.AlterLinkProperty.apply(self, schema, context)
-        LinkPropertyMetaCommand.apply(self, schema, context)
+        prop = s_props.AlterProperty.apply(self, schema, context)
+        PropertyMetaCommand.apply(self, schema, context)
 
-        with context(s_lprops.LinkPropertyCommandContext(self, prop)):
+        with context(s_props.PropertyCommandContext(self, prop)):
             rec, updates = self.record_metadata(
                 prop, old_prop, schema, context)
             self.updates = updates
@@ -2499,11 +2594,11 @@ class AlterLinkProperty(
         return prop
 
 
-class DeleteLinkProperty(
-        LinkPropertyMetaCommand, adapts=s_lprops.DeleteLinkProperty):
+class DeleteProperty(
+        PropertyMetaCommand, adapts=s_props.DeleteProperty):
     def apply(self, schema, context=None):
-        property = s_lprops.DeleteLinkProperty.apply(self, schema, context)
-        LinkPropertyMetaCommand.apply(self, schema, context)
+        property = s_props.DeleteProperty.apply(self, schema, context)
+        PropertyMetaCommand.apply(self, schema, context)
 
         link = context.get(s_links.LinkCommandContext)
 
@@ -2530,17 +2625,17 @@ class CreateMappingIndexes(MetaCommand):
         super().__init__()
 
         key = str(table_name[1])
-        if cardinality == s_links.LinkMapping.OneToOne:
+        if cardinality == s_pointers.PointerCardinality.OneToOne:
             # Each source can have only one target and
             # each target can have only one source
             sides = ('std::source', 'std::target')
 
-        elif cardinality == s_links.LinkMapping.OneToMany:
+        elif cardinality == s_pointers.PointerCardinality.OneToMany:
             # Each target can have only one source, but
             # one source can have many targets
             sides = ('std::target', )
 
-        elif cardinality == s_links.LinkMapping.ManyToOne:
+        elif cardinality == s_pointers.PointerCardinality.ManyToOne:
             # Each source can have only one target, but
             # one target can have many sources
             sides = ('std::source', )
@@ -2551,7 +2646,7 @@ class CreateMappingIndexes(MetaCommand):
         for side in sides:
             index = deltadbops.MappingIndex(
                 key + '_%s' % side, cardinality, maplinks, table_name)
-            index.add_columns((side, 'link_type_id'))
+            index.add_columns((side, 'ptr_item_id'))
             self.pgops.add(dbops.CreateIndex(index, priority=3))
 
 
@@ -2586,10 +2681,10 @@ class UpdateMappingIndexes(MetaCommand):
         super().__init__(**kwargs)
         self.links = {}
         self.idx_name_re = re.compile(
-            r'.*(?P<cardinality>[1*]{2})_link_mapping_idx$')
+            r'.*(?P<cardinality>[1*]{2})_cardinality_idx$')
         self.idx_pred_re = re.compile(
             r'''
-                              \( \s* link_type_id \s* = \s*
+                              \( \s* ptr_item_id \s* = \s*
                                   (?:(?: ANY \s* \( \s* ARRAY \s* \[
                                       (?P<type_ids> \d+ (?:\s* , \s* \d+)* )
                                   \s* \] \s* \) \s* )
@@ -2615,13 +2710,13 @@ class UpdateMappingIndexes(MetaCommand):
                 'could not interpret index {} predicate: {}'.format(
                     (index_name, index_predicate)))
 
-        link_type_ids = (
+        ptr_item_ids = (
             int(i)
             for i in re.split(
                 r'\D+', m.group('type_ids') or m.group('type_id')))
 
         links = []
-        for i in link_type_ids:
+        for i in ptr_item_ids:
             # XXX: in certain cases, orphaned indexes are left in the backend
             # after the link was dropped.
             try:
@@ -2656,7 +2751,7 @@ class UpdateMappingIndexes(MetaCommand):
             indexes = {}
             idx_data = await datasources.introspection.tables.fetch_indexes(
                 db,
-                schema_pattern='edgedb%', index_pattern='%_link_mapping_idx')
+                schema_pattern='edgedb%', index_pattern='%_cardinality_idx')
             for row in idx_data:
                 table_name = tuple(row['table_name'])
                 indexes[table_name] = self.interpret_indexes(
@@ -2671,11 +2766,11 @@ class UpdateMappingIndexes(MetaCommand):
 
             new_indexes = {
                 k: []
-                for k in s_links.LinkMapping.__members__.values()
+                for k in s_pointers.PointerCardinality.__members__.values()
             }
             alter_indexes = {
                 k: []
-                for k in s_links.LinkMapping.__members__.values()
+                for k in s_pointers.PointerCardinality.__members__.values()
             }
 
             existing = indexes.get(table_name)

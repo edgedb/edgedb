@@ -683,10 +683,10 @@ class MappingIndex(dbops.Index):
         ids = tuple(sorted(list(link_map[n] for n in self.link_names)))
         id_str = '_'.join(str(i) for i in ids)
 
-        name = '%s_%s_%s_link_mapping_idx' % (
+        name = '%s_%s_%s_cardinality_idx' % (
             self.name_prefix, id_str, self.cardinality)
         name = common.edgedb_name_to_pg_name(name)
-        predicate = 'link_type_id IN (%s)' % ', '.join(str(id) for id in ids)
+        predicate = 'ptr_item_id IN (%s)' % ', '.join(str(id) for id in ids)
 
         code = '''
             CREATE {unique} INDEX {name} ON {table}s ({cols}) {predicate}
@@ -699,9 +699,9 @@ class MappingIndex(dbops.Index):
         return code
 
     def __repr__(self):
-        name = '%s_%s_%s_link_mapping_idx' % (
+        name = '%s_%s_%s_cardinality_idx' % (
             self.name_prefix, '<HASH>', self.cardinality)
-        predicate = 'link_type_id IN (%s)' % ', '.join(
+        predicate = 'ptr_item_id IN (%s)' % ', '.join(
             str(n) for n in self.link_names)
 
         return \

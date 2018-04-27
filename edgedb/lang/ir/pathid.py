@@ -8,7 +8,6 @@
 
 from edgedb.lang.schema import scalars as s_scalars
 from edgedb.lang.schema import objtypes as s_objtypes
-from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import types as s_types
 
@@ -189,7 +188,7 @@ class PathId:
         for i in range(1, len(path) - 1, 2):
             ptr = path[i][0]
             ptrdir = path[i][1]
-            is_lprop = isinstance(ptr, s_lprops.LinkProperty)
+            is_lprop = ptr.is_link_property()
 
             lexpr = f'{ptr.shortname.name}'
 
@@ -283,7 +282,7 @@ class PathId:
         if target is None:
             target = link.get_far_endpoint(direction)
 
-        is_linkprop = isinstance(link, s_lprops.LinkProperty)
+        is_linkprop = link.is_link_property()
         if is_linkprop and not self._is_ptr:
             raise ValueError('link property path extension on a non-link path')
 
@@ -320,7 +319,8 @@ class PathId:
         return self._is_ptr
 
     def is_linkprop_path(self):
-        return isinstance(self.rptr(), s_lprops.LinkProperty)
+        rptr = self.rptr()
+        return rptr is not None and rptr.is_link_property()
 
     def is_type_indirection_path(self):
         rptr = self.rptr()

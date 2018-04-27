@@ -566,28 +566,28 @@ class DropScalarType(DropObject):
     pass
 
 
-class CreateLinkProperty(CreateExtendingObject):
+class CreateProperty(CreateExtendingObject):
     pass
 
 
-class AlterLinkProperty(AlterObject):
+class AlterProperty(AlterObject):
     pass
 
 
-class DropLinkProperty(DropObject):
+class DropProperty(DropObject):
     pass
 
 
-class CreateConcreteLinkProperty(CreateObject):
+class CreateConcreteProperty(CreateObject):
     is_required: bool = False
     target: Expr
 
 
-class AlterConcreteLinkProperty(AlterObject):
+class AlterConcreteProperty(AlterObject):
     pass
 
 
-class DropConcreteLinkProperty(AlterObject):
+class DropConcreteProperty(AlterObject):
     pass
 
 

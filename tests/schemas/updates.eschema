@@ -1,23 +1,23 @@
 type Status:
-    required link name -> str:
+    required property name -> str:
         constraint unique
 
 type Tag:
-    required link name -> str:
+    required property name -> str:
         constraint unique
 
 abstract link annotated_status:
-    link property note -> str
+    property note -> str
 
 abstract link weighted_tags:
-    link property weight -> int
+    property weight -> int
 
 abstract link annotated_tests:
-    link property note -> str
+    property note -> str
 
 type UpdateTest:
-    required link name -> str
-    link comment -> str
+    required property name -> str
+    property comment -> str
 
     # for testing singleton links
     link status -> Status

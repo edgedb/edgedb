@@ -269,7 +269,7 @@ class EdgeQLOptimizer:
                 for t in expr.targets:
                     self._process_expr(context, t)
 
-            elif isinstance(expr, qlast.CreateConcreteLinkProperty):
+            elif isinstance(expr, qlast.CreateConcreteProperty):
                 self._process_expr(context, expr.target)
 
         elif isinstance(expr, (qlast.CreateLocalPolicy,

@@ -8,8 +8,8 @@
 
 from edgedb.lang.common import ast
 
+from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import objtypes as s_objtypes
-from edgedb.lang.schema import lproperties as s_lprops
 
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.edgeql import ast as qlast
@@ -80,7 +80,7 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                     ),
                     direction=rptr.direction,
                     target=target)
-                if isinstance(ptrcls, s_lprops.LinkProperty):
+                if isinstance(ptrcls.source, s_links.Link):
                     link.type = 'property'
                 links.append(link)
 
@@ -131,6 +131,11 @@ class IRDecompiler(ast.visitor.NodeVisitor):
     def visit_BinOp(self, node):
         result = qlast.BinOp()
         result.left = self.visit(node.left)
+
+        if isinstance(node.op, ast.ops.TypeCheckOperator):
+            # Trim the trailing __type__ added by the compiler
+            result.left.steps = result.left.steps[:-1]
+
         result.right = self.visit(node.right)
         result.op = node.op
         return result
@@ -255,6 +260,17 @@ class IRDecompiler(ast.visitor.NodeVisitor):
 
     def visit_ExistPred(self, node):
         result = qlast.ExistsPredicate(expr=self.visit(node.expr))
+        return result
+
+    def visit_TypeRef(self, node):
+        # Bare TypeRef only appears as rhs of IS [NOT] and is always
+        # an object type reference.
+        mtn = node.maintype
+
+        result = qlast.Path(
+            steps=[qlast.ObjectRef(module=mtn.module, name=mtn.name)]
+        )
+
         return result
 
     def _is_none(self, expr):

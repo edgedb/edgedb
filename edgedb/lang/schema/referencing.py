@@ -135,7 +135,13 @@ class ReferencingObjectMeta(type(inheriting.InheritingObject)):
         return cls._refdicts.get(name)
 
     def get_refdict_for_class(cls, refcls):
-        return cls._refdicts_by_refclass[refcls]
+        for rcls in refcls.__mro__:
+            try:
+                return cls._refdicts_by_refclass[rcls]
+            except KeyError:
+                pass
+        else:
+            raise KeyError(f'{cls} has no refdict for {refcls}')
 
 
 class ReferencedObjectCommandMeta(type(named.NamedObjectCommand)):
@@ -702,7 +708,7 @@ class ReferencingObject(inheriting.InheritingObject,
                 # locally defined references *must* use
                 # the `inherited` keyword if ancestors have
                 # a reference under the same name.
-                raise s_err.SchemaError(
+                raise s_err.SchemaDefinitionError(
                     f'{self.shortname}: {local.shortname} must be '
                     f'declared using the `inherited` keyword because '
                     f'it is defined in the following ancestor(s): '
@@ -711,7 +717,7 @@ class ReferencingObject(inheriting.InheritingObject,
                 )
 
             if merged is local and local.declared_inherited:
-                raise s_err.SchemaError(
+                raise s_err.SchemaDefinitionError(
                     f'{self.shortname}: {local.shortname} cannot '
                     f'be declared `inherited` as there are no ancestors '
                     f'defining it.',
@@ -807,12 +813,9 @@ class ReferencingObjectCommand(sd.ObjectCommand):
             op.apply(schema, context=context)
 
     def _delete_refs(self, schema, context, scls, refdict):
-        del_cmd = sd.ObjectCommandMeta.get_command_class(
-            named.DeleteNamedObject, refdict.ref_cls)
-
         deleted_refs = set()
 
-        for op in self.get_subcommands(type=del_cmd):
+        for op in self.get_subcommands(metaclass=refdict.ref_cls):
             deleted_ref = op.apply(schema, context=context)
             deleted_refs.add(deleted_ref)
 
@@ -821,6 +824,9 @@ class ReferencingObjectCommand(sd.ObjectCommand):
         all_refs = set(getattr(scls, refdict.local_attr).values())
 
         for ref in all_refs - deleted_refs:
+            del_cmd = sd.ObjectCommandMeta.get_command_class(
+                named.DeleteNamedObject, type(ref))
+
             op = del_cmd(classname=ref.name)
             op.apply(schema, context=context)
             self.add(op)

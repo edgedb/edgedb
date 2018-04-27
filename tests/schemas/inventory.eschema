@@ -1,17 +1,17 @@
 abstract type Named:
-    required link name -> str:
+    required property name -> str:
         delegated constraint unique
 
 type Item extending Named:
-    link tag_set1 -> str:
+    property tag_set1 -> str:
         cardinality := '1*'
 
     # for scalar links there should not be any practical difference
     # between a 1* and ** cardinality
     #
-    link tag_set2 -> str:
+    property tag_set2 -> str:
         cardinality := '**'
 
-    link tag_array -> array<str>
+    property tag_array -> array<str>
 
-    link components -> map<str, int>
+    property components -> map<str, int>

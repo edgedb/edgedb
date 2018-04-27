@@ -17,7 +17,6 @@ from edgedb.lang.ir import utils as irutils
 
 from edgedb.lang.schema import scalars as s_scalars
 from edgedb.lang.schema import objtypes as s_objtypes
-from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import types as s_types
 
 from edgedb.server.pgsql import ast as pgast
@@ -549,7 +548,7 @@ def process_set_as_path(
         ptrcls, resolve_type=False, link_bias=False)
 
     # Path is a link property.
-    is_linkprop = isinstance(ptrcls, s_lprops.LinkProperty)
+    is_linkprop = ptrcls.is_link_property()
     # Path is a reference to a relationship stored in the source table.
     is_inline_ref = ptr_info.table_type == 'ObjectType'
     is_scalar_ref = not isinstance(ptrcls.target, s_objtypes.ObjectType)

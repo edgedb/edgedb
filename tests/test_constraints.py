@@ -547,12 +547,12 @@ class TestConstraintsDDL(tb.DDLTestCase):
         qry = """
             CREATE ABSTRACT LINK test::translated_label {
                 SET cardinality := '1*';
-                CREATE LINK PROPERTY test::lang -> std::str;
-                CREATE LINK PROPERTY test::prop1 -> std::str;
+                CREATE PROPERTY test::lang -> std::str;
+                CREATE PROPERTY test::prop1 -> std::str;
             };
 
             CREATE ABSTRACT LINK test::link_with_unique_property {
-                CREATE LINK PROPERTY test::unique_property -> std::str {
+                CREATE PROPERTY test::unique_property -> std::str {
                     CREATE CONSTRAINT std::unique;
                 };
             };
@@ -561,11 +561,11 @@ class TestConstraintsDDL(tb.DDLTestCase):
                 EXTENDING test::link_with_unique_property;
 
             CREATE TYPE test::UniqueName {
-                CREATE LINK test::name -> std::str {
+                CREATE PROPERTY test::name -> std::str {
                     CREATE CONSTRAINT std::unique;
                 };
 
-                CREATE LINK test::linu_with_unique_property -> std::str;
+                CREATE LINK test::link_with_unique_property -> std::Object;
             };
         """
 
@@ -588,7 +588,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         qry = """
             CREATE TYPE test::AbstractConstraintParent {
-                CREATE LINK test::name -> std::str {
+                CREATE PROPERTY test::name -> std::str {
                     CREATE DELEGATED CONSTRAINT std::unique;
                 };
             };
@@ -641,11 +641,11 @@ class TestConstraintsDDL(tb.DDLTestCase):
             };
 
             CREATE TYPE test::ConstraintOnTest1 {
-                CREATE LINK test::foo -> std::str {
+                CREATE PROPERTY test::foo -> std::str {
                     CREATE CONSTRAINT test::mymax1(3);
                 };
 
-                CREATE LINK test::bar -> std::str {
+                CREATE PROPERTY test::bar -> std::str {
                     CREATE CONSTRAINT test::mymax_ext1(3);
                 };
             };
@@ -714,11 +714,11 @@ class TestConstraintsDDL(tb.DDLTestCase):
             };
 
             CREATE TYPE test::ConstraintOnTest2 {
-                CREATE LINK test::foo -> std::str {
+                CREATE PROPERTY test::foo -> std::str {
                     CREATE CONSTRAINT test::mymax2(3) ON (len(__subject__));
                 };
 
-                CREATE LINK test::bar -> std::str {
+                CREATE PROPERTY test::bar -> std::str {
                     CREATE CONSTRAINT std::max(3) ON (len(__subject__)) {
                         SET errmessage :=
                       # XXX: once simple string concat is possible here
@@ -796,7 +796,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
             };
 
             CREATE TYPE test::ConstraintOnTest3 {
-                CREATE LINK test::foo -> std::str {
+                CREATE PROPERTY test::foo -> std::str {
                     CREATE CONSTRAINT test::mymax3(3) ON (len(__subject__));
                 };
             };
@@ -850,7 +850,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     };
 
                     CREATE TYPE test::InvalidConstraintTest1 {
-                        CREATE LINK test::foo -> std::str {
+                        CREATE PROPERTY test::foo -> std::str {
                             CREATE CONSTRAINT test::len_fail(3) {
                                 SET subjectexpr := len(__subject__);
                             };
@@ -868,7 +868,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     };
 
                     CREATE TYPE test::InvalidConstraintTest1 {
-                        CREATE LINK test::foo -> std::str {
+                        CREATE PROPERTY test::foo -> std::str {
                             CREATE CONSTRAINT test::len_fail(3) {
                                 SET subject := len(__subject__);
                             };
@@ -895,7 +895,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     };
 
                     CREATE TYPE test::InvalidConstraintTest2 {
-                        CREATE LINK test::foo -> std::str {
+                        CREATE PROPERTY test::foo -> std::str {
                             CREATE CONSTRAINT test::max_int(3)
                                 ON (len(__subject__));
                         };
@@ -911,7 +911,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
             };
 
             CREATE TYPE test::ConstraintAlterTest1 {
-                CREATE LINK test::value -> std::int {
+                CREATE PROPERTY test::value -> std::int {
                     CREATE CONSTRAINT std::max(3);
                 };
             };
@@ -945,7 +945,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     'subjectexpr is not a valid constraint attribute'):
                 await self.con.execute("""
                     ALTER TYPE test::ConstraintAlterTest1 {
-                        ALTER LINK test::value {
+                        ALTER PROPERTY test::value {
                             ALTER CONSTRAINT std::max {
                                 SET subjectexpr := len(__subject__);
                             };
@@ -959,7 +959,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     'subject is not a valid constraint attribute'):
                 await self.con.execute("""
                     ALTER TYPE test::ConstraintAlterTest1 {
-                        ALTER LINK test::value {
+                        ALTER PROPERTY test::value {
                             ALTER CONSTRAINT std::max {
                                 SET subject := len(__subject__);
                             };
@@ -978,7 +978,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
             };
 
             CREATE TYPE test::ConstraintAlterTest2 {
-                CREATE LINK test::value -> std::int {
+                CREATE PROPERTY test::value -> std::int {
                     CREATE CONSTRAINT std::max(3) ON (__subject__ % 10);
                 };
             };
@@ -1012,7 +1012,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     'subjectexpr is not a valid constraint attribute'):
                 await self.con.execute("""
                     ALTER TYPE test::ConstraintAlterTest1 {
-                        ALTER LINK test::value {
+                        ALTER PROPERTY test::value {
                             ALTER CONSTRAINT std::max {
                                 DROP ATTRIBUTE subjectexpr;
                             };
@@ -1026,7 +1026,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     'subject is not a valid constraint attribute'):
                 await self.con.execute("""
                     ALTER TYPE test::ConstraintAlterTest1 {
-                        ALTER LINK test::value {
+                        ALTER PROPERTY test::value {
                             ALTER CONSTRAINT std::max {
                                 DROP ATTRIBUTE subject;
                             };

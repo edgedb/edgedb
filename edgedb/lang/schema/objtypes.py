@@ -12,6 +12,7 @@ from . import constraints
 from . import delta as sd
 from . import inheriting
 from . import links
+from . import lproperties
 from . import name as sn
 from . import named
 from . import nodes
@@ -26,10 +27,6 @@ class SourceNode(sources.Source, nodes.Node):
 
 class ObjectType(SourceNode, constraints.ConsistencySubject):
     _type = 'ObjectType'
-
-    @classmethod
-    def get_pointer_class(cls):
-        return links.Link
 
     def materialize_policies(self, schema):
         bases = self.bases
@@ -129,6 +126,7 @@ class DerivedObjectType(SourceNode,
 class ObjectTypeCommandContext(sd.ObjectCommandContext,
                                constraints.ConsistencySubjectCommandContext,
                                links.LinkSourceCommandContext,
+                               lproperties.PropertySourceContext,
                                nodes.NodeCommandContext):
     pass
 

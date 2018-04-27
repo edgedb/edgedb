@@ -15,7 +15,6 @@ from edgedb.lang.common import enum as s_enum
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
-from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import types as s_types
 
@@ -141,7 +140,7 @@ def get_path_var(
             # This is an scalar set derived from an expression.
             src_path_id = path_id
 
-    elif isinstance(ptrcls, s_lprops.LinkProperty):
+    elif ptrcls.is_link_property():
         if ptr_info.table_type != 'link' and not is_inbound:
             # This is a link prop that is stored in source rel,
             # step back to link source rvar.

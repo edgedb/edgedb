@@ -18,7 +18,6 @@ from edgedb.lang.schema import scalars as s_scalars
 from edgedb.lang.schema import objtypes as s_objtypes
 from edgedb.lang.schema import error as s_err
 from edgedb.lang.schema import links as s_links
-from edgedb.lang.schema import lproperties as s_lprops
 from edgedb.lang.schema import name as sn
 
 from edgedb.lang.common import ast
@@ -97,7 +96,7 @@ class ConstraintMech:
             rptr = ref.rptr
             if rptr is not None:
                 ptr = ref.rptr.ptrcls
-                if isinstance(ptr, s_lprops.LinkProperty):
+                if ptr.is_link_property():
                     src = ref.rptr.source.rptr.ptrcls
                     if src.is_derived:
                         # This specialized pointer was derived specifically
@@ -502,7 +501,7 @@ class TypeMech:
 
             if isinstance(scls, s_links.Link):
                 cols.extend([
-                    dbops.Column(name='link_type_id', type='uuid'),
+                    dbops.Column(name='ptr_item_id', type='uuid'),
                     dbops.Column(name='std::source', type='uuid'),
                     dbops.Column(name='std::target', type='uuid')
                 ])
