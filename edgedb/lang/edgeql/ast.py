@@ -132,14 +132,16 @@ class SortExpr(Clause):
     nones_order: str
 
 
-# TODO: this needs clean-up and refactoring to account for different
-# uses of aliases
-class AliasedExpr(Clause):
+class BaseAlias(Clause):
+    pass
+
+
+class AliasedExpr(BaseAlias):
     expr: Expr
     alias: str
 
 
-class NamespaceAliasDecl(Clause):
+class NamespaceAliasDecl(BaseAlias):
     namespace: str
     alias: str
 
@@ -739,3 +741,7 @@ class AlterFunction(AlterObject):
 class DropFunction(DropObject):
     args: typing.List[FuncParam]
     aggregate: bool = False
+
+
+class SessionStateDecl(Expr):
+    items: typing.List[BaseAlias]

@@ -1005,6 +1005,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(' = ')
             self.visit(node.default)
 
+    def visit_SessionStateDecl(self, node):
+        self.write('SET')
+        self._block_ws(1)
+        self.visit_list(node.items)
+        self._block_ws(-1)
+
     @classmethod
     def to_source(
             cls, node, indent_with=' ' * 4, add_line_information=False,
