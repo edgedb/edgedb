@@ -1938,7 +1938,8 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                     dbops.AlterTableAlterColumnDefault(
                         column_name=column_name, default=new_default))
 
-    def get_columns(self, pointer, schema, default=None):
+    @classmethod
+    def get_columns(cls, pointer, schema, default=None):
         ptr_stor_info = types.get_pointer_storage_info(pointer, schema=schema)
         col_type = list(ptr_stor_info.column_type)
         if col_type[-1].endswith('[]'):
@@ -2424,17 +2425,16 @@ class PropertyMetaCommand(NamedObjectMetaCommand, PointerMetaCommand):
         ci = dbops.CreateIndex(pg_index)
 
         if not prop.generic():
-            tgt_ptr = types.get_pointer_storage_info(
-                prop, link_bias=True, schema=schema)
-            columns.append(
-                dbops.Column(
-                    name=tgt_ptr.column_name,
-                    type=common.qname(*tgt_ptr.column_type)))
+            tgt_cols = cls.get_columns(prop, schema, None)
+            columns.extend(tgt_cols)
 
             constraints.append(
                 dbops.UniqueConstraint(
                     table_name=new_table_name,
-                    columns=[src_col, tgt_ptr.column_name, 'ptr_item_id']))
+                    columns=[src_col, 'ptr_item_id'] +
+                            [tgt_col.name for tgt_col in tgt_cols]
+                )
+            )
 
         table = dbops.Table(name=new_table_name)
         table.add_columns(columns)
