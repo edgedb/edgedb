@@ -66,7 +66,7 @@ class ContextLevel(compiler.ContextLevel):
     to the compiler programmatically).
     """
 
-    namespaces: typing.Dict[str, str]
+    modaliases: typing.Dict[str, str]
     """A combined list of module name aliases declared in the WITH block,
     or passed to the compiler programmatically.
     """
@@ -163,7 +163,7 @@ class ContextLevel(compiler.ContextLevel):
             self.derived_target_module = None
             self.aliases = compiler.AliasGenerator()
             self.anchors = {}
-            self.namespaces = {}
+            self.modaliases = {}
             self.arguments = {}
             self.all_sets = []
             self.stmt_metadata = {}
@@ -224,7 +224,7 @@ class ContextLevel(compiler.ContextLevel):
 
             if mode == ContextSwitchMode.SUBQUERY:
                 self.anchors = prevlevel.anchors.copy()
-                self.namespaces = prevlevel.namespaces.copy()
+                self.modaliases = prevlevel.modaliases.copy()
                 self.aliased_views = prevlevel.aliased_views.new_child()
                 self.view_class_map = prevlevel.view_class_map.copy()
                 self.class_view_overrides = \
@@ -247,7 +247,7 @@ class ContextLevel(compiler.ContextLevel):
 
             elif mode == ContextSwitchMode.DETACHED:
                 self.anchors = prevlevel.anchors.copy()
-                self.namespaces = prevlevel.namespaces.copy()
+                self.modaliases = prevlevel.modaliases.copy()
                 self.aliased_views = collections.ChainMap()
                 self.view_class_map = {}
                 self.class_view_overrides = {}
@@ -272,7 +272,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.toplevel_result_view_name = None
             else:
                 self.anchors = prevlevel.anchors
-                self.namespaces = prevlevel.namespaces
+                self.modaliases = prevlevel.modaliases
                 self.aliased_views = prevlevel.aliased_views
                 self.view_class_map = prevlevel.view_class_map
                 self.class_view_overrides = prevlevel.class_view_overrides

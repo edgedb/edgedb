@@ -7,6 +7,7 @@
 
 import asyncpg
 
+from edgedb.lang.ir import ast as irast
 from edgedb.lang.schema import delta as s_delta
 from edgedb.lang.schema import deltas as s_deltas
 from edgedb.lang.common import exceptions
@@ -60,6 +61,11 @@ async def execute_plan(plan, protocol):
                 raise _error from e
             else:
                 raise
+
+    elif isinstance(plan, irast.SessionStateCmd):
+        # SET command
+
+        await backend.exec_session_state_cmd(plan)
 
     else:
         raise exceptions.InternalError('unexpected plan: {!r}'.format(plan))

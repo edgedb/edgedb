@@ -162,11 +162,14 @@ async def _init_std_schema(conn):
     await metaschema.generate_views(conn, bk.schema)
 
 
-async def _init_graphql_schema(conn, cluster, loop):
-    logger.info('Bootstrapping graphql module...')
-
+async def _run_script(script, conn, cluster, loop):
     protocol = edgedb_protocol.Protocol(cluster, loop=loop)
     protocol.backend = await backend.open_database(conn)
+    await protocol._run_script(script)
+
+
+async def _init_graphql_schema(conn, cluster, loop):
+    logger.info('Bootstrapping graphql module...')
 
     with open(os.path.join(os.path.dirname(edgedb_schema.__file__),
                            '_graphql.eschema'), 'r') as f:
@@ -181,7 +184,15 @@ async def _init_graphql_schema(conn, cluster, loop):
                            '_graphql.eql'), 'r') as f:
         script += f.read()
 
-    await protocol._run_script(script)
+    await _run_script(script, conn, cluster, loop)
+
+
+async def _init_defaults(conn, cluster, loop):
+    script = f'''
+        CREATE MODULE default;
+    '''
+
+    await _run_script(script, conn, cluster, loop)
 
 
 async def _ensure_edgedb_default_database(conn):
@@ -211,6 +222,7 @@ async def bootstrap(cluster, loop=None):
                 await _ensure_meta_schema(conn)
                 await _init_std_schema(conn)
                 await _init_graphql_schema(conn, cluster, loop)
+                await _init_defaults(conn, cluster, loop)
             finally:
                 await conn.close()
 

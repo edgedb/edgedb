@@ -46,9 +46,19 @@ def plan_statement(stmt, backend, flags={}, *, timer):
         # BEGIN/COMMIT
         return TransactionStatement(stmt)
 
+    elif isinstance(stmt, qlast.SessionStateDecl):
+        # SET ...
+        with timer.timeit('compile_eql_to_ir'):
+            ir = ql_compiler.compile_ast_to_ir(
+                stmt, schema=backend.schema, modaliases=backend.modaliases)
+
+        return ir
+
     else:
         # Queries
         with timer.timeit('compile_eql_to_ir'):
-            ir = ql_compiler.compile_ast_to_ir(stmt, schema=backend.schema)
+            ir = ql_compiler.compile_ast_to_ir(
+                stmt, schema=backend.schema, modaliases=backend.modaliases)
+
         return backend.compile(ir, output_format=compiler.OutputFormat.JSON,
                                timer=timer)

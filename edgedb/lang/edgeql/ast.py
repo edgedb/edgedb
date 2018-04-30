@@ -141,8 +141,8 @@ class AliasedExpr(BaseAlias):
     alias: str
 
 
-class NamespaceAliasDecl(BaseAlias):
-    namespace: str
+class ModuleAliasDecl(BaseAlias):
+    module: str
     alias: str
 
 
@@ -329,7 +329,7 @@ class GroupExpr(Expr):
 #
 
 class Statement(Expr):
-    aliases: typing.List[typing.Union[AliasedExpr, NamespaceAliasDecl]]
+    aliases: typing.List[typing.Union[AliasedExpr, ModuleAliasDecl]]
     cardinality: Cardinality = Cardinality.DEFAULT
 
 
@@ -447,7 +447,6 @@ class AlterTarget(DDL):
 
 
 class ObjectDDL(CompositeDDL):
-    namespaces: list  # XXX: is it even used?
     name: ObjectRef
     commands: typing.List[DDL]
 

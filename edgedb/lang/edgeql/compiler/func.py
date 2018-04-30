@@ -40,7 +40,7 @@ def compile_FunctionCall(
             funcname = sn.Name(expr.func[1], expr.func[0])
 
         funcs = fctx.schema.get_functions(
-            funcname, module_aliases=fctx.namespaces)
+            funcname, module_aliases=fctx.modaliases)
 
         if funcs is None:
             raise errors.EdgeQLError(

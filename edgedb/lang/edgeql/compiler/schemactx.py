@@ -45,7 +45,7 @@ def get_schema_object(
             return result
 
     try:
-        scls = ctx.schema.get(name=name, module_aliases=ctx.namespaces)
+        scls = ctx.schema.get(name=name, module_aliases=ctx.modaliases)
     except s_err.SchemaError as e:
         raise qlerrors.EdgeQLError(e.args[0], context=srcctx)
 
@@ -59,7 +59,7 @@ def get_schema_object(
 def resolve_schema_name(
         name: str, module: str, *,
         ctx: context.ContextLevel) -> sn.Name:
-    schema_module = ctx.namespaces.get(module)
+    schema_module = ctx.modaliases.get(module)
     if schema_module is None:
         return None
     else:
