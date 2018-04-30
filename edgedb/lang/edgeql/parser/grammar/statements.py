@@ -8,7 +8,6 @@
 
 from edgedb.lang.edgeql import ast as qlast
 
-from ...errors import EdgeQLSyntaxError
 from .expressions import Nonterm
 from .precedence import *  # NOQA
 from .tokens import *  # NOQA
@@ -25,7 +24,7 @@ class Stmt(Nonterm):
     def reduce_RollbackTransactionStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_SetStmt(self, *kids):
+    def reduce_ExprStmt(self, *kids):
         self.val = kids[0].val
 
 
@@ -35,13 +34,7 @@ class StartTransactionStmt(Nonterm):
 
 
 class CommitTransactionStmt(Nonterm):
-    def reduce_DDLAliasBlock_COMMIT(self, *kids):
-        # NOTE: DDLAliasBlock is trying to avoid conflicts
-        with_block = kids[0].val
-        if with_block.aliases:
-            raise EdgeQLSyntaxError(
-                'WITH block not allowed for a transaction COMMIT',
-                context=kids[0].context)
+    def reduce_COMMIT(self, *kids):
         self.val = qlast.CommitTransaction()
 
 

@@ -54,10 +54,6 @@ class P_IN(Precedence, assoc='nonassoc', tokens=('IN',)):
     pass
 
 
-class P_POSTFIXOP(Precedence, assoc='left'):
-    pass
-
-
 class P_IDENT(Precedence, assoc='nonassoc', tokens=('IDENT', 'PARTITION')):
     pass
 

@@ -11,13 +11,20 @@ from .precedence import *  # NOQA
 from .tokens import *  # NOQA
 from .statements import *  # NOQA
 from .ddl import *  # NOQA
+from .session import *  # NOQA
 
 
 class SingleStatement(Nonterm):
     def reduce_Stmt(self, *kids):
+        # Expressions
         self.val = kids[0].val
 
     def reduce_DDLStmt(self, *kids):
+        # Data definition commands
+        self.val = kids[0].val
+
+    def reduce_SessionStmt(self, *kids):
+        # Session-local utility commands
         self.val = kids[0].val
 
 

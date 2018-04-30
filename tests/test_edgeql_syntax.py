@@ -1492,7 +1492,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         } FILTER (foo = 'special');
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=9)
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=6, col=15)
     def test_edgeql_syntax_with_02(self):
         """
         WITH
@@ -2788,4 +2788,31 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             CREATE LINK schema::attributes -> schema::Attribute {
                 SET cardinality := '**';
             };
+        """
+
+    def test_edgeql_syntax_set_command_01(self):
+        """
+        SET MODULE default;
+
+% OK %
+
+        SET MODULE default;
+        """
+
+    def test_edgeql_syntax_set_command_02(self):
+        """
+        SET foo := MODULE default;
+
+% OK %
+
+        SET foo := MODULE default;
+        """
+
+    def test_edgeql_syntax_set_command_03(self):
+        """
+        SET MODULE default, foo := (SELECT User);
+
+% OK %
+
+        SET MODULE default, foo := (SELECT User);
         """

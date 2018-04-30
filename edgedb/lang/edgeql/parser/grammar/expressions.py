@@ -29,17 +29,17 @@ class ListNonterm(parsing.ListNonterm, element=None):
     pass
 
 
-class SetStmt(Nonterm):
-    def reduce_AliasBlock_SetStmtCore(self, *kids):
+class ExprStmt(Nonterm):
+    def reduce_WithBlock_ExprStmtCore(self, *kids):
         self.val = kids[1].val
         self.val.aliases = kids[0].val.aliases
         self.val.cardinality = kids[0].val.cardinality
 
-    def reduce_SetStmtCore(self, *kids):
+    def reduce_ExprStmtCore(self, *kids):
         self.val = kids[0].val
 
 
-class SetStmtCore(Nonterm):
+class ExprStmtCore(Nonterm):
     def reduce_SimpleFor(self, *kids):
         self.val = kids[0].val
 
@@ -196,28 +196,20 @@ class SimpleDelete(Nonterm):
         )
 
 
-class OptAliasBlock(Nonterm):
-    def reduce_AliasBlock(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_empty(self, *kids):
-        self.val = WithBlock(aliases=[], cardinality=None)
+WithBlockData = collections.namedtuple(
+    'WithBlockData', ['aliases', 'cardinality'], module=__name__)
 
 
-WithBlock = collections.namedtuple(
-    'WithBlock', ['aliases', 'cardinality'], module=__name__)
+CardinalityData = collections.namedtuple(
+    'CardinalityData', ['cardinality', 'tok'], module=__name__)
 
 
-Cardinality = collections.namedtuple(
-    'Cardinality', ['cardinality', 'tok'], module=__name__)
-
-
-class AliasBlock(Nonterm):
-    def reduce_WITH_AliasDeclList(self, *kids):
+class WithBlock(Nonterm):
+    def reduce_WITH_WithDeclList(self, *kids):
         aliases = []
         cardinality = None
         for w in kids[1].val:
-            if isinstance(w, Cardinality):
+            if isinstance(w, CardinalityData):
                 if cardinality is None:
                     cardinality = w.cardinality
                 else:
@@ -226,22 +218,13 @@ class AliasBlock(Nonterm):
                         context=w.tok.context)
             else:
                 aliases.append(w)
-        self.val = WithBlock(aliases=aliases, cardinality=cardinality)
+        self.val = WithBlockData(aliases=aliases, cardinality=cardinality)
 
 
 class AliasDecl(Nonterm):
     def reduce_MODULE_ModuleName(self, *kids):
         self.val = qlast.NamespaceAliasDecl(
             namespace='.'.join(kids[1].val))
-
-    def reduce_CARDINALITY_SCONST(self, *kids):
-        try:
-            car = qlast.Cardinality(kids[1].val)
-        except ValueError:
-            raise EdgeQLSyntaxError(
-                'Unexpected token: {!r}'.format(kids[1]),
-                context=kids[1].context)
-        self.val = Cardinality(cardinality=car, tok=kids[0])
 
     def reduce_Identifier_TURNSTILE_MODULE_ModuleName(self, *kids):
         self.val = qlast.NamespaceAliasDecl(
@@ -252,8 +235,22 @@ class AliasDecl(Nonterm):
         self.val = kids[0].val
 
 
-class AliasDeclList(ListNonterm, element=AliasDecl,
-                    separator=tokens.T_COMMA):
+class WithDecl(Nonterm):
+    def reduce_AliasDecl(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_CARDINALITY_SCONST(self, *kids):
+        try:
+            car = qlast.Cardinality(kids[1].val)
+        except ValueError:
+            raise EdgeQLSyntaxError(
+                'Unexpected token: {!r}'.format(kids[1]),
+                context=kids[1].context)
+        self.val = CardinalityData(cardinality=car, tok=kids[0])
+
+
+class WithDeclList(ListNonterm, element=WithDecl,
+                   separator=tokens.T_COMMA):
     pass
 
 
@@ -494,7 +491,7 @@ class ParenExpr(Nonterm):
     def reduce_LPAREN_Expr_RPAREN(self, *kids):
         self.val = kids[1].val
 
-    def reduce_LPAREN_SetStmt_RPAREN(self, *kids):
+    def reduce_LPAREN_ExprStmt_RPAREN(self, *kids):
         self.val = kids[1].val
 
 
@@ -1008,16 +1005,6 @@ class PathStepName(Nonterm):
 
     def reduce_DUNDERTYPE(self, *kids):
         self.val = qlast.ObjectRef(name=kids[0].val)
-
-
-class LinkDirection(Nonterm):
-    def reduce_LANGBRACKET(self, *kids):
-        from edgedb.lang.schema import pointers as s_pointers
-        self.val = s_pointers.PointerDirection.Inbound
-
-    def reduce_RANGBRACKET(self, *kids):
-        from edgedb.lang.schema import pointers as s_pointers
-        self.val = s_pointers.PointerDirection.Outbound
 
 
 class FuncApplication(Nonterm):
