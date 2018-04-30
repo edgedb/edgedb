@@ -318,6 +318,10 @@ def _is_typing(type_):
     return _is_union(type_) or isinstance(type_, typing.TypingMeta)
 
 
+def _is_optional(type_):
+    return _is_union(type_) and type(None) in type_.__args__
+
+
 def _check_annotation(f_type, f_fullname, f_default):
     if _is_typing(f_type):
         if _is_union(f_type):
@@ -395,7 +399,7 @@ def _check_mapping_type(type_, value, raise_error, instance_type):
     vtype = type_.__args__[1]
     for k, v in value.items():
         _check_type(ktype, k, raise_error)
-        if not k:
+        if not k and not _is_optional(ktype):
             raise RuntimeError('empty key in map')
         _check_type(vtype, v, raise_error)
 

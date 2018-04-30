@@ -279,9 +279,8 @@ class Backend(s_deltarepo.DeltaProvider):
         common.edgedb_name_to_pg_name('std::target'))
 
     def __init__(self, connection):
-        self.modules = None
-
         self.schema = None
+        self.modaliases = {None: 'default'}
 
         self._constr_mech = schemamech.ConstraintMech()
         self._type_mech = schemamech.TypeMech()
@@ -539,6 +538,10 @@ class Backend(s_deltarepo.DeltaProvider):
         self.table_id_to_class_name_cache.clear()
         self.classname_to_table_id_cache.clear()
         self.attribute_link_map_cache.clear()
+
+    async def exec_session_state_cmd(self, cmd):
+        for alias, module in cmd.modaliases.items():
+            self.modaliases[alias] = module.name
 
     async def get_objtype_map(self, force_reload=False):
         if not self.objtype_cache or force_reload:

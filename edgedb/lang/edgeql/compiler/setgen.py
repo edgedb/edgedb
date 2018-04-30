@@ -616,7 +616,7 @@ def computable_ptr_set(
 
         qlctx = None
     else:
-        subctx.namespaces = qlctx.namespaces.copy()
+        subctx.modaliases = qlctx.modaliases.copy()
         subctx.aliased_views = qlctx.aliased_views.new_child()
         if source_scls.is_view():
             subctx.aliased_views[self_.scls.name] = None

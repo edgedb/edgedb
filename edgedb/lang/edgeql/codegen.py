@@ -287,12 +287,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit_list(node.elements, newlines=False)
         self.write(')')
 
-    def visit_NamespaceAliasDecl(self, node):
+    def visit_ModuleAliasDecl(self, node):
         if node.alias:
             self.write(ident_to_str(node.alias))
             self.write(' := ')
         self.write('MODULE ')
-        self.write(any_ident_to_str(node.namespace))
+        self.write(any_ident_to_str(node.module))
 
     def visit_SortExpr(self, node):
         self.visit(node.path)

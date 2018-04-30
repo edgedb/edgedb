@@ -32,7 +32,7 @@ def init_context(
         *,
         schema: s_schema.Schema,
         arg_types: typing.Optional[typing.Iterable[s_obj.Object]]=None,
-        modaliases: typing.Optional[typing.Iterable[str]]=None,
+        modaliases: typing.Optional[typing.Dict[str, str]]=None,
         anchors: typing.Optional[typing.Dict[str, s_obj.Object]]=None,
         security_context: typing.Optional[str]=None,
         derived_target_module: typing.Optional[str]=None,
@@ -43,7 +43,7 @@ def init_context(
     ctx.schema = schema.get_overlay(extra=ctx.view_nodes)
 
     if modaliases:
-        ctx.namespaces.update(modaliases)
+        ctx.modaliases.update(modaliases)
 
     if arg_types:
         ctx.arguments.update(arg_types)
@@ -59,10 +59,14 @@ def init_context(
 
 def fini_expression(
         ir: irast.Base, *,
-        ctx: context.ContextLevel) -> irast.Statement:
+        ctx: context.ContextLevel) -> irast.Command:
     for ir_set in ctx.all_sets:
         if ir_set.path_id.namespace:
             ir_set.path_id = ir_set.path_id.strip_weak_namespaces()
+
+    if isinstance(ir, irast.Command):
+        # IR is already a Command
+        return ir
 
     if ctx.path_scope is not None:
         # Simple expressions have no scope.

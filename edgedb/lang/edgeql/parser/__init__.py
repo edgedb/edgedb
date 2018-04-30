@@ -22,15 +22,15 @@ def parse(expr, module_aliases=None):
         tree = qlast.SelectQuery(result=tree)
 
     if module_aliases:
-        nses = []
+        modaliases = []
         for alias, module in module_aliases.items():
-            decl = qlast.NamespaceAliasDecl(namespace=module, alias=alias)
-            nses.append(decl)
+            decl = qlast.ModuleAliasDecl(module=module, alias=alias)
+            modaliases.append(decl)
 
-        if tree.namespaces is None:
-            tree.namespaces = nses
+        if not tree.aliases:
+            tree.aliases = modaliases
         else:
-            tree.namespaces.extend(nses)
+            tree.aliases = modaliases + tree.aliases
 
     return tree
 

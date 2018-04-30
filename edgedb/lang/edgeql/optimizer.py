@@ -14,15 +14,15 @@ class ContextLevel:
         if prevlevel is not None:
             if mode == Context.SUBQUERY:
                 self.aliascnt = prevlevel.aliascnt.copy()
-                self.namespaces = prevlevel.namespaces.copy()
+                self.modaliases = prevlevel.modaliases.copy()
             else:
                 self.aliascnt = prevlevel.aliascnt
-                self.namespaces = prevlevel.namespaces
+                self.modaliases = prevlevel.modaliases
             self.deoptimize = prevlevel.deoptimize
             self.strip_builtins = prevlevel.strip_builtins
         else:
             self.aliascnt = {}
-            self.namespaces = {}
+            self.modaliases = {}
             self.deoptimize = False
             self.strip_builtins = True
 
@@ -97,16 +97,15 @@ class EdgeQLOptimizer:
         self._process_expr(context, edgeql_tree)
 
         nses = []
-        for alias, fq_name in context.current.namespaces.items():
-            decl = qlast.NamespaceAliasDecl(namespace=fq_name,
-                                            alias=alias)
+        for alias, fq_name in context.current.modaliases.items():
+            decl = qlast.ModuleAliasDecl(module=fq_name, alias=alias)
             nses.append(decl)
 
         if isinstance(edgeql_tree, qlast.Statement):
             if deoptimize:
                 edgeql_tree.aliases[:] = [
                     a for a in edgeql_tree.aliases
-                    if not isinstance(a, qlast.NamespaceAliasDecl)
+                    if not isinstance(a, qlast.ModuleAliasDecl)
                 ]
             else:
                 if edgeql_tree.aliases is not None:
@@ -116,13 +115,16 @@ class EdgeQLOptimizer:
 
         return edgeql_tree
 
+    def _process_aliases(self, context, expr):
+        if expr.aliases:
+            for ns in expr.aliases:
+                if isinstance(ns, qlast.ModuleAliasDecl):
+                    context.current.modaliases[ns.alias] = ns.module
+                    context.current.aliascnt[ns.alias] = 1
+
     def _process_expr(self, context, expr):
         if isinstance(expr, qlast.SelectQuery):
-            if expr.aliases:
-                for ns in expr.aliases:
-                    if isinstance(ns, qlast.NamespaceAliasDecl):
-                        context.current.namespaces[ns.alias] = ns.namespace
-                        context.current.aliascnt[ns.alias] = 1
+            self._process_aliases(context, expr)
 
             if expr.where:
                 self._process_expr(context, expr.where)
@@ -140,9 +142,7 @@ class EdgeQLOptimizer:
                 self._process_expr(context, expr.limit)
 
         elif isinstance(expr, qlast.InsertQuery):
-            if expr.namespaces:
-                context.current.namespaces.update(
-                    (ns.alias, ns.namespace) for ns in expr.namespaces)
+            self._process_aliases(context, expr)
 
             self._process_expr(context, expr.subject)
 
@@ -153,9 +153,7 @@ class EdgeQLOptimizer:
                 self._process_expr(context, expr.result)
 
         elif isinstance(expr, qlast.UpdateQuery):
-            if expr.namespaces:
-                context.current.namespaces.update(
-                    (ns.alias, ns.namespace) for ns in expr.namespaces)
+            self._process_aliases(context, expr)
 
             self._process_expr(context, expr.subject)
 
@@ -169,9 +167,7 @@ class EdgeQLOptimizer:
                 self._process_expr(context, expr.result)
 
         elif isinstance(expr, qlast.DeleteQuery):
-            if expr.namespaces:
-                context.current.namespaces.update(
-                    (ns.alias, ns.namespace) for ns in expr.namespaces)
+            self._process_aliases(context, expr)
 
             self._process_expr(context, expr.subject)
 
@@ -247,9 +243,7 @@ class EdgeQLOptimizer:
             pass
 
         elif isinstance(expr, qlast.ObjectDDL):
-            if expr.namespaces:
-                context.current.namespaces.update(
-                    (ns.alias, ns.namespace) for ns in expr.namespaces)
+            self._process_aliases(context, expr)
 
             expr.name.module = self._process_module_ref(
                 context, expr.name.module)
@@ -318,13 +312,13 @@ class EdgeQLOptimizer:
             return module
 
         if context.current.deoptimize:
-            return context.current.namespaces.get(module, module)
+            return context.current.modaliases.get(module, module)
         else:
             if module == 'std' and context.current.strip_builtins:
                 return None
 
             if '.' in module:
-                modmap = {v: k for k, v in context.current.namespaces.items()}
+                modmap = {v: k for k, v in context.current.modaliases.items()}
                 try:
                     alias = modmap[module]
                 except KeyError:
@@ -333,7 +327,7 @@ class EdgeQLOptimizer:
                         # schemas are commonly in the form <module>.objects
                         mhead, _, mtail = mhead.rpartition('.')
                     alias = context.current.genalias(hint=mtail)
-                    context.current.namespaces[alias] = module
+                    context.current.modaliases[alias] = module
 
                 return alias
             else:

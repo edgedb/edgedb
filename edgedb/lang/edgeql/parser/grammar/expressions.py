@@ -223,13 +223,13 @@ class WithBlock(Nonterm):
 
 class AliasDecl(Nonterm):
     def reduce_MODULE_ModuleName(self, *kids):
-        self.val = qlast.NamespaceAliasDecl(
-            namespace='.'.join(kids[1].val))
+        self.val = qlast.ModuleAliasDecl(
+            module='.'.join(kids[1].val))
 
     def reduce_Identifier_TURNSTILE_MODULE_ModuleName(self, *kids):
-        self.val = qlast.NamespaceAliasDecl(
+        self.val = qlast.ModuleAliasDecl(
             alias=kids[0].val,
-            namespace='.'.join(kids[3].val))
+            module='.'.join(kids[3].val))
 
     def reduce_AliasedExpr(self, *kids):
         self.val = kids[0].val

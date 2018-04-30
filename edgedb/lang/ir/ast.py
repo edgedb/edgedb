@@ -11,6 +11,7 @@ import typing
 from edgedb.lang.common.exceptions import EdgeDBError
 from edgedb.lang.common import ast, compiler, parsing
 
+from edgedb.lang.schema import modules as s_modules
 from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import objects as so
 from edgedb.lang.schema import pointers as s_pointers
@@ -87,7 +88,11 @@ class Set(Base):
             f'<ir.Set \'{self.path_id or self.scls.name}\' at 0x{id(self):x}>'
 
 
-class Statement(Base):
+class Command(Base):
+    pass
+
+
+class Statement(Command):
 
     expr: Set
     views: typing.Dict[sn.Name, s_types.Type]
@@ -292,3 +297,8 @@ class UpdateStmt(MutatingStmt):
 class DeleteStmt(MutatingStmt):
 
     where: Base
+
+
+class SessionStateCmd(Command):
+
+    modaliases: typing.Dict[typing.Optional[str], s_modules.Module]

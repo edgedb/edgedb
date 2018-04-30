@@ -38,7 +38,7 @@ def compile_SelectQuery(
         with ctx.new() as sctx:
             process_with_block(expr, ctx=sctx, parent_ctx=ctx)
             sctx.aliased_views = ctx.aliased_views.new_child()
-            sctx.namespaces = ctx.namespaces.copy()
+            sctx.modaliases = ctx.modaliases.copy()
             sctx.anchors = ctx.anchors.copy()
             result = compile_result_clause(
                 expr.result,
@@ -319,6 +319,36 @@ def compile_DeleteQuery(
     return result
 
 
+@dispatch.compile.register(qlast.SessionStateDecl)
+def compile_SessionStateDecl(
+        decl: qlast.SessionStateDecl, *,
+        ctx: context.ContextLevel) -> irast.SessionStateCmd:
+
+    aliases = {}
+
+    for item in decl.items:
+        if isinstance(item, qlast.ModuleAliasDecl):
+            try:
+                module = ctx.schema.get_module(item.module)
+            except LookupError:
+                raise errors.EdgeQLError(
+                    f'module {item.module!r} does not exist',
+                    context=item.context
+                )
+
+            aliases[item.alias] = module
+
+        else:
+            raise errors.EdgeQLError(
+                f'expression aliases in SET are not supported yet',
+                context=item.context
+            )
+
+    return irast.SessionStateCmd(
+        modaliases=aliases
+    )
+
+
 @dispatch.compile.register(qlast.Shape)
 def compile_Shape(
         shape: qlast.Shape, *, ctx: context.ContextLevel) -> irast.Base:
@@ -390,8 +420,8 @@ def process_with_block(
         edgeql_tree: qlast.Base, *,
         ctx: context.ContextLevel, parent_ctx: context.ContextLevel) -> None:
     for with_entry in edgeql_tree.aliases:
-        if isinstance(with_entry, qlast.NamespaceAliasDecl):
-            ctx.namespaces[with_entry.alias] = with_entry.namespace
+        if isinstance(with_entry, qlast.ModuleAliasDecl):
+            ctx.modaliases[with_entry.alias] = with_entry.module
 
         elif isinstance(with_entry, qlast.AliasedExpr):
             with ctx.new() as scopectx:
