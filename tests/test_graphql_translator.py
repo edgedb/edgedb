@@ -322,6 +322,54 @@ class TestGraphQLTranslation(TranslatorTest):
         };
 
         """
+
+    def test_graphql_translation_query_08(self):
+        r"""
+        query {
+            foo: User {
+                name,
+                groups {
+                    id
+                    name
+                }
+            }
+            bar: User {
+                spam: name,
+                ham: groups {
+                    id
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            foo := (SELECT
+                test::User {
+                    name,
+                    groups: {
+                        id,
+                        name
+                    }
+                }
+            ),
+            bar := (SELECT
+                test::User {
+                    spam := (SELECT
+                        test::User.name
+                    ),
+                    ham := (SELECT
+                        test::User.groups {
+                            id,
+                            name
+                        }
+                    )
+                }
+            )
+        };
+        """
+
     def test_graphql_translation_fragment_01(self):
         r"""
         fragment groupFrag on UserGroup {
@@ -2116,6 +2164,29 @@ class TestGraphQLTranslation(TranslatorTest):
 
         SELECT graphql::Query {
             __typename
+        };
+        """
+
+    def test_graphql_translation_typename_03(self):
+        r"""
+        query {
+            foo: __typename
+            User {
+                name
+                bar: __typename
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            foo := graphql::short_name(std::str.__type__.name),
+            User := (SELECT
+                test::User {
+                    name,
+                    bar := graphql::short_name(test::User.__type__.name)
+                }
+            )
         };
         """
 
