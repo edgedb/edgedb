@@ -313,7 +313,7 @@ type LogEntry extending    OwnedObject,    Text:
 
     def test_eschema_syntax_scalar_01(self):
         """
-scalar type issue_num_t extending builtins::sequence
+scalar type issue_num_t extending std::sequence
         """
 
     def test_eschema_syntax_scalar_02(self):

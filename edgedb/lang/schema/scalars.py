@@ -101,7 +101,6 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
 
 
 _compatibility_map = {
-    'std::str': ['std::sequence'],
     'std::int': ['std::float'],
 }
 

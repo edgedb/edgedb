@@ -45,9 +45,7 @@ type LogEntry extending Owned, Text:
     required property spent_time -> int
 
 
-# issue_num_t is defined as a concrete sequence type,
-# used to generate sequential issue numbers.
-scalar type issue_num_t extending std::sequence
+scalar type issue_num_t extending std::str
 
 
 type Comment extending Text, Owned:
@@ -60,8 +58,6 @@ type Comment extending Text, Owned:
 type Issue extending Named, Owned, Text:
     required property number -> issue_num_t:
         readonly := true
-        # The number values are automatically generated,
-        # and are not supposed to be directly writable.
         constraint unique
 
     required link status -> Status:

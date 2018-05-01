@@ -11,6 +11,20 @@ from edgedb.client import exceptions as exc
 
 
 class TestEdgeQLDT(tb.QueryTestCase):
+    SETUP = '''
+        CREATE MIGRATION default::m TO eschema $$
+            scalar type seq_t extending sequence
+            scalar type seq2_t extending sequence
+
+            type Obj:
+                property seq_prop -> seq_t
+
+            type Obj2:
+                property seq_prop -> seq2_t
+        $$;
+
+        COMMIT MIGRATION default::m;
+    '''
 
     async def test_edgeql_dt_datetime_01(self):
         await self.assert_query_result('''
@@ -52,4 +66,23 @@ class TestEdgeQLDT(tb.QueryTestCase):
         ''', [
             [{'foo': '2020-10-10T00:00:00+00:00'}],
             ['2020-11-10T00:00:00+00:00'],
+        ])
+
+    async def test_edgeql_dt_sequence_01(self):
+        await self.assert_query_result('''
+            INSERT Obj;
+            INSERT Obj;
+            INSERT Obj2;
+            SELECT Obj { seq_prop } ORDER BY Obj.seq_prop;
+            SELECT Obj2 { seq_prop };
+        ''', [
+            [1],
+            [1],
+            [1],
+            [
+                {'seq_prop': 1}, {'seq_prop': 2}
+            ],
+            [
+                {'seq_prop': 1}
+            ],
         ])

@@ -22,7 +22,6 @@ from . import common
 base_type_name_map = {
     sn.Name('std::str'): 'text',
     sn.Name('std::int'): 'bigint',
-    sn.Name('std::sequence'): 'text',
     sn.Name('std::decimal'): 'numeric',
     sn.Name('std::bool'): 'boolean',
     sn.Name('std::float'): 'float8',

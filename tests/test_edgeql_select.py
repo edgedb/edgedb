@@ -2062,7 +2062,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             await self.con.execute(r'''
                 WITH MODULE test
                 SELECT Issue{
-                    kind := Issue.priority.name ?? Issue.number
+                    kind := Issue.priority.name ?? 1
                 };
             ''')
 

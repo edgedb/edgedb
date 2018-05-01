@@ -14,6 +14,5 @@ from . import bytes  # NOQA
 from . import datetime  # NOQA
 from . import int  # NOQA
 from . import numeric  # NOQA
-from . import sequence  # NOQA
 from . import string  # NOQA
 from . import uuid  # NOQA

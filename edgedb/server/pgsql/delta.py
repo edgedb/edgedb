@@ -1886,17 +1886,26 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             col = dbops.Column(name=column_name, type='text')
             alter_table.add_operation(dbops.AlterTableDropColumn(col))
 
-    def get_pointer_default(self, link, schema, context):
+    def get_pointer_default(self, ptr, schema, context):
+        if ptr.is_pure_computable():
+            return None
+
         default = self.updates.get('default')
         default_value = None
 
-        if default is not None and not link.is_pure_computable():
+        if default is not None:
             if isinstance(default, s_expr.ExpressionText):
                 default_value = schemamech.ptr_default_to_col_default(
-                    schema, link, default)
+                    schema, ptr, default)
             else:
                 default_value = common.quote_literal(
                     str(default))
+        elif ptr.target.issubclass(schema.get('std::sequence')):
+            # TODO: replace this with a generic scalar type default
+            #       using std::nextval().
+            seq_name = common.quote_literal(
+                common.scalar_name_to_sequence_name(ptr.target.name))
+            default_value = f'nextval({seq_name}::regclass)'
 
         return default_value
 
