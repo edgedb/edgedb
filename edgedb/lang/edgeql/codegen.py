@@ -389,7 +389,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             if i == 0:
                 if isinstance(e, edgeql_ast.ObjectRef):
                     self.visit(e)
-                elif isinstance(e, (edgeql_ast.Self,
+                elif isinstance(e, (edgeql_ast.Source,
                                     edgeql_ast.Subject)):
                     self.visit(e)
                 elif not isinstance(e, (edgeql_ast.Ptr,
@@ -575,8 +575,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         self.write(ident_to_str(node.name))
 
-    def visit_Self(self, node):
-        self.write('__self__')
+    def visit_Source(self, node):
+        self.write('__source__')
 
     def visit_Subject(self, node):
         self.write('__subject__')

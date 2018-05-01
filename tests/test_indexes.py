@@ -22,8 +22,8 @@ class TestIndexes(tb.DDLTestCase):
                     property first_name -> str
                     property last_name -> str
 
-                    index name_index on (__self__.first_name,
-                                         __self__.last_name)
+                    index name_index on (__subject__.first_name,
+                                         __subject__.last_name)
             $$;
 
             COMMIT MIGRATION test::d1;

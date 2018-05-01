@@ -247,7 +247,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
 
                     ir, _, target_expr = edgeql.utils.normalize_tree(
                         target_expr, schema,
-                        anchors={qlast.Self: source})
+                        anchors={qlast.Source: source})
 
                     try:
                         target_type = ir_utils.infer_type(ir, schema)

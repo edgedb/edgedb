@@ -522,16 +522,16 @@ ALTER TYPE schema::Pointer {
 
 
 ALTER TYPE schema::Link {
-    CREATE LINK schema::properties := __self__.pointers;
+    CREATE LINK schema::properties := __source__.pointers;
 };
 
 
 ALTER TYPE schema::ObjectType {
-    CREATE LINK schema::links := (SELECT __self__.pointers FILTER
-                                  __self__.pointers IS schema::Link);
+    CREATE LINK schema::links := (SELECT __source__.pointers FILTER
+                                  __source__.pointers IS schema::Link);
 
-    CREATE LINK schema::properties := (SELECT __self__.pointers FILTER
-                                       __self__.pointers IS schema::Property);
+    CREATE LINK schema::properties := (SELECT __source__.pointers FILTER
+                                       __source__.pointers IS schema::Property);
 };
 
 

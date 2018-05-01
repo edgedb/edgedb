@@ -311,7 +311,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE test::TestSelfLink1 {
                 CREATE PROPERTY test::foo1 -> std::str;
                 CREATE PROPERTY test::bar1 -> std::str {
-                    SET default := __self__.foo1;
+                    SET default := __source__.foo1;
                 };
             };
         """)
@@ -383,7 +383,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute("""
             CREATE TYPE test::TestSelfLink4 {
                 CREATE PROPERTY test::__typename4 -> std::str {
-                    SET default := __self__.__type__.name;
+                    SET default := __source__.__type__.name;
                 };
             };
         """)

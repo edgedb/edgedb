@@ -518,7 +518,7 @@ class Expr(Nonterm):
     # | Expr UNION Expr | Expr UNION ALL Expr
     # | DISTINCT Expr
     # | DETACHED Expr
-    # | '__self__' | '__subject__'
+    # | '__source__' | '__subject__'
 
     def reduce_Path(self, *kids):
         self.val = kids[0].val
@@ -529,8 +529,8 @@ class Expr(Nonterm):
     def reduce_Constant(self, *kids):
         self.val = kids[0].val
 
-    def reduce_DUNDERSELF(self, *kids):
-        self.val = qlast.Path(steps=[qlast.Self()])
+    def reduce_DUNDERSOURCE(self, *kids):
+        self.val = qlast.Path(steps=[qlast.Source()])
 
     def reduce_DUNDERSUBJECT(self, *kids):
         self.val = qlast.Path(steps=[qlast.Subject()])

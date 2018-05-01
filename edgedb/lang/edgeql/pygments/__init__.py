@@ -8,7 +8,7 @@ __all__ = ['EdgeQLLexer']
 
 unreserved_keywords = keywords.unreserved_keywords - {'true', 'false'}
 reserved_keywords = keywords.reserved_keywords - {
-    '__self__', '__self__', '__type__'}
+    '__source__', '__subject__', '__type__'}
 
 
 class EdgeQLLexer(RegexLexer):
@@ -39,7 +39,7 @@ class EdgeQLLexer(RegexLexer):
                     {' | '.join(reserved_keywords)}
                 )\b ''', token.Keyword.Reserved),
 
-            (r'\b(?i)(?<![:\.])(__self__|__subject__)\b',
+            (r'\b(?i)(?<![:\.])(__source__|__subject__)\b',
              token.Name.Builtin.Pseudo),
 
             (r'\b(__type__)\b', token.Name.Builtin.Pseudo),

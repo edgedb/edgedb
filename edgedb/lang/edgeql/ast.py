@@ -151,7 +151,7 @@ class ObjectRef(Expr):
     module: str
 
 
-class Self(Expr):
+class Source(Expr):
     pass
 
 

@@ -1195,11 +1195,11 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT ..foo;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, 'Unexpected token.*DUNDERSELF',
+    @tb.must_fail(errors.EdgeQLSyntaxError, 'Unexpected token.*DUNDERSOURCE',
                   line=2, col=20)
     def test_edgeql_syntax_path_18(self):
         """
-        SELECT Foo.__self__;
+        SELECT Foo.__source__;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, 'Unexpected token.*DUNDERSUBJECT',
@@ -1213,7 +1213,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         # illegal semantically, but syntactically valid
         """
         SELECT __subject__;
-        SELECT __self__;
+        SELECT __source__;
         """
 
     def test_edgeql_syntax_path_21(self):

@@ -74,7 +74,7 @@ def is_ql_path(qlexpr):
 
     start = qlexpr.steps[0]
 
-    return isinstance(start, (qlast.Self, qlast.ObjectRef, qlast.Ptr))
+    return isinstance(start, (qlast.Source, qlast.ObjectRef, qlast.Ptr))
 
 
 def is_degenerate_select(qlstmt):

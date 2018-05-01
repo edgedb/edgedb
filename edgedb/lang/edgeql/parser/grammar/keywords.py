@@ -64,7 +64,7 @@ unreserved_keywords = frozenset([
 
 # NOTE: all operators are made into RESERVED keywords for reasons of style.
 reserved_keywords = frozenset([
-    "__self__",
+    "__source__",
     "__subject__",
     "__type__",
     "aggregate",

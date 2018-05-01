@@ -94,7 +94,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
     path_sets = []
 
     for i, step in enumerate(expr.steps):
-        if isinstance(step, qlast.Self):
+        if isinstance(step, qlast.Source):
             # 'self' can only appear as the starting path label
             # syntactically and is a known anchor
             path_tip = anchors.get(step.__class__)
@@ -579,7 +579,7 @@ def computable_ptr_set(
         self_.scls = source_scls.peel_view()
         self_.shape = []
 
-    subctx.anchors[qlast.Self] = self_
+    subctx.anchors[qlast.Source] = self_
 
     subctx.aliases = ctx.aliases
     subctx.stmt = ctx.stmt

@@ -164,7 +164,7 @@ def _normalize_view_ptr_expr(
 
     if is_polymorphic:
         source = qlast.TypeFilter(
-            expr=qlast.Path(steps=[qlast.Self()]),
+            expr=qlast.Path(steps=[qlast.Source()]),
             type=qlast.TypeName(maintype=steps[0]))
         lexpr = steps[1]
         ptrsource = schemactx.get_schema_object(steps[0], ctx=ctx)
@@ -177,7 +177,7 @@ def _normalize_view_ptr_expr(
                     'invalid reference to link property '
                     'in top level shape', context=lexpr.context)
             ptrsource = scls = view_rptr.ptrcls
-        source = qlast.Self()
+        source = qlast.Source()
     else:
         raise RuntimeError(
             f'unexpected path length in view shape: {len(steps)}')

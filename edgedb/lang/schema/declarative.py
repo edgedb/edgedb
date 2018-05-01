@@ -556,7 +556,7 @@ class DeclarationLoader:
             _, _, index_expr = edgeql.utils.normalize_tree(
                 indexdecl.expression, self._schema,
                 modaliases=module_aliases,
-                anchors={qlast.Self: subject},
+                anchors={qlast.Subject: subject},
                 inline_anchors=True)
 
             index = s_indexes.SourceIndex(
@@ -713,10 +713,10 @@ class DeclarationLoader:
         ir, _, expr_text = edgeql.utils.normalize_tree(
             expr, self._schema,
             modaliases=module_aliases,
-            anchors={qlast.Self: source})
+            anchors={qlast.Source: source})
 
         self_set = ast.find_children(
-            ir, lambda n: getattr(n, 'anchor', None) == qlast.Self,
+            ir, lambda n: getattr(n, 'anchor', None) == qlast.Source,
             terminate_early=True)
 
         try:

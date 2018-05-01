@@ -10,7 +10,7 @@ unreserved_keywords = (
     {'true', 'false', 'abstract', 'final', 'required', 'as', 'import', 'to'}
 )
 reserved_keywords = sch_keywords.reserved_keywords - {
-    '__self__', '__self__', '__type__'}
+    '__source__', '__subject__', '__type__'}
 
 
 class EdgeSchemaLexer(lexer.RegexLexer):
@@ -49,7 +49,7 @@ class EdgeSchemaLexer(lexer.RegexLexer):
 
             (r'\b(?i)(?<![:\.])(as|import|to)\b', token.Keyword.Namespace),
 
-            (r'\b(?i)(?<![:\.])(__self__|__subject__)\b',
+            (r'\b(?i)(?<![:\.])(__source__|__subject__)\b',
              token.Name.Builtin.Pseudo),
 
             (r'\b(__type__)\b', token.Name.Builtin.Pseudo),

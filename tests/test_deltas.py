@@ -372,7 +372,7 @@ test::a -> array<std::int> {
             CREATE MIGRATION test::d3 TO eschema $$
                 abstract type Foo:
                     property bar -> str
-                    property __typename := __self__.__type__.name
+                    property __typename := __source__.__type__.name
             $$;
 
             GET MIGRATION test::d3;
@@ -402,7 +402,7 @@ test::a -> array<std::int> {
                     SET cardinality := '**';
                     SET computable := True;
                     SET default := SELECT
-                        __self__.__type__[IS schema::Type].name
+                        __source__.__type__[IS schema::Type].name
                     ;
                     SET is_virtual := False;
                     SET readonly := False;
