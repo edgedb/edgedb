@@ -432,16 +432,32 @@ class GQLBaseType(metaclass=GQLTypeMeta):
 
         return eql, shape, filterable
 
-    def get_field_template(self, name, *, parent=None):
+    def get_field_template(self, name, *, parent=None, has_shape=False):
+        eql = shape = filterable = None
         if self.dummy:
-            return None
+            return eql, shape, filterable
 
         if name == '__typename':
-            return parse_fragment(
+            eql = parse_fragment(
                 f'''graphql::short_name(
                     {codegen.generate_source(parent)}.__type__.name)''')
 
-        return None
+        elif has_shape:
+            eql = filterable = parse_fragment(
+                f'''SELECT {codegen.generate_source(parent)}.
+                        {codegen.generate_source(qlast.ObjectRef(name=name))}
+                        {{ xxx }}
+                ''')
+            filterable = eql
+            shape = filterable.result
+
+        else:
+            eql = filterable = parse_fragment(
+                f'''SELECT {codegen.generate_source(parent)}.
+                        {codegen.generate_source(qlast.ObjectRef(name=name))}
+                ''')
+
+        return eql, shape, filterable
 
 
 class GQLShadowType(GQLBaseType):

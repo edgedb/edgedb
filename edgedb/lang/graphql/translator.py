@@ -231,16 +231,17 @@ class GraphQLTranslator(ast.NodeVisitor):
     def _is_duplicate_field(self, node):
         # if this field is a duplicate, that is not identical to the
         # original, throw an exception
-        dup = self._context.fields[-1].get(node.name)
+        name = node.alias or node.name
+        dup = self._context.fields[-1].get(name)
         if dup:
             if not ast.nodes_equal(dup, node):
                 raise GraphQLValidationError(
-                    f"field {node.name!r} has ambiguous definition",
+                    f"field {name!r} has ambiguous definition",
                     context=node.context)
             else:
                 return True
         else:
-            self._context.fields[-1][node.name] = node
+            self._context.fields[-1][name] = node
 
         return False
 
@@ -317,10 +318,6 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         json_mode = False
 
-        # there are 2 separate concerns:
-        # 1) validate the query w.r.t. types, etc
-        # 2) produce a reasonable EQL equivalent
-
         # determine if there needs to be extra subqueries
         if not prevt.dummy and target.dummy:
             json_mode = True
@@ -340,18 +337,23 @@ class GraphQLTranslator(ast.NodeVisitor):
             )
 
         elif prevt.is_field_shadowed(node.name):
-            if prevt.has_native_field(node.name):
+            if prevt.has_native_field(node.name) and not node.alias:
                 spec = filterable = shape = qlast.ShapeElement(
                     expr=qlast.Path(steps=steps),
                 )
             else:
                 prefix = qlast.Path(steps=self.get_path_prefix(-1))
-                eql = prevt.get_field_template(node.name, parent=prefix)
+                eql, shape, filterable = prevt.get_field_template(
+                    node.name,
+                    parent=prefix,
+                    has_shape=bool(node.selection_set)
+                )
                 spec = qlast.ShapeElement(
                     expr=qlast.Path(
                         steps=[qlast.Ptr(
                             ptr=qlast.ObjectRef(
-                                name=node.name
+                                # this is already a sub-query
+                                name=node.alias or node.name
                             )
                         )]
                     ),
@@ -365,7 +367,8 @@ class GraphQLTranslator(ast.NodeVisitor):
                 expr=qlast.Path(
                     steps=[qlast.Ptr(
                         ptr=qlast.ObjectRef(
-                            name=node.name
+                            # this is already a sub-query
+                            name=node.alias or node.name
                         )
                     )]
                 ),
