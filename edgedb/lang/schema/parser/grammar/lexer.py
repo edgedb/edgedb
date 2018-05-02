@@ -113,10 +113,10 @@ class EdgeSchemaLexer(lexer.Lexer):
         next_state=STATE_KEEP,
         regexp=r'\\\n')
 
-    raw_line_cont_rule = Rule(
-        token='RAWSTRING',
+    bad_line_cont_rule = Rule(
+        token='BADLINECONT',
         next_state=STATE_KEEP,
-        regexp=r'\\.')
+        regexp=r'\\.+?$')
 
     # Basic keywords
     keyword_rules = [Rule(token=tok[0],
@@ -151,6 +151,7 @@ class EdgeSchemaLexer(lexer.Lexer):
              regexp=r'[^\S\n]+'),
 
         line_cont_rule,
+        bad_line_cont_rule,
 
         Rule(token='NEWLINE',
              next_state=STATE_KEEP,
@@ -218,7 +219,7 @@ class EdgeSchemaLexer(lexer.Lexer):
             string_rule,
             qident_rule,
             line_cont_rule,
-            raw_line_cont_rule,
+            bad_line_cont_rule,
 
             Rule(token='RAWSTRING',
                  next_state=STATE_KEEP,
@@ -226,7 +227,7 @@ class EdgeSchemaLexer(lexer.Lexer):
         ],
         STATE_RAW_ANGLE: [
             line_cont_rule,
-            raw_line_cont_rule,
+            bad_line_cont_rule,
 
             Rule(token='RAWSTRING',
                  next_state=push_state(STATE_RAW_ANGLE),
@@ -245,7 +246,7 @@ class EdgeSchemaLexer(lexer.Lexer):
         ],
         STATE_RAW_TYPE: [
             line_cont_rule,
-            raw_line_cont_rule,
+            bad_line_cont_rule,
 
             Rule(token='RAWSTRING',
                  next_state=STATE_WS_SENSITIVE,
@@ -295,7 +296,7 @@ class EdgeSchemaLexer(lexer.Lexer):
         ],
         STATE_ATTRIBUTE_RAW_TYPE: [
             line_cont_rule,
-            raw_line_cont_rule,
+            bad_line_cont_rule,
 
             Rule(token='RAWSTRING',
                  next_state=STATE_WS_SENSITIVE,
