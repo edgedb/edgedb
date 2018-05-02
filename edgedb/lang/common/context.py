@@ -31,7 +31,7 @@ class SourcePoint:
 
 
 class ParserContext(markup.MarkupExceptionContext):
-    title = 'Parser Context'
+    title = 'Source Context'
 
     def __init__(self, name, buffer, start, end, document=None, *,
                  filename=None):

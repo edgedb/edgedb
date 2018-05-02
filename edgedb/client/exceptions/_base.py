@@ -87,9 +87,9 @@ class EdgeDBError(Exception, EdgeDBMessage):
     def __str__(self):
         msg = self.message
         if self.detail:
-            msg += '\nDETAIL:  {}'.format(self.detail)
+            msg += '\nDetails: {}'.format(self.detail)
         if self.hint:
-            msg += '\nHINT:  {}'.format(self.hint)
+            msg += '\nHint: {}'.format(self.hint)
         if self.context:
             msg += '\n' + self.context
 

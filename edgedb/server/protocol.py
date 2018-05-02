@@ -164,9 +164,15 @@ class Protocol(asyncio.Protocol):
 
     def send_error(self, err):
         try:
-            ctx = exceptions.get_context(err, parsing.ParserContext)
+            srcctx = exceptions.get_context(err, parsing.ParserContext)
         except LookupError:
-            ctx = None
+            srcctx = None
+
+        try:
+            hintctx = exceptions.get_context(
+                err, exceptions.DefaultExceptionContext)
+        except LookupError:
+            hintctx = None
 
         if debug.flags.server:
             debug.header('Error')
@@ -177,12 +183,15 @@ class Protocol(asyncio.Protocol):
             'data': {
                 'C': getattr(err, 'code', 0),
                 'M': str(err),
-                'D': getattr(err, 'details', None),
-                'P': (ctx.start.pointer
-                      if ctx is not None and ctx.start is not None else None),
-                'p': (ctx.end.pointer
-                      if ctx is not None and ctx.end is not None else None),
-                'Q': markup.dumps(ctx) if ctx is not None else None,
+                'D': hintctx.details if hintctx is not None else None,
+                'H': hintctx.hint if hintctx is not None else None,
+                'P': (srcctx.start.pointer
+                      if srcctx is not None and
+                      srcctx.start is not None else None),
+                'p': (srcctx.end.pointer
+                      if srcctx is not None and
+                      srcctx.end is not None else None),
+                'Q': markup.dumps(srcctx) if srcctx is not None else None,
                 'T': traceback.format_tb(err.__traceback__),
             }
         })

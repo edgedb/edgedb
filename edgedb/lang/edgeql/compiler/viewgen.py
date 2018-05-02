@@ -167,7 +167,7 @@ def _normalize_view_ptr_expr(
             expr=qlast.Path(steps=[qlast.Source()]),
             type=qlast.TypeName(maintype=steps[0]))
         lexpr = steps[1]
-        ptrsource = schemactx.get_schema_object(steps[0], ctx=ctx)
+        ptrsource = schemactx.get_schema_type(steps[0], ctx=ctx)
     elif len(steps) == 1:
         lexpr = steps[0]
         is_linkprop = lexpr.type == 'property'
@@ -192,7 +192,7 @@ def _normalize_view_ptr_expr(
         # Expand to:
         #     INSERT Foo { bar := (INSERT Spam { name := 'name' }) }
         if lexpr.target is not None:
-            ptr_target = schemactx.get_schema_object(
+            ptr_target = schemactx.get_schema_type(
                 lexpr.target, ctx=ctx)
         else:
             ptr_target = None
@@ -213,7 +213,7 @@ def _normalize_view_ptr_expr(
 
     if compexpr is None:
         if lexpr.target is not None:
-            ptr_target = schemactx.get_schema_object(
+            ptr_target = schemactx.get_schema_type(
                 lexpr.target, ctx=ctx)
         else:
             ptr_target = None

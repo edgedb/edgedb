@@ -22,7 +22,11 @@ class SchemaNameError(SchemaError):
     pass
 
 
-class NoObjectError(SchemaError):
+class SchemaModuleNotFoundError(SchemaError):
+    pass
+
+
+class ItemNotFoundError(SchemaError):
     pass
 
 

@@ -9,6 +9,7 @@
 import collections
 import itertools
 
+from edgedb.lang.common import levenshtein
 from edgedb.lang.edgeql import ast as ql_ast
 
 from . import name as sn
@@ -199,3 +200,84 @@ def merge_weak_bool(ours, theirs, schema):
         result = theirs if theirs is not None else ours
 
     return result
+
+
+def find_item_suggestions(
+        name, modaliases, schema, *, item_types=None, limit=3,
+        collection=None):
+    if isinstance(name, sn.Name):
+        orig_modname = name.module
+        short_name = name.name
+    else:
+        orig_modname = None
+        short_name = name
+
+    modname = modaliases.get(orig_modname, orig_modname)
+
+    suggestions = []
+
+    if collection:
+        suggestions.extend(collection)
+    else:
+        if modname:
+            module = schema.get_module(modname)
+            suggestions.extend(module.get_objects())
+
+        if not orig_modname:
+            suggestions.extend(schema.get_module('std').get_objects())
+
+    if item_types:
+        suggestions = list(
+            filter(lambda s: isinstance(s, item_types), suggestions))
+
+    # Compute Levenshtein distance for each suggestion.
+    with_distance = [
+        (s, levenshtein.distance(short_name, s.shortname.name))
+        for s in suggestions
+    ]
+
+    # Filter out suggestions that are too dissimilar.
+    max_distance = 3
+    closest = list(filter(lambda s: s[1] < max_distance, with_distance))
+
+    # Sort by proximity, then by whether the suggestion is contains
+    # the source string at the beginning, then by suggestion name.
+    closest.sort(
+        key=lambda s: (
+            s[1],
+            not s[0].shortname.name.startswith(short_name),
+            s[0].displayname
+        )
+    )
+
+    return [s[0] for s in closest[:limit]]
+
+
+def enrich_schema_lookup_error(
+        error, item_name, modaliases, schema, *,
+        item_types, suggestion_limit=3, name_template=None, collection=None):
+
+    suggestions = find_item_suggestions(
+        item_name, modaliases, schema,
+        item_types=item_types, limit=suggestion_limit, collection=collection)
+
+    if suggestions:
+        names = []
+        current_module_name = modaliases.get(None)
+
+        for suggestion in suggestions:
+            if (suggestion.name.module == 'std' or
+                    suggestion.name.module == current_module_name):
+                names.append(suggestion.shortname.name)
+            else:
+                names.append(str(suggestion.displayname))
+
+        if name_template is not None:
+            names = [name_template.format(name=name) for name in names]
+
+        if len(names) > 1:
+            hint = f'did you mean one of these: {", ".join(names)}?'
+        else:
+            hint = f'did you mean {names[0]!r}?'
+
+        error.set_hint_and_details(hint=hint)

@@ -41,6 +41,7 @@ from . import pointers as s_pointers
 from . import scalars as s_scalars
 from . import schema as s_schema
 from . import types as s_types
+from . import utils as s_utils
 
 
 _DECL_MAP = {
@@ -59,7 +60,7 @@ class DeclarationLoader:
     def load_module(self, module_name, decl_ast):
         decls = decl_ast.declarations
 
-        module = s_mod.Module(name=module_name)
+        self._module = module = s_mod.Module(name=module_name)
         self._schema.add_module(module)
         self._mod_aliases[None] = module_name
 
@@ -248,7 +249,15 @@ class DeclarationLoader:
             ccls = s_types.Collection.get_class(clsname)
             typ = ccls.from_subtypes(subtypes)
         else:
-            typ = self._schema.get(clsname, module_aliases=self._mod_aliases)
+            try:
+                typ = self._schema.get(
+                    clsname, module_aliases=self._mod_aliases)
+            except s_err.ItemNotFoundError as e:
+                s_utils.enrich_schema_lookup_error(
+                    e, clsname, modaliases=self._mod_aliases,
+                    schema=self._schema, item_types=(s_types.Type,))
+                e.set_source_context(ref.context)
+                raise e
 
         return typ
 

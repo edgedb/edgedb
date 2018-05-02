@@ -100,7 +100,7 @@ def ql_typeref_to_ir_typeref(
             typ.subtypes.append(subtype)
     else:
         typ = irast.TypeRef(
-            maintype=schemactx.get_schema_object(maintype, ctx=ctx).name,
+            maintype=schemactx.get_schema_type(maintype, ctx=ctx).name,
             subtypes=[]
         )
 
@@ -133,4 +133,4 @@ def ql_typeref_to_type(
 
             return coll.from_subtypes(subtypes)
     else:
-        return schemactx.get_schema_object(ql_t.maintype, ctx=ctx)
+        return schemactx.get_schema_type(ql_t.maintype, ctx=ctx)

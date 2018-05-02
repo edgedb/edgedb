@@ -3989,8 +3989,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_partial_05(self):
         with self.assertRaisesRegex(exc.EdgeQLError,
-                                    '.*number.*does not '
-                                    'resolve to any known path'):
+                                    'invalid property reference on a '
+                                    'primitive type expression'):
             await self.con.execute('''
                 WITH MODULE test
                 SELECT Issue.number FILTER .number > '1';
@@ -4173,3 +4173,27 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True],
             [True],
         ])
+
+    async def test_edgeql_select_bad_reference_01(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'reference to a non-existent schema item: Usr.*',
+                position=57,
+                hint="did you mean one of these: User, URL?"):
+
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT Usr;
+            """)
+
+    async def test_edgeql_select_bad_reference_02(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r"test::User has no link or property 'nam'",
+                position=61,
+                hint="did you mean 'name'?"):
+
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT User.nam;
+            """)

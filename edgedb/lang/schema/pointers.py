@@ -90,6 +90,10 @@ class Pointer(constraints.ConsistencySubject,
     cardinality = so.Field(PointerCardinality, default=None,
                            compcoef=0.833, coerce=True)
 
+    @property
+    def displayname(self) -> str:
+        return self.shortname.name
+
     def material_type(self):
         if self.generic():
             raise ValueError(f'{self!r} is generic')

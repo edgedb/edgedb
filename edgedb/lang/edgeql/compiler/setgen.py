@@ -15,11 +15,11 @@ from edgedb.lang.common import parsing
 from edgedb.lang.ir import ast as irast
 from edgedb.lang.ir import utils as irutils
 
-from edgedb.lang.schema import objtypes as s_objtypes
 from edgedb.lang.schema import expr as s_expr
 from edgedb.lang.schema import links as s_links
 from edgedb.lang.schema import name as s_name
 from edgedb.lang.schema import nodes as s_nodes
+from edgedb.lang.schema import objtypes as s_objtypes
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import sources as s_sources
 from edgedb.lang.schema import types as s_types
@@ -58,7 +58,7 @@ def new_set_from_set(
         ctx: context.ContextLevel) -> irast.Set:
     """Create a new ir.Set from another ir.Set.
 
-    The new Set inherits source Set's scope, schema class, expression,
+    The new Set inherits source Set's scope, schema item, expression,
     and, if *preserve_scope_ns* is set, path_id.  If *preserve_scope_ns*
     is False, the new Set's path_id will be namespaced with the currently
     active scope namespace.
@@ -118,7 +118,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             if refnode is not None:
                 path_tip = copy.copy(refnode)
             else:
-                scls = schemactx.get_schema_object(step, ctx=ctx)
+                scls = schemactx.get_schema_type(
+                    step, item_types=(s_objtypes.ObjectType,), ctx=ctx)
 
                 if (scls.view_type is not None and
                         scls.name not in ctx.view_nodes):
@@ -146,7 +147,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                          s_pointers.PointerDirection.Outbound)
             if ptr_expr.target:
                 # ... link [IS Target]
-                ptr_target = schemactx.get_schema_object(
+                ptr_target = schemactx.get_schema_type(
                     ptr_expr.target, ctx=ctx)
                 if not isinstance(ptr_target, s_objtypes.ObjectType):
                     raise errors.EdgeQLError(
@@ -290,7 +291,7 @@ def ptr_step_set(
 
 
 def resolve_ptr(
-        near_endpoint: irast.Set,
+        near_endpoint: s_sources.Source,
         ptr_name: typing.Tuple[str, str],
         direction: s_pointers.PointerDirection,
         target: typing.Optional[s_nodes.Node]=None, *,
@@ -299,7 +300,7 @@ def resolve_ptr(
     ptr_module, ptr_nqname = ptr_name
 
     if ptr_module:
-        pointer = schemactx.get_schema_object(
+        pointer = schemactx.get_schema_ptr(
             name=ptr_nqname, module=ptr_module, ctx=ctx)
         pointer_name = pointer.name
     else:
@@ -315,25 +316,49 @@ def resolve_ptr(
             look_in_children=False,
             include_inherited=True,
             far_endpoint=target)
+
+        if ptr is None:
+            if isinstance(near_endpoint, s_links.Link):
+                msg = (f'{near_endpoint.displayname} has no property '
+                       f'{pointer_name!r}')
+                if target:
+                    msg += f'of type {target.name!r}'
+
+            elif direction == s_pointers.PointerDirection.Outbound:
+                msg = (f'{near_endpoint.displayname} has no link or property '
+                       f'{pointer_name!r}')
+                if target:
+                    msg += f'of type {target.name!r}'
+
+            else:
+                path = f'{near_endpoint.name}.{direction}{pointer_name}'
+                if target:
+                    path += f'[IS {target.name}]'
+                msg = f'{path} does not resolve to any known path',
+
+            err = errors.EdgeQLReferenceError(msg, context=source_context)
+
+            if direction == s_pointers.PointerDirection.Outbound:
+                s_utils.enrich_schema_lookup_error(
+                    err, pointer_name, modaliases=ctx.modaliases,
+                    item_types=(s_pointers.Pointer,),
+                    collection=near_endpoint.pointers.values(),
+                    schema=ctx.schema
+                )
+
+            raise err
+
     else:
         if direction == s_pointers.PointerDirection.Outbound:
-            bptr = schemactx.get_schema_object(pointer_name, ctx=ctx)
+            bptr = schemactx.get_schema_ptr(pointer_name, ctx=ctx)
             schema_cls = ctx.schema.get('schema::ScalarType')
             if bptr.shortname == 'std::__type__':
                 ptr = bptr.derive(ctx.schema, near_endpoint, schema_cls)
 
-    if not ptr:
-        if isinstance(near_endpoint, s_links.Link):
-            path = f'({near_endpoint.shortname})@({pointer_name})'
-        else:
-            path = f'({near_endpoint.name}).{direction}({pointer_name})'
-
-        if target:
-            path += f'[IS {target.name}]'
-
-        raise errors.EdgeQLReferenceError(
-            f'{path} does not resolve to any known path',
-            context=source_context)
+    if ptr is None:
+        # Reference to a property on non-object
+        msg = 'invalid property reference on a primitive type expression'
+        raise errors.EdgeQLReferenceError(msg, context=source_context)
 
     return ptr
 

@@ -24,7 +24,7 @@ class ViewType(enum.IntEnum):
 
 
 class Type(so.NamedObject, derivable.DerivableObjectBase):
-    """A schema class that is a valid *type*."""
+    """A schema item that is a valid *type*."""
 
     # For a type representing a view, this would contain the
     # view type.  Non-view types have None here.
