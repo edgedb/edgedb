@@ -16,7 +16,7 @@ from edgedb.lang.edgeql import ast as qlast
 
 from . import delta as sd
 from . import functions as fu
-from .error import SchemaError
+from . import error as s_err
 from . import name as sn
 from . import named
 from . import objects as so
@@ -46,7 +46,7 @@ class Module(named.NamedObject):
     def add(self, obj):
         if obj in self:
             err = '{!r} is already present in the schema'.format(obj.name)
-            raise SchemaError(err)
+            raise s_err.SchemaError(err)
 
         if isinstance(obj, fu.Function):
             if obj.shortname.name not in self.funcs_by_name:
@@ -71,7 +71,7 @@ class Module(named.NamedObject):
         existing = self.discard(obj)
         if existing is None:
             err = 'object {!r} is not present in the schema'.format(obj.name)
-            raise SchemaError(err)
+            raise s_err.ItemNotFoundError(err)
 
         return existing
 
@@ -92,7 +92,7 @@ class Module(named.NamedObject):
     def get_functions(self, name):
         return self.funcs_by_name.get(name)
 
-    def get(self, name, default=SchemaError, *,
+    def get(self, name, default=s_err.ItemNotFoundError, *,
             module_aliases=None, type=None,
             implicit_builtins=True):
 
@@ -103,7 +103,7 @@ class Module(named.NamedObject):
                 try:
                     scls = self.get(name, module_aliases=module_aliases,
                                     type=typ, default=None)
-                except SchemaError:
+                except s_err.SchemaError:
                     pass
                 else:
                     if scls is not None:
@@ -126,7 +126,7 @@ class Module(named.NamedObject):
                            issubclass(default, Exception)))
 
             if raise_:
-                msg = ('reference to non-existent schema class: '
+                msg = ('reference to non-existent schema item: '
                        '{}::{}'.format(self.name, name))
                 if fail_cause is not None:
                     raise default(msg) from fail_cause

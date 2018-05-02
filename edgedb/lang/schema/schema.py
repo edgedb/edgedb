@@ -11,7 +11,7 @@ import typing
 
 from edgedb.lang.common.persistent_hash import persistent_hash
 
-from .error import SchemaError
+from . import error as s_err
 from . import modules as s_modules
 from . import name as schema_name
 
@@ -102,7 +102,7 @@ class Schema(TypeContainer):
         try:
             module = self.modules[obj.name.module]
         except KeyError as e:
-            raise SchemaError(
+            raise s_err.SchemaModuleNotFoundError(
                 f'module {obj.name.module!r} is not in this schema') from e
 
         module.add(obj)
@@ -119,7 +119,7 @@ class Schema(TypeContainer):
         try:
             module = self.modules[obj.name.module]
         except KeyError as e:
-            raise SchemaError(
+            raise s_err.SchemaModuleNotFoundError(
                 f'module {obj.name.module} is not in this schema') from e
 
         return module.delete(obj)
@@ -194,7 +194,7 @@ class Schema(TypeContainer):
         if funcs is not _void:
             return funcs
 
-        raise SchemaError(
+        raise s_err.ItemNotFoundError(
             f'reference to a non-existent function: {name}')
 
     def get(self, name, default=_void, *, module_aliases=None, type=None):
@@ -212,7 +212,8 @@ class Schema(TypeContainer):
         if obj is not _void:
             return obj
 
-        raise SchemaError(f'reference to a non-existent schema class: {name}')
+        raise s_err.ItemNotFoundError(
+            f'reference to a non-existent schema item: {name}')
 
     def has_module(self, module):
         return module in self.modules

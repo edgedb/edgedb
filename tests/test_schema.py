@@ -82,3 +82,13 @@ class TestSchema(tb.BaseSchemaTest):
             type Object:
                 property foo := (SELECT Object)
         """
+
+    @tb.must_fail(s_err.SchemaError,
+                  'reference to a non-existent schema item: int',
+                  position=58,
+                  hint='did you mean one of these: int16, int32, int64?')
+    def test_schema_bad_type_01(self):
+        """
+            type Object:
+                property foo -> int
+        """

@@ -86,26 +86,32 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
                  hint=None, details=None, context=None, **kwargs):
         super().__init__(msg)
         self._attrs = {}
+
+        if (hint or details) is not None:
+            self.set_hint_and_details(hint, details)
+
+        if context is not None:
+            self.set_source_context(context)
+
+        for k, v in kwargs.items():
+            if isinstance(v, ExceptionContext):
+                add_context(self, v)
+
+    def set_hint_and_details(self, hint, details=None):
+        replace_context(
+            self, DefaultExceptionContext(hint=hint, details=details))
+
         if hint is not None:
             self._attrs['H'] = hint
         if details is not None:
             self._attrs['D'] = details
 
-        if (hint or details) is not None:
-            add_context(
-                self, DefaultExceptionContext(hint=hint, details=details))
+    def set_source_context(self, context):
+        replace_context(self, context)
 
-        if context is not None:
-            add_context(
-                self, context)
-
-            if context.start is not None:
-                self._attrs['P'] = context.start.pointer
-                self._attrs['p'] = context.end.pointer
-
-        for k, v in kwargs.items():
-            if isinstance(v, ExceptionContext):
-                add_context(self, v)
+        if context.start is not None:
+            self._attrs['P'] = context.start.pointer
+            self._attrs['p'] = context.end.pointer
 
     @property
     def attrs(self):
@@ -114,6 +120,14 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
     @property
     def position(self):
         return self._attrs.get('P')
+
+    @property
+    def hint(self):
+        return self._attrs.get('H')
+
+    @property
+    def details(self):
+        return self._attrs.get('D')
 
     def as_text(self):
         buffer = ''

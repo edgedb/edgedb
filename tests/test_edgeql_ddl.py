@@ -297,7 +297,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_13(self):
         with self.assertRaisesRegex(
                 client_errors.EdgeQLError,
-                'reference to a non-existent schema class: self'):
+                'reference to a non-existent schema item: self'):
             await self.con.execute(r"""
                 CREATE TYPE test::TestBadContainerLinkObjectType {
                     CREATE PROPERTY test::foo -> std::str {

@@ -409,7 +409,7 @@ def compile_TypeFilter(
             f'is not an object type',
             context=expr.expr.context)
 
-    typ = schemactx.get_schema_object(expr.type.maintype, ctx=ctx)
+    typ = schemactx.get_schema_type(expr.type.maintype, ctx=ctx)
     if not isinstance(typ, s_objtypes.ObjectType):
         raise errors.EdgeQLError(
             f'invalid type filter operand: {typ.name} is not an object type',
@@ -422,7 +422,7 @@ def compile_TypeFilter(
 def compile_Indirection(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     node = dispatch.compile(expr.arg, ctx=ctx)
-    int_type = schemactx.get_schema_object('std::int64', ctx=ctx)
+    int_type = schemactx.get_schema_type('std::int64', ctx=ctx)
     for indirection_el in expr.indirection:
         if isinstance(indirection_el, qlast.Index):
             idx = dispatch.compile(indirection_el.index, ctx=ctx)

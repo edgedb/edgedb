@@ -15,8 +15,10 @@ from edgedb.lang.schema import error as s_err
 from edgedb.lang.schema import name as sn
 from edgedb.lang.schema import nodes as s_nodes
 from edgedb.lang.schema import objects as s_obj
+from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import sources as s_sources
 from edgedb.lang.schema import types as s_types
+from edgedb.lang.schema import utils as s_utils
 
 from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.edgeql import errors as qlerrors
@@ -27,6 +29,7 @@ from . import context
 def get_schema_object(
         name: typing.Union[str, qlast.ObjectRef],
         module: typing.Optional[str]=None, *,
+        item_types: typing.Optional[typing.List[s_obj.ObjectMeta]],
         ctx: context.ContextLevel,
         srcctx: typing.Optional[parsing.ParserContext] = None) -> s_obj.Object:
 
@@ -45,7 +48,17 @@ def get_schema_object(
             return result
 
     try:
-        scls = ctx.schema.get(name=name, module_aliases=ctx.modaliases)
+        scls = ctx.schema.get(name=name, module_aliases=ctx.modaliases,
+                              type=item_types)
+
+    except s_err.ItemNotFoundError as e:
+        qlerror = qlerrors.EdgeQLError(e.args[0], context=srcctx)
+        s_utils.enrich_schema_lookup_error(
+            qlerror, name, modaliases=ctx.modaliases, schema=ctx.schema,
+            item_types=item_types)
+
+        raise qlerror
+
     except s_err.SchemaError as e:
         raise qlerrors.EdgeQLError(e.args[0], context=srcctx)
 
@@ -54,6 +67,28 @@ def get_schema_object(
         result = scls
 
     return result
+
+
+def get_schema_type(
+        name: typing.Union[str, qlast.ObjectRef],
+        module: typing.Optional[str]=None, *,
+        ctx: context.ContextLevel,
+        item_types: typing.Optional[typing.List[s_obj.ObjectMeta]]=None,
+        srcctx: typing.Optional[parsing.ParserContext] = None) -> s_types.Type:
+    if item_types is None:
+        item_types = (s_types.Type,)
+    return get_schema_object(name, module, item_types=item_types,
+                             ctx=ctx, srcctx=srcctx)
+
+
+def get_schema_ptr(
+        name: typing.Union[str, qlast.ObjectRef],
+        module: typing.Optional[str]=None, *,
+        ctx: context.ContextLevel,
+        srcctx: typing.Optional[parsing.ParserContext] = None) -> s_types.Type:
+    return get_schema_object(
+        name, module, item_types=(s_pointers.Pointer,), ctx=ctx, srcctx=srcctx
+    )
 
 
 def resolve_schema_name(

@@ -278,7 +278,7 @@ def classname_from_type(typ):
 
     if classname is None:
         raise s_err.SchemaError(
-            'could not find matching schema class for %r' % typ)
+            'could not find matching schema item for %r' % typ)
 
     if is_composite:
         result = (container_type, classname)
@@ -304,7 +304,7 @@ def normalize_type(type, schema):
     classname = classname_from_type(type)
     if classname is None:
         raise s_err.SchemaError(
-            'could not find matching schema class for %r' % type)
+            'could not find matching schema item for %r' % type)
 
     is_composite = isinstance(classname, tuple)
 

@@ -683,6 +683,10 @@ class NamedObject(Object):
         self._cached_shortname = (self.name, shortname)
         return shortname
 
+    @property
+    def displayname(self) -> str:
+        return str(self.shortname)
+
     def delta_properties(self, delta, other, reverse=False, context=None):
         old, new = (other, self) if not reverse else (self, other)
 

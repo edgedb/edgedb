@@ -57,7 +57,7 @@ class TestSession(tb.QueryTestCase):
     async def test_session_set_command_02(self):
         with self.assertRaisesRegex(
                 err.EdgeQLError,
-                'reference to a non-existent schema class: User'):
+                'reference to a non-existent schema item: User'):
             await self.assert_query_result("""
                 SET MODULE foo;
 
