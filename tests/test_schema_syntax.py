@@ -1087,3 +1087,196 @@ type Foo:
         """
 attribute foo std::int64;
         """
+
+    def test_eschema_syntax_eol_01(self):
+        r"""
+        abstract type \
+              OwnedObject:
+            required link owner -> User
+
+        abstract type \
+          OwnedObject:
+            required link owner -> User
+
+        abstract type \
+  OwnedObject:
+            required link owner -> User
+
+% OK %
+
+        abstract type OwnedObject:
+            required link owner -> User
+
+        abstract type OwnedObject:
+            required link owner -> User
+
+        abstract type OwnedObject:
+            required link owner -> User
+        """
+
+    def test_eschema_syntax_eol_02(self):
+        r"""
+        abstract type OwnedObject:
+            required \
+            link owner -> User
+
+        abstract type OwnedObject:
+            required \
+                link owner -> User
+
+        abstract type OwnedObject:
+            required \
+        link owner -> User
+
+% OK %
+
+        abstract type OwnedObject:
+            required link owner -> User
+
+        abstract type OwnedObject:
+            required link owner -> User
+
+        abstract type OwnedObject:
+            required link owner -> User
+        """
+
+    def test_eschema_syntax_eol_03(self):
+        r"""
+        abstract type OwnedObject:
+            required link owner \
+            -> User
+
+        abstract type OwnedObject:
+            required link owner \
+                -> User
+
+        abstract type OwnedObject:
+            required link owner \
+    -> User
+
+% OK %
+
+        abstract type OwnedObject:
+            required link owner -> User
+
+        abstract type OwnedObject:
+            required link owner -> User
+
+        abstract type OwnedObject:
+            required link owner -> User
+        """
+
+    def test_eschema_syntax_eol_04(self):
+        r"""
+        abstract type OwnedObject:
+            required link owner -> \
+            User
+
+        abstract type OwnedObject:
+            required link owner -> \
+                User
+
+        abstract type OwnedObject:
+            required link owner -> \
+        User
+
+% OK %
+
+        abstract type OwnedObject:
+            required link owner -> User
+
+        abstract type OwnedObject:
+            required link owner -> User
+
+        abstract type OwnedObject:
+            required link owner -> User
+        """
+
+    def test_eschema_syntax_eol_05(self):
+        r"""
+        type OwnedObject extending \
+        MyObject
+
+        type OwnedObject extending \
+            MyObject
+
+        type OwnedObject extending \
+    MyObject
+
+% OK %
+
+        type OwnedObject extending MyObject
+
+        type OwnedObject extending MyObject
+
+        type OwnedObject extending MyObject
+        """
+
+    def test_eschema_syntax_eol_06(self):
+        r"""
+        type OwnedObject extending \
+        MyObject:
+            required link owner -> User
+
+        type OwnedObject extending \
+            MyObject:
+            required link owner -> User
+
+        type OwnedObject extending \
+    MyObject:
+            required link owner -> User
+
+% OK %
+
+        type OwnedObject extending MyObject:
+            required link owner -> User
+
+        type OwnedObject extending MyObject:
+            required link owner -> User
+
+        type OwnedObject extending MyObject:
+            required link owner -> User
+        """
+
+    def test_eschema_syntax_eol_07(self):
+        r"""
+        type User:
+            required link todo -> array\
+                <\
+          str\
+          >
+
+% OK %
+
+        type User:
+            required link todo -> array<str>
+        """
+
+    def test_eschema_syntax_eol_08(self):
+        r"""
+        abstract attribute \
+        foobar std::str
+
+        abstract attribute foobar\
+         std::str
+
+        abstract attribute \
+    foobar std::str
+
+% OK %
+
+        abstract attribute foobar std::str
+
+        abstract attribute foobar std::str
+
+        abstract attribute foobar std::str
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r"Unexpected token.*2",
+                  line=3, col=9)
+    def test_eschema_syntax_eol_09(self):
+        r"""
+        abstract attribute \
+        2 foobar std::str
+        """
