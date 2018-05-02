@@ -143,7 +143,7 @@ class GraphQLParser(parsing.Parser):
     def get_lexer(self):
         return lexer.GraphQLLexer()
 
-    def get_exception(self, native_err, context):
+    def get_exception(self, native_err, context, token=None):
         if isinstance(native_err, GraphQLParserError):
             return native_err
         return GraphQLParserError(native_err.args[0], context=context)

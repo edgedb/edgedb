@@ -301,7 +301,7 @@ class Parser:
     def get_debug(self):
         return False
 
-    def get_exception(self, native_err, context):
+    def get_exception(self, native_err, context, token=None):
         if not isinstance(native_err, ParserError):
             return ParserError(native_err.args[0], context=context)
         else:
@@ -372,7 +372,8 @@ class Parser:
             self.parser.eoi()
 
         except parsing.SyntaxError as e:
-            raise self.get_exception(e, context=self.context(tok)) from e
+            raise self.get_exception(
+                e, context=self.context(tok), token=tok) from e
 
         except ParserError as e:
             raise self.get_exception(e, context=e.context) from e

@@ -1280,3 +1280,25 @@ attribute foo std::int64;
         abstract attribute \
         2 foobar std::str
         """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r"Unexpected character after line continuation character",
+                  line=2, col=24)
+    def test_eschema_syntax_eol_10(self):
+        # this is intended to test trailing whitespace after "\"
+        """
+        abstract type \\       \
+
+              OwnedObject:
+            required link owner -> User
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r"Unexpected character after line continuation character",
+                  line=2, col=29)
+    def test_eschema_syntax_eol_11(self):
+        # this is intended to test trailing whitespace after "\"
+        """
+        abstract attribute \\   \
+        foobar std::str
+        """

@@ -29,5 +29,5 @@ class PgSQLParser(parsing.Parser):
     def get_debug(self):
         return debug.flags.pgsql_parser
 
-    def get_exception(self, native_err, context):
+    def get_exception(self, native_err, context, token=None):
         return PgSQLParserError(native_err.args[0], context=context)
