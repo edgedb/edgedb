@@ -73,7 +73,7 @@ def compile_limit_offset_clause(
         with ctx.newscope(fenced=True) as subctx:
             subctx.clause = 'offsetlimit'
             ir_expr = dispatch.compile(expr, ctx=subctx)
-            int_t = ctx.schema.get('std::int')
+            int_t = ctx.schema.get('std::int64')
             ir_set = setgen.scoped_set(ir_expr, typehint=int_t, ctx=subctx)
             ir_set.context = expr.context
             pathctx.enforce_singleton(ir_set, ctx=subctx)

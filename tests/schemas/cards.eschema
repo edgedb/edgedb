@@ -4,7 +4,7 @@ abstract type Named:
 
 
 abstract link deck:
-    property count -> int
+    property count -> int64
 
 
 abstract link friends:
@@ -25,7 +25,7 @@ type User extending Named:
 
 type Card extending Named:
     required property element -> str
-    required property cost -> int
+    required property cost -> int64
     link owners := __source__.<deck[IS User]
 
 

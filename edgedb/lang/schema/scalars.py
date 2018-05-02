@@ -6,6 +6,8 @@
 ##
 
 
+import collections
+
 from edgedb.lang.edgeql import ast as qlast
 
 from . import attributes
@@ -37,8 +39,11 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
             # Add dependency on all built-in scalars unconditionally
             deps.add(N(module='std', name='str'))
             deps.add(N(module='std', name='bytes'))
-            deps.add(N(module='std', name='int'))
-            deps.add(N(module='std', name='float'))
+            deps.add(N(module='std', name='int16'))
+            deps.add(N(module='std', name='int32'))
+            deps.add(N(module='std', name='int64'))
+            deps.add(N(module='std', name='float32'))
+            deps.add(N(module='std', name='float64'))
             deps.add(N(module='std', name='decimal'))
             deps.add(N(module='std', name='bool'))
             deps.add(N(module='std', name='uuid'))
@@ -70,7 +75,7 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
     def get_implementation_type(self):
         """Get the underlying Python type that is used to implement this ScalarType.
         """
-        base_class = self.get_topmost_base()
+        base_class = self.get_topmost_concrete_base()
         return s_basetypes.BaseTypeMeta.get_implementation(base_class.name)
 
     def coerce(self, value, schema):
@@ -81,28 +86,56 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
         else:
             return value
 
-    def iscompatible(self, other: s_types.Type, schema) -> bool:
+    def implicitly_castable_to(self, other: s_types.Type, schema) -> bool:
         if self.issubclass(other) or other.issubclass(self):
             # ScalarType compatibility is symmetric, i.e. a superclass instance
             # is compatible with subclasses, as they all share the same
             # fundamental type.
             return True
 
-        # In lieu of schema-level cast support, use the following
-        # compatibility map to plug the hole.
-        for tn, compat_names in _compatibility_map.items():
+        # In lieu of schema-level cast support, use the
+        # hardcoded cast map to plug the hole.
+        for tn, castable_to in _full_implicit_cast_map.items():
             t = schema.get(tn)
             if self.issubclass(t):
                 if other.issubclass(
-                        tuple(schema.get(c) for c in compat_names)):
+                        tuple(schema.get(c) for c in castable_to)):
                     return True
+                else:
+                    return False
 
         return False
 
 
-_compatibility_map = {
-    'std::int': ['std::float'],
+# Target type : source types that can implicitly cast into target
+_implicit_cast_map = {
+    'std::int32': ['std::int16'],
+    'std::int64': ['std::int32'],
+    'std::float64': ['std::float32', 'std::int64'],
+    'std::numeric': ['std::float64']
 }
+
+# Expanded cast map: source type: target_type
+_full_implicit_cast_map = collections.defaultdict(set)
+
+
+def _build_implicit_cast_map():
+    for target, sources in _implicit_cast_map.items():
+        for source in sources:
+            _full_implicit_cast_map[source].add(target)
+
+    for source, targets in _full_implicit_cast_map.items():
+        seen = set()
+
+        while targets - seen:
+            for target in list(targets):
+                transitive = _full_implicit_cast_map.get(target)
+                if transitive:
+                    targets.update(transitive)
+                seen.add(target)
+
+
+_build_implicit_cast_map()
 
 
 class ScalarTypeCommandContext(sd.ObjectCommandContext,

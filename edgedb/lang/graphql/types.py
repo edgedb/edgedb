@@ -239,16 +239,16 @@ class GQLDirectiveLocation(_GQLType):
 
 PY_COERCION_MAP = {
     str: (s_types.string.Str, s_types.uuid.UUID),
-    int: (s_types.int.Int, s_types.numeric.Float, s_types.numeric.Decimal,
+    int: (s_types.int.Int64, s_types.numeric.Float64, s_types.numeric.Numeric,
           s_types.uuid.UUID),
-    float: (s_types.numeric.Float, s_types.numeric.Decimal),
+    float: (s_types.numeric.Float64, s_types.numeric.Numeric),
     bool: s_types.boolean.Bool,
 }
 
 GQL_TYPE_NAMES_MAP = {
     'String': s_types.string.Str,
-    'Int': s_types.int.Int,
-    'Float': s_types.numeric.Float,
+    'Int': s_types.int.Int64,
+    'Float': s_types.numeric.Float64,
     'Boolean': s_types.boolean.Bool,
     'ID': s_types.uuid.UUID,
 }

@@ -17,7 +17,7 @@ abstract type Dictionary extending Named:
 
 
 abstract link todo:
-    property rank -> int:
+    property rank -> int64:
         default := 42
 
 
@@ -42,7 +42,7 @@ type LogEntry extending Owned, Text:
     # LogEntry is an Owned and a Text, so it
     # will have all of their links and attributes,
     # in particular, owner and text links.
-    required property spent_time -> int
+    required property spent_time -> int64
 
 
 scalar type issue_num_t extending std::str
@@ -72,7 +72,7 @@ type Issue extending Named, Owned, Text:
         # many-to-many relation.  The default cardinality is
         # *1 -- many-to-one.
 
-    property time_estimate -> int
+    property time_estimate -> int64
 
     link time_spent_log -> LogEntry:
         cardinality := '1*'

@@ -328,7 +328,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 name,
                 number,
                 # use shorthand with some simple operations
-                foo := <int>Issue.number + 10,
+                foo := <int64>Issue.number + 10,
             }
             FILTER Issue.number = '1';
             """, [
@@ -806,7 +806,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 WITH MODULE test
                 SELECT
                     User { name }
-                LIMIT <int>User.<owner[IS Issue].number;
+                LIMIT <int64>User.<owner[IS Issue].number;
             """)
 
     async def test_edgeql_select_limit_07(self):
@@ -819,7 +819,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 WITH MODULE test
                 SELECT
                     User { name }
-                OFFSET <int>User.<owner[IS Issue].number;
+                OFFSET <int64>User.<owner[IS Issue].number;
             """)
 
     async def test_edgeql_select_specialized_01(self):
@@ -889,7 +889,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 owner_of := (
                     SELECT User.<owner[IS Issue] {
                         number
-                    } FILTER <int>(.number) < 3
+                    } FILTER <int64>(.number) < 3
                 ),
             } FILTER User.name = 'Elvis';
         ''', [
@@ -1537,7 +1537,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT User {name}
             ORDER BY (
-                SELECT sum(<int>User.<watchers.number)
+                SELECT sum(<int64>User.<watchers.number)
             );
         ''', [
             [
@@ -1614,7 +1614,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT std::len(User.name) ORDER BY User.name;
 
             WITH MODULE test
-            SELECT std::sum(<std::int>Issue.number);
+            SELECT std::sum(<std::int64>Issue.number);
         ''', [
             [5, 4],
             [10]
@@ -3749,7 +3749,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_linkproperty_01(self):
         await self.assert_query_result(r"""
             WITH MODULE test
-            SELECT User.todo@rank + <int>User.todo.number
+            SELECT User.todo@rank + <int64>User.todo.number
             ORDER BY User.todo.number;
             """, [
             [43, 44, 45, 46]
@@ -3758,7 +3758,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_linkproperty_02(self):
         await self.assert_query_result(r"""
             WITH MODULE test
-            SELECT Issue.<todo@rank + <int>Issue.number
+            SELECT Issue.<todo@rank + <int64>Issue.number
             ORDER BY Issue.number;
             """, [
             [43, 44, 45, 46]

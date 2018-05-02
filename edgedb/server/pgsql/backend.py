@@ -715,7 +715,8 @@ class Backend(s_deltarepo.DeltaProvider):
 
         sequence = schema.get('std::sequence', None)
         for scalar in schema.get_objects(type='ScalarType'):
-            if sequence is not None and scalar.issubclass(sequence):
+            if (sequence is not None and scalar.issubclass(sequence) and
+                    not scalar.is_abstract):
                 seq_name = common.scalar_name_to_sequence_name(
                     scalar.name, catenate=False)
                 if seq_name not in seqs:

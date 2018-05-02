@@ -13,7 +13,6 @@ from edgedb.lang.common import exceptions as edgedb_error
 from edgedb.lang.common import fpdecimal
 
 from . import base as s_types
-from . import int as s_int
 
 
 _add_impl = s_types.BaseTypeMeta.add_implementation
@@ -21,7 +20,7 @@ _add_map = s_types.BaseTypeMeta.add_mapping
 _void = object()
 
 
-class DecimalMetadata:
+class NumericMetadata:
     def __init__(self, context=None, *, decimal_scale=None,
                  quantize_exponent=None):
         if context is None:
@@ -32,12 +31,12 @@ class DecimalMetadata:
         self.quantize_exponent = quantize_exponent
 
 
-class DecimalMeta(type):
+class NumericMeta(type):
     def __new__(metacls, name, bases, dct):
         result = super().__new__(metacls, name, bases, dct)
-        if result.__module__ == __name__ and result.__name__ == 'Decimal':
+        if result.__module__ == __name__ and result.__name__ == 'Numeric':
             metacls.init_methods(result)
-            result.__sx_decimal_metadata__ = DecimalMetadata()
+            result.__sx_decimal_metadata__ = NumericMetadata()
         return result
 
     _rounding_map = {
@@ -80,7 +79,7 @@ class DecimalMeta(type):
 
         context = decimal.Context(**ctxargs)
         cls.__sx_decimal_metadata__ = \
-            DecimalMetadata(context, decimal_scale=decimal_scale,
+            NumericMetadata(context, decimal_scale=decimal_scale,
                             quantize_exponent=quantize_exponent)
 
     @classmethod
@@ -133,7 +132,7 @@ class DecimalMeta(type):
     }
 
 
-class Decimal(fpdecimal.FPDecimal, metaclass=DecimalMeta):
+class Numeric(fpdecimal.FPDecimal, metaclass=NumericMeta):
     def __new__(cls, value=_void):
         cumulative, last_increment = fpdecimal.CascadedContext.get()
         context = fpdecimal.CascadedContext.apply(
@@ -161,10 +160,6 @@ class Decimal(fpdecimal.FPDecimal, metaclass=DecimalMeta):
 
         return result
 
-    def __str__(self):
-        value = self
-        return super(Decimal, value).__str__()
-
     def normalize(self, context=None):
         if context is None:
             context = self.__class__.__sx_decimal_metadata__.decimal_context
@@ -181,15 +176,15 @@ class Decimal(fpdecimal.FPDecimal, metaclass=DecimalMeta):
         return self.__class__(super().quantize(exp, context=context, **kwargs))
 
 
-class StdDecimal(s_types.SchemaObject, name='std::decimal'):
+class StdNumeric(s_types.SchemaObject, name='std::numeric'):
     pass
 
 
-class DecimalTypeInfo(s_types.TypeInfo, type=Decimal):
-    def op(self, other: (decimal.Decimal, int)) -> StdDecimal:
+class NumericTypeInfo(s_types.TypeInfo, type=Numeric):
+    def op(self, other: (decimal.Decimal, int)) -> StdNumeric:
         pass
 
-    def unary_op(self) -> StdDecimal:
+    def unary_op(self) -> StdNumeric:
         pass
 
     __add__ = op
@@ -218,21 +213,40 @@ class DecimalTypeInfo(s_types.TypeInfo, type=Decimal):
     __invert__ = unary_op
 
 
-_add_impl('std::decimal', Decimal)
-_add_map(Decimal, 'std::decimal')
-_add_map(fpdecimal.FPDecimal, 'std::decimal')
-_add_map(decimal.Decimal, 'std::decimal')
+_add_impl('std::numeric', Numeric)
+_add_map(Numeric, 'std::numeric')
+_add_map(fpdecimal.FPDecimal, 'std::numeric')
+_add_map(decimal.Decimal, 'std::numeric')
 
 
-class Float(float):
+class Float64(float):
     pass
 
 
-class FloatTypeInfo(s_types.TypeInfo, type=Float):
-    def op(self, other: (int, float)) -> s_int.StdFloat:
+class Float32(float):
+    pass
+
+
+class StdFloat64(s_types.SchemaObject, name='std::float64'):
+    pass
+
+
+class StdFloat32(s_types.SchemaObject, name='std::float32'):
+    pass
+
+
+_add_impl('std::float64', Float64)
+_add_impl('std::float32', Float32)
+_add_map(Float64, 'std::float64')
+_add_map(Float32, 'std::float32')
+_add_map(float, 'std::float64')
+
+
+class Float64TypeInfo(s_types.TypeInfo, type=Float64):
+    def op(self, other: (int, float)) -> StdFloat64:
         pass
 
-    def unary_op(self) -> s_int.StdFloat:
+    def unary_op(self) -> StdFloat64:
         pass
 
     __add__ = op
@@ -261,6 +275,34 @@ class FloatTypeInfo(s_types.TypeInfo, type=Float):
     __invert__ = unary_op
 
 
-_add_impl('std::float', Float)
-_add_map(Float, 'std::float')
-_add_map(float, 'std::float')
+class Float32TypeInfo(s_types.TypeInfo, type=Float32):
+    def op(self, other: (int, float)) -> StdFloat32:
+        pass
+
+    def unary_op(self) -> StdFloat32:
+        pass
+
+    __add__ = op
+    __radd__ = op
+    __sub__ = op
+    __rsub__ = op
+    __mul__ = op
+    __rmul__ = op
+
+    __truediv__ = op
+    __rtruediv__ = op
+
+    __floordiv__ = op
+    __rfloordiv__ = op
+
+    __mod__ = op
+    __rmod__ = op
+
+    __pow__ = op
+    __rpow__ = op
+
+    __neg__ = unary_op
+    __pos__ = unary_op
+
+    __abs__ = unary_op
+    __invert__ = unary_op

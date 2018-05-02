@@ -420,7 +420,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                     name,
                     percent_cost := (
                         WITH CARDINALITY '1'
-                        SELECT <int>(100 * Card.cost / Card.<deck.deck_cost)
+                        SELECT <int64>(100 * Card.cost / Card.<deck.deck_cost)
                     ),
                 },
                 Card.<deck { name }
@@ -733,7 +733,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                         # longest common prefix, so we know that for
                         # each friend, the average cost will be
                         # calculated.
-                        <int>(User.friends.deck_cost /
+                        <int64>(User.friends.deck_cost /
                                 count(User.friends.deck))
                     # finally, filter out the only answer we need, to
                     # satisfy the CARDINALITY requirement of the OFFSET
@@ -820,7 +820,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                         # longest common prefix, so we know that for
                         # each friend, the average cost will be
                         # calculated.
-                        <int>(User.friends.deck_cost /
+                        <int64>(User.friends.deck_cost /
                                 count(User.friends.deck))
                     # finally, filter out the only answer we need, to
                     # satisfy the CARDINALITY requirement of the LIMIT

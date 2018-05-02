@@ -25,7 +25,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_emptyset_01(self):
         await self.assert_query_result(r"""
-            SELECT <int>{};
+            SELECT <int64>{};
             SELECT <str>{};
             SELECT {} + 1;
             SELECT 1 + {};
@@ -45,8 +45,8 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_emptyset_02(self):
         await self.assert_query_result(r"""
-            SELECT count(<int>{});
-            SELECT count(DISTINCT <int>{});
+            SELECT count(<int64>{});
+            SELECT count(DISTINCT <int64>{});
         """, [
             [0],
             [0],
@@ -168,7 +168,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_op_06(self):
         await self.assert_query_result(r"""
-            SELECT {} = <int>{};
+            SELECT {} = <int64>{};
             SELECT {} = 42;
             SELECT {} = '{}';
         """, [
@@ -208,8 +208,8 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_op_10(self):
         await self.assert_query_result(r"""
             # the types are put in to satisfy type infering
-            SELECT +<int>{};
-            SELECT -<int>{};
+            SELECT +<int64>{};
+            SELECT -<int64>{};
             SELECT NOT <bool>{};
         """, [
             [],
@@ -244,9 +244,9 @@ class TestExpressions(tb.QueryTestCase):
             SELECT 2 ?!= 3;
 
             SELECT 2 ?= {};
-            SELECT <int>{} ?= <int>{};
+            SELECT <int64>{} ?= <int64>{};
             SELECT 2 ?!= {};
-            SELECT <int>{} ?!= <int>{};
+            SELECT <int64>{} ?!= <int64>{};
         """, [
             [True],
             [False],
@@ -490,13 +490,13 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_cast_01(self):
         await self.assert_query_result(r"""
             SELECT <std::str>123;
-            SELECT <std::int>"123";
+            SELECT <std::int64>"123";
             SELECT <std::str>123 + 'qw';
-            SELECT <std::int>"123" + 9000;
-            SELECT <std::int>"123" * 100;
+            SELECT <std::int64>"123" + 9000;
+            SELECT <std::int64>"123" * 100;
             SELECT <std::str>(123 * 2);
-            SELECT <int>true;
-            SELECT <int>false;
+            SELECT <int64>true;
+            SELECT <int64>false;
         """, [
             ['123'],
             [123],
@@ -513,7 +513,7 @@ class TestExpressions(tb.QueryTestCase):
         #
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
-                r'operator `\*` is not defined .* std::str and std::int'):
+                r'operator `\*` is not defined .* std::str and std::int64'):
 
             await self.con.execute("""
                 SELECT <std::str>123 * 2;
@@ -521,21 +521,21 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_cast_03(self):
         await self.assert_query_result(r"""
-            SELECT <std::str><std::int><std::float>'123.45' + 'foo';
+            SELECT <std::str><std::int64><std::float64>'123.45' + 'foo';
         """, [
             ['123foo'],
         ])
 
     async def test_edgeql_expr_cast_04(self):
         await self.assert_query_result(r"""
-            SELECT <str><int><float>'123.45' + 'foo';
+            SELECT <str><int64><float64>'123.45' + 'foo';
         """, [
             ['123foo'],
         ])
 
     async def test_edgeql_expr_cast_05(self):
         await self.assert_query_result(r"""
-            SELECT <array<int>>['123', '11'];
+            SELECT <array<int64>>['123', '11'];
         """, [
             [[123, 11]],
         ])
@@ -578,16 +578,33 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(exc.EdgeQLError,
                                     r'cannot cast tuple'):
             await self.con.execute(r"""
-                SELECT <array<int>>(123, 11);
+                SELECT <array<int64>>(123, 11);
             """)
 
     async def test_edgeql_expr_cast_09(self):
         await self.assert_query_result(r"""
-            SELECT <tuple<str, int>> ('foo', 42);
-            SELECT <tuple<a: str, b: int>> ('foo', 42);
+            SELECT <tuple<str, int64>> ('foo', 42);
+            SELECT <tuple<a: str, b: int64>> ('foo', 42);
         """, [
             [['foo', 42]],
             [{'a': 'foo', 'b': 42}],
+        ])
+
+    async def test_edgeql_expr_implicit_cast_01(self):
+        await self.assert_query_result(r"""
+            SELECT (<int32>1 + 3).__type__.name;
+            SELECT (<int16>1 + 3).__type__.name;
+            SELECT (<int16>1 + <int32>3).__type__.name;
+            SELECT (1 + <float32>3.1).__type__.name;
+            SELECT (<int16>1 + <float32>3.1).__type__.name;
+            SELECT (<int16>1 + <float64>3.1).__type__.name;
+        """, [
+            ['std::int64'],
+            ['std::int64'],
+            ['std::int32'],
+            ['std::float32'],
+            ['std::float32'],
+            ['std::float64'],
         ])
 
     async def test_edgeql_expr_type_01(self):
@@ -601,12 +618,12 @@ class TestExpressions(tb.QueryTestCase):
         await self.assert_query_result(r"""
             SELECT (1.0 + 2).__type__.name;
         """, [
-            ['std::float'],
+            ['std::float64'],
         ])
 
     async def test_edgeql_expr_set_01(self):
         await self.assert_query_result("""
-            SELECT <int>{};
+            SELECT <int64>{};
             SELECT {1};
             SELECT {'foo'};
             SELECT {1} = 1;
@@ -670,7 +687,7 @@ class TestExpressions(tb.QueryTestCase):
 
             SELECT [1, 2][10] ?? 42;
 
-            SELECT <array<int>>[];
+            SELECT <array<int64>>[];
         """, [
             [[1]],
             [[1, 2, 3, 4, 5]],
@@ -726,7 +743,7 @@ class TestExpressions(tb.QueryTestCase):
     @unittest.expectedFailure
     async def test_edgeql_expr_array_06(self):
         await self.assert_query_result('''
-            SELECT [1, <int>{}];
+            SELECT [1, <int64>{}];
         ''', [
             [],
         ])
@@ -736,7 +753,7 @@ class TestExpressions(tb.QueryTestCase):
         await self.assert_query_result('''
             WITH
                 A := {1, 2},
-                B := <int>{}
+                B := <int64>{}
             SELECT [A, B];
         ''', [
             [],
@@ -757,14 +774,14 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_map_01(self):
         await self.assert_query_result(r"""
             SELECT ['fo' + 'o' -> 42];
-            SELECT <map<str,int>>['foo' -> '42'];
-            SELECT <map<int,int>>['+1' -> '42'];
+            SELECT <map<str,int64>>['foo' -> '42'];
+            SELECT <map<int64,int64>>['+1' -> '42'];
 
-            SELECT <map<str,float>>['foo' -> '1.1'];
-            SELECT <map<str,float>>['foo' -> '1.0'];
-            SELECT <map<float,int>>['+1.5' -> '42'];
+            SELECT <map<str,float64>>['foo' -> '1.1'];
+            SELECT <map<str,float64>>['foo' -> '1.0'];
+            SELECT <map<float64,int64>>['+1.5' -> '42'];
 
-            SELECT <map<float,bool>>['+1.5' -> 42];
+            SELECT <map<float64,bool>>['+1.5' -> 42];
 
             SELECT ['foo' -> '42', 'bar' -> 'something'];
             SELECT [lower('FOO') -> '42', 'bar' -> 'something']['foo'];
@@ -780,11 +797,11 @@ class TestExpressions(tb.QueryTestCase):
             SELECT [ [[1],[2],[3]] -> 42] [[[1],[2],[3]]];
             SELECT [ [[1] -> 1] -> 42 ] [[[1] -> 1]];
             SELECT [[10+1 ->1] -> 100, [2 ->2] -> 200]
-                    [<map<int,int>>['1'+'1' ->'1']];
+                    [<map<int64,int64>>['1'+'1' ->'1']];
 
             SELECT ['aaa' -> [ [['a'->1]], [['b'->2]], [['c'->3]] ] ];
 
-            SELECT <map<int, int>>[];
+            SELECT <map<int64, int64>>[];
         """, [
             [{'foo': 42}],
             [{'foo': 42}],
@@ -826,7 +843,7 @@ class TestExpressions(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
-                r'binary operator `\+` is not defined.*str.*int'):
+                r'binary operator `\+` is not defined.*str.*int64'):
 
             await self.con.execute(r'''
                 SELECT ['a' -> '1']['a'] + 1;
@@ -834,14 +851,14 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_map_03(self):
         await self.con.execute('''
-            CREATE FUNCTION test::take(map<std::str, std::int>, std::str)
-                    -> std::int
+            CREATE FUNCTION test::take(map<std::str, std::int64>, std::str)
+                    -> std::int64
                 FROM EdgeQL $$
                     SELECT $1[$2] + 100
                 $$;
 
-            CREATE FUNCTION test::make(std::int)
-                    -> map<std::str, std::int>
+            CREATE FUNCTION test::make(std::int64)
+                    -> map<std::str, std::int64>
                 FROM EdgeQL $$
                     SELECT ['aaa' -> $1]
                 $$;
@@ -858,11 +875,11 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_map_04(self):
         await self.assert_query_result(r"""
             SELECT <map<str, datetime>>['foo' -> '2020-10-10'];
-            SELECT (<map<int,int>>['+1' -> '+42'])[1];  # '+1'::bigint = 1
+            SELECT (<map<int64,int64>>['+1' -> '+42'])[1];  # '+1'::bigint = 1
             SELECT (<map<datetime, datetime>>['2020-10-10' -> '2010-01-01'])
                    [<datetime>'2020-10-10'];
-            SELECT (<map<int,int>>[true -> '+42'])[1];
-            SELECT (<map<bool,int>>(<map<int,str>>[true -> 142]))[true];
+            SELECT (<map<int64,int64>>[true -> '+42'])[1];
+            SELECT (<map<bool,int64>>(<map<int64,str>>[true -> 142]))[true];
         """, [
             [{'foo': '2020-10-10T00:00:00+00:00'}],
             [42],
@@ -914,7 +931,7 @@ class TestExpressions(tb.QueryTestCase):
     @unittest.expectedFailure
     async def test_edgeql_expr_map_07(self):
         await self.assert_query_result('''
-            SELECT ['a' -> <int>{}];
+            SELECT ['a' -> <int64>{}];
         ''', [
             [],
         ])
@@ -924,7 +941,7 @@ class TestExpressions(tb.QueryTestCase):
         await self.assert_query_result('''
             WITH
                 A := {'a', 'b'},
-                B := <int>{}
+                B := <int64>{}
             SELECT [A -> B];
         ''', [
             [],
@@ -955,11 +972,11 @@ class TestExpressions(tb.QueryTestCase):
             SELECT 4+{} ?? 2;
             SELECT 4*{} ?? 2;
 
-            SELECT -<int>{} ?? 2;
-            SELECT -<int>{} ?? -2 + 1;
+            SELECT -<int64>{} ?? 2;
+            SELECT -<int64>{} ?? -2 + 1;
 
-            SELECT <int>({} ?? {});
-            SELECT <int>({} ?? {} ?? {});
+            SELECT <int64>({} ?? {});
+            SELECT <int64>({} ?? {} ?? {});
         """, [
             [4],
             ['foo'],
@@ -1070,13 +1087,13 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_json_02(self):
         await self.assert_query_result("""
             SELECT <str><json>'"qwerty"';
-            SELECT <int><json>'1';
-            SELECT <float><json>'2.3e-2';
+            SELECT <int64><json>'1';
+            SELECT <float64><json>'2.3e-2';
 
             SELECT <bool><json>'true';
             SELECT <bool><json>'false';
 
-            SELECT <array<int>><json>'[2, 3, 5]';
+            SELECT <array<int64>><json>'[2, 3, 5]';
         """, [
             ['qwerty'],
             [1],
@@ -1091,8 +1108,8 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_json_03(self):
         await self.assert_query_result("""
             SELECT <str><json>'null';
-            SELECT <int><json>'null';
-            SELECT <float><json>'null';
+            SELECT <int64><json>'null';
+            SELECT <float64><json>'null';
             SELECT <bool><json>'null';
         """, [
             [],
@@ -1104,8 +1121,8 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_json_04(self):
         await self.assert_query_result("""
             SELECT <str><json>'null' ?= <str>{};
-            SELECT <int><json>'null' ?= <int>{};
-            SELECT <float><json>'null' ?= <float>{};
+            SELECT <int64><json>'null' ?= <int64>{};
+            SELECT <float64><json>'null' ?= <float64>{};
             SELECT <bool><json>'null' ?= <bool>{};
         """, [
             [True],
@@ -1126,8 +1143,8 @@ class TestExpressions(tb.QueryTestCase):
     @unittest.expectedFailure
     async def test_edgeql_expr_json_06(self):
         await self.assert_query_result("""
-            SELECT <array<int>><json>'[null]' ?= <array<int>>{};
-            SELECT <array<int>><json>'[1, null]' ?= <array<int>>{};
+            SELECT <array<int64>><json>'[null]' ?= <array<int64>>{};
+            SELECT <array<int64>><json>'[1, null]' ?= <array<int64>>{};
         """, [
             [True],
             [True],
@@ -1282,7 +1299,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_tuple_09(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
-                r'operator `\+` is not defined .*tuple<.*> and std::int'):
+                r'operator `\+` is not defined .*tuple<.*> and std::int64'):
 
             await self.con.execute(r'''
                 SELECT (spam := 1, ham := 2) + 1;
@@ -1334,7 +1351,7 @@ class TestExpressions(tb.QueryTestCase):
     @unittest.expectedFailure
     async def test_edgeql_expr_tuple_14(self):
         await self.assert_query_result('''
-            SELECT (1, <int>{});
+            SELECT (1, <int64>{});
         ''', [
             [],
         ])
@@ -1344,7 +1361,7 @@ class TestExpressions(tb.QueryTestCase):
         await self.assert_query_result('''
             WITH
                 A := {1, 2},
-                B := <int>{}
+                B := <int64>{}
             SELECT (A, B);
         ''', [
             [],
@@ -1696,7 +1713,8 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_type_filter_01(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
-                r'invalid type filter operand: std::int is not an object type',
+                r'invalid type filter operand: std::int64 is not '
+                r'an object type',
                 position=7):
 
             await self.query('''\

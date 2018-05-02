@@ -1390,16 +1390,16 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_cast_01(self):
         """
-        SELECT <float> (SELECT User.age);
+        SELECT <float64> (SELECT User.age);
         """
 
     def test_edgeql_syntax_cast_02(self):
         """
-        SELECT <float> (((SELECT User.age)));
+        SELECT <float64> (((SELECT User.age)));
 
 % OK %
 
-        SELECT <float> (SELECT User.age);
+        SELECT <float64> (SELECT User.age);
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -1415,12 +1415,12 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_cast_04(self):
         """
-        SELECT -<int>{};
+        SELECT -<int64>{};
         """
 
     def test_edgeql_syntax_cast_05(self):
         """
-        SELECT <array<int>>$1;
+        SELECT <array<int64>>$1;
         SELECT <array<int[2][3]>>$1;
         """
 
@@ -2260,15 +2260,15 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     # TODO: remove this test once the entire grammar is converted
     def test_edgeql_syntax_ddl_aggregate_00(self):
         """
-        CREATE FUNCTION std::sum($v: SET OF std::int)
-            -> std::int
+        CREATE FUNCTION std::sum($v: SET OF std::int64)
+            -> std::int64
             FROM SQL FUNCTION 'sum';
         """
 
     def test_edgeql_syntax_ddl_aggregate_01(self):
         """
-        CREATE FUNCTION std::sum($v: SET OF std::int)
-            -> std::int {
+        CREATE FUNCTION std::sum($v: SET OF std::int64)
+            -> std::int64 {
             INITIAL VALUE 0;
             FROM SQL FUNCTION 'test';
         };
@@ -2276,8 +2276,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_aggregate_02(self):
         """
-        CREATE FUNCTION std::sum(SET OF std::int)
-            -> std::int {
+        CREATE FUNCTION std::sum(SET OF std::int64)
+            -> std::int64 {
             INITIAL VALUE 0;
             FROM SQL FUNCTION 'sum';
         };
@@ -2285,8 +2285,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_aggregate_03(self):
         """
-        CREATE FUNCTION std::sum($integer: SET OF std::int)
-            -> std::int {
+        CREATE FUNCTION std::sum($integer: SET OF std::int64)
+            -> std::int64 {
             INITIAL VALUE 0;
             FROM SQL FUNCTION 'sum';
         };
@@ -2294,8 +2294,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_aggregate_04(self):
         """
-        CREATE FUNCTION std::sum($integer: SET OF std::int)
-            -> std::int {
+        CREATE FUNCTION std::sum($integer: SET OF std::int64)
+            -> std::int64 {
             INITIAL VALUE 0;
             FROM SQL FUNCTION 'sum';
         };
@@ -2306,7 +2306,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_aggregate_06(self):
         """
         CREATE FUNCTION foo($string: SET OF std::str)
-            -> std::int {
+            -> std::int64 {
             INITIAL VALUE 0;
             FROM AAA FUNCTION 'foo';
         };
@@ -2315,7 +2315,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_aggregate_08(self):
         """
         CREATE FUNCTION std::count($expression: SET OF std::any)
-            -> std::int {
+            -> std::int64 {
             INITIAL VALUE 0;
             FROM SQL FUNCTION 'count';
         };
@@ -2335,37 +2335,37 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_attribute_02(self):
         """
-        CREATE ABSTRACT ATTRIBUTE stdattrs::precision array<std::int>;
+        CREATE ABSTRACT ATTRIBUTE stdattrs::precision array<std::int64>;
         """
 
     def test_edgeql_syntax_ddl_attribute_03(self):
         # test parsing of array types
         #
         """
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int>;
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int[]>;
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int[][]>;
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int[][][]>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int64>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int64[]>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int64[][]>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int64[][][]>;
 
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int[3]>;
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int[4][5]>;
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int[3][4][5]>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int64[3]>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int64[4][5]>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int64[3][4][5]>;
 
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int[][5]>;
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int[4][]>;
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int[][4][5]>;
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int[3][4][]>;
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int[][4][]>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int64[][5]>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int64[4][]>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int64[][4][5]>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int64[3][4][]>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int64[][4][]>;
         """
 
     def test_edgeql_syntax_ddl_attribute_04(self):
         # test parsing of map types
         #
         """
-        CREATE ABSTRACT ATTRIBUTE std::foo map<int, str>;
-        CREATE ABSTRACT ATTRIBUTE std::foo map<array<int>, str>;
-        CREATE ABSTRACT ATTRIBUTE std::foo map<array<int>, tuple<str, str>>;
-        CREATE ABSTRACT ATTRIBUTE std::foo map<int, foo::Bar>;
+        CREATE ABSTRACT ATTRIBUTE std::foo map<int64, str>;
+        CREATE ABSTRACT ATTRIBUTE std::foo map<array<int64>, str>;
+        CREATE ABSTRACT ATTRIBUTE std::foo map<array<int64>, tuple<str, str>>;
+        CREATE ABSTRACT ATTRIBUTE std::foo map<int64, foo::Bar>;
         """
 
     def test_edgeql_syntax_ddl_attribute_05(self):
@@ -2373,20 +2373,20 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         #
         """
         CREATE ABSTRACT ATTRIBUTE std::foo tuple;
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<float>;
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<int, str>;
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<array<int>, str>;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<float64>;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<int64, str>;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<array<int64>, str>;
         CREATE ABSTRACT ATTRIBUTE std::foo
-            tuple<array<int>, tuple<str, str>>;
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<int, foo::Bar>;
+            tuple<array<int64>, tuple<str, str>>;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<int64, foo::Bar>;
 
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<count: int, name: str>;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<count: int64, name: str>;
 
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<Baz, map<int, str>>;
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<Baz, map<array<int>, str>>;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<Baz, map<int64, str>>;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<Baz, map<array<int64>, str>>;
         CREATE ABSTRACT ATTRIBUTE std::foo
-            tuple<Baz, map<array<int>, tuple<str, str>>>;
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<Baz, map<int, foo::Bar>>;
+            tuple<Baz, map<array<int64>, tuple<str, str>>>;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<Baz, map<int64, foo::Bar>>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -2397,17 +2397,17 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*>", line=2, col=51)
+                  r"Unexpected token.*>", line=2, col=53)
     def test_edgeql_syntax_ddl_attribute_07(self):
         """
-        CREATE ABSTRACT ATTRIBUTE std::foo map<int>;
+        CREATE ABSTRACT ATTRIBUTE std::foo map<int64>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*COMMA", line=2, col=56)
+                  r"Unexpected token.*COMMA", line=2, col=58)
     def test_edgeql_syntax_ddl_attribute_08(self):
         """
-        CREATE ABSTRACT ATTRIBUTE std::foo map<int, str, float>;
+        CREATE ABSTRACT ATTRIBUTE std::foo map<int64, str, float64>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -2418,31 +2418,31 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*COMMA", line=2, col=53)
+                  r"Unexpected token.*COMMA", line=2, col=55)
     def test_edgeql_syntax_ddl_attribute_10(self):
         """
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int, int, int>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<int64, int64, int64>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r"Unexpected token.*<", line=2, col=55)
     def test_edgeql_syntax_ddl_attribute_11(self):
         """
-        CREATE ABSTRACT ATTRIBUTE std::foo array<array<int[]>>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<array<int64[]>>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*COLON", line=2, col=58)
+                  r"Unexpected token.*COLON", line=2, col=60)
     def test_edgeql_syntax_ddl_attribute_12(self):
         """
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<int, foo:int>;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<int64, foo:int64>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*>", line=2, col=62)
+                  r"Unexpected token.*>", line=2, col=64)
     def test_edgeql_syntax_ddl_attribute_13(self):
         """
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<foo:int, str>;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<foo:int64, str>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -2495,7 +2495,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_constraint_05(self):
         """
-        CREATE SCALAR TYPE std::decimal_rounding_t EXTENDING std::str {
+        CREATE SCALAR TYPE std::numeric_rounding_t EXTENDING std::str {
             CREATE CONSTRAINT std::enum(['a', 'b']);
         };
         """
@@ -2511,47 +2511,47 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_constraint_07(self):
         """
-        CREATE SCALAR TYPE std::decimal_rounding_t EXTENDING std::str {
-            CREATE CONSTRAINT max(99) ON (<int>__subject__);
+        CREATE SCALAR TYPE std::numeric_rounding_t EXTENDING std::str {
+            CREATE CONSTRAINT max(99) ON (<int64>__subject__);
         };
         """
 
     def test_edgeql_syntax_ddl_function_01(self):
         """
-        CREATE FUNCTION std::strlen($string: std::str) -> std::int
+        CREATE FUNCTION std::strlen($string: std::str) -> std::int64
             FROM SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function_02(self):
         """
-        CREATE FUNCTION std::strlen(std::str) -> std::int
+        CREATE FUNCTION std::strlen(std::str) -> std::int64
             FROM SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function_03(self):
         """
-        CREATE FUNCTION std::strlen($string: std::str) -> std::int
+        CREATE FUNCTION std::strlen($string: std::str) -> std::int64
             FROM SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function_04(self):
         """
-        CREATE FUNCTION std::strlen($string: std::str, $integer: std::int)
-            -> std::int
+        CREATE FUNCTION std::strlen($string: std::str, $integer: std::int64)
+            -> std::int64
             FROM SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function_05(self):
         """
-        CREATE FUNCTION std::strlen($string: std::str, std::int)
-            -> std::int
+        CREATE FUNCTION std::strlen($string: std::str, std::int64)
+            -> std::int64
             FROM SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function_06(self):
         """
         CREATE FUNCTION std::strlen($string: std::str = '1')
-            -> std::int
+            -> std::int64
             FROM SQL FUNCTION 'strlen';
         """
 
@@ -2560,7 +2560,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_function_07(self):
         """
         CREATE FUNCTION std::strlen($string: std::str = '1', $abc: std::str)
-            -> std::int;
+            -> std::int64;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -2569,7 +2569,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         CREATE FUNCTION std::strlen($string: VARIADIC std::str = '1',
                                     $abc: std::str)
-            -> std::int;
+            -> std::int64;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -2578,25 +2578,25 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         CREATE FUNCTION std::strlen($string: VARIADIC std::str = '1',
                                     $abc: VARIADIC std::str)
-            -> std::int;
+            -> std::int64;
         """
 
     def test_edgeql_syntax_ddl_function_10(self):
         """
         CREATE FUNCTION std::strlen(std::str = '1', VARIADIC std::str)
-            -> std::int
+            -> std::int64
             FROM SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function_11(self):
         """
-        CREATE FUNCTION no_params() -> std::int
+        CREATE FUNCTION no_params() -> std::int64
         FROM EdgeQL $$ SELECT 1 $$;
         """
 
     def test_edgeql_syntax_ddl_function_13(self):
         """
-        CREATE FUNCTION foo($string: std::str) -> tuple<bar: std::int>
+        CREATE FUNCTION foo($string: std::str) -> tuple<bar: std::int64>
         FROM EDGEQL $$ SELECT (bar := 123) $$;
         """
 
@@ -2604,7 +2604,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         CREATE FUNCTION foo($string: std::str)
         -> tuple<
-            bar: std::int,
+            bar: std::int64,
             baz: std::str
         > FROM EdgeQL $$ SELECT smth() $$;
         """
@@ -2613,7 +2613,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_function_16(self):
         """
         CREATE FUNCTION foo($string: std::str)
-        -> std::int FROM AAA FUNCTION 'foo';
+        -> std::int64 FROM AAA FUNCTION 'foo';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -2621,21 +2621,21 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_function_19(self):
         """
         CREATE FUNCTION foo($string: std::str)
-        -> std::int FROM AAA 'code';
+        -> std::int64 FROM AAA 'code';
         """
 
     def test_edgeql_syntax_ddl_function_20(self):
         """
-        CREATE FUNCTION foo() -> std::int FROM SQL 'SELECT 1';
+        CREATE FUNCTION foo() -> std::int64 FROM SQL 'SELECT 1';
 
 % OK %
 
-        CREATE FUNCTION foo() -> std::int FROM SQL $$SELECT 1$$;
+        CREATE FUNCTION foo() -> std::int64 FROM SQL $$SELECT 1$$;
         """
 
     def test_edgeql_syntax_ddl_function_21(self):
         """
-        CREATE FUNCTION foo() -> std::int FROM SQL FUNCTION 'aaa';
+        CREATE FUNCTION foo() -> std::int64 FROM SQL FUNCTION 'aaa';
         """
 
     def test_edgeql_syntax_ddl_function_24(self):
@@ -2686,7 +2686,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         CREATE FUNCTION std::foobar($arg1: str, $arg2: str = 'DEFAULT',
                                     $arg3: VARIADIC)
-            -> std::int
+            -> std::int64
             FROM EdgeQL $$$$;
         """
 
@@ -2694,27 +2694,27 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
                   'Unexpected token.*VARIADIC', line=2, col=41)
     def test_edgeql_syntax_ddl_function_31(self):
         """
-        CREATE FUNCTION std::foo(SET OF VARIADIC std::str) -> std::int;
+        CREATE FUNCTION std::foo(SET OF VARIADIC std::str) -> std::int64;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   'Unexpected token.*SET', line=2, col=43)
     def test_edgeql_syntax_ddl_function_32(self):
         """
-        CREATE FUNCTION std::foo(VARIADIC SET OF std::str) -> std::int;
+        CREATE FUNCTION std::foo(VARIADIC SET OF std::str) -> std::int64;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   'Unexpected token.*SET', line=2, col=49)
     def test_edgeql_syntax_ddl_function_33(self):
         """
-        CREATE FUNCTION std::foo($bar: VARIADIC SET OF std::str) -> std::int;
+        CREATE FUNCTION std::foo($bar: VARIADIC SET OF std::str) -> std::int64;
         """
 
     def test_edgeql_syntax_ddl_function_34(self):
         """
         CREATE FUNCTION foo(OPTIONAL std::str) ->
-            std::int FROM SQL FUNCTION 'aaa';
+            std::int64 FROM SQL FUNCTION 'aaa';
         """
 
     def test_edgeql_syntax_ddl_property_01(self):
@@ -2769,7 +2769,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         CREATE TYPE schema::TypeElement {
             CREATE REQUIRED LINK schema::type -> schema::Type;
-            CREATE REQUIRED LINK schema::num -> std::int;
+            CREATE REQUIRED LINK schema::num -> std::int64;
             CREATE LINK schema::name -> std::str;
         };
         """

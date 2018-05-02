@@ -34,8 +34,8 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
             required property active -> bool
             link groups -> UserGroup:
                 cardinality := '**'
-            required property age -> int
-            required property score -> float
+            required property age -> int64
+            required property score -> float64
             link profile -> Profile:
                 cardinality := '*1'
     """
@@ -84,8 +84,8 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
 
     def test_edgeql_utils_normalize_05(self):
         self._assert_normalize_expr(
-            """SELECT <int>'1'""",
-            """SELECT <std::int>'1'""",
+            """SELECT <int64>'1'""",
+            """SELECT <std::int64>'1'""",
         )
 
     def test_edgeql_utils_normalize_06(self):

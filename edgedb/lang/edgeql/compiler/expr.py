@@ -242,8 +242,10 @@ def compile_UnaryOp(
     unop = irast.UnaryOp(expr=operand, op=expr.op)
     result_type = irutils.infer_type(unop, ctx.schema)
 
+    real_t = ctx.schema.get('std::anyreal')
+
     if (isinstance(operand.expr, irast.Constant) and
-            result_type.name in {'std::int', 'std::float'}):
+            result_type.issubclass(real_t)):
         # Fold the operation to constant if possible
         if expr.op == ast.ops.UMINUS:
             return setgen.ensure_set(
@@ -420,7 +422,7 @@ def compile_TypeFilter(
 def compile_Indirection(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     node = dispatch.compile(expr.arg, ctx=ctx)
-    int_type = schemactx.get_schema_object('std::int', ctx=ctx)
+    int_type = schemactx.get_schema_object('std::int64', ctx=ctx)
     for indirection_el in expr.indirection:
         if isinstance(indirection_el, qlast.Index):
             idx = dispatch.compile(indirection_el.index, ctx=ctx)
@@ -450,15 +452,20 @@ def try_fold_arithmetic_binop(
         op: ast.ops.Operator, left: irast.Set, right: irast.Set, *,
         ctx: context.ContextLevel) -> typing.Optional[irast.Set]:
     """Try folding an arithmetic expr into a constant."""
-    left_type = irutils.infer_type(left, ctx.schema)
-    right_type = irutils.infer_type(right, ctx.schema)
+    schema = ctx.schema
 
-    if (left_type.name not in {'std::int', 'std::float'} or
-            right_type.name not in {'std::int', 'std::float'}):
+    real_t = schema.get('std::anyreal')
+    float_t = schema.get('std::anyfloat')
+    int_t = schema.get('std::anyint')
+
+    left_type = irutils.infer_type(left, schema)
+    right_type = irutils.infer_type(right, schema)
+
+    if not left_type.issubclass(real_t) or not right_type.issubclass(real_t):
         return
 
     result_type = left_type
-    if right_type.name == 'std::float':
+    if right_type.issubclass(float_t):
         result_type = right_type
 
     left = left.expr
@@ -471,7 +478,7 @@ def try_fold_arithmetic_binop(
     elif op == ast.ops.MUL:
         value = left.value * right.value
     elif op == ast.ops.DIV:
-        if left_type.name == right_type.name == 'std::int':
+        if left_type.issubclass(int_t) and right_type.issubclass(int_t):
             value = left.value // right.value
         else:
             value = left.value / right.value
@@ -491,7 +498,10 @@ def try_fold_binop(
         binop: irast.BinOp, *,
         ctx: context.ContextLevel) -> typing.Optional[irast.Set]:
     """Try folding a binary operator expression."""
-    result_type = irutils.infer_type(binop, ctx.schema)
+    schema = ctx.schema
+    real_t = schema.get('std::anyreal')
+
+    result_type = irutils.infer_type(binop, schema)
     folded = None
 
     left = binop.left
@@ -500,7 +510,7 @@ def try_fold_binop(
 
     if (isinstance(left.expr, irast.Constant) and
             isinstance(right.expr, irast.Constant) and
-            result_type.name in {'std::int', 'std::float'}):
+            result_type.issubclass(real_t)):
 
         # Left and right nodes are constants.
         folded = try_fold_arithmetic_binop(op, left, right, ctx=ctx)

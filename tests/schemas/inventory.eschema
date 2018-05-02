@@ -14,4 +14,4 @@ type Item extending Named:
 
     property tag_array -> array<str>
 
-    property components -> map<str, int>
+    property components -> map<str, int64>

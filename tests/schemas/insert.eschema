@@ -6,8 +6,8 @@ type Subordinate:
 
 type InsertTest:
     property name -> str
-    property l1 -> int
-    required property l2 -> int
+    property l1 -> int64
+    required property l2 -> int64
     property l3 -> str:
         default := "test"
     link subordinates -> Subordinate:
@@ -19,13 +19,13 @@ type Annotation:
     link subject -> Object
 
 type DefaultTest1:
-    property num -> int:
+    property num -> int64:
         default := 42
     property foo -> str
 
 type DefaultTest2:
     property foo -> str
-    required property num -> int:
+    required property num -> int64:
         # XXX: circumventing sequence deficiency
         default :=
             SELECT DefaultTest1.num + 1
@@ -33,12 +33,12 @@ type DefaultTest2:
             LIMIT 1
 
 type DefaultTest3:
-    required property foo -> float:
+    required property foo -> float64:
         # non-deterministic dynamic value
         default := random()
 
 type DefaultTest4:
-    required property bar -> int:
+    required property bar -> int64:
         # deterministic dynamic value
         default := (SELECT count(DefaultTest4))
 

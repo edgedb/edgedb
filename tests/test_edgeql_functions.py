@@ -22,7 +22,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_array_contains_01(self):
         await self.assert_query_result(r'''
-            SELECT std::array_contains(<array<int>>[], {1, 3});
+            SELECT std::array_contains(<array<int64>>[], {1, 3});
             SELECT array_contains([1], {1, 3});
             SELECT array_contains([1, 2], 1);
             SELECT array_contains([1, 2], 3);
@@ -90,8 +90,8 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 x := (
                     # User is simply employed as an object to be augmented
                     SELECT User {
-                        count := count(<int>Issue.number),
-                        all_issues := <int>Issue.number
+                        count := count(<int64>Issue.number),
+                        all_issues := <int64>Issue.number
                     } FILTER .name = 'Elvis'
                 )
             SELECT x.count = count(x.all_issues);
@@ -162,8 +162,8 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_array_agg_06(self):
         await self.assert_query_result('''
-            SELECT array_agg(<int>{});
-            SELECT array_agg(DISTINCT <int>{});
+            SELECT array_agg(<int64>{});
+            SELECT array_agg(DISTINCT <int64>{});
         ''', [
             [
                 []
@@ -191,7 +191,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_array_agg_08(self):
         await self.assert_query_result('''
-            WITH x := <int>{}
+            WITH x := <int64>{}
             SELECT array_agg(x);
 
             WITH x := (SELECT schema::ObjectType FILTER False)

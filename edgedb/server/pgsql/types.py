@@ -21,18 +21,19 @@ from . import common
 
 base_type_name_map = {
     sn.Name('std::str'): 'text',
-    sn.Name('std::int'): 'bigint',
-    sn.Name('std::decimal'): 'numeric',
+    sn.Name('std::int64'): 'bigint',
+    sn.Name('std::int32'): 'integer',
+    sn.Name('std::int16'): 'smallint',
+    sn.Name('std::numeric'): 'numeric',
     sn.Name('std::bool'): 'boolean',
-    sn.Name('std::float'): 'float8',
+    sn.Name('std::float64'): 'float8',
+    sn.Name('std::float32'): 'float4',
     sn.Name('std::uuid'): 'uuid',
     sn.Name('std::datetime'): 'timestamptz',
     sn.Name('std::date'): 'date',
     sn.Name('std::time'): 'timetz',
     sn.Name('std::timedelta'): 'interval',
     sn.Name('std::bytes'): 'bytea',
-    sn.Name('std::tsquery'): 'tsquery',
-    sn.Name('std::tsvector'): 'tsvector',
     sn.Name('std::json'): 'jsonb',
 }
 
@@ -40,15 +41,17 @@ base_type_name_map_r = {
     'character varying': sn.Name('std::str'),
     'character': sn.Name('std::str'),
     'text': sn.Name('std::str'),
-    'numeric': sn.Name('std::decimal'),
-    'integer': sn.Name('std::int'),
-    'bigint': sn.Name('std::int'),
-    'int8': sn.Name('std::int'),
-    'smallint': sn.Name('std::int'),
+    'numeric': sn.Name('std::numeric'),
+    'integer': sn.Name('std::int32'),
+    'bigint': sn.Name('std::int64'),
+    'int8': sn.Name('std::int64'),
+    'smallint': sn.Name('std::int16'),
     'boolean': sn.Name('std::bool'),
     'bool': sn.Name('std::bool'),
-    'double precision': sn.Name('std::float'),
-    'float8': sn.Name('std::float'),
+    'double precision': sn.Name('std::float64'),
+    'float8': sn.Name('std::float64'),
+    'real': sn.Name('std::float32'),
+    'float4': sn.Name('std::float32'),
     'uuid': sn.Name('std::uuid'),
     'timestamp with time zone': sn.Name('std::datetime'),
     'timestamptz': sn.Name('std::datetime'),
@@ -57,29 +60,28 @@ base_type_name_map_r = {
     'time': sn.Name('std::time'),
     'interval': sn.Name('std::timedelta'),
     'bytea': sn.Name('std::bytes'),
-    'tsquery': sn.Name('std::tsquery'),
-    'tsvector': sn.Name('std::tsvector'),
     'jsonb': sn.Name('std::json'),
 }
 
 
 def get_scalar_base(schema, scalar):
-    if scalar.bases:
-        # Base is another ScalarType, check if it is fundamental, if not,
-        # then it is another domain.
-        #
-        try:
-            base = base_type_name_map[scalar.bases[0].name]
-        except KeyError:
-            base = common.scalar_name_to_domain_name(scalar.bases[0].name)
-    else:
-        # Base is a Python type, must correspond to PostgreSQL type
-        try:
-            base = base_type_name_map[scalar.name]
-        except KeyError:
-            base = 'text'
+    base = base_type_name_map.get(scalar.name)
+    if base is not None:
+        return base
 
-    return base
+    for ancestor in scalar.get_mro()[1:]:
+        if not ancestor.is_abstract:
+            # Check if base is fundamental, if not, then it is
+            # another domain.
+            try:
+                base = base_type_name_map[ancestor.name]
+            except KeyError:
+                base = common.scalar_name_to_domain_name(ancestor.name)
+
+            return base
+
+    raise ValueError(f'cannot determine backend type for scalar type '
+                     f'{scalar.name}')
 
 
 def pg_type_from_scalar(
@@ -88,7 +90,7 @@ def pg_type_from_scalar(
         topbase: bool=False) -> typing.Tuple[str, ...]:
 
     if topbase:
-        base = scalar.get_topmost_base()
+        base = scalar.get_topmost_concrete_base()
     else:
         base = get_scalar_base(schema, scalar)
 

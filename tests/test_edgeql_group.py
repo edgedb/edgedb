@@ -103,7 +103,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             BY B
             INTO Issue
             UNION (
-                sum := sum(<int>Issue.number),
+                sum := sum(<int64>Issue.number),
                 status := B,
             ) ORDER BY B;
         """, [
@@ -125,7 +125,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             BY B
             INTO Issue
             UNION _ := (
-                sum := sum(<int>Issue.number),
+                sum := sum(<int64>Issue.number),
                 status := B,
             )
             FILTER
@@ -652,7 +652,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             # - {}
             # - ('Open', 3000)
             UNION _ := (
-                sum := sum(<int>Issue.number),
+                sum := sum(<int64>Issue.number),
                 # don't forget to coalesce the {} or else the whole
                 # tuple will collapse
                 status := B.0 ?? '',
@@ -682,7 +682,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             # - 'Open', {}
             # - 'Open', 3000
             UNION _ := (
-                sum := sum(<int>Issue.number),
+                sum := sum(<int64>Issue.number),
                 # Stat is never {}, so coalescing is not needed
                 status := Stat,
                 # only this one needs to be coalesced
@@ -709,7 +709,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             BY Stat, Est
             INTO Issue
             UNION (
-                sum := sum(<int>Issue.number),
+                sum := sum(<int64>Issue.number),
                 status := Stat,
                 time_estimate := Est ?? 0
             )
@@ -739,7 +739,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             UNION (
                 # array_agg with ordering instead of sum
                 numbers := array_agg(
-                    <int>Issue.number ORDER BY Issue.number),
+                    <int64>Issue.number ORDER BY Issue.number),
                 status := Stat,
                 time_estimate := Est ?? 0
             ) ORDER BY Stat THEN Est;
@@ -772,7 +772,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             UNION (
                 # a couple of array_agg
                 numbers := array_agg(
-                    <int>Issue.number ORDER BY Issue.number),
+                    <int64>Issue.number ORDER BY Issue.number),
                 watchers := array_agg(
                     <str>Issue.watchers.name ORDER BY Issue.watchers.name),
                 status := Stat,
@@ -804,7 +804,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             GROUP
                 # define a computable in the GROUP expr
                 Issue := Issue {
-                    less_than_four := <int>Issue.number < 4
+                    less_than_four := <int64>Issue.number < 4
                 }
             USING
                 Stat := Issue.status.name,
@@ -844,12 +844,12 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             USING
                 Stat := Issue.status.name,
                 # group by some non-trivial expression
-                X := <int>Issue.number < 4
+                X := <int64>Issue.number < 4
             BY Stat, X
             INTO Issue
             UNION I := (
                 numbers := array_agg(
-                    <int>Issue.number ORDER BY Issue.number),
+                    <int64>Issue.number ORDER BY Issue.number),
                 watchers := count(DISTINCT Issue.watchers),
                 status := Stat,
             ) ORDER BY
@@ -1204,7 +1204,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
-                I := <int>Issue.number
+                I := <int64>Issue.number
             GROUP I
             USING _ :=  I % 2 = 0
             BY _

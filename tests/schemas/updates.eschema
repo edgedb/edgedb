@@ -10,7 +10,7 @@ abstract link annotated_status:
     property note -> str
 
 abstract link weighted_tags:
-    property weight -> int
+    property weight -> int64
 
 abstract link annotated_tests:
     property note -> str

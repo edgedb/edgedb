@@ -103,8 +103,8 @@ class TestGraphQLTranslation(TranslatorTest):
             required property active -> bool
             link groups -> UserGroup:
                 cardinality := '**'
-            required property age -> int
-            required property score -> float
+            required property age -> int64
+            required property score -> float64
             link profile -> Profile:
                 cardinality := '*1'
     """

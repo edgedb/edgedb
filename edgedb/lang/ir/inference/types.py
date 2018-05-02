@@ -230,7 +230,17 @@ def __infer_binop(ir, schema):
     else:
         result = s_basetypes.TypeRules.get_result(
             ir.op, (left_type, right_type), schema)
+
         if result is None:
+            result = s_basetypes.TypeRules.get_result(
+                (ir.op, 'reversed'), (right_type, left_type), schema)
+
+        if result is None:
+            if right_type.implicitly_castable_to(left_type, schema):
+                right_type = left_type
+            elif left_type.implicitly_castable_to(right_type, schema):
+                left_type = right_type
+
             result = s_basetypes.TypeRules.get_result(
                 (ir.op, 'reversed'), (right_type, left_type), schema)
 
@@ -334,7 +344,7 @@ def __infer_index(ir, schema):
     index_type = infer_type(ir.index, schema)
 
     str_t = schema.get('std::str')
-    int_t = schema.get('std::int')
+    int_t = schema.get('std::int64')
 
     result = None
 

@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2016 MagicStack Inc.
+# Copyright (c) 2016-present MagicStack Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -28,27 +28,38 @@ CREATE SCALAR TYPE std::date;
 
 CREATE SCALAR TYPE std::time;
 
-CREATE SCALAR TYPE std::int;
+CREATE ABSTRACT SCALAR TYPE std::anyreal;
 
-CREATE SCALAR TYPE std::float;
+CREATE ABSTRACT SCALAR TYPE std::anyint EXTENDING std::anyreal;
+
+CREATE SCALAR TYPE std::int16 EXTENDING std::anyint;
+
+CREATE SCALAR TYPE std::int32 EXTENDING std::anyint;
+
+CREATE SCALAR TYPE std::int64 EXTENDING std::anyint;
+
+CREATE ABSTRACT SCALAR TYPE std::anyfloat EXTENDING std::anyreal;
+
+CREATE SCALAR TYPE std::float32 EXTENDING std::anyfloat;
+
+CREATE SCALAR TYPE std::float64 EXTENDING std::anyfloat;
+
+CREATE SCALAR TYPE std::numeric EXTENDING std::anyreal;
 
 CREATE SCALAR TYPE std::bool;
 
 CREATE ABSTRACT ATTRIBUTE std::pattern std::str;
 
-CREATE ABSTRACT SCALAR TYPE std::sequence EXTENDING std::int;
+CREATE ABSTRACT SCALAR TYPE std::sequence EXTENDING std::int64;
 
-CREATE SCALAR TYPE std::tsvector;
-CREATE SCALAR TYPE std::tsquery;
-
-CREATE ABSTRACT ATTRIBUTE stdattrs::precision array<std::int>;
+CREATE ABSTRACT ATTRIBUTE stdattrs::precision array<std::int16>;
 
 CREATE ABSTRACT ATTRIBUTE stdattrs::name std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::is_abstract std::bool;
 CREATE ABSTRACT ATTRIBUTE stdattrs::is_final std::bool;
 CREATE ABSTRACT ATTRIBUTE stdattrs::is_derived std::bool;
 CREATE ABSTRACT ATTRIBUTE stdattrs::is_virtual std::bool;
-CREATE ABSTRACT ATTRIBUTE stdattrs::view_type std::int;
+CREATE ABSTRACT ATTRIBUTE stdattrs::view_type std::int64;
 CREATE ABSTRACT ATTRIBUTE stdattrs::title std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::description std::str;
 
@@ -70,23 +81,23 @@ CREATE ABSTRACT ATTRIBUTE stdattrs::language std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::code std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::from_function std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::initial_value std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::varparam std::int;
+CREATE ABSTRACT ATTRIBUTE stdattrs::varparam std::int64;
 CREATE ABSTRACT ATTRIBUTE stdattrs::args map<std::str, std::str>;
 
 CREATE FUNCTION std::lower(std::str) -> std::str
     FROM SQL FUNCTION 'lower';
 
-CREATE FUNCTION std::sum(SET OF std::int) -> std::int {
+CREATE FUNCTION std::sum(SET OF std::int64) -> std::int64 {
     INITIAL VALUE 0;
     FROM SQL FUNCTION 'sum';
 };
 
-CREATE FUNCTION std::sum(SET OF std::float) -> std::float {
+CREATE FUNCTION std::sum(SET OF std::float64) -> std::float64 {
     INITIAL VALUE 0;
     FROM SQL FUNCTION 'sum';
 };
 
-CREATE FUNCTION std::count(SET OF std::any) -> std::int {
+CREATE FUNCTION std::count(SET OF std::any) -> std::int64 {
     INITIAL VALUE 0;
     FROM SQL FUNCTION 'count';
 };
@@ -114,21 +125,21 @@ CREATE FUNCTION std::array_contains(array<std::any>, std::any) -> std::bool
     $$;
 
 CREATE FUNCTION std::array_enumerate(array<std::any>) ->
-        SET OF tuple<std::any, std::int>
+        SET OF tuple<std::any, std::int64>
     FROM SQL FUNCTION '--system--';
 
-CREATE FUNCTION std::len(std::str) -> std::int
+CREATE FUNCTION std::len(std::str) -> std::int64
     FROM SQL FUNCTION 'char_length';
 
-CREATE FUNCTION std::len(std::bytes) -> std::int
+CREATE FUNCTION std::len(std::bytes) -> std::int64
     FROM SQL FUNCTION 'length';
 
-CREATE FUNCTION std::len(array<std::any>) -> std::int
+CREATE FUNCTION std::len(array<std::any>) -> std::int64
     FROM SQL $$
         SELECT array_length($1, 1)::bigint
     $$;
 
-CREATE FUNCTION std::random() -> std::float
+CREATE FUNCTION std::random() -> std::float64
     FROM SQL FUNCTION 'random';
 
 CREATE FUNCTION std::re_match(std::str, std::str) -> array<std::str>
@@ -203,7 +214,7 @@ CREATE ABSTRACT CONSTRAINT std::length ON (len(<std::str>__subject__))
     SET errmessage := 'invalid {__subject__}';
 };
 
-CREATE ABSTRACT CONSTRAINT std::minlength(std::int)
+CREATE ABSTRACT CONSTRAINT std::minlength(std::int64)
         EXTENDING (std::min, std::length)
 {
     SET errmessage := '{__subject__} must be no shorter than {$0} characters.';
@@ -216,7 +227,7 @@ CREATE ABSTRACT CONSTRAINT std::regexp(std::any)
     SET expr := re_test(__subject__, $0);
 };
 
-CREATE ABSTRACT CONSTRAINT std::maxlength(std::int)
+CREATE ABSTRACT CONSTRAINT std::maxlength(std::int64)
         EXTENDING (std::max, std::length)
 {
     SET errmessage := '{__subject__} must be no longer than {$0} characters.';
@@ -234,16 +245,6 @@ CREATE ABSTRACT CONSTRAINT std::unique
     SET errmessage := '{__subject__} violates unique constraint';
     SET expr := std::is_distinct(__subject__);
 };
-
-CREATE SCALAR TYPE std::decimal_rounding_t EXTENDING std::str {
-    CREATE CONSTRAINT std::enum(
-        ['ceiling', '05up', 'up', 'half-even',
-         'half-up', 'floor', 'down', 'half-down']);
-};
-
-CREATE ABSTRACT ATTRIBUTE std::rounding std::decimal_rounding_t;
-
-CREATE SCALAR TYPE std::decimal;
 
 CREATE ACTION std::restrict {
     SET title := 'Abort the event if a pointer exists';
@@ -379,7 +380,7 @@ CREATE ABSTRACT TYPE schema::ContainerType EXTENDING schema::Type;
 
 CREATE TYPE schema::Array EXTENDING schema::ContainerType {
     CREATE REQUIRED LINK schema::element_type -> schema::Type;
-    CREATE PROPERTY schema::dimensions -> array<std::int>;
+    CREATE PROPERTY schema::dimensions -> array<std::int64>;
 };
 
 
@@ -391,7 +392,7 @@ CREATE TYPE schema::Map EXTENDING schema::ContainerType {
 
 CREATE TYPE schema::TypeElement {
     CREATE REQUIRED LINK schema::type -> schema::Type;
-    CREATE REQUIRED PROPERTY schema::num -> std::int;
+    CREATE REQUIRED PROPERTY schema::num -> std::int64;
     CREATE PROPERTY schema::name -> std::str;
 };
 
@@ -432,7 +433,7 @@ CREATE ABSTRACT TYPE schema::InheritingObject EXTENDING schema::Object {
 CREATE TYPE schema::Parameter {
     CREATE REQUIRED LINK schema::type -> schema::Type;
     CREATE REQUIRED PROPERTY schema::kind -> std::str;
-    CREATE REQUIRED PROPERTY schema::num -> std::int;
+    CREATE REQUIRED PROPERTY schema::num -> std::int64;
     CREATE PROPERTY schema::name -> std::str;
     CREATE PROPERTY schema::default -> std::str;
     CREATE PROPERTY schema::variadic -> std::bool;

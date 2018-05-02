@@ -838,11 +838,14 @@ class CreateScalarType(ScalarTypeMetaCommand,
         scalar = s_scalars.CreateScalarType.apply(self, schema, context)
         ScalarTypeMetaCommand.apply(self, schema, context)
 
+        updates = self.create_object(schema, scalar)
+
+        if scalar.is_abstract:
+            return scalar
+
         new_domain_name = common.scalar_name_to_domain_name(
             scalar.name, catenate=False)
         base = types.get_scalar_base(schema, scalar)
-
-        updates = self.create_object(schema, scalar)
 
         self.pgops.add(dbops.CreateDomain(name=new_domain_name, base=base))
 

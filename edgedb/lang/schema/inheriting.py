@@ -392,8 +392,13 @@ class InheritingObject(derivable.DerivableObject):
     def get_base_names(self):
         return self.bases.get_names()
 
-    def get_topmost_base(self):
-        return self.get_mro()[-1]
+    def get_topmost_concrete_base(self):
+        # Get the topmost non-abstract base.
+        for ancestor in reversed(self.get_mro()):
+            if not ancestor.is_abstract:
+                return ancestor
+
+        raise ValueError(f'{self.name} has no non-abstract ancestors')
 
     def get_mro(self):
         return compute_mro(self)

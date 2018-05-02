@@ -218,7 +218,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             SELECT
                 Issue.time_estimate ??
                 Issue.related_to.time_estimate ?=
-                    <int>Issue.number * 12
+                    <int64>Issue.number * 12
             ORDER BY Issue.number;
         ''', [
             [
@@ -438,7 +438,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             SELECT Issue {
                 # for every issue, there's a unique derived "default" to use
                 # with ??
-                time_estimate := Issue.time_estimate ?? -<int>Issue.number
+                time_estimate := Issue.time_estimate ?? -<int64>Issue.number
             } ORDER BY Issue.time_estimate;
         ''', [
             [
@@ -456,7 +456,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             WITH MODULE test
             # for every issue, there's a unique derived "default" to use
             # with ??
-            SELECT (Issue.number, Issue.time_estimate ?? -<int>Issue.number)
+            SELECT (Issue.number, Issue.time_estimate ?? -<int64>Issue.number)
             ORDER BY Issue.number;
         ''', [
             [
@@ -476,7 +476,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             # an element-wise function. Therefore, the longest common
             # prefix `Issue` is factored out and the expression is
             # evaluated for every Issue.
-            SELECT Issue.time_estimate ?? -<int>Issue.number;
+            SELECT Issue.time_estimate ?? -<int64>Issue.number;
         ''', lambda x: x, [
             [
                 -6, -5, -4, 60, 90, 90,
@@ -491,7 +491,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             SELECT (
                 SELECT Issue
                 FILTER Issue.status.name = 'Open'
-            ).time_estimate ?? -<int>Issue.number;
+            ).time_estimate ?? -<int64>Issue.number;
         ''', lambda x: x, [
             [
                 -6, -5, -4, -3, -2, -1
@@ -508,7 +508,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                 MODULE test,
                 I := (SELECT Issue
                       FILTER Issue.status.name = 'Open')
-            SELECT I.time_estimate ?? -<int>I.number;
+            SELECT I.time_estimate ?? -<int64>I.number;
         ''', lambda x: x, [
             [
                 -6, -5, -4,
@@ -524,7 +524,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             # an element-wise function. However, since there is no
             # common prefix, the expression gets evaluated ONLY for
             # existing values of `Issue.time_estimate`.
-            SELECT Issue.time_estimate ?? -<int>I2.number;
+            SELECT Issue.time_estimate ?? -<int64>I2.number;
         ''', lambda x: x, [
             [
                 60, 90, 90,
@@ -538,7 +538,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             SELECT (
                 SELECT Issue
                 FILTER Issue.status.name = 'Open'
-            ).time_estimate ?? -<int>Issue.number;
+            ).time_estimate ?? -<int64>Issue.number;
         ''', lambda x: x, [
             [
                 -6, -5, -4, -3, -2, -1,
@@ -601,7 +601,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue {
                 number,
-                foo := Issue.time_estimate ?= <int>Issue.number * 30
+                foo := Issue.time_estimate ?= <int64>Issue.number * 30
             } ORDER BY Issue.number;
         ''', [
             [
@@ -619,7 +619,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             WITH MODULE test
             SELECT (
                 Issue.number,
-                Issue.time_estimate ?!= <int>Issue.number * 30
+                Issue.time_estimate ?!= <int64>Issue.number * 30
             )
             ORDER BY Issue.number;
         ''', [
@@ -640,7 +640,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             # an element-wise function. Therefore, the longest common
             # prefix `Issue` is factored out and the expression is
             # evaluated for every Issue.
-            SELECT Issue.time_estimate ?= <int>Issue.number * 30;
+            SELECT Issue.time_estimate ?= <int64>Issue.number * 30;
         ''', lambda x: x, [
             [
                 False,
@@ -658,7 +658,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             SELECT (
                 SELECT Issue
                 FILTER Issue.status.name = 'Open'
-            ).time_estimate ?= <int>Issue.number;
+            ).time_estimate ?= <int64>Issue.number;
         ''', lambda x: x, [
             [
                 False, False, False, False, False, False
@@ -689,7 +689,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             # common prefix, the expression gets evaluated ONLY for
             # existing values of `Issue.time_estimate`, so the cardinality
             # of the result set is 18 (3 * 6).
-            SELECT Issue.time_estimate ?= <int>I2.number * 30;
+            SELECT Issue.time_estimate ?= <int64>I2.number * 30;
         ''', lambda x: x, [
             [
                 False, False, False,
@@ -716,7 +716,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             SELECT (
                 SELECT Issue
                 FILTER Issue.status.name = 'Open'
-            ).time_estimate ?!= <int>I2.number * 30;
+            ).time_estimate ?!= <int64>I2.number * 30;
         ''', lambda x: x, [
             [
                 True, True, True,

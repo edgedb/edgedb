@@ -171,7 +171,7 @@ def compile_IndexIndirection(
                 env=ctx.env)
 
     if isinstance(arg_type, s_scalars.ScalarType):
-        b = arg_type.get_topmost_base()
+        b = arg_type.get_topmost_concrete_base()
         is_string = b.name == 'std::str'
 
     one = pgast.Constant(val=1)
@@ -237,7 +237,7 @@ def compile_SliceIndirection(
     arg_type = _infer_type(expr.expr, ctx=ctx)
 
     if isinstance(arg_type, s_scalars.ScalarType):
-        b = arg_type.get_topmost_base()
+        b = arg_type.get_topmost_concrete_base()
         is_string = b.name == 'std::str'
 
     if is_string:

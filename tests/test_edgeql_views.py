@@ -80,7 +80,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
     async def test_edgeql_views_basic_04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            SELECT <tuple<str, int, int>>scores
+            SELECT <tuple<str, int64, int64>>scores
             ORDER BY scores.name;
         ''', [
             [
@@ -94,7 +94,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
     async def test_edgeql_views_basic_05(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            SELECT <tuple<name: str, points: int, plays: int>>scores
+            SELECT <tuple<name: str, points: int64, plays: int64>>scores
             ORDER BY scores.name;
         ''', [
             [

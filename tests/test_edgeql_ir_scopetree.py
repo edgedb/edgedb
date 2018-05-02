@@ -198,7 +198,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
             "(test::Card)",
             "(test::Card).>(test::element)[IS std::str] [OPT]",
             "FENCE": {
-                "(test::Card).>(test::cost)[IS std::int]"
+                "(test::Card).>(test::cost)[IS std::int64]"
             }
         }
         """
@@ -348,7 +348,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 % OK %
         "FENCE": {
             "(_::__view__|U@@w~1).>(test::cards)[IS test::Card]\
-.>(test::foo)[IS std::float]": {
+.>(test::foo)[IS std::float64]": {
                 "(_::__view__|U@@w~1).>(test::cards)[IS test::Card]": {
                     "(_::__view__|U@@w~1)": {
                         "FENCE": {
@@ -437,11 +437,11 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                         "(test::User)"
                     },
                     "(test::User).>(test::friends)[IS test::User]\
-.>(test::deck_cost)[IS std::int]": {
+.>(test::deck_cost)[IS std::int64]": {
                         "FENCE": {
                             "FENCE": {
                                 "ns~2@@(test::User).>(test::friends)\
-[IS test::User].>(test::deck)[IS test::Card].>(test::cost)[IS std::int]": {
+[IS test::User].>(test::deck)[IS test::Card].>(test::cost)[IS std::int64]": {
                                     "ns~2@@(test::User).>(test::friends)\
 [IS test::User].>(test::deck)[IS test::Card]"
                                 }
@@ -455,7 +455,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                 }
             },
             "FENCE": {
-                "(_::__view__|x@@w~1).>(__tuple__::0)[IS std::float]"
+                "(_::__view__|x@@w~1).>(__tuple__::0)[IS std::float64]"
             }
         }
         """
@@ -518,7 +518,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                 "(test::User).>(test::deck)[IS test::Card]",
                 "FENCE": {
                     "(test::User).>(test::deck)[IS test::Card]\
-@(test::count)[IS std::int]"
+@(test::count)[IS std::int64]"
                 }
             },
             "FENCE": {
@@ -526,14 +526,14 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                     "FENCE": {
                         "FENCE": {
                             "(test::User).>(test::deck)[IS test::Card]\
-@(test::count)[IS std::int]"
+@(test::count)[IS std::int64]"
                         }
                     }
                 },
                 "(test::User).>(test::deck)[IS test::Card]\
-.>(test::cost)[IS std::int]",
+.>(test::cost)[IS std::int64]",
                 "(test::User).>(test::deck)[IS test::Card]\
-@(test::count)[IS std::int]"
+@(test::count)[IS std::int64]"
             }
         }
         """

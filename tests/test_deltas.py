@@ -296,7 +296,7 @@ ALTER TYPE test::NamedObject {
             #
             CREATE MIGRATION test::d2 TO eschema $$
                 type NamedObject:
-                    required property a -> array<int>
+                    required property a -> array<int64>
             $$;
 
             GET MIGRATION test::d2;
@@ -313,7 +313,7 @@ CREATE TYPE test::NamedObject EXTENDING std::Object {
     SET is_virtual := False;
 };
 ALTER TYPE test::NamedObject CREATE REQUIRED PROPERTY \
-test::a -> array<std::int> {
+test::a -> array<std::int64> {
     SET cardinality := '11';
     SET is_virtual := False;
     SET readonly := False;

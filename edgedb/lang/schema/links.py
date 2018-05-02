@@ -160,6 +160,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
+        from edgedb.lang.edgeql import utils as ql_utils
         from edgedb.lang.ir import utils as ir_utils
         from . import objtypes as s_objtypes
 
@@ -245,7 +246,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                             context=target_expr.context
                         )
 
-                    ir, _, target_expr = edgeql.utils.normalize_tree(
+                    ir, _, target_expr = ql_utils.normalize_tree(
                         target_expr, schema,
                         anchors={qlast.Source: source})
 

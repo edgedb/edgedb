@@ -38,7 +38,7 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
     def is_view(self):
         return self.view_type is not None
 
-    def iscompatible(self, other: 'Type', schema) -> bool:
+    def implicitly_castable_to(self, other: 'Type', schema) -> bool:
         return self.issubclass(other)
 
     def material_type(self):
@@ -144,7 +144,7 @@ class Collection(Type):
             eltype = typeref
 
         if isinstance(eltype, s_scalars.ScalarType):
-            eltype = eltype.get_topmost_base()
+            eltype = eltype.get_topmost_concrete_base()
             eltype = s_types.BaseTypeMeta.get_implementation(eltype.name)
 
         return eltype

@@ -625,7 +625,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
     async def test_constraints_ddl_02(self):
         # testing the generalized constraint with 'ON (...)' clause
         qry = r"""
-            CREATE ABSTRACT CONSTRAINT test::mymax1(std::int)
+            CREATE ABSTRACT CONSTRAINT test::mymax1(std::int64)
                     ON (len(__subject__))
             {
                 SET errmessage :=
@@ -633,7 +633,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                 SET expr := __subject__ <= $0;
             };
 
-            CREATE ABSTRACT CONSTRAINT test::mymax_ext1(std::int)
+            CREATE ABSTRACT CONSTRAINT test::mymax_ext1(std::int64)
                     ON (len(__subject__)) EXTENDING std::max
             {
                 SET errmessage :=
@@ -707,7 +707,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
     async def test_constraints_ddl_03(self):
         # testing the specialized constraint with 'ON (...)' clause
         qry = r"""
-            CREATE ABSTRACT CONSTRAINT test::mymax2(std::int) {
+            CREATE ABSTRACT CONSTRAINT test::mymax2(std::int64) {
                 SET errmessage :=
                     '{__subject__} must be no longer than {$0} characters.';
                 SET expr := __subject__ <= $0;
@@ -788,7 +788,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
     async def test_constraints_ddl_04(self):
         # testing an issue with expressions used for 'errmessage'
         qry = r"""
-            CREATE ABSTRACT CONSTRAINT test::mymax3(std::int) {
+            CREATE ABSTRACT CONSTRAINT test::mymax3(std::int64) {
                 SET errmessage :=
                     '{__subject__} must be no longer ' +
                     'than {$0} characters.';
@@ -845,7 +845,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     exceptions.SchemaDefinitionError,
                     'subjectexpr is not a valid constraint attribute'):
                 await self.con.execute("""
-                    CREATE ABSTRACT CONSTRAINT test::len_fail(std::int) {
+                    CREATE ABSTRACT CONSTRAINT test::len_fail(std::int64) {
                         SET expr := __subject__ <= $0;
                     };
 
@@ -863,7 +863,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     exceptions.SchemaDefinitionError,
                     'subject is not a valid constraint attribute'):
                 await self.con.execute("""
-                    CREATE ABSTRACT CONSTRAINT test::len_fail(std::int) {
+                    CREATE ABSTRACT CONSTRAINT test::len_fail(std::int64) {
                         SET expr := __subject__ <= $0;
                     };
 
@@ -884,8 +884,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     exceptions.InvalidConstraintDefinitionError,
                     r"subjectexpr is already defined for .+max_int"):
                 await self.con.execute(r"""
-                    CREATE ABSTRACT CONSTRAINT test::max_int(std::int)
-                        ON (<int>__subject__)
+                    CREATE ABSTRACT CONSTRAINT test::max_int(std::int64)
+                        ON (<int64>__subject__)
                     {
                         SET errmessage :=
                       # XXX: once simple string concat is possible here
@@ -911,7 +911,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
             };
 
             CREATE TYPE test::ConstraintAlterTest1 {
-                CREATE PROPERTY test::value -> std::int {
+                CREATE PROPERTY test::value -> std::int64 {
                     CREATE CONSTRAINT std::max(3);
                 };
             };
@@ -978,7 +978,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
             };
 
             CREATE TYPE test::ConstraintAlterTest2 {
-                CREATE PROPERTY test::value -> std::int {
+                CREATE PROPERTY test::value -> std::int64 {
                     CREATE CONSTRAINT std::max(3) ON (__subject__ % 10);
                 };
             };

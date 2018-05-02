@@ -22,12 +22,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_02(self):
         await self.con.execute("""
             CREATE ABSTRACT LINK test::test_object_link {
-                CREATE PROPERTY test::test_link_prop -> std::int;
+                CREATE PROPERTY test::test_link_prop -> std::int64;
             };
 
             CREATE TYPE test::TestObjectType {
                 CREATE LINK test::test_object_link -> std::Object {
-                    CREATE PROPERTY test::test_link_prop -> std::int {
+                    CREATE PROPERTY test::test_link_prop -> std::int64 {
                         SET title := 'Test Property';
                     };
                 };
@@ -135,8 +135,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     SELECT $1 || 'c'
                 $$;
 
-            CREATE FUNCTION test::my_sql_func7(array<std::int>)
-                -> std::int
+            CREATE FUNCTION test::my_sql_func7(array<std::int64>)
+                -> std::int64
                 FROM SQL $$
                     SELECT sum(s)::bigint FROM UNNEST($1) AS s
                 $$;
@@ -169,7 +169,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             DROP FUNCTION test::my_sql_func4(VARIADIC std::str);
             DROP FUNCTION test::{long_func_name}();
             DROP FUNCTION test::my_sql_func6(std::str='a' + 'b');
-            DROP FUNCTION test::my_sql_func7(array<std::int>);
+            DROP FUNCTION test::my_sql_func7(array<std::int64>);
         """)
 
     async def test_edgeql_ddl_07(self):
@@ -177,7 +177,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                                     'could not.*broken_sql.*not constant'):
             await self.con.execute(f"""
                 CREATE FUNCTION test::broken_sql_func1(
-                    std::int=(SELECT schema::ObjectType))
+                    std::int64=(SELECT schema::ObjectType))
                 -> std::str
                 FROM SQL $$
                     SELECT 'spam'::text
@@ -200,14 +200,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     FILTER schema::ObjectType.name = $1
                 $$;
 
-            CREATE FUNCTION test::my_edgeql_func3(std::int)
-                -> std::int
+            CREATE FUNCTION test::my_edgeql_func3(std::int64)
+                -> std::int64
                 FROM EdgeQL $$
                     SELECT $1 + 10
                 $$;
 
-            CREATE FUNCTION test::my_edgeql_func4(std::int)
-                -> array<std::int>
+            CREATE FUNCTION test::my_edgeql_func4(std::int64)
+                -> array<std::int64>
                 FROM EdgeQL $$
                     SELECT [$1, 1, 2, 3]
                 $$;
@@ -228,8 +228,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute(f"""
             DROP FUNCTION test::my_edgeql_func1();
             DROP FUNCTION test::my_edgeql_func2(std::str);
-            DROP FUNCTION test::my_edgeql_func3(std::int);
-            DROP FUNCTION test::my_edgeql_func4(std::int);
+            DROP FUNCTION test::my_edgeql_func3(std::int64);
+            DROP FUNCTION test::my_edgeql_func4(std::int64);
         """)
 
     async def test_edgeql_ddl_09(self):
@@ -260,7 +260,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_10(self):
         await self.con.execute("""
-            CREATE FUNCTION test::int_func_1() -> std::int {
+            CREATE FUNCTION test::int_func_1() -> std::int64 {
                 FROM EdgeQL "SELECT 1";
             };
         """)
@@ -276,7 +276,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE test::TestContainerLinkObjectType {
                 CREATE PROPERTY test::test_array_link -> array<std::str>;
                 CREATE PROPERTY test::test_array_link_2 -> array<std::str[10]>;
-                CREATE PROPERTY test::test_map_link -> map<std::str, std::int>;
+                CREATE PROPERTY test::test_map_link ->
+                    map<std::str, std::int64>;
             };
         """)
 

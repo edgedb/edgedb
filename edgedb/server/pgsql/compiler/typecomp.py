@@ -28,11 +28,17 @@ def cast(
         return node
 
     schema = env.schema
+    real_t = schema.get('std::anyreal')
+    int_t = schema.get('std::anyint')
+    json_t = schema.get('std::json')
+    str_t = schema.get('std::str')
+    datetime_t = schema.get('std::datetime')
+    bool_t = schema.get('std::bool')
 
     if isinstance(target_type, s_types.Collection):
         if target_type.schema_name == 'array':
 
-            if source_type.name == 'std::json':
+            if source_type.issubclass(json_t):
                 # If we are casting a jsonb array to array, we do the
                 # following transformation:
                 # EdgeQL: <array<T>>MAP_VALUE
@@ -71,7 +77,7 @@ def cast(
                         )
                     ])
             else:
-                # EdgeQL: <array<int>>['1', '2']
+                # EdgeQL: <array<int64>>['1', '2']
                 # to SQL: ARRAY['1', '2']::int[]
 
                 elem_pgtype = pg_types.pg_type_from_object(
@@ -84,7 +90,7 @@ def cast(
                         array_bounds=[-1]))
 
         elif target_type.schema_name == 'map':
-            if source_type.name == 'std::json':
+            if source_type.issubclass(json_t):
                 # If the source type is json do nothing, since
                 # maps are already encoded in json.
                 return node
@@ -94,8 +100,6 @@ def cast(
             #                    key::Vkey::Tkey::text,
             #                    value::Vval::Tval)
             #         FROM jsonb_each_text(MAP)
-
-            str_t = schema.get('std::str')
 
             key_cast = cast(
                 cast(
@@ -162,8 +166,8 @@ def cast(
 
     else:
         # `target_type` is not a collection.
-        if (source_type.name == 'std::datetime' and
-                target_type.name == 'std::str'):
+        if (source_type.issubclass(datetime_t) and
+                target_type.issubclass(str_t)):
             # Normalize datetime to text conversion to have the same
             # format as one would get by serializing to JSON.
             #
@@ -182,23 +186,24 @@ def cast(
                     pgast.Constant(val='"')
                 ])
 
-        elif (source_type.name == 'std::bool' and
-                target_type.name == 'std::int'):
-            # PostgreSQL 9.6 doesn't allow to cast 'boolean' to 'bigint':
+        elif source_type.issubclass(bool_t) and target_type.issubclass(int_t):
+            # PostgreSQL 9.6 doesn't allow to cast 'boolean' to any integer
+            # other than int32:
             #      SELECT 'true'::boolean::bigint;
             #      ERROR:  cannot cast type boolean to bigint
-            # So we transform EdgeQL: <int>BOOL
-            # to SQL: BOOL::int::bigint
+            # So we transform EdgeQL: <int64>BOOL
+            # to SQL: BOOL::int::<targetint>
             return pgast.TypeCast(
                 arg=pgast.TypeCast(
                     arg=node,
                     type_name=pgast.TypeName(name=('int',))),
-                type_name=pgast.TypeName(name=('bigint',))
+                type_name=pgast.TypeName(
+                    name=pg_types.pg_type_from_scalar(schema, target_type))
             )
 
-        elif (source_type.name == 'std::int' and
-                target_type.name == 'std::bool'):
-            # PostgreSQL 9.6 doesn't allow to cast 'bigint' to 'boolean':
+        elif source_type.issubclass(int_t) and target_type.issubclass(bool_t):
+            # PostgreSQL 9.6 doesn't allow to cast any integer other
+            # than int32 to 'boolean':
             #      SELECT 1::bigint::boolean;
             #      ERROR:  cannot cast type bigint to boolea
             # So we transform EdgeQL: <boolean>INT
@@ -208,11 +213,9 @@ def cast(
                 pgast.Constant(val=0),
                 op=ast.ops.NE)
 
-        elif source_type.name == 'std::json':
-            str_t = schema.get('std::str')
-
-            if target_type.name in ('std::int', 'std::bool',
-                                    'std::float'):
+        elif source_type.issubclass(json_t):
+            if (target_type.issubclass(real_t) or
+                    target_type.issubclass(bool_t)):
                 # Simply cast to text and the to the target type.
                 return cast(
                     cast(
@@ -224,7 +227,7 @@ def cast(
                     target_type=target_type,
                     env=env)
 
-            elif target_type.name == 'std::str':
+            elif target_type.issubclass(str_t):
                 # It's not possible to cast jsonb string to text directly,
                 # so we do a trick:
                 # EdgeQL: <str>JSONB_VAL
@@ -238,7 +241,7 @@ def cast(
                     op='->>'
                 )
 
-            elif target_type.name == 'std::json':
+            elif target_type.issubclass(json_t):
                 return pgast.TypeCast(
                     arg=node,
                     type_name=pgast.TypeName(

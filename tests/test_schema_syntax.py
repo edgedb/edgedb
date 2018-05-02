@@ -63,7 +63,7 @@ abstract type OwnedObject:
     def test_eschema_syntax_type_04(self):
         """
 type LogEntry extending OwnedObject, Text:
-    required property spent_time -> int
+    required property spent_time -> int64
         """
 
     def test_eschema_syntax_type_05(self):
@@ -103,7 +103,7 @@ type Issue extending `foo.bar`::NamedObject, OwnedObject, Text:
     link related_to -> Issue:
         cardinality := '**'
 
-    property time_estimate -> int
+    property time_estimate -> int64
 
     property start_date -> datetime:
        default :=
@@ -119,7 +119,7 @@ type Issue extending `foo.bar`::NamedObject, OwnedObject, Text:
     def test_eschema_syntax_type_08(self):
         """
 type Foo:
-    property time_estimate -> int:
+    property time_estimate -> int64:
         property unit:
             default := 'minute'
        """
@@ -165,13 +165,13 @@ type User:
     def test_eschema_syntax_link_target_type_03(self):
         """
 type User:
-    required link todo -> tuple<str, int, float>
+    required link todo -> tuple<str, int64, float64>
         """
 
     def test_eschema_syntax_link_target_type_04(self):
         """
 type User:
-    required link todo -> tuple<str, map<str, array<str>>, array<float>>
+    required link todo -> tuple<str, map<str, array<str>>, array<float64>>
         """
 
     def test_eschema_syntax_index_01(self):
@@ -459,7 +459,7 @@ abstract constraint maxlength($param:any) extending max, length:
         """
 abstract constraint distance:
     subject :=
-        <float>__subject__
+        <float64>__subject__
 
 abstract constraint maxldistance extending max, distance:
     errmessage := '{subject} must be no longer than {$param} meters.'
@@ -575,14 +575,14 @@ abstract link coollink extending boringlink
     def test_eschema_syntax_link_03(self):
         """
 abstract link coollink:
-    property foo -> int
+    property foo -> int64
         """
 
     def test_eschema_syntax_link_04(self):
         """
 abstract link coollink:
-    property foo -> int
-    property bar -> int
+    property foo -> int64
+    property bar -> int64
 
     constraint expr:
         expr := self.foo = self.bar
@@ -597,14 +597,14 @@ abstract property bar extending foo:
     title := 'Another property'
 
 abstract link coollink:
-    property foo -> int:
+    property foo -> int64:
         default := 2
         constraint min(0)
         constraint max(123456)
         constraint expr on (__subject__ % 2 = 0):
             title := 'aaa'
 
-    property bar -> int
+    property bar -> int64
 
     constraint expr on (self.foo = self.bar)
 
@@ -623,7 +623,7 @@ event self_deleted:
     def test_eschema_syntax_link_06(self):
         """
         abstract link coollink:
-            required property foo -> int
+            required property foo -> int64
         """
 
     def test_eschema_syntax_link_07(self):
@@ -749,30 +749,30 @@ type Foo:
 
     def test_eschema_syntax_function_01(self):
         """
-        function len() -> std::int:
+        function len() -> std::int64:
             from sql function: length
         """
 
     def test_eschema_syntax_function_02(self):
         r"""
-        function some_func($foo: std::int = 42) -> std::str:
+        function some_func($foo: std::int64 = 42) -> std::str:
             from sql := "SELECT 'life';"
 
 % OK %
 
-        function some_func($foo: std::int = 42) -> std::str:
+        function some_func($foo: std::int64 = 42) -> std::str:
             from sql :=
                 'SELECT \'life\';'
         """
 
     def test_eschema_syntax_function_03(self):
         r"""
-        function some_func($foo: std::int = 42) -> std::str:
+        function some_func($foo: std::int64 = 42) -> std::str:
             from edgeql :>
                 SELECT 'life';
 
 % OK %
-        function some_func($foo: std::int = 42) -> std::str:
+        function some_func($foo: std::int64 = 42) -> std::str:
             from edgeql :=
                 'SELECT \'life\';'
         """
@@ -781,7 +781,7 @@ type Foo:
         """
         # the line continuation is just to allow long single line
         function myfunc($arg1: str, $arg2: str = 'DEFAULT',
-                        $arg3: variadic std::int) -> \
+                        $arg3: variadic std::int64) -> \
                         set of int:
             volatile := true
             description :>
@@ -791,7 +791,7 @@ type Foo:
 
 % OK %
         function myfunc($arg1: str, $arg2: str = 'DEFAULT',
-                        $arg3: variadic std::int) -> \
+                        $arg3: variadic std::int64) -> \
                         set of int:
             volatile := true
             description :=
@@ -804,7 +804,7 @@ type Foo:
         """
         function myfunc($arg1: str,
                         $arg2: str = 'DEFAULT',
-                        $arg3: variadic std::int) -> set of int:
+                        $arg3: variadic std::int64) -> set of int:
             from edgeql :=
                 SELECT blarg
         """
@@ -814,7 +814,7 @@ type Foo:
                   line=3, col=27)
     def test_eschema_syntax_function_06(self):
         """
-        function some_func($foo: std::int = 42) -> std::str:
+        function some_func($foo: std::int64 = 42) -> std::str:
             initial value := 'bad'
             from edgeql :=
                 SELECT 'life'
@@ -822,7 +822,7 @@ type Foo:
 
     def test_eschema_syntax_function_07(self):
         """
-        function some_func($foo: std::int = bar(42)) -> std::str:
+        function some_func($foo: std::int64 = bar(42)) -> std::str:
             from edgeql function: some_other_func
         """
 
@@ -924,21 +924,21 @@ type Foo:
 
     def test_eschema_syntax_aggregate_01(self):
         """
-        aggregate len() -> std::int:
+        aggregate len() -> std::int64:
             initial value := 0
             from sql function: length
         """
 
     def test_eschema_syntax_aggregate_02(self):
         r"""
-        aggregate some_func($foo: std::int = 42) -> std::str:
+        aggregate some_func($foo: std::int64 = 42) -> std::str:
             initial value := 'start'
             from sql :>
                 SELECT 'life';
 
 % OK %
 
-        aggregate some_func($foo: std::int = 42) -> std::str:
+        aggregate some_func($foo: std::int64 = 42) -> std::str:
             initial value := 'start'
             from sql :=
                 'SELECT \'life\'';
@@ -946,7 +946,7 @@ type Foo:
 
     def test_eschema_syntax_aggregate_03(self):
         """
-        aggregate some_func($foo: std::int = 42) -> std::str:
+        aggregate some_func($foo: std::int64 = 42) -> std::str:
             initial value := ''
             from edgeql :=
                 SELECT 'life'
@@ -955,7 +955,7 @@ type Foo:
     def test_eschema_syntax_aggregate_04(self):
         """
         aggregate myfunc($arg1: str, $arg2: str = 'DEFAULT',
-                         $arg3: variadic std::int) -> int:
+                         $arg3: variadic std::int64) -> int64:
             initial value := 42
             volatile := true
             description := 'myfunc sample'
@@ -968,7 +968,7 @@ type Foo:
                   line=2, col=9)
     def test_eschema_syntax_aggregate_05(self):
         """
-        aggregate len() -> std::int:
+        aggregate len() -> std::int64:
             from sql function: length
         """
 
@@ -977,7 +977,7 @@ type Foo:
     def test_eschema_syntax_aggregate_06(self):
         """
         aggregate myfunc($arg1: str, $arg2: str = 'DEFAULT',
-                         $arg3: variadic) -> int:
+                         $arg3: variadic) -> int64:
             initial value := 42
         """
 
@@ -1085,5 +1085,5 @@ type Foo:
                   line=2, col=1)
     def test_eschema_syntax_attribute_15(self):
         """
-attribute foo std::int;
+attribute foo std::int64;
         """
