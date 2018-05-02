@@ -69,7 +69,7 @@ class EdgeSchemaLexer(lexer.Lexer):
     start_state = STATE_WS_SENSITIVE
 
     NL = 'NEWLINE'
-    MULTILINE_TOKENS = frozenset(('STRING', 'RAWSTRING'))
+    MULTILINE_TOKENS = frozenset(('STRING', 'RAWSTRING', 'LINECONT'))
     RE_FLAGS = re.X | re.M | re.I
 
     # a few reused rules
@@ -108,6 +108,16 @@ class EdgeSchemaLexer(lexer.Lexer):
         next_state=STATE_KEEP,
         regexp=r'\#[^\n]*$')
 
+    line_cont_rule = Rule(
+        token='LINECONT',
+        next_state=STATE_KEEP,
+        regexp=r'\\\n')
+
+    raw_line_cont_rule = Rule(
+        token='RAWSTRING',
+        next_state=STATE_KEEP,
+        regexp=r'\\.')
+
     # Basic keywords
     keyword_rules = [Rule(token=tok[0],
                           next_state=STATE_KEEP,
@@ -139,6 +149,8 @@ class EdgeSchemaLexer(lexer.Lexer):
         Rule(token='WS',
              next_state=STATE_KEEP,
              regexp=r'[^\S\n]+'),
+
+        line_cont_rule,
 
         Rule(token='NEWLINE',
              next_state=STATE_KEEP,
@@ -205,12 +217,17 @@ class EdgeSchemaLexer(lexer.Lexer):
 
             string_rule,
             qident_rule,
+            line_cont_rule,
+            raw_line_cont_rule,
 
             Rule(token='RAWSTRING',
                  next_state=STATE_KEEP,
-                 regexp=r'''[^()`'"][^()`'"$]*'''),
+                 regexp=r'''[^()`'"\\][^()`'"$\\]*'''),
         ],
         STATE_RAW_ANGLE: [
+            line_cont_rule,
+            raw_line_cont_rule,
+
             Rule(token='RAWSTRING',
                  next_state=push_state(STATE_RAW_ANGLE),
                  regexp=r'\<'),
@@ -224,9 +241,12 @@ class EdgeSchemaLexer(lexer.Lexer):
 
             Rule(token='RAWSTRING',
                  next_state=STATE_KEEP,
-                 regexp=r'''[^<>`'"][^<>`'"$]*'''),
+                 regexp=r'''[^<>`'"\\][^<>`'"$\\]*'''),
         ],
         STATE_RAW_TYPE: [
+            line_cont_rule,
+            raw_line_cont_rule,
+
             Rule(token='RAWSTRING',
                  next_state=STATE_WS_SENSITIVE,
                  regexp=r'(?=\n|:(?!:))'),
@@ -245,7 +265,7 @@ class EdgeSchemaLexer(lexer.Lexer):
 
             Rule(token='RAWSTRING',
                  next_state=STATE_KEEP,
-                 regexp=r'''[^:<`'"\n#][^:<`'"$\n#]*'''),
+                 regexp=r'''[^:<`'"\n\\#][^:<`'"$\n\\#]*'''),
         ],
         STATE_RAW_STRING: [
             Rule(token='NEWLINE',
@@ -274,6 +294,9 @@ class EdgeSchemaLexer(lexer.Lexer):
                  regexp=r'.*?(?:\n|.$)'),
         ],
         STATE_ATTRIBUTE_RAW_TYPE: [
+            line_cont_rule,
+            raw_line_cont_rule,
+
             Rule(token='RAWSTRING',
                  next_state=STATE_WS_SENSITIVE,
                  regexp=r'(?=\n|:(?!:))'),
@@ -295,7 +318,7 @@ class EdgeSchemaLexer(lexer.Lexer):
 
             Rule(token='RAWSTRING',
                  next_state=STATE_KEEP,
-                 regexp=r'''[^:<(`'"\n][^:<(`'"$\n]*'''),
+                 regexp=r'''[^:<(`'"\n\\][^:<(`'"$\n\\]*'''),
         ],
     }
 
@@ -342,7 +365,7 @@ class EdgeSchemaLexer(lexer.Lexer):
         # handle indentation
         if (self._state == STATE_WS_SENSITIVE and
                 not self.logical_line_started and
-                tok_type not in {'NEWLINE', 'WS', 'COMMENT'}):
+                tok_type not in {'NEWLINE', 'WS', 'COMMENT', 'LINECONT'}):
 
             # we have potential indentation change
             last_indent = self.indent[-1]
@@ -416,13 +439,19 @@ class EdgeSchemaLexer(lexer.Lexer):
 
         # handle logical newline
         if (self.logical_line_started and
-                self._state in (STATE_WS_SENSITIVE, STATE_RAW_STRING) and
+                self._state in {STATE_WS_SENSITIVE, STATE_RAW_STRING} and
                 tok_type == 'NEWLINE'):
             yield self.insert_token('NL', token)
             self.logical_line_started = False
 
-        elif tok_type not in {'NEWLINE', 'WS', 'COMMENT'}:
+        elif tok_type not in {'NEWLINE', 'WS', 'COMMENT', 'LINECONT'}:
             self.logical_line_started = True
+
+        if tok_type == 'LINECONT':
+            if self._state in {STATE_WS_SENSITIVE, STATE_RAW_STRING}:
+                token = token._replace(type='WS')
+            else:
+                token = token._replace(value='\n', type='RAWSTRING')
 
         yield token
 
@@ -436,7 +465,7 @@ class EdgeSchemaLexer(lexer.Lexer):
         self._next_state = None
 
         for tok in self._lex():
-            if tok.type not in {'NEWLINE', 'WS'}:
+            if tok.type not in {'NEWLINE', 'WS', 'LINECONT'}:
                 self.prev_nw_tok = tok
             yield tok
 

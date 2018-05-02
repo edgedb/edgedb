@@ -39,6 +39,10 @@ class T_WS(Token):
     pass
 
 
+class T_LINECONT(Token):
+    pass
+
+
 class T_NL(Token):
     pass
 
