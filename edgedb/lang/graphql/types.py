@@ -28,7 +28,6 @@ from edgedb.lang.edgeql import ast as qlast
 from edgedb.lang.edgeql import codegen
 from edgedb.lang.edgeql.parser import parse_fragment
 
-from edgedb.lang.schema import basetypes as s_basetypes
 from edgedb.lang.schema import pointers as s_pointers
 from edgedb.lang.schema import types as s_types
 from edgedb.lang.schema.objtypes import ObjectType
@@ -536,20 +535,3 @@ class GQLMutation(GQLBaseType):
     @property
     def short_name(self):
         return self._name.rsplit('--', 1)[-1]
-
-
-PY_COERCION_MAP = {
-    str: (s_basetypes.string.Str, s_basetypes.uuid.UUID),
-    int: (s_basetypes.int.Int64, s_basetypes.numeric.Float64,
-          s_basetypes.numeric.Numeric, s_basetypes.uuid.UUID),
-    float: (s_basetypes.numeric.Float64, s_basetypes.numeric.Numeric),
-    bool: s_basetypes.boolean.Bool,
-}
-
-GQL_TYPE_NAMES_MAP = {
-    'String': s_basetypes.string.Str,
-    'Int': s_basetypes.int.Int64,
-    'Float': s_basetypes.numeric.Float64,
-    'Boolean': s_basetypes.boolean.Bool,
-    'ID': s_basetypes.uuid.UUID,
-}
