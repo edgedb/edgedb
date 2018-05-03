@@ -373,6 +373,8 @@ def parse_connect_args():
                              'until the timeout expires.')
     parser.add_argument('--start-server', type=str, metavar='DIR',
                         help='Start EdgeDB server in the data directory DIR')
+    parser.add_argument('--background-cmd', type=str, metavar='CMD',
+                        help='Run the specified command in the background.')
 
     args = parser.parse_args()
     if args.password:
@@ -381,35 +383,46 @@ def parse_connect_args():
         args.password = None
 
     if args.start_server:
+        args.host = '127.0.0.1'
+        args.retry_conn = True
+
+    return args
+
+
+def main():
+    args = parse_connect_args()
+
+    if args.start_server:
         cluster = edgedb_cluster.Cluster(args.start_server)
         if cluster.get_status() == 'not-initialized':
             cluster.init()
         cluster.start(port=args.port, timezone='UTC')
         atexit.register(cluster.stop)
 
-        return {
-            'user': args.user,
-            'password': args.password,
-            'database': args.database,
-            'host': '127.0.0.1',
-            'port': args.port,
-            'timeout': args.timeout,
-            'retry_on_failure': True,
-        }
-    else:
-        return {
-            'user': args.user,
-            'password': args.password,
-            'database': args.database,
-            'host': args.host,
-            'port': args.port,
-            'timeout': args.timeout,
-            'retry_on_failure': args.retry_conn,
-        }
+    if args.background_cmd:
+        env = os.environ.copy()
+        if args.host:
+            env['EDGEDB_HOST'] = args.host
+        if args.port:
+            env['EDGEDB_PORT'] = args.port
 
+        background_cmd = subprocess.Popen(
+            args.background_cmd,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            preexec_fn=edgedb_cluster.ensure_dead_with_parent,
+            env=env, shell=True)
 
-def main():
-    args = parse_connect_args()
+        atexit.register(background_cmd.terminate)
+
+    connect_kwargs = {
+        'user': args.user,
+        'password': args.password,
+        'database': args.database,
+        'host': args.host,
+        'port': args.port,
+        'timeout': args.timeout,
+        'retry_on_failure': args.retry_conn,
+    }
 
     if select.select([sys.stdin], [], [], 0.0)[0]:
         data = sys.stdin.read()
@@ -418,11 +431,11 @@ def main():
         asyncio.set_event_loop(loop)
 
         try:
-            loop.run_until_complete(execute(args, data))
+            loop.run_until_complete(execute(connect_kwargs, data))
         finally:
             loop.close()
             asyncio.set_event_loop(None)
 
         return
 
-    Cli(args).run()
+    Cli(connect_kwargs).run()
