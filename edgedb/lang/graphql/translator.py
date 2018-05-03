@@ -7,7 +7,7 @@
 
 
 from collections import namedtuple
-from graphql import graphql as gql_proc
+from graphql import graphql as gql_proc, GraphQLString, GraphQLID
 import json
 import re
 
@@ -503,6 +503,18 @@ class GraphQLTranslator(ast.NodeVisitor):
         name = qlast.Path(steps=name)
 
         value = self.visit(node.value)
+
+        # potentially need to cast the 'name' side into a <str>, so as
+        # to be compatible with the 'value'
+        typename = target.get_field_type(name_parts).short_name
+        if (typename != 'str' and
+            gt.EDB_TO_GQL_SCALARS_MAP[typename] in {GraphQLString,
+                                                    GraphQLID}):
+            name = qlast.TypeCast(
+                expr=name,
+                type=qlast.TypeName(maintype=qlast.ObjectRef(name='str')),
+            )
+
         return qlast.BinOp(left=name, op=op, right=value)
 
     def visit_ListLiteral(self, node):

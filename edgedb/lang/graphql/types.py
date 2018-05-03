@@ -36,10 +36,20 @@ from edgedb.lang.schema.scalars import ScalarType
 
 EDB_TO_GQL_SCALARS_MAP = {
     'str': GraphQLString,
+    'anyint': GraphQLInt,
+    'int16': GraphQLInt,
+    'int32': GraphQLInt,
     'int64': GraphQLInt,
+    'anyfloat': GraphQLFloat,
+    'float32': GraphQLFloat,
     'float64': GraphQLFloat,
+    'anyreal': GraphQLFloat,
+    'decimal': GraphQLFloat,
     'bool': GraphQLBoolean,
     'uuid': GraphQLID,
+    'datetime': GraphQLString,
+    'date': GraphQLString,
+    'time': GraphQLString,
 }
 
 
