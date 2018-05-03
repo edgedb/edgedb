@@ -58,10 +58,11 @@ def _run_server(cluster, args):
     try:
         srv = loop.run_until_complete(
             loop.create_server(
-                protocol_factory, host='localhost', port=args['port']))
+                protocol_factory,
+                host=args['bind_address'], port=args['port']))
 
         loop.add_signal_handler(signal.SIGTERM, terminate_server, srv, loop)
-        logger.info('Serving on %s:%s', 'localhost', args['port'])
+        logger.info('Serving on %s:%s', args['bind_address'], args['port'])
         loop.run_forever()
 
     except KeyboardInterrupt:
@@ -159,6 +160,9 @@ def run_server(args):
 @click.option(
     '--bootstrap', is_flag=True,
     help='bootstrap the database cluster and exit')
+@click.option(
+    '-I', '--bind-address', type=str, default='127.0.0.1',
+    help='IP address to listen on', envvar='EDGEDB_BIND_ADDRESS')
 @click.option(
     '-p', '--port', type=int, default=defines.EDGEDB_PORT,
     help='port to listen on')
