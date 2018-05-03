@@ -13,7 +13,6 @@ import parsing
 
 from edgedb.lang.common.exceptions import EdgeDBError, add_context, get_context
 from edgedb.lang.common import context as pctx
-from edgedb.lang.common import markup
 from edgedb.lang.common import lexer
 
 ParserContext = pctx.ParserContext
@@ -269,14 +268,6 @@ class ParserError(EdgeDBError):
             if line is None and col is None:
                 self.line = context.start.line
                 self.col = context.start.column
-
-    def __str__(self):
-        ctx = self.context
-        base = super().__str__()
-        if ctx:
-            return base + markup.dumps(self.context)
-        else:
-            return base
 
     @property
     def context(self):
