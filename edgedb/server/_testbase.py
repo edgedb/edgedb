@@ -15,7 +15,6 @@ import inspect
 import os
 import pprint
 import re
-import sys
 import textwrap
 import unittest
 
