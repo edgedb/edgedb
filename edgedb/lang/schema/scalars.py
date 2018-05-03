@@ -112,7 +112,7 @@ _implicit_cast_map = {
     'std::int32': ['std::int16'],
     'std::int64': ['std::int32'],
     'std::float64': ['std::float32', 'std::int64'],
-    'std::numeric': ['std::float64']
+    'std::decimal': ['std::float64']
 }
 
 # Expanded cast map: source type: target_type

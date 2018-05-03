@@ -2495,7 +2495,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_constraint_05(self):
         """
-        CREATE SCALAR TYPE std::numeric_rounding_t EXTENDING std::str {
+        CREATE SCALAR TYPE std::decimal_rounding_t EXTENDING std::str {
             CREATE CONSTRAINT std::enum(['a', 'b']);
         };
         """
@@ -2511,7 +2511,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_constraint_07(self):
         """
-        CREATE SCALAR TYPE std::numeric_rounding_t EXTENDING std::str {
+        CREATE SCALAR TYPE std::decimal_rounding_t EXTENDING std::str {
             CREATE CONSTRAINT max(99) ON (<int64>__subject__);
         };
         """
