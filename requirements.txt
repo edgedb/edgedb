@@ -1,6 +1,0 @@
-asyncpg
-click
-graphql-core
-Parsing~=1.6.0
-prompt-toolkit
-setproctitle

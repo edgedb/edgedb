@@ -15,6 +15,7 @@ from edgedb.lang import build
 RUNTIME_DEPS = [
     'asyncpg',
     'click',
+    'graphql-core',
     'pytest',
     'Parsing',
     'prompt-toolkit',
