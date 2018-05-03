@@ -28,7 +28,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             WITH MODULE schema
             SELECT (
                 SELECT ScalarType
-                FILTER ScalarType.name = 'std::numeric_rounding_t'
+                FILTER ScalarType.name = 'std::decimal_rounding_t'
             ).constraints.args['no_such_arg'];
         ''', [
             [],

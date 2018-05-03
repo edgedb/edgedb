@@ -20,7 +20,7 @@ _add_map = s_types.BaseTypeMeta.add_mapping
 _void = object()
 
 
-class NumericMetadata:
+class DecimalMetadata:
     def __init__(self, context=None, *, decimal_scale=None,
                  quantize_exponent=None):
         if context is None:
@@ -31,12 +31,12 @@ class NumericMetadata:
         self.quantize_exponent = quantize_exponent
 
 
-class NumericMeta(type):
+class DecimalMeta(type):
     def __new__(metacls, name, bases, dct):
         result = super().__new__(metacls, name, bases, dct)
-        if result.__module__ == __name__ and result.__name__ == 'Numeric':
+        if result.__module__ == __name__ and result.__name__ == 'Decimal':
             metacls.init_methods(result)
-            result.__sx_decimal_metadata__ = NumericMetadata()
+            result.__sx_decimal_metadata__ = DecimalMetadata()
         return result
 
     _rounding_map = {
@@ -79,7 +79,7 @@ class NumericMeta(type):
 
         context = decimal.Context(**ctxargs)
         cls.__sx_decimal_metadata__ = \
-            NumericMetadata(context, decimal_scale=decimal_scale,
+            DecimalMetadata(context, decimal_scale=decimal_scale,
                             quantize_exponent=quantize_exponent)
 
     @classmethod
@@ -132,7 +132,7 @@ class NumericMeta(type):
     }
 
 
-class Numeric(fpdecimal.FPDecimal, metaclass=NumericMeta):
+class Decimal(fpdecimal.FPDecimal, metaclass=DecimalMeta):
     def __new__(cls, value=_void):
         cumulative, last_increment = fpdecimal.CascadedContext.get()
         context = fpdecimal.CascadedContext.apply(
@@ -176,15 +176,15 @@ class Numeric(fpdecimal.FPDecimal, metaclass=NumericMeta):
         return self.__class__(super().quantize(exp, context=context, **kwargs))
 
 
-class StdNumeric(s_types.SchemaObject, name='std::numeric'):
+class StdDecimal(s_types.SchemaObject, name='std::decimal'):
     pass
 
 
-class NumericTypeInfo(s_types.TypeInfo, type=Numeric):
-    def op(self, other: (decimal.Decimal, int)) -> StdNumeric:
+class DecimalTypeInfo(s_types.TypeInfo, type=Decimal):
+    def op(self, other: (decimal.Decimal, int)) -> StdDecimal:
         pass
 
-    def unary_op(self) -> StdNumeric:
+    def unary_op(self) -> StdDecimal:
         pass
 
     __add__ = op
@@ -213,10 +213,10 @@ class NumericTypeInfo(s_types.TypeInfo, type=Numeric):
     __invert__ = unary_op
 
 
-_add_impl('std::numeric', Numeric)
-_add_map(Numeric, 'std::numeric')
-_add_map(fpdecimal.FPDecimal, 'std::numeric')
-_add_map(decimal.Decimal, 'std::numeric')
+_add_impl('std::decimal', Decimal)
+_add_map(Decimal, 'std::decimal')
+_add_map(fpdecimal.FPDecimal, 'std::decimal')
+_add_map(decimal.Decimal, 'std::decimal')
 
 
 class Float64(float):
