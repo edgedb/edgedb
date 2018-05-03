@@ -19,8 +19,6 @@ import sys
 import textwrap
 import unittest
 
-import pytest
-
 from edgedb import client as edgedb_client
 from edgedb.client import connect_utils
 from edgedb.server import cluster as edgedb_cluster
@@ -165,20 +163,11 @@ def _shutdown_cluster(cluster, *, destroy=True):
         cluster.destroy()
 
 
-@pytest.mark.usefixtures('cluster')
 class ClusterTestCase(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        if getattr(sys, '_in_pytest', None):
-            # Under pytest we start the cluster via a session fixture.
-            # This dance is necessary to make sure the destruction of
-            # the cluster is done _before_ pytest plugin deinit, so
-            # pytest-cov et al work as expected.
-            #
-            cls.cluster = _start_cluster(cleanup_atexit=False)
-        else:
-            cls.cluster = _start_cluster(cleanup_atexit=True)
+        cls.cluster = _start_cluster(cleanup_atexit=True)
 
 
 class RollbackChanges:

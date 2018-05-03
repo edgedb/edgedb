@@ -16,7 +16,6 @@ RUNTIME_DEPS = [
     'asyncpg',
     'click',
     'graphql-core',
-    'pytest',
     'Parsing',
     'prompt-toolkit',
     'setproctitle',
