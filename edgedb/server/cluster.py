@@ -212,7 +212,8 @@ class Cluster:
 
         self._effective_port = port
 
-        extra_args = ['--{}={}'.format(k, v) for k, v in settings.items()]
+        extra_args = ['--{}={}'.format(k.replace('_', '-'), v)
+                      for k, v in settings.items()]
         extra_args.append('--port={}'.format(self._effective_port))
 
         if self._env:

@@ -8,6 +8,7 @@
 
 import argparse
 import asyncio
+import atexit
 import getpass
 import os
 import select
@@ -33,6 +34,8 @@ from edgedb.lang.common import lexer as core_lexer
 from edgedb.lang.common import markup
 from edgedb.lang.edgeql.parser.grammar import lexer as edgeql_lexer
 from edgedb.lang.edgeql import pygments as eql_pygments
+
+from edgedb.server import cluster as edgedb_cluster
 
 
 class InputBuffer(pt_buffer.Buffer):
@@ -368,6 +371,8 @@ def parse_connect_args():
     parser.add_argument('--retry-conn', default=False, action='store_true',
                         help='Try connecting when the server is down and '
                              'until the timeout expires.')
+    parser.add_argument('--start-server', type=str, metavar='DIR',
+                        help='Start EdgeDB server in the data directory DIR')
 
     args = parser.parse_args()
     if args.password:
@@ -375,15 +380,32 @@ def parse_connect_args():
     else:
         args.password = None
 
-    return {
-        'user': args.user,
-        'password': args.password,
-        'database': args.database,
-        'host': args.host,
-        'port': args.port,
-        'timeout': args.timeout,
-        'retry_on_failure': args.retry_conn,
-    }
+    if args.start_server:
+        cluster = edgedb_cluster.Cluster(args.start_server)
+        if cluster.get_status() == 'not-initialized':
+            cluster.init()
+        cluster.start(port=args.port, timezone='UTC')
+        atexit.register(cluster.stop)
+
+        return {
+            'user': args.user,
+            'password': args.password,
+            'database': args.database,
+            'host': '127.0.0.1',
+            'port': args.port,
+            'timeout': args.timeout,
+            'retry_on_failure': True,
+        }
+    else:
+        return {
+            'user': args.user,
+            'password': args.password,
+            'database': args.database,
+            'host': args.host,
+            'port': args.port,
+            'timeout': args.timeout,
+            'retry_on_failure': args.retry_conn,
+        }
 
 
 def main():
