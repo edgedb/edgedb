@@ -174,6 +174,34 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             }],
         }]])
 
+    async def test_graphql_functional_arguments_01(self):
+        result = await self.con.execute(r"""
+            query {
+                User {
+                    id
+                    name
+                    age
+                }
+            }
+        """, graphql=True)
+
+        alice = [res for res in result[0][0]['User']
+                 if res['name'] == 'Alice'][0]
+
+        result = await self.con.execute(f"""
+            query {{
+                User(id: "{alice['id']}") {{
+                    id
+                    name
+                    age
+                }}
+            }}
+        """, graphql=True)
+
+        self.assert_data_shape(result, [[{
+            'User': [alice]
+        }]])
+
     async def test_graphql_functional_fragment_02(self):
         result = await self.con.execute(r"""
             fragment userFrag on User {

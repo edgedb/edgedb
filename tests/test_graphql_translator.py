@@ -954,6 +954,28 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
+    def test_graphql_translation_arguments_04(self):
+        r"""
+        query {
+            User(id: "8598d268-4efa-11e8-9955-8f9c15d57680") {
+                name,
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            User := (SELECT
+                test::User {
+                    name
+                } FILTER (
+                    <str>test::User.id =
+                        '8598d268-4efa-11e8-9955-8f9c15d57680'
+                )
+            )
+        };
+        """
+
     def test_graphql_translation_variables_01(self):
         r"""
         query($name: String) {
@@ -1279,7 +1301,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     name,
                 }
             FILTER
-                (test::User.id = $val))
+                (<str>test::User.id = $val))
         };
         """
 
@@ -1299,7 +1321,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     name,
                 }
             FILTER
-                (test::User.id = $val))
+                (<str>test::User.id = $val))
         };
         """
 
