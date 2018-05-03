@@ -9,6 +9,7 @@
 import asyncio
 import getpass
 import os
+import time
 
 from . import defines
 from .exceptions import *  # NOQA
@@ -70,7 +71,8 @@ async def connect(*,
                   user=None, password=None,
                   database=None,
                   loop=None,
-                  timeout=60):
+                  timeout=60,
+                  retry_on_failure=False):
 
     if loop is None:
         loop = asyncio.get_event_loop()
@@ -104,36 +106,55 @@ async def connect(*,
     if database is None:
         database = os.getenv('EDGEDB_DATABASE', 'edgedb')
 
-    last_ex = None
-    for h in host:
-        connected = create_future(loop)
+    budget = timeout
+    time_between_tries = 0.1
 
-        if h.startswith('/'):
-            # UNIX socket name
-            sname = os.path.join(h, '.s.EDGEDB.{}'.format(port))
-            conn = loop.create_unix_connection(
-                lambda: edgedb_protocol.Protocol(sname, connected, user,
-                                                 password, database, loop),
-                sname)
-        else:
-            conn = loop.create_connection(
-                lambda: edgedb_protocol.Protocol((h, port), connected, user,
-                                                 password, database, loop),
-                h, port)
+    while budget >= 0:
+        start = time.monotonic()
 
-        try:
-            tr, pr = await asyncio.wait_for(conn, timeout=timeout, loop=loop)
-        except (OSError, asyncio.TimeoutError) as ex:
-            last_ex = ex
-        else:
-            break
-    else:
+        last_ex = None
+        for h in host:
+            connected = create_future(loop)
 
-        raise last_ex
-    try:
-        await connected
-    except:
-        tr.close()
-        raise
+            if h.startswith('/'):
+                # UNIX socket name
+                sname = os.path.join(h, '.s.EDGEDB.{}'.format(port))
+                conn = loop.create_unix_connection(
+                    lambda: edgedb_protocol.Protocol(
+                        sname, connected, user,
+                        password, database, loop),
+                    sname)
+            else:
+                conn = loop.create_connection(
+                    lambda: edgedb_protocol.Protocol(
+                        (h, port), connected, user,
+                        password, database, loop),
+                    h, port)
+
+            try:
+                tr, pr = await asyncio.wait_for(
+                    conn, timeout=budget, loop=loop)
+            except (OSError, asyncio.TimeoutError) as ex:
+                last_ex = ex
+            else:
+                last_ex = None
+                break
+
+        if last_ex is None:
+            try:
+                await connected
+            except BaseException as ex:
+                tr.close()
+                last_ex = ex
+            else:
+                break
+
+        if last_ex is not None:
+            if retry_on_failure:
+                budget -= time.monotonic() - start + time_between_tries
+                if budget > 0:
+                    await asyncio.sleep(time_between_tries)
+            else:
+                raise last_ex
 
     return Connection(pr, tr, loop, database)

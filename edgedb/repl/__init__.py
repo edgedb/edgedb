@@ -204,7 +204,7 @@ class Cli:
     async def connect(self, args):
         try:
             con = await client.connect(**args)
-        except:
+        except Exception:
             return None
         else:
             self.cur_db = con._dbname
@@ -364,6 +364,10 @@ def parse_connect_args():
     parser.add_argument('-u', '--user', default=None)
     parser.add_argument('-d', '--database', default=None)
     parser.add_argument('-p', '--password', default=False, action='store_true')
+    parser.add_argument('-t', '--timeout', default=60)
+    parser.add_argument('--retry-conn', default=False, action='store_true',
+                        help='Try connecting when the server is down and '
+                             'until the timeout expires.')
 
     args = parser.parse_args()
     if args.password:
@@ -377,6 +381,8 @@ def parse_connect_args():
         'database': args.database,
         'host': args.host,
         'port': args.port,
+        'timeout': args.timeout,
+        'retry_on_failure': args.retry_conn,
     }
 
 
