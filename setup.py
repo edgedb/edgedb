@@ -18,6 +18,7 @@ RUNTIME_DEPS = [
     'graphql-core',
     'Parsing',
     'prompt-toolkit',
+    'pygments',
     'setproctitle',
 ]
 
