@@ -607,7 +607,7 @@ def setup_test_cases(cases, conns):
 
 async def _setup_database(dbname, setup_script, conn_args):
     admin_conn = await edgedb_client.connect(
-        database=edgedb_defines.EDGEDB_DEFAULT_DB, **conn_args)
+        database=edgedb_defines.EDGEDB_SUPERUSER_DB, **conn_args)
 
     try:
         await admin_conn.execute(f'CREATE DATABASE {dbname};')

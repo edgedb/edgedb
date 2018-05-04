@@ -34,7 +34,7 @@ async def _execute(conn, query, *args):
     return await _statement(conn, query, *args, method='execute')
 
 
-async def _ensure_edgedb_superuser(conn):
+async def _ensure_edgedb_user(conn, username, *, is_superuser=False):
     result = await conn.fetchrow('''
         SELECT
             rolsuper,
@@ -43,18 +43,21 @@ async def _ensure_edgedb_superuser(conn):
             pg_catalog.pg_roles
         WHERE
             rolname = $1
-    ''', edgedb_defines.EDGEDB_SUPERUSER)
+    ''', username)
 
     if not result:
-        logger.info('Creating superuser role...')
+        logger.info(f'Creating {username} role...')
+        if is_superuser:
+            extra = 'SUPERUSER'
+        else:
+            extra = 'CREATEDB'
         await _execute(
             conn,
-            'CREATE ROLE {} WITH LOGIN SUPERUSER'.format(
-                edgedb_defines.EDGEDB_SUPERUSER))
+            'CREATE ROLE {} WITH LOGIN {}'.format(username, extra))
     else:
         alter = []
 
-        if not result['rolsuper']:
+        if not result['rolsuper'] and is_superuser:
             alter.append('SUPERUSER')
 
         if not result['rolcanlogin']:
@@ -64,9 +67,7 @@ async def _ensure_edgedb_superuser(conn):
             logger.info('Altering superuser role privileges...')
             await _execute(
                 conn,
-                'ALTER ROLE {} WITH {}'.format(
-                    edgedb_defines.EDGEDB_SUPERUSER,
-                    ' '.join(alter)))
+                'ALTER ROLE {} WITH {}'.format(username, ' '.join(alter)))
 
 
 async def _get_db_info(conn, dbname):
@@ -195,22 +196,39 @@ async def _init_defaults(conn, cluster, loop):
     await _run_script(script, conn, cluster, loop)
 
 
-async def _ensure_edgedb_default_database(conn):
-    result = await _get_db_info(conn, edgedb_defines.EDGEDB_DEFAULT_DB)
+async def _ensure_edgedb_database(conn, database, owner, *, cluster, loop):
+    result = await _get_db_info(conn, database)
     if not result:
         logger.info(
-            f'Creating default database: {edgedb_defines.EDGEDB_DEFAULT_DB}')
+            f'Creating database: '
+            f'{database}')
 
         ctx = delta.CommandContext(conn)
-        db = dbops.Database(edgedb_defines.EDGEDB_DEFAULT_DB)
+        db = dbops.Database(database, owner=owner)
         await dbops.CreateDatabase(db).execute(ctx)
 
+        if owner != edgedb_defines.EDGEDB_SUPERUSER:
+            dbconn = await cluster.connect(
+                loop=loop, database=database,
+                user=edgedb_defines.EDGEDB_SUPERUSER
+            )
 
-async def bootstrap(cluster, loop=None):
+            dbconnctx = delta.CommandContext(dbconn)
+
+            try:
+                reassign = dbops.ReassignOwned(
+                    edgedb_defines.EDGEDB_SUPERUSER, owner)
+                await reassign.execute(dbconnctx)
+            finally:
+                await dbconn.close()
+
+
+async def bootstrap(cluster, args, loop=None):
     pgconn = await cluster.connect(loop=loop)
 
     try:
-        await _ensure_edgedb_superuser(pgconn)
+        await _ensure_edgedb_user(pgconn, edgedb_defines.EDGEDB_SUPERUSER,
+                                  is_superuser=True)
         need_meta_bootstrap = await _ensure_edgedb_template_database(pgconn)
 
         if need_meta_bootstrap:
@@ -226,8 +244,18 @@ async def bootstrap(cluster, loop=None):
             finally:
                 await conn.close()
 
-        await _ensure_edgedb_default_database(pgconn)
+        await _ensure_edgedb_database(
+            pgconn, edgedb_defines.EDGEDB_SUPERUSER_DB,
+            edgedb_defines.EDGEDB_SUPERUSER,
+            cluster=cluster, loop=loop)
         await _ensure_edgedb_template_not_connectable(pgconn)
+
+        await _ensure_edgedb_user(
+            pgconn, args['default_database_user'], is_superuser=True)
+
+        await _ensure_edgedb_database(
+            pgconn, args['default_database'], args['default_database_user'],
+            cluster=cluster, loop=loop)
 
     finally:
         await pgconn.close()

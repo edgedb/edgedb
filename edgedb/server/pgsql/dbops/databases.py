@@ -11,9 +11,10 @@ from . import ddl
 
 
 class Database(base.DBObject):
-    def __init__(self, name):
+    def __init__(self, name, owner=None):
         super().__init__()
         self.name = name
+        self.owner = owner
         self.add_metadata('edgedb', True)
 
     def get_type(self):
@@ -46,7 +47,11 @@ class CreateDatabase(ddl.CreateObject):
         self.object = db
 
     async def code(self, context):
-        return f'CREATE DATABASE {self.object.get_id()} WITH TEMPLATE=edgedb0'
+        extra = ''
+        if self.object.owner:
+            extra += f' OWNER={self.object.owner}'
+        return (f'CREATE DATABASE {self.object.get_id()} '
+                f'WITH TEMPLATE=edgedb0 {extra}')
 
 
 class DropDatabase(ddl.SchemaObjectOperation):

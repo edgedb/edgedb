@@ -433,7 +433,7 @@ def ensure_transient_identity_for_set(
 
     if type == 'uuid':
         id_expr = pgast.FuncCall(
-            name=('uuid_generate_v1mc',),
+            name=('edgedb', 'uuid_generate_v1mc',),
             args=[],
         )
     else:

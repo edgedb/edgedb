@@ -167,7 +167,7 @@ CREATE FUNCTION std::current_datetime() -> std::datetime
     FROM SQL FUNCTION 'now';
 
 CREATE FUNCTION std::uuid_generate_v1mc() -> std::uuid
-    FROM SQL FUNCTION 'uuid_generate_v1mc';
+    FROM SQL 'SELECT edgedb.uuid_generate_v1mc()';
 
 CREATE ABSTRACT CONSTRAINT std::constraint
 {

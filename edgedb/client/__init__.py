@@ -104,7 +104,7 @@ async def connect(*,
         password = os.getenv('EDGEDB_PASSWORD')
 
     if database is None:
-        database = os.getenv('EDGEDB_DATABASE', 'edgedb')
+        database = os.getenv('EDGEDB_DATABASE', user)
 
     budget = timeout
     time_between_tries = 0.1

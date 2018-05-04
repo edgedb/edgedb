@@ -112,6 +112,17 @@ class Comment(DDLOperation):
         return code
 
 
+class ReassignOwned(DDLOperation):
+    def __init__(self, old_role, new_role, **kwargs):
+        super().__init__(**kwargs)
+        self.old_role = old_role
+        self.new_role = new_role
+
+    async def code(self, context):
+        return (f'REASSIGN OWNED BY {common.quote_ident(self.old_role)} '
+                f'TO {common.quote_ident(self.new_role)}')
+
+
 class GetMetadata(base.Command):
     def __init__(self, object):
         super().__init__()

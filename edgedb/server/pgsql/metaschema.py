@@ -95,7 +95,7 @@ class ObjectTable(dbops.Table):
             columns=[
                 dbops.Column(
                     name='id', type='uuid', required=True, readonly=True,
-                    default='uuid_generate_v1mc()')
+                    default='edgedb.uuid_generate_v1mc()')
             ],
             constraints=[
                 dbops.PrimaryKey(('edgedb', 'object'), columns=('id', ))
@@ -220,7 +220,7 @@ class ResolveTypeFunction(dbops.Function):
 
 class ResolveTypeNameFunction(dbops.Function):
     text = '''
-        SELECT ((_resolve_type(type)).types[1]).maintype
+        SELECT ((edgedb._resolve_type(type)).types[1]).maintype
     '''
 
     def __init__(self):
@@ -278,7 +278,7 @@ class ResolveSimpleTypeNameFunction(dbops.Function):
 class ResolveSimpleTypeNameListFunction(dbops.Function):
     text = '''
         SELECT
-            array_agg(_resolve_type_name(t.id) ORDER BY t.ordinality)
+            array_agg(edgedb._resolve_type_name(t.id) ORDER BY t.ordinality)
         FROM
             UNNEST(type_data) WITH ORDINALITY AS t(id)
     '''

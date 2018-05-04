@@ -6,6 +6,7 @@
 ##
 
 import asyncio
+import getpass
 import ipaddress
 import logging
 import os.path
@@ -41,7 +42,14 @@ def _init_cluster(cluster, args):
 
     from edgedb.server import pgsql as backend
 
-    loop.run_until_complete(backend.bootstrap(cluster, loop=loop))
+    bootstrap_args = {
+        'default_database': (args['default_database'] or
+                             args['default_database_user']),
+        'default_database_user': args['default_database_user'],
+    }
+
+    loop.run_until_complete(backend.bootstrap(
+        cluster, bootstrap_args, loop=loop))
 
 
 def _run_server(cluster, args):
@@ -160,6 +168,12 @@ def run_server(args):
 @click.option(
     '--bootstrap', is_flag=True,
     help='bootstrap the database cluster and exit')
+@click.option(
+    '--default-database', type=str, default=getpass.getuser(),
+    help='the name of the default database to create')
+@click.option(
+    '--default-database-user', type=str, default=getpass.getuser(),
+    help='the name of the default database owner')
 @click.option(
     '-I', '--bind-address', type=str, default='127.0.0.1',
     help='IP address to listen on', envvar='EDGEDB_BIND_ADDRESS')

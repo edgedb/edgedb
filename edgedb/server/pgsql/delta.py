@@ -242,7 +242,8 @@ class NamedObjectMetaCommand(
             if isinstance(names, list):
                 recvalue = dbops.Query(
                     '''SELECT edgedb._encode_type(
-                        ROW($1::type_desc_node_t[])::edgedb.typedesc_t)''',
+                        ROW($1::edgedb.type_desc_node_t[])::edgedb.typedesc_t)
+                    ''',
                     [names], type='edgedb.type_t')
             else:
                 recvalue = dbops.Query(

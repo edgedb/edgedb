@@ -11,6 +11,7 @@ import asyncio
 import atexit
 import getpass
 import os
+import pathlib
 import select
 import subprocess
 import sys
@@ -371,7 +372,10 @@ def parse_connect_args():
     parser.add_argument('--retry-conn', default=False, action='store_true',
                         help='Try connecting when the server is down and '
                              'until the timeout expires.')
-    parser.add_argument('--start-server', type=str, metavar='DIR',
+    parser.add_argument('--start-server', action='store_true', default=False,
+                        help='Start EdgeDB server')
+    parser.add_argument('--server-dir', type=str, metavar='DIR',
+                        default=pathlib.Path.home() / '.edgedb',
                         help='Start EdgeDB server in the data directory DIR')
     parser.add_argument('--background-cmd', type=str, metavar='CMD',
                         help='Run the specified command in the background.')
@@ -393,7 +397,7 @@ def main():
     args = parse_connect_args()
 
     if args.start_server:
-        cluster = edgedb_cluster.Cluster(args.start_server)
+        cluster = edgedb_cluster.Cluster(args.server_dir)
         if cluster.get_status() == 'not-initialized':
             cluster.init()
         cluster.start(port=args.port, timezone='UTC')
