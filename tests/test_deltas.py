@@ -399,7 +399,7 @@ test::a -> array<std::int64> {
                     SET readonly := False;
                 };
                 CREATE PROPERTY test::__typename -> std::str {
-                    SET cardinality := '**';
+                    SET cardinality := '*1';
                     SET computable := True;
                     SET default := SELECT
                         __source__.__type__[IS schema::Type].name
