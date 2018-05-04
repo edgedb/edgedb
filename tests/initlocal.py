@@ -86,7 +86,7 @@ def main():
 
     try:
         cluster.init()
-        cluster.start(port='dynamic')
+        cluster.start(port='dynamic', timezone='UTC')
     except BaseException:
         if os.path.exists(data_dir):
             shutil.rmtree(data_dir)
