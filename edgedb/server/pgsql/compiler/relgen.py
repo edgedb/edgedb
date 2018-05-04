@@ -729,8 +729,11 @@ def process_set_as_membership_expr(
         newctx.expr_exposed = False
         left_expr = dispatch.compile(expr.left, ctx=newctx)
 
-        with newctx.subrel() as subctx:
-            right_expr = dispatch.compile(expr.right, ctx=subctx)
+        with newctx.subrel() as _, _.newscope() as subctx:
+            right_rvar = get_set_rvar(expr.right, ctx=subctx)
+            right_expr = pathctx.get_rvar_path_var(
+                right_rvar, expr.right.path_id,
+                aspect='value', env=subctx.env)
 
             if right_expr.nullable:
                 op = 'IS NOT DISTINCT FROM'

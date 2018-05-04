@@ -406,6 +406,13 @@ def put_path_rvar(
     assert isinstance(path_id, irast.PathId)
     stmt.path_rvar_map[path_id, aspect] = rvar
 
+    # Normally, masked paths (i.e paths that are only behind a fence below),
+    # will not be exposed in a query namespace.  However, when the masked
+    # path in the *main* path of a set, it must still be exposed, but no
+    # further than the immediate parent query.
+    if path_id in rvar.query.path_id_mask:
+        stmt.path_id_mask.add(path_id)
+
 
 def put_path_value_rvar(
         stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.BaseRangeVar, *,

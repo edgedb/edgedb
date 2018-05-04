@@ -27,7 +27,6 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
             {'alice', 'bob', 'carol', 'dave'}
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_tutorial_query_02(self):
         await self.assert_query_result(r'''
             SELECT
@@ -37,11 +36,18 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
             FILTER
                 'alice' IN .comments.author.login
                 AND
-                'bob' IN .comments.author.login;
-        ''', [{
-            'title':
-                'Avoid attaching multiple scopes at once',
-        }])
+                'bob' IN .comments.author.login
+            ORDER BY
+                .title;
+        ''', [[
+            {
+                'title': 'Avoid attaching multiple scopes at once',
+            },
+            {
+                'title': 'Make file types consistent between '
+                         'grammars/ and package.json'
+            }
+        ]])
 
     @unittest.expectedFailure
     async def test_edgeql_tutorial_query_03(self):
