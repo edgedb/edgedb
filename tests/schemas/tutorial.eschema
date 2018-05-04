@@ -1,0 +1,48 @@
+scalar type pr_status extending str:
+    constraint enum(['Open', 'Merged'])
+
+
+abstract Type Authored:
+    required link author -> User
+
+
+abstract Type Text:
+    required property body -> str
+
+
+abstract Type Timestamped:
+    required property created_on -> datetime:
+        default := current_datetime()
+
+
+abstract link todo:
+    property weight -> int16
+
+
+type User:
+    required property login -> str:
+        constraint unique
+    required property firstname -> str
+    required property lastname -> str
+
+    property fullname := (__source__.firstname + ' ' + __source__.lastname)
+
+    link followees -> User:
+        cardinality := '**'
+    link todo -> PullRequest:
+        cardinality := '**'
+
+
+type PullRequest extending Authored, Text, Timestamped:
+    required property title -> str
+    required property status -> pr_status:
+        default := 'Open'
+
+    link assignees -> User:
+        cardinality := '**'
+
+    link comments -> Comment:
+        cardinality := '1*'
+
+
+type Comment extending Authored, Text, Timestamped
