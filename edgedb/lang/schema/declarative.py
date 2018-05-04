@@ -774,7 +774,7 @@ class DeclarationLoader:
 
             singletons = set()
             if self_set is not None:
-                singletons.add(self_set)
+                singletons.add(self_set.path_id)
 
             cardinality = \
                 ir_inference.infer_cardinality(ir, singletons, self._schema)

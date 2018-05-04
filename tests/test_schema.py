@@ -8,6 +8,7 @@
 
 from edgedb.lang import _testbase as tb
 from edgedb.lang.schema import error as s_err
+from edgedb.lang.schema import pointers as s_pointers
 
 
 class TestSchema(tb.BaseSchemaTest):
@@ -92,3 +93,28 @@ class TestSchema(tb.BaseSchemaTest):
             type Object:
                 property foo -> int
         """
+
+    def test_schema_computable_cardinality_inference_01(self):
+        schema = self.load_schema("""
+            type Object:
+                property foo -> str
+                property bar -> str
+                property foo_plus_bar := __source__.foo + __source__.bar
+        """)
+
+        obj = schema.get('test::Object')
+        self.assertEqual(obj.getptr(schema, 'foo_plus_bar').cardinality,
+                         s_pointers.PointerCardinality.ManyToOne)
+
+    def test_schema_computable_cardinality_inference_02(self):
+        schema = self.load_schema("""
+            type Object:
+                property foo -> str:
+                    cardinality := '1*'
+                property bar -> str
+                property foo_plus_bar := __source__.foo + __source__.bar
+        """)
+
+        obj = schema.get('test::Object')
+        self.assertEqual(obj.getptr(schema, 'foo_plus_bar').cardinality,
+                         s_pointers.PointerCardinality.ManyToMany)

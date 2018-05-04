@@ -252,7 +252,10 @@ class BaseEdgeQLCompilerTest(BaseDocTest):
 
 
 class BaseSchemaTest(BaseDocTest):
-    def run_test(self, *, source, spec, expected=None):
+    def load_schema(self, source):
         schema = s_std.load_std_schema()
         schema = s_std.load_graphql_schema(schema)
-        s_decl.parse_module_declarations(schema, [('test', source)])
+        return s_decl.parse_module_declarations(schema, [('test', source)])
+
+    def run_test(self, *, source, spec, expected=None):
+        self.load_schema(source)
