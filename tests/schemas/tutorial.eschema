@@ -1,5 +1,5 @@
 scalar type pr_status extending str:
-    constraint enum(['Open', 'Merged'])
+    constraint enum('Open', 'Merged')
 
 
 abstract Type Authored:
