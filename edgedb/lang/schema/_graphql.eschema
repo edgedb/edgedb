@@ -7,12 +7,12 @@
 
 
 scalar type __TypeKind extending str:
-     constraint enum(['SCALAR', 'OBJECT', 'INTERFACE', 'UNION', 'ENUM',
-                      'INPUT_OBJECT', 'LIST', 'NON_NULL'])
+     constraint enum('SCALAR', 'OBJECT', 'INTERFACE', 'UNION', 'ENUM',
+                     'INPUT_OBJECT', 'LIST', 'NON_NULL')
 
 scalar type __DirectiveLocation extending str:
-     constraint enum(['QUERY', 'MUTATION', 'FIELD', 'FRAGMENT_DEFINITION',
-                      'FRAGMENT_SPREAD', 'INLINE_FRAGMENT'])
+     constraint enum('QUERY', 'MUTATION', 'FIELD', 'FRAGMENT_DEFINITION',
+                     'FRAGMENT_SPREAD', 'INLINE_FRAGMENT')
 
 abstract type Nameable:
     property name -> str

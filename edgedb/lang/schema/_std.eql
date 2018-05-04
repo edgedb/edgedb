@@ -187,7 +187,7 @@ CREATE ABSTRACT CONSTRAINT std::max(std::any)
     SET expr := __subject__ <= $0;
 };
 
-CREATE ABSTRACT CONSTRAINT std::enum(array<std::any>)
+CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC std::any)
         EXTENDING std::constraint
 {
     SET errmessage := '{__subject__} must be one of: {$0}.';
@@ -436,7 +436,6 @@ CREATE TYPE schema::Parameter {
     CREATE REQUIRED PROPERTY schema::num -> std::int64;
     CREATE PROPERTY schema::name -> std::str;
     CREATE PROPERTY schema::default -> std::str;
-    CREATE PROPERTY schema::variadic -> std::bool;
 };
 
 

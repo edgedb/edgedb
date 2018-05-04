@@ -81,29 +81,6 @@ class FunctionCommandMixin:
             module=name.module,
             name=named.NamedObject.get_specialized_name(name, *quals))
 
-    @classmethod
-    def _parameters_from_ast(cls, astnode):
-        paramdefaults = []
-        paramnames = []
-        paramtypes = []
-        paramkinds = []
-        variadic = None
-        for argi, arg in enumerate(astnode.args, 1):
-            paramnames.append(arg.name)
-            paramkinds.append(arg.qualifier)
-
-            default = None
-            if arg.default is not None:
-                default = codegen.generate_source(arg.default)
-            paramdefaults.append(default)
-
-            paramtypes.append(utils.ast_to_typeref(arg.type))
-
-            if arg.qualifier == qlast.SetQualifier.VARIADIC:
-                variadic = argi
-
-        return paramnames, paramdefaults, paramtypes, paramkinds, variadic
-
 
 class FunctionCommand(named.NamedObjectCommand, FunctionCommandMixin,
                       schema_metaclass=Function,
@@ -138,7 +115,7 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
         paramnames, paramdefaults, paramtypes, paramkinds, variadic = \
-            cls._parameters_from_ast(astnode)
+            parameters_from_ast(astnode)
 
         if variadic is not None:
             cmd.add(sd.AlterObjectProperty(
@@ -222,6 +199,29 @@ class DeleteFunction(named.DeleteNamedObject, FunctionCommand):
     def _classname_from_ast(cls, astnode, context, schema):
         name = super()._classname_from_ast(astnode, context, schema)
 
-        _, _, paramtypes, _, _ = cls._parameters_from_ast(astnode)
+        _, _, paramtypes, _, _ = parameters_from_ast(astnode)
 
         return cls._get_function_fullname(name, paramtypes)
+
+
+def parameters_from_ast(astnode):
+    paramdefaults = []
+    paramnames = []
+    paramtypes = []
+    paramkinds = []
+    variadic = None
+    for argi, arg in enumerate(astnode.args, 1):
+        paramnames.append(arg.name)
+        paramkinds.append(arg.qualifier)
+
+        default = None
+        if arg.default is not None:
+            default = codegen.generate_source(arg.default)
+        paramdefaults.append(default)
+
+        paramtypes.append(utils.ast_to_typeref(arg.type))
+
+        if arg.qualifier == qlast.SetQualifier.VARIADIC:
+            variadic = argi
+
+    return paramnames, paramdefaults, paramtypes, paramkinds, variadic

@@ -380,11 +380,11 @@ class TestIntrospection(tb.QueryTestCase):
                     }
                 }
             } FILTER
-                .name LIKE '%enum%' AND
+                .name LIKE '%my_enum%' AND
                 NOT EXISTS .<constraints;
         """, [
             [{
-                'name': 'std::enum',
+                'name': 'test::my_enum',
                 'params': [
                     {
                         'num': 1,
@@ -413,11 +413,11 @@ class TestIntrospection(tb.QueryTestCase):
                     }
                 }
             } FILTER
-                .name LIKE '%enum%' AND
+                .name LIKE '%my_enum%' AND
                 NOT EXISTS .<constraints;
         """, [
             [{
-                'name': 'std::enum',
+                'name': 'test::my_enum',
                 'params': [
                     {
                         'num': 1,
@@ -426,6 +426,35 @@ class TestIntrospection(tb.QueryTestCase):
                             'element_type': {
                                 'name': 'std::any'
                             }
+                        }
+                    }
+                ]
+            }]
+        ])
+
+    async def test_edgeql_introspection_constraint_03(self):
+        await self.assert_query_result(r"""
+            SELECT schema::Constraint {
+                name,
+                params: {
+                    num,
+                    kind,
+                    type: {
+                        name,
+                    }
+                }
+            } FILTER
+                .name LIKE '%std::enum%' AND
+                NOT EXISTS .<constraints;
+        """, [
+            [{
+                'name': 'std::enum',
+                'params': [
+                    {
+                        'num': 1,
+                        'kind': 'VARIADIC',
+                        'type': {
+                            'name': 'std::any',
                         }
                     }
                 ]
@@ -474,6 +503,7 @@ class TestIntrospection(tb.QueryTestCase):
                 {'name': 'test::due_date'},
                 {'name': 'test::issue'},
                 {'name': 'test::issue_num_t'},
+                {'name': 'test::my_enum'},
                 {'name': 'test::name'},
                 {'name': 'test::number'},
                 {'name': 'test::owner'},

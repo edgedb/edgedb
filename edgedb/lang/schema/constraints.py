@@ -57,6 +57,9 @@ class Constraint(inheriting.InheritingObject):
     paramtypes = so.Field(so.TypeList, default=None, coerce=True,
                           compcoef=0.857)
 
+    # Number of the variadic parameter (+1)
+    varparam = so.Field(int, default=None, compcoef=0.4)
+
     args = so.Field(s_expr.ExpressionText,
                     default=None, coerce=True, inheritable=False,
                     compcoef=0.875)
@@ -163,7 +166,13 @@ class Constraint(inheriting.InheritingObject):
         args_map = None
         if args:
             args_ql = edgeql_parser.parse(args, module_aliases)
-            args_map = edgeql_utils.index_parameters(args_ql)
+            if constraint.varparam:
+                varparam = constraint.varparam - 1
+            else:
+                varparam = None
+            args_map = edgeql_utils.index_parameters(
+                args_ql, varparam=varparam)
+
             edgeql_utils.inline_parameters(expr_ql, args_map)
 
             args_map = {f'${name}': edgeql.generate_source(val, pretty=False)
@@ -196,6 +205,16 @@ class Constraint(inheriting.InheritingObject):
         formatted = errmsg.format(__subject__=subjtitle)
 
         return formatted
+
+    @classmethod
+    def get_root_classes(cls):
+        return (
+            sn.Name(module='std', name='constraint'),
+        )
+
+    @classmethod
+    def get_default_base_name(self):
+        return sn.Name('std::constraint')
 
 
 class ConsistencySubject(referencing.ReferencingObject):
@@ -355,12 +374,13 @@ class CreateConstraint(ConstraintCommand,
         elif isinstance(astnode, qlast.CreateConstraint):
             if astnode.args:
                 paramnames, paramdefaults, paramtypes, paramkinds, variadic = \
-                    cls._parameters_from_ast(astnode)
+                    s_func.parameters_from_ast(astnode)
 
                 if variadic:
-                    raise ql_errors.EdgeQLError(
-                        'constraints do not support variadic parameters',
-                        context=astnode.context)
+                    cmd.add(sd.AlterObjectProperty(
+                        property='varparam',
+                        new_value=variadic
+                    ))
 
                 for pname, pdefault, ptype in zip(paramnames, paramdefaults,
                                                   paramtypes):
@@ -379,10 +399,10 @@ class CreateConstraint(ConstraintCommand,
                         raise ql_errors.EdgeQLError(
                             'untyped parameter', context=astnode.context)
 
-                    cmd.add(sd.AlterObjectProperty(
-                        property='paramtypes',
-                        new_value=paramtypes
-                    ))
+                cmd.add(sd.AlterObjectProperty(
+                    property='paramtypes',
+                    new_value=paramtypes
+                ))
 
         # 'subject' can be present in either astnode type
         if astnode.subject:

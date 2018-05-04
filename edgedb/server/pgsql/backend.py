@@ -811,7 +811,7 @@ class Backend(s_deltarepo.DeltaProvider):
                 subjectexpr=r['subjectexpr'],
                 localfinalexpr=r['localfinalexpr'], finalexpr=r['finalexpr'],
                 errmessage=r['errmessage'], paramtypes=paramtypes,
-                args=r['args'])
+                varparam=r['varparam'], args=r['args'])
 
             if subject:
                 subject.add_constraint(constraint)

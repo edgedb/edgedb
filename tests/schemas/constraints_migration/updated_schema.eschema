@@ -34,7 +34,7 @@ scalar type constraint_strvalue extending str:
 
 
 scalar type constraint_enum extending str:
-   constraint enum(['foo', 'bar'])
+   constraint enum('foo', 'bar')
 
 
 abstract link translated_label:
