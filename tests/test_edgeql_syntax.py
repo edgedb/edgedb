@@ -2454,7 +2454,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_constraint_01(self):
         """
-        CREATE ABSTRACT CONSTRAINT std::enum(array<std::any>)
+        CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC std::any)
             EXTENDING std::constraint
         {
             SET errmessage := '{subject} must be one of: {param}.';
@@ -2464,7 +2464,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_constraint_02(self):
         """
-        CREATE ABSTRACT CONSTRAINT std::enum(array<std::any>) {
+        CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC std::any) {
             SET errmessage := '{subject} must be one of: {param}.';
             SET expr := array_contains($param, __subject__);
         };
@@ -2496,7 +2496,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_constraint_05(self):
         """
         CREATE SCALAR TYPE std::decimal_rounding_t EXTENDING std::str {
-            CREATE CONSTRAINT std::enum(['a', 'b']);
+            CREATE CONSTRAINT std::enum('a', 'b');
         };
         """
 

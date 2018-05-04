@@ -104,3 +104,7 @@ type URL extending Named:
 
 type Publication:
     required property title -> str
+
+
+abstract constraint my_enum(array<std::any>):
+    expr := array_contains($0, __subject__)

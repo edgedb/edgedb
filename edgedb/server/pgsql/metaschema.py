@@ -955,7 +955,7 @@ def _generate_param_view(schema):
                  UNION ALL
                  SELECT
                     id, paramtypes, NULL as paramnames, NULL as paramdefaults,
-                    NULL as paramkinds, NULL as varparam
+                    NULL as paramkinds, varparam as varparam
                  FROM edgedb.Constraint
                 ) AS f,
                 LATERAL UNNEST((f.paramtypes).types)

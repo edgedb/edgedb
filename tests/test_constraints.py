@@ -98,7 +98,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
 
         await self._run_link_tests(data, 'test::Object', 'c_strvalue')
 
-    async def test_constraints_scalar_enum(self):
+    async def test_constraints_scalar_enum_01(self):
         data = {
             ('foobar', 'must be one of:'),
             ('bar', 'good'),
@@ -106,6 +106,15 @@ class TestConstraintsSchema(tb.QueryTestCase):
         }
 
         await self._run_link_tests(data, 'test::Object', 'c_enum')
+
+    async def test_constraints_scalar_enum_02(self):
+        data = {
+            ('foobar', 'invalid'),
+            ('bar', 'good'),
+            ('foo', 'good'),
+        }
+
+        await self._run_link_tests(data, 'test::Object', 'c_my_enum')
 
     async def test_constraints_unique_simple(self):
         async with self._run_and_rollback():

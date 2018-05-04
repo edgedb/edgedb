@@ -39,7 +39,7 @@ def inline_parameters(ql_expr: qlast.Base, args: typing.Dict[str, qlast.Base]):
     inliner.visit(ql_expr)
 
 
-def index_parameters(ql_args):
+def index_parameters(ql_args, *, varparam: typing.Optional[int]=None):
     if isinstance(ql_args, qlast.SelectQuery):
         ql_args = ql_args.result
 
@@ -47,10 +47,20 @@ def index_parameters(ql_args):
         raise ValueError(
             'unable to unpack arguments: a tuple was expected')
 
-    ql_args = {str(i): e.result if isinstance(e, qlast.SelectQuery) else e
-               for i, e in enumerate(ql_args.elements)}
+    result = []
+    container = result
 
-    return ql_args
+    for i, e in enumerate(ql_args.elements):
+        if isinstance(e, qlast.SelectQuery):
+            e = e.result
+
+        if i == varparam:
+            container = []
+            result.append(qlast.Array(elements=container))
+
+        container.append(e)
+
+    return {str(i): arg for i, arg in enumerate(result)}
 
 
 def normalize_tree(expr, schema, *, modaliases=None, anchors=None,

@@ -75,7 +75,7 @@ class TestDeltas(tb.DDLTestCase):
         # dropped.
         result = await self.con.execute("""
             CREATE SCALAR TYPE test::a1 EXTENDING std::str {
-                CREATE CONSTRAINT std::enum(['a', 'b']) {
+                CREATE CONSTRAINT std::enum('a', 'b') {
                     SET description := 'test_delta_drop_01_constraint';
                 };
             };

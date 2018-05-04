@@ -31,6 +31,7 @@ from . import objtypes as s_objtypes
 from . import constraints as s_constr
 from . import error as s_err
 from . import expr as s_expr
+from . import functions as s_func
 from . import indexes as s_indexes
 from . import links as s_links
 from . import lproperties as s_props
@@ -128,6 +129,8 @@ class DeclarationLoader:
         # be fully initialized when we get to constraint users below.
         self._init_constraints(objects['constraint'])
         constraints = self._sort(module.get_objects(type='constraint'))
+        for constraint in constraints:
+            constraint.finalize(self._schema)
 
         # Ditto for attributes.
         attributes = self._sort(module.get_objects(type='attribute'))
@@ -302,8 +305,6 @@ class DeclarationLoader:
         return s_obj.ObjectList(bases)
 
     def _init_constraints(self, constraints):
-        module_aliases = {}
-
         for constraint, decl in constraints.items():
             attrs = {a.name.name: a.value for a in decl.attributes}
             assert 'subject' not in attrs  # TODO: Add proper validation
@@ -311,23 +312,36 @@ class DeclarationLoader:
 
             expr = attrs.pop('expr', None)
             if expr is not None:
-                try:
-                    expr = s_constr.Constraint.normalize_constraint_expr(
-                        self._schema, module_aliases, expr)
-                except (ValueError, edgeql.EdgeQLError) as e:
-                    raise s_err.SchemaError(e.args[0], context=decl) from None
-
-                constraint.expr = expr
+                constraint.expr = s_expr.ExpressionText(
+                    qlcodegen.generate_source(expr))
 
             subjexpr = decl.subject
             if subjexpr is not None:
-                try:
-                    subjexpr = s_constr.Constraint.normalize_constraint_expr(
-                        self._schema, module_aliases, subjexpr)
-                except (ValueError, edgeql.EdgeQLError) as e:
-                    raise s_err.SchemaError(e.args[0], context=decl) from None
+                constraint.subjectexpr = s_expr.ExpressionText(
+                    qlcodegen.generate_source(subjexpr))
 
-                constraint.subjectexpr = subjexpr
+            paramnames, paramdefaults, paramtypes, paramkinds, variadic = \
+                s_func.parameters_from_ast(decl)
+
+            for pname, pdefault, ptype in zip(paramnames, paramdefaults,
+                                              paramtypes):
+                if pname is not None:
+                    raise s_err.SchemaDefinitionError(
+                        'constraints do not support named parameters',
+                        context=decl.context)
+
+                if pdefault is not None:
+                    raise s_err.SchemaDefinitionError(
+                        'constraints do not support parameters '
+                        'with defaults',
+                        context=decl.context)
+
+                if ptype is None:
+                    raise s_err.SchemaDefinitionError(
+                        'untyped parameter', context=decl.context)
+
+            constraint.paramtypes = paramtypes
+            constraint.varparam = variadic
 
     def _init_scalars(self, scalars):
         for scalar, scalardecl in scalars.items():
