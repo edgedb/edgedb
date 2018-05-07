@@ -1042,3 +1042,52 @@ class TestConstraintsDDL(tb.DDLTestCase):
                         };
                     };
                 """)
+
+    async def test_constraints_ddl_error_05(self):
+        # Test that constraint expression returns a boolean.
+        qry = """
+            CREATE MIGRATION test::ddl_error_05 TO eschema $$
+                type User:
+                    required property login -> str:
+                        constraint expression on (len(__subject__))
+
+            $$;
+        """
+
+        with self.assertRaisesRegex(
+                exceptions.SchemaDefinitionError,
+                "constraint expression expected to return a bool value, "
+                "got 'int64'"):
+            await self.con.execute(qry)
+
+        qry = """
+            CREATE TYPE User {
+                CREATE REQUIRED PROPERTY login -> str {
+                    CREATE CONSTRAINT expression on (len(__subject__));
+                };
+            };
+        """
+
+        with self.assertRaisesRegex(
+                exceptions.SchemaDefinitionError,
+                "constraint expression expected to return a bool value, "
+                "got 'int64'"):
+            await self.con.execute(qry)
+
+        qry = """
+            CREATE ABSTRACT CONSTRAINT foo {
+                SET expr := __subject__;
+            };
+
+            CREATE TYPE User {
+                CREATE REQUIRED PROPERTY login -> str {
+                    CREATE CONSTRAINT foo;
+                };
+            };
+        """
+
+        with self.assertRaisesRegex(
+                exceptions.SchemaDefinitionError,
+                "constraint expression expected to return a bool value, "
+                "got 'str'"):
+            await self.con.execute(qry)

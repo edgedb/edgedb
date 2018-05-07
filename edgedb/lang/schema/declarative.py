@@ -112,7 +112,8 @@ class DeclarationLoader:
                     value = self._get_literal_value(attrdecl.value)
                     # This is a builtin attribute, not an expression,
                     # simply set it on object.
-                    setattr(obj, attr_name, value)
+                    obj.set_attribute(
+                        attr_name, value, source=attrdecl.value.context)
 
             self._schema.add(obj)
             objects[type(obj)._type][obj] = decl
@@ -537,9 +538,13 @@ class DeclarationLoader:
 
             subjectexpr = constrdecl.subject
             if subjectexpr is not None:
-                constraint.subjectexpr = \
+                constraint.set_attribute(
+                    'subjectexpr',
                     s_constr.Constraint.normalize_constraint_expr(
-                        self._schema, {}, subjectexpr, subject=subject)
+                        self._schema, {}, subjectexpr, subject=subject,
+                        constraint=constraint),
+                    source_context=constrdecl.subject.context,
+                )
 
             s_constr.Constraint.process_specialized_constraint(
                 self._schema, constraint, args)

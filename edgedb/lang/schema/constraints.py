@@ -97,8 +97,9 @@ class Constraint(inheriting.InheritingObject):
         return s_scalars.ScalarType(name=sn.Name('std::_subject_tgt'))
 
     @classmethod
-    def _normalize_constraint_expr(cls, schema, module_aliases, expr, subject,
-                                   inline_anchors=False):
+    def _normalize_constraint_expr(
+            cls, schema, module_aliases, expr, subject, *,
+            inline_anchors=False):
         from edgedb.lang.edgeql import parser as edgeql_parser
         from edgedb.lang.edgeql import utils as edgeql_utils
 
@@ -114,13 +115,27 @@ class Constraint(inheriting.InheritingObject):
         return edgeql_tree.result, ir.expr.expr.result
 
     @classmethod
-    def normalize_constraint_expr(cls, schema, module_aliases, expr,
-                                  subject=None):
+    def normalize_constraint_expr(
+            cls, schema, module_aliases, expr, *,
+            subject=None, constraint, expr_context=None,
+            enforce_boolean=False):
+        from edgedb.lang.ir import utils as irutils
+
         if subject is None:
             subject = cls._dummy_subject()
 
-        edgeql_tree, _ = cls._normalize_constraint_expr(
+        edgeql_tree, ir_result = cls._normalize_constraint_expr(
             schema, module_aliases, expr, subject)
+
+        if enforce_boolean:
+            bool_t = schema.get('std::bool')
+            expr_type = irutils.infer_type(ir_result, schema)
+            if not expr_type.issubclass(bool_t):
+                raise s_errors.SchemaDefinitionError(
+                    f'{constraint.displayname} constraint expression expected '
+                    f'to return a bool value, got {expr_type.name.name!r}',
+                    context=expr_context
+                )
 
         expr = edgeql.generate_source(edgeql_tree, pretty=False)
         # XXX: check that expr has boolean result
@@ -181,8 +196,17 @@ class Constraint(inheriting.InheritingObject):
             constraint.errmessage = constraint.errmessage.format(
                 __subject__='{__subject__}', **args_map)
 
+        if expr == '__subject__':
+            expr_context = \
+                constraint.get_attribute_source_context('subjectexpr')
+        else:
+            expr_context = \
+                constraint.get_attribute_source_context('expr')
+
         expr_text = cls.normalize_constraint_expr(
-            schema, module_aliases, expr_ql, subject=subject)
+            schema, module_aliases, expr_ql, subject=subject,
+            constraint=constraint, enforce_boolean=True,
+            expr_context=expr_context)
 
         constraint.expr = expr_text
         constraint.localfinalexpr = expr_text

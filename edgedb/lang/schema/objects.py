@@ -131,6 +131,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
 
     def __init__(self, **kwargs):
         self._attr_sources = {}
+        self._attr_source_contexts = {}
         super().__init__(**kwargs)
 
     def hash_criteria_fields(self):
@@ -163,7 +164,8 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
 
         return tuple(criteria)
 
-    def set_attribute(self, name, value, *, dctx=None, source=None):
+    def set_attribute(self, name, value, *,
+                      dctx=None, source=None, source_context=None):
         """Set the attribute `name` to `value`."""
         from . import delta as sd
 
@@ -183,6 +185,11 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
                     new_value=value,
                     source=source
                 ))
+            if source_context is not None:
+                self._attr_source_contexts[name] = source_context
+
+    def get_attribute_source_context(self, name):
+        return self._attr_source_contexts.get(name)
 
     def set_default_value(self, field_name, value):
         setattr(self, field_name, value)
