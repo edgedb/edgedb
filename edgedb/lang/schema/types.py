@@ -38,6 +38,9 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
     def is_view(self):
         return self.view_type is not None
 
+    def assignment_castable_to(self, other: 'Type', schema) -> bool:
+        return self.implicitly_castable_to(other, schema)
+
     def implicitly_castable_to(self, other: 'Type', schema) -> bool:
         return self.issubclass(other)
 

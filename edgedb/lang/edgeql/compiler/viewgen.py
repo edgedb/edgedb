@@ -341,7 +341,7 @@ def _normalize_view_ptr_expr(
             msg = 'cannot determine expression result type'
             raise errors.EdgeQLError(msg, context=shape_el.context)
 
-        if is_mutation and not ptr_target.implicitly_castable_to(
+        if is_mutation and not ptr_target.assignment_castable_to(
                 base_ptrcls.target, schema=ctx.schema):
             # Validate that the insert/update expression is
             # of the correct class.
