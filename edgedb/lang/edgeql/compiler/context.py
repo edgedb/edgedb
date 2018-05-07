@@ -155,6 +155,9 @@ class ContextLevel(compiler.ContextLevel):
     partial_path_prefix: irast.Set
     """The set used as a prefix for partial paths."""
 
+    implicit_id_in_shapes: bool
+    """Whether to include the id property in object shapes implicitly."""
+
     def __init__(self, prevlevel, mode):
         self.mode = mode
 
@@ -196,6 +199,7 @@ class ContextLevel(compiler.ContextLevel):
 
             self.view_rptr = None
             self.toplevel_result_view_name = None
+            self.implicit_id_in_shapes = True
 
         else:
             self.schema = prevlevel.schema
@@ -221,6 +225,7 @@ class ContextLevel(compiler.ContextLevel):
             self.expr_exposed = prevlevel.expr_exposed
             self.toplevel_clause = prevlevel.toplevel_clause
             self.toplevel_stmt = prevlevel.toplevel_stmt
+            self.implicit_id_in_shapes = prevlevel.implicit_id_in_shapes
 
             if mode == ContextSwitchMode.SUBQUERY:
                 self.anchors = prevlevel.anchors.copy()

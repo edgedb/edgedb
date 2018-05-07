@@ -445,7 +445,12 @@ def _compile_view_shapes_in_set(
     if is_objtype or link_view:
         for source in sources:
             for ptr in source.pointers.values():
-                if not (ptr.is_id_pointer() or
+                implicit_id = (
+                    ctx.implicit_id_in_shapes or
+                    not ctx.class_shapes[source]
+                )
+
+                if not ((implicit_id and ptr.is_id_pointer()) or
                         ptr in ctx.class_shapes[source]):
                     continue
 

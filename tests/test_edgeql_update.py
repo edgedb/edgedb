@@ -66,6 +66,7 @@ class TestUpdate(tb.QueryTestCase):
 
             WITH MODULE test
             SELECT UpdateTest {
+                id,
                 name,
                 comment,
                 status: {
@@ -88,6 +89,7 @@ class TestUpdate(tb.QueryTestCase):
 
             WITH MODULE test
             SELECT UpdateTest {
+                id,
                 name,
                 comment,
                 status: {
@@ -114,6 +116,7 @@ class TestUpdate(tb.QueryTestCase):
 
             WITH MODULE test
             SELECT UpdateTest {
+                id,
                 name,
                 comment,
                 status: {
@@ -147,6 +150,7 @@ class TestUpdate(tb.QueryTestCase):
 
             WITH MODULE test
             SELECT UpdateTest {
+                id,
                 name,
                 comment,
             } ORDER BY .name;
@@ -181,6 +185,7 @@ class TestUpdate(tb.QueryTestCase):
 
             WITH MODULE test
             SELECT UpdateTest {
+                id,
                 name,
                 comment,
                 status: {
@@ -226,6 +231,7 @@ class TestUpdate(tb.QueryTestCase):
                     comment := 'updated ' + UpdateTest.comment
                 }
             ) {
+                id,
                 name,
                 comment,
             };
@@ -249,6 +255,7 @@ class TestUpdate(tb.QueryTestCase):
                     status := (SELECT Status FILTER Status.name = 'Closed')
                 }
             ) {
+                id,
                 name,
                 comment,
                 status: {
@@ -319,6 +326,7 @@ class TestUpdate(tb.QueryTestCase):
 
             SELECT
                 Q {
+                    id,
                     name,
                     comment,
                     status: {

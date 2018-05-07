@@ -551,7 +551,10 @@ def is_props_only_update(shape_el: irast.Set) -> bool:
     :return:
         `True` if *shape_el* represents a link property-only update.
     """
-    return all(el.rptr.ptrcls.is_link_property() for el in shape_el.shape)
+    return (
+        shape_el.shape and
+        all(el.rptr.ptrcls.is_link_property() for el in shape_el.shape)
+    )
 
 
 def process_link_update(

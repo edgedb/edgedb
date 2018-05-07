@@ -51,7 +51,8 @@ def compile_to_ir(expr,
                   anchors=None,
                   arg_types=None,
                   security_context=None,
-                  modaliases=None):
+                  modaliases=None,
+                  implicit_id_in_shapes=True):
     """Compile given EdgeQL statement into EdgeDB IR."""
 
     if debug.flags.edgeql_compile:
@@ -62,7 +63,8 @@ def compile_to_ir(expr,
 
     return compile_ast_to_ir(
         tree, schema, anchors=anchors, arg_types=arg_types,
-        security_context=security_context, modaliases=modaliases)
+        security_context=security_context, modaliases=modaliases,
+        implicit_id_in_shapes=implicit_id_in_shapes)
 
 
 def compile_ast_to_ir(tree,
@@ -73,7 +75,8 @@ def compile_ast_to_ir(tree,
                       security_context=None,
                       derived_target_module=None,
                       result_view_name=None,
-                      modaliases=None):
+                      modaliases=None,
+                      implicit_id_in_shapes=True):
     """Compile given EdgeQL AST into EdgeDB IR."""
 
     if debug.flags.edgeql_compile:
@@ -84,7 +87,8 @@ def compile_ast_to_ir(tree,
         schema=schema, anchors=anchors, modaliases=modaliases,
         security_context=security_context, arg_types=arg_types,
         derived_target_module=derived_target_module,
-        result_view_name=result_view_name)
+        result_view_name=result_view_name,
+        implicit_id_in_shapes=implicit_id_in_shapes)
 
     ir_set = dispatch.compile(tree, ctx=ctx)
     ir_expr = stmtctx.fini_expression(ir_set, ctx=ctx)

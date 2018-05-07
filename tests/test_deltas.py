@@ -9,7 +9,6 @@
 import difflib
 import os.path
 import textwrap
-import uuid
 import unittest  # NOQA
 
 from edgedb.client import exceptions
@@ -65,7 +64,6 @@ class TestDeltas(tb.DDLTestCase):
             [1],
 
             [{
-                'id': uuid.UUID,
                 'related': [{'name': 'Test', '@lang': None}],
             }]
         ])

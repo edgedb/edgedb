@@ -73,19 +73,15 @@ class TestInsert(tb.QueryTestCase):
             [1],
 
             [{
-                'id': uuid.UUID,
                 'l2': 0,
                 'l3': 'test',
             }, {
-                'id': uuid.UUID,
                 'l2': 1,
                 'l3': 'Test"1"',
             }, {
-                'id': uuid.UUID,
                 'l2': 2,
                 'l3': "Test'2'",
             }, {
-                'id': uuid.UUID,
                 'l2': 3,
                 'l3': '''"Test'3'"''',
             }]
@@ -166,13 +162,10 @@ class TestInsert(tb.QueryTestCase):
         self.assert_data_shape(
             res[-1],
             [{
-                'id': uuid.UUID,
                 'subordinates': [{
-                    'id': uuid.UUID,
                     'name': 'subtest 1',
                     '@comment': None,
                 }, {
-                    'id': uuid.UUID,
                     'name': 'subtest 2',
                     '@comment': None,
                 }]
@@ -217,13 +210,10 @@ class TestInsert(tb.QueryTestCase):
         self.assert_data_shape(
             res[-1],
             [{
-                'id': uuid.UUID,
                 'subordinates': [{
-                    'id': uuid.UUID,
                     'name': 'subtest 3',
                     '@comment': 'comment subtest 3',
                 }, {
-                    'id': uuid.UUID,
                     'name': 'subtest 4',
                     '@comment': 'comment subtest 4',
                 }]
@@ -254,9 +244,7 @@ class TestInsert(tb.QueryTestCase):
         self.assert_data_shape(
             res[-1],
             [{
-                'id': uuid.UUID,
                 'subordinates': [{
-                    'id': uuid.UUID,
                     'name': 'nested sub 3.1'
                 }]
             }]
@@ -288,9 +276,7 @@ class TestInsert(tb.QueryTestCase):
         self.assert_data_shape(
             res[-1],
             [{
-                'id': uuid.UUID,
                 'subordinates': [{
-                    'id': uuid.UUID,
                     'name': 'nested sub 4.1',
                     '@comment': 'comment 4.1'
                 }]

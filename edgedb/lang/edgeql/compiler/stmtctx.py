@@ -36,7 +36,8 @@ def init_context(
         anchors: typing.Optional[typing.Dict[str, s_obj.Object]]=None,
         security_context: typing.Optional[str]=None,
         derived_target_module: typing.Optional[str]=None,
-        result_view_name: typing.Optional[str]=None) -> \
+        result_view_name: typing.Optional[str]=None,
+        implicit_id_in_shapes: bool=True) -> \
         context.ContextLevel:
     stack = context.CompilerContext()
     ctx = stack.current
@@ -53,6 +54,7 @@ def init_context(
 
     ctx.derived_target_module = derived_target_module
     ctx.toplevel_result_view_name = result_view_name
+    ctx.implicit_id_in_shapes = implicit_id_in_shapes
 
     return ctx
 

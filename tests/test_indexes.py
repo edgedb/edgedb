@@ -6,8 +6,6 @@
 ##
 
 
-import uuid
-
 from edgedb.server import _testbase as tb
 
 
@@ -65,7 +63,6 @@ class TestIndexes(tb.DDLTestCase):
             [1],
 
             [{
-                'id': uuid.UUID,
                 'first_name': 'Elon'
             }]
         ])
