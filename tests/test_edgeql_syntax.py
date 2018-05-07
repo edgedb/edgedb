@@ -565,6 +565,41 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (event::`@event`);
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=16)
+    def test_edgeql_syntax_name_16(self):
+        """
+        SELECT __Foo__;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=22)
+    def test_edgeql_syntax_name_17(self):
+        """
+        SELECT __Foo.__bar__;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=16)
+    def test_edgeql_syntax_name_18(self):
+        """
+        SELECT `__Foo__`;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=22)
+    def test_edgeql_syntax_name_19(self):
+        """
+        SELECT __Foo.`__bar__`;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=21)
+    def test_edgeql_syntax_name_20(self):
+        """
+        SELECT __Foo$;
+        """
+
+    def test_edgeql_syntax_name_21(self):
+        """
+        SELECT Пример;
+        """
+
     def test_edgeql_syntax_shape_01(self):
         """
         SELECT Foo {bar};

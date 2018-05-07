@@ -12,7 +12,7 @@ from .parser.grammar import keywords
 
 
 _re_ident = re.compile(r'''(?x)
-    [A-Za-z\200-\377_%][A-Za-z\200-\377_\d\$%]*  # alphanumeric identifier
+    [^\W\d]\w*  # alphanumeric identifier
     |
     ([1-9]\d* | 0)  # purely integer identifier
 ''')

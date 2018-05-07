@@ -124,18 +124,14 @@ class EdgeQLLexer(lexer.Lexer):
         Rule(token='BADIDENT',
              next_state=STATE_KEEP,
              regexp=r'''
-                    __[A-Za-z\200-\377_0-9\$%]*__
+                    __[^\W\d]\w*__
+                    |
+                    `__.*?__`
                 '''),
-
-        Rule(token='BADIDENT',
-             next_state=STATE_KEEP,
-             regexp=r'`__.*?__`'),
 
         Rule(token='IDENT',
              next_state=STATE_KEEP,
-             regexp=r'''
-                    [A-Za-z\200-\377_%] [A-Za-z\200-\377_0-9\$%]*
-                '''),
+             regexp=r'[^\W\d]\w*'),
 
         Rule(token='QIDENT',
              next_state=STATE_KEEP,

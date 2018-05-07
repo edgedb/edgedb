@@ -11,7 +11,7 @@ import re
 from .parser.grammar import keywords
 
 
-_re_ident = re.compile(r'(?:[^\W\d]|\$)(?:\w|\$)*')
+_re_ident = re.compile(r'[^\W\d]\w*')
 
 
 def quote_literal(text):
