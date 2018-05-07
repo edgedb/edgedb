@@ -610,7 +610,7 @@ class Renderer(DocRenderer, LangRenderer, CodeRenderer):
 renders = Renderer.renders
 
 
-def render(markup, *, ensure_newline=True, file=None):
+def render(markup, *, ensure_newline=True, file=None, renderer=Renderer):
     if file is None:
         file = sys.stdout
 
@@ -625,7 +625,8 @@ def render(markup, *, ensure_newline=True, file=None):
         elif max_colors > 6:
             style_table = styles_module.Dark16
 
-    rendered = renders(markup, styles=style_table, max_width=max_width)
+    rendered = renderer.renders(
+        markup, styles=style_table, max_width=max_width)
     if ensure_newline and not rendered.endswith('\n'):
         rendered += '\n'
 

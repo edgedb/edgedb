@@ -33,10 +33,47 @@ from edgedb import client
 from edgedb.lang.common import datetime
 from edgedb.lang.common import lexer as core_lexer
 from edgedb.lang.common import markup
+from edgedb.lang.common.markup.renderers import terminal as markup_term
 from edgedb.lang.edgeql.parser.grammar import lexer as edgeql_lexer
 from edgedb.lang.edgeql import pygments as eql_pygments
 
 from edgedb.server import cluster as edgedb_cluster
+
+
+class ResultRenderer(markup_term.Renderer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._list_depth = 0
+
+    def _render_lang_List(self, element):
+        if self._list_depth == 0:
+            open_bracket = '{'
+            close_bracket = '}'
+        else:
+            open_bracket = '['
+            close_bracket = ']'
+
+        with self.buffer.smart_lines():
+            self.buffer.write(open_bracket, style=self.styles.bracket)
+
+            item_count = len(element.items)
+            if item_count:
+                self._list_depth += 1
+
+                with self.buffer.indent():
+                    for idx, item in enumerate(element.items):
+                        self._render(item)
+
+                        if idx < (item_count - 1):
+                            self.buffer.write(',')
+                            self.buffer.smart_break()
+
+                self._list_depth -= 1
+
+            if element.trimmed:
+                self.buffer.write('...')
+
+            self.buffer.write(close_bracket, style=self.styles.bracket)
 
 
 class InputBuffer(pt_buffer.Buffer):
@@ -322,7 +359,10 @@ class Cli:
                     print('{}: {}'.format(type(ex).__name__, str(ex)))
                     continue
 
-                markup.dump(result)
+                for entry in result:
+                    entry_mkup = markup._serialize(entry)
+                    markup_term.render(entry_mkup, renderer=ResultRenderer)
+
                 self.print_timings(self.connection.get_last_timings())
 
         except EOFError:
