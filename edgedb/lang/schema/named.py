@@ -16,6 +16,7 @@ from . import delta as sd
 from . import expr
 from . import objects as so
 from . import name as sn
+from . import error as s_err
 
 
 NamedObject = so.NamedObject
@@ -66,9 +67,16 @@ class NamedObjectCommand(sd.ObjectCommand):
 
     @classmethod
     def _classname_from_ast(cls, astnode, context, schema):
-        classname = sn.Name(module=astnode.name.module or 'std',
-                            name=cls._get_ast_name(astnode, context, schema))
-        return classname
+        nqname = cls._get_ast_name(astnode, context, schema)
+        module = context.modaliases.get(astnode.name.module,
+                                        astnode.name.module)
+        if module is None:
+            raise s_err.SchemaDefinitionError(
+                f'unqualified name and no default module set',
+                context=astnode.name.context
+            )
+
+        return sn.Name(module=module, name=nqname)
 
     @classmethod
     def _cmd_from_ast(cls, astnode, context, schema):

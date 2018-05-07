@@ -144,6 +144,8 @@ class CreateProperty(PropertyCommand,
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
+        modaliases = context.modaliases
+
         if isinstance(astnode, qlast.CreateConcreteProperty):
             target = getattr(astnode, 'target', None)
 
@@ -166,7 +168,8 @@ class CreateProperty(PropertyCommand,
                 )
             )
 
-            target_ref = utils.ast_to_typeref(target)
+            target_ref = utils.ast_to_typeref(
+                target, modaliases=modaliases, schema=schema)
             target_type = utils.resolve_typeref(target_ref, schema=schema)
 
             if not isinstance(target_type, (scalars.ScalarType,

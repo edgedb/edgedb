@@ -205,11 +205,13 @@ class BaseEdgeQLCompilerTest(BaseDocTest):
         for stmt in statements:
             if isinstance(stmt, qlast.Delta):
                 # CREATE/APPLY MIGRATION
-                ddl_plan = s_ddl.cmd_from_ddl(stmt, schema=schema)
+                ddl_plan = s_ddl.cmd_from_ddl(
+                    stmt, schema=schema, modaliases={None: 'default'})
 
             elif isinstance(stmt, qlast.DDL):
                 # CREATE/DELETE/ALTER (FUNCTION, TYPE, etc)
-                ddl_plan = s_ddl.delta_from_ddl(stmt, schema=schema)
+                ddl_plan = s_ddl.delta_from_ddl(
+                    stmt, schema=schema, modaliases={None: 'default'})
 
             else:
                 raise ValueError(

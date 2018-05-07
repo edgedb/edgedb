@@ -583,19 +583,6 @@ class AttributeValueCommand(sd.ObjectCommand,
         rec, updates = super().fill_record(schema)
 
         if rec:
-            subj = updates.get('subject')
-            if subj:
-                rec.subject = dbops.Query(
-                    '(SELECT id FROM edgedb.NamedObject WHERE name = $1)',
-                    [subj],
-                    type='uuid')
-
-            attribute = updates.get('attribute')
-            if attribute:
-                rec.attribute = dbops.Query(
-                    '(SELECT id FROM edgedb.NamedObject WHERE name = $1)',
-                    [attribute], type='uuid')
-
             value = updates.get('value')
             if value:
                 rec.value = pickle.dumps(value)

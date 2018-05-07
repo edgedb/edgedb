@@ -13,7 +13,6 @@ from edgedb.lang.edgeql import ast as qlast
 
 from . import declarative as s_decl
 from . import delta as sd
-from . import name as sn
 from . import named
 from . import objects as so
 from . import schema as s_schema
@@ -40,15 +39,7 @@ class DeltaCommandContext(sd.CommandContextToken):
 
 class DeltaCommand(named.NamedObjectCommand, schema_metaclass=Delta,
                    context_class=DeltaCommandContext):
-    @classmethod
-    def _classname_from_ast(cls, astnode, context, schema):
-        if astnode.name.module:
-            classname = sn.Name(module=astnode.name.module,
-                                name=astnode.name.name)
-        else:
-            classname = astnode.name.name
-
-        return classname
+    pass
 
 
 class CreateDelta(named.CreateNamedObject, DeltaCommand):

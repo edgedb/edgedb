@@ -27,7 +27,8 @@ class Attribute(inheriting.InheritingObject):
 class AttributeValue(inheriting.InheritingObject):
     _type = 'attribute-value'
 
-    subject = so.Field(named.NamedObject, compcoef=1.0)
+    subject = so.Field(named.NamedObject, compcoef=1.0, default=None,
+                       inheritable=False)
     attribute = so.Field(Attribute, compcoef=0.429)
     value = so.Field(object, compcoef=0.909)
 
@@ -131,7 +132,9 @@ class CreateAttribute(AttributeCommand, named.CreateNamedObject):
         cmd.add(
             sd.AlterObjectProperty(
                 property='type',
-                new_value=utils.ast_to_typeref(astnode.type)
+                new_value=utils.ast_to_typeref(
+                    astnode.type, modaliases=context.modaliases,
+                    schema=schema)
             )
         )
 

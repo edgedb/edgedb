@@ -30,17 +30,20 @@ class TransactionStatement:
 
 
 def plan_statement(stmt, backend, flags={}, *, timer):
+    schema = backend.schema
+    modaliases = backend.modaliases
+
     if isinstance(stmt, qlast.Database):
         # CREATE/ALTER/DROP DATABASE
-        return s_ddl.cmd_from_ddl(stmt, schema=backend.schema)
+        return s_ddl.cmd_from_ddl(stmt, schema=schema, modaliases=modaliases)
 
     elif isinstance(stmt, qlast.Delta):
         # CREATE/APPLY MIGRATION
-        return s_ddl.cmd_from_ddl(stmt, schema=backend.schema)
+        return s_ddl.cmd_from_ddl(stmt, schema=schema, modaliases=modaliases)
 
     elif isinstance(stmt, qlast.DDL):
         # CREATE/DELETE/ALTER (FUNCTION, TYPE, etc)
-        return s_ddl.delta_from_ddl(stmt, schema=backend.schema)
+        return s_ddl.delta_from_ddl(stmt, schema=schema, modaliases=modaliases)
 
     elif isinstance(stmt, qlast.Transaction):
         # BEGIN/COMMIT
@@ -50,7 +53,7 @@ def plan_statement(stmt, backend, flags={}, *, timer):
         # SET ...
         with timer.timeit('compile_eql_to_ir'):
             ir = ql_compiler.compile_ast_to_ir(
-                stmt, schema=backend.schema, modaliases=backend.modaliases)
+                stmt, schema=schema, modaliases=modaliases)
 
         return ir
 
@@ -58,7 +61,7 @@ def plan_statement(stmt, backend, flags={}, *, timer):
         # Queries
         with timer.timeit('compile_eql_to_ir'):
             ir = ql_compiler.compile_ast_to_ir(
-                stmt, schema=backend.schema, modaliases=backend.modaliases)
+                stmt, schema=schema, modaliases=modaliases)
 
         return backend.compile(ir, output_format=compiler.OutputFormat.JSON,
                                timer=timer)

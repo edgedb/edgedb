@@ -8,16 +8,21 @@
 
 import collections
 import itertools
+import typing
 
 from edgedb.lang.common import levenshtein
 from edgedb.lang.edgeql import ast as ql_ast
 
+from . import error as s_err
 from . import name as sn
 from . import objects as so
 from . import types as s_types
 
 
-def ast_to_typeref(node: ql_ast.TypeName):
+def ast_to_typeref(
+        node: ql_ast.TypeName, *,
+        modaliases: typing.Dict[typing.Optional[str], str],
+        schema) -> so.ObjectRef:
     if node.subtypes:
         coll = s_types.Collection.get_class(node.maintype.name)
 
@@ -31,20 +36,38 @@ def ast_to_typeref(node: ql_ast.TypeName):
                 else:
                     type_name = str(si)
 
-                subtypes[type_name] = ast_to_typeref(st)
+                subtypes[type_name] = ast_to_typeref(
+                    st, modaliases=modaliases, schema=schema)
 
             return coll.from_subtypes(subtypes, {'named': named})
         else:
             subtypes = []
             for st in node.subtypes:
-                subtypes.append(ast_to_typeref(st))
+                subtypes.append(ast_to_typeref(
+                    st, modaliases=modaliases, schema=schema))
 
             return coll.from_subtypes(subtypes)
 
-    mtn = sn.Name(module=node.maintype.module,
-                  name=node.maintype.name)
+    nqname = node.maintype.name
+    module = node.maintype.module
+    if schema is not None:
+        if module is not None:
+            lname = sn.Name(module=module, name=nqname)
+        else:
+            lname = nqname
+        obj = schema.get(lname, module_aliases=modaliases, default=None)
+        if obj is not None:
+            module = obj.name.module
+    elif modaliases:
+        module = modaliases.get(module)
 
-    return so.ObjectRef(classname=mtn)
+    if module is None:
+        raise s_err.ItemNotFoundError(
+            f'unqualified name and no default module set',
+            context=node.context
+        )
+
+    return so.ObjectRef(classname=sn.Name(module=module, name=nqname))
 
 
 def typeref_to_ast(t: so.Object) -> ql_ast.TypeName:

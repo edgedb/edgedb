@@ -374,7 +374,8 @@ class CreateConstraint(ConstraintCommand,
         elif isinstance(astnode, qlast.CreateConstraint):
             if astnode.args:
                 paramnames, paramdefaults, paramtypes, paramkinds, variadic = \
-                    s_func.parameters_from_ast(astnode)
+                    s_func.parameters_from_ast(
+                        astnode, context.modaliases, schema)
 
                 if variadic:
                     cmd.add(sd.AlterObjectProperty(

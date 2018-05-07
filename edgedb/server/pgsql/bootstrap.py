@@ -157,7 +157,8 @@ async def _init_std_schema(conn):
     bk = await backend.open_database(conn)
 
     for statement in statements:
-        cmd = s_ddl.delta_from_ddl(statement, schema=bk.schema)
+        cmd = s_ddl.delta_from_ddl(
+            statement, schema=bk.schema, modaliases={None: 'std'})
         await bk.run_ddl_command(cmd)
 
     await metaschema.generate_views(conn, bk.schema)

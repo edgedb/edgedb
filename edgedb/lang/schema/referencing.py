@@ -9,6 +9,7 @@
 import collections
 
 from edgedb.lang.common import ordered
+from edgedb.lang.edgeql import ast as qlast
 
 from . import delta as sd
 from . import error as s_err
@@ -16,6 +17,7 @@ from . import inheriting
 from . import objects as so
 from . import name as sn
 from . import named
+from . import utils
 
 
 class RefDict:
@@ -178,10 +180,17 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
         if parent_ctx is not None:
             referrer_name = parent_ctx.op.classname
 
+            try:
+                base_ref = utils.ast_to_typeref(
+                    qlast.TypeName(maintype=astnode.name),
+                    modaliases=context.modaliases, schema=schema)
+            except s_err.ItemNotFoundError:
+                base_name = sn.Name(name)
+            else:
+                base_name = base_ref.classname
+
             pcls = cls.get_schema_metaclass()
-            pnn = pcls.get_specialized_name(
-                sn.Name(name), referrer_name
-            )
+            pnn = pcls.get_specialized_name(base_name, referrer_name)
 
             name = sn.Name(name=pnn, module=referrer_name.module)
 
@@ -291,19 +300,26 @@ class CreateReferencedInheritingObject(inheriting.CreateInheritingObject):
 
         if isinstance(astnode, cls.referenced_astnode):
             objcls = cls.get_schema_metaclass()
-            nname = objcls.get_shortname(cmd.classname)
+
+            try:
+                base = utils.ast_to_typeref(
+                    qlast.TypeName(maintype=astnode.name),
+                    modaliases=context.modaliases, schema=schema)
+            except s_err.ItemNotFoundError:
+                # Certain concrete items, like pointers create
+                # abstract parents implicitly.
+                nname = objcls.get_shortname(cmd.classname)
+                base = so.ObjectRef(
+                    classname=sn.Name(
+                        module=nname.module,
+                        name=nname.name
+                    )
+                )
 
             cmd.add(
                 sd.AlterObjectProperty(
                     property='bases',
-                    new_value=so.ObjectList([
-                        so.ObjectRef(
-                            classname=sn.Name(
-                                module=nname.module,
-                                name=nname.name
-                            )
-                        )
-                    ])
+                    new_value=so.ObjectList([base])
                 )
             )
 

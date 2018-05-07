@@ -26,7 +26,8 @@ def load_std_schema():
     statements = edgeql.parse_block(std_eql)
 
     for statement in statements:
-        cmd = s_ddl.delta_from_ddl(statement, schema=schema)
+        cmd = s_ddl.delta_from_ddl(
+            statement, schema=schema, modaliases={None: 'std'})
         cmd.apply(schema)
 
     return schema
@@ -49,11 +50,11 @@ def load_graphql_schema(schema=None):
     for stmt in statements:
         if isinstance(stmt, qlast.Delta):
             # CREATE/APPLY MIGRATION
-            ddl_plan = s_ddl.cmd_from_ddl(stmt, schema=schema)
+            ddl_plan = s_ddl.cmd_from_ddl(stmt, schema=schema, modaliases={})
 
         elif isinstance(stmt, qlast.DDL):
             # CREATE/DELETE/ALTER (FUNCTION, TYPE, etc)
-            ddl_plan = s_ddl.delta_from_ddl(stmt, schema=schema)
+            ddl_plan = s_ddl.delta_from_ddl(stmt, schema=schema, modaliases={})
 
         context = sd.CommandContext()
         ddl_plan.apply(schema, context)

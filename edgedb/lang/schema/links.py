@@ -184,7 +184,9 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                     sd.AlterObjectProperty(
                         property='spectargets',
                         new_value=so.ObjectList([
-                            utils.ast_to_typeref(t)
+                            utils.ast_to_typeref(
+                                t, modaliases=context.modaliases,
+                                schema=schema)
                             for t in astnode.targets
                         ])
                     )
@@ -233,7 +235,9 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
             else:
                 target_expr = astnode.targets[0]
                 if isinstance(target_expr, qlast.TypeName):
-                    target = utils.ast_to_typeref(target_expr)
+                    target = utils.ast_to_typeref(
+                        target_expr, modaliases=context.modaliases,
+                        schema=schema)
                 else:
                     # computable
                     source = schema.get(source_name, default=None)

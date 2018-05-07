@@ -400,3 +400,45 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [1],
             [{'__typename4': 'test::TestSelfLink4'}]
         ])
+
+    async def test_edgeql_ddl_18(self):
+        await self.con.execute("""
+            CREATE MODULE foo;
+            CREATE MODULE bar;
+
+            SET MODULE foo, b := MODULE bar;
+
+            CREATE SCALAR TYPE foo_t EXTENDING int64 {
+                CREATE CONSTRAINT expression ON (__subject__ > 0);
+            };
+
+            CREATE SCALAR TYPE b::bar_t EXTENDING int64;
+
+            CREATE TYPE Obj {
+                CREATE PROPERTY foo -> foo_t;
+                CREATE PROPERTY bar -> b::bar_t;
+            };
+
+            CREATE TYPE b::Obj2 {
+                CREATE LINK obj -> Obj;
+            };
+        """)
+
+        await self.assert_query_result(r"""
+            WITH MODULE schema
+            SELECT ScalarType {
+                name,
+                constraints: {
+                    name
+                }
+            }
+            FILTER .name LIKE '%bar%' OR .name LIKE '%foo%'
+            ORDER BY .name;
+        """, [
+            [
+                {'name': 'bar::bar_t', 'constraints': None},
+                {'name': 'foo::foo_t', 'constraints': [
+                    {'name': 'std::expression'}
+                ]},
+            ]
+        ])

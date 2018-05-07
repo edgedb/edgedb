@@ -27,24 +27,33 @@ from . import policy  # NOQA
 from . import views  # NOQA
 
 
-def cmd_from_ddl(stmt, *, context=None, schema):
+def cmd_from_ddl(stmt, *, context=None, schema, modaliases):
     # expand module aliases (implicit and explicit)
     ddl = edgeql.deoptimize(stmt, strip_builtins=False)
+
+    if context is None:
+        context = s_delta.CommandContext()
+
+    context.modaliases = modaliases
+    context.schema = schema
 
     cmd = s_delta.Command.from_ast(ddl, schema=schema, context=context)
     return cmd
 
 
-def delta_from_ddl(stmts, *, schema):
+def delta_from_ddl(stmts, *, schema, modaliases):
     alter_db = s_db.AlterDatabase()
     context = s_delta.CommandContext()
+    context.modaliases = modaliases
+    context.schema = schema
 
     if isinstance(stmts, edgeql.ast.Base):
         stmts = [stmts]
 
     for stmt in stmts:
         with context(s_db.DatabaseCommandContext(alter_db)):
-            alter_db.add(cmd_from_ddl(stmt, context=context, schema=schema))
+            alter_db.add(cmd_from_ddl(
+                stmt, context=context, schema=schema, modaliases=modaliases))
 
     return alter_db
 

@@ -321,7 +321,8 @@ class DeclarationLoader:
                     qlcodegen.generate_source(subjexpr))
 
             paramnames, paramdefaults, paramtypes, paramkinds, variadic = \
-                s_func.parameters_from_ast(decl)
+                s_func.parameters_from_ast(decl, self._mod_aliases,
+                                           self._schema)
 
             for pname, pdefault, ptype in zip(paramnames, paramdefaults,
                                               paramtypes):

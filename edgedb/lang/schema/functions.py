@@ -114,8 +114,10 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
 
+        modaliases = context.modaliases
+
         paramnames, paramdefaults, paramtypes, paramkinds, variadic = \
-            parameters_from_ast(astnode)
+            parameters_from_ast(astnode, modaliases, schema)
 
         if variadic is not None:
             cmd.add(sd.AlterObjectProperty(
@@ -145,7 +147,8 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
 
         cmd.add(sd.AlterObjectProperty(
             property='returntype',
-            new_value=utils.ast_to_typeref(astnode.returning)
+            new_value=utils.ast_to_typeref(
+                astnode.returning, modaliases=modaliases, schema=schema)
         ))
 
         cmd.add(sd.AlterObjectProperty(
@@ -199,12 +202,13 @@ class DeleteFunction(named.DeleteNamedObject, FunctionCommand):
     def _classname_from_ast(cls, astnode, context, schema):
         name = super()._classname_from_ast(astnode, context, schema)
 
-        _, _, paramtypes, _, _ = parameters_from_ast(astnode)
+        _, _, paramtypes, _, _ = parameters_from_ast(
+            astnode, context.modaliases, schema)
 
         return cls._get_function_fullname(name, paramtypes)
 
 
-def parameters_from_ast(astnode):
+def parameters_from_ast(astnode, modaliases, schema):
     paramdefaults = []
     paramnames = []
     paramtypes = []
@@ -219,7 +223,8 @@ def parameters_from_ast(astnode):
             default = codegen.generate_source(arg.default)
         paramdefaults.append(default)
 
-        paramtypes.append(utils.ast_to_typeref(arg.type))
+        paramtypes.append(utils.ast_to_typeref(
+            arg.type, modaliases=modaliases, schema=schema))
 
         if arg.qualifier == qlast.SetQualifier.VARIADIC:
             variadic = argi

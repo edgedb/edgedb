@@ -12,7 +12,6 @@ from . import delta as sd
 from . import derivable
 from . import error as schema_error
 from . import objects as so
-from . import name as sn
 from . import named
 from . import utils
 
@@ -108,10 +107,12 @@ class CreateInheritingObject(named.CreateNamedObject, InheritingObjectCommand):
     def _classbases_from_ast(cls, astnode, context, schema):
         classname = cls._classname_from_ast(astnode, context, schema)
 
+        modaliases = context.modaliases
+
         bases = so.ObjectList(
-            so.ObjectRef(classname=sn.Name(
-                name=b.name, module=b.module or 'std'
-            ))
+            utils.ast_to_typeref(
+                qlast.TypeName(maintype=b),
+                modaliases=modaliases, schema=schema)
             for b in getattr(astnode, 'bases', None) or []
         )
 

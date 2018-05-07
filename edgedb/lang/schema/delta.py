@@ -697,6 +697,8 @@ class CommandContext:
         self.stack = []
         self._cache = {}
         self.declarative = declarative
+        self.schema = None
+        self.modaliases = {}
 
     def push(self, token):
         self.stack.append(token)
