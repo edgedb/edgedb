@@ -387,7 +387,7 @@ class TestIntrospection(tb.QueryTestCase):
                 'name': 'test::my_enum',
                 'params': [
                     {
-                        'num': 1,
+                        'num': 0,
                         'type': {
                             'name': 'array',
                             'element_type': {
@@ -420,7 +420,7 @@ class TestIntrospection(tb.QueryTestCase):
                 'name': 'test::my_enum',
                 'params': [
                     {
-                        'num': 1,
+                        'num': 0,
                         'type': {
                             'name': 'array',
                             'element_type': {
@@ -451,7 +451,7 @@ class TestIntrospection(tb.QueryTestCase):
                 'name': 'std::enum',
                 'params': [
                     {
-                        'num': 1,
+                        'num': 0,
                         'kind': 'VARIADIC',
                         'type': {
                             'name': 'std::any',

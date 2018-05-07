@@ -197,19 +197,19 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 FROM EdgeQL $$
                     SELECT
                         schema::ObjectType
-                    FILTER schema::ObjectType.name = $1
+                    FILTER schema::ObjectType.name = $0
                 $$;
 
             CREATE FUNCTION test::my_edgeql_func3(std::int64)
                 -> std::int64
                 FROM EdgeQL $$
-                    SELECT $1 + 10
+                    SELECT $0 + 10
                 $$;
 
             CREATE FUNCTION test::my_edgeql_func4(std::int64)
                 -> array<std::int64>
                 FROM EdgeQL $$
-                    SELECT [$1, 1, 2, 3]
+                    SELECT [$0, 1, 2, 3]
                 $$;
         """)
 

@@ -1648,7 +1648,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ''', [
             [{'params': [
                 {
-                    'num': 1,
+                    'num': 0,
                     'kind': 'VARIADIC',
                     'type': {
                         'name': 'std::any'
@@ -1702,7 +1702,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ''', [
             [{'params': [
                 {
-                    'num': 1,
+                    'num': 0,
                     'name': 'sep',
                     'kind': '',
                     'type': {
@@ -1710,7 +1710,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     }
                 },
                 {
-                    'num': 2,
+                    'num': 1,
                     'name': None,
                     'kind': 'VARIADIC',
                     'type': {
@@ -1761,7 +1761,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.con.execute('''
             CREATE FUNCTION test::my_edgeql_func1(std::str) -> std::str
                 FROM EdgeQL $$
-                    SELECT 'str=' + $1
+                    SELECT 'str=' + $0
                 $$;
         ''')
 

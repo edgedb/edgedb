@@ -38,7 +38,7 @@ class Function(so.NamedObject):
                           default=qlast.SetQualifier.DEFAULT, coerce=True,
                           compcoef=0.4)
 
-    # Number of the variadic parameter (+1)
+    # Number of the variadic parameter
     varparam = so.Field(int, default=None, compcoef=0.4)
 
     paramdefaults = so.Field(expr.ExpressionList, default=None, coerce=True)
@@ -214,7 +214,7 @@ def parameters_from_ast(astnode, modaliases, schema):
     paramtypes = []
     paramkinds = []
     variadic = None
-    for argi, arg in enumerate(astnode.args, 1):
+    for argi, arg in enumerate(astnode.args):
         paramnames.append(arg.name)
         paramkinds.append(arg.qualifier)
 

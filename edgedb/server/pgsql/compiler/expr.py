@@ -71,7 +71,7 @@ def compile_Set(
 def compile_Parameter(
         expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     if expr.name.isnumeric():
-        index = int(expr.name)
+        index = int(expr.name) + 1
     else:
         if expr.name in ctx.argmap:
             index = ctx.argmap[expr.name]

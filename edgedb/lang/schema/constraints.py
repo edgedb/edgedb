@@ -181,10 +181,11 @@ class Constraint(inheriting.InheritingObject):
         args_map = None
         if args:
             args_ql = edgeql_parser.parse(args, module_aliases)
-            if constraint.varparam:
-                varparam = constraint.varparam - 1
+            if constraint.varparam is not None:
+                varparam = constraint.varparam
             else:
                 varparam = None
+
             args_map = edgeql_utils.index_parameters(
                 args_ql, varparam=varparam)
 
@@ -401,7 +402,7 @@ class CreateConstraint(ConstraintCommand,
                     s_func.parameters_from_ast(
                         astnode, context.modaliases, schema)
 
-                if variadic:
+                if variadic is not None:
                     cmd.add(sd.AlterObjectProperty(
                         property='varparam',
                         new_value=variadic

@@ -461,10 +461,15 @@ class CreateFunction(FunctionCommand, CreateNamedObject,
                      adapts=s_funcs.CreateFunction):
 
     def compile_sql_function(self, func: s_funcs.Function, schema):
+        if func.varparam is not None:
+            varparam = func.varparam + 1
+        else:
+            varparam = None
+
         return dbops.Function(
             name=self.get_pgname(func),
             args=self.compile_args(func, schema),
-            variadic_arg=func.varparam,
+            variadic_arg=varparam,
             set_returning=func.set_returning,
             returns=self.get_pgtype(func, func.returntype, schema),
             text=func.code)
@@ -475,8 +480,7 @@ class CreateFunction(FunctionCommand, CreateNamedObject,
             arg_types = {}
 
             arg_iter = enumerate(
-                itertools.zip_longest(func.paramnames, func.paramtypes),
-                1)
+                itertools.zip_longest(func.paramnames, func.paramtypes))
 
             for ai, (an, at) in arg_iter:
                 if an is None:
@@ -491,10 +495,15 @@ class CreateFunction(FunctionCommand, CreateNamedObject,
             compiler.compile_ir_to_sql(
                 body_ir, schema=schema, ignore_shapes=True)
 
+        if func.varparam is not None:
+            varparam = func.varparam + 1
+        else:
+            varparam = None
+
         return dbops.Function(
             name=self.get_pgname(func),
             args=self.compile_args(func, schema),
-            variadic_arg=func.varparam,
+            variadic_arg=varparam,
             returns=self.get_pgtype(func, func.returntype, schema),
             text=''.join(qchunks))
 
@@ -536,11 +545,16 @@ class DeleteFunction(
 
         if func.code:
             # EdgeQL function (not an alias to an SQL function).
+            if func.varparam is not None:
+                varparam = func.varparam + 1
+            else:
+                varparam = None
+
             self.pgops.add(
                 dbops.DropFunction(
                     name=self.get_pgname(func),
                     args=self.compile_args(func, schema),
-                    variadic_arg=func.varparam
+                    variadic_arg=varparam
                 )
             )
 

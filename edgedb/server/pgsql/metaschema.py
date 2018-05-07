@@ -861,7 +861,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                 FROM
                     (SELECT
                         s.id        AS id,
-                        t.num       AS num
+                        t.num - 1   AS num
                      FROM
                         edgedb.{mcls.__name__} AS s,
                         LATERAL UNNEST((s.paramtypes).types)
@@ -939,7 +939,7 @@ def _generate_param_view(schema):
             (SELECT
                 f.id        AS id,
                 f.varparam  AS varparam,
-                t.num       AS num,
+                t.num - 1   AS num,
                 (CASE WHEN t.collection IS NULL
                  THEN t.maintype
                  ELSE t.id END)

@@ -89,7 +89,7 @@ def check_function(
 
     if not arg_types:
         # Call without arguments
-        for pi, pd in enumerate(func.paramdefaults, 1):
+        for pi, pd in enumerate(func.paramdefaults):
             if pd is None and pi != func.varparam:
                 # There is at least one non-variadic parameter
                 # without default; hence this function cannot
@@ -105,7 +105,7 @@ def check_function(
             if func.varparam is not None:
                 # Function has a variadic parameter
                 # (which must be the last one).
-                pt = func.paramtypes[func.varparam - 1]  # varparam is +1
+                pt = func.paramtypes[func.varparam]
             else:
                 # No variadic parameter, hence no match.
                 return False
@@ -185,7 +185,7 @@ def fixup_param_scope(
             paramkind = varparam_kind
         else:
             paramkind = func.paramkinds[i]
-            if i + 1 == func.varparam:
+            if i == func.varparam:
                 varparam_kind = paramkind
         if paramkind != qlast.SetQualifier.SET_OF:
             arg_scope = pathctx.get_set_scope(arg, ctx=ctx)

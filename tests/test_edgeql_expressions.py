@@ -854,13 +854,13 @@ class TestExpressions(tb.QueryTestCase):
             CREATE FUNCTION test::take(map<std::str, std::int64>, std::str)
                     -> std::int64
                 FROM EdgeQL $$
-                    SELECT $1[$2] + 100
+                    SELECT $0[$1] + 100
                 $$;
 
             CREATE FUNCTION test::make(std::int64)
                     -> map<std::str, std::int64>
                 FROM EdgeQL $$
-                    SELECT ['aaa' -> $1]
+                    SELECT ['aaa' -> $0]
                 $$;
         ''')
 
