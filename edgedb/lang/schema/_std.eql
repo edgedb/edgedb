@@ -453,8 +453,14 @@ CREATE TYPE schema::Constraint EXTENDING schema::InheritingObject {
 
 CREATE ABSTRACT TYPE schema::ConsistencySubject EXTENDING schema::Object {
     CREATE LINK schema::constraints -> schema::Constraint {
-        SET cardinality := '**';
+        SET cardinality := '1*';
     };
+};
+
+
+ALTER TYPE schema::Constraint {
+    CREATE LINK schema::subject :=
+        __source__.<constraints[IS schema::ConsistencySubject];
 };
 
 

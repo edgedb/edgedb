@@ -461,6 +461,23 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
+    async def test_edgeql_introspection_constraint_04(self):
+        await self.assert_query_result(r"""
+            SELECT schema::Constraint {
+                name,
+                subject: {
+                    name
+                }
+            } FILTER .subject.name = 'test::body';
+        """, [
+            [{
+                'name': 'std::maxlength',
+                'subject': {
+                    'name': 'test::body'
+                }
+            }]
+        ])
+
     async def test_edgeql_introspection_meta_01(self):
         # make sure that ALL schema Objects are std::Objects
         res = await self.con.execute(r"""

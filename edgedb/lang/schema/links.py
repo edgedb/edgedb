@@ -161,6 +161,8 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
         from edgedb.lang.edgeql import utils as ql_utils
+        from edgedb.lang.ir import ast as irast
+        from edgedb.lang.ir import inference as ir_inference
         from edgedb.lang.ir import utils as ir_utils
         from . import objtypes as s_objtypes
 
@@ -278,7 +280,14 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                         )
                     )
 
-                    if ir.cardinality == qlast.Cardinality.ONE:
+                    singletons = {
+                        irast.PathId(source)
+                    }
+
+                    cardinality = ir_inference.infer_cardinality(
+                        ir, singletons, schema)
+
+                    if cardinality == qlast.Cardinality.ONE:
                         link_card = pointers.PointerCardinality.ManyToOne
                     else:
                         link_card = pointers.PointerCardinality.ManyToMany
