@@ -16,7 +16,9 @@ from edgedb.server import _testbase as tb
 
 
 class TestDeltas(tb.DDLTestCase):
-    async def test_delta_simple01(self):
+    ISOLATED_METHODS = True
+
+    async def test_delta_simple_01(self):
         result = await self.con.execute("""
             # setup delta
             #
@@ -132,6 +134,42 @@ class TestDeltas(tb.DDLTestCase):
             None,
 
             []
+        ])
+
+    async def test_delta_unicode_01(self):
+        result = await self.con.execute(r"""
+            # setup delta
+            CREATE MIGRATION test::u1 TO eschema $$
+                type Пример:
+                    required property номер -> int16
+            $$;
+            COMMIT MIGRATION test::u1;
+            SET MODULE test;
+
+            INSERT Пример {
+                номер := 987
+            };
+            INSERT Пример {
+                номер := 456
+            };
+
+            SELECT
+                Пример {
+                    номер
+                }
+            ORDER BY
+                Пример.номер;
+            """)
+
+        self.assert_data_shape(result, [
+            None,
+            None,
+            None,
+
+            [1],
+            [1],
+
+            [{'номер': 456}, {'номер': 987}]
         ])
 
 

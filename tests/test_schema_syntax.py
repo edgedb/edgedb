@@ -150,6 +150,40 @@ type Commit:
     required property name -> std::str
         """
 
+    @tb.must_fail(error.SchemaSyntaxError, line=2, col=14)
+    def test_eschema_syntax_type_12(self):
+        """
+        type __Foo__:
+            required property name -> std::str
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError, line=2, col=14)
+    def test_eschema_syntax_type_13(self):
+        """
+        type `__Foo__`:
+            required property name -> std::str
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError, line=3, col=31)
+    def test_eschema_syntax_type_14(self):
+        """
+        type __Foo:
+            required property __name__ -> std::str
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError, line=3, col=31)
+    def test_eschema_syntax_type_15(self):
+        """
+        type `__Foo`:
+            required property `__name__` -> std::str
+        """
+
+    def test_eschema_syntax_type_16(self):
+        """
+        type Пример:
+            required property номер -> int16
+        """
+
     def test_eschema_syntax_link_target_type_01(self):
         """
 type User:

@@ -20,8 +20,8 @@ re_self = r'[,()\[\].;:+\-*/%^<>=]'
 re_opchars = r"[~!@\#&|`?+\-*/%^<>=]"
 re_opchars_pgsql = r'[~!@\#&|`?]'
 re_opchars_sql = r'[+\-*/^%<>=]'
-re_ident_start = r"[A-Za-z\200-\377_%]"
-re_ident_cont = r"[A-Za-z\200-\377_0-9\$%]"
+re_ident_start = r"[A-Za-z\200-\377_]"
+re_ident_cont = r"[A-Za-z\200-\377_0-9\$]"
 
 clean_string = re.compile(r"'(?:\s|\n)+'")
 

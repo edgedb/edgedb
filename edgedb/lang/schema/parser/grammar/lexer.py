@@ -93,10 +93,7 @@ class EdgeSchemaLexer(lexer.Lexer):
     ident_rule = Rule(
         token='IDENT',
         next_state=STATE_KEEP,
-        regexp=r'''
-               (?:[^\W\d]|\$)
-               (?:\w|\$)*
-        ''')
+        regexp=r'[^\W\d]\w*')
 
     qident_rule = Rule(
         token='QIDENT',
@@ -198,6 +195,14 @@ class EdgeSchemaLexer(lexer.Lexer):
         Rule(token='DOT',
              next_state=STATE_KEEP,
              regexp=r'\.'),
+
+        Rule(token='BADIDENT',
+             next_state=STATE_KEEP,
+             regexp=r'''
+                    __[^\W\d]\w*__
+                    |
+                    `__.*?__`
+                '''),
 
         string_rule,
         ident_rule,
@@ -324,6 +329,9 @@ class EdgeSchemaLexer(lexer.Lexer):
     }
 
     def token_from_text(self, rule_token, txt):
+        if rule_token == 'BADIDENT':
+            self.handle_error(txt)
+
         tok = super().token_from_text(rule_token, txt)
 
         if rule_token == 'QIDENT':
