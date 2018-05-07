@@ -86,6 +86,21 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
         else:
             return value
 
+    def assignment_castable_to(self, other: s_types.Type, schema) -> bool:
+        if self.issubclass(other) or other.issubclass(self):
+            # ScalarType compatibility is symmetric, i.e. a superclass instance
+            # is compatible with subclasses, as they all share the same
+            # fundamental type.
+            return True
+
+        # In addition all numerical types are compatible for purposes
+        # of assignment.
+        real_t = schema.get('std::anyreal')
+        if self.issubclass(real_t) and other.issubclass(real_t):
+            return True
+
+        return False
+
     def implicitly_castable_to(self, other: s_types.Type, schema) -> bool:
         if self.issubclass(other) or other.issubclass(self):
             # ScalarType compatibility is symmetric, i.e. a superclass instance
