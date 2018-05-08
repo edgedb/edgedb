@@ -141,13 +141,13 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT $somevar;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, 'Unknown token', line=2, col=16)
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected '0'", line=2, col=16)
     def test_edgeql_syntax_constants_07(self):
         """
         SELECT 02;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, 'Unexpected token.*SEMICOLON',
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected ';'",
                   line=2, col=18)
     def test_edgeql_syntax_constants_08(self):
         """
@@ -370,28 +370,28 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Unexpected token.*>=', line=2, col=16)
+                  "Unexpected '>='", line=2, col=16)
     def test_edgeql_syntax_ops_19(self):
         """
         SELECT >=1;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Unexpected token.*\*', line=2, col=16)
+                  "Unexpected '\*'", line=2, col=16)
     def test_edgeql_syntax_ops_20(self):
         """
         SELECT *1;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Unknown token.*~', line=2, col=16)
+                  "Unexpected '~'", line=2, col=16)
     def test_edgeql_syntax_ops_21(self):
         """
         SELECT ~1;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Unexpected token.*>', line=2, col=16)
+                  "Unexpected '>'", line=2, col=16)
     def test_edgeql_syntax_ops_22(self):
         """
         SELECT >1;
@@ -701,7 +701,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*DOT", line=3, col=21)
+                  "Unexpected '\.'", line=3, col=21)
     def test_edgeql_syntax_shape_11(self):
         """
         SELECT Foo {
@@ -729,7 +729,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*TURNSTILE", line=3, col=18)
+                  "Unexpected ':='", line=3, col=18)
     def test_edgeql_syntax_shape_14(self):
         """
         SELECT {
@@ -739,14 +739,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*LPAREN", line=2, col=21)
+                  "Unexpected '\('", line=2, col=21)
     def test_edgeql_syntax_shape_15(self):
         """
         SELECT Foo {(bar)};
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*LPAREN", line=2, col=30)
+                  "Unexpected '\('", line=2, col=30)
     def test_edgeql_syntax_shape_16(self):
         """
         SELECT Foo {[IS Bar].(bar)};
@@ -786,7 +786,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*AT", line=6, col=29)
+                  "Unexpected '@'", line=6, col=29)
     def test_edgeql_syntax_shape_20(self):
         """
         INSERT Foo{
@@ -830,7 +830,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*STAR", line=4, col=24)
+                  "Unexpected '\*'", line=4, col=24)
     def test_edgeql_syntax_shape_26(self):
         """
         SELECT Issue{
@@ -840,7 +840,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*STAR", line=4, col=24)
+                  "Unexpected '\*'", line=4, col=24)
     def test_edgeql_syntax_shape_27(self):
         """
         SELECT Issue{
@@ -850,7 +850,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*STAR", line=4, col=24)
+                  "Unexpected '\*'", line=4, col=24)
     def test_edgeql_syntax_shape_28(self):
         """
         SELECT Issue{
@@ -860,7 +860,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*STAR", line=4, col=24)
+                  "Unexpected '\*'", line=4, col=24)
     def test_edgeql_syntax_shape_29(self):
         """
         SELECT Issue{
@@ -980,8 +980,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         );
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Unexpected token: <Token COLON ":">',
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected ':'",
                   line=3, col=16)
     def test_edgeql_syntax_struct_03(self):
         """
@@ -991,8 +990,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         );
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Unexpected token: <Token COLON ":">',
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected ':'",
                   line=3, col=16)
     def test_edgeql_syntax_struct_04(self):
         """
@@ -1003,8 +1001,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         );
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Unexpected token: <Token COLON ":">',
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected ':'",
                   line=3, col=16)
     def test_edgeql_syntax_struct_05(self):
         """
@@ -1034,7 +1031,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*ALL", line=4, col=13)
+                  "Unexpected 'all'", line=4, col=13)
     def test_edgeql_syntax_struct_08(self):
         """
         SELECT (
@@ -1045,7 +1042,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*TURNSTILE", line=4, col=20)
+                  "Unexpected ':='", line=4, col=20)
     def test_edgeql_syntax_struct_09(self):
         """
         SELECT (
@@ -1055,28 +1052,28 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*TURNSTILE", line=2, col=22)
+                  "Unexpected ':='", line=2, col=22)
     def test_edgeql_syntax_struct_10(self):
         """
         SELECT (1, a := 2);
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*ICONST", line=2, col=25)
+                  "Unexpected '2'", line=2, col=25)
     def test_edgeql_syntax_struct_11(self):
         """
         SELECT (a := 1, 2);
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*RPAREN", line=2, col=28)
+                  "Unexpected '\)'", line=2, col=28)
     def test_edgeql_syntax_struct_12(self):
         """
         SELECT (a := 1, foo);
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*DOT", line=2, col=28)
+                  "Unexpected '\.'", line=2, col=28)
     def test_edgeql_syntax_struct_13(self):
         """
         SELECT (a := 1, foo.bar);
@@ -1224,20 +1221,20 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT .<foo;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, 'Unexpected token.*"."', line=2)
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected '.'", line=2)
     def test_edgeql_syntax_path_17(self):
         """
         SELECT ..foo;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, 'Unexpected token.*DUNDERSOURCE',
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected '__source__'",
                   line=2, col=20)
     def test_edgeql_syntax_path_18(self):
         """
         SELECT Foo.__source__;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, 'Unexpected token.*DUNDERSUBJECT',
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected '__subject__'",
                   line=2, col=20)
     def test_edgeql_syntax_path_19(self):
         """
@@ -1263,21 +1260,21 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo.TUP.0.1.name;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, 'Unexpected token.*FCONST',
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected '0.2e2'",
                   line=2, col=20)
     def test_edgeql_syntax_path_22(self):
         """
         SELECT TUP.0.2e2;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, 'Unexpected token.*DUNDERTYPE',
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected '__type__'",
                   line=2, col=16)
     def test_edgeql_syntax_path_23(self):
         """
         SELECT __type__;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, 'Unexpected token.*DUNDERTYPE',
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected '__type__'",
                   line=2, col=24)
     def test_edgeql_syntax_path_24(self):
         """
@@ -1438,7 +1435,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected token.*LBRACE", line=3, col=19)
+                  "Unexpected '\{'", line=3, col=19)
     def test_edgeql_syntax_cast_03(self):
         """
         SELECT
@@ -1483,7 +1480,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT User.name FILTER (User.name = 'special');
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=26)
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected string 'M'",
+                  line=2, col=26)
     def test_edgeql_syntax_cardinality_03(self):
         """
         WITH CARDINALITY 'M'
@@ -2004,8 +2002,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         UPDATE Foo FILTER (Foo.bar = 24) SET {bar := 42};
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Unexpected token: <Token SEMICOLON ";">',
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected ';'",
                   line=2, col=18)
     def test_edgeql_syntax_update_03(self):
         """
@@ -2153,7 +2150,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     # NOTE: this test is a remnant of an attempt to define syntax for
     # window functions. It may become valid again.
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Unexpected token:.*OVER', line=2, col=36)
+                  r"Unexpected 'OVER'", line=2, col=36)
     def test_edgeql_syntax_function_04(self):
         """
         SELECT some_agg(User.name) OVER (ORDER BY User.age ASC);
@@ -2169,7 +2166,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Unexpected token:.*ALL', line=2, col=22)
+                  r"Unexpected 'ALL'", line=2, col=22)
     def test_edgeql_syntax_function_05(self):
         """
         SELECT count(ALL 1);
@@ -2425,63 +2422,63 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*map", line=2, col=44)
+                  r"Unexpected 'map'", line=2, col=44)
     def test_edgeql_syntax_ddl_attribute_06(self):
         """
         CREATE ABSTRACT ATTRIBUTE std::foo map;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*>", line=2, col=53)
+                  r"Unexpected '>'", line=2, col=53)
     def test_edgeql_syntax_ddl_attribute_07(self):
         """
         CREATE ABSTRACT ATTRIBUTE std::foo map<int64>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*COMMA", line=2, col=58)
+                  r"Unexpected ','", line=2, col=58)
     def test_edgeql_syntax_ddl_attribute_08(self):
         """
         CREATE ABSTRACT ATTRIBUTE std::foo map<int64, str, float64>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*array", line=2, col=44)
+                  r"Unexpected 'array'", line=2, col=44)
     def test_edgeql_syntax_ddl_attribute_09(self):
         """
         CREATE ABSTRACT ATTRIBUTE std::foo array;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*COMMA", line=2, col=55)
+                  r"Unexpected ','", line=2, col=55)
     def test_edgeql_syntax_ddl_attribute_10(self):
         """
         CREATE ABSTRACT ATTRIBUTE std::foo array<int64, int64, int64>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*<", line=2, col=55)
+                  r"Unexpected '<'", line=2, col=55)
     def test_edgeql_syntax_ddl_attribute_11(self):
         """
         CREATE ABSTRACT ATTRIBUTE std::foo array<array<int64[]>>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*COLON", line=2, col=60)
+                  r"Unexpected ':'", line=2, col=60)
     def test_edgeql_syntax_ddl_attribute_12(self):
         """
         CREATE ABSTRACT ATTRIBUTE std::foo tuple<int64, foo:int64>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*>", line=2, col=64)
+                  r"Unexpected '>'", line=2, col=64)
     def test_edgeql_syntax_ddl_attribute_13(self):
         """
         CREATE ABSTRACT ATTRIBUTE std::foo tuple<foo:int64, str>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected token.*SEMICOLON", line=2, col=50)
+                  r"Unexpected ';'", line=2, col=50)
     def test_edgeql_syntax_ddl_attribute_14(self):
         """
         CREATE ABSTRACT ATTRIBUTE std::paramtypes;
@@ -2715,7 +2712,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, r'Unexpected token:.*RPAREN',
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected '\)'",
                   line=3, col=52)
     def test_edgeql_syntax_ddl_function_30(self):
         """
@@ -2726,21 +2723,21 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Unexpected token.*VARIADIC', line=2, col=41)
+                  "Unexpected 'VARIADIC'", line=2, col=41)
     def test_edgeql_syntax_ddl_function_31(self):
         """
         CREATE FUNCTION std::foo(SET OF VARIADIC std::str) -> std::int64;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Unexpected token.*SET', line=2, col=43)
+                  "Unexpected 'SET'", line=2, col=43)
     def test_edgeql_syntax_ddl_function_32(self):
         """
         CREATE FUNCTION std::foo(VARIADIC SET OF std::str) -> std::int64;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Unexpected token.*SET', line=2, col=49)
+                  "Unexpected 'SET'", line=2, col=49)
     def test_edgeql_syntax_ddl_function_33(self):
         """
         CREATE FUNCTION std::foo($bar: VARIADIC SET OF std::str) -> std::int64;
@@ -2750,6 +2747,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         CREATE FUNCTION foo(OPTIONAL std::str) ->
             std::int64 FROM SQL FUNCTION 'aaa';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected 'VARIADIC'", line=2, col=54)
+    def test_edgeql_syntax_ddl_function_35(self):
+        """
+        CREATE FUNCTION std::foo(SET OF std::str) -> VARIADIC std::int64
+            FROM SQL $a$SELECT $$foo$$$a$;
         """
 
     def test_edgeql_syntax_ddl_property_01(self):

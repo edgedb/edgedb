@@ -6,6 +6,7 @@
 ##
 
 
+import re
 import sys
 import types
 
@@ -13,6 +14,11 @@ from edgedb.lang.common import parsing
 
 from . import keywords
 from . import precedence
+from . import lexer
+
+
+clean_string = re.compile(r"'(?:\s|\n)+'")
+string_quote = re.compile(lexer.re_dquote)
 
 
 class TokenMeta(parsing.TokenMeta):
@@ -141,7 +147,22 @@ class T_FCONST(Token):
 
 
 class T_SCONST(Token):
-    pass
+    def __init__(self, parser, val, context=None):
+        super().__init__(parser, val, context)
+        # the process of string normalization is slightly different for
+        # regular '-quoted strings and $$-quoted ones
+        if val[0] in ("'", '"'):
+            self.string = clean_string.sub('', val[1:-1].replace(
+                R"\'", "'").replace(R'\"', '"'))
+        else:
+            # Because of implicit string concatenation there may
+            # be more than one pair of dollar quotes in the val.
+            # We want to grab every other chunk from splitting the
+            # val with the quote.
+            quote = string_quote.match(val).group(0)
+            self.string = ''.join((
+                part for n, part in enumerate(val.split(quote))
+                if n % 2 == 1))
 
 
 class T_IDENT(Token):

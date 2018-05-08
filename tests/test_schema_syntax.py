@@ -141,8 +141,7 @@ type `Log-Entry` extending OwnedObject, Text:
     required link attachment -> Post, File, User
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
-                  "Unexpected token.*COMMIT",
+    @tb.must_fail(error.SchemaSyntaxError, "Unexpected 'Commit'",
                   line=2, col=6)
     def test_eschema_syntax_type_11(self):
         """
@@ -304,7 +303,7 @@ type LogEntry extending    OwnedObject,    Text:
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  r"Unknown token.*\\",
+                  r"Unexpected '\\'",
                   line=5, col=28)
     def test_eschema_syntax_ws_06(self):
         r"""
@@ -329,7 +328,7 @@ type LogEntry extending    OwnedObject,    Text:
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  r"Unexpected token.*INDENT", line=7, col=13)
+                  r"Unexpected indentation level increase", line=7, col=13)
     def test_eschema_syntax_ws_09(self):
         # There is no ":" at the end of the type declaration, so
         # the next declaration is supposed to be on the same level of
@@ -423,8 +422,7 @@ scalar type basic extending int:
     constraint special_constraint
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
-                  r"Unexpected token.*:=",
+    @tb.must_fail(error.SchemaSyntaxError, r"Unexpected ':='",
                   line=3, col=35)
     def test_eschema_syntax_scalar_09(self):
         """
@@ -523,8 +521,7 @@ abstract constraint foo($param:Foo) on (len(__subject__.bar)) extending max:
     errmessage := 'bar must be no more than {$param}.'
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
-                  r"Unexpected token.*CONSTRAINT",
+    @tb.must_fail(error.SchemaSyntaxError, r"Unexpected 'constraint'",
                   line=2, col=1)
     def test_eschema_syntax_constraint_09(self):
         """
@@ -566,8 +563,7 @@ abstract property bar extending foo:
     title := 'Another property'
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
-                  r"Unexpected token.*PROPERTY",
+    @tb.must_fail(error.SchemaSyntaxError, r"Unexpected 'property'",
                   line=2, col=1)
     def test_eschema_syntax_property_05(self):
         """
@@ -692,16 +688,14 @@ event self_deleted:
 abstract link coollink
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
-                  r"Unexpected token.*LINK",
+    @tb.must_fail(error.SchemaSyntaxError, r"Unexpected 'link'",
                   line=2, col=1)
     def test_eschema_syntax_link_11(self):
         """
 link foo
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
-                  r"Unexpected token.*DOUBLECOLON",
+    @tb.must_fail(error.SchemaSyntaxError, r"Unexpected '::'",
                   line=3, col=13)
     def test_eschema_syntax_link_12(self):
         """
@@ -762,7 +756,7 @@ type Foo:
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  r'Unexpected token.*DOT', line=4, col=33)
+                  r"Unexpected '\.'", line=4, col=33)
     def test_eschema_syntax_import_07(self):
         """
         import mylib.util.foo
@@ -772,7 +766,7 @@ type Foo:
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  r'Unexpected token.*DOT', line=4, col=34)
+                  r"Unexpected '\.'", line=4, col=34)
     def test_eschema_syntax_import_08(self):
         """
         import action.event.foo
@@ -894,8 +888,7 @@ type Foo:
             from edgeql function: some_other_func
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
-                  r"Unexpected token.*RPAREN",
+    @tb.must_fail(error.SchemaSyntaxError, r"Unexpected '\)'",
                   line=2, col=42)
     def test_eschema_syntax_function_12(self):
         """
@@ -911,8 +904,7 @@ type Foo:
             from edgeql function: some_other_func
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
-                  r"Unexpected token.*RPAREN",
+    @tb.must_fail(error.SchemaSyntaxError, r"Unexpected '\)'",
                   line=4, col=24)
     def test_eschema_syntax_function_14(self):
         r"""
@@ -944,8 +936,7 @@ type Foo:
             from edgeql function: some_other_func
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
-                  r"Unexpected token.*NL",
+    @tb.must_fail(error.SchemaSyntaxError, r"Unexpected end of line",
                   line=4, col=44)
     def test_eschema_syntax_function_17(self):
         """
@@ -1006,7 +997,7 @@ type Foo:
             from sql function: length
         """
 
-    @tb.must_fail(error.SchemaSyntaxError, r"Unexpected token:.*RPAREN",
+    @tb.must_fail(error.SchemaSyntaxError, r"Unexpected '\)'",
                   line=3, col=41)
     def test_eschema_syntax_aggregate_06(self):
         """
@@ -1078,7 +1069,7 @@ type Foo:
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  r'Unexpected token.*DOUBLECOLON', line=2, col=32)
+                  r"Unexpected '::'", line=2, col=32)
     def test_eschema_syntax_attribute_07(self):
         """
         abstract attribute test::foobar as std::str
@@ -1108,28 +1099,27 @@ type Foo:
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  r'Unexpected token:.*EXTENDING', line=2, col=41)
+                  r"Unexpected 'extending'", line=2, col=41)
     def test_eschema_syntax_attribute_12(self):
         """
         abstract attribute as extending extending foo
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  r'Unexpected token:.*EXTENDING', line=2, col=44)
+                  r"Unexpected 'extending'", line=2, col=44)
     def test_eschema_syntax_attribute_13(self):
         """
         abstract attribute as as extending extending
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  r'Unexpected token:.*NL', line=2, col=34)
+                  r'Unexpected end of line', line=2, col=34)
     def test_eschema_syntax_attribute_14(self):
         """
         abstract attribute foobar
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
-                  r"Unexpected token.*ATTRIBUTE",
+    @tb.must_fail(error.SchemaSyntaxError, r"Unexpected 'attribute'",
                   line=2, col=1)
     def test_eschema_syntax_attribute_15(self):
         """
@@ -1321,7 +1311,7 @@ attribute foo std::int64;
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  r"Unexpected token.*2",
+                  r"Unexpected '2'",
                   line=3, col=9)
     def test_eschema_syntax_eol_09(self):
         r"""

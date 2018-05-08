@@ -17,9 +17,24 @@ class EdgeQLParserBase(parsing.Parser):
         return debug.flags.edgeql_parser
 
     def get_exception(self, native_err, context, token=None):
+        msg = native_err.args[0]
+
         if isinstance(native_err, EdgeQLSyntaxError):
             return native_err
-        return EdgeQLSyntaxError(native_err.args[0], context=context)
+        else:
+            if msg.startswith('Unexpected token: '):
+                token = token or getattr(native_err, 'token', None)
+
+                if not token:
+                    msg = 'Unexpected end of line'
+                elif hasattr(token, 'val'):
+                    msg = f'Unexpected {token.val!r}'
+                elif token.type == 'NL':
+                    msg = 'Unexpected end of line'
+                else:
+                    msg = f'Unexpected {token.text!r}'
+
+        return EdgeQLSyntaxError(msg, context=context, token=token)
 
     def get_lexer(self):
         return lexer.EdgeQLLexer()

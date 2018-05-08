@@ -202,8 +202,8 @@ class Lexer:
 
     def handle_error(self, txt):
         raise UnknownTokenError(
-            'Unknown token {!r} {{position}}'.format(txt), line=self.lineno,
-            col=self.column, filename=self.filename)
+            f"Unexpected '{txt}'",
+            line=self.lineno, col=self.column, filename=self.filename)
 
     def token(self):
         """Return the next token produced by the lexer.

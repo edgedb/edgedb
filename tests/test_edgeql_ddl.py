@@ -284,7 +284,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_12(self):
         with self.assertRaisesRegex(
                 client_errors.EdgeQLError,
-                r'Unknown token.*__subject__'):
+                r"Unexpected '`__subject__`'"):
             await self.con.execute(r"""
                 CREATE TYPE test::TestBadContainerLinkObjectType {
                     CREATE PROPERTY test::foo -> std::str {

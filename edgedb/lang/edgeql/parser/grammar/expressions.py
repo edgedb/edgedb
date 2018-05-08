@@ -241,10 +241,10 @@ class WithDecl(Nonterm):
 
     def reduce_CARDINALITY_SCONST(self, *kids):
         try:
-            car = qlast.Cardinality(kids[1].val)
+            car = qlast.Cardinality(kids[1].string)
         except ValueError:
             raise EdgeQLSyntaxError(
-                'Unexpected token: {!r}'.format(kids[1]),
+                f'Unexpected string {kids[1].val}',
                 context=kids[1].context)
         self.val = CardinalityData(cardinality=car, tok=kids[0])
 
@@ -875,7 +875,7 @@ class BaseNumberConstant(Nonterm):
 
 class BaseStringConstant(Nonterm):
     def reduce_SCONST(self, *kids):
-        self.val = qlast.Constant(value=str(kids[0].val))
+        self.val = qlast.Constant(value=str(kids[0].string))
 
 
 class BaseBooleanConstant(Nonterm):
@@ -931,7 +931,7 @@ class Path(Nonterm):
         parts = token.val.split('.')
         if not (len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit()):
             raise EdgeQLSyntaxError(
-                'Unexpected token: {!r}'.format(token),
+                f"Unexpected {token.val!r}",
                 context=token.context)
 
         # context for the AST is established manually here
@@ -1085,7 +1085,7 @@ class NonArrayTypeName(Nonterm):
         if maintype.module is None:
             if maintype.name in ('array', 'map'):
                 raise EdgeQLSyntaxError(
-                    'Unexpected token: {!r}'.format(maintype.name),
+                    f"Unexpected {maintype.name!r}",
                     context=kids[0].context)
 
         self.val = qlast.TypeName(maintype=maintype)

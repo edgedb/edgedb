@@ -137,7 +137,6 @@ class GraphQLLexer(lexer.Lexer):
 
     def handle_error(self, txt):
         # check if this is unterminated string instead of a generic error
-        #
         if txt == '"':
 
             pos = re.compile(r'$', self.RE_FLAGS).search(self.inputstr,

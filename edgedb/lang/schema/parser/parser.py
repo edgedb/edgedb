@@ -16,6 +16,7 @@ class EdgeSchemaParser(parsing.Parser):
         if isinstance(native_err, SchemaSyntaxError):
             return native_err
 
+        msg = native_err.args[0]
         if token and token.type == 'BADLINECONT':
             context.start.column += 1
             return SchemaSyntaxError(
@@ -25,9 +26,25 @@ class EdgeSchemaParser(parsing.Parser):
 
         # if the error is about unexpected <$> token, convert the text to be
         # referencing <NL> token
-        if native_err.args[0] == 'Unexpected token: <$>':
-            return SchemaSyntaxError('Unexpected token: <NL>', context=context)
-        return SchemaSyntaxError(native_err.args[0], context=context)
+        elif msg == 'Unexpected token: <$>':
+            return SchemaSyntaxError('Unexpected end of line', context=context)
+
+        else:
+            if msg.startswith('Unexpected token: '):
+                token = token or native_err.token
+
+                if hasattr(token, 'val'):
+                    msg = f'Unexpected {token.val!r}'
+                elif token.type == 'NL':
+                    msg = 'Unexpected end of line'
+                elif token.type == 'INDENT':
+                    msg = 'Unexpected indentation level increase'
+                elif token.type == 'DEDENT':
+                    msg = 'Unexpected indentation level decrease'
+                else:
+                    msg = f'Unexpected {token.text!r}'
+
+        return SchemaSyntaxError(msg, context=context)
 
     def get_parser_spec_module(self):
         from .grammar import declarations
