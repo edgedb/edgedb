@@ -2828,26 +2828,48 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_set_command_01(self):
         """
         SET MODULE default;
-
-% OK %
-
-        SET MODULE default;
         """
 
     def test_edgeql_syntax_set_command_02(self):
         """
-        SET foo := MODULE default;
-
-% OK %
-
         SET foo := MODULE default;
         """
 
     def test_edgeql_syntax_set_command_03(self):
         """
         SET MODULE default, foo := (SELECT User);
+        """
+
+    def test_edgeql_syntax_ddl_view_01(self):
+        """
+        CREATE VIEW Foo := (SELECT User);
 
 % OK %
 
-        SET MODULE default, foo := (SELECT User);
+        CREATE VIEW Foo {
+            SET expr := SELECT User;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_view_02(self):
+        """
+        CREATE VIEW Foo {
+            SET expr := (SELECT User);
+        };
+
+        ALTER VIEW Foo
+            SET expr := (SELECT Person);
+
+        DROP VIEW Foo;
+
+% OK %
+
+        CREATE VIEW Foo {
+            SET expr := SELECT User;
+        };
+
+        ALTER VIEW Foo
+            SET expr := SELECT Person;
+
+        DROP VIEW Foo;
         """

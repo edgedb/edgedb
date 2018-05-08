@@ -1030,6 +1030,20 @@ type Foo:
                 FILTER Foo.bar = 'baz'
         """
 
+    def test_eschema_syntax_view_03(self):
+        """
+        view FooBaz :=
+                SELECT Foo
+                FILTER Foo.bar = 'baz'
+
+% OK %
+
+        view FooBaz:
+            expr :=
+                SELECT Foo
+                FILTER Foo.bar = 'baz'
+        """
+
     def test_eschema_syntax_attribute_01(self):
         """
         abstract attribute foobar std::str

@@ -42,6 +42,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             visitor = getattr(self, method, self.generic_visit)
             return visitor(node, **kwargs)
 
+    def _needs_parentheses(self, node):
+        return (
+            isinstance(node.parent, edgeql_ast.Base) and
+            not isinstance(node.parent, edgeql_ast.DDL)
+        )
+
     def generic_visit(self, node, *args, **kwargs):
         raise EdgeQLSourceGeneratorError(
             'No method to generate code for %s' % node.__class__.__name__)
@@ -105,8 +111,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_InsertQuery(self, node):
         # need to parenthesise when INSERT appears as an expression
-        parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
-                        not isinstance(node.parent, edgeql_ast.DDL))
+        parenthesise = self._needs_parentheses(node)
 
         if parenthesise:
             self.write('(')
@@ -126,8 +131,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_UpdateQuery(self, node):
         # need to parenthesise when UPDATE appears as an expression
-        parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
-                        not isinstance(node.parent, edgeql_ast.DDL))
+        parenthesise = self._needs_parentheses(node)
 
         if parenthesise:
             self.write('(')
@@ -153,8 +157,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_DeleteQuery(self, node):
         # need to parenthesise when DELETE appears as an expression
-        parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
-                        not isinstance(node.parent, edgeql_ast.DDL))
+        parenthesise = self._needs_parentheses(node)
 
         if parenthesise:
             self.write('(')
@@ -168,8 +171,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_SelectQuery(self, node):
         # XXX: need to parenthesise when SELECT appears as an expression,
         # the actual passed value is ignored.
-        parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
-                        not isinstance(node.parent, edgeql_ast.DDL))
+        parenthesise = self._needs_parentheses(node)
 
         if parenthesise:
             self.write('(')
@@ -190,8 +192,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_ForQuery(self, node):
         # need to parenthesise when GROUP appears as an expression
-        parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
-                        not isinstance(node.parent, edgeql_ast.DDL))
+        parenthesise = self._needs_parentheses(node)
 
         if parenthesise:
             self.write('(')
@@ -220,8 +221,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_GroupQuery(self, node):
         # need to parenthesise when GROUP appears as an expression
-        parenthesise = (isinstance(node.parent, edgeql_ast.Base) and
-                        not isinstance(node.parent, edgeql_ast.DDL))
+        parenthesise = self._needs_parentheses(node)
 
         if parenthesise:
             self.write('(')
@@ -759,6 +759,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_DropAction(self, node):
         self._visit_DropObject(node, 'ACTION')
+
+    def visit_CreateView(self, node):
+        self._visit_CreateObject(node, 'VIEW')
+
+    def visit_AlterView(self, node):
+        self._visit_AlterObject(node, 'VIEW')
+
+    def visit_DropView(self, node):
+        self._visit_DropObject(node, 'VIEW')
 
     def visit_CreateEvent(self, node):
         after_name = lambda: self._ddl_visit_bases(node)

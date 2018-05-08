@@ -577,6 +577,14 @@ class ViewDeclaration(Nonterm):
         self.val = esast.ViewDeclaration(name=kids[1].val,
                                          attributes=kids[5].val)
 
+    def reduce_VIEW_Identifier_TurnstileBlob(self, *kids):
+        self.val = esast.ViewDeclaration(
+            name=kids[1].val,
+            attributes=[esast.Attribute(
+                name=qlast.ObjectRef(name='expr'),
+                value=kids[2].val)
+            ])
+
 
 class FunctionDeclaration(Nonterm):
     def reduce_FUNCTION_FunctionDeclCore(self, *kids):
