@@ -22,9 +22,6 @@ STATE_BASE = 1
 
 re_dquote = r'\$([A-Za-z\200-\377_][0-9]*)*\$'
 
-clean_string = re.compile(r"'(?:\s|\n)+'")
-string_quote = re.compile(re_dquote)
-
 Rule = lexer.Rule
 
 
@@ -158,24 +155,6 @@ class EdgeQLLexer(lexer.Lexer):
 
         elif rule_token == 'QIDENT':
             tok = tok._replace(type='IDENT', value=txt[1:-1])
-
-        elif rule_token == 'SCONST':
-            # the process of string normalization is slightly different for
-            # regular '-quoted strings and $$-quoted ones
-            if txt[0] in ("'", '"'):
-                tok = tok._replace(
-                    value=clean_string.sub('', txt[1:-1].replace(
-                        R"\'", "'").replace(R'\"', '"')))
-            else:
-                # Because of implicit string concatenation there may
-                # be more than one pair of dollar quotes in the txt.
-                # We want to grab every other chunk from splitting the
-                # txt with the quote.
-                quote = string_quote.match(txt).group(0)
-                tok = tok._replace(
-                    value=''.join((
-                        part for n, part in enumerate(txt.split(quote))
-                        if n % 2 == 1)))
 
         return tok
 

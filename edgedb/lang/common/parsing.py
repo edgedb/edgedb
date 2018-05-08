@@ -294,7 +294,8 @@ class Parser:
 
     def get_exception(self, native_err, context, token=None):
         if not isinstance(native_err, ParserError):
-            return ParserError(native_err.args[0], context=context)
+            return ParserError(native_err.args[0],
+                               context=context, token=token)
         else:
             return native_err
 

@@ -385,14 +385,14 @@ class OptDeltaTarget(Nonterm):
 # CREATE MIGRATION
 #
 class CreateDeltaStmt(Nonterm):
-    def _parse_schema_decl(self, expression):
+    def _parse_schema_decl(self, tok):
         from edgedb.lang.common.exceptions import get_context
         from edgedb.lang.schema import parser
 
-        ctx = expression.context
+        ctx = tok.context
 
         try:
-            node = parser.parse(expression.val)
+            node = parser.parse(tok.string)
         except parsing.ParserError as err:
             context.rebase_context(
                 ctx, get_context(err, parsing.ParserContext))
@@ -1458,7 +1458,7 @@ def _parse_language(node):
 class FromFunction(Nonterm):
     def reduce_FROM_Identifier_SCONST(self, *kids):
         lang = _parse_language(kids[1])
-        self.val = qlast.FunctionCode(language=lang, code=kids[2].val)
+        self.val = qlast.FunctionCode(language=lang, code=kids[2].string)
 
     def reduce_FROM_Identifier_FUNCTION_SCONST(self, *kids):
         lang = _parse_language(kids[1])
@@ -1467,7 +1467,7 @@ class FromFunction(Nonterm):
                 f'{lang} language is not supported in FROM FUNCTION clause',
                 context=kids[1].context) from None
 
-        self.val = qlast.FunctionCode(language=lang, from_name=kids[3].val)
+        self.val = qlast.FunctionCode(language=lang, from_name=kids[3].string)
 
 
 class FromAggregate(Nonterm):
@@ -1478,7 +1478,7 @@ class FromAggregate(Nonterm):
                 f'{lang} language is not supported in FROM AGGREGATE clause',
                 context=kids[1].context) from None
 
-        self.val = qlast.FunctionCode(language=lang, from_name=kids[3].val)
+        self.val = qlast.FunctionCode(language=lang, from_name=kids[3].string)
 
 
 class InitialValue(Nonterm):
@@ -1562,7 +1562,7 @@ class CreateFunctionStmt(Nonterm, _ProcessFunctionBlockMixin):
                 CreateFunctionCommandsBlock
         """
         if kids[5].val == qlast.SetQualifier.VARIADIC:
-            raise EdgeQLSyntaxError('Unexpected token: {}'.format(kids[5]),
+            raise EdgeQLSyntaxError(f'Unexpected {kids[5].val.value!r}',
                                     context=kids[5].context)
 
         self.val = qlast.CreateFunction(
