@@ -36,7 +36,7 @@ class Delta(named.NamedObject):
                        coerce=True, inheritable=False)
 
     target = so.Field(s_schema.Schema, inheritable=False,
-                      ephemeral=True)
+                      ephemeral=True, default=None)
 
     commands = so.Field(sd.CommandList,
                         default=sd.CommandList,

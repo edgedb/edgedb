@@ -175,7 +175,18 @@ class InnerDDLStmt(Nonterm):
         self.val = kids[0].val
 
 
-class InnerDDLStmtBlock(ListNonterm, element=InnerDDLStmt):
+class Semicolons(Nonterm):
+    # one or more semicolons
+    #
+    def reduce_SEMICOLON(self, tok):
+        self.val = tok
+
+    def reduce_Semicolons_SEMICOLON(self, *kids):
+        self.val = kids[0].val
+
+
+class InnerDDLStmtBlock(ListNonterm, element=InnerDDLStmt,
+                        separator=Semicolons):
     pass
 
 
@@ -199,16 +210,6 @@ def _new_nonterm(clsname, clsdict={}, clskwds={}, clsbases=(Nonterm,)):
     cls = types.new_class(clsname, clsbases, clskwds, clsexec)
     setattr(mod, clsname, cls)
     return cls
-
-
-class Semicolons(Nonterm):
-    # one or more semicolons
-    #
-    def reduce_SEMICOLON(self, tok):
-        self.val = tok
-
-    def reduce_Semicolons_SEMICOLON(self, *kids):
-        self.val = kids[0].val
 
 
 class ProductionHelper:
@@ -438,7 +439,8 @@ class CreateDeltaStmt(Nonterm):
 
     def reduce_CreateDelta_Commands(self, *kids):
         r"""%reduce CREATE MIGRATION NodeName \
-                    OptDeltaParents LBRACE InnerDDLStmtBlock RBRACE \
+                    OptDeltaParents LBRACE InnerDDLStmtBlock Semicolons \
+                    RBRACE
         """
         self.val = qlast.CreateDelta(
             name=kids[2].val,
@@ -811,10 +813,10 @@ class DropAttributeStmt(Nonterm):
 # CREATE INDEX
 #
 class CreateIndexStmt(Nonterm):
-    def reduce_CREATE_INDEX_NodeName_TURNSTILE_Expr(self, *kids):
+    def reduce_CREATE_INDEX_NodeName_ON_Expr(self, *kids):
         self.val = qlast.CreateIndex(
             name=kids[2].val,
-            expr=kids[3].val
+            expr=kids[4].val
         )
 
 
