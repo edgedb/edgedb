@@ -71,3 +71,26 @@ def load_graphql_schema(schema=None):
         ddl_plan.apply(schema, context)
 
     return schema
+
+
+def load_default_schema(schema=None):
+    if schema is None:
+        schema = s_schema.Schema()
+
+    script = f'''
+        CREATE MODULE default;
+    '''
+    statements = edgeql.parse_block(script)
+    for stmt in statements:
+        if isinstance(stmt, qlast.Delta):
+            # CREATE/APPLY MIGRATION
+            ddl_plan = s_ddl.cmd_from_ddl(stmt, schema=schema, modaliases={})
+
+        elif isinstance(stmt, qlast.DDL):
+            # CREATE/DELETE/ALTER (FUNCTION, TYPE, etc)
+            ddl_plan = s_ddl.delta_from_ddl(stmt, schema=schema, modaliases={})
+
+        context = sd.CommandContext()
+        ddl_plan.apply(schema, context)
+
+    return schema
