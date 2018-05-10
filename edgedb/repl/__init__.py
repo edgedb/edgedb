@@ -37,7 +37,6 @@ from prompt_toolkit import keys as pt_keys
 from prompt_toolkit import shortcuts as pt_shortcuts
 from prompt_toolkit import styles as pt_styles
 from prompt_toolkit import token as pt_token
-from prompt_toolkit import enums as pt_enums
 from prompt_toolkit.layout import lexers as pt_lexers
 
 from edgedb import client
@@ -236,7 +235,6 @@ class Cli:
         cli = pt_interface.CommandLineInterface(
             application=app,
             eventloop=self.eventloop)
-        cli.editing_mode = pt_enums.EditingMode.VI
 
         return cli
 
