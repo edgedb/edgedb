@@ -165,39 +165,46 @@ class GQLCoreSchema:
         return args
 
     def _define_types(self):
+        abstract_types = []
+        obj_types = []
+
         for modname in self.modules:
             # get all descendants of this abstract type
             module = self.edb_schema.get_module(modname)
 
-            abstract_types = [t for t in module.get_objects()
-                              if isinstance(t, ObjectType) and t.is_abstract]
-            obj_types = [t for t in module.get_objects()
-                         if isinstance(t, ObjectType) and not t.is_abstract]
+            abstract_types += [t for t in module.get_objects()
+                               if isinstance(t, ObjectType) and t.is_abstract]
+            obj_types += [t for t in module.get_objects()
+                          if isinstance(t, ObjectType) and not t.is_abstract]
 
-            # interfaces
-            for t in abstract_types:
-                gqltype = GraphQLInterfaceType(
-                    name=self.get_short_name(t.name),
-                    fields=partial(self.get_fields, t.name),
-                    resolve_type=lambda obj, info: obj,
-                )
-                self._gql_interfaces[t.name] = gqltype
+        # interfaces
+        for t in abstract_types:
+            gqltype = GraphQLInterfaceType(
+                name=self.get_short_name(t.name),
+                fields=partial(self.get_fields, t.name),
+                resolve_type=lambda obj, info: obj,
+            )
+            self._gql_interfaces[t.name] = gqltype
 
-            # object types
-            for t in obj_types:
-                interfaces = []
-                # get all super-types of this concrete type
-                for st in t.get_mro():
-                    if (isinstance(st, ObjectType) and st.is_abstract and
-                            st.name in self._gql_interfaces):
-                        interfaces.append(self._gql_interfaces[st.name])
+        # object types
+        for t in obj_types:
+            interfaces = []
 
-                gqltype = GraphQLObjectType(
-                    name=self.get_short_name(t.name),
-                    fields=partial(self.get_fields, t.name),
-                    interfaces=interfaces,
-                )
-                self._gql_objtypes[t.name] = gqltype
+            # views are currently skipped
+            if t.is_view():
+                continue
+
+            for st in t.get_mro():
+                if (isinstance(st, ObjectType) and st.is_abstract and
+                        st.name in self._gql_interfaces):
+                    interfaces.append(self._gql_interfaces[st.name])
+
+            gqltype = GraphQLObjectType(
+                name=self.get_short_name(t.name),
+                fields=partial(self.get_fields, t.name),
+                interfaces=interfaces,
+            )
+            self._gql_objtypes[t.name] = gqltype
 
 
 def get_fkey(*args):
@@ -266,7 +273,8 @@ class Schema:
                     edb_base = self.edb_schema.get(name)
                 else:
                     for module in self.modules:
-                        edb_base = self.edb_schema.get(f'{module}::{name}')
+                        edb_base = self.edb_schema.get(
+                            f'{module}::{name}', None)
                         if edb_base:
                             break
 
@@ -520,7 +528,7 @@ class GQLQuery(GQLBaseType):
 
             if target is None:
                 for module in self.modules:
-                    target = self.edb_schema.get((module, name))
+                    target = self.edb_schema.get((module, name), None)
                     if target:
                         break
 

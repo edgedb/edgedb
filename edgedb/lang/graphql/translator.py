@@ -37,6 +37,7 @@ class GraphQLTranslatorContext:
         self.gqlcore = gqlcore
         self.query = query
         self.modules = list(modules)
+        self.modules.sort()
 
 
 Step = namedtuple('Step', ['name', 'type'])
@@ -572,7 +573,7 @@ def translate(schema, graphql, *, variables=None, operation_name=None,
         variables = {}
 
     if modules is None:
-        modules = ['test']
+        modules = set(modules) | {'default'}
 
     # HACK
     query = re.sub(r'@edgedb\(.*?\)', '', graphql)
