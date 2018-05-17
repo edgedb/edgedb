@@ -28,7 +28,7 @@ RUNTIME_DEPS = [
     'click',
     'graphql-core',
     'Parsing',
-    'prompt-toolkit',
+    'prompt_toolkit>=1.0.15,<2.0.0',
     'pygments',
     'setproctitle',
 ]
