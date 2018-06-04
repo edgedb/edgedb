@@ -453,3 +453,65 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ]},
             ]
         ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_ddl_19(self):
+        await self.con.execute("""
+            SET MODULE test;
+
+            CREATE TYPE ActualType {
+                CREATE REQUIRED PROPERTY foo -> str;
+            };
+
+            CREATE VIEW View1 := ActualType {
+                bar := 9
+            };
+
+            CREATE VIEW View2 := ActualType {
+                connected := (SELECT View1 ORDER BY View1.foo)
+            };
+        """)
+
+        await self.assert_query_result(r"""
+            SET MODULE test;
+
+            INSERT ActualType {
+                foo := 'obj1'
+            };
+            INSERT ActualType {
+                foo := 'obj2'
+            };
+
+            SELECT View2 {
+                foo,
+                connected,
+            }
+            ORDER BY View2.foo;
+        """, [
+            [None],
+            [1],
+            [1],
+
+            [
+                {
+                    'foo': 'obj1',
+                    'connected': [{
+                        'foo': 'obj1',
+                        'bar': 9,
+                    }, {
+                        'foo': 'obj2',
+                        'bar': 9,
+                    }],
+                },
+                {
+                    'foo': 'obj2',
+                    'connected': [{
+                        'foo': 'obj1',
+                        'bar': 9,
+                    }, {
+                        'foo': 'obj2',
+                        'bar': 9,
+                    }],
+                }
+            ]
+        ])
