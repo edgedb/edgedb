@@ -779,6 +779,96 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
+    async def test_edgeql_coalesce_dependent_21(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                X := {Priority, Status}
+            SELECT X[IS Priority].name ?? X[IS Status].name;
+        ''', [
+            {'High', 'Low', 'Open', 'Closed'},
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_coalesce_dependent_22(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                X := {Priority, Status}
+            SELECT X[IS Priority].name[0] ?? X[IS Status].name;
+
+            WITH
+                MODULE test,
+                X := {Priority, Status}
+            SELECT X[IS Priority].name ?? X[IS Status].name[0];
+
+            WITH
+                MODULE test,
+                X := {Priority, Status}
+            SELECT X[IS Priority].name[0] ?? X[IS Status].name[0];
+        ''', [
+            {'H', 'L', 'Open', 'Closed'},
+            {'High', 'Low', 'O', 'C'},
+            {'H', 'L', 'O', 'C'},
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_coalesce_dependent_23(self):
+        await self.assert_sorted_query_result(r'''
+            WITH
+                MODULE test,
+                X := {Priority, Status}
+            SELECT X {
+                foo := X[IS Priority].name ?? X[IS Status].name
+            };
+
+            WITH
+                MODULE test,
+                X := {Priority, Status}
+            SELECT X {
+                foo := X[IS Priority].name ?? X[IS Status].name[0]
+            };
+
+            WITH
+                MODULE test,
+                X := {Priority, Status}
+            SELECT X {
+                foo := X[IS Priority].name ?? X[IS Status].name[0]
+            };
+
+            WITH
+                MODULE test,
+                X := {Priority, Status}
+            SELECT X {
+                foo := X[IS Priority].name[0] ?? X[IS Status].name[0]
+            };
+        ''', lambda x: x['foo'], [
+            [
+                {'foo': 'Closed'},
+                {'foo': 'High'},
+                {'foo': 'Low'},
+                {'foo': 'Open'}
+            ],
+            [
+                {'foo': 'Closed'},
+                {'foo': 'H'},
+                {'foo': 'L'},
+                {'foo': 'Open'}
+            ],
+            [
+                {'foo': 'C'},
+                {'foo': 'High'},
+                {'foo': 'Low'},
+                {'foo': 'O'}
+            ],
+            [
+                {'foo': 'C'},
+                {'foo': 'H'},
+                {'foo': 'L'},
+                {'foo': 'O'}
+            ],
+        ])
+
     async def test_edgeql_coalesce_object_01(self):
         await self.assert_query_result(r'''
             WITH
