@@ -818,28 +818,28 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             WITH
                 MODULE test,
                 X := {Priority, Status}
-            SELECT X{
+            SELECT X {
                 foo := X[IS Priority].name ?? X[IS Status].name
             };
 
             WITH
                 MODULE test,
                 X := {Priority, Status}
-            SELECT X{
+            SELECT X {
                 foo := X[IS Priority].name ?? X[IS Status].name[0]
             };
 
             WITH
                 MODULE test,
                 X := {Priority, Status}
-            SELECT X{
+            SELECT X {
                 foo := X[IS Priority].name ?? X[IS Status].name[0]
             };
 
             WITH
                 MODULE test,
                 X := {Priority, Status}
-            SELECT X{
+            SELECT X {
                 foo := X[IS Priority].name[0] ?? X[IS Status].name[0]
             };
         ''', lambda x: x['foo'], [
