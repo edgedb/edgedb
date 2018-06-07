@@ -22,6 +22,7 @@ import importlib
 import json
 import pickle
 import re
+import uuid
 
 import asyncpg
 
@@ -127,9 +128,9 @@ class Cursor:
 
 class Query(backend_query.Query):
     def __init__(
-            self, chunks, arg_index, argmap, argument_types,
+            self, *, chunks, arg_index, argmap, argument_types,
             scrolling_cursor=False, offset=None, limit=None,
-            query_type=None, record_info=None, output_format=None):
+            query_type=None, output_desc=None, output_format=None):
         self.chunks = chunks
         self.text = ''.join(chunks)
         self.argmap = argmap
@@ -142,7 +143,7 @@ class Query(backend_query.Query):
         self.offset = offset.index if offset is not None else None
         self.limit = limit.index if limit is not None else None
         self.query_type = query_type
-        self.record_info = record_info
+        self.output_desc = output_desc
         self.output_format = output_format
 
     def __getstate__(self):
@@ -159,9 +160,6 @@ class Query(backend_query.Query):
             return ('json', 1)
         else:
             return ('edgedbobj', 1)
-
-    def get_output_metadata(self):
-        return {'record_info': self.record_info}
 
 
 class ErrorMech:
@@ -273,6 +271,21 @@ class ErrorMech:
             return edgedb_error.EdgeDBBackendError(err.message)
 
 
+class TypeDescriptor:
+    def __init__(self, type_id, schema_type, subtypes, element_names):
+        self.type_id = type_id
+        self.schema_type = schema_type
+        self.subtypes = subtypes
+        self.element_names = element_names
+        self.cardinality = '1'
+
+
+class OutputDescriptor:
+    def __init__(self, type_desc, tuple_registry):
+        self.type_desc = type_desc
+        self.tuple_registry = tuple_registry
+
+
 class Backend(s_deltarepo.DeltaProvider):
 
     typlen_re = re.compile(
@@ -300,7 +313,7 @@ class Backend(s_deltarepo.DeltaProvider):
         self.scalar_cache = {}
         self.link_cache = {}
         self.link_property_cache = {}
-        self.objtype_cache = {}
+        self.type_cache = {}
         self.table_cache = {}
         self.domain_to_scalar_map = {}
         self.table_id_to_class_name_cache = {}
@@ -330,7 +343,7 @@ class Backend(s_deltarepo.DeltaProvider):
         self.domain_to_scalar_map = await self._init_scalar_map_cache()
         # ObjectType map needed early for type filtering operations
         # in schema queries
-        await self.get_objtype_map(force_reload=True)
+        await self.get_type_map(force_reload=True)
 
     async def _init_relid_cache(self):
         link_tables = await introspection.tables.fetch_tables(
@@ -543,7 +556,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
         self.link_cache.clear()
         self.link_property_cache.clear()
-        self.objtype_cache.clear()
+        self.type_cache.clear()
         self.scalar_cache.clear()
         self.table_cache.clear()
         self.domain_to_scalar_map.clear()
@@ -555,22 +568,28 @@ class Backend(s_deltarepo.DeltaProvider):
         for alias, module in cmd.modaliases.items():
             self.modaliases[alias] = module.name
 
-    async def get_objtype_map(self, force_reload=False):
-        if not self.objtype_cache or force_reload:
+    async def get_type_map(self, force_reload=False):
+        if not self.type_cache or force_reload:
             cl_ds = datasources.schema.objtypes
 
             for row in await cl_ds.fetch(self.connection):
-                self.objtype_cache[row['name']] = row['id']
-                self.objtype_cache[row['id']] = sn.Name(row['name'])
+                self.type_cache[row['name']] = row['id']
+                self.type_cache[row['id']] = sn.Name(row['name'])
 
-        return self.objtype_cache
+            cl_ds = datasources.schema.scalars
 
-    def get_objtype_id(self, objtype):
+            for row in await cl_ds.fetch(self.connection):
+                self.type_cache[row['name']] = row['id']
+                self.type_cache[row['id']] = sn.Name(row['name'])
+
+        return self.type_cache
+
+    def get_type_id(self, objtype):
         objtype_id = None
 
-        objtype_cache = self.objtype_cache
-        if objtype_cache:
-            objtype_id = objtype_cache.get(objtype.name)
+        type_cache = self.type_cache
+        if type_cache:
+            objtype_id = type_cache.get(objtype.name)
 
         if objtype_id is None:
             msg = 'could not determine backend id for type in this context'
@@ -585,26 +604,99 @@ class Backend(s_deltarepo.DeltaProvider):
     def typrelid_for_source_name(self, source_name):
         return self.classname_to_table_id_cache.get(source_name)
 
-    def compile(self, query_ir, scrolling_cursor=False, context=None, *,
-                output_format=None, timer=None):
-        if scrolling_cursor:
-            offset = query_ir.offset
-            limit = query_ir.limit
+    def _get_collection_type_id(self, coll_type, subtypes, element_names):
+        subtypes = (f"{st.type_id}-{st.cardinality}" for st in subtypes)
+        string_id = f'{coll_type}\x00{":".join(subtypes)}'
+        if element_names:
+            string_id += f'\x00{":".join(element_names)}'
+        return uuid.uuid5(delta_cmds.TYPE_ID_NAMESPACE, string_id)
+
+    def _get_union_type_id(self, union_type):
+        base_type_id = ','.join(
+            str(self.get_type_id(c)) for c in union_type.children(self.schema))
+
+        return uuid.uuid5(delta_cmds.TYPE_ID_NAMESPACE, base_type_id)
+
+    def _describe_type(self, t, view_shapes, _tuples):
+        mt = t.material_type()
+        is_tuple = False
+
+        if isinstance(t, s_types.Collection):
+            subtypes = [self._describe_type(st, view_shapes, _tuples)
+                        for st in t.get_subtypes()]
+
+            if isinstance(t, s_types.Tuple) and t.named:
+                element_names = list(t.element_types)
+            else:
+                element_names = None
+
+            type_id = self._get_collection_type_id(t.schema_name, subtypes,
+                                                   element_names)
+            is_tuple = True
+
+        elif t in view_shapes:
+            # This is a view
+
+            if mt.is_virtual:
+                base_type_id = self._get_union_type_id(mt)
+            else:
+                base_type_id = self.get_type_id(mt)
+
+            subtypes = []
+            element_names = []
+
+            for ptr in view_shapes[t]:
+                subdesc = self._describe_type(ptr.target, view_shapes, _tuples)
+                subdesc.cardinality = '1' if ptr.singular() else '*'
+                subtypes.append(subdesc)
+                element_names.append(ptr.shortname.name)
+
+            if t.rptr is not None:
+                # There are link properties in the mix
+                for ptr in view_shapes[t.rptr]:
+                    subdesc = self._describe_type(
+                        ptr.target, view_shapes, _tuples)
+                    subdesc.cardinality = '1' if ptr.singular() else '*'
+                    subtypes.append(subdesc)
+                    element_names.append(ptr.shortname.name)
+
+            if subtypes:
+                type_id = self._get_collection_type_id(base_type_id, subtypes,
+                                                       element_names)
+                is_tuple = True
+            else:
+                type_id = base_type_id
+                if mt.is_virtual:
+                    is_tuple = True
+
         else:
-            offset = limit = None
+            # This is a regular type
+            subtypes = None
+            element_names = None
+            type_id = self.get_type_id(mt)
 
-        if scrolling_cursor:
-            query_ir.offset = None
-            query_ir.limit = None
+        type_desc = TypeDescriptor(
+            type_id=type_id, schema_type=mt, subtypes=subtypes,
+            element_names=element_names)
 
-        qchunks, argmap, arg_index, query_type, record_info = \
+        if is_tuple:
+            _tuples[type_id] = type_desc
+
+        return type_desc
+
+    def compile(self, query_ir, context=None, *,
+                output_format=None, timer=None):
+        tuples = {}
+        type_desc = self._describe_type(
+            query_ir.expr.scls, query_ir.view_shapes, tuples)
+
+        output_desc = OutputDescriptor(
+            type_desc=type_desc, tuple_registry=tuples)
+
+        qchunks, argmap, arg_index, query_type = \
             compiler.compile_ir_to_sql(
                 query_ir, backend=self, schema=self.schema,
                 output_format=output_format, timer=timer)
-
-        if scrolling_cursor:
-            query_ir.offset = offset
-            query_ir.limit = limit
 
         argtypes = {}
         for k, v in query_ir.params.items():
@@ -613,8 +705,7 @@ class Backend(s_deltarepo.DeltaProvider):
         return Query(
             chunks=qchunks, arg_index=arg_index, argmap=argmap,
             argument_types=argtypes,
-            scrolling_cursor=scrolling_cursor, offset=offset, limit=limit,
-            query_type=query_type, record_info=record_info,
+            query_type=query_type, output_desc=output_desc,
             output_format=output_format)
 
     async def read_modules(self, schema):

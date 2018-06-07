@@ -100,6 +100,7 @@ def fini_expression(
         source_map=ctx.source_map,
         scope_tree=ctx.path_scope,
         cardinality=cardinality,
+        view_shapes=ctx.class_shapes,
     )
     irutils.infer_type(result, schema=ctx.schema)
     return result

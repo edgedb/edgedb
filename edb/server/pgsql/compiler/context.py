@@ -147,3 +147,4 @@ class Environment:
         self.rel_overlays = collections.defaultdict(list)
         self.output_format = output_format
         self.schema = schema.get_overlay(extra=views)
+        self.tuple_formats = {}

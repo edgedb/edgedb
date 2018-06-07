@@ -55,12 +55,8 @@ def tuple_var_as_json_object(tvar, *, env):
             args=keyvals, null_safe=True, nullable=tvar.nullable)
 
 
-def in_serialization_ctx(
-        ctx: context.CompilerContextLevel) -> bool:
-    return (
-        (ctx.expr_exposed is None or ctx.expr_exposed) and
-        ctx.env.output_format == context.OutputFormat.JSON
-    )
+def in_serialization_ctx(ctx: context.CompilerContextLevel) -> bool:
+    return ctx.expr_exposed is None or ctx.expr_exposed
 
 
 def output_as_value(
@@ -90,6 +86,7 @@ def serialize_expr(
         expr: pgast.Base, *,
         nested: bool=False,
         env: context.Environment) -> pgast.Base:
+
     if env.output_format == context.OutputFormat.JSON:
         if isinstance(expr, pgast.TupleVar):
             val = tuple_var_as_json_object(expr, env=env)
@@ -102,8 +99,12 @@ def serialize_expr(
                 name=('to_jsonb',), args=[expr], null_safe=True)
         else:
             val = expr
+
+    elif env.output_format == context.OutputFormat.NATIVE:
+        val = output_as_value(expr, env=env)
+
     else:
-        val = expr
+        raise RuntimeError(f'unexpected output format: {env.output_format!r}')
 
     return val
 

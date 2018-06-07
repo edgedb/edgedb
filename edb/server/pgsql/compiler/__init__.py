@@ -112,7 +112,7 @@ def compile_ir_to_sql(
         debug.header('SQL')
         debug.dump_code(''.join(qchunks), lexer='sql')
 
-    return qchunks, argmap, arg_index, type(qtree), tuple()
+    return qchunks, argmap, arg_index, type(qtree)
 
 
 def _run_codegen(qtree):

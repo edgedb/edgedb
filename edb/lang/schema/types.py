@@ -46,6 +46,11 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
     expr = so.Field(s_expr.ExpressionText, default=None,
                     coerce=True, compcoef=0.909)
 
+    # If this type is a view defined by a nested shape expression,
+    # and the nested shape contains references to link properties,
+    # rptr will contain the inbound pointer class.
+    rptr = so.Field(so.Object, default=None, compcoef=0.909)
+
     def is_view(self):
         return self.view_type is not None
 

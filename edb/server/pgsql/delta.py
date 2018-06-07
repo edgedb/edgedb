@@ -503,7 +503,7 @@ class CreateFunction(FunctionCommand, CreateNamedObject,
         body_ir = ql_compiler.compile_to_ir(
             func.code, schema, arg_types=arg_types)
 
-        qchunks, argmap, arg_index, query_type, record_info = \
+        qchunks, argmap, arg_index, query_type = \
             compiler.compile_ir_to_sql(
                 body_ir, schema=schema, ignore_shapes=True)
 

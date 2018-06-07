@@ -154,6 +154,9 @@ def _process_view(
 
             ctx.class_shapes[source].append(ptrcls)
 
+    if view_rptr is not None and view_rptr.derived_ptrcls is not None:
+        view_scls.rptr = view_rptr.derived_ptrcls
+
     return view_scls
 
 

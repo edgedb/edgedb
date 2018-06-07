@@ -230,11 +230,13 @@ class TupleElement(Base):
 
 
 class TupleVar(OutputVar):
+
     elements: typing.List[TupleElement]
     named: bool
+    nullable: bool
 
-    def __init__(self, elements: typing.List[TupleElement],
-                 *, named: bool=False, nullable: bool=False):
+    def __init__(self, elements: typing.List[TupleElement], *,
+                 named: bool=False, nullable: bool=False):
         self.elements = elements
         self.named = named
         self.nullable = nullable
@@ -244,7 +246,7 @@ class TupleVar(OutputVar):
 
 
 class ParamRef(BaseExpr):
-    """Query parameter ($1..$n)."""
+    """Query parameter ($0..$n)."""
 
     # Number of the parameter.
     number: int

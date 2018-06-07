@@ -511,7 +511,7 @@ def compile_TypeRef(
         raise NotImplementedError()
     else:
         cls = schema.get(expr.maintype)
-        objtype_id = data_backend.get_objtype_id(cls)
+        objtype_id = data_backend.get_type_id(cls)
         result = pgast.TypeCast(
             arg=pgast.Constant(val=objtype_id),
             type_name=pgast.TypeName(
