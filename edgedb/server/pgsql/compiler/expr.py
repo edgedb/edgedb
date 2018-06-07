@@ -76,7 +76,10 @@ def compile_Set(
         # All other sets.
         value = _compile_set(ir_set, ctx=ctx)
 
-    return output.output_as_value(value, env=ctx.env)
+    if is_toplevel:
+        return output.top_output_as_value(value, env=ctx.env)
+    else:
+        return output.output_as_value(value, env=ctx.env)
 
 
 @dispatch.compile.register(irast.Parameter)

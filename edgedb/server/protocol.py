@@ -264,7 +264,9 @@ class Protocol(asyncio.Protocol):
                     if isinstance(row, str):
                         # JSON result
                         row = json.loads(row)
-                    loaded.append(row)
+                        loaded.extend(row)
+                    else:
+                        loaded.append(row)
                 result = loaded
             results.append(result)
 

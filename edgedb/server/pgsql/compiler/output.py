@@ -106,3 +106,59 @@ def serialize_expr(
         val = expr
 
     return val
+
+
+def top_output_as_value(
+        stmt: pgast.Query, *,
+        env: context.Environment) -> pgast.Query:
+    """Finalize output serialization on the top level."""
+
+    if env.output_format == context.OutputFormat.JSON:
+        # For JSON we just want to aggregate the whole thing
+        # into a JSON array.
+        subrvar = pgast.RangeSubselect(
+            subquery=stmt,
+            alias=pgast.Alias(
+                aliasname=env.aliases.get('aggw')
+            )
+        )
+
+        stmt_res = stmt.target_list[0]
+
+        if stmt_res.name is None:
+            stmt_res.name = env.aliases.get('v')
+
+        new_val = pgast.FuncCall(
+            name=('json_agg',),
+            args=[pgast.ColumnRef(name=[stmt_res.name])]
+        )
+
+        # XXX: nullability introspection is not reliable,
+        #      remove `True or` once it is.
+        if True or stmt_res.val.nullable:
+            new_val = pgast.CoalesceExpr(
+                args=[
+                    new_val,
+                    pgast.Constant(val='[]')
+                ]
+            )
+
+        result = pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(
+                    val=new_val
+                )
+            ],
+
+            from_clause=[
+                subrvar
+            ]
+        )
+
+        result.ctes = stmt.ctes
+        stmt.ctes = []
+
+        return result
+
+    else:
+        return stmt
