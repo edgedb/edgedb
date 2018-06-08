@@ -32,8 +32,6 @@ from edgedb.lang.common.persistent_hash import persistent_hash
 
 from . import objects as so
 from . import expr as s_expr
-from . import name as s_name
-from . import types as s_types
 from . import utils
 
 
@@ -933,42 +931,6 @@ class AlterObjectProperty(Command):
                 new_value = astnode.value.value
             elif isinstance(astnode.value, qlast.Tuple):
                 new_value = tuple(el.value for el in astnode.value.elements)
-            elif isinstance(astnode.value, qlast.Mapping):
-                m = {}
-                for k, v in zip(astnode.value.keys, astnode.value.values):
-                    k = k.value
-                    if isinstance(v, qlast.Constant):
-                        v = v.value
-                    elif isinstance(v, qlast.Tuple):
-                        v = tuple(el.value for el in v.elements)
-                    elif (isinstance(v, qlast.FunctionCall) and
-                            v.func == 'typeref'):
-                        if len(v.args) > 1:
-                            # collection
-                            ct = s_types.Collection.get_class(v.args[0].value)
-                            subtypes = []
-                            for st in v.args[1:]:
-                                stname = s_name.Name(v.args[1].value)
-                                subtypes.append(so.ObjectRef(
-                                    classname=stname))
-
-                            v = ct.from_subtypes(subtypes)
-                        else:
-                            v = so.ObjectRef(
-                                classname=s_name.Name(v.args[0].value))
-                    elif isinstance(v, qlast.TypeCast):
-                        v = v.expr.value
-                    elif isinstance(v, qlast.UnaryOp):
-                        v = edgeql.generate_source(v)
-                        # Remove the space between the operator and the operand
-                        v = ''.join(v.split(' ', maxsplit=1))
-                    else:
-                        raise ValueError(
-                            f'unexpected value in attribute '
-                            f'{propname!r}: {v!r}')
-                    m[k] = v
-
-                new_value = m
             else:
                 raise ValueError(
                     f'unexpected value in attribute: {astnode.value!r}')
@@ -1010,7 +972,9 @@ class AlterObjectProperty(Command):
                         qlast.Constant(value=k),
                         qlast.Constant(value=v)
                     ))
-                value = qlast.Mapping(items=items)
+                value = qlast.Array(elements=[
+                    qlast.Tuple(elements=[k, v]) for k, v in items
+                ])
             else:
                 value = qlast.Constant(value=str(value))
         else:

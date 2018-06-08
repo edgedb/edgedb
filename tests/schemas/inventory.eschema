@@ -27,10 +27,7 @@ type Item extending Named:
 
     # for scalar links there should not be any practical difference
     # between a 1* and ** cardinality
-    #
     property tag_set2 -> str:
         cardinality := '**'
 
     property tag_array -> array<str>
-
-    property components -> map<str, int64>

@@ -82,12 +82,12 @@ CREATE VIEW test::DaveCard := (
 
 
 CREATE VIEW test::expert_map := (
-    SELECT [
-        'Alice' -> 'pro',
-        'Bob' -> 'noob',
-        'Carol' -> 'noob',
-        'Dave' -> 'casual',
-    ]
+    SELECT {
+        ('Alice', 'pro'),
+        ('Bob', 'noob'),
+        ('Carol', 'noob'),
+        ('Dave', 'casual'),
+    }
 );
 
 

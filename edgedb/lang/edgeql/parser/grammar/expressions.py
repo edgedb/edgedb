@@ -779,59 +779,12 @@ class Set(Nonterm):
 
 
 class Collection(Nonterm):
-    def reduce_LBRACKET_OptCollectionItemList_RBRACKET(self, *kids):
-        items = kids[1].val
-        if not items:
-            self.val = qlast.EmptyCollection()
-            return
-
-        typ = items[0][0]
-
-        if typ == 'array':
-            elements = []
-            for item in items:
-                if item[0] != typ:
-                    raise EdgeQLSyntaxError("unexpected map item in array",
-                                            context=item[1].context)
-                elements.append(item[1].val)
-
+    def reduce_LBRACKET_OptExprList_RBRACKET(self, *kids):
+        elements = kids[1].val
+        if elements:
             self.val = qlast.Array(elements=elements)
         else:
-            keys = []
-            values = []
-            for item in items:
-                if item[0] != typ:
-                    raise EdgeQLSyntaxError("unexpected array item in map",
-                                            context=item[1].context)
-                keys.append(item[1].val)
-                values.append(item[2].val)
-
-            self.val = qlast.Mapping(keys=keys, values=values)
-
-
-class CollectionItem(Nonterm):
-    def reduce_Expr(self, *kids):
-        self.val = ('array', kids[0])
-
-    def reduce_Expr_ARROW_Expr(self, *kids):
-        self.val = ('map', kids[0], kids[2])
-
-
-class CollectionItemList(ListNonterm,
-                         element=CollectionItem,
-                         separator=tokens.T_COMMA):
-    pass
-
-
-class OptCollectionItemList(Nonterm):
-    def reduce_CollectionItemList_COMMA(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_CollectionItemList(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_empty(self, *kids):
-        self.val = []
+            self.val = qlast.EmptyCollection()
 
 
 class OptExprList(Nonterm):
@@ -1092,21 +1045,13 @@ class NonArrayTypeName(Nonterm):
     def reduce_NodeName(self, *kids):
         maintype = kids[0].val
 
-        # maintype cannot be 'map' or 'array'
-        if maintype.module is None:
-            if maintype.name in ('array', 'map'):
-                raise EdgeQLSyntaxError(
-                    f"Unexpected {maintype.name!r}",
-                    context=kids[0].context)
+        # maintype cannot be 'array'
+        if maintype.module is None and maintype.name == 'array':
+            raise EdgeQLSyntaxError(
+                f"Unexpected {maintype.name!r}",
+                context=kids[0].context)
 
         self.val = qlast.TypeName(maintype=maintype)
-
-    def reduce_MAP_LANGBRACKET_TypeName_COMMA_TypeName_RANGBRACKET(self,
-                                                                   *kids):
-        self.val = qlast.TypeName(
-            maintype=qlast.ObjectRef(name='map'),
-            subtypes=[kids[2].val, kids[4].val],
-        )
 
     def reduce_TUPLE_LANGBRACKET_TypeNameList_RANGBRACKET(self, *kids):
         self.val = qlast.TypeName(

@@ -156,12 +156,6 @@ class Array(Expr):
     elements: typing.List[Base]
 
 
-class Mapping(Expr):
-
-    keys: typing.List[Base]
-    values: typing.List[Base]
-
-
 class SetOp(Expr):
     left: Set
     right: Set

@@ -24,7 +24,6 @@ INSERT Item {
     tag_set1 := {'wood', 'rectangle'},
     tag_set2 := {'wood', 'rectangle'},
     tag_array := ['wood', 'rectangle'],
-    components := ['board' -> 1, 'legs' -> 4],
 };
 
 WITH MODULE test
@@ -34,18 +33,15 @@ INSERT Item {
     tag_set1 := {'metal', 'plastic'},
     tag_set2 := {'metal', 'plastic'},
     tag_array := ['metal', 'plastic'],
-    components := ['legs' -> 1, 'bulbs' -> 3],
 };
 
 # some items with incomplete data
-#
 WITH MODULE test
 INSERT Item {
     name := 'chair',
 
     tag_set1 := {'wood', 'rectangle'},
     tag_array := ['wood', 'rectangle'],
-    components := ['board' -> 2, 'legs' -> 4],
 };
 
 
@@ -55,7 +51,6 @@ INSERT Item {
 
     tag_set2 := {'plastic', 'rectangle'},
     tag_array := ['plastic', 'rectangle'],
-    components := ['screen' -> 1],
 };
 
 
@@ -78,12 +73,9 @@ INSERT Item {
 WITH MODULE test
 INSERT Item {
     name := 'mystery toy',
-
-    components := ['screen' -> 1, 'bulbs' -> 4, 'buttons' -> 42],
 };
 
 # no known properties
-#
 WITH MODULE test
 INSERT Item {
     name := 'ectoplasm',

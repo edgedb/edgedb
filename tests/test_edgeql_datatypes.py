@@ -17,6 +17,8 @@
 #
 
 
+import unittest  # NOQA
+
 from edgedb.server import _testbase as tb
 from edgedb.client import exceptions as exc
 
@@ -69,10 +71,11 @@ class TestEdgeQLDT(tb.QueryTestCase):
             ['2017-10-09T00:00:00+00:00'],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_dt_datetime_03(self):
         await self.assert_query_result('''
-            SELECT <map<str,datetime>>['foo' -> '2020-10-10'];
-            SELECT (<map<str,datetime>>['foo' -> '2020-10-10'])['foo'] +
+            SELECT <tuple<str,datetime>>('foo', '2020-10-10');
+            SELECT (<tuple<str,datetime>>('foo', '2020-10-10')).1 +
                    <timedelta>'1 month';
         ''', [
             [{'foo': '2020-10-10T00:00:00+00:00'}],

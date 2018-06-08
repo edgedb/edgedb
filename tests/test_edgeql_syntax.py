@@ -1026,9 +1026,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_struct_06(self):
         """
         SELECT (
-            foo := [
-                'bar' -> 42
-            ]
+            foo := ['bar']
         );
         """
 
@@ -1303,34 +1301,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (Foo + Bar)[IS Spam].ham;
         """
 
-    def test_edgeql_syntax_map_01(self):
-        """
-        SELECT [
-            'name' -> 'foo',
-            'description' -> 'bar'
-        ];
-        SELECT [
-            'name' -> 'baz'
-        ];
-        SELECT [
-            'first' -> [
-                'name' -> 'foo'
-            ],
-            'second' -> [
-                'description' -> 'bar'
-            ]
-        ];
-        """
-
-    def test_edgeql_syntax_map_02(self):
-        """
-        SELECT [
-            'foo' -> [
-                bar -> 42
-            ]
-        ];
-        """
-
     @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=18)
     def test_edgeql_syntax_map_03(self):
         """
@@ -1341,33 +1311,12 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         ];
         """
 
-    def test_edgeql_syntax_map_04(self):
-        """
-        SELECT ['foo'-> 42, 'bar'-> 'something'];
-        SELECT ['foo'-> 42, 'bar'-> 'something']['foo'];
-        SELECT (['foo'-> 42, 'bar'-> 'something'])['foo'];
-
-% OK %
-
-        SELECT ['foo'-> 42, 'bar'-> 'something'];
-        SELECT (['foo'-> 42, 'bar'-> 'something'])['foo'];
-        SELECT (['foo'-> 42, 'bar'-> 'something'])['foo'];
-        """
-
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'unexpected map item in array',
-                  line=2, col=23)
+                  "Unexpected '->'",
+                  line=2, col=24)
     def test_edgeql_syntax_map_05(self):
         """
         SELECT [1, 2, 1->2, 3];
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'unexpected array item in map',
-                  line=2, col=29)
-    def test_edgeql_syntax_map_06(self):
-        """
-        SELECT [1->1, 2->2, 1, 3];
         """
 
     def test_edgeql_syntax_sequence_01(self):
@@ -1465,11 +1414,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         SELECT <array<int64>>$1;
         SELECT <array<int[2][3]>>$1;
-        """
-
-    def test_edgeql_syntax_cast_06(self):
-        """
-        SELECT <map<str, int>>$1;
         """
 
     def test_edgeql_syntax_cast_07(self):
@@ -2373,7 +2317,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_attribute_01(self):
         """
-        CREATE ABSTRACT ATTRIBUTE std::paramtypes map<std::str, std::typeref>;
+        CREATE ABSTRACT ATTRIBUTE std::paramtypes
+            tuple<std::str, std::typeref>;
         """
 
     def test_edgeql_syntax_ddl_attribute_02(self):
@@ -2383,7 +2328,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_attribute_03(self):
         # test parsing of array types
-        #
         """
         CREATE ABSTRACT ATTRIBUTE std::foo array<int64>;
         CREATE ABSTRACT ATTRIBUTE std::foo array<int64[]>;
@@ -2401,19 +2345,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         CREATE ABSTRACT ATTRIBUTE std::foo array<int64[][4][]>;
         """
 
-    def test_edgeql_syntax_ddl_attribute_04(self):
-        # test parsing of map types
-        #
-        """
-        CREATE ABSTRACT ATTRIBUTE std::foo map<int64, str>;
-        CREATE ABSTRACT ATTRIBUTE std::foo map<array<int64>, str>;
-        CREATE ABSTRACT ATTRIBUTE std::foo map<array<int64>, tuple<str, str>>;
-        CREATE ABSTRACT ATTRIBUTE std::foo map<int64, foo::Bar>;
-        """
-
     def test_edgeql_syntax_ddl_attribute_05(self):
         # test parsing of tuple types
-        #
         """
         CREATE ABSTRACT ATTRIBUTE std::foo tuple;
         CREATE ABSTRACT ATTRIBUTE std::foo tuple<float64>;
@@ -2425,32 +2358,12 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
         CREATE ABSTRACT ATTRIBUTE std::foo tuple<count: int64, name: str>;
 
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<Baz, map<int64, str>>;
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<Baz, map<array<int64>, str>>;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<Baz, tuple<int64, str>>;
         CREATE ABSTRACT ATTRIBUTE std::foo
-            tuple<Baz, map<array<int64>, tuple<str, str>>>;
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<Baz, map<int64, foo::Bar>>;
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected 'map'", line=2, col=44)
-    def test_edgeql_syntax_ddl_attribute_06(self):
-        """
-        CREATE ABSTRACT ATTRIBUTE std::foo map;
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected '>'", line=2, col=53)
-    def test_edgeql_syntax_ddl_attribute_07(self):
-        """
-        CREATE ABSTRACT ATTRIBUTE std::foo map<int64>;
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected ','", line=2, col=58)
-    def test_edgeql_syntax_ddl_attribute_08(self):
-        """
-        CREATE ABSTRACT ATTRIBUTE std::foo map<int64, str, float64>;
+            tuple<Baz, tuple<array<int64>, str>>;
+        CREATE ABSTRACT ATTRIBUTE std::foo
+            tuple<Baz, tuple<array<int64>, tuple<str, str>>>;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<Baz, tuple<int64, foo::Bar>>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,

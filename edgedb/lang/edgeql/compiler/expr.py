@@ -146,7 +146,7 @@ def compile_Constant(
 def compile_EmptyCollection(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     raise errors.EdgeQLError(
-        f'could not determine type of empty collection',
+        f'could not determine type of empty array',
         context=expr.context)
 
 
@@ -188,15 +188,6 @@ def compile_Tuple(
         elements.append(element)
 
     return setgen.generated_set(irast.Tuple(elements=elements), ctx=ctx)
-
-
-@dispatch.compile.register(qlast.Mapping)
-def compile_Mapping(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    keys = [dispatch.compile(k, ctx=ctx) for k in expr.keys]
-    values = [dispatch.compile(v, ctx=ctx) for v in expr.values]
-    return setgen.generated_set(irast.Mapping(keys=keys, values=values),
-                                ctx=ctx)
 
 
 @dispatch.compile.register(qlast.Array)
@@ -328,11 +319,8 @@ def compile_TypeCast(
     maintype = expr.type.maintype
 
     if (isinstance(expr.expr, qlast.EmptyCollection) and
-            maintype.name in ('array', 'map')):
-        if maintype.name == 'array':
-            ir_expr = irast.Array()
-        elif maintype.name == 'map':
-            ir_expr = irast.Mapping()
+            maintype.name == 'array'):
+        ir_expr = irast.Array()
     else:
         ir_expr = dispatch.compile(expr.expr, ctx=ctx)
 
