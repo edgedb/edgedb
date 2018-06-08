@@ -17,8 +17,8 @@
 #
 
 
-from edgedb.server import _testbase as tb
-from edgedb.client import exceptions
+from edb.server import _testbase as tb
+from edb.client import exceptions
 
 
 class TestTransactions(tb.QueryTestCase):
@@ -183,7 +183,7 @@ class TestTransactions(tb.QueryTestCase):
                 await tr.start()
 
         self.assertTrue(repr(tr).startswith(
-            '<edgedb.Transaction state:rolledback'))
+            '<edb.Transaction state:rolledback'))
 
         self.assertIsNone(self.con._top_xact)
 

@@ -20,7 +20,7 @@
 import pickle
 import unittest
 
-from edgedb.lang.common.typed import TypedDict, TypedList, StrList, TypedSet
+from edb.lang.common.typed import TypedDict, TypedList, StrList, TypedSet
 
 
 # StrDict and StrList are declared here (not in tests that use them)

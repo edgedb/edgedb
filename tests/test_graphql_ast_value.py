@@ -17,9 +17,9 @@
 #
 
 
-from edgedb.lang import _testbase as tb
-from edgedb.lang.graphql import ast as gqlast
-from edgedb.lang.graphql.parser import parser as gql_parser
+from edb.lang import _testbase as tb
+from edb.lang.graphql import ast as gqlast
+from edb.lang.graphql.parser import parser as gql_parser
 
 
 class GraphQLAstValueTest(tb.AstValueTest):

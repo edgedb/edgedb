@@ -1,0 +1,167 @@
+#
+# This source file is part of the EdgeDB open source project.
+#
+# Copyright 2008-present MagicStack Inc. and the EdgeDB authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+
+import hashlib
+import base64
+
+from edb.lang.common import persistent_hash
+
+from edb.lang.schema import objtypes as s_objtypes
+from edb.lang.schema import links as s_links
+from edb.lang.schema import lproperties as s_props
+
+from edb.server.pgsql.parser import keywords as pg_keywords
+
+
+def quote_literal(string):
+    return "'" + string.replace("'", "''") + "'"
+
+
+def _quote_ident(string):
+    return '"' + string.replace('"', '""') + '"'
+
+
+def quote_ident(string, *, force=False):
+    return _quote_ident(string) if needs_quoting(string) or force else string
+
+
+def needs_quoting(string):
+    isalnum = (string and not string[0].isdecimal() and
+               string.replace('_', 'a').isalnum())
+    return (
+        not isalnum or
+        string.lower() in pg_keywords.by_type[pg_keywords.RESERVED_KEYWORD] or
+        string.lower() != string
+    )
+
+
+def qname(*parts):
+    return '.'.join([quote_ident(q) for q in parts])
+
+
+def quote_type(type_):
+    if isinstance(type_, tuple):
+        first = qname(*type_[:-1]) + '.' if len(type_) > 1 else ''
+        last = type_[-1]
+    else:
+        first = ''
+        last = type_
+
+    is_array = last.endswith('[]')
+    if is_array:
+        last = last[:-2]
+
+    last = quote_ident(last)
+    if is_array:
+        last += '[]'
+
+    return first + last
+
+
+def edgedb_module_name_to_schema_name(module, prefix='edgedb_'):
+    return edgedb_name_to_pg_name(prefix + module, len(prefix))
+
+
+def edgedb_name_to_pg_name(name, prefix_length=0):
+    """Convert EdgeDB name to a valid PostgresSQL column name.
+
+    PostgreSQL has a limit of 63 characters for column names.
+
+    @param name: EdgeDB name to convert
+    @return: PostgreSQL column name
+    """
+    if not (0 <= prefix_length < 63):
+        raise ValueError('supplied name is too long '
+                         'to be kept in original form')
+
+    name = str(name)
+    if len(name) > 63 - prefix_length:
+        hash = base64.b64encode(hashlib.md5(name.encode()).digest()).decode(
+        ).rstrip('=')
+        name = name[:prefix_length] + hash + ':' + name[-(
+            63 - prefix_length - 1 - len(hash)):]
+    return name
+
+
+def convert_name(name, suffix, catenate=True, prefix='edgedb_'):
+    schema = edgedb_module_name_to_schema_name(name.module, prefix=prefix)
+    name = edgedb_name_to_pg_name('%s_%s' % (name.name, suffix))
+
+    if catenate:
+        return qname(schema, name)
+    else:
+        return schema, name
+
+
+def scalar_name_to_domain_name(name, catenate=True, prefix='edgedb_'):
+    return convert_name(name, 'domain', catenate)
+
+
+def scalar_name_to_sequence_name(name, catenate=True, prefix='edgedb_'):
+    return convert_name(name, 'sequence', catenate)
+
+
+def objtype_name_to_table_name(name, catenate=True, prefix='edgedb_'):
+    return convert_name(name, 'data', catenate)
+
+
+def link_name_to_table_name(name, catenate=True):
+    return convert_name(name, 'link', catenate)
+
+
+def prop_name_to_table_name(name, catenate=True):
+    return convert_name(name, 'prop', catenate)
+
+
+def get_table_name(obj, catenate=True):
+    if isinstance(obj, s_objtypes.ObjectType):
+        return objtype_name_to_table_name(obj.name, catenate)
+    elif isinstance(obj, s_links.Link):
+        return link_name_to_table_name(obj.name, catenate)
+    elif isinstance(obj, s_props.Property):
+        return prop_name_to_table_name(obj.name, catenate)
+    else:
+        raise ValueError(f'cannot determine table for {obj!r}')
+
+
+class RecordInfo:
+    def __init__(
+            self, *, attribute_map, metaclass=None, classname=None,
+            recursive_link=False, virtuals_map=None):
+        self.attribute_map = attribute_map
+        self.virtuals_map = virtuals_map
+        self.metaclass = metaclass
+        self.classname = classname
+        self.recursive_link = recursive_link
+        self.id = str(persistent_hash.persistent_hash(self))
+
+    def persistent_hash(self):
+        return persistent_hash.persistent_hash((
+            tuple(self.attribute_map), frozenset(self.virtuals_map.items())
+            if self.virtuals_map else None, self.metaclass, self.classname,
+            self.recursive_link))
+
+    def __mm_serialize__(self):
+        return dict(
+            attribute_map=self.attribute_map, virtuals_map=self.virtuals_map,
+            metaclass=self.metaclass, classname=self.classname,
+            recursive_link=self.recursive_link, id=self.id)
+
+
+FREEFORM_RECORD_ID = '6e51108d-7440-47f7-8c65-dc4d43fd90d2'

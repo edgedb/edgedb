@@ -17,9 +17,9 @@
 #
 
 
-from edgedb.lang import _testbase as tb
-from edgedb.lang.schema import error as s_err
-from edgedb.lang.schema import pointers as s_pointers
+from edb.lang import _testbase as tb
+from edb.lang.schema import error as s_err
+from edb.lang.schema import pointers as s_pointers
 
 
 class TestSchema(tb.BaseSchemaTest):

@@ -23,13 +23,13 @@ import re
 import textwrap
 import unittest  # NOQA
 
-from edgedb.lang import _testbase as tb
-from edgedb.lang.common import markup
-from edgedb.lang import graphql as edge_graphql
-from edgedb.lang import edgeql as edge_edgeql
-from edgedb.lang.graphql.errors import GraphQLValidationError, GraphQLCoreError
-from edgedb.lang.schema import declarative as s_decl
-from edgedb.lang.schema import std as s_std
+from edb.lang import _testbase as tb
+from edb.lang.common import markup
+from edb.lang import graphql as edge_graphql
+from edb.lang import edgeql as edge_edgeql
+from edb.lang.graphql.errors import GraphQLValidationError, GraphQLCoreError
+from edb.lang.schema import declarative as s_decl
+from edb.lang.schema import std as s_std
 
 
 def with_variables(**kwargs):

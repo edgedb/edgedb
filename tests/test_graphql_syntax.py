@@ -19,13 +19,13 @@
 
 import re
 
-from edgedb.lang import _testbase as tb
-from edgedb.lang.graphql import generate_source as gql_to_source
-from edgedb.lang.graphql.parser import parser as gql_parser
-from edgedb.lang.graphql.parser.errors import (GraphQLParserError,
-                                               GraphQLUniquenessError,
-                                               UnterminatedStringError,
-                                               InvalidStringTokenError)
+from edb.lang import _testbase as tb
+from edb.lang.graphql import generate_source as gql_to_source
+from edb.lang.graphql.parser import parser as gql_parser
+from edb.lang.graphql.parser.errors import (GraphQLParserError,
+                                            GraphQLUniquenessError,
+                                            UnterminatedStringError,
+                                            InvalidStringTokenError)
 
 
 class GraphQLSyntaxTest(tb.BaseSyntaxTest):

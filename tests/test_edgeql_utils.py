@@ -19,11 +19,11 @@
 
 import textwrap
 
-from edgedb.lang.edgeql import utils as eql_utils
-from edgedb.lang.schema import declarative as s_decl
-from edgedb.lang.schema import std as s_std
+from edb.lang.edgeql import utils as eql_utils
+from edb.lang.schema import declarative as s_decl
+from edb.lang.schema import std as s_std
 
-from edgedb.lang import _testbase as tb
+from edb.lang import _testbase as tb
 
 
 class TestEdgeQLUtils(tb.BaseSyntaxTest):

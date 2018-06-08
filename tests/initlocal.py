@@ -23,8 +23,8 @@ import shutil
 import sys
 import unittest
 
-from edgedb.server import cluster as edgedb_cluster
-from edgedb.server import _testbase as tb
+from edb.server import cluster as edgedb_cluster
+from edb.server import _testbase as tb
 
 
 class TestResult:

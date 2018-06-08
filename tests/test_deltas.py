@@ -22,8 +22,8 @@ import os.path
 import textwrap
 import unittest  # NOQA
 
-from edgedb.client import exceptions
-from edgedb.server import _testbase as tb
+from edb.client import exceptions
+from edb.server import _testbase as tb
 
 
 class TestDeltas(tb.DDLTestCase):

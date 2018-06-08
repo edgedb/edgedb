@@ -20,8 +20,8 @@
 import os.path
 import unittest  # NOQA
 
-from edgedb.server import _testbase as tb
-from edgedb.client import exceptions as exc  # NOQA
+from edb.server import _testbase as tb
+from edb.client import exceptions as exc  # NOQA
 
 
 class TestEdgeQLTutorial(tb.QueryTestCase):

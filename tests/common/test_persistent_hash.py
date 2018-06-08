@@ -20,8 +20,8 @@
 import unittest
 import uuid
 
-from edgedb.lang.common.persistent_hash import persistent_hash
-from edgedb.lang.common.persistent_hash import PersistentlyHashable
+from edb.lang.common.persistent_hash import persistent_hash
+from edb.lang.common.persistent_hash import PersistentlyHashable
 
 
 class PersistentHashTests(unittest.TestCase):

@@ -17,8 +17,8 @@
 #
 
 
-from edgedb.client import exceptions as err
-from edgedb.server import _testbase as tb
+from edb.client import exceptions as err
+from edb.server import _testbase as tb
 
 
 class TestSession(tb.QueryTestCase):

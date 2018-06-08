@@ -20,7 +20,7 @@
 import pickle
 import unittest
 
-from edgedb.lang.common.struct import Struct, MixedStruct, Field
+from edb.lang.common.struct import Struct, MixedStruct, Field
 
 
 class PickleTest(Struct):

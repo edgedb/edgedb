@@ -40,7 +40,7 @@ class TestFlake8(unittest.TestCase):
         except ImportError:
             raise unittest.SkipTest('flake8 moudule is missing')
 
-        for subdir in ['edgedb', 'tests']:  # ignore any top-level test files
+        for subdir in ['edb', 'tests']:  # ignore any top-level test files
             try:
                 subprocess.run(
                     [sys.executable, '-m', 'flake8', '--config', config_path],

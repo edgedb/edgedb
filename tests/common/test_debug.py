@@ -19,7 +19,7 @@
 
 import unittest
 
-from edgedb.lang.common import debug
+from edb.lang.common import debug
 
 
 class DebugTests(unittest.TestCase):

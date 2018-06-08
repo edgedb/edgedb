@@ -17,7 +17,7 @@
 #
 
 
-from edgedb.server import _testbase as tb
+from edb.server import _testbase as tb
 
 
 class TestIndexes(tb.DDLTestCase):

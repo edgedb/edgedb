@@ -19,8 +19,8 @@
 
 import uuid
 
-from edgedb.client import exceptions as exc
-from edgedb.server import _testbase as tb
+from edb.client import exceptions as exc
+from edb.server import _testbase as tb
 
 
 class TestDelete(tb.QueryTestCase):

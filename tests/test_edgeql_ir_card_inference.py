@@ -20,12 +20,12 @@
 import os.path
 import textwrap
 
-from edgedb.lang import _testbase as tb
+from edb.lang import _testbase as tb
 
-from edgedb.lang.edgeql import compiler
+from edb.lang.edgeql import compiler
 
-from edgedb.lang.ir import ast as irast
-from edgedb.lang.ir import inference as irinference
+from edb.lang.ir import ast as irast
+from edb.lang.ir import inference as irinference
 
 
 class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):

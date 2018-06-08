@@ -20,7 +20,7 @@
 from setuptools import setup
 
 
-from edgedb.lang import build
+from edb.lang import build
 
 
 RUNTIME_DEPS = [
@@ -43,18 +43,18 @@ setup(
     description='EdgeDB Server',
     author='MagicStack Inc.',
     author_email='hello@magic.io',
-    packages=['edgedb'],
-    provides=['edgedb'],
+    packages=['edb'],
+    provides=['edb'],
     include_package_data=True,
     cmdclass={
         'build': build.build
     },
     entry_points={
         'console_scripts': [
-            'edgedb = edgedb.repl:main',
-            'edgedb-server = edgedb.server.main:main',
-            'edgedb-ctl = edgedb.server.ctl:main',
-            'et = edgedb.tools.et:etcommands'
+            'edgedb = edb.repl:main',
+            'edgedb-server = edb.server.main:main',
+            'edgedb-ctl = edb.server.ctl:main',
+            'edb = edb.tools.edb:edbcommands'
         ]
     },
     install_requires=RUNTIME_DEPS,

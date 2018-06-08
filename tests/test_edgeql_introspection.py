@@ -19,7 +19,7 @@
 
 import os.path
 
-from edgedb.server import _testbase as tb
+from edb.server import _testbase as tb
 
 
 class TestIntrospection(tb.QueryTestCase):

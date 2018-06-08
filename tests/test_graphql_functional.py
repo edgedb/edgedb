@@ -19,7 +19,7 @@
 
 import uuid
 
-from edgedb.server import _testbase as tb
+from edb.server import _testbase as tb
 
 
 class TestGraphQLFunctional(tb.QueryTestCase):

@@ -19,7 +19,7 @@
 
 import unittest
 
-from edgedb.lang.common import nlang
+from edb.lang.common import nlang
 
 
 class NLangTests(unittest.TestCase):

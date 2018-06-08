@@ -20,9 +20,9 @@
 import re
 import unittest  # NoQA
 
-from edgedb.lang import _testbase as tb
-from edgedb.lang.schema import generate_source as eschema_to_source, error
-from edgedb.lang.schema.parser import parser as eschema_parser
+from edb.lang import _testbase as tb
+from edb.lang.schema import generate_source as eschema_to_source, error
+from edb.lang.schema.parser import parser as eschema_parser
 
 
 class SchemaSyntaxTest(tb.BaseSyntaxTest):

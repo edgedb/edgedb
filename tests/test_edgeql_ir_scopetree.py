@@ -21,9 +21,9 @@ import difflib
 import os.path
 import textwrap
 
-from edgedb.lang import _testbase as tb
+from edb.lang import _testbase as tb
 
-from edgedb.lang.edgeql import compiler, errors
+from edb.lang.edgeql import compiler, errors
 
 
 class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):

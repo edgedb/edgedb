@@ -19,8 +19,8 @@
 
 import unittest  # NOQA
 
-from edgedb.client import exceptions as client_errors
-from edgedb.server import _testbase as tb
+from edb.client import exceptions as client_errors
+from edb.server import _testbase as tb
 
 
 class TestEdgeQLDDL(tb.DDLTestCase):

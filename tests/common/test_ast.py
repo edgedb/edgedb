@@ -21,8 +21,8 @@ import copy
 import typing
 import unittest
 
-from edgedb.lang.common import ast
-from edgedb.lang.common.ast import match
+from edb.lang.common import ast
+from edb.lang.common.ast import match
 
 
 class tast:

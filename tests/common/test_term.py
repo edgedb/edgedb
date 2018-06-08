@@ -19,7 +19,7 @@
 
 import unittest
 
-from edgedb.lang.common.term import Style16, Style256
+from edb.lang.common.term import Style16, Style256
 
 
 class TermStyleTests(unittest.TestCase):

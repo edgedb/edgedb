@@ -20,9 +20,9 @@
 import shutil
 import tempfile
 
-from edgedb.server import _testbase as tb
-from edgedb.server import ctl
-from edgedb.server import cluster as edgedb_cluster
+from edb.server import _testbase as tb
+from edb.server import ctl
+from edb.server import cluster as edgedb_cluster
 
 
 class TestCtl(tb.TestCase):

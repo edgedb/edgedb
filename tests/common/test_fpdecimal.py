@@ -20,7 +20,7 @@
 import decimal
 import unittest
 
-from edgedb.lang.common import fpdecimal
+from edb.lang.common import fpdecimal
 
 
 class FPDecimalTests(unittest.TestCase):

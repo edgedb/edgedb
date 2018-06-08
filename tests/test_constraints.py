@@ -20,8 +20,8 @@
 import os.path
 import unittest
 
-from edgedb.server import _testbase as tb
-from edgedb.client import exceptions
+from edb.server import _testbase as tb
+from edb.client import exceptions
 
 
 class TestConstraintsSchema(tb.QueryTestCase):

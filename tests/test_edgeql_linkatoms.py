@@ -20,7 +20,7 @@
 import os.path
 import unittest  # NOQA
 
-from edgedb.server import _testbase as tb
+from edb.server import _testbase as tb
 
 
 class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
