@@ -278,10 +278,8 @@ class SetFieldStmt(Nonterm):
     def reduce_SET_NodeName_TURNSTILE_Expr(self, *kids):
         # if the expression is trivial (a literal or variable), it
         # should be treated as an eager expression
-        #
         eager = isinstance(kids[3].val,
-                           (qlast.Constant, qlast.Tuple,
-                            qlast.Mapping))
+                           (qlast.Constant, qlast.Tuple))
         self.val = qlast.CreateAttributeValue(
             name=kids[1].val,
             value=kids[3].val,
@@ -1501,7 +1499,7 @@ class InitialValue(Nonterm):
         # make sure that the initial value is a literal for now
         #
         if not isinstance(val, (qlast.Constant, qlast.EmptyCollection,
-                                qlast.Array, qlast.Mapping)):
+                                qlast.Array)):
             raise EdgeQLSyntaxError("initial value must be a literal",
                                     context=val.context)
 

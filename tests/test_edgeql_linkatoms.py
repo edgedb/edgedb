@@ -53,7 +53,6 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                 tag_set1,
                 tag_set2,
                 tag_array,
-                components,
             } ORDER BY .name;
         ''', [
             [
@@ -62,49 +61,41 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                     'tag_set1': {'plastic', 'round'},
                     'tag_set2': {'plastic', 'round'},
                     'tag_array': None,
-                    'components': None
                 }, {
                     'name': 'chair',
                     'tag_set1': {'wood', 'rectangle'},
                     'tag_set2': None,
                     'tag_array': ['wood', 'rectangle'],
-                    'components': {'legs': 4, 'board': 2}
                 }, {
                     'name': 'ectoplasm',
                     'tag_set1': None,
                     'tag_set2': None,
                     'tag_array': None,
-                    'components': None
                 }, {
                     'name': 'floor lamp',
                     'tag_set1': {'metal', 'plastic'},
                     'tag_set2': {'metal', 'plastic'},
                     'tag_array': ['metal', 'plastic'],
-                    'components': {'legs': 1, 'bulbs': 3}
                 }, {
                     'name': 'mystery toy',
                     'tag_set1': None,
                     'tag_set2': None,
                     'tag_array': None,
-                    'components': {'bulbs': 4, 'screen': 1, 'buttons': 42}
                 }, {
                     'name': 'table',
                     'tag_set1': {'wood', 'rectangle'},
                     'tag_set2': {'wood', 'rectangle'},
                     'tag_array': ['wood', 'rectangle'],
-                    'components': {'legs': 4, 'board': 1}
                 }, {
                     'name': 'teapot',
                     'tag_set1': None,
                     'tag_set2': None,
                     'tag_array': ['ceramic', 'round'],
-                    'components': None
                 }, {
                     'name': 'tv',
                     'tag_set1': None,
                     'tag_set2': {'plastic', 'rectangle'},
                     'tag_array': ['plastic', 'rectangle'],
-                    'components': {'screen': 1}
                 },
             ]
         ])
@@ -930,79 +921,4 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                     'tag_array': {'ceramic', 'round'}
                 },
             ],
-        ])
-
-    async def test_edgeql_links_map_01(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            SELECT Item {name}
-            FILTER .components['bulbs'] > 0
-            ORDER BY .name;
-        ''', [
-            [
-                {'name': 'floor lamp'},
-                {'name': 'mystery toy'},
-            ],
-        ])
-
-    async def test_edgeql_links_map_02(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            SELECT Item {name}
-            FILTER EXISTS .components['bulbs']
-            ORDER BY .name;
-        ''', [
-            [
-                {'name': 'floor lamp'},
-                {'name': 'mystery toy'},
-            ],
-        ])
-
-    async def test_edgeql_links_map_03(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            SELECT Item {name}
-            FILTER .components['bulbs'] = 0
-            ORDER BY .name;
-        ''', [
-            [],
-        ])
-
-    async def test_edgeql_links_map_04(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            SELECT Item {name}
-            FILTER NOT EXISTS .components['bulbs']
-            ORDER BY .name;
-        ''', [
-            [
-                {'name': 'ball'},
-                {'name': 'chair'},
-                {'name': 'ectoplasm'},
-                {'name': 'table'},
-                {'name': 'teapot'},
-                {'name': 'tv'},
-            ],
-        ])
-
-    async def test_edgeql_links_map_05(self):
-        await self.assert_query_result(r'''
-            WITH
-                MODULE test,
-                I := (SELECT Item ORDER BY Item.name)
-            SELECT (comp := array_agg(I.components),
-                    count := count(I.components));
-        ''', [
-            [
-                {
-                    'comp': [
-                        {'legs': 4, 'board': 2},
-                        {'legs': 1, 'bulbs': 3},
-                        {'bulbs': 4, 'screen': 1, 'buttons': 42},
-                        {'legs': 4, 'board': 1},
-                        {'screen': 1}
-                    ],
-                    'count': 5
-                }
-            ]
         ])

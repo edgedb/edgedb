@@ -63,15 +63,14 @@ class TestEdgeQLViews(tb.QueryTestCase):
     async def test_edgeql_views_basic_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
-            SELECT expert_map;
+            SELECT expert_map
+            ORDER BY expert_map;
         ''', [
             [
-                {
-                    'Alice': 'pro',
-                    'Bob': 'noob',
-                    'Carol': 'noob',
-                    'Dave': 'casual',
-                }
+                ['Alice', 'pro'],
+                ['Bob', 'noob'],
+                ['Carol', 'noob'],
+                ['Dave', 'casual'],
             ],
         ])
 

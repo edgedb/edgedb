@@ -368,17 +368,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit_list(node.elements, newlines=False)
         self.write(']')
 
-    def visit_Mapping(self, node):
-        self.write('[')
-        for i, (key, value) in enumerate(zip(node.keys, node.values)):
-            if i > 0:
-                self.write(', ')
-            self.visit(key)
-            self.write(' -> ')
-            self.visit(value)
-
-        self.write(']')
-
     def visit_NamedTuple(self, node):
         self.write('(')
         self._block_ws(1)

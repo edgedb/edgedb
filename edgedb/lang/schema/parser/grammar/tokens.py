@@ -116,10 +116,6 @@ class T_RAWLEADWS(Token):
     pass
 
 
-class T_MAPPING(Token):
-    pass
-
-
 class T_IDENT(Token):
     pass
 

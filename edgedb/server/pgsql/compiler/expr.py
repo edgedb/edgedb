@@ -120,9 +120,7 @@ def compile_TypeCast(
 
     if (isinstance(expr.expr, irast.EmptySet) or
             (isinstance(expr.expr, irast.Array) and
-                not expr.expr.elements) or
-            (isinstance(expr.expr, irast.Mapping) and
-                not expr.expr.keys)):
+                not expr.expr.elements)):
 
         return typecomp.cast(
             pg_expr, source_type=target_type,
@@ -501,34 +499,6 @@ def compile_Tuple(
     result = pgast.TupleVar(elements=elements)
 
     return output.output_as_value(result, env=ctx.env)
-
-
-@dispatch.compile.register(irast.Mapping)
-def compile_Mapping(
-        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
-    elements = []
-
-    schema = ctx.env.schema
-    str_t = schema.get('std::str')
-
-    for k, v in zip(expr.keys, expr.values):
-        # Cast keys to 'text' explicitly.
-        elements.append(
-            typecomp.cast(
-                dispatch.compile(k, ctx=ctx),
-                source_type=_infer_type(k, ctx=ctx),
-                target_type=str_t,
-                env=ctx.env)
-        )
-
-        # Don't cast values as we want to preserve ints, floats, bools,
-        # and arrays as JSON arrays (not text-encoded PostgreSQL types.)
-        elements.append(dispatch.compile(v, ctx=ctx))
-
-    return pgast.FuncCall(
-        name=('jsonb_build_object',),
-        args=elements
-    )
 
 
 @dispatch.compile.register(irast.TypeRef)

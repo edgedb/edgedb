@@ -287,8 +287,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE test::TestContainerLinkObjectType {
                 CREATE PROPERTY test::test_array_link -> array<std::str>;
                 CREATE PROPERTY test::test_array_link_2 -> array<std::str[10]>;
-                CREATE PROPERTY test::test_map_link ->
-                    map<std::str, std::int64>;
             };
         """)
 

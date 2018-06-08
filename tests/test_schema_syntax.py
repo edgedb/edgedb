@@ -200,12 +200,6 @@ type User:
     required link todo -> array<str>
         """
 
-    def test_eschema_syntax_link_target_type_02(self):
-        """
-type User:
-    required link dict -> map<str, str>
-        """
-
     def test_eschema_syntax_link_target_type_03(self):
         """
 type User:
@@ -215,7 +209,7 @@ type User:
     def test_eschema_syntax_link_target_type_04(self):
         """
 type User:
-    required link todo -> tuple<str, map<str, array<str>>, array<float64>>
+    required link todo -> tuple<str, tuple<str, array<str>>, array<float64>>
         """
 
     def test_eschema_syntax_index_01(self):
@@ -931,7 +925,7 @@ type Foo:
 
     def test_eschema_syntax_function_15(self):
         """
-        function foo() -> map<
+        function foo() -> tuple<
                     str,
                     array<tuple<int, str>>
                 >:
@@ -940,7 +934,7 @@ type Foo:
 
     def test_eschema_syntax_function_16(self):
         """
-        function foo() -> map<
+        function foo() -> tuple<
                     str,
                     array<tuple<int, `Foo:>`>>
                 >:
@@ -951,7 +945,7 @@ type Foo:
                   line=4, col=44)
     def test_eschema_syntax_function_17(self):
         """
-        function foo() -> map<
+        function foo() -> tuple<
                     str,
                     array<tuple<int, Foo>>>
                 >:

@@ -303,11 +303,6 @@ class Array(Expr):
     elements: typing.List[Expr]
 
 
-class Mapping(Expr):
-    keys: typing.List[Expr]
-    values: typing.List[Expr]
-
-
 class Set(Expr):
     elements: typing.List[Expr]
 
