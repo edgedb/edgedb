@@ -309,11 +309,11 @@ def xyz_to_lab(x, y, z):
     else:
         z = (7.787 * z) + _16_116
 
-    l = 116.0 * y - 16.0
+    lum = 116.0 * y - 16.0
     a = 500 * (x - y)
     b = 200 * (y - z)
 
-    return (l, a, b)
+    return (lum, a, b)
 
 
 def rgb_distance(r1, g1, b1, r2, g2, b2):

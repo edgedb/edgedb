@@ -85,7 +85,7 @@ def size(fileno):
     try:
         size = struct.unpack(
             '2h', fcntl.ioctl(fileno, termios.TIOCGWINSZ, '    '))
-    except:
+    except Exception:
         size = (os.getenv('LINES', 25), os.getenv('COLUMNS', 80))
 
     return size

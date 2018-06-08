@@ -124,7 +124,7 @@ class Transaction:
 
         try:
             await self._connection.execute(query)
-        except:
+        except BaseException:
             self._state = TransactionState.FAILED
             raise
         else:
@@ -162,7 +162,7 @@ class Transaction:
 
         try:
             await self._connection.execute(query)
-        except:
+        except BaseException:
             self._state = TransactionState.FAILED
             raise
         else:
@@ -178,7 +178,7 @@ class Transaction:
 
         try:
             await self._connection.execute(query)
-        except:
+        except BaseException:
             self._state = TransactionState.FAILED
             raise
         else:

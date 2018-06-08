@@ -72,12 +72,12 @@ class Rule:
 
 def group(*literals, _re_alpha=re.compile(r'^\w+$'), asbytes=False):
     rx = []
-    for l in literals:
-        if r'\b' not in l:
-            l = re.escape(l)
-        if _re_alpha.match(l):
-            l = r'\b' + l + r'\b'
-        rx.append(l)
+    for lit in literals:
+        if r'\b' not in lit:
+            lit = re.escape(lit)
+        if _re_alpha.match(lit):
+            lit = r'\b' + lit + r'\b'
+        rx.append(lit)
     result = ' | '.join(rx)
     if asbytes:
         result = result.encode()
