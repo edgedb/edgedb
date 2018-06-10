@@ -82,7 +82,8 @@ def compile_ir_to_sql(
         ir_expr: irast.Base, *,
         schema: s_schema.Schema,
         output_format: typing.Optional[OutputFormat]=None,
-        ignore_shapes: bool=False, timer=None):
+        ignore_shapes: bool=False,
+        timer=None) -> typing.Tuple[str, typing.Dict[str, int]]:
 
     if timer is None:
         qtree = compile_ir_to_sql_tree(
@@ -107,14 +108,13 @@ def compile_ir_to_sql(
         with timer.timeit('compile_ir_to_sql'):
             codegen = _run_codegen(qtree)
 
-    qchunks = codegen.result
-    arg_index = codegen.param_index
+    sql_text = ''.join(codegen.result)
 
     if debug.flags.edgeql_compile:  # pragma: no cover
         debug.header('SQL')
-        debug.dump_code(''.join(qchunks), lexer='sql')
+        debug.dump_code(sql_text, lexer='sql')
 
-    return qchunks, argmap, arg_index, type(qtree)
+    return sql_text, argmap
 
 
 def _run_codegen(qtree):

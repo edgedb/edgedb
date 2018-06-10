@@ -503,9 +503,8 @@ class CreateFunction(FunctionCommand, CreateNamedObject,
         body_ir = ql_compiler.compile_to_ir(
             func.code, schema, arg_types=arg_types)
 
-        qchunks, argmap, arg_index, query_type = \
-            compiler.compile_ir_to_sql(
-                body_ir, schema=schema, ignore_shapes=True)
+        sql_text, _ = compiler.compile_ir_to_sql(
+            body_ir, schema=schema, ignore_shapes=True)
 
         if func.varparam is not None:
             varparam = func.varparam + 1
@@ -517,7 +516,7 @@ class CreateFunction(FunctionCommand, CreateNamedObject,
             args=self.compile_args(func, schema),
             variadic_arg=varparam,
             returns=self.get_pgtype(func, func.returntype, schema),
-            text=''.join(qchunks))
+            text=sql_text)
 
     def apply(self, schema, context):
         func: s_funcs.Function = super().apply(schema, context)

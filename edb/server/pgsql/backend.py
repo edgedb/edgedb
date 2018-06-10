@@ -42,38 +42,16 @@ from . import intromech
 
 class Query(backend_query.Query):
     def __init__(
-            self, *, chunks, arg_index, argmap, argument_types,
-            scrolling_cursor=False, offset=None, limit=None,
-            query_type=None, output_desc=None, output_format=None):
-        self.chunks = chunks
-        self.text = ''.join(chunks)
+            self, *, text, argmap, argument_types,
+            output_desc=None, output_format=None):
+        self.text = text
         self.argmap = argmap
-        self.arg_index = arg_index
         self.argument_types = collections.OrderedDict((k, argument_types[k])
                                                       for k in argmap
                                                       if k in argument_types)
 
-        self.scrolling_cursor = scrolling_cursor
-        self.offset = offset.index if offset is not None else None
-        self.limit = limit.index if limit is not None else None
-        self.query_type = query_type
         self.output_desc = output_desc
         self.output_format = output_format
-
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        state.pop('text')
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        self.text = ''.join(self.chunks)
-
-    def get_output_format_info(self):
-        if self.output_format == 'json':
-            return ('json', 1)
-        else:
-            return ('edgedbobj', 1)
 
 
 class TypeDescriptor:
@@ -309,19 +287,18 @@ class Backend(s_deltarepo.DeltaProvider):
         output_desc = OutputDescriptor(
             type_desc=type_desc, tuple_registry=tuples)
 
-        qchunks, argmap, arg_index, query_type = \
-            compiler.compile_ir_to_sql(
-                query_ir, schema=self.schema,
-                output_format=output_format, timer=timer)
+        sql_text, argmap = compiler.compile_ir_to_sql(
+            query_ir, schema=self.schema,
+            output_format=output_format, timer=timer)
 
         argtypes = {}
         for k, v in query_ir.params.items():
             argtypes[k] = v
 
         return Query(
-            chunks=qchunks, arg_index=arg_index, argmap=argmap,
+            text=sql_text, argmap=argmap,
             argument_types=argtypes,
-            query_type=query_type, output_desc=output_desc,
+            output_desc=output_desc,
             output_format=output_format)
 
     async def translate_pg_error(self, query, error):
