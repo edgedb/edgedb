@@ -639,17 +639,10 @@ def process_link_update(
         mptrcls, '>', include_overlays=False, env=ctx.env)
     target_alias = target_rvar.alias.aliasname
 
-    if target_is_scalar:
-        target_tab_name = (target_rvar.relation.schemaname,
-                           target_rvar.relation.name)
-    else:
-        target_tab_name = common.link_name_to_table_name(
-            mptrcls.shortname, catenate=False)
+    target_tab_name = (target_rvar.relation.schemaname,
+                       target_rvar.relation.name)
 
-    tab_cols = \
-        ctx.env.backend._type_mech.get_cached_table_columns(target_tab_name)
-
-    assert tab_cols, "could not get cols for {!r}".format(target_tab_name)
+    tab_cols = dbobj.cols_for_pointer(mptrcls, env=ctx.env)
 
     dml_cte_rvar = pgast.RangeVar(
         relation=dml_cte,
@@ -701,7 +694,7 @@ def process_link_update(
 
     # Turn the IR of the expression on the right side of :=
     # into a subquery returning records for the link table.
-    data_cte = process_link_values(
+    data_cte, specified_cols = process_link_values(
         ir_stmt, ir_expr, target_tab_name, tab_cols, col_data,
         dml_cte_rvar, [lname_to_id_rvar],
         props_only, target_is_scalar, iterator_cte, ctx=ctx)
@@ -752,7 +745,7 @@ def process_link_update(
         )
     )
 
-    cols = [pgast.ColumnRef(name=[col]) for col in tab_cols]
+    cols = [pgast.ColumnRef(name=[col]) for col in specified_cols]
     updcte = pgast.CommonTableExpr(
         name=ctx.env.aliases.get(hint='i'),
         query=pgast.InsertStmt(
@@ -812,21 +805,9 @@ def process_linkprop_update(
 
     rptr = ir_expr.rptr
     ptrcls = rptr.ptrcls
-    target_is_scalar = isinstance(rptr.target, s_scalars.ScalarType)
 
     target_tab = dbobj.range_for_ptrcls(
         ptrcls, '>', include_overlays=False, env=ctx.env)
-
-    if target_is_scalar:
-        target_tab_name = (target_tab.schema, target_tab.name)
-    else:
-        target_tab_name = common.link_name_to_table_name(
-            ptrcls.shortname, catenate=False)
-
-    tab_cols = \
-        ctx.env.backend._type_mech.get_cached_table_columns(target_tab_name)
-
-    assert tab_cols, "could not get cols for {!r}".format(target_tab_name)
 
     dml_cte_rvar = pgast.RangeVar(
         relation=dml_cte,
@@ -873,7 +854,8 @@ def process_linkprop_update(
 def process_link_values(
         ir_stmt, ir_expr, target_tab, tab_cols, col_data,
         dml_rvar, sources, props_only, target_is_scalar, iterator_cte, *,
-        ctx=context.CompilerContext) -> pgast.CommonTableExpr:
+        ctx=context.CompilerContext) -> \
+        typing.Tuple[pgast.CommonTableExpr, typing.List[str]]:
     """Unpack data from an update expression into a series of selects.
 
     :param ir_expr:
@@ -930,8 +912,6 @@ def process_link_values(
         )
     )
 
-    row = pgast.ImplicitRowExpr()
-
     source_data = {}
 
     if input_stmt.op is not None:
@@ -966,33 +946,18 @@ def process_link_values(
             input_rvar, path_id, env=ctx.env)
         source_data['std::target'] = target_ref
 
+    specified_cols = []
     for col in tab_cols:
         expr = col_data.get(col)
         if expr is None:
             expr = source_data.get(col)
 
-        if expr is None:
-            if tab_cols[col]['column_default'] is not None:
-                expr = pgast.LiteralExpr(
-                    expr=tab_cols[col]['column_default'])
-            else:
-                expr = pgast.Constant(val=None)
-
-        row.args.append(expr)
-
-    row_query.target_list = [
-        pgast.ResTarget(
-            val=pgast.Indirection(
-                arg=pgast.TypeCast(
-                    arg=row,
-                    type_name=pgast.TypeName(
-                        name=target_tab
-                    )
-                ),
-                indirection=[pgast.Star()]
-            )
-        )
-    ]
+        if expr is not None:
+            row_query.target_list.append(pgast.ResTarget(
+                val=expr,
+                name=col
+            ))
+            specified_cols.append(col)
 
     row_query.from_clause += list(sources) + [input_rvar]
 
@@ -1001,4 +966,4 @@ def process_link_values(
         name=ctx.env.aliases.get(hint='r')
     )
 
-    return link_rows
+    return link_rows, specified_cols

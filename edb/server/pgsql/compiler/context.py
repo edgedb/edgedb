@@ -138,9 +138,7 @@ class CompilerContext(compiler.CompilerContext):
 class Environment:
     """Static compilation environment."""
 
-    def __init__(self, *, schema, output_format, backend,
-                 singleton_mode, views):
-        self.backend = backend
+    def __init__(self, *, schema, output_format, singleton_mode, views):
         self.singleton_mode = singleton_mode
         self.aliases = aliases.AliasGenerator()
         self.root_rels = set()

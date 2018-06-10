@@ -22,6 +22,8 @@ import typing
 from edb.lang.common import debug
 from edb.lang.common import exceptions as edgedb_error
 
+from edb.lang.schema import schema as s_schema
+
 from edb.lang.ir import ast as irast
 
 from edb.server.pgsql import ast as pgast
@@ -39,7 +41,7 @@ from .context import OutputFormat  # NOQA
 
 def compile_ir_to_sql_tree(
         ir_expr: irast.Base, *,
-        schema, backend=None,
+        schema: s_schema.Schema,
         output_format: typing.Optional[OutputFormat]=None,
         ignore_shapes: bool=False,
         singleton_mode: bool=False) -> pgast.Base:
@@ -57,7 +59,7 @@ def compile_ir_to_sql_tree(
             views = {}
         ctx.env = context.Environment(
             schema=schema, output_format=output_format,
-            backend=backend, singleton_mode=singleton_mode,
+            singleton_mode=singleton_mode,
             views=views)
         if ignore_shapes:
             ctx.expr_exposed = False
@@ -78,19 +80,19 @@ def compile_ir_to_sql_tree(
 
 def compile_ir_to_sql(
         ir_expr: irast.Base, *,
-        schema, backend=None,
+        schema: s_schema.Schema,
         output_format: typing.Optional[OutputFormat]=None,
         ignore_shapes: bool=False, timer=None):
 
     if timer is None:
         qtree = compile_ir_to_sql_tree(
-            ir_expr, schema=schema, backend=backend,
-            output_format=output_format, ignore_shapes=ignore_shapes)
+            ir_expr, schema=schema, output_format=output_format,
+            ignore_shapes=ignore_shapes)
     else:
         with timer.timeit('compile_ir_to_sql'):
             qtree = compile_ir_to_sql_tree(
-                ir_expr, schema=schema, backend=backend,
-                output_format=output_format, ignore_shapes=ignore_shapes)
+                ir_expr, schema=schema, output_format=output_format,
+                ignore_shapes=ignore_shapes)
 
     if debug.flags.edgeql_compile:  # pragma: no cover
         debug.header('SQL Tree')

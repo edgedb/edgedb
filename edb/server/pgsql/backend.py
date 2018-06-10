@@ -695,7 +695,7 @@ class Backend(s_deltarepo.DeltaProvider):
 
         qchunks, argmap, arg_index, query_type = \
             compiler.compile_ir_to_sql(
-                query_ir, backend=self, schema=self.schema,
+                query_ir, schema=self.schema,
                 output_format=output_format, timer=timer)
 
         argtypes = {}

@@ -504,19 +504,12 @@ def compile_Tuple(
 @dispatch.compile.register(irast.TypeRef)
 def compile_TypeRef(
         expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
-    data_backend = ctx.env.backend
-    schema = ctx.env.schema
-
     if expr.subtypes:
         raise NotImplementedError()
     else:
-        cls = schema.get(expr.maintype)
-        objtype_id = data_backend.get_type_id(cls)
-        result = pgast.TypeCast(
-            arg=pgast.Constant(val=objtype_id),
-            type_name=pgast.TypeName(
-                name=('uuid',)
-            )
+        result = pgast.FuncCall(
+            name=('edgedb', '_resolve_type_id'),
+            args=[pgast.Constant(val=expr.maintype)],
         )
 
     return result

@@ -387,3 +387,17 @@ def cte_for_query(
             aliasname=env.aliases.get(rel.name)
         )
     )
+
+
+def cols_for_pointer(
+        pointer: s_pointers.Pointer, *,
+        env: context.Environment) -> typing.List[str]:
+    cols = ['ptr_item_id']
+
+    if isinstance(pointer, s_links.Link):
+        for ptr in pointer.pointers.values():
+            cols.append(common.edgedb_name_to_pg_name(ptr.shortname))
+    else:
+        cols.extend(('std::source', 'std::target'))
+
+    return cols
