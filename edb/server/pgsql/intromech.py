@@ -130,66 +130,10 @@ class IntrospectionMech:
     async def _init_introspection_cache(self):
         await self._type_mech.init_cache(self.connection)
         await self._constr_mech.init_cache(self.connection)
-        t2pn, pn2t = await self._init_relid_cache()
-        self.table_id_to_class_name_cache = t2pn
-        self.classname_to_table_id_cache = pn2t
         self.domain_to_scalar_map = await self._init_scalar_map_cache()
         # ObjectType map needed early for type filtering operations
         # in schema queries
         await self.get_type_map(force_reload=True)
-
-    async def _init_relid_cache(self):
-        link_tables = await introspection.tables.fetch_tables(
-            self.connection,
-            schema_pattern='edgedb%', table_pattern='%_link')
-        link_tables = {(t['schema'], t['name']): t for t in link_tables}
-
-        records = await introspection.types.fetch(
-            self.connection,
-            schema_pattern='edgedb%', type_pattern='%_record',
-            include_arrays=False)
-        records = {(t['schema'], t['name']): t for t in records}
-
-        links_list = await datasources.schema.links.fetch(self.connection)
-        links_list = collections.OrderedDict((sn.Name(r['name']), r)
-                                             for r in links_list)
-
-        table_id_to_class_name_cache = {}
-        classname_to_table_id_cache = {}
-
-        for link_name, link in links_list.items():
-            link_table_name = common.link_name_to_table_name(
-                link_name, catenate=False)
-            t = link_tables.get(link_table_name)
-            if t:
-                table_id_to_class_name_cache[t['oid']] = link_name
-                table_id_to_class_name_cache[t['typoid']] = link_name
-                classname_to_table_id_cache[link_name] = t['typoid']
-
-        tables = await introspection.tables.fetch_tables(
-            self.connection, schema_pattern='edgedb%', table_pattern='%_data')
-        tables = {(t['schema'], t['name']): t for t in tables}
-
-        objtype_list = await datasources.schema.objtypes.fetch(self.connection)
-        objtype_list = collections.OrderedDict((sn.Name(row['name']), row)
-                                               for row in objtype_list)
-
-        for name, row in objtype_list.items():
-            table_name = common.objtype_name_to_table_name(
-                name, catenate=False)
-            table = tables.get(table_name)
-
-            if not table:
-                msg = 'internal metadata incosistency'
-                details = 'Record for type {!r} exists but the ' \
-                          'table is missing'.format(name)
-                raise s_err.SchemaError(msg, details=details)
-
-            table_id_to_class_name_cache[table['oid']] = name
-            table_id_to_class_name_cache[table['typoid']] = name
-            classname_to_table_id_cache[name] = table['typoid']
-
-        return table_id_to_class_name_cache, classname_to_table_id_cache
 
     def table_name_to_object_name(self, table_name):
         return self.table_cache.get(table_name)['name']

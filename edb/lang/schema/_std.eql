@@ -93,8 +93,6 @@ CREATE ABSTRACT ATTRIBUTE stdattrs::code std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::from_function std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::initial_value std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::varparam std::int64;
-# FIXME: args are currently broken
-CREATE ABSTRACT ATTRIBUTE stdattrs::args tuple<std::str, std::str>;
 
 CREATE FUNCTION std::lower(std::str) -> std::str
     FROM SQL FUNCTION 'lower';
