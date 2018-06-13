@@ -175,8 +175,6 @@ class Collection(Type):
     def get_class(cls, schema_name):
         if schema_name == 'array':
             return Array
-        elif schema_name == 'map':
-            return Map
         elif schema_name == 'tuple':
             return Tuple
         else:
@@ -257,26 +255,6 @@ class Array(Collection):
             dimensions = []
 
         return cls(element_type=element_type, dimensions=dimensions)
-
-
-class Map(Collection):
-    schema_name = 'map'
-
-    element_type = so.Field(so.Object)
-    key_type = so.Field(so.Object)
-
-    def get_container(self):
-        return dict
-
-    def get_subtypes(self):
-        return (self.key_type, self.element_type,)
-
-    @classmethod
-    def from_subtypes(cls, subtypes, typemods=None):
-        if len(subtypes) != 2:
-            raise ValueError(
-                f'unexpected number of subtypes, expecting 2: {subtypes!r}')
-        return cls(key_type=subtypes[0], element_type=subtypes[1])
 
 
 class Tuple(Collection):

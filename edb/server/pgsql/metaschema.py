@@ -1089,7 +1089,6 @@ def _generate_types_views(schema, type_fields):
     views = []
 
     Array = schema.get('schema::Array')
-    Map = schema.get('schema::Map')
     Tuple = schema.get('schema::Tuple')
 
     source = '\nUNION\n'.join(f'''
@@ -1124,28 +1123,6 @@ def _generate_types_views(schema, type_fields):
     '''
 
     views.append(dbops.View(name=tabname(Array), query=view_query))
-
-    view_query = f'''
-        WITH
-            types AS ({source})
-        SELECT
-            q.id            AS {dbname('std::id')},
-            q.collection    AS {dbname('schema::name')},
-            NULL            AS {dbname('schema::description')},
-            (SELECT id FROM edgedb.NamedObject
-                 WHERE name = 'schema::Array')
-                            AS {dbname('std::__type__')},
-            {_lookup_type('q.subtypes[1]')}
-                            AS {dbname('schema::key_type')},
-            {_lookup_type('q.subtypes[2]')}
-                            AS {dbname('schema::element_type')}
-        FROM
-            types AS q
-        WHERE
-            q.collection = 'map'
-    '''
-
-    views.append(dbops.View(name=tabname(Map), query=view_query))
 
     view_query = f'''
         WITH

@@ -369,16 +369,6 @@ def __infer_index(ir, schema):
 
         result = str_t
 
-    elif isinstance(node_type, s_types.Map):
-
-        if not index_type.issubclass(node_type.key_type):
-            raise ql_errors.EdgeQLError(
-                f'cannot index {node_type.name} by {index_type.name}, '
-                f'{node_type.key_type.name} was expected',
-                context=ir.index.context)
-
-        result = node_type.element_type
-
     elif isinstance(node_type, s_types.Array):
 
         if not index_type.issubclass(int_t):

@@ -147,42 +147,6 @@ def compile_IndexIndirection(
         subj = dispatch.compile(expr.expr, ctx=subctx)
         index = dispatch.compile(expr.index, ctx=subctx)
 
-    if isinstance(arg_type, s_types.Map):
-        # When we compile maps we always cast keys to text,
-        # hence we need to cast the index to text here.
-        index_type = _infer_type(expr.index, ctx=ctx)
-        index = typecomp.cast(
-            index,
-            source_type=index_type,
-            target_type=ctx.env.schema.get('std::str'),
-            env=ctx.env)
-
-        if isinstance(arg_type.element_type, s_types.Array):
-            return typecomp.cast(
-                astutils.new_binop(
-                    lexpr=subj,
-                    op='->',
-                    rexpr=index),
-                source_type=ctx.env.schema.get('std::json'),
-                target_type=arg_type.element_type,
-                env=ctx.env)
-
-        elif isinstance(arg_type.element_type, s_types.Map):
-            return astutils.new_binop(
-                lexpr=subj,
-                op='->',
-                rexpr=index)
-
-        else:
-            return typecomp.cast(
-                astutils.new_binop(
-                    lexpr=subj,
-                    op='->>',
-                    rexpr=index),
-                source_type=ctx.env.schema.get('std::str'),
-                target_type=arg_type.element_type,
-                env=ctx.env)
-
     if isinstance(arg_type, s_scalars.ScalarType):
         b = arg_type.get_topmost_concrete_base()
         is_string = b.name == 'std::str'

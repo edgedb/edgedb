@@ -394,12 +394,6 @@ CREATE TYPE schema::Array EXTENDING schema::ContainerType {
 };
 
 
-CREATE TYPE schema::Map EXTENDING schema::ContainerType {
-    CREATE REQUIRED LINK schema::element_type -> schema::Type;
-    CREATE REQUIRED LINK schema::key_type -> schema::Type;
-};
-
-
 CREATE TYPE schema::TypeElement {
     CREATE REQUIRED LINK schema::type -> schema::Type;
     CREATE REQUIRED PROPERTY schema::num -> std::int64;
