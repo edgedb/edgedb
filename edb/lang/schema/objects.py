@@ -19,6 +19,9 @@
 
 import collections.abc
 import itertools
+import pathlib
+import re
+import uuid
 
 from edb.lang.common import nlang
 from edb.lang.common import parsing
@@ -29,6 +32,38 @@ from edb.lang.common import struct, typed
 
 from . import error as s_err
 from . import name as sn
+
+
+_TYPE_IDS = None
+
+
+def load_type_ids():
+    import edb.api
+
+    types = pathlib.Path(edb.api.__path__[0]) / 'types.txt'
+    typeids = {}
+
+    with open(types, 'rt') as f:
+        for line in f:
+            if line.startswith('#'):
+                continue
+            line = line.strip()
+            if not line:
+                continue
+            parts = re.split(r'\s+', line)
+            id, name = parts[:2]
+            typeids[name] = uuid.UUID(id)
+
+    return typeids
+
+
+def get_known_type_id(typename):
+    global _TYPE_IDS
+
+    if _TYPE_IDS is None:
+        _TYPE_IDS = load_type_ids()
+
+    return _TYPE_IDS.get(typename)
 
 
 def is_named_class(scls):
@@ -132,6 +167,11 @@ class ObjectMeta(struct.MixedStructMeta):
 
 
 class Object(struct.MixedStruct, metaclass=ObjectMeta):
+    """Base schema item class."""
+
+    id = Field(uuid.UUID, default=None, compcoef=0.1, inheritable=False)
+    """Optional known ID for this schema item."""
+
     sourcectx = Field(parsing.ParserContext, None, compcoef=None,
                       inheritable=False, ephemeral=True, hashable=False)
     """Schema source context for this object"""
@@ -684,6 +724,13 @@ class NamedObject(Object):
                 '@@' +
                 '@'.join(cls.mangle_name(qualifier)
                          for qualifier in qualifiers if qualifier))
+
+    def __init__(self, **kwargs):
+        type_id = kwargs.pop('id', None)
+        type_name = kwargs.pop('name')
+        if type_id is None:
+            type_id = get_known_type_id(type_name)
+        super().__init__(id=type_id, name=type_name, **kwargs)
 
     @property
     def shortname(self) -> sn.Name:

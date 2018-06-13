@@ -215,7 +215,7 @@ class NamedObjectMetaCommand(
 
         return result
 
-    def _serialize_field(self, value, col):
+    def _serialize_field(self, value, col, *, use_defaults=False):
         recvalue = None
 
         if isinstance(value, (s_obj.ObjectSet, s_obj.ObjectList)):
@@ -264,7 +264,10 @@ class NamedObjectMetaCommand(
                     [names], type='uuid[]')
 
         elif recvalue is None:
-            recvalue = result
+            if result is None and use_defaults:
+                recvalue = dbops.Default
+            else:
+                recvalue = result
 
         return result, recvalue
 
@@ -276,7 +279,7 @@ class NamedObjectMetaCommand(
 
         return fields
 
-    def fill_record(self, schema):
+    def fill_record(self, schema, *, use_defaults=False):
         updates = {}
 
         rec = None
@@ -287,7 +290,8 @@ class NamedObjectMetaCommand(
         for name, value in fields.items():
             col = table.get_column(name)
 
-            v1, refqry = self._serialize_field(value, col)
+            v1, refqry = self._serialize_field(
+                value, col, use_defaults=use_defaults)
 
             updates[name] = v1
             if col is not None:
@@ -310,7 +314,7 @@ class NamedObjectMetaCommand(
         return result
 
     def create_object(self, schema, scls):
-        rec, updates = self.fill_record(schema)
+        rec, updates = self.fill_record(schema, use_defaults=True)
         self.pgops.add(
             dbops.Insert(
                 table=self.table, records=[rec], priority=self.op_priority))
@@ -604,8 +608,8 @@ class AttributeValueCommand(sd.ObjectCommand,
     table = metaschema.get_metaclass_table(s_attrs.AttributeValue)
     op_priority = 1
 
-    def fill_record(self, schema):
-        rec, updates = super().fill_record(schema)
+    def fill_record(self, schema, *, use_defaults=False):
+        rec, updates = super().fill_record(schema, use_defaults=use_defaults)
 
         if rec:
             value = updates.get('value')
@@ -643,18 +647,6 @@ class ConstraintCommand(sd.ObjectCommand,
                         metaclass=ReferencedObjectCommandMeta):
     table = metaschema.get_metaclass_table(s_constr.Constraint)
     op_priority = 3
-
-    def fill_record(self, schema):
-        rec, updates = super().fill_record(schema)
-
-        if rec and False:
-            # Write the original locally-defined expression
-            # so that when the schema is introspected the
-            # correct finalexpr is restored with scls
-            # inheritance mechanisms.
-            rec.finalexpr = rec.localfinalexpr
-
-        return rec, updates
 
 
 class CreateConstraint(
@@ -753,8 +745,8 @@ class DeleteConstraint(
 
 
 class ViewCapableObjectMetaCommand(NamedObjectMetaCommand):
-    def fill_record(self, schema):
-        rec, updates = super().fill_record(schema)
+    def fill_record(self, schema, *, use_defaults=False):
+        rec, updates = super().fill_record(schema, use_defaults=use_defaults)
         if rec and False:
             expr = updates.get('expr')
             if expr:
@@ -772,8 +764,8 @@ class ScalarTypeMetaCommand(ViewCapableObjectMetaCommand):
         seq = schema.get('std::sequence', default=None)
         return seq is not None and scalar.issubclass(seq)
 
-    def fill_record(self, schema):
-        rec, updates = super().fill_record(schema)
+    def fill_record(self, schema, *, use_defaults=False):
+        rec, updates = super().fill_record(schema, use_defaults=use_defaults)
         default = updates.get('default')
         if default:
             if not rec:
@@ -1840,7 +1832,8 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                 return objtype
 
     def record_metadata(self, pointer, old_pointer, schema, context):
-        rec, updates = self.fill_record(schema)
+        rec, updates = self.fill_record(
+            schema, use_defaults=old_pointer is None)
 
         if updates:
             if not rec:
