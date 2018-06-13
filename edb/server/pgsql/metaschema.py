@@ -106,7 +106,7 @@ class ObjectTable(dbops.Table):
             name=('edgedb', 'class'),
             columns=[
                 dbops.Column(
-                    name='id', type='uuid', required=True, readonly=True,
+                    name='id', type='uuid', required=True,
                     default='edgedb.uuid_generate_v1mc()')
             ],
             constraints=[
