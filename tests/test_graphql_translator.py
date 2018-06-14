@@ -1143,27 +1143,6 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
-    @unittest.expectedFailure
-    def test_graphql_translation_variables_10(self):
-        r"""
-        query($val: Int = 3) {
-            User(score: $val) {
-                id,
-            }
-        }
-
-% OK %
-
-        SELECT graphql::Query {
-            User := (SELECT
-                test::User {
-                    id,
-                }
-            FILTER
-                (test::User.score = $val))
-        };
-        """
-
     def test_graphql_translation_variables_11(self):
         r"""
         query($val: Float = 3) {

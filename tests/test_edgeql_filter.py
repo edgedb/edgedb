@@ -18,7 +18,7 @@
 
 
 import os.path
-import unittest
+import unittest  # NOQA
 
 from edb.server import _testbase as tb
 
@@ -354,8 +354,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             [],
         ])
 
-    # XXX: this test is not longer correct with respect to inline aliases.
-    @unittest.expectedFailure
     async def test_edgeql_filter_flow03(self):
         await self.assert_query_result(r'''
             # base line for a cross product
@@ -371,22 +369,24 @@ class TestEdgeQLFilter(tb.QueryTestCase):
                 ).number + Status.name
             ORDER BY _;
 
-            # interaction of filter and cross product
             WITH MODULE test
             SELECT _ := (
                     SELECT Issue
                     FILTER Issue.owner.name = 'Elvis'
                 ).number + Status.name
             FILTER
+                # this FILTER is legal, but irrelevant, the same way as
+                # SELECT Issue.number + Status.name FILTER Status.name = 'Open'
                 Status.name = 'Open'
             ORDER BY _;
         ''', [
-            ['1Closed', '1Open', '2Closed', '2Open',
-             '3Closed', '3Open', '4Closed', '4Open'],
+            ['1Closed', '1Open',
+             '2Closed', '2Open',
+             '3Closed', '3Open',
+             '4Closed', '4Open'],
 
             ['1Closed', '1Open', '2Closed', '2Open'],
-
-            ['1Open', '2Open']
+            ['1Closed', '1Open', '2Closed', '2Open'],
         ])
 
     async def test_edgeql_filter_empty01(self):

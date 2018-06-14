@@ -341,7 +341,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [{'foo1': 'Victor', 'bar1': 'Victor'}]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_ddl_15(self):
         await self.con.execute(r"""
             CREATE TYPE test::TestSelfLink2 {
@@ -356,21 +355,29 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.assert_query_result(r"""
             INSERT test::TestSelfLink2 {
-                foo2 := 'Victor'
+                foo2 := 'Alice'
             };
             INSERT test::TestSelfLink2 {
-                foo2 := 'Elvis'
+                foo2 := 'Bob'
+            };
+            INSERT test::TestSelfLink2 {
+                foo2 := 'Carol'
             };
 
             WITH MODULE test
             SELECT TestSelfLink2 {
                 foo2,
                 bar2,
-            } FILTER TestSelfLink2.foo2 = 'Victor';
+            } ORDER BY TestSelfLink2.foo2;
         """, [
             [1],
             [1],
-            [{'foo2': 'Victor', 'bar2': {'Victor', 'Elvis'}}]
+            [1],
+            [
+                {'bar2': None, 'foo2': 'Alice'},
+                {'bar2': {'Alice'}, 'foo2': 'Bob'},
+                {'bar2': {'Alice', 'Bob'}, 'foo2': 'Carol'}
+            ],
         ])
 
     @unittest.expectedFailure
@@ -382,8 +389,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE TYPE test::TestSelfLink3 {
                     CREATE PROPERTY test::foo3 -> std::str;
                     CREATE PROPERTY test::bar3 -> std::str {
-                        # NOTE: this is a set of all TestSelfLink2.foo3
-                        SET default := test::TestSelfLink2.foo3;
+                        # NOTE: this is a set of all TestSelfLink3.foo3
+                        SET default := test::TestSelfLink3.foo3;
                     };
                 };
             """)

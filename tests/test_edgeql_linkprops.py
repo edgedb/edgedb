@@ -773,27 +773,19 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_props_setops_04(self):
         await self.assert_query_result(r'''
             WITH
                 MODULE test,
-                x := DISTINCT (
-                    (
-                        SELECT User FILTER User.name = 'Alice'
-                    ).deck@count
-                )
-                # `x` is the set of distinct values of card counts in
-                # the deck of Alice, namely: {2, 3}
-            SELECT _ := (x, User.name)
-            # we only expect tuples for User.name 'Alice', because for
-            # everyone else `x` will be {} due to the unsatisfied
-            # FILTER
+                A := (SELECT User FILTER User.name = 'Alice')
+                # the set of distinct values of card counts in
+                # the deck of Alice is {2, 3}
+            SELECT _ := (DISTINCT A.deck@count, A.name)
             ORDER BY _;
-        ''', [
+        ''', [[
             [2, 'Alice'],
             [3, 'Alice'],
-        ])
+        ]])
 
     @unittest.expectedFailure
     async def test_edgeql_props_setops_05(self):
@@ -807,8 +799,8 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 )
                 # `x` is the set of distinct values of card counts in
                 # the deck of Alice, namely: {2, 3}
-            SELECT _ := (DETACHED x, User.name)
-            # DETACHED x results in a cross product:
+            SELECT _ := (x, User.name)
+            # x results in a cross product:
             # {2, 3} X {'Alice', 'Bob', 'Carol', 'Dave'}
             ORDER BY _;
         ''', [
