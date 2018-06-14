@@ -228,7 +228,7 @@ class Backend(s_deltarepo.DeltaProvider):
                                                    element_names)
             is_tuple = True
 
-        elif t in view_shapes:
+        elif view_shapes.get(t):
             # This is a view
 
             if mt.is_virtual:
@@ -254,14 +254,9 @@ class Backend(s_deltarepo.DeltaProvider):
                     subtypes.append(subdesc)
                     element_names.append(ptr.shortname.name)
 
-            if subtypes:
-                type_id = self._get_collection_type_id(base_type_id, subtypes,
-                                                       element_names)
-                is_tuple = True
-            else:
-                type_id = base_type_id
-                if mt.is_virtual:
-                    is_tuple = True
+            type_id = self._get_collection_type_id(base_type_id, subtypes,
+                                                   element_names)
+            is_tuple = True
 
         else:
             # This is a regular type

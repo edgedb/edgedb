@@ -466,9 +466,11 @@ def _compile_view_shapes_in_set(
                     not ctx.class_shapes[source]
                 )
 
-                if not ((implicit_id and ptr.is_id_pointer()) or
-                        ptr in ctx.class_shapes[source]):
-                    continue
+                if ptr not in ctx.class_shapes[source]:
+                    if ptr.is_id_pointer() and implicit_id:
+                        ctx.class_shapes[source].append(ptr)
+                    else:
+                        continue
 
                 if is_objtype and ptr.is_endpoint_pointer():
                     continue
