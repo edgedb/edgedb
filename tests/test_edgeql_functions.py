@@ -280,6 +280,40 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [9, 19],
         ])
 
+    async def test_edgeql_functions_array_unpack_02(self):
+        await self.assert_query_result(r'''
+            # array_agg and array_unpack are inverses of each other
+            SELECT array_agg(array_unpack([1, 2, 3])) = [1, 2, 3];
+            SELECT array_unpack(array_agg({1, 2, 3}));
+        ''', [
+            [True],
+            {1, 2, 3},
+        ])
+
+    async def test_edgeql_functions_array_unpack_03(self):
+        await self.assert_query_result(r'''
+            # array_agg and array_unpack are inverses of each other
+            WITH MODULE test
+            SELECT array_unpack(array_agg(Issue.number));
+        ''', [
+            {'1', '2', '3', '4'},
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_functions_array_unpack_04(self):
+        await self.assert_sorted_query_result(r'''
+            # array_agg and array_unpack are inverses of each other
+            WITH MODULE test
+            SELECT array_unpack(array_agg(Issue)){number};
+        ''', lambda x: x['number'], [
+            [
+                {'number': '1'},
+                {'number': '2'},
+                {'number': '3'},
+                {'number': '4'},
+            ],
+        ])
+
     async def test_edgeql_functions_array_enumerate_01(self):
         await self.assert_query_result(r'''
             SELECT [10, 20];
@@ -436,6 +470,14 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_sum_02(self):
         await self.assert_query_result(r'''
             SELECT sum({1, 2, 3, -4.2, 5});
+        ''', [
+            [6.8],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_functions_sum_03(self):
+        await self.assert_query_result(r'''
+            SELECT sum({1.0, 2.0, 3.0, -4.2, 5});
         ''', [
             [6.8],
         ])

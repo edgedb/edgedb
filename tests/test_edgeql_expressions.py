@@ -743,13 +743,14 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT [];
             """)
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_array_05(self):
-        await self.assert_query_result('''
-            SELECT [1, 2] + [3, 4];
-        ''', [
-            [[1, 2, 3, 4]],
-        ])
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'binary operator `\+` is not defined'):
+
+            await self.con.execute('''
+                SELECT [1, 2] + [3, 4];
+            ''')
 
     @unittest.expectedFailure
     async def test_edgeql_expr_array_06(self):
@@ -965,10 +966,17 @@ class TestExpressions(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_expr_json_06(self):
-        await self.assert_query_result("""
+        # casting a JSON array into an EdgeQL array should be recursive:
+        # - cast each element of JSON array into the element type
+        # - construct a new EdgeQL array out of the elements
+        await self.assert_query_result(r"""
+            SELECT <array<int64>><json>'[1, 2, 3]' =
+                [<int64><json>'1', <int64><json>'2', <int64><json>'3'];
+            # null will cast into an empty set and make the entire array vanish
             SELECT <array<int64>><json>'[null]' ?= <array<int64>>{};
             SELECT <array<int64>><json>'[1, null]' ?= <array<int64>>{};
         """, [
+            [True],
             [True],
             [True],
         ])
@@ -1012,11 +1020,11 @@ class TestExpressions(tb.QueryTestCase):
         await self.assert_query_result("""
             SELECT json_object_unpack(<json>'{"q": 1, "w": "a", "e": null}');
         """, [
-            [{
-                'q': 1,
-                'w': 'a',
-                'e': None
-            }],
+            {
+                ('q', 1),
+                ('w', 'a'),
+                ('e', None),
+            },
         ])
 
     @unittest.expectedFailure
@@ -1523,14 +1531,11 @@ class TestExpressions(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_expr_cardinality_08(self):
-        # we expect some sort of error because the set {1, 2} does not
-        # have cardinality 1
+        # we expect some sort of error because cardinality '1' is not legal
         with self.assertRaisesRegex(exc.UnknownEdgeDBError, ''):
             await self.query(r'''
-                WITH
-                    MODULE test,
-                    CARDINALITY '1'
-                SELECT {1, 2};
+                WITH CARDINALITY '1'
+                SELECT 1;
             ''')
 
     async def test_edgeql_expr_type_filter_01(self):
@@ -1791,7 +1796,7 @@ class TestExpressions(tb.QueryTestCase):
             USING _ := y.1
             BY _
             INTO y
-            UNION array_agg(y.0);
+            UNION array_agg(y.0 ORDER BY y.0);
         ''', lambda x: x, [
             [[1, 4], [3]],
         ])
@@ -1804,7 +1809,7 @@ class TestExpressions(tb.QueryTestCase):
             USING _ := x.1
             BY _
             INTO x
-            UNION array_agg(x.0);
+            UNION array_agg(x.0 ORDER BY x.0);
         ''', lambda x: x, [
             [[1, 4], [3]],
         ])
@@ -1817,7 +1822,7 @@ class TestExpressions(tb.QueryTestCase):
             USING B := x.1
             BY B
             INTO x
-            UNION (B, array_agg(x.0))
+            UNION (B, array_agg(x.0 ORDER BY x.0))
             ORDER BY
                 B;
         ''', [
@@ -1860,28 +1865,31 @@ class TestExpressions(tb.QueryTestCase):
             [[1, 3], [2, 1], [3, 2]]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_schema_01(self):
         await self.assert_query_result(r'''
             WITH MODULE schema
-            SELECT _ := (
-                SELECT ObjectType
-                FILTER ObjectType.name = 'test::User'
-            ).attributes {
+            SELECT ObjectType {
                 name,
-                @value
+                attributes: {
+                    name,
+                    @value
+                } ORDER BY ObjectType.attributes.name
             }
-            ORDER BY _.name;
+            FILTER .name = 'test::User';
+
         ''', [
-            [
-                {'name': 'stdattrs::description', '@value': None},
-                {'name': 'stdattrs::expr', '@value': None},
-                {'name': 'stdattrs::is_abstract', '@value': 'false'},
-                {'name': 'stdattrs::is_derived', '@value': 'false'},
-                {'name': 'stdattrs::is_final', '@value': 'false'},
-                {'name': 'stdattrs::is_virtual', '@value': 'false'},
-                {'name': 'stdattrs::name', '@value': 'test::User'},
-                {'name': 'stdattrs::title', '@value': None},
-                {'name': 'stdattrs::view_type', '@value': None},
-            ]
+            [{
+                'name': 'test::User',
+                'attributes': [
+                    {'name': 'stdattrs::description', '@value': None},
+                    {'name': 'stdattrs::expr', '@value': None},
+                    {'name': 'stdattrs::is_abstract', '@value': 'false'},
+                    {'name': 'stdattrs::is_derived', '@value': 'false'},
+                    {'name': 'stdattrs::is_final', '@value': 'false'},
+                    {'name': 'stdattrs::is_virtual', '@value': 'false'},
+                    {'name': 'stdattrs::name', '@value': 'test::User'},
+                    {'name': 'stdattrs::title', '@value': None},
+                    {'name': 'stdattrs::view_type', '@value': None},
+                ]
+            }]
         ])

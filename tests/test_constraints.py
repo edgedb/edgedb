@@ -184,6 +184,8 @@ class TestConstraintsSchema(tb.QueryTestCase):
 
             with self.assertRaisesRegex(exceptions.ConstraintViolationError,
                                         'name violates unique constraint'):
+                # FIXME: the FILTER clause seems to filter out
+                # everything, so the UPDATE is empty
                 await self.con.execute("""
                     UPDATE
                         test::UniqueNameInherited
@@ -803,8 +805,9 @@ class TestConstraintsDDL(tb.DDLTestCase):
             """)
 
     @unittest.expectedFailure
-    # XXX: the test fails because errmessage is an expression that's not
-    #      a simple string literal, but a concatenation of 2 string literals.
+    # FIXME: the test fails because errmessage is an expression that's
+    #        not a simple string literal, but a concatenation of 2
+    #        string literals.
     async def test_constraints_ddl_04(self):
         # testing an issue with expressions used for 'errmessage'
         qry = r"""

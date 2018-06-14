@@ -47,14 +47,7 @@ class TestUpdate(tb.QueryTestCase):
         INSERT test::Tag {
             name := 'wow'
         };
-    """
 
-    def setUp(self):
-        super().setUp()
-        self.loop.run_until_complete(self._setup_objects())
-
-    async def _setup_objects(self):
-        res = await self.con.execute(r"""
             WITH MODULE test
             INSERT UpdateTest {
                 name := 'update-test1',
@@ -74,7 +67,14 @@ class TestUpdate(tb.QueryTestCase):
                 comment := 'third',
                 status := (SELECT Status FILTER Status.name = 'Closed')
             };
+    """
 
+    def setUp(self):
+        super().setUp()
+        self.loop.run_until_complete(self._setup_objects())
+
+    async def _setup_objects(self):
+        res = await self.con.execute(r"""
             WITH MODULE test
             SELECT UpdateTest {
                 id,
@@ -86,10 +86,10 @@ class TestUpdate(tb.QueryTestCase):
             } ORDER BY .name;
         """)
 
-        self.original = res[-1]
+        self.original = res[0]
 
     async def test_edgeql_update_simple_01(self):
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             # bad name doesn't exist, so no update is expected
@@ -107,9 +107,7 @@ class TestUpdate(tb.QueryTestCase):
                     name
                 }
             } ORDER BY .name;
-        """)
-
-        self.assert_data_shape(res, [
+        """, [
             [0],
             self.original,
         ])
@@ -117,7 +115,7 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_simple_02(self):
         orig1, orig2, orig3 = self.original
 
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
@@ -134,24 +132,25 @@ class TestUpdate(tb.QueryTestCase):
                     name
                 }
             } ORDER BY .name;
-        """)
-
-        self.assert_data_shape(res[-1], [
-            {
-                'id': orig1['id'],
-                'name': 'update-test1',
-                'status': {
-                    'name': 'Closed'
-                }
-            },
-            orig2,
-            orig3,
+        """, [
+            [1],
+            [
+                {
+                    'id': orig1['id'],
+                    'name': 'update-test1',
+                    'status': {
+                        'name': 'Closed'
+                    }
+                },
+                orig2,
+                orig3,
+            ]
         ])
 
     async def test_edgeql_update_simple_03(self):
         orig1, orig2, orig3 = self.original
 
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test2'
@@ -165,28 +164,29 @@ class TestUpdate(tb.QueryTestCase):
                 name,
                 comment,
             } ORDER BY .name;
-        """)
-
-        self.assert_data_shape(res[-1], [
-            {
-                'id': orig1['id'],
-                'name': orig1['name'],
-                'comment': orig1['comment'],
-            }, {
-                'id': orig2['id'],
-                'name': 'update-test2',
-                'comment': 'updated second',
-            }, {
-                'id': orig3['id'],
-                'name': orig3['name'],
-                'comment': orig3['comment'],
-            },
+        """, [
+            [1],
+            [
+                {
+                    'id': orig1['id'],
+                    'name': orig1['name'],
+                    'comment': orig1['comment'],
+                }, {
+                    'id': orig2['id'],
+                    'name': 'update-test2',
+                    'comment': 'updated second',
+                }, {
+                    'id': orig3['id'],
+                    'name': orig3['name'],
+                    'comment': orig3['comment'],
+                },
+            ]
         ])
 
     async def test_edgeql_update_simple_04(self):
         orig1, orig2, orig3 = self.original
 
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             SET {
@@ -203,31 +203,32 @@ class TestUpdate(tb.QueryTestCase):
                     name
                 }
             } ORDER BY .name;
-        """)
-
-        self.assert_data_shape(res[-1], [
-            {
-                'id': orig1['id'],
-                'name': 'update-test1',
-                'comment': None,
-                'status': {
-                    'name': 'Closed'
-                }
-            }, {
-                'id': orig2['id'],
-                'name': 'update-test2',
-                'comment': 'second!',
-                'status': {
-                    'name': 'Closed'
-                }
-            }, {
-                'id': orig3['id'],
-                'name': 'update-test3',
-                'comment': 'third!',
-                'status': {
-                    'name': 'Closed'
-                }
-            },
+        """, [
+            [3],
+            [
+                {
+                    'id': orig1['id'],
+                    'name': 'update-test1',
+                    'comment': None,
+                    'status': {
+                        'name': 'Closed'
+                    }
+                }, {
+                    'id': orig2['id'],
+                    'name': 'update-test2',
+                    'comment': 'second!',
+                    'status': {
+                        'name': 'Closed'
+                    }
+                }, {
+                    'id': orig3['id'],
+                    'name': 'update-test3',
+                    'comment': 'third!',
+                    'status': {
+                        'name': 'Closed'
+                    }
+                },
+            ]
         ])
 
     async def test_edgeql_update_returning_01(self):
@@ -379,7 +380,7 @@ class TestUpdate(tb.QueryTestCase):
         """)
         status = status[0][0]['id']
 
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test3'
@@ -397,61 +398,56 @@ class TestUpdate(tb.QueryTestCase):
                     name
                 }
             } FILTER UpdateTest.name = 'update-test3';
-        """)
-
-        self.assert_data_shape(res[-1], [
-            {
-                'name': 'update-test3',
-                'status': {
-                    'name': 'Open',
+        """, [
+            [1],
+            [
+                {
+                    'name': 'update-test3',
+                    'status': {
+                        'name': 'Open',
+                    },
                 },
-            },
+            ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_update_filter_01(self):
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             UPDATE (SELECT UpdateTest)
-            # this FILTER is irrelevant because UpdateTest is wrapped
+            # this FILTER is trivial because UpdateTest is wrapped
             # into a SET OF by SELECT
-            FILTER UpdateTest.name = 'bad name'
+            FILTER UpdateTest.name = 'update-test1'
             SET {
                 comment := 'bad test'
             };
 
             WITH MODULE test
             SELECT UpdateTest.comment;
-        """)
-
-        self.assert_data_shape(res, [
+        """, [
             [3],
             ['bad test'] * 3,
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_update_filter_02(self):
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             UPDATE ({} ?? UpdateTest)
-            # this FILTER is irrelevant because UpdateTest is wrapped
+            # this FILTER is trivial because UpdateTest is wrapped
             # into a SET OF by ??
-            FILTER UpdateTest.name = 'bad name'
+            FILTER UpdateTest.name = 'update-test1'
             SET {
                 comment := 'bad test'
             };
 
             WITH MODULE test
             SELECT UpdateTest.comment;
-        """)
-
-        self.assert_data_shape(res, [
+        """, [
             [3],
             ['bad test'] * 3,
         ])
 
     async def test_edgeql_update_multiple_01(self):
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
@@ -466,23 +462,24 @@ class TestUpdate(tb.QueryTestCase):
                     name
                 } ORDER BY .name
             } FILTER UpdateTest.name = 'update-test1';
-        """)
-
-        self.assert_data_shape(res[-1], [
-            {
-                'name': 'update-test1',
-                'tags': [{
-                    'name': 'boring',
-                }, {
-                    'name': 'fun',
-                }, {
-                    'name': 'wow',
-                }],
-            },
+        """, [
+            [1],
+            [
+                {
+                    'name': 'update-test1',
+                    'tags': [{
+                        'name': 'boring',
+                    }, {
+                        'name': 'fun',
+                    }, {
+                        'name': 'wow',
+                    }],
+                },
+            ]
         ])
 
     async def test_edgeql_update_multiple_02(self):
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
@@ -497,19 +494,20 @@ class TestUpdate(tb.QueryTestCase):
                     name
                 } ORDER BY .name
             } FILTER UpdateTest.name = 'update-test1';
-        """)
-
-        self.assert_data_shape(res[-1], [
-            {
-                'name': 'update-test1',
-                'tags': [{
-                    'name': 'wow',
-                }],
-            },
+        """, [
+            [1],
+            [
+                {
+                    'name': 'update-test1',
+                    'tags': [{
+                        'name': 'wow',
+                    }],
+                },
+            ]
         ])
 
     async def test_edgeql_update_multiple_03(self):
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
@@ -524,22 +522,23 @@ class TestUpdate(tb.QueryTestCase):
                     name
                 } ORDER BY .name
             } FILTER UpdateTest.name = 'update-test1';
-        """)
-
-        self.assert_data_shape(res[-1], [
-            {
-                'name': 'update-test1',
-                'tags': [{
-                    'name': 'fun',
-                }, {
-                    'name': 'wow',
-                }],
-            },
+        """, [
+            [1],
+            [
+                {
+                    'name': 'update-test1',
+                    'tags': [{
+                        'name': 'fun',
+                    }, {
+                        'name': 'wow',
+                    }],
+                },
+            ]
         ])
 
     @unittest.expectedFailure
     async def test_edgeql_update_multiple_04(self):
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             # first add a tag to UpdateTest
             WITH MODULE test
             UPDATE UpdateTest
@@ -577,9 +576,7 @@ class TestUpdate(tb.QueryTestCase):
                     name
                 } ORDER BY .name
             } FILTER UpdateTest.name = 'update-test1';
-        """)
-
-        self.assert_data_shape(res, [
+        """, [
             [1],
             [{
                 'name': 'update-test1',
@@ -599,7 +596,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     async def test_edgeql_update_multiple_05(self):
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH
                 MODULE test,
                 U2 := DETACHED UpdateTest
@@ -616,21 +613,22 @@ class TestUpdate(tb.QueryTestCase):
                     name
                 } ORDER BY .name
             } FILTER UpdateTest.name = 'update-test1';
-        """)
-
-        self.assert_data_shape(res[-1], [
-            {
-                'name': 'update-test1',
-                'related': [{
-                    'name': 'update-test2',
-                }, {
-                    'name': 'update-test3',
-                }],
-            },
+        """, [
+            [1],
+            [
+                {
+                    'name': 'update-test1',
+                    'related': [{
+                        'name': 'update-test2',
+                    }, {
+                        'name': 'update-test3',
+                    }],
+                },
+            ]
         ])
 
     async def test_edgeql_update_multiple_06(self):
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH
                 MODULE test,
                 U2 := DETACHED UpdateTest
@@ -650,23 +648,24 @@ class TestUpdate(tb.QueryTestCase):
                     @note
                 } ORDER BY .name
             } FILTER UpdateTest.name = 'update-test1';
-        """)
-
-        self.assert_data_shape(res[-1], [
-            {
-                'name': 'update-test1',
-                'annotated_tests': [{
-                    'name': 'update-test2',
-                    '@note': None,
-                }, {
-                    'name': 'update-test3',
-                    '@note': None,
-                }],
-            },
+        """, [
+            [1],
+            [
+                {
+                    'name': 'update-test1',
+                    'annotated_tests': [{
+                        'name': 'update-test2',
+                        '@note': None,
+                    }, {
+                        'name': 'update-test3',
+                        '@note': None,
+                    }],
+                },
+            ]
         ])
 
     async def test_edgeql_update_multiple_07(self):
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH
                 MODULE test,
                 U2 := DETACHED UpdateTest
@@ -688,28 +687,29 @@ class TestUpdate(tb.QueryTestCase):
                     @note
                 } ORDER BY .name
             } FILTER UpdateTest.name = 'update-test1';
-        """)
-
-        self.assert_data_shape(res[-1], [
-            {
-                'name': 'update-test1',
-                'annotated_tests': [{
-                    'name': 'update-test2',
-                    '@note': 'note2',
-                }, {
-                    'name': 'update-test3',
-                    '@note': 'note3',
-                }],
-            },
+        """, [
+            [1],
+            [
+                {
+                    'name': 'update-test1',
+                    'annotated_tests': [{
+                        'name': 'update-test2',
+                        '@note': 'note2',
+                    }, {
+                        'name': 'update-test3',
+                        '@note': 'note3',
+                    }],
+                },
+            ]
         ])
 
     @unittest.expectedFailure
     async def test_edgeql_update_multiple_08(self):
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             # make tests related to the other 2
             WITH
                 MODULE test,
-                UT := DETACHED UpdateTest
+                UT := UpdateTest
             UPDATE UpdateTest
             SET {
                 related := (SELECT UT FILTER UT != UpdateTest)
@@ -724,7 +724,7 @@ class TestUpdate(tb.QueryTestCase):
             # now update related tests based on existing related tests
             WITH
                 MODULE test,
-                UT := DETACHED UpdateTest
+                UT := UpdateTest
             UPDATE UpdateTest
             SET {
                 # since there are 2 tests in each FILTER, != is
@@ -737,9 +737,7 @@ class TestUpdate(tb.QueryTestCase):
                 name,
                 related: {name} ORDER BY .name
             } ORDER BY .name;
-        """)
-
-        self.assert_data_shape(res, [
+        """, [
             [3],
             [
                 {
@@ -795,11 +793,11 @@ class TestUpdate(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_update_multiple_09(self):
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             # make tests related to the other 2
             WITH
                 MODULE test,
-                UT := DETACHED UpdateTest
+                UT := UpdateTest
             UPDATE UpdateTest
             SET {
                 related := (SELECT UT FILTER UT != UpdateTest)
@@ -814,7 +812,7 @@ class TestUpdate(tb.QueryTestCase):
             # now update related tests based on existing related tests
             WITH
                 MODULE test,
-                UT := DETACHED UpdateTest
+                UT := UpdateTest
             UPDATE UpdateTest
             SET {
                 # this should make the related test be the same as parent
@@ -826,9 +824,7 @@ class TestUpdate(tb.QueryTestCase):
                 name,
                 related: {name} ORDER BY .name
             } ORDER BY .name;
-        """)
-
-        self.assert_data_shape(res, [
+        """, [
             [3],
             [
                 {
@@ -878,7 +874,7 @@ class TestUpdate(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_update_multiple_10(self):
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             # make each test related to 'update-test1'
             WITH
                 MODULE test,
@@ -910,9 +906,7 @@ class TestUpdate(tb.QueryTestCase):
                 name,
                 related: {name} ORDER BY .name
             } ORDER BY .name;
-        """)
-
-        self.assert_data_shape(res, [
+        """, [
             [3],
             [
                 {
@@ -960,7 +954,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     async def test_edgeql_update_props_01(self):
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
@@ -983,26 +977,27 @@ class TestUpdate(tb.QueryTestCase):
                     @weight
                 } ORDER BY @weight
             } FILTER UpdateTest.name = 'update-test1';
-        """)
-
-        self.assert_data_shape(res[-1], [
-            {
-                'name': 'update-test1',
-                'weighted_tags': [{
-                    'name': 'boring',
-                    '@weight': 1,
-                }, {
-                    'name': 'wow',
-                    '@weight': 2,
-                }, {
-                    'name': 'fun',
-                    '@weight': 3,
-                }],
-            },
+        """, [
+            [1],
+            [
+                {
+                    'name': 'update-test1',
+                    'weighted_tags': [{
+                        'name': 'boring',
+                        '@weight': 1,
+                    }, {
+                        'name': 'wow',
+                        '@weight': 2,
+                    }, {
+                        'name': 'fun',
+                        '@weight': 3,
+                    }],
+                },
+            ]
         ])
 
     async def test_edgeql_update_props_02(self):
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
@@ -1019,20 +1014,21 @@ class TestUpdate(tb.QueryTestCase):
                     @weight
                 } ORDER BY @weight
             } FILTER UpdateTest.name = 'update-test1';
-        """)
-
-        self.assert_data_shape(res[-1], [
-            {
-                'name': 'update-test1',
-                'weighted_tags': [{
-                    'name': 'wow',
-                    '@weight': 1,
-                }],
-            },
+        """, [
+            [1],
+            [
+                {
+                    'name': 'update-test1',
+                    'weighted_tags': [{
+                        'name': 'wow',
+                        '@weight': 1,
+                    }],
+                },
+            ]
         ])
 
     async def test_edgeql_update_props_03(self):
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
@@ -1052,23 +1048,24 @@ class TestUpdate(tb.QueryTestCase):
                     @weight
                 } ORDER BY @weight
             } FILTER UpdateTest.name = 'update-test1';
-        """)
-
-        self.assert_data_shape(res[-1], [
-            {
-                'name': 'update-test1',
-                'weighted_tags': [{
-                    'name': 'boring',
-                    '@weight': 1,
-                }, {
-                    'name': 'wow',
-                    '@weight': 2,
-                }],
-            },
+        """, [
+            [1],
+            [
+                {
+                    'name': 'update-test1',
+                    'weighted_tags': [{
+                        'name': 'boring',
+                        '@weight': 1,
+                    }, {
+                        'name': 'wow',
+                        '@weight': 2,
+                    }],
+                },
+            ]
         ])
 
     async def test_edgeql_update_props_05(self):
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
@@ -1088,20 +1085,21 @@ class TestUpdate(tb.QueryTestCase):
                     @note
                 }
             } FILTER UpdateTest.name = 'update-test1';
-        """)
-
-        self.assert_data_shape(res[-1], [
-            {
-                'name': 'update-test1',
-                'annotated_status': {
-                    'name': 'Closed',
-                    '@note': 'Victor',
+        """, [
+            [1],
+            [
+                {
+                    'name': 'update-test1',
+                    'annotated_status': {
+                        'name': 'Closed',
+                        '@note': 'Victor',
+                    },
                 },
-            },
+            ]
         ])
 
     async def test_edgeql_update_props_06(self):
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
@@ -1121,20 +1119,21 @@ class TestUpdate(tb.QueryTestCase):
                     @note
                 }
             } FILTER UpdateTest.name = 'update-test1';
-        """)
-
-        self.assert_data_shape(res[-1], [
-            {
-                'name': 'update-test1',
-                'annotated_status': {
-                    'name': 'Open',
-                    '@note': 'Victor',
+        """, [
+            [1],
+            [
+                {
+                    'name': 'update-test1',
+                    'annotated_status': {
+                        'name': 'Open',
+                        '@note': 'Victor',
+                    },
                 },
-            },
+            ]
         ])
 
     async def test_edgeql_update_props_07(self):
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
@@ -1152,20 +1151,21 @@ class TestUpdate(tb.QueryTestCase):
                     @note
                 }
             } FILTER UpdateTest.name = 'update-test1';
-        """)
-
-        self.assert_data_shape(res[-1], [
-            {
-                'name': 'update-test1',
-                'annotated_status': {
-                    'name': 'Open',
-                    '@note': None,
+        """, [
+            [1],
+            [
+                {
+                    'name': 'update-test1',
+                    'annotated_status': {
+                        'name': 'Open',
+                        '@note': None,
+                    },
                 },
-            },
+            ]
         ])
 
     async def test_edgeql_update_props_08(self):
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
@@ -1195,20 +1195,22 @@ class TestUpdate(tb.QueryTestCase):
                     @note
                 }
             } FILTER UpdateTest.name = 'update-test1';
-        """)
-
-        self.assert_data_shape(res[-1], [
-            {
-                'name': 'update-test1',
-                'annotated_status': {
-                    'name': 'Open',
-                    '@note': None,
+        """, [
+            [1],
+            [1],
+            [
+                {
+                    'name': 'update-test1',
+                    'annotated_status': {
+                        'name': 'Open',
+                        '@note': None,
+                    },
                 },
-            },
+            ]
         ])
 
     async def test_edgeql_update_for_01(self):
-        res = await self.con.execute(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             FOR x IN {
                     (name := 'update-test1', comment := 'foo'),
@@ -1227,19 +1229,20 @@ class TestUpdate(tb.QueryTestCase):
                 name,
                 comment
             } ORDER BY UpdateTest.name;
-        """)
-
-        self.assert_data_shape(res[-1], [
-            {
-                'name': 'update-test1',
-                'comment': 'foo'
-            },
-            {
-                'name': 'update-test2',
-                'comment': 'bar'
-            },
-            {
-                'name': 'update-test3',
-                'comment': 'third'
-            },
+        """, [
+            [{}, {}],  # since updates are in FOR they return objects
+            [
+                {
+                    'name': 'update-test1',
+                    'comment': 'foo'
+                },
+                {
+                    'name': 'update-test2',
+                    'comment': 'bar'
+                },
+                {
+                    'name': 'update-test3',
+                    'comment': 'third'
+                },
+            ]
         ])

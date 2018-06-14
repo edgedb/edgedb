@@ -645,7 +645,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         self.assert_data_shape(res1[0][0]['__type__'], res2[0][0])
 
-    # Recursion isn't working properly yet
+    # Recursion isn't working yet.
     @unittest.expectedFailure
     async def test_edgeql_select_recursive_01(self):
         await self.assert_query_result(r'''
@@ -653,7 +653,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT
                 Issue {
                     number,
-                    <related_to: {
+                    related_to: {
                         number,
                     },
                 }
@@ -664,21 +664,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT
                 Issue {
                     number,
-                    <related_to *1
+                    related_to *1
                 }
             FILTER
                 Issue.number = '2';
         ''', [
             [{
-                'number': '2',
+                'number': '3',
                 'related_to': [{
-                    'number': '3',
+                    'number': '2',
                 }]
             }],
             [{
-                'number': '2',
+                'number': '3',
                 'related_to': [{
-                    'number': '3',
+                    'number': '2',
                 }]
             }],
         ])
@@ -1483,8 +1483,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 exc.EdgeQLError,
                 r'.*.>\(number\) does not resolve to any known path'):
             await self.con.execute(r"""
-                # the computable in the view is omitted from the duck
-                # type of the UNION
+                # The computable in the view is omitted from the duck
+                # type of the UNION because <str> is not compatible
+                # with <int64>.
                 WITH MODULE test
                 SELECT {
                     Issue{number := 'foo'}, Issue
@@ -1497,8 +1498,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 exc.EdgeQLError,
                 r'.*.>\(number\) does not resolve to any known path'):
             await self.con.execute(r"""
-                # the computable in the view is omitted from the duck
-                # type of the UNION
+                # The computable in the view is omitted from the duck
+                # type of the UNION because <str> is not compatible
+                # with <int64>.
                 WITH
                     MODULE test,
                     I := Issue{number := 'foo'}
@@ -1629,15 +1631,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ''', [
             [5, 4],
             [10]
-        ])
-
-    @unittest.expectedFailure
-    async def test_edgeql_select_func_02(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            SELECT std::lower(string := User.name) ORDER BY User.name;
-        ''', [
-            ['elvis', 'yury'],
         ])
 
     async def test_edgeql_select_func_05(self):
