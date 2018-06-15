@@ -530,7 +530,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         await self.assert_sorted_query_result(r'''
             WITH
                 MODULE test,
-                I2 := DETACHED Issue
+                I2 := Issue
             # ?? is OPTIONAL w.r.t. first argument, so it behaves like
             # an element-wise function. However, since there is no
             # common prefix, the expression gets evaluated ONLY for
@@ -694,7 +694,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         await self.assert_sorted_query_result(r'''
             WITH
                 MODULE test,
-                I2 := DETACHED Issue
+                I2 := Issue
             # ?= is OPTIONAL w.r.t. both arguments, so it behaves like
             # an element-wise function. However, since there is no
             # common prefix, the expression gets evaluated ONLY for
@@ -716,7 +716,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         await self.assert_sorted_query_result(r'''
             WITH
                 MODULE test,
-                I2 := DETACHED Issue
+                I2 := Issue
             # ?!= is OPTIONAL w.r.t. both arguments, so it behaves like
             # an element-wise function. However, since there is no
             # common prefix, the expression gets evaluated ONLY for

@@ -86,13 +86,21 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_06(self):
         """
-        WITH MODULE test, C2 := DETACHED Card
+        WITH MODULE test, C2 := Card
         SELECT Card FILTER Card = (SELECT C2 FILTER C2.name = 'Djinn')
 % OK %
         1
         """
 
     def test_edgeql_ir_card_inference_07(self):
+        """
+        WITH MODULE test, C2 := DETACHED Card
+        SELECT Card FILTER Card = (SELECT C2 FILTER C2.name = 'Djinn')
+% OK %
+        1
+        """
+
+    def test_edgeql_ir_card_inference_08(self):
         """
         WITH MODULE test
         SELECT Card LIMIT 1

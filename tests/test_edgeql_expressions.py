@@ -649,15 +649,18 @@ class TestExpressions(tb.QueryTestCase):
         await self.assert_query_result("""
             WITH
                 MODULE schema,
-                A := DETACHED (
+                A := (
                     SELECT ObjectType
-                    FILTER ObjectType.name ILIKE 'schema::a%'),
-                D := DETACHED (
+                    FILTER ObjectType.name ILIKE 'schema::a%'
+                ),
+                D := (
                     SELECT ObjectType
-                    FILTER ObjectType.name ILIKE 'schema::d%'),
-                O := DETACHED (
+                    FILTER ObjectType.name ILIKE 'schema::d%'
+                ),
+                O := (
                     SELECT ObjectType
-                    FILTER ObjectType.name ILIKE 'schema::o%')
+                    FILTER ObjectType.name ILIKE 'schema::o%'
+                )
             SELECT _ := {A, D, O}.name
             ORDER BY _;
         """, [
@@ -1707,7 +1710,7 @@ class TestExpressions(tb.QueryTestCase):
             [4, 5],
         ])
 
-    # XXX: broken with respect to DETACHED interpretation
+    # XXX: DETACHED may no longer work this way at all
     @unittest.expectedFailure
     async def test_edgeql_expr_view_09(self):
         await self.assert_sorted_query_result(r"""

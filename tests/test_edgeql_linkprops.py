@@ -699,18 +699,18 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH
                 MODULE test,
-                C := DETACHED (
+                C := (
                     SELECT User FILTER User.name = 'Carol').deck.name,
-                D := DETACHED (
+                D := (
                     SELECT User FILTER User.name = 'Dave').deck.name
             SELECT _ := C UNION D
             ORDER BY _;
 
             WITH
                 MODULE test,
-                C := DETACHED (
+                C := (
                     SELECT User FILTER User.name = 'Carol').deck.name,
-                D := DETACHED (
+                D := (
                     SELECT User FILTER User.name = 'Dave').deck.name
             SELECT _ := DISTINCT (C UNION D)
             ORDER BY _;

@@ -599,7 +599,7 @@ class TestUpdate(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
-                U2 := DETACHED UpdateTest
+                U2 := UpdateTest
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
             SET {
@@ -631,7 +631,7 @@ class TestUpdate(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
-                U2 := DETACHED UpdateTest
+                U2 := UpdateTest
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
             SET {
@@ -668,7 +668,7 @@ class TestUpdate(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
-                U2 := DETACHED UpdateTest
+                U2 := UpdateTest
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
             SET {
@@ -878,7 +878,7 @@ class TestUpdate(tb.QueryTestCase):
             # make each test related to 'update-test1'
             WITH
                 MODULE test,
-                UT := DETACHED (
+                UT := (
                     SELECT UpdateTest FILTER UpdateTest.name = 'update-test1'
                 )
             UPDATE UpdateTest
