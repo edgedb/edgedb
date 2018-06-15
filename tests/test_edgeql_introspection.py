@@ -622,7 +622,6 @@ class TestIntrospection(tb.QueryTestCase):
             SELECT ObjectType {
                 name,
                 count := (
-                    WITH CARDINALITY '1'
                     SELECT std::count(ObjectType.<__type__)
                 )
             }

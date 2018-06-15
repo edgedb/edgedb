@@ -67,7 +67,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     number,
                     aliased_number := Issue.number,
                     total_time_spent := (
-                        WITH CARDINALITY '1'
                         SELECT sum(Issue.time_spent_log.spent_time)
                     )
                 }
@@ -88,7 +87,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue {
                     number,
                     total_time_spent := (
-                        WITH CARDINALITY '1'
                         SELECT sum(Issue.time_spent_log.spent_time)
                     )
                 }
@@ -108,7 +106,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 User {
                     name,
                     shortest_own_text := (
-                        WITH CARDINALITY '1'
                         SELECT
                             Text {
                                 body
@@ -117,8 +114,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                             Text[IS Owned].owner = User
                         ORDER BY
                             len(Text.body) ASC
-                        LIMIT
-                            1
+                        LIMIT 1
                     ),
                 }
             FILTER User.name = 'Elvis';
@@ -138,13 +134,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 # we aren't referencing User in any way, so this works
                 # best as a subquery, rather than inline computable
                 sub := (
-                    WITH CARDINALITY '1'
                     SELECT
                         Text
                     ORDER BY
                         len(Text.body) ASC
-                    LIMIT
-                        1
+                    LIMIT 1
                 )
             SELECT
                 User {
@@ -214,7 +208,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 User {
                     name,
                     shortest_text := (
-                        WITH CARDINALITY '1'
                         SELECT
                             Text {body}
                         # a clause that references User and is always true
@@ -222,8 +215,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                             User IS User
                         ORDER
                             BY len(Text.body) ASC
-                        LIMIT
-                            1
+                        LIMIT 1
                     ),
                 }
             FILTER User.name = 'Elvis';
@@ -269,7 +261,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT User{
                 name,
                 special_issue := (
-                    WITH CARDINALITY '1'
                     SELECT Issue {
                         name,
                         number,
@@ -3175,7 +3166,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     WITH U2 := DETACHED User
                     SELECT User {
                         friend := (
-                            WITH CARDINALITY '1'
                             SELECT U2 FILTER U2.name = 'Yury'
                         )
                     } FILTER .name = 'Elvis'
@@ -3298,15 +3288,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH
                 MODULE test,
                 sub := (
-                    WITH CARDINALITY '1'
                     SELECT
                         Text {
                             foo := Text.body + '!'
                         }
                     ORDER BY
                         len(Text.body) ASC
-                    LIMIT
-                        1
+                    LIMIT 1
                 )
             SELECT
                 User {
@@ -3332,15 +3320,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH
                 MODULE test,
                 sub := (
-                    WITH CARDINALITY '1'
                     SELECT
                         Text {
                             foo := Text.body + '!'
                         }
                     ORDER BY
                         len(Text.body) ASC
-                    LIMIT
-                        1
+                    LIMIT 1
                 )
             SELECT
                 User {
@@ -3662,10 +3648,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH
                 MODULE test,
                 criteria := (SELECT (
-                    user := (WITH CARDINALITY '1'
-                             SELECT User FILTER User.name = 'Yury'),
-                    status := (WITH CARDINALITY '1'
-                               SELECT Status FILTER Status.name = 'Open'),
+                    user := (SELECT User FILTER User.name = 'Yury'),
+                    status := (SELECT Status FILTER Status.name = 'Open'),
                 ))
             SELECT (
                 SELECT
@@ -3702,8 +3686,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 MODULE test
             SELECT
                 (
-                    user := (WITH CARDINALITY '1'
-                             SELECT User{name} FILTER User.name = 'Yury')
+                    user := (SELECT User{name} FILTER User.name = 'Yury')
                 ).user.name;
             """, [
             ['Yury'],

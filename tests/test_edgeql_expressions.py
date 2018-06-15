@@ -1529,15 +1529,6 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT DISTINCT Issue ORDER BY Issue.name;
             ''')
 
-    @unittest.expectedFailure
-    async def test_edgeql_expr_cardinality_08(self):
-        # we expect some sort of error because cardinality '1' is not legal
-        with self.assertRaisesRegex(exc.UnknownEdgeDBError, ''):
-            await self.query(r'''
-                WITH CARDINALITY '1'
-                SELECT 1;
-            ''')
-
     async def test_edgeql_expr_type_filter_01(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,

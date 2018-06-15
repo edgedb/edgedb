@@ -251,13 +251,13 @@ class WithDecl(Nonterm):
         self.val = kids[0].val
 
     def reduce_CARDINALITY_SCONST(self, *kids):
-        try:
-            car = qlast.Cardinality(kids[1].string)
-        except ValueError:
+        if kids[1].string == qlast.Cardinality.MANY:
+            self.val = CardinalityData(
+                cardinality=qlast.Cardinality(kids[1].string), tok=kids[0])
+        else:
             raise EdgeQLSyntaxError(
                 f'Unexpected string {kids[1].val}',
                 context=kids[1].context)
-        self.val = CardinalityData(cardinality=car, tok=kids[0])
 
 
 class WithDeclList(ListNonterm, element=WithDecl,
