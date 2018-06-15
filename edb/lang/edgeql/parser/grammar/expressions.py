@@ -1045,7 +1045,7 @@ class NonArrayTypeName(Nonterm):
     def reduce_NodeName(self, *kids):
         maintype = kids[0].val
 
-        # maintype cannot be 'array'
+        # maintype cannot be a collection
         if maintype.module is None and maintype.name in {'array', 'tuple'}:
             raise EdgeQLSyntaxError(
                 f"Unexpected {maintype.name!r}",
