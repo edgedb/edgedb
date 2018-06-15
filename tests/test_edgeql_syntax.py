@@ -1418,7 +1418,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_cast_07(self):
         """
-        SELECT <tuple>$1;
+        SELECT <tuple<>>$1;
         SELECT <tuple<Foo, int, str>>$1;
         SELECT <tuple<obj: Foo, count: int, name: str>>$1;
         """
@@ -2348,7 +2348,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_attribute_05(self):
         # test parsing of tuple types
         """
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple;
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple<>;
         CREATE ABSTRACT ATTRIBUTE std::foo tuple<float64>;
         CREATE ABSTRACT ATTRIBUTE std::foo tuple<int64, str>;
         CREATE ABSTRACT ATTRIBUTE std::foo tuple<array<int64>, str>;
@@ -2406,6 +2406,20 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_ddl_attribute_14(self):
         """
         CREATE ABSTRACT ATTRIBUTE std::paramtypes;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected '>'", line=2, col=50)
+    def test_edgeql_syntax_ddl_attribute_15(self):
+        """
+        CREATE ABSTRACT ATTRIBUTE std::foo array<>;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected 'tuple'", line=2, col=44)
+    def test_edgeql_syntax_ddl_attribute_16(self):
+        """
+        CREATE ABSTRACT ATTRIBUTE std::foo tuple;
         """
 
     def test_edgeql_syntax_ddl_constraint_01(self):
