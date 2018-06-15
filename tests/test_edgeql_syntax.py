@@ -1423,6 +1423,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT <tuple<obj: Foo, count: int, name: str>>$1;
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected string '1'",
+                  line=2, col=26)
     def test_edgeql_syntax_cardinality_01(self):
         """
         WITH CARDINALITY '1'
@@ -1446,14 +1448,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=9)
     def test_edgeql_syntax_cardinality_04(self):
         """
-        WITH CARDINALITY '1' CREATE ACTION sample;
+        WITH CARDINALITY '*' CREATE ACTION sample;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=9)
     def test_edgeql_syntax_cardinality_05(self):
         """
         WITH
-            CARDINALITY '1',
+            CARDINALITY '*',
             MODULE test
         DROP ACTION sample;
         """
@@ -1462,8 +1464,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_cardinality_06(self):
         """
         WITH
-            CARDINALITY '1',
-            CARDINALITY '1'
+            CARDINALITY '*',
+            CARDINALITY '*'
         SELECT 1;
         """
 

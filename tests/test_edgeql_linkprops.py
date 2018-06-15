@@ -467,7 +467,6 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             SELECT Card {
                 name,
                 same := (
-                    WITH CARDINALITY '1'
                     SELECT _ := Card.cost = Card.<deck@count
                     ORDER BY _ DESC LIMIT 1
                 )
