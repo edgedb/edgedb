@@ -241,8 +241,8 @@ class _TypeName(Expr):
 class TypeName(_TypeName):
     name: str  # name is used for types in named tuples
     maintype: ObjectRef
-    subtypes: typing.Union[typing.List[_TypeName], None]
-    dimensions: typing.Union[typing.List[int], None]
+    subtypes: typing.Optional[typing.List[_TypeName]]
+    dimensions: typing.Optional[typing.List[int]]
 
 
 class FuncParam(Base):
