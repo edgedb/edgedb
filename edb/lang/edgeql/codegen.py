@@ -592,7 +592,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.maintype)
         else:
             self.visit(node.maintype)
-        if node.subtypes:
+        if node.subtypes is not None:
             self.write('<')
             self.visit_list(node.subtypes, newlines=False)
             if node.dimensions is not None:

@@ -1046,12 +1046,18 @@ class NonArrayTypeName(Nonterm):
         maintype = kids[0].val
 
         # maintype cannot be 'array'
-        if maintype.module is None and maintype.name == 'array':
+        if maintype.module is None and maintype.name in {'array', 'tuple'}:
             raise EdgeQLSyntaxError(
                 f"Unexpected {maintype.name!r}",
                 context=kids[0].context)
 
         self.val = qlast.TypeName(maintype=maintype)
+
+    def reduce_TUPLE_LANGBRACKET_RANGBRACKET(self, *kids):
+        self.val = qlast.TypeName(
+            maintype=qlast.ObjectRef(name='tuple'),
+            subtypes=[],
+        )
 
     def reduce_TUPLE_LANGBRACKET_TypeNameList_RANGBRACKET(self, *kids):
         self.val = qlast.TypeName(
