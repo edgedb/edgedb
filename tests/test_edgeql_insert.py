@@ -549,7 +549,7 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_for_02(self):
         res = await self.con.execute(r'''
-            # create 1000 DefaultTest3 objects, each object is defined
+            # create 10 DefaultTest3 objects, each object is defined
             # as having a randomly generated value for 'foo'
             WITH MODULE test
             FOR x IN {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
@@ -559,7 +559,7 @@ class TestInsert(tb.QueryTestCase):
             # identical for all 10 records
             WITH
                 MODULE test,
-                DT3 := DETACHED DefaultTest3
+                DT3 := DefaultTest3
             SELECT count(
                 DefaultTest3 FILTER DefaultTest3.foo != DT3.foo) > 0;
         ''')
@@ -607,7 +607,7 @@ class TestInsert(tb.QueryTestCase):
             # identical for all 10 records
             WITH
                 MODULE test,
-                DT3 := DETACHED DefaultTest3
+                DT3 := DefaultTest3
             SELECT count(
                 DefaultTest3 FILTER DefaultTest3.foo != DT3.foo) > 0;
         ''')

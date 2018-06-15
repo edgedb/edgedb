@@ -411,7 +411,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH
                 MODULE schema,
-                C2 := DETACHED ObjectType
+                C2 := ObjectType
             SELECT
                 count(re_match_all(ObjectType.name, '(\w+)')) =
                 2 * count(C2);

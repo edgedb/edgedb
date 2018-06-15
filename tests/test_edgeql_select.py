@@ -1317,33 +1317,31 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT _ := {  # equivalent to UNION for Objects
                 # Issue 1, 4
                 (
-                    DETACHED (
-                        SELECT Issue
-                        FILTER Issue.owner.name = 'Elvis'
-                    )
+                    SELECT Issue
+                    FILTER Issue.owner.name = 'Elvis'
                 ),
                 {
                     (
                         # Issue 1, 4
-                         DETACHED (
+                        (
                             SELECT User
-                            FILTER User.name = 'Elvis').<owner[IS Issue]
+                            FILTER User.name = 'Elvis'
+                        ).<owner[IS Issue]
                     ) UNION (
                         # Issue 1
-                         DETACHED (
+                        (
                             SELECT User
-                            FILTER User.name = 'Yury').<watchers[IS Issue]
+                            FILTER User.name = 'Yury'
+                        ).<watchers[IS Issue]
                     ),
                     (
                         # Issue 1, 4
-                        DETACHED (
-                            SELECT Issue
-                            FILTER NOT EXISTS Issue.priority)
+                        SELECT Issue
+                        FILTER NOT EXISTS Issue.priority
                     )
                 },
                 (
-                    DETACHED (
-                        SELECT Issue FILTER Issue.number = '1')
+                    SELECT Issue FILTER Issue.number = '1'
                 )
             }{number}
             ORDER BY _.number;
@@ -1362,28 +1360,32 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT _ := DISTINCT {  # equivalent to UNION for Objects
                 # Issue 1, 4
                 (
-                    DETACHED (SELECT Issue
-                    FILTER Issue.owner.name = 'Elvis')
+                    SELECT Issue
+                    FILTER Issue.owner.name = 'Elvis'
                 ),
                 {
                     (
                         # Issue 1, 4
-                         DETACHED (SELECT User
-                         FILTER User.name = 'Elvis').<owner[IS Issue]
+                        (
+                            SELECT User
+                            FILTER User.name = 'Elvis'
+                        ).<owner[IS Issue]
                     ) UNION (
                         # Issue 1
-                         DETACHED (SELECT User
-                         FILTER User.name = 'Yury').<watchers[IS Issue]
+                        (
+                            SELECT User
+                            FILTER User.name = 'Yury'
+                        ).<watchers[IS Issue]
                     ),
                     (
                         # Issue 1, 4
-                        DETACHED (SELECT Issue
-                        FILTER NOT EXISTS Issue.priority)
+                        SELECT Issue
+                        FILTER NOT EXISTS Issue.priority
                     )
                 },
                 (
-                    DETACHED (SELECT Issue
-                    FILTER Issue.number = '1')
+                    SELECT Issue
+                    FILTER Issue.number = '1'
                 )
             }{number}
             ORDER BY _.number;
@@ -2134,10 +2136,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r'''
             # get Issues such that there's another Issue with
             # equivalent priority
-            #
             WITH
                 MODULE test,
-                I2 := DETACHED Issue
+                I2 := Issue
             SELECT Issue {number}
             FILTER
                 I2 != Issue
@@ -2151,7 +2152,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_equivalence_03(self):
         await self.assert_query_result(r'''
             # get Issues with priority equivalent to empty
-            #
             WITH MODULE test
             SELECT Issue {number}
             FILTER
@@ -2164,7 +2164,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_equivalence_04(self):
         await self.assert_query_result(r'''
             # get Issues with priority equivalent to empty
-            #
             WITH MODULE test
             SELECT Issue {number}
             FILTER
@@ -2778,7 +2777,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
-                Issue2 := DETACHED Issue
+                Issue2 := Issue
             # this is string concatenation, not integer arithmetic
             SELECT Issue.number + Issue2.number
             ORDER BY Issue.number + Issue2.number;
@@ -2807,8 +2806,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
-                sub := DETACHED (
-                    SELECT Issue FILTER Issue.number IN {'1', '6'})
+                sub := (
+                    SELECT Issue FILTER Issue.number IN {'1', '6'}
+                )
             SELECT Issue{number}
             FILTER
                 Issue.number IN {'2', '3', '4'}
@@ -2824,7 +2824,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
-                sub := DETACHED (
+                sub := (
                     SELECT
                         Issue
                     FILTER
@@ -2870,7 +2870,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             # issue with the same priority (even if the "same" means empty)
             WITH
                 MODULE test,
-                Issue2 := DETACHED Issue
+                Issue2 := Issue
             SELECT
                 Issue {
                     number
@@ -2943,7 +2943,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_sorted_query_result(r"""
             WITH
                 MODULE test,
-                sub := DETACHED (SELECT Issue.number)
+                sub := (SELECT Issue.number)
             SELECT
                 Issue.number + sub;
         """, lambda x: x, [
@@ -3163,7 +3163,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             # Reference a computed object set in a view.
             WITH MODULE test,
                 U := (
-                    WITH U2 := DETACHED User
+                    WITH U2 := User
                     SELECT User {
                         friend := (
                             SELECT U2 FILTER U2.name = 'Yury'
@@ -3254,7 +3254,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             # A slightly more complex view.
              WITH MODULE test,
                  U := (
-                     WITH U2 := DETACHED (SELECT User)
+                     WITH U2 := User
                      SELECT User {
                          friends := (
                              SELECT U2 { foo := U2.name + '!' }
@@ -3697,8 +3697,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
-                U1 := DETACHED User,
-                U2 := DETACHED User
+                U1 := User,
+                U2 := User
             SELECT
                 (user := (SELECT U1{name} FILTER U1.name = 'Yury'))
                     =
@@ -3706,8 +3706,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
             WITH
                 MODULE test,
-                U1 := DETACHED User,
-                U2 := DETACHED User
+                U1 := User,
+                U2 := User
             SELECT
                 (user := (SELECT U1{name} FILTER U1.name = 'Yury'))
                     =
@@ -3715,8 +3715,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
             WITH
                 MODULE test,
-                U1 := DETACHED User,
-                U2 := DETACHED User
+                U1 := User,
+                U2 := User
             SELECT
                 (
                     user := (SELECT U1{name} FILTER U1.name = 'Yury'),

@@ -279,7 +279,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             # time_estimate > 9000 and due_date on 2020/01/15.
             WITH
                 MODULE test,
-                U2 := DETACHED User
+                U2 := User
             SELECT User{name}
             FILTER
                 EXISTS (

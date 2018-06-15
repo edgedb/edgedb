@@ -514,7 +514,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             # find an item with a unique quality
             WITH
                 MODULE test,
-                I2 := DETACHED Item
+                I2 := Item
             SELECT Item {
                 name,
                 unique := (
@@ -560,7 +560,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             # find an item with a unique quality
             WITH
                 MODULE test,
-                I2 := DETACHED Item
+                I2 := Item
             SELECT Item {
                 name,
                 unique := count( (
@@ -589,7 +589,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             # find an item with a unique quality
             WITH
                 MODULE test,
-                I2 := DETACHED Item
+                I2 := Item
             SELECT Item {
                 name,
                 unique := (
@@ -638,7 +638,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             # just a simple unpack
             WITH
                 MODULE test,
-                I2 := DETACHED Item
+                I2 := Item
             SELECT Item {
                 name,
                 unpack := (SELECT array_unpack(Item.tag_array))
@@ -679,7 +679,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             # just a simple unpack
             WITH
                 MODULE test,
-                I2 := DETACHED Item
+                I2 := Item
             SELECT Item {
                 name,
                 unpack := array_unpack(Item.tag_array)
@@ -801,7 +801,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             # find an item with a unique quality
             WITH
                 MODULE test,
-                I2 := DETACHED Item
+                I2 := Item
             SELECT Item {
                 name,
                 unique := (
@@ -849,7 +849,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             # find an item with a unique quality
             WITH
                 MODULE test,
-                I2 := DETACHED Item
+                I2 := Item
             SELECT Item {
                 name,
                 unique := (
@@ -880,7 +880,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             # find an item with ALL unique qualities
             WITH
                 MODULE test,
-                I2 := DETACHED Item
+                I2 := Item
             SELECT Item {
                 name,
                 tag_array,
