@@ -29,6 +29,7 @@ import sys
 
 from prompt_toolkit import application as pt_app
 from prompt_toolkit import buffer as pt_buffer
+from prompt_toolkit import enums as pt_enums
 from prompt_toolkit import filters as pt_filters
 from prompt_toolkit import history as pt_history
 from prompt_toolkit import interface as pt_interface
@@ -235,6 +236,7 @@ class Cli:
         cli = pt_interface.CommandLineInterface(
             application=app,
             eventloop=self.eventloop)
+        cli.editing_mode = pt_enums.EditingMode.VI
 
         return cli
 
