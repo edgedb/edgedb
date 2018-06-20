@@ -33,7 +33,6 @@ from graphql import (
     GraphQLBoolean,
     GraphQLID,
 )
-import itertools
 
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import codegen
@@ -65,11 +64,17 @@ EDB_TO_GQL_SCALARS_MAP = {
 
 
 class GQLCoreSchema:
-    def __init__(self, edb_schema, *modules):
-        '''Create a graphql schema based on specific modules from edgedb.'''
+    def __init__(self, edb_schema):
+        '''Create a graphql schema based on edgedb schema.'''
 
         self.edb_schema = edb_schema
-        self.modules = modules
+        # extract and sort modules to have a consistent type ordering
+        self.modules = {
+            m.name for m in
+            self.edb_schema.get_modules()
+        } - {'schema', 'graphql'}
+        self.modules = list(self.modules)
+        self.modules.sort()
 
         self._gql_interfaces = {}
         self._gql_objtypes = {}
@@ -131,9 +136,8 @@ class GQLCoreSchema:
         fields = OrderedDict()
 
         if typename == 'Query':
-            for name, gqltype in sorted(itertools.chain(
-                    self._gql_interfaces.items(), self._gql_objtypes.items()),
-                    key=lambda x: x[1].name):
+            for name, gqltype in sorted(self._gql_interfaces.items(),
+                                        key=lambda x: x[1].name):
                 if name == typename:
                     continue
                 fields[name.split('::', 1)[1]] = GraphQLField(
@@ -176,20 +180,22 @@ class GQLCoreSchema:
         return args
 
     def _define_types(self):
-        abstract_types = []
+        interface_types = []
         obj_types = []
 
         for modname in self.modules:
             # get all descendants of this abstract type
             module = self.edb_schema.get_module(modname)
 
-            abstract_types += [t for t in module.get_objects()
-                               if isinstance(t, ObjectType) and t.is_abstract]
-            obj_types += [t for t in module.get_objects()
-                          if isinstance(t, ObjectType) and not t.is_abstract]
+            # every ObjectType is reflected as an interface
+            interface_types += [t for t in module.get_objects()
+                                if isinstance(t, ObjectType)]
+
+        # concrete types are also reflected as Type (with a 'Type' postfix)
+        obj_types += [t for t in interface_types if not t.is_abstract]
 
         # interfaces
-        for t in abstract_types:
+        for t in interface_types:
             gqltype = GraphQLInterfaceType(
                 name=self.get_short_name(t.name),
                 fields=partial(self.get_fields, t.name),
@@ -206,12 +212,12 @@ class GQLCoreSchema:
                 continue
 
             for st in t.get_mro():
-                if (isinstance(st, ObjectType) and st.is_abstract and
+                if (isinstance(st, ObjectType) and
                         st.name in self._gql_interfaces):
                     interfaces.append(self._gql_interfaces[st.name])
 
             gqltype = GraphQLObjectType(
-                name=self.get_short_name(t.name),
+                name=self.get_short_name(t.name) + 'Type',
                 fields=partial(self.get_fields, t.name),
                 interfaces=interfaces,
             )
@@ -255,10 +261,10 @@ NO_FIELDS = set()
 class Schema:
     '''This is the schema from GQL perspective.'''
 
-    def __init__(self, schema, modules):
-        self._schema = schema
+    def __init__(self, gqlcore):
+        self._schema = gqlcore.edb_schema
         self._type_map = {}
-        self.modules = modules
+        self.modules = gqlcore.modules
 
     @property
     def edb_schema(self):
@@ -505,11 +511,7 @@ class GQLQuery(GQLBaseType):
     shadow_fields = {'__typename'}
 
     def __init__(self, schema, **kwargs):
-        self.modules = kwargs['modules']
-        self.modules.sort()
-        # we give unusual full name, so that it doesn't clash with a
-        # potential ObjectType `Query` in one of the modules
-        kwargs['name'] = f'{self.modules}--Query'
+        self.modules = schema.modules
         super().__init__(schema, **kwargs)
 
     @property
@@ -554,11 +556,7 @@ class GQLMutation(GQLBaseType):
     edb_type = 'graphql::Mutation'
 
     def __init__(self, schema, **kwargs):
-        self.modules = kwargs['modules']
-        self.modules.sort()
-        # we give unusual full name, so that it doesn't clash with a
-        # potential ObjectType `Mutation` in one of the modules
-        kwargs['name'] = f'{self.modules}--Mutation'
+        self.modules = schema.modules
         super().__init__(schema, **kwargs)
 
     @property

@@ -27,7 +27,7 @@ from edb.lang import _testbase as tb
 from edb.lang.common import markup
 from edb.lang import graphql as edge_graphql
 from edb.lang import edgeql as edge_edgeql
-from edb.lang.graphql.errors import GraphQLValidationError, GraphQLCoreError
+from edb.lang.graphql.errors import GraphQLCoreError
 from edb.lang.schema import declarative as s_decl
 from edb.lang.schema import std as s_std
 
@@ -44,13 +44,6 @@ def with_variables(**kwargs):
 def with_operation(name):
     def wrap(func):
         tb._set_spec(func, 'operation_name', name)
-        return func
-    return wrap
-
-
-def with_modules(*names):
-    def wrap(func):
-        tb._set_spec(func, 'modules', names)
         return func
     return wrap
 
@@ -102,7 +95,6 @@ class TranslatorTest(tb.BaseSyntaxTest, metaclass=BaseSchemaTestMeta):
             self.schema, source,
             variables=spec.get('variables'),
             operation_name=spec.get('operation_name'),
-            modules=set(spec.get('modules', {})) | {'test', 'default'},
         )
 
         if debug:
@@ -146,15 +138,9 @@ class TestGraphQLTranslation(TranslatorTest):
             required property score -> float64
             link profile -> Profile:
                 cardinality := '*1'
-    """
-
-    SCHEMA_MOD2 = r"""
-        import test
 
         type Person extending test::User
-    """
 
-    SCHEMA_123LIB = r"""
         type Foo:
             property `select` -> str
             property after -> str
@@ -1912,60 +1898,6 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
-    @with_modules('test', 'mod2')
-    def test_graphql_translation_import_01(self):
-        r"""
-        fragment groupFrag on UserGroup {
-            id
-            name
-        }
-
-        query {
-            Person {
-                id
-                name
-                groups {
-                    ... groupFrag
-                }
-            }
-        }
-
-% OK %
-
-        SELECT graphql::Query {
-            Person := (SELECT
-                mod2::Person {
-                    id,
-                    name,
-                    groups: {
-                        id,
-                        name,
-                    }
-                })
-        };
-        """
-
-    @tb.must_fail(GraphQLCoreError,
-                  'Cannot query field "Person" on type "Query"',
-                  line=8, col=13)
-    def test_graphql_translation_import_02(self):
-        r"""
-        fragment groupFrag on UserGroup {
-            id
-            name
-        }
-
-        query {
-            Person {
-                id
-                name
-                groups {
-                    ... groupFrag
-                }
-            }
-        }
-        """
-
     def test_graphql_translation_duplicates_01(self):
         r"""
         query {
@@ -2063,7 +1995,6 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
-    @tb.must_fail(GraphQLValidationError, line=6, col=17)
     def test_graphql_translation_duplicates_05(self):
         r"""
         query {
@@ -2074,9 +2005,20 @@ class TestGraphQLTranslation(TranslatorTest):
                 name @skip(if: false)
             }
         }
+
+% OK %
+
+        SELECT graphql::Query {
+            User := (SELECT
+                test::User {
+                    id,
+                    name,
+                })
+        };
         """
 
-    @tb.must_fail(GraphQLCoreError, line=4, col=17)
+    # graphql parser has an issue here
+    @unittest.expectedFailure
     def test_graphql_translation_duplicates_06(self):
         r"""
         query {
@@ -2088,9 +2030,18 @@ class TestGraphQLTranslation(TranslatorTest):
                 name
             }
         }
+
+% OK %
+
+        SELECT graphql::Query {
+            User := (SELECT
+                test::User {
+                    name,
+                    id,
+                })
+        };
         """
 
-    @tb.must_fail(GraphQLValidationError, line=3, col=13)
     def test_graphql_translation_duplicates_07(self):
         r"""
         fragment f1 on User {
@@ -2110,9 +2061,18 @@ class TestGraphQLTranslation(TranslatorTest):
                 name @include(if: true)
             }
         }
+
+% OK %
+
+        SELECT graphql::Query {
+            User := (SELECT
+                test::User {
+                    id,
+                    name,
+                })
+        };
         """
 
-    @with_modules('123lib')
     def test_graphql_translation_quoting_01(self):
         r"""
         query {
@@ -2126,12 +2086,12 @@ class TestGraphQLTranslation(TranslatorTest):
 
         SELECT graphql::Query {
             Foo := (SELECT
-                `123lib`::Foo {
+                test::Foo {
                     `select`,
                     after
                 }
             FILTER
-                (`123lib`::Foo.`select` = 'bar'))
+                (test::Foo.`select` = 'bar'))
         };
         """
 
@@ -2447,16 +2407,19 @@ class TestGraphQLTranslation(TranslatorTest):
             __schema := <json>'{
                 "types": [
                     {"kind": "OBJECT", "name": "Query"},
-                    {"kind": "SCALAR", "name": "ID"},
                     {"kind": "SCALAR", "name": "String"},
+                    {"kind": "SCALAR", "name": "ID"},
+                    {"kind": "INTERFACE", "name": "Foo"},
                     {"kind": "INTERFACE", "name": "NamedObject"},
-                    {"kind": "OBJECT", "name": "Profile"},
-                    {"kind": "SCALAR", "name": "Int"},
-                    {"kind": "OBJECT", "name": "Setting"},
+                    {"kind": "INTERFACE", "name": "Object"},
                     {"kind": "SCALAR", "name": "Boolean"},
+                    {"kind": "SCALAR", "name": "Int"},
                     {"kind": "SCALAR", "name": "Float"},
-                    {"kind": "OBJECT", "name": "User"},
-                    {"kind": "OBJECT", "name": "UserGroup"},
+                    {"kind": "INTERFACE", "name": "Person"},
+                    {"kind": "INTERFACE", "name": "UserGroup"},
+                    {"kind": "INTERFACE", "name": "Setting"},
+                    {"kind": "INTERFACE", "name": "Profile"},
+                    {"kind": "INTERFACE", "name": "User"},
                     {"kind": "OBJECT", "name": "__Schema"},
                     {"kind": "OBJECT", "name": "__Type"},
                     {"kind": "ENUM", "name": "__TypeKind"},
@@ -2464,7 +2427,13 @@ class TestGraphQLTranslation(TranslatorTest):
                     {"kind": "OBJECT", "name": "__InputValue"},
                     {"kind": "OBJECT", "name": "__EnumValue"},
                     {"kind": "OBJECT", "name": "__Directive"},
-                    {"kind": "ENUM", "name": "__DirectiveLocation"}
+                    {"kind": "ENUM", "name": "__DirectiveLocation"},
+                    {"kind": "OBJECT", "name": "UserGroupType"},
+                    {"kind": "OBJECT", "name": "SettingType"},
+                    {"kind": "OBJECT", "name": "ProfileType"},
+                    {"kind": "OBJECT", "name": "UserType"},
+                    {"kind": "OBJECT", "name": "PersonType"},
+                    {"kind": "OBJECT", "name": "FooType"}
                 ]
             }'
         };
@@ -2487,16 +2456,19 @@ class TestGraphQLTranslation(TranslatorTest):
             Foo := <json>'{
                 "types": [
                     {"kind": "OBJECT", "name": "Query"},
-                    {"kind": "SCALAR", "name": "ID"},
                     {"kind": "SCALAR", "name": "String"},
+                    {"kind": "SCALAR", "name": "ID"},
+                    {"kind": "INTERFACE", "name": "Foo"},
                     {"kind": "INTERFACE", "name": "NamedObject"},
-                    {"kind": "OBJECT", "name": "Profile"},
-                    {"kind": "SCALAR", "name": "Int"},
-                    {"kind": "OBJECT", "name": "Setting"},
+                    {"kind": "INTERFACE", "name": "Object"},
                     {"kind": "SCALAR", "name": "Boolean"},
+                    {"kind": "SCALAR", "name": "Int"},
                     {"kind": "SCALAR", "name": "Float"},
-                    {"kind": "OBJECT", "name": "User"},
-                    {"kind": "OBJECT", "name": "UserGroup"},
+                    {"kind": "INTERFACE", "name": "Person"},
+                    {"kind": "INTERFACE", "name": "UserGroup"},
+                    {"kind": "INTERFACE", "name": "Setting"},
+                    {"kind": "INTERFACE", "name": "Profile"},
+                    {"kind": "INTERFACE", "name": "User"},
                     {"kind": "OBJECT", "name": "__Schema"},
                     {"kind": "OBJECT", "name": "__Type"},
                     {"kind": "ENUM", "name": "__TypeKind"},
@@ -2504,7 +2476,13 @@ class TestGraphQLTranslation(TranslatorTest):
                     {"kind": "OBJECT", "name": "__InputValue"},
                     {"kind": "OBJECT", "name": "__EnumValue"},
                     {"kind": "OBJECT", "name": "__Directive"},
-                    {"kind": "ENUM", "name": "__DirectiveLocation"}
+                    {"kind": "ENUM", "name": "__DirectiveLocation"},
+                    {"kind": "OBJECT", "name": "UserGroupType"},
+                    {"kind": "OBJECT", "name": "SettingType"},
+                    {"kind": "OBJECT", "name": "ProfileType"},
+                    {"kind": "OBJECT", "name": "UserType"},
+                    {"kind": "OBJECT", "name": "PersonType"},
+                    {"kind": "OBJECT", "name": "FooType"}
                 ]
             }'
         };
@@ -2590,16 +2568,19 @@ class TestGraphQLTranslation(TranslatorTest):
             __schema := <json>'{
                 "types": [
                     {"kind": "OBJECT", "name": "Query"},
-                    {"kind": "SCALAR", "name": "ID"},
                     {"kind": "SCALAR", "name": "String"},
+                    {"kind": "SCALAR", "name": "ID"},
+                    {"kind": "INTERFACE", "name": "Foo"},
                     {"kind": "INTERFACE", "name": "NamedObject"},
-                    {"kind": "OBJECT", "name": "Profile"},
-                    {"kind": "SCALAR", "name": "Int"},
-                    {"kind": "OBJECT", "name": "Setting"},
+                    {"kind": "INTERFACE", "name": "Object"},
                     {"kind": "SCALAR", "name": "Boolean"},
+                    {"kind": "SCALAR", "name": "Int"},
                     {"kind": "SCALAR", "name": "Float"},
-                    {"kind": "OBJECT", "name": "User"},
-                    {"kind": "OBJECT", "name": "UserGroup"},
+                    {"kind": "INTERFACE", "name": "Person"},
+                    {"kind": "INTERFACE", "name": "UserGroup"},
+                    {"kind": "INTERFACE", "name": "Setting"},
+                    {"kind": "INTERFACE", "name": "Profile"},
+                    {"kind": "INTERFACE", "name": "User"},
                     {"kind": "OBJECT", "name": "__Schema"},
                     {"kind": "OBJECT", "name": "__Type"},
                     {"kind": "ENUM", "name": "__TypeKind"},
@@ -2607,7 +2588,13 @@ class TestGraphQLTranslation(TranslatorTest):
                     {"kind": "OBJECT", "name": "__InputValue"},
                     {"kind": "OBJECT", "name": "__EnumValue"},
                     {"kind": "OBJECT", "name": "__Directive"},
-                    {"kind": "ENUM", "name": "__DirectiveLocation"}
+                    {"kind": "ENUM", "name": "__DirectiveLocation"},
+                    {"kind": "OBJECT", "name": "UserGroupType"},
+                    {"kind": "OBJECT", "name": "SettingType"},
+                    {"kind": "OBJECT", "name": "ProfileType"},
+                    {"kind": "OBJECT", "name": "UserType"},
+                    {"kind": "OBJECT", "name": "PersonType"},
+                    {"kind": "OBJECT", "name": "FooType"}
                 ]
             }'
         };
@@ -2629,12 +2616,66 @@ class TestGraphQLTranslation(TranslatorTest):
             __type := <json>'{
                 "__typename": "__Type",
                 "name": "User",
-                "kind": "OBJECT"
+                "kind": "INTERFACE"
             }'
         };
         """
 
     def test_graphql_translation_type_02(self):
+        r"""
+        query {
+            __type(name: "UserType") {
+                __typename
+                kind
+                name
+                description
+                interfaces {
+                    name
+                }
+                possibleTypes {
+                    name
+                }
+                enumValues {
+                    name
+                }
+                inputFields {
+                    name
+                }
+                ofType {
+                    name
+                }
+
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            __type := <json>'{
+                "__typename": "__Type",
+                "kind": "OBJECT"
+                "name": "UserType",
+                "description": null,
+                "interfaces": [
+                    {
+                        "name": "User"
+                    },
+                    {
+                        "name": "NamedObject"
+                    },
+                    {
+                        "name": "Object"
+                    }
+                ],
+                "possibleTypes": null,
+                "enumValues": null,
+                "inputFields": null,
+                "ofType": null
+            }'
+        };
+    """
+
+    def test_graphql_translation_type_03(self):
         r"""
         query {
             __type(name: "User") {
@@ -2666,15 +2707,18 @@ class TestGraphQLTranslation(TranslatorTest):
         SELECT graphql::Query {
             __type := <json>'{
                 "__typename": "__Type",
-                "kind": "OBJECT"
+                "kind": "INTERFACE"
                 "name": "User",
                 "description": null,
-                "interfaces": [
+                "interfaces": null,
+                "possibleTypes": [
                     {
-                        "name": "NamedObject"
+                        "name": "UserType"
+                    },
+                    {
+                        "name": "PersonType"
                     }
                 ],
-                "possibleTypes": null,
                 "enumValues": null,
                 "inputFields": null,
                 "ofType": null
@@ -2682,7 +2726,7 @@ class TestGraphQLTranslation(TranslatorTest):
         };
     """
 
-    def test_graphql_translation_type_03(self):
+    def test_graphql_translation_type_04(self):
         r"""
         query {
             __type(name: "UserGroup") {
@@ -2733,7 +2777,7 @@ class TestGraphQLTranslation(TranslatorTest):
             __type := <json>'{
                 "__typename": "__Type",
                 "name": "UserGroup",
-                "kind": "OBJECT",
+                "kind": "INTERFACE",
                 "fields": [
                     {
                         "__typename": "__Field",
@@ -2786,7 +2830,7 @@ class TestGraphQLTranslation(TranslatorTest):
                                 "ofType": {
                                     "__typename": "__Type",
                                     "name": "Setting",
-                                    "kind": "OBJECT",
+                                    "kind": "INTERFACE",
                                     "ofType": null
                                 }
                             }
@@ -2799,7 +2843,7 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
-    def test_graphql_translation_type_04(self):
+    def test_graphql_translation_type_05(self):
         r"""
         fragment _t on __Type {
             __typename
@@ -2808,7 +2852,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
 
         query {
-            __type(name: "UserGroup") {
+            __type(name: "UserGroupType") {
                 ..._t
                 fields {
                     __typename
@@ -2843,7 +2887,7 @@ class TestGraphQLTranslation(TranslatorTest):
         SELECT graphql::Query {
             __type := <json>'{
                 "__typename": "__Type",
-                "name": "UserGroup",
+                "name": "UserGroupType",
                 "kind": "OBJECT",
                 "fields": [
                     {
@@ -2897,7 +2941,7 @@ class TestGraphQLTranslation(TranslatorTest):
                                 "ofType": {
                                     "__typename": "__Type",
                                     "name": "Setting",
-                                    "kind": "OBJECT",
+                                    "kind": "INTERFACE",
                                     "ofType": null
                                 }
                             }
@@ -2910,10 +2954,10 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
-    def test_graphql_translation_type_05(self):
+    def test_graphql_translation_type_06(self):
         r"""
         query {
-            __type(name: "Profile") {
+            __type(name: "ProfileType") {
                 __typename
                 name
                 kind
@@ -2960,7 +3004,7 @@ class TestGraphQLTranslation(TranslatorTest):
         SELECT graphql::Query {
             __type := <json>'{
                 "__typename": "__Type",
-                "name": "Profile",
+                "name": "ProfileType",
                 "kind": "OBJECT",
                 "fields": [
                     {
@@ -3079,7 +3123,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
         """
 
-    def test_graphql_translation_type_06(self):
+    def test_graphql_translation_type_07(self):
         r"""
         fragment _t on __Type {
             __typename
@@ -3200,7 +3244,167 @@ class TestGraphQLTranslation(TranslatorTest):
                     {
                         "__typename": "__Type",
                         "kind": "OBJECT",
-                        "name": "Profile",
+                        "name": "UserGroupType",
+                        "description": null,
+                        "fields": [
+                            {
+                                "__typename": "__Field",
+                                "name": "id",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "ID",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "name",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "String",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "settings",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "LIST",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": null,
+                                        "kind": "NON_NULL"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            }
+                        ],
+                        "interfaces": [
+                            {
+                                "__typename": "__Type",
+                                "name": "UserGroup",
+                                "kind": "INTERFACE"
+                            },
+                            {
+                                "__typename": "__Type",
+                                "name": "NamedObject",
+                                "kind": "INTERFACE"
+                            },
+                            {
+                                "__typename": "__Type",
+                                "name": "Object",
+                                "kind": "INTERFACE"
+                            }
+                        ],
+                        "possibleTypes": null,
+                        "enumValues": null,
+                        "inputFields": null,
+                        "ofType": null
+                    },
+                    {
+                        "__typename": "__Type",
+                        "kind": "OBJECT",
+                        "name": "SettingType",
+                        "description": null,
+                        "fields": [
+                            {
+                                "__typename": "__Field",
+                                "name": "id",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "ID",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "name",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "String",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "value",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "String",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            }
+                        ],
+                        "interfaces": [
+                            {
+                                "__typename": "__Type",
+                                "name": "Setting",
+                                "kind": "INTERFACE"
+                            },
+                            {
+                                "__typename": "__Type",
+                                "name": "NamedObject",
+                                "kind": "INTERFACE"
+                            },
+                            {
+                                "__typename": "__Type",
+                                "name": "Object",
+                                "kind": "INTERFACE"
+                            }
+                        ],
+                        "possibleTypes": null,
+                        "enumValues": null,
+                        "inputFields": null,
+                        "ofType": null
+                    },
+                    {
+                        "__typename": "__Type",
+                        "kind": "OBJECT",
+                        "name": "ProfileType",
                         "description": null,
                         "fields": [
                             {
@@ -3292,78 +3496,18 @@ class TestGraphQLTranslation(TranslatorTest):
                         "interfaces": [
                             {
                                 "__typename": "__Type",
-                                "name": "NamedObject",
+                                "name": "Profile",
                                 "kind": "INTERFACE"
-                            }
-                        ],
-                        "possibleTypes": null,
-                        "enumValues": null,
-                        "inputFields": null,
-                        "ofType": null
-                    },
-                    {
-                        "__typename": "__Type",
-                        "kind": "OBJECT",
-                        "name": "Setting",
-                        "description": null,
-                        "fields": [
-                            {
-                                "__typename": "__Field",
-                                "name": "id",
-                                "description": null,
-                                "type": {
-                                    "__typename": "__Type",
-                                    "name": null,
-                                    "kind": "NON_NULL",
-                                    "ofType": {
-                                        "__typename": "__Type",
-                                        "name": "ID",
-                                        "kind": "SCALAR"
-                                    }
-                                },
-                                "isDeprecated": false,
-                                "deprecationReason": null
                             },
-                            {
-                                "__typename": "__Field",
-                                "name": "name",
-                                "description": null,
-                                "type": {
-                                    "__typename": "__Type",
-                                    "name": null,
-                                    "kind": "NON_NULL",
-                                    "ofType": {
-                                        "__typename": "__Type",
-                                        "name": "String",
-                                        "kind": "SCALAR"
-                                    }
-                                },
-                                "isDeprecated": false,
-                                "deprecationReason": null
-                            },
-                            {
-                                "__typename": "__Field",
-                                "name": "value",
-                                "description": null,
-                                "type": {
-                                    "__typename": "__Type",
-                                    "name": null,
-                                    "kind": "NON_NULL",
-                                    "ofType": {
-                                        "__typename": "__Type",
-                                        "name": "String",
-                                        "kind": "SCALAR"
-                                    }
-                                },
-                                "isDeprecated": false,
-                                "deprecationReason": null
-                            }
-                        ],
-                        "interfaces": [
                             {
                                 "__typename": "__Type",
                                 "name": "NamedObject",
                                 "kind": "INTERFACE"
+                            },
+                            {
+                                "__typename": "__Type",
+                                "name": "Object",
+                                "kind": "INTERFACE"
                             }
                         ],
                         "possibleTypes": null,
@@ -3374,7 +3518,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     {
                         "__typename": "__Type",
                         "kind": "OBJECT",
-                        "name": "User",
+                        "name": "UserType",
                         "description": null,
                         "fields": [
                             {
@@ -3469,7 +3613,7 @@ class TestGraphQLTranslation(TranslatorTest):
                                 "type": {
                                     "__typename": "__Type",
                                     "name": "Profile",
-                                    "kind": "OBJECT",
+                                    "kind": "INTERFACE",
                                     "ofType": null
                                 },
                                 "isDeprecated": false,
@@ -3496,7 +3640,17 @@ class TestGraphQLTranslation(TranslatorTest):
                         "interfaces": [
                             {
                                 "__typename": "__Type",
+                                "name": "User",
+                                "kind": "INTERFACE"
+                            },
+                            {
+                                "__typename": "__Type",
                                 "name": "NamedObject",
+                                "kind": "INTERFACE"
+                            },
+                            {
+                                "__typename": "__Type",
+                                "name": "Object",
                                 "kind": "INTERFACE"
                             }
                         ],
@@ -3508,9 +3662,60 @@ class TestGraphQLTranslation(TranslatorTest):
                     {
                         "__typename": "__Type",
                         "kind": "OBJECT",
-                        "name": "UserGroup",
+                        "name": "PersonType",
                         "description": null,
                         "fields": [
+                            {
+                                "__typename": "__Field",
+                                "name": "active",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "Boolean",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "age",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "Int",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "groups",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": null,
+                                    "kind": "LIST",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": null,
+                                        "kind": "NON_NULL"
+                                    }
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            },
                             {
                                 "__typename": "__Field",
                                 "name": "id",
@@ -3547,16 +3752,29 @@ class TestGraphQLTranslation(TranslatorTest):
                             },
                             {
                                 "__typename": "__Field",
-                                "name": "settings",
+                                "name": "profile",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": "Profile",
+                                    "kind": "INTERFACE",
+                                    "ofType": null
+                                },
+                                "isDeprecated": false,
+                                "deprecationReason": null
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "score",
                                 "description": null,
                                 "type": {
                                     "__typename": "__Type",
                                     "name": null,
-                                    "kind": "LIST",
+                                    "kind": "NON_NULL",
                                     "ofType": {
                                         "__typename": "__Type",
-                                        "name": null,
-                                        "kind": "NON_NULL"
+                                        "name": "Float",
+                                        "kind": "SCALAR"
                                     }
                                 },
                                 "isDeprecated": false,
@@ -3566,7 +3784,22 @@ class TestGraphQLTranslation(TranslatorTest):
                         "interfaces": [
                             {
                                 "__typename": "__Type",
+                                "name": "Person",
+                                "kind": "INTERFACE"
+                            },
+                            {
+                                "__typename": "__Type",
+                                "name": "User",
+                                "kind": "INTERFACE"
+                            },
+                            {
+                                "__typename": "__Type",
                                 "name": "NamedObject",
+                                "kind": "INTERFACE"
+                            },
+                            {
+                                "__typename": "__Type",
+                                "name": "Object",
                                 "kind": "INTERFACE"
                             }
                         ],
@@ -3583,10 +3816,10 @@ class TestGraphQLTranslation(TranslatorTest):
         };
     """
 
-    def test_graphql_translation_type_07(self):
+    def test_graphql_translation_type_08(self):
         r"""
         query {
-            __type(name: "UserGroup") {
+            __type(name: "UserGroupType") {
                 __typename
                 name
                 kind
@@ -3631,7 +3864,7 @@ class TestGraphQLTranslation(TranslatorTest):
         SELECT graphql::Query {
             __type := <json>'{
                 "__typename": "__Type",
-                "name": "UserGroup",
+                "name": "UserGroupType",
                 "kind": "OBJECT",
                 "fields": [
                     {
