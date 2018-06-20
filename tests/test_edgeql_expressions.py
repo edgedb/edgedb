@@ -967,22 +967,8 @@ class TestExpressions(tb.QueryTestCase):
             [False],
         ])
 
-    @unittest.expectedFailure
-    async def test_edgeql_expr_json_06(self):
-        # casting a JSON array into an EdgeQL array should be recursive:
-        # - cast each element of JSON array into the element type
-        # - construct a new EdgeQL array out of the elements
-        await self.assert_query_result(r"""
-            SELECT <array<int64>><json>'[1, 2, 3]' =
-                [<int64><json>'1', <int64><json>'2', <int64><json>'3'];
-            # null will cast into an empty set and make the entire array vanish
-            SELECT <array<int64>><json>'[null]' ?= <array<int64>>{};
-            SELECT <array<int64>><json>'[1, null]' ?= <array<int64>>{};
-        """, [
-            [True],
-            [True],
-            [True],
-        ])
+    # XXX: in the future we may want a function that converts a JSON
+    # array into an array of JSON
 
     @unittest.expectedFailure
     async def test_edgeql_expr_json_07(self):
