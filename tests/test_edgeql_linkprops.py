@@ -790,27 +790,13 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
     async def test_edgeql_props_setops_05(self):
         await self.assert_query_result(r'''
             WITH
-                MODULE test,
-                x := DISTINCT (
+                MODULE test
+            SELECT DISTINCT
                     (
                         SELECT User FILTER User.name = 'Alice'
-                    ).deck@count
-                )
-                # `x` is the set of distinct values of card counts in
-                # the deck of Alice, namely: {2, 3}
-            SELECT _ := (x, User.name)
-            # x results in a cross product:
-            # {2, 3} X {'Alice', 'Bob', 'Carol', 'Dave'}
-            ORDER BY _;
+                    ).deck@count;
         ''', [
-            [2, 'Alice'],
-            [3, 'Alice'],
-            [2, 'Bob'],
-            [3, 'Bob'],
-            [2, 'Carol'],
-            [3, 'Carol'],
-            [2, 'Dave'],
-            [3, 'Dave'],
+            {2, 3},
         ])
 
     async def test_edgeql_props_agg_01(self):

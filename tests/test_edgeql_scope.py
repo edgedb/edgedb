@@ -93,6 +93,30 @@ class TestEdgeQLScope(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_scope_tuple_03(self):
+        # get the User names and ids
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT User {
+                name,
+                id
+            }
+            ORDER BY User.name;
+        ''')
+
+        # there's a bug that makes both User shapes the same one
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT _ := (User { name }, User { id })
+            ORDER BY _.0.name;
+        ''', [
+            [
+                [{'name': user['name']}, {'id': user['id']}]
+                for user in res[0]
+            ]
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_scope_tuple_04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT _ := (
@@ -152,7 +176,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_scope_tuple_04(self):
+    async def test_edgeql_scope_tuple_05(self):
         await self.assert_query_result(r'''
             # Same as above, but with a computable instead of real "friends"
             WITH MODULE test
@@ -207,7 +231,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_scope_tuple_05(self):
+    async def test_edgeql_scope_tuple_06(self):
         await self.assert_query_result(r'''
             WITH
                 MODULE test,
@@ -267,7 +291,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_scope_tuple_06(self):
+    async def test_edgeql_scope_tuple_07(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT User {
@@ -301,7 +325,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_scope_tuple_07(self):
+    async def test_edgeql_scope_tuple_08(self):
         await self.assert_query_result(r'''
             # compare to test_edgeql_scope_filter_03 to see how it
             # works out without tuples
@@ -371,8 +395,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
-    async def test_edgeql_scope_tuple_08(self):
+    async def test_edgeql_scope_tuple_09(self):
         await self.assert_query_result(r'''
             # compare to test_edgeql_scope_filter_03 to see how it
             # works out without tuples
@@ -401,7 +424,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                     name
                 }
             )
-            FILTER U2.friends.name = 'Bob'
+            FILTER _.1.name = 'Bob'
             ORDER BY _.0.name THEN _.1;
         ''', [
             [
@@ -446,7 +469,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_scope_tuple_09(self):
+    async def test_edgeql_scope_tuple_10(self):
         await self.assert_query_result(r'''
         WITH MODULE test
         SELECT (User.name, User.deck_cost, count(User.deck),
@@ -484,7 +507,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_scope_tuple_10(self):
+    async def test_edgeql_scope_tuple_11(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT x := (
@@ -552,9 +575,9 @@ class TestEdgeQLScope(tb.QueryTestCase):
         ])
 
     @unittest.expectedFailure
-    async def test_edgeql_scope_tuple_11(self):
+    async def test_edgeql_scope_tuple_12(self):
         await self.assert_query_result(r'''
-            # this is similar to test_edgeql_scope_tuple_03
+            # this is similar to test_edgeql_scope_tuple_04
             WITH MODULE test
             SELECT _ := (
                 # User.friends is a common path, so it refers to the
@@ -818,7 +841,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
     # NOTE: LIMIT tests are largely identical to OFFSET tests, any
     # time there is a new OFFSET test, there should be a corresponding
     # LIMIT one.
-    @unittest.expectedFailure
     async def test_edgeql_scope_offset_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -839,16 +861,16 @@ class TestEdgeQLScope(tb.QueryTestCase):
                     # - the user happens to be Carol
                     # - her average deck cost is 2
                     #   (see test_edgeql_scope_tuple_08)
+                    WITH
+                        F := (
+                            SELECT User
+                            FILTER User.<friends@nickname = 'Firefighter'
+                        )
                     SELECT
-                        # in the below expression User.friends is the
-                        # longest common prefix, so we know that for
-                        # each friend, the average cost will be
-                        # calculated.
-                        <int64>(User.friends.deck_cost /
-                                count(User.friends.deck))
-                    # finally, filter out the only answer we need, to
-                    # satisfy the CARDINALITY requirement of the OFFSET
-                    FILTER User.friends@nickname = 'Firefighter'
+                        # cardinality should be inferable here:
+                        # - deck_cost is a computable based on sum
+                        # - count also has cardinality 1 of the return set
+                        <int64>(F.deck_cost / count(F.deck))
                     LIMIT 1
                 );
         ''', [
@@ -905,7 +927,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_scope_limit_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -936,6 +957,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                         # - deck_cost is a computable based on sum
                         # - count also has cardinality 1 of the return set
                         <int64>(F.deck_cost / count(F.deck))
+                    LIMIT 1
                 );
         ''', [
             [
