@@ -33,8 +33,7 @@ from .errors import GraphQLValidationError, GraphQLCoreError
 
 
 class GraphQLTranslatorContext:
-    def __init__(self, *, schema, gqlcore, variables, operation_name, query,
-                 modules):
+    def __init__(self, *, schema, gqlcore, variables, operation_name, query):
         self.schema = schema
         self.variables = variables
         self.operation_name = operation_name
@@ -44,11 +43,9 @@ class GraphQLTranslatorContext:
         self.fields = []
         self.path = []
         self.include_base = [False]
-        self.gql_schema = gt.Schema(schema, modules)
-        self.gqlcore = gqlcore
+        self.gql_schema = gt.Schema(gqlcore)
+        self.gqlcore_schema = gqlcore._gql_schema
         self.query = query
-        self.modules = list(modules)
-        self.modules.sort()
 
 
 Step = namedtuple('Step', ['name', 'type'])
@@ -96,7 +93,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         }
 
         gqlresult = gql_proc(
-            self._context.gqlcore,
+            self._context.gqlcore_schema,
             self._context.query,
             variable_values={
                 name[1:]: val for name, val in self._context.variables.items()
@@ -167,8 +164,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             self.visit(node.variables)
 
         # base Query needs to be configured specially
-        base = self._context.gql_schema.get(
-            'Query', modules=self._context.modules)
+        base = self._context.gql_schema.get('Query')
 
         # special treatment of the selection_set, different from inner
         # recursion
@@ -246,12 +242,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         name = node.alias or node.name
         dup = self._context.fields[-1].get(name)
         if dup:
-            if not ast.nodes_equal(dup, node):
-                raise GraphQLValidationError(
-                    f"field {name!r} has ambiguous definition",
-                    context=node.context)
-            else:
-                return True
+            return True
         else:
             self._context.fields[-1][name] = node
 
@@ -578,23 +569,19 @@ class GraphQLTranslator(ast.NodeVisitor):
             return results
 
 
-def translate(schema, graphql, *, variables=None, operation_name=None,
-              modules=None):
+def translate(schema, graphql, *, variables=None, operation_name=None):
     if variables is None:
         variables = {}
 
-    if modules is None:
-        modules = set(modules) | {'default'}
-
     # HACK
     query = re.sub(r'@edgedb\(.*?\)', '', graphql)
-    schema2 = gt.GQLCoreSchema(schema, *modules)._gql_schema
+    schema2 = gt.GQLCoreSchema(schema)
 
     parser = gqlparser.GraphQLParser()
     gqltree = parser.parse(graphql)
     context = GraphQLTranslatorContext(
         schema=schema, gqlcore=schema2, query=query,
-        variables=variables, operation_name=operation_name, modules=modules)
+        variables=variables, operation_name=operation_name)
     edge_forest_map = GraphQLTranslator(context=context).visit(gqltree)
     code = []
     for name, (tree, critvars) in sorted(edge_forest_map.items()):
