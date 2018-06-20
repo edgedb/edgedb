@@ -299,7 +299,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {'1', '2', '3', '4'},
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_functions_array_unpack_04(self):
         await self.assert_sorted_query_result(r'''
             # array_agg and array_unpack are inverses of each other

@@ -45,13 +45,41 @@ from . import pathctx
 from . import relctx
 
 
-class SetRVars:
-    __slots__ = ('main', 'new', 'aspect',)
+class SetRVar:
+    __slots__ = ('rvar', 'path_id', 'aspects')
 
-    def __init__(self, main, new, aspect='value'):
+    def __init__(self, rvar: pgast.BaseRangeVar,
+                 path_id: irast.PathId,
+                 aspects: typing.Iterable[str]=('value',)) -> None:
+        self.aspects = aspects
+        self.path_id = path_id
+        self.rvar = rvar
+
+
+class SetRVars:
+    __slots__ = ('main', 'new')
+
+    def __init__(self, main: SetRVar, new: typing.List[SetRVar]) -> None:
         self.main = main
         self.new = new
-        self.aspect = aspect
+
+
+def new_simple_set_rvar(
+        ir_set: irast.Set, rvar: pgast.BaseRangeVar,
+        aspects: typing.Iterable[str]=('value',)) -> SetRVars:
+
+    rvar = SetRVar(rvar=rvar, path_id=ir_set.path_id, aspects=aspects)
+    return SetRVars(main=rvar, new=[rvar])
+
+
+def new_source_set_rvar(
+        ir_set: irast.Set, rvar: pgast.BaseRangeVar) -> SetRVars:
+
+    aspects = ['value']
+    if ir_set.path_id.is_objtype_path():
+        aspects.append('source')
+
+    return new_simple_set_rvar(ir_set, rvar, aspects)
 
 
 class OptionalRel:
@@ -74,21 +102,12 @@ def get_set_rvar(
     @param ir_set: IR Set node.
     """
     path_id = ir_set.path_id
-    scope_stmt = None
-    rvar = None
 
     scope_stmt = relctx.maybe_get_scope_stmt(path_id, ctx=ctx)
-
-    if scope_stmt is not None:
-        rvar = pathctx.maybe_get_path_rvar(
-            scope_stmt, ir_set.path_id, aspect='value', env=ctx.env)
-    else:
-        rvar = relctx.maybe_get_path_rvar(
-            ctx.rel, path_id, aspect='value', ctx=ctx)
+    rvar = relctx.find_rvar(ctx.rel, source_stmt=scope_stmt,
+                            path_id=path_id, ctx=ctx)
 
     if rvar is not None:
-        pathctx.put_path_rvar_if_not_exists(
-            ctx.rel, path_id, rvar, aspect='value', env=ctx.env)
         return rvar
 
     with contextlib.ExitStack() as cstack:
@@ -198,21 +217,25 @@ def get_set_rvar(
             rvars = finalize_optional_rel(ir_set, optrel=optrel,
                                           rvars=rvars, ctx=subctx)
 
-        for rvar, pid, aspect in rvars.new:
+        for set_rvar in rvars.new:
             # overwrite_path_rvar is needed because we want
             # the outermost Set with the given path_id to
             # represent the path.  Nested Sets with the
             # same path_id but different expression are
             # possible when there is a computable pointer
             # that refers to itself in its expression.
-            relctx.include_rvar(scope_stmt, rvar, path_id=pid,
-                                overwrite_path_rvar=True,
-                                aspect=aspect, ctx=ctx)
+            relctx.include_specific_rvar(
+                scope_stmt, set_rvar.rvar,
+                path_id=set_rvar.path_id,
+                overwrite_path_rvar=True,
+                aspects=set_rvar.aspects, ctx=ctx)
 
-        pathctx.put_path_rvar_if_not_exists(
-            ctx.rel, path_id, rvars.main, aspect=rvars.aspect, env=ctx.env)
+        for aspect in rvars.main.aspects:
+            pathctx.put_path_rvar_if_not_exists(
+                ctx.rel, path_id, rvars.main.rvar,
+                aspect=aspect, env=ctx.env)
 
-    return rvars.main
+    return rvars.main.rvar
 
 
 def set_as_subquery(
@@ -247,14 +270,8 @@ def set_as_subquery(
                     pgast.ResTarget(val=value)
                 ]
         else:
-            if ir_set.path_id.is_objtype_path():
-                aspect = 'identity'
-            else:
-                aspect = 'value'
-
-            pathctx.get_path_output(
-                rel=wrapper, path_id=ir_set.path_id,
-                aspect=aspect, env=ctx.env)
+            pathctx.get_path_value_output(
+                rel=wrapper, path_id=ir_set.path_id, env=ctx.env)
 
     return wrapper
 
@@ -271,8 +288,7 @@ def set_to_array(
     )
 
     result = pgast.SelectStmt()
-    relctx.include_rvar(result, subrvar, path_id=ir_set.path_id,
-                        aspect='value', ctx=ctx)
+    relctx.include_rvar(result, subrvar, path_id=ir_set.path_id, ctx=ctx)
 
     if output.in_serialization_ctx(ctx):
         val = pathctx.maybe_get_path_serialized_var(
@@ -344,7 +360,7 @@ def prepare_optional_rel(
 
                     relctx.include_rvar(
                         emptyrel, emptyrvar, path_id=ir_set.path_id,
-                        aspect='value', ctx=scopectx)
+                        ctx=scopectx)
 
                 marker = unionctx.env.aliases.get('m')
 
@@ -397,21 +413,18 @@ def finalize_optional_rel(
     with ctx.new() as subctx:
         subctx.rel = setrel = optrel.scope_rel
 
-        for rvar, pid, aspect in rvars.new:
-            relctx.include_rvar(setrel, rvar, path_id=pid,
-                                aspect=aspect, ctx=subctx)
+        for set_rvar in rvars.new:
+            relctx.include_specific_rvar(
+                setrel, set_rvar.rvar, path_id=set_rvar.path_id,
+                aspects=set_rvar.aspects, ctx=subctx)
 
-        pathctx.put_path_rvar_if_not_exists(
-            setrel, ir_set.path_id, rvars.main,
-            aspect=rvars.aspect, env=subctx.env)
+        for aspect in rvars.main.aspects:
+            pathctx.put_path_rvar_if_not_exists(
+                setrel, ir_set.path_id, rvars.main.rvar,
+                aspect=aspect, env=subctx.env)
 
-        if ir_set.path_id.is_objtype_path():
-            aspect = 'identity'
-        else:
-            aspect = 'value'
-
-        lvar = pathctx.get_path_var(
-            setrel, path_id=ir_set.path_id, aspect=aspect, env=subctx.env)
+        lvar = pathctx.get_path_value_var(
+            setrel, path_id=ir_set.path_id, env=subctx.env)
 
         if lvar.nullable:
             # The left var is still nullable, which may be the
@@ -443,8 +456,11 @@ def finalize_optional_rel(
 
         stmt.nullable = True
 
-    sub_rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-    return SetRVars(main=sub_rvar, new=[(sub_rvar, ir_set.path_id, 'value')])
+    sub_rvar = SetRVar(rvar=relctx.new_rel_rvar(ir_set, stmt, ctx=ctx),
+                       path_id=ir_set.path_id,
+                       aspects=rvars.main.aspects)
+
+    return SetRVars(main=sub_rvar, new=[sub_rvar])
 
 
 def get_set_rel_alias(ir_set: irast.Set) -> str:
@@ -465,21 +481,17 @@ def get_set_rel_alias(ir_set: irast.Set) -> str:
 def process_set_as_root(
         ir_set: irast.Set, stmt: pgast.Query, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
+
     rvar = relctx.new_root_rvar(ir_set, ctx=ctx)
-    rvars = [(rvar, ir_set.path_id, 'value')]
-    if ir_set.path_id.is_objtype_path():
-        rvars.append((rvar, ir_set.path_id, 'identity'))
-    return SetRVars(main=rvar, new=rvars)
+    return new_source_set_rvar(ir_set, rvar)
 
 
 def process_set_as_empty(
         ir_set: irast.Set, stmt: pgast.Query, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
+
     rvar = relctx.new_empty_rvar(ir_set, ctx=ctx)
-    rvars = [(rvar, ir_set.path_id, 'value')]
-    if ir_set.path_id.is_objtype_path():
-        rvars.append((rvar, ir_set.path_id, 'identity'))
-    return SetRVars(main=rvar, new=rvars)
+    return new_source_set_rvar(ir_set, rvar)
 
 
 def process_set_as_link_property_ref(
@@ -502,7 +514,8 @@ def process_set_as_link_property_ref(
         pathctx.put_rvar_path_output(
             src_rvar, ir_set.path_id, aspect='value', var=val, env=ctx.env)
 
-        return SetRVars(main=src_rvar, new=[])
+        return SetRVars(
+            main=SetRVar(rvar=src_rvar, path_id=ir_set.path_id), new=[])
 
     with ctx.new() as newctx:
         link_path_id = ir_set.path_id.src_path()
@@ -516,7 +529,7 @@ def process_set_as_link_property_ref(
             link_rvar = relctx.new_pointer_rvar(
                 ir_source.rptr, src_rvar=src_rvar, link_bias=True, ctx=newctx)
 
-        rvars.append((link_rvar, link_path_id, 'value'))
+        rvars.append(SetRVar(link_rvar, link_path_id))
 
         target_rvar = pathctx.maybe_get_path_rvar(
             source_scope_stmt, link_path_id.tgt_path(),
@@ -525,9 +538,9 @@ def process_set_as_link_property_ref(
         if target_rvar is None:
             target_rvar = relctx.new_root_rvar(ir_source, ctx=newctx)
 
-        rvars.append((target_rvar, link_path_id.tgt_path(), 'value'))
+        rvars.append(SetRVar(target_rvar, link_path_id.tgt_path()))
 
-    return SetRVars(main=link_rvar, new=rvars)
+    return SetRVars(main=SetRVar(link_rvar, ir_set.path_id), new=rvars)
 
 
 def process_set_as_path(
@@ -544,9 +557,8 @@ def process_set_as_path(
     is_static_clsref = (isinstance(ir_source.scls, s_scalars.ScalarType) and
                         ptrcls.shortname == 'std::__type__')
     if is_static_clsref:
-        main_rvar = relctx.new_static_class_rvar(ir_set, ctx=ctx)
-        rvars.append((main_rvar, ir_set.path_id, 'value'))
-        return SetRVars(main=main_rvar, new=rvars)
+        rvar = relctx.new_static_class_rvar(ir_set, ctx=ctx)
+        return new_simple_set_rvar(ir_set, rvar, ['value', 'source'])
 
     if ir_set.path_id.is_type_indirection_path():
         get_set_rvar(ir_source, ctx=ctx)
@@ -554,8 +566,7 @@ def process_set_as_path(
         relctx.include_rvar(stmt, poly_rvar, ir_set.path_id, ctx=ctx)
 
         sub_rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-        return SetRVars(
-            main=sub_rvar, new=[(sub_rvar, ir_set.path_id, 'value')])
+        return new_simple_set_rvar(ir_set, sub_rvar, ['value', 'source'])
 
     ptr_info = pg_types.get_pointer_storage_info(
         ptrcls, resolve_type=False, link_bias=False)
@@ -578,7 +589,8 @@ def process_set_as_path(
             srcctx.expr_exposed = False
             src_rvar = get_set_rvar(ir_source, ctx=srcctx)
             set_rvar = relctx.semi_join(stmt, ir_set, src_rvar, ctx=srcctx)
-            rvars.append((set_rvar, ir_set.path_id, 'value'))
+            rvars.append(SetRVar(set_rvar, ir_set.path_id,
+                                 ['value', 'source']))
 
     elif not source_is_visible:
         with ctx.subrel() as srcctx:
@@ -591,7 +603,7 @@ def process_set_as_path(
             if is_inline_scalar_ref:
                 # Semi-join variant for inline scalar links,
                 # which is, essentially, just filtering out NULLs.
-                relctx.ensure_value_rvar(ir_source, srcctx.rel, ctx=srcctx)
+                relctx.ensure_source_rvar(ir_source, srcctx.rel, ctx=srcctx)
 
                 var = pathctx.get_path_value_var(
                     srcctx.rel, path_id=ir_set.path_id, env=ctx.env)
@@ -603,8 +615,7 @@ def process_set_as_path(
         srcrel = srcctx.rel
         src_rvar = dbobj.rvar_for_rel(
             srcrel, lateral=True, env=srcctx.env)
-        relctx.include_rvar(stmt, src_rvar, path_id=ir_source.path_id,
-                            aspect='value', ctx=ctx)
+        relctx.include_rvar(stmt, src_rvar, path_id=ir_source.path_id, ctx=ctx)
         stmt.path_id_mask.add(ir_source.path_id)
 
     else:
@@ -617,24 +628,36 @@ def process_set_as_path(
         rvars.extend(srvars.new)
 
     elif is_inline_scalar_ref:
-        main_rvar = relctx.ensure_value_rvar(ir_source, stmt, ctx=ctx)
+        main_rvar = SetRVar(
+            relctx.ensure_source_rvar(ir_source, stmt, ctx=ctx),
+            path_id=ir_set.path_id,
+            aspects=['value', 'source']
+        )
 
     elif not semi_join:
         # Link range.
-        map_rvar = relctx.new_pointer_rvar(
-            ir_set.rptr, src_rvar=src_rvar, ctx=ctx)
+        map_rvar = SetRVar(
+            relctx.new_pointer_rvar(ir_set.rptr, src_rvar=src_rvar, ctx=ctx),
+            path_id=ir_set.path_id.ptr_path(),
+            aspects=['value', 'source']
+        )
 
-        rvars.append((map_rvar, ir_set.path_id.ptr_path(), 'value'))
+        rvars.append(map_rvar)
 
         # Target set range.
         if isinstance(ir_set.scls, s_objtypes.ObjectType):
-            set_rvar = relctx.new_root_rvar(ir_set, ctx=ctx)
-            main_rvar = set_rvar
+            target_rvar = relctx.new_root_rvar(ir_set, ctx=ctx)
             if ir_source.path_id not in ctx.unique_paths:
-                set_rvar.query.is_distinct = False
-            rvars.append((set_rvar, ir_set.path_id, 'value'))
+                target_rvar.query.is_distinct = False
+
+            main_rvar = SetRVar(
+                target_rvar,
+                path_id=ir_set.path_id,
+                aspects=['value', 'source']
+            )
+
+            rvars.append(main_rvar)
         else:
-            set_rvar = None
             main_rvar = map_rvar
 
     if not source_is_visible:
@@ -642,12 +665,18 @@ def process_set_as_path(
         # it means that there are no other paths sharing this path prefix
         # in this scope.  In such cases the path is represented by a subquery
         # rather than a simple set of ranges.
-        for rvar, path_id, aspect in rvars:
-            relctx.include_rvar(stmt, rvar, path_id=path_id,
-                                aspect=aspect, ctx=ctx)
+        for set_rvar in rvars:
+            relctx.include_specific_rvar(
+                stmt, set_rvar.rvar, path_id=set_rvar.path_id,
+                aspects=set_rvar.aspects, ctx=ctx)
 
-        main_rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-        rvars = [(main_rvar, ir_set.path_id, 'value')]
+        main_rvar = SetRVar(
+            relctx.new_rel_rvar(ir_set, stmt, ctx=ctx),
+            path_id=ir_set.path_id,
+            aspects=['value', 'source']
+        )
+
+        rvars = [main_rvar]
 
     return SetRVars(main=main_rvar, new=rvars)
 
@@ -726,7 +755,7 @@ def process_set_as_subquery(
                 stmt.where_clause, cond_expr)
 
     sub_rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-    return SetRVars(main=sub_rvar, new=[(sub_rvar, ir_set.path_id, 'value')])
+    return new_simple_set_rvar(ir_set, sub_rvar, ['value', 'source'])
 
 
 def process_set_as_membership_expr(
@@ -778,9 +807,9 @@ def process_set_as_membership_expr(
 
             sub_rvar = relctx.new_rel_rvar(ir_set, wrapper, ctx=subctx)
 
-    relctx.include_rvar(stmt, sub_rvar, ctx=ctx)
+    relctx.include_rvar(stmt, sub_rvar, path_id=ir_set.path_id, ctx=ctx)
     sub_rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-    return SetRVars(main=sub_rvar, new=[(sub_rvar, ir_set.path_id, 'value')])
+    return new_simple_set_rvar(ir_set, sub_rvar)
 
 
 def process_set_as_setop(
@@ -814,7 +843,7 @@ def process_set_as_setop(
         relctx.include_rvar(stmt, union_rvar, ir_set.path_id, ctx=subctx)
 
     rvar = dbobj.rvar_for_rel(stmt, lateral=True, env=ctx.env)
-    return SetRVars(main=rvar, new=[(rvar, ir_set.path_id, 'value')])
+    return new_simple_set_rvar(ir_set, rvar)
 
 
 def process_set_as_distinct(
@@ -837,7 +866,7 @@ def process_set_as_distinct(
         subrvar, value_var, aspect='value', env=ctx.env)
 
     rvar = dbobj.rvar_for_rel(stmt, lateral=True, env=ctx.env)
-    return SetRVars(main=rvar, new=[(rvar, ir_set.path_id, 'value')])
+    return new_simple_set_rvar(ir_set, rvar)
 
 
 def process_set_as_ifelse(
@@ -884,7 +913,7 @@ def process_set_as_ifelse(
         relctx.include_rvar(stmt, union_rvar, ir_set.path_id, ctx=subctx)
 
     rvar = dbobj.rvar_for_rel(stmt, lateral=True, env=ctx.env)
-    return SetRVars(main=rvar, new=[(rvar, ir_set.path_id, 'value')])
+    return new_simple_set_rvar(ir_set, rvar)
 
 
 def process_set_as_coalesce(
@@ -940,14 +969,8 @@ def process_set_as_coalesce(
                             expr.left.path_id
                         dispatch.compile(expr.left, ctx=scopectx)
 
-                        if expr.left.path_id.is_objtype_path():
-                            aspect = 'identity'
-                        else:
-                            aspect = 'value'
-
-                        lvar = pathctx.get_path_var(
-                            larg, path_id=expr.left.path_id, aspect=aspect,
-                            env=scopectx.env)
+                        lvar = pathctx.get_path_value_var(
+                            larg, path_id=expr.left.path_id, env=scopectx.env)
 
                         if lvar.nullable:
                             # The left var is still nullable, which may be the
@@ -987,7 +1010,7 @@ def process_set_as_coalesce(
                     unionqry, lateral=True, env=subctx.env)
 
                 relctx.include_rvar(
-                    subqry, union_rvar, ir_set.path_id, ctx=subctx)
+                    subqry, union_rvar, path_id=ir_set.path_id, ctx=subctx)
 
                 lagged_marker = pgast.FuncCall(
                     name=('first_value',),
@@ -1012,13 +1035,13 @@ def process_set_as_coalesce(
                 subqry, lateral=True, env=newctx.env)
 
             relctx.include_rvar(
-                stmt, subrvar, ir_set.path_id, ctx=newctx)
+                stmt, subrvar, path_id=ir_set.path_id, ctx=newctx)
 
             stmt.where_clause = astutils.extend_binop(
                 stmt.where_clause, dbobj.get_column(subrvar, marker))
 
     rvar = dbobj.rvar_for_rel(stmt, lateral=True, env=ctx.env)
-    return SetRVars(main=rvar, new=[(rvar, ir_set.path_id, 'value')])
+    return new_simple_set_rvar(ir_set, rvar)
 
 
 def process_set_as_equivalence(
@@ -1046,7 +1069,7 @@ def process_set_as_equivalence(
         stmt, ir_set.path_id, set_expr, env=ctx.env)
 
     rvar = dbobj.rvar_for_rel(stmt, lateral=True, env=ctx.env)
-    return SetRVars(main=rvar, new=[(rvar, ir_set.path_id, 'value')])
+    return new_simple_set_rvar(ir_set, rvar)
 
 
 def process_set_as_tuple(
@@ -1073,21 +1096,19 @@ def process_set_as_tuple(
     pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
 
     rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-    return SetRVars(main=rvar, new=[(rvar, ir_set.path_id, 'value')])
+    return new_simple_set_rvar(ir_set, rvar, ['value', 'source'])
 
 
 def process_set_as_tuple_indirection(
         ir_set: irast.Set, stmt: pgast.Query, *,
         ctx: context.CompilerContextLevel) -> typing.List[pgast.BaseRangeVar]:
     tuple_set = ir_set.expr.expr
-    aspect = 'identity' if ir_set.path_id.is_objtype_path() else 'value'
 
     with ctx.new() as subctx:
         subctx.expr_exposed = False
         rvar = get_set_rvar(tuple_set, ctx=subctx)
 
-    return SetRVars(main=rvar, new=[(rvar, ir_set.path_id, aspect)],
-                    aspect=aspect)
+    return new_simple_set_rvar(ir_set, rvar)
 
 
 def process_set_as_expr(
@@ -1099,7 +1120,7 @@ def process_set_as_expr(
         stmt, ir_set.path_id, set_expr, env=ctx.env)
 
     rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-    return SetRVars(main=rvar, new=[(rvar, ir_set.path_id, 'value')])
+    return new_simple_set_rvar(ir_set, rvar)
 
 
 def process_set_as_func_expr(
@@ -1137,11 +1158,6 @@ def process_set_as_func_expr(
 
         set_expr = pgast.FuncCall(
             name=name, args=args, with_ordinality=with_ordinality)
-
-    if ir_set.path_id.is_objtype_path():
-        aspect = 'identity'
-    else:
-        aspect = 'value'
 
     if funcobj.set_returning:
         rtype = funcobj.returntype
@@ -1202,11 +1218,10 @@ def process_set_as_func_expr(
         relctx.rel_join(stmt, volatility_rvar, ctx=ctx)
 
     pathctx.put_path_var_if_not_exists(
-        stmt, ir_set.path_id, set_expr, aspect=aspect, env=ctx.env)
+        stmt, ir_set.path_id, set_expr, aspect='value', env=ctx.env)
 
     rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-    return SetRVars(main=rvar, new=[(rvar, ir_set.path_id, aspect)],
-                    aspect=aspect)
+    return new_simple_set_rvar(ir_set, rvar)
 
 
 def process_set_as_agg_expr(
@@ -1221,7 +1236,7 @@ def process_set_as_agg_expr(
         if ctx.group_by_rels:
             for (path_id, s_path_id), group_rel in ctx.group_by_rels.items():
                 group_rvar = dbobj.rvar_for_rel(group_rel, env=ctx.env)
-                relctx.include_rvar(stmt, group_rvar, path_id, ctx=ctx)
+                relctx.include_rvar(stmt, group_rvar, path_id=path_id, ctx=ctx)
                 ref = pathctx.get_path_identity_var(stmt, path_id, env=ctx.env)
                 stmt.group_clause.append(ref)
                 newctx.path_scope[s_path_id] = stmt
@@ -1275,7 +1290,8 @@ def process_set_as_agg_expr(
                     wrapper_rvar = dbobj.rvar_for_rel(
                         wrapper, lateral=True, colnames=[colname],
                         env=argctx.env)
-                    relctx.include_rvar(stmt, wrapper_rvar, ctx=argctx)
+                    relctx.include_rvar(stmt, wrapper_rvar,
+                                        path_id=ir_arg.path_id, ctx=argctx)
                     arg_ref = dbobj.get_column(wrapper_rvar, colname)
 
                 if (not expr.agg_sort and i == 0 and
@@ -1388,8 +1404,8 @@ def process_set_as_agg_expr(
     pathctx.put_path_value_var_if_not_exists(
         stmt, ir_set.path_id, set_expr, env=ctx.env)
 
-    sub_rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-    return SetRVars(main=sub_rvar, new=[(sub_rvar, ir_set.path_id, 'value')])
+    rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
+    return new_simple_set_rvar(ir_set, rvar)
 
 
 def process_set_as_exists_expr(
@@ -1418,5 +1434,5 @@ def process_set_as_exists_expr(
             set_expr = astutils.new_unop(ast.ops.NOT, set_expr)
 
     pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
-    sub_rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-    return SetRVars(main=sub_rvar, new=[(sub_rvar, ir_set.path_id, 'value')])
+    rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
+    return new_simple_set_rvar(ir_set, rvar)

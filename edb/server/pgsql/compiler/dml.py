@@ -82,6 +82,8 @@ def init_dml_stmt(
         ir_stmt.subject, include_overlays=False, env=ctx.env)
     pathctx.put_path_value_rvar(
         dml_stmt, target_ir_set.path_id, dml_stmt.relation, env=ctx.env)
+    pathctx.put_path_source_rvar(
+        dml_stmt, target_ir_set.path_id, dml_stmt.relation, env=ctx.env)
     dml_stmt.path_scope.add(target_ir_set.path_id)
 
     dml_cte = pgast.CommonTableExpr(
@@ -136,13 +138,15 @@ def init_dml_stmt(
     pathctx.put_path_value_rvar(
         dml_stmt, ir_stmt.subject.path_id, dml_stmt.relation, env=ctx.env)
 
+    pathctx.put_path_source_rvar(
+        dml_stmt, ir_stmt.subject.path_id, dml_stmt.relation, env=ctx.env)
+
     dml_rvar = pgast.RangeVar(
         relation=dml_cte,
         alias=pgast.Alias(aliasname=parent_ctx.env.aliases.get('d'))
     )
 
-    relctx.include_rvar(wrapper, dml_rvar, ir_stmt.subject.path_id,
-                        aspect='value', ctx=ctx)
+    relctx.include_rvar(wrapper, dml_rvar, ir_stmt.subject.path_id, ctx=ctx)
 
     pathctx.put_path_bond(wrapper, ir_stmt.subject.path_id)
 
@@ -220,7 +224,7 @@ def get_dml_range(
             iterator_rvar = clauses.compile_iterator_expr(
                 range_stmt, iterator_set, ctx=subctx)
             relctx.include_rvar(range_stmt, iterator_rvar,
-                                iterator_set.path_id, ctx=subctx)
+                                path_id=iterator_set.path_id, ctx=subctx)
 
         dispatch.compile(target_ir_set, ctx=subctx)
 
@@ -881,15 +885,16 @@ def process_link_values(
     with ctx.newscope() as newscope, newscope.newrel() as subrelctx:
         row_query = subrelctx.rel
 
-        relctx.include_rvar(row_query, dml_rvar, ctx=subrelctx)
+        relctx.include_rvar(row_query, dml_rvar,
+                            path_id=ir_stmt.subject.path_id, ctx=subrelctx)
         subrelctx.path_scope[ir_stmt.subject.path_id] = row_query
 
         if iterator_cte is not None:
             iterator_rvar = dbobj.rvar_for_rel(
                 iterator_cte, lateral=True, env=subrelctx.env)
             relctx.include_rvar(row_query, iterator_rvar,
-                                iterator_cte.query.path_id,
-                                aspect='value', ctx=subrelctx)
+                                path_id=iterator_cte.query.path_id,
+                                ctx=subrelctx)
 
         with subrelctx.newscope() as sctx, sctx.subrel() as input_rel_ctx:
             input_rel = input_rel_ctx.rel

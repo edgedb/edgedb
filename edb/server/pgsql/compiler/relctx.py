@@ -76,13 +76,94 @@ def pull_path_namespace(
                     target, path_id, source, aspect=aspect, env=ctx.env)
 
 
+def find_rvar(
+        stmt: pgast.Query, *,
+        source_stmt: typing.Optional[pgast.Query]=None,
+        path_id: irast.PathId,
+        ctx: context.CompilerContextLevel) -> \
+        typing.Optional[pgast.BaseRangeVar]:
+    """Find an existing range var for a given *path_id* in stmt hierarchy.
+
+    If a range var is visible in a given SQL scope denoted by *stmt*, or,
+    optionally, *source_stmt*, record it on *stmt* for future reference.
+
+    :param stmt:
+        The statement to ensure range var visibility in.
+
+    :param source_stmt:
+        An optional statement object which is used as the starting SQL scope
+        for range var search.  If not specified, *stmt* is used as the
+        starting scope.
+
+    :param path_id:
+        The path ID of the range var being searched.
+
+    :param ctx:
+        Compiler context.
+
+    :return:
+        A range var instance if found, ``None`` otherwise.
+    """
+
+    if source_stmt is None:
+        source_stmt = stmt
+
+    rvar = maybe_get_path_rvar(source_stmt, path_id=path_id,
+                               aspect='value', ctx=ctx)
+    if rvar is not None:
+        pathctx.put_path_rvar_if_not_exists(
+            stmt, path_id, rvar, aspect='value', env=ctx.env)
+
+        src_rvar = maybe_get_path_rvar(source_stmt, path_id=path_id,
+                                       aspect='source', ctx=ctx)
+
+        if src_rvar is not None:
+            pathctx.put_path_rvar_if_not_exists(
+                stmt, path_id, src_rvar, aspect='source', env=ctx.env)
+
+    return rvar
+
+
 def include_rvar(
         stmt: pgast.Query, rvar: pgast.BaseRangeVar,
-        path_id: irast.PathId=None, *,
+        path_id: irast.PathId, *,
         overwrite_path_rvar: bool=False,
-        aspect: str='value',
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
-    """Ensure that *rvar* is visible in *stmt*.
+    """Ensure that *rvar* is visible in *stmt* as a value/source aspect.
+
+    :param stmt:
+        The statement to include *rel* in.
+
+    :param rvar:
+        The range var node to join.
+
+    :param join_type:
+        JOIN type to use when including *rel*.
+
+    :param aspect:
+        The reference aspect of the range var.
+
+    :param ctx:
+        Compiler context.
+    """
+    if path_id.is_objtype_path():
+        aspects = ['source', 'value']
+    else:
+        aspects = ['value']
+
+    return include_specific_rvar(
+        stmt, rvar=rvar, path_id=path_id,
+        overwrite_path_rvar=overwrite_path_rvar,
+        aspects=aspects, ctx=ctx)
+
+
+def include_specific_rvar(
+        stmt: pgast.Query, rvar: pgast.BaseRangeVar,
+        path_id: irast.PathId, *,
+        overwrite_path_rvar: bool=False,
+        aspects: typing.Iterable[str]=('value',),
+        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+    """Make the *aspect* of *path_id* visible in *stmt* as *rvar*.
 
     :param stmt:
         The statement to include *rel* in.
@@ -106,7 +187,7 @@ def include_rvar(
         # onto the path namespace of *stmt*.
         pull_path_namespace(target=stmt, source=rvar, ctx=ctx)
 
-    if path_id is not None:
+    for aspect in aspects:
         if overwrite_path_rvar:
             pathctx.put_path_rvar(
                 stmt, path_id, rvar, aspect=aspect, env=ctx.env)
@@ -334,17 +415,19 @@ def _new_mapped_pointer_rvar(
     ptr_rvar.path_scope.add(ptr_rvar.query.path_id)
 
     src_pid = ir_ptr.source.path_id
+    tgt_pid = ir_ptr.target.path_id
     ptr_rvar.path_scope.add(src_pid)
+
     pathctx.put_rvar_path_output(ptr_rvar, src_pid, aspect='identity',
                                  var=near_ref, env=ctx.env)
+    pathctx.put_rvar_path_output(ptr_rvar, src_pid, aspect='value',
+                                 var=near_ref, env=ctx.env)
+    pathctx.put_rvar_path_output(ptr_rvar, tgt_pid, aspect='value',
+                                 var=far_ref, env=ctx.env)
 
-    tgt_pid = ir_ptr.target.path_id
     if tgt_pid.is_objtype_path():
         ptr_rvar.path_scope.add(tgt_pid)
         pathctx.put_rvar_path_output(ptr_rvar, tgt_pid, aspect='identity',
-                                     var=far_ref, env=ctx.env)
-    else:
-        pathctx.put_rvar_path_output(ptr_rvar, tgt_pid, aspect='value',
                                      var=far_ref, env=ctx.env)
 
     return ptr_rvar
@@ -370,7 +453,7 @@ def new_static_class_rvar(
         set_rvar, common.edgedb_name_to_pg_name('schema::name'))
     condition = astutils.new_binop(nameref, clsname, op='=')
     substmt = pgast.SelectStmt()
-    include_rvar(substmt, set_rvar, ir_set.path_id, aspect='value', ctx=ctx)
+    include_rvar(substmt, set_rvar, ir_set.path_id, ctx=ctx)
     substmt.where_clause = astutils.extend_binop(
         substmt.where_clause, condition)
     return new_rel_rvar(ir_set, substmt, ctx=ctx)
@@ -403,7 +486,7 @@ def semi_join(
 
     include_rvar(
         ctx.rel, map_rvar,
-        path_id=ir_set.path_id.ptr_path(), aspect='value', ctx=ctx)
+        path_id=ir_set.path_id.ptr_path(), ctx=ctx)
 
     pathctx.get_path_identity_output(ctx.rel, ir_set.path_id, env=ctx.env)
 
@@ -414,18 +497,18 @@ def semi_join(
     return set_rvar
 
 
-def ensure_value_rvar(
+def ensure_source_rvar(
         ir_set: irast.Set, stmt: pgast.Query, *,
         ctx: context.CompilerContextLevel) \
         -> pgast.BaseRangeVar:
 
-    rvar = maybe_get_path_rvar(stmt, ir_set.path_id, aspect='value', ctx=ctx)
+    rvar = maybe_get_path_rvar(stmt, ir_set.path_id, aspect='source', ctx=ctx)
     if rvar is None:
         scope_stmt = maybe_get_scope_stmt(ir_set.path_id, ctx=ctx)
         if scope_stmt is None:
             scope_stmt = ctx.rel
         rvar = new_root_rvar(ir_set, ctx=ctx)
-        include_rvar(scope_stmt, rvar, ctx=ctx)
+        include_rvar(scope_stmt, rvar, path_id=ir_set.path_id, ctx=ctx)
 
     return rvar
 
@@ -515,6 +598,8 @@ def rel_join(
 
     for path_id in right_rvar.path_scope:
         lref = maybe_get_path_var(query, path_id, aspect='identity', ctx=ctx)
+        if lref is None:
+            lref = maybe_get_path_var(query, path_id, aspect='value', ctx=ctx)
         if lref is None:
             continue
 

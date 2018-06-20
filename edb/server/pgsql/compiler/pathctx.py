@@ -93,18 +93,6 @@ def get_path_var(
             src_path_id = path_id
         else:
             src_path_id = path_id.src_path()
-            # Value references to std::id link are identical to
-            # the identity reference of its source.
-            if ptrcls.is_id_pointer() and aspect == 'value':
-                if (src_path_id, 'identity') in rel.path_namespace:
-                    return rel.path_namespace[src_path_id, 'identity']
-
-            # Default object value is its identity.
-            # NOTE: the value may be an explicit tuple, if the
-            #       set had an explicit shape.
-            if path_id.is_objtype_path() and aspect == 'value':
-                if (path_id, 'identity') in rel.path_namespace:
-                    return rel.path_namespace[path_id, 'identity']
 
     else:
         ptr_info = None
@@ -165,8 +153,11 @@ def get_path_var(
 
     rel_rvar = maybe_get_path_rvar(rel, path_id, aspect=aspect, env=env)
     if rel_rvar is None:
-        if src_path_id.is_objtype_path() and aspect == 'identity':
-            src_aspect = 'value'
+        if src_path_id.is_objtype_path():
+            if aspect == 'identity':
+                src_aspect = 'value'
+            else:
+                src_aspect = 'source'
         else:
             src_aspect = aspect
 
@@ -433,6 +424,12 @@ def put_path_value_rvar(
     put_path_rvar(stmt, path_id, rvar, aspect='value', env=env)
 
 
+def put_path_source_rvar(
+        stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.BaseRangeVar, *,
+        env: context.Environment) -> None:
+    put_path_rvar(stmt, path_id, rvar, aspect='source', env=env)
+
+
 def has_rvar(
         stmt: pgast.Query, rvar: pgast.BaseRangeVar, *,
         env: context.Environment) -> bool:
@@ -468,6 +465,12 @@ def maybe_get_path_rvar(
         return None
 
 
+def maybe_get_path_value_rvar(
+        stmt: pgast.Query, path_id: irast.PathId, *,
+        env: context.Environment) -> typing.Optional[pgast.BaseRangeVar]:
+    return maybe_get_path_rvar(stmt, path_id, aspect='value', env=env)
+
+
 def _same_expr(expr1, expr2):
     if (isinstance(expr1, pgast.ColumnRef) and
             isinstance(expr2, pgast.ColumnRef)):
@@ -483,10 +486,10 @@ def _get_rel_path_output(
         env: context.Environment) -> pgast.OutputVar:
 
     if path_id.is_objtype_path():
-        if aspect == 'value':
-            aspect = 'identity'
+        if aspect == 'identity':
+            aspect = 'value'
 
-        if aspect != 'identity':
+        if aspect != 'value':
             raise LookupError(
                 f'invalid request for non-scalar path {path_id} {aspect}')
 

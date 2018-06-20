@@ -201,7 +201,8 @@ def compile_GroupStmt(
         # path expressions in BY.
         with ctx.subrel() as gvctx:
             gvquery = gvctx.rel
-            relctx.include_rvar(gvquery, group_cte_rvar, ctx=gvctx)
+            relctx.include_rvar(
+                gvquery, group_cte_rvar, path_id=group_path_id, ctx=gvctx)
 
             pathctx.put_path_bond(gvquery, group_path_id)
 
@@ -241,8 +242,9 @@ def compile_GroupStmt(
             outer_id = stmt.result.path_id
             inner_id = o_stmt.result.path_id
 
-            relctx.include_rvar(selquery, groupval_cte_rvar, group_path_id,
-                                aspect='identity', ctx=ctx)
+            relctx.include_specific_rvar(
+                selquery, groupval_cte_rvar, group_path_id,
+                aspect='identity', ctx=ctx)
 
             for path_id in group_paths:
                 selctx.path_scope[path_id] = selquery

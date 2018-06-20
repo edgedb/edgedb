@@ -538,16 +538,11 @@ def _compile_set(
     if shape:
         value = _compile_shape(ir_set, shape=shape, ctx=ctx)
     else:
-        if ir_set.path_id.is_objtype_path():
-            aspect = 'identity'
-        else:
-            aspect = 'value'
-
         if is_toplevel:
             value = ctx.toplevel_stmt
         else:
             value = pathctx.get_path_var(
-                ctx.rel, ir_set.path_id, aspect=aspect, env=ctx.env)
+                ctx.rel, ir_set.path_id, aspect='value', env=ctx.env)
 
     return value
 
