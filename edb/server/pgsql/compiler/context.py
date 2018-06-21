@@ -56,10 +56,9 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.env = None
             self.argmap = collections.OrderedDict()
 
-            stmt = pgast.SelectStmt()
             self.toplevel_stmt = None
-            self.stmt = stmt
-            self.rel = stmt
+            self.stmt = None
+            self.rel = None
             self.rel_hierarchy = {}
             self.pending_query = None
 

@@ -110,110 +110,48 @@ def get_set_rvar(
     if rvar is not None:
         return rvar
 
+    if ctx.toplevel_stmt is None:
+        # Top level query
+        return _process_toplevel_query(ir_set, ctx=ctx)
+
     with contextlib.ExitStack() as cstack:
+
         if scope_stmt is not None:
             newctx = cstack.enter_context(ctx.new())
             newctx.rel = scope_stmt
         else:
             newctx = ctx
+            scope_stmt = newctx.rel
 
         subctx = cstack.enter_context(newctx.subrel())
-
+        # *stmt* here is a tentative container for the relation generated
+        # by processing the *ir_set*.  However, the actual compilation
+        # is free to return something else instead of a range var over
+        # stmt.
         stmt = subctx.rel
+        stmt.name = ctx.env.aliases.get(get_set_rel_alias(ir_set))
+
         # If ir.Set compilation needs to produce a subquery,
         # make sure it uses the current subrel.  This makes it
         # possible to set up the path scope here and don't worry
         # about it later.
         subctx.pending_query = stmt
 
-        if ctx.toplevel_stmt is None:
-            # This is a top Set
-            ctx.toplevel_stmt = stmt
-
-        if scope_stmt is None:
-            scope_stmt = ctx.rel
-            path_scope = relctx.get_scope(ir_set, ctx=subctx)
-            if path_scope is not None and path_scope.is_visible(path_id):
-                subctx.path_scope[path_id] = scope_stmt
-
-        stmt.name = ctx.env.aliases.get(get_set_rel_alias(ir_set))
-
-        if ctx.scope_tree.is_optional(path_id):
+        is_optional = subctx.scope_tree.is_optional(path_id)
+        if is_optional:
             stmt, optrel = prepare_optional_rel(
                 ir_set=ir_set, stmt=stmt, ctx=subctx)
             subctx.pending_query = subctx.rel = stmt
 
-        if ir_set.path_scope_id is not None:
+        path_scope = relctx.get_scope(ir_set, ctx=subctx)
+        if path_scope:
+            if path_scope.is_visible(path_id):
+                subctx.path_scope[path_id] = scope_stmt
             relctx.update_scope(ir_set, stmt, ctx=subctx)
 
-        if irutils.is_subquery_set(ir_set):
-            # Sub-statement (explicit or implicit), most computables
-            # go here.
-            rvars = process_set_as_subquery(ir_set, stmt, ctx=subctx)
+        rvars = _get_set_rvar(ir_set, ctx=subctx)
 
-        elif irutils.is_set_membership_expr(ir_set.expr):
-            # A [NOT] IN B expression.
-            rvars = process_set_as_membership_expr(ir_set, stmt, ctx=subctx)
-
-        elif isinstance(ir_set, irast.EmptySet):
-            # {}
-            rvars = process_set_as_empty(ir_set, stmt, ctx=subctx)
-
-        elif isinstance(ir_set.expr, irast.SetOp):
-            # Set operation: UNION
-            rvars = process_set_as_setop(ir_set, stmt, ctx=subctx)
-
-        elif isinstance(ir_set.expr, irast.DistinctOp):
-            # DISTINCT Expr
-            rvars = process_set_as_distinct(ir_set, stmt, ctx=subctx)
-
-        elif isinstance(ir_set.expr, irast.IfElseExpr):
-            # Expr IF Cond ELSE Expr
-            rvars = process_set_as_ifelse(ir_set, stmt, ctx=subctx)
-
-        elif isinstance(ir_set.expr, irast.Coalesce):
-            # Expr ?? Expr
-            rvars = process_set_as_coalesce(ir_set, stmt, ctx=subctx)
-
-        elif isinstance(ir_set.expr, irast.EquivalenceOp):
-            # Expr ?= Expr
-            rvars = process_set_as_equivalence(ir_set, stmt, ctx=subctx)
-
-        elif isinstance(ir_set.expr, irast.Tuple):
-            # Named tuple
-            rvars = process_set_as_tuple(ir_set, stmt, ctx=subctx)
-
-        elif isinstance(ir_set.expr, irast.TupleIndirection):
-            # Named tuple indirection.
-            rvars = process_set_as_tuple_indirection(
-                ir_set, stmt, ctx=subctx)
-
-        elif isinstance(ir_set.expr, irast.FunctionCall):
-            if any(k == irast.SetQualifier.SET_OF
-                   for k in ir_set.expr.func.paramkinds):
-                # Call to an aggregate function.
-                rvars = process_set_as_agg_expr(ir_set, stmt, ctx=subctx)
-            else:
-                # Regular function call.
-                rvars = process_set_as_func_expr(ir_set, stmt, ctx=subctx)
-
-        elif isinstance(ir_set.expr, irast.ExistPred):
-            # EXISTS(), which is a special kind of an aggregate.
-            rvars = process_set_as_exists_expr(ir_set, stmt, ctx=subctx)
-
-        elif ir_set.expr is not None:
-            # All other expressions.
-            rvars = process_set_as_expr(ir_set, stmt, ctx=subctx)
-
-        elif ir_set.rptr is not None:
-            # Regular non-computable path step.
-            rvars = process_set_as_path(ir_set, stmt, ctx=subctx)
-
-        else:
-            # Regular non-computable path start.
-            rvars = process_set_as_root(ir_set, stmt, ctx=subctx)
-
-        if ctx.scope_tree.is_optional(path_id):
+        if is_optional:
             rvars = finalize_optional_rel(ir_set, optrel=optrel,
                                           rvars=rvars, ctx=subctx)
 
@@ -228,14 +166,104 @@ def get_set_rvar(
                 scope_stmt, set_rvar.rvar,
                 path_id=set_rvar.path_id,
                 overwrite_path_rvar=True,
-                aspects=set_rvar.aspects, ctx=ctx)
+                aspects=set_rvar.aspects,
+                ctx=subctx)
+
+        rvar = rvars.main.rvar
 
         for aspect in rvars.main.aspects:
             pathctx.put_path_rvar_if_not_exists(
-                ctx.rel, path_id, rvars.main.rvar,
-                aspect=aspect, env=ctx.env)
+                ctx.rel, path_id, rvar,
+                aspect=aspect, env=subctx.env)
 
+    return rvar
+
+
+def _process_toplevel_query(
+        ir_set: irast.Set, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+
+    ctx.toplevel_stmt = ctx.stmt = ctx.rel = pgast.SelectStmt()
+    relctx.update_scope(ir_set, ctx.rel, ctx=ctx)
+    ctx.pending_query = ctx.rel
+    rvars = _get_set_rvar(ir_set, ctx=ctx)
     return rvars.main.rvar
+
+
+def _get_set_rvar(
+        ir_set: irast.Set, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+
+    stmt = ctx.rel
+
+    if irutils.is_subquery_set(ir_set):
+        # Sub-statement (explicit or implicit), most computables
+        # go here.
+        rvars = process_set_as_subquery(ir_set, stmt, ctx=ctx)
+
+    elif irutils.is_set_membership_expr(ir_set.expr):
+        # A [NOT] IN B expression.
+        rvars = process_set_as_membership_expr(ir_set, stmt, ctx=ctx)
+
+    elif isinstance(ir_set, irast.EmptySet):
+        # {}
+        rvars = process_set_as_empty(ir_set, stmt, ctx=ctx)
+
+    elif isinstance(ir_set.expr, irast.SetOp):
+        # Set operation: UNION
+        rvars = process_set_as_setop(ir_set, stmt, ctx=ctx)
+
+    elif isinstance(ir_set.expr, irast.DistinctOp):
+        # DISTINCT Expr
+        rvars = process_set_as_distinct(ir_set, stmt, ctx=ctx)
+
+    elif isinstance(ir_set.expr, irast.IfElseExpr):
+        # Expr IF Cond ELSE Expr
+        rvars = process_set_as_ifelse(ir_set, stmt, ctx=ctx)
+
+    elif isinstance(ir_set.expr, irast.Coalesce):
+        # Expr ?? Expr
+        rvars = process_set_as_coalesce(ir_set, stmt, ctx=ctx)
+
+    elif isinstance(ir_set.expr, irast.EquivalenceOp):
+        # Expr ?= Expr
+        rvars = process_set_as_equivalence(ir_set, stmt, ctx=ctx)
+
+    elif isinstance(ir_set.expr, irast.Tuple):
+        # Named tuple
+        rvars = process_set_as_tuple(ir_set, stmt, ctx=ctx)
+
+    elif isinstance(ir_set.expr, irast.TupleIndirection):
+        # Named tuple indirection.
+        rvars = process_set_as_tuple_indirection(
+            ir_set, stmt, ctx=ctx)
+
+    elif isinstance(ir_set.expr, irast.FunctionCall):
+        if any(k == irast.SetQualifier.SET_OF
+               for k in ir_set.expr.func.paramkinds):
+            # Call to an aggregate function.
+            rvars = process_set_as_agg_expr(ir_set, stmt, ctx=ctx)
+        else:
+            # Regular function call.
+            rvars = process_set_as_func_expr(ir_set, stmt, ctx=ctx)
+
+    elif isinstance(ir_set.expr, irast.ExistPred):
+        # EXISTS(), which is a special kind of an aggregate.
+        rvars = process_set_as_exists_expr(ir_set, stmt, ctx=ctx)
+
+    elif ir_set.expr is not None:
+        # All other expressions.
+        rvars = process_set_as_expr(ir_set, stmt, ctx=ctx)
+
+    elif ir_set.rptr is not None:
+        # Regular non-computable path step.
+        rvars = process_set_as_path(ir_set, stmt, ctx=ctx)
+
+    else:
+        # Regular non-computable path start.
+        rvars = process_set_as_root(ir_set, stmt, ctx=ctx)
+
+    return rvars
 
 
 def set_as_subquery(

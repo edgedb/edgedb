@@ -77,7 +77,7 @@ def compile_Set(
         value = _compile_set(ir_set, ctx=ctx)
 
     if is_toplevel:
-        return output.top_output_as_value(value, env=ctx.env)
+        return output.top_output_as_value(ctx.rel, env=ctx.env)
     else:
         return output.output_as_value(value, env=ctx.env)
 
@@ -531,18 +531,14 @@ def _compile_set(
         ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> pgast.Base:
 
-    is_toplevel = ctx.toplevel_stmt is None
     relgen.get_set_rvar(ir_set, ctx=ctx)
 
     shape = _get_shape(ir_set, ctx=ctx)
     if shape:
         value = _compile_shape(ir_set, shape=shape, ctx=ctx)
     else:
-        if is_toplevel:
-            value = ctx.toplevel_stmt
-        else:
-            value = pathctx.get_path_var(
-                ctx.rel, ir_set.path_id, aspect='value', env=ctx.env)
+        value = pathctx.get_path_value_var(
+            ctx.rel, ir_set.path_id, env=ctx.env)
 
     return value
 

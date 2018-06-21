@@ -499,8 +499,12 @@ def class_indirection_set(
 
 
 def class_set(
-        scls: s_nodes.Node, *, ctx: context.ContextLevel) -> irast.Set:
-    path_id = pathctx.get_path_id(scls, ctx=ctx)
+        scls: s_nodes.Node, *,
+        path_id: typing.Optional[irast.PathId]=None,
+        ctx: context.ContextLevel) -> irast.Set:
+
+    if path_id is None:
+        path_id = pathctx.get_path_id(scls, ctx=ctx)
     return new_set(path_id=path_id, scls=scls, ctx=ctx)
 
 

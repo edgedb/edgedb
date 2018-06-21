@@ -551,17 +551,18 @@ def get_scope(
     if ir_set.path_scope_id is None:
         return None
     else:
-        return ctx.scope_tree.find_by_unique_id(ir_set.path_scope_id)
+        return ctx.scope_tree.root.find_by_unique_id(ir_set.path_scope_id)
 
 
 def update_scope(
         ir_set: irast.Set, stmt: pgast.Query, *,
         ctx: context.CompilerContextLevel) -> None:
 
-    scope_tree = ctx.scope_tree.root.find_by_unique_id(ir_set.path_scope_id)
+    scope_tree = get_scope(ir_set, ctx=ctx)
+    if scope_tree is None:
+        return
 
     ctx.scope_tree = scope_tree
-
     ctx.path_scope = ctx.path_scope.new_child()
     ctx.path_scope.update({p.path_id: stmt for p in scope_tree.path_children})
 
