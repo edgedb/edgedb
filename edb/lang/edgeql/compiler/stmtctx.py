@@ -63,7 +63,8 @@ def init_context(
         ctx.arguments.update(arg_types)
 
     if anchors:
-        populate_anchors(anchors, ctx=ctx)
+        with ctx.newscope(fenced=True) as subctx:
+            populate_anchors(anchors, ctx=subctx)
 
     ctx.derived_target_module = derived_target_module
     ctx.toplevel_result_view_name = result_view_name
@@ -106,68 +107,89 @@ def fini_expression(
     return result
 
 
+def compile_anchor(
+        name: str, anchor: typing.Union[qlast.Expr, s_obj.Object], *,
+        ctx: context.ContextLevel) -> qlast.Expr:
+
+    show_as_anchor = True
+
+    if isinstance(anchor, s_types.Type):
+        step = setgen.class_set(anchor, ctx=ctx)
+
+    elif (isinstance(anchor, s_pointers.Pointer) and
+            not anchor.is_link_property()):
+        if anchor.source:
+            path = setgen.extend_path(
+                setgen.class_set(anchor.source, ctx=ctx), anchor,
+                s_pointers.PointerDirection.Outbound,
+                anchor.target, ctx=ctx)
+        else:
+            Object = ctx.schema.get('std::Object')
+
+            ptrcls = anchor.get_derived(
+                ctx.schema, Object, Object,
+                mark_derived=True, add_to_schema=False)
+
+            path = setgen.extend_path(
+                setgen.class_set(Object, ctx=ctx), ptrcls,
+                s_pointers.PointerDirection.Outbound,
+                ptrcls.target, ctx=ctx)
+
+        step = path
+
+    elif isinstance(anchor, s_pointers.Pointer) and anchor.is_link_property():
+        if anchor.source.source:
+            path = setgen.extend_path(
+                setgen.class_set(anchor.source.source, ctx=ctx),
+                anchor.source,
+                s_pointers.PointerDirection.Outbound,
+                anchor.source.target, ctx=ctx)
+        else:
+            Object = ctx.schema.get('std::Object')
+            ptrcls = anchor.source.get_derived(
+                ctx.schema, Object, Object,
+                mark_derived=True, add_to_schema=False)
+            path = setgen.extend_path(
+                setgen.class_set(Object, ctx=ctx), ptrcls,
+                s_pointers.PointerDirection.Outbound,
+                ptrcls.target, ctx=ctx)
+
+        step = setgen.extend_path(
+            path, anchor,
+            s_pointers.PointerDirection.Outbound,
+            anchor.target, ctx=ctx)
+
+    elif isinstance(anchor, qlast.SubExpr):
+        with ctx.new() as subctx:
+            if anchor.anchors:
+                subctx.anchors = {}
+                populate_anchors(anchor.anchors, ctx=subctx)
+
+            step = compile_anchor(name, anchor.expr, ctx=subctx)
+            if name in anchor.anchors:
+                show_as_anchor = False
+                step.anchor = None
+                step.show_as_anchor = None
+
+    elif isinstance(anchor, qlast.Base):
+        step = setgen.ensure_set(dispatch.compile(anchor, ctx=ctx), ctx=ctx)
+
+    else:
+        raise RuntimeError(f'unexpected anchor value: {anchor!r}')
+
+    if show_as_anchor:
+        step.anchor = name
+        step.show_as_anchor = name
+
+    return step
+
+
 def populate_anchors(
         anchors: typing.Dict[str, s_obj.Object], *,
         ctx: context.ContextLevel) -> None:
 
-    for anchor, scls in anchors.items():
-        if isinstance(scls, s_types.Type):
-            step = setgen.class_set(scls, ctx=ctx)
-            step.anchor = anchor
-            step.show_as_anchor = anchor
-
-        elif (isinstance(scls, s_pointers.Pointer) and
-                not scls.is_link_property()):
-            if scls.source:
-                path = setgen.extend_path(
-                    setgen.class_set(scls.source, ctx=ctx), scls,
-                    s_pointers.PointerDirection.Outbound,
-                    scls.target, ctx=ctx)
-            else:
-                Object = ctx.schema.get('std::Object')
-
-                ptrcls = scls.get_derived(
-                    ctx.schema, Object, Object,
-                    mark_derived=True, add_to_schema=False)
-
-                path = setgen.extend_path(
-                    setgen.class_set(Object, ctx=ctx), ptrcls,
-                    s_pointers.PointerDirection.Outbound,
-                    ptrcls.target, ctx=ctx)
-
-            step = path
-            step.anchor = anchor
-            step.show_as_anchor = anchor
-
-        elif isinstance(scls, s_pointers.Pointer) and scls.is_link_property():
-            if scls.source.source:
-                path = setgen.extend_path(
-                    setgen.class_set(scls.source.source, ctx=ctx),
-                    scls.source,
-                    s_pointers.PointerDirection.Outbound,
-                    scls.source.target, ctx=ctx)
-            else:
-                Object = ctx.schema.get('std::Object')
-                ptrcls = scls.source.get_derived(
-                    ctx.schema, Object, Object,
-                    mark_derived=True, add_to_schema=False)
-                path = setgen.extend_path(
-                    setgen.class_set(Object, ctx=ctx), ptrcls,
-                    s_pointers.PointerDirection.Outbound,
-                    ptrcls.target, ctx=ctx)
-
-            step = setgen.extend_path(
-                path, scls,
-                s_pointers.PointerDirection.Outbound,
-                scls.target, ctx=ctx)
-
-            step.anchor = anchor
-            step.show_as_anchor = anchor
-
-        else:
-            step = scls
-
-        ctx.anchors[anchor] = step
+    for name, val in anchors.items():
+        ctx.anchors[name] = compile_anchor(name, val, ctx=ctx)
 
 
 def declare_view(

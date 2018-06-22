@@ -177,7 +177,7 @@ class Constraint(inheriting.InheritingObject):
         subject = constraint.subject
         subjectexpr = constraint.get_field_value('subjectexpr')
         if subjectexpr:
-            _, subject = cls._normalize_constraint_expr(
+            subject, _ = cls._normalize_constraint_expr(
                 schema, {}, subjectexpr, subject)
 
         expr = constraint.get_field_value('expr')
@@ -223,9 +223,22 @@ class Constraint(inheriting.InheritingObject):
             expr_context = \
                 constraint.get_attribute_source_context('expr')
 
+        if subject is not constraint.subject:
+            # subject has been redefined
+            subject_anchor = qlast.SubExpr(
+                expr=subject,
+                anchors={
+                    qlast.Subject: constraint.subject
+                }
+            )
+        else:
+            subject_anchor = subject
+
         expr_text = cls.normalize_constraint_expr(
-            schema, module_aliases, expr_ql, subject=subject,
-            constraint=constraint, enforce_boolean=True,
+            schema, module_aliases, expr_ql,
+            subject=subject_anchor,
+            constraint=constraint,
+            enforce_boolean=True,
             expr_context=expr_context)
 
         constraint.expr = expr_text

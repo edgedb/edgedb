@@ -110,12 +110,12 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         if isinstance(step, qlast.Source):
             # 'self' can only appear as the starting path label
             # syntactically and is a known anchor
-            path_tip = anchors.get(step.__class__)
+            path_tip = anchors[step.__class__]
 
         elif isinstance(step, qlast.Subject):
             # '__subject__' can only appear as the starting path label
             # syntactically and is a known anchor
-            path_tip = anchors.get(step.__class__)
+            path_tip = anchors[step.__class__]
 
         elif isinstance(step, qlast.ObjectRef):
             if i > 0:

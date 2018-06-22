@@ -169,12 +169,12 @@ class ConstraintMech:
             sql_expr = sql_tree
 
         if isinstance(tree, irast.Statement):
-            tree = tree.expr.expr
+            tree = tree.expr
 
-        if isinstance(tree, irast.SelectStmt):
-            is_multicol = isinstance(tree.result.expr, irast.Tuple)
-        else:
-            is_multicol = isinstance(tree.expr, irast.Tuple)
+        if isinstance(tree.expr, irast.SelectStmt):
+            tree = tree.expr.result
+
+        is_multicol = isinstance(tree.expr, irast.Tuple)
 
         # Determine if the sequence of references are all simple refs, not
         # expressions.  This influences the type of Postgres constraint used.

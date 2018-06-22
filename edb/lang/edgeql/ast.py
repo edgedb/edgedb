@@ -128,12 +128,20 @@ class Base(ast.AST):
 
 
 class Expr(Base):
-    '''Abstract parent for all query expressions.'''
+    """Abstract parent for all query expressions."""
     pass
 
 
+class SubExpr(Base):
+    """A subexpression (used for ahcnors)."""
+
+    expr: typing.Union[Expr, object]
+    anchors: typing.Dict[typing.Union[str, ast.MetaAST],
+                         typing.Union[Expr, object]]
+
+
 class Clause(Base):
-    '''Abstract parent for all query clauses.'''
+    """Abstract parent for all query clauses."""
     pass
 
 
