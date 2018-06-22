@@ -17,90 +17,18 @@
 #
 
 
+import os
 import uuid
 
 from edb.server import _testbase as tb
 
 
 class TestGraphQLFunctional(tb.QueryTestCase):
-    SETUP = r"""
-        CREATE MIGRATION test::d1 TO eschema $$
-            abstract type NamedObject:
-                required property name -> str
+    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
+                          'graphql.eschema')
 
-            type UserGroup extending NamedObject:
-                link settings -> Setting:
-                    cardinality := '**'
-
-            type Setting extending NamedObject:
-                required property value -> str
-
-            type Profile extending NamedObject:
-                required property value -> str
-                property tags -> array<str>
-                property odd -> array<int64>:
-                    cardinality := '1*'
-
-            type User extending NamedObject:
-                required property active -> bool
-                link groups -> UserGroup:
-                    cardinality := '**'
-                required property age -> int64
-                required property score -> float64
-                link profile -> Profile:
-                    cardinality := '*1'
-        $$;
-
-        COMMIT MIGRATION test::d1;
-
-        WITH MODULE test
-        INSERT Setting {
-            name := 'template',
-            value := 'blue'
-        };
-
-        WITH MODULE test
-        INSERT Setting {
-            name := 'perks',
-            value := 'full'
-        };
-
-        WITH MODULE test
-        INSERT UserGroup {
-            name := 'basic'
-        };
-
-        WITH MODULE test
-        INSERT UserGroup {
-            name := 'upgraded'
-        };
-
-        WITH MODULE test
-        INSERT User {
-            name := 'John',
-            age := 25,
-            active := True,
-            score := 3.14,
-            groups := (SELECT UserGroup FILTER UserGroup.name = 'basic')
-        };
-
-        WITH MODULE test
-        INSERT User {
-            name := 'Jane',
-            age := 26,
-            active := True,
-            score := 1.23,
-            groups := (SELECT UserGroup FILTER UserGroup.name = 'upgraded')
-        };
-
-        WITH MODULE test
-        INSERT User {
-            name := 'Alice',
-            age := 27,
-            active := True,
-            score := 5.0
-        };
-    """
+    SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
+                         'graphql_setup.eql')
 
     async def test_graphql_functional_query_01(self):
         result = await self.con.execute(r"""
@@ -144,8 +72,12 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 'age': 27,
                 'groups': None
             }, {
+                'name': 'Bob',
+                'age': 21,
+                'groups': None
+            }, {
                 'name': 'Jane',
-                'age': 26,
+                'age': 25,
                 'groups': [{
                     'id': uuid.UUID,
                     'name': 'upgraded',
@@ -256,6 +188,10 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             'User': [{
                 'name': 'Alice',
                 '__typename': 'User',
+                'groups': None
+            }, {
+                'name': 'Bob',
+                '__typename': 'Person',
                 'groups': None
             }, {
                 'name': 'Jane',

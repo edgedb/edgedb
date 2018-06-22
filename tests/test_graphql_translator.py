@@ -61,13 +61,16 @@ class BaseSchemaTestMeta(tb.DocTestMeta):
     def __new__(mcls, name, bases, dct):
         decls = []
 
-        for n, v in dct.items():
-            m = re.match(r'^SCHEMA(?:_(\w+))?', n)
+        for name, val in dct.items():
+            m = re.match(r'^SCHEMA(?:_(\w+))?', name)
             if m:
                 module_name = (m.group(1) or 'test').lower().replace(
                     '__', '.')
-                schema_text = textwrap.dedent(v)
-                decls.append((module_name, schema_text))
+
+                with open(val, 'r') as sf:
+                    schema_text = sf.read()
+                    decls.append((module_name, schema_text))
+
         dct['_decls'] = decls
 
         return super().__new__(mcls, name, bases, dct)
@@ -113,38 +116,8 @@ class TranslatorTest(tb.BaseSyntaxTest, metaclass=BaseSchemaTestMeta):
 
 
 class TestGraphQLTranslation(TranslatorTest):
-    SCHEMA_TEST = r"""
-        abstract type NamedObject:
-            required property name -> str
-
-        type UserGroup extending NamedObject:
-            link settings -> Setting:
-                cardinality := '1*'
-
-        type Setting extending NamedObject:
-            required property value -> str
-
-        type Profile extending NamedObject:
-            required property value -> str
-            property tags -> array<str>
-            property odd -> array<int64>:
-                cardinality := '1*'
-
-        type User extending NamedObject:
-            required property active -> bool
-            link groups -> UserGroup:
-                cardinality := '**'
-            required property age -> int64
-            required property score -> float64
-            link profile -> Profile:
-                cardinality := '*1'
-
-        type Person extending test::User
-
-        type Foo:
-            property `select` -> str
-            property after -> str
-    """
+    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
+                          'graphql.eschema')
 
     def test_graphql_translation_query_01(self):
         r"""
