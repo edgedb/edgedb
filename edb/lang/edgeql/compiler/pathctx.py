@@ -63,6 +63,8 @@ def assign_set_scope(
         if scope.unique_id is None:
             scope.unique_id = ctx.scope_id_ctr.nextval()
         ir_set.path_scope_id = scope.unique_id
+        if scope.find_child(ir_set.path_id):
+            raise RuntimeError('scoped set must not contain itself')
 
     return ir_set
 

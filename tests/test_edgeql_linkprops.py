@@ -786,7 +786,6 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             [3, 'Alice'],
         ]])
 
-    @unittest.expectedFailure
     async def test_edgeql_props_setops_05(self):
         await self.assert_query_result(r'''
             WITH

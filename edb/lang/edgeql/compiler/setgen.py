@@ -566,9 +566,27 @@ def scoped_set(
         typehint: typing.Optional[s_types.Type]=None,
         path_id: typing.Optional[irast.PathId]=None,
         ctx: context.ContextLevel) -> irast.Set:
-    ir_set = ensure_set(expr, typehint=typehint, path_id=path_id, ctx=ctx)
-    if ir_set.path_scope_id is None:
+
+    if not isinstance(expr, irast.Set):
+        ir_set = generated_set(expr, typehint=typehint,
+                               path_id=path_id, ctx=ctx)
         pathctx.assign_set_scope(ir_set, ctx.path_scope, ctx=ctx)
+    else:
+        if typehint is not None:
+            ir_set = ensure_set(expr, typehint=typehint,
+                                path_id=path_id, ctx=ctx)
+        else:
+            ir_set = expr
+
+        if ir_set.path_scope_id is None:
+            if ctx.path_scope.find_child(ir_set.path_id) and path_id is None:
+                # Protect from scope recursion in the common case by
+                # wrapping the set into a subquery.
+                ir_set = generated_set(
+                    ensure_stmt(ir_set, ctx=ctx), typehint=typehint, ctx=ctx)
+
+            pathctx.assign_set_scope(ir_set, ctx.path_scope, ctx=ctx)
+
     return ir_set
 
 
