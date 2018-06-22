@@ -24,6 +24,4 @@ CREATE FUNCTION graphql::short_name(std::str) -> std::str
 
 # create Query
 WITH MODULE graphql
-INSERT Query {
-    name := 'Query',
-};
+INSERT Query;
