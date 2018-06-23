@@ -95,7 +95,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
     async def test_graphql_functional_query_03(self):
         result = await self.con.execute(r"""
             query {
-                User(name: "John") {
+                User(filter: {name: {eq: "John"}}) {
                     name
                     age
                     groups {
@@ -133,7 +133,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
 
         result = await self.con.execute(f"""
             query {{
-                User(id: "{alice['id']}") {{
+                User(filter: {{id: {{eq: "{alice['id']}"}}}}) {{
                     id
                     name
                     age
@@ -145,6 +145,180 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             'User': [alice]
         }]])
 
+    async def test_graphql_functional_arguments_02(self):
+        result = await self.con.execute(r"""
+            query {
+                User(filter: {
+                    name: {eq: "Bob"},
+                    active: {eq: true},
+                    age: {eq: 21}
+                }) {
+                    name
+                    age
+                    groups {
+                        id
+                        name
+                    }
+                }
+            }
+        """, graphql=True)
+
+        self.assert_data_shape(result, [[{
+            'User': [{
+                'name': 'Bob',
+                'age': 21,
+                'groups': None,
+            }],
+        }]])
+
+    async def test_graphql_functional_arguments_03(self):
+        result = await self.con.execute(r"""
+            query {
+                User(filter: {
+                    and: [{name: {eq: "Bob"}}, {active: {eq: true}}],
+                    age: {eq: 21}
+                }) {
+                    name
+                    score
+                }
+            }
+        """, graphql=True)
+
+        self.assert_data_shape(result, [[{
+            'User': [{
+                'name': 'Bob',
+                'score': 4.2,
+            }],
+        }]])
+
+    async def test_graphql_functional_arguments_04(self):
+        result = await self.con.execute(r"""
+            query {
+                User(filter: {
+                    not: {name: {eq: "Bob"}},
+                    age: {eq: 21}
+                }) {
+                    name
+                    score
+                }
+            }
+        """, graphql=True)
+
+        self.assert_data_shape(result, [[{
+            'User': None,
+        }]])
+
+    async def test_graphql_functional_arguments_05(self):
+        result = await self.con.execute(r"""
+            query {
+                User(filter: {
+                    or: [
+                        {not: {name: {eq: "Bob"}}},
+                        {age: {eq: 20}}
+                    ]
+                }) {
+                    name
+                    score
+                }
+            }
+        """, graphql=True)
+
+        result[0][0]['User'].sort(key=lambda x: x['name'])
+        self.assert_data_shape(result, [[{
+            'User': [
+                {'name': 'Alice', 'score': 5},
+                {'name': 'Jane', 'score': 1.23},
+                {'name': 'John', 'score': 3.14},
+            ],
+        }]])
+
+    async def test_graphql_functional_arguments_06(self):
+        result = await self.con.execute(r"""
+            query {
+                User(filter: {
+                    or: [
+                        {name: {neq: "Bob"}},
+                        {age: {eq: 20}}
+                    ]
+                }) {
+                    name
+                    score
+                }
+            }
+        """, graphql=True)
+
+        result[0][0]['User'].sort(key=lambda x: x['name'])
+        self.assert_data_shape(result, [[{
+            'User': [
+                {'name': 'Alice', 'score': 5},
+                {'name': 'Jane', 'score': 1.23},
+                {'name': 'John', 'score': 3.14},
+            ],
+        }]])
+
+    async def test_graphql_functional_arguments_07(self):
+        result = await self.con.execute(r"""
+            query {
+                User(filter: {
+                    name: {contains: "o"},
+                    age: {gt: 22}
+                }) {
+                    name
+                    age
+                }
+            }
+        """, graphql=True)
+
+        result[0][0]['User'].sort(key=lambda x: x['name'])
+        self.assert_data_shape(result, [[{
+            'User': [
+                {'name': 'John', 'age': 25},
+            ],
+        }]])
+
+    async def test_graphql_functional_arguments_08(self):
+        result = await self.con.execute(r"""
+            query {
+                User(filter: {
+                    name: {startswith: "J"},
+                    score: {
+                        gte: 3
+                        lt: 4.5
+                    }
+                }) {
+                    name
+                    score
+                }
+            }
+        """, graphql=True)
+
+        result[0][0]['User'].sort(key=lambda x: x['name'])
+        self.assert_data_shape(result, [[{
+            'User': [
+                {'name': 'John', 'score': 3.14},
+            ],
+        }]])
+
+    async def test_graphql_functional_arguments_09(self):
+        result = await self.con.execute(r"""
+            query {
+                User(filter: {
+                    name: {endswith: "e"},
+                    age: {lte: 25}
+                }) {
+                    name
+                    age
+                }
+            }
+        """, graphql=True)
+
+        result[0][0]['User'].sort(key=lambda x: x['name'])
+        self.assert_data_shape(result, [[{
+            'User': [
+                {'name': 'Jane', 'age': 25},
+            ],
+        }]])
+
     async def test_graphql_functional_fragment_02(self):
         result = await self.con.execute(r"""
             fragment userFrag on User {
@@ -153,7 +327,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             }
 
             query {
-                NamedObject(name: "Alice") {
+                NamedObject(filter: {name: {eq: "Alice"}}) {
                     name
                     ... userFrag
                 }
@@ -187,27 +361,27 @@ class TestGraphQLFunctional(tb.QueryTestCase):
         self.assert_data_shape(result, [[{
             'User': [{
                 'name': 'Alice',
-                '__typename': 'User',
+                '__typename': 'UserType',
                 'groups': None
             }, {
                 'name': 'Bob',
-                '__typename': 'Person',
+                '__typename': 'PersonType',
                 'groups': None
             }, {
                 'name': 'Jane',
-                '__typename': 'User',
+                '__typename': 'UserType',
                 'groups': [{
                     'id': uuid.UUID,
                     'name': 'upgraded',
-                    '__typename': 'UserGroup',
+                    '__typename': 'UserGroupType',
                 }]
             }, {
                 'name': 'John',
-                '__typename': 'User',
+                '__typename': 'UserType',
                 'groups': [{
                     'id': uuid.UUID,
                     'name': 'basic',
-                    '__typename': 'UserGroup',
+                    '__typename': 'UserGroupType',
                 }]
             }],
         }]])

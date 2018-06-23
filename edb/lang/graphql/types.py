@@ -23,7 +23,9 @@ from graphql import (
     GraphQLSchema,
     GraphQLObjectType,
     GraphQLInterfaceType,
+    GraphQLInputObjectType,
     GraphQLField,
+    GraphQLInputObjectField,
     GraphQLArgument,
     GraphQLList,
     GraphQLNonNull,
@@ -33,7 +35,9 @@ from graphql import (
     GraphQLBoolean,
     GraphQLID,
 )
+import itertools
 
+from edb.lang.common import ast
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import codegen
 from edb.lang.edgeql.parser import parse_fragment
@@ -63,6 +67,19 @@ EDB_TO_GQL_SCALARS_MAP = {
 }
 
 
+GQL_TO_OPS_MAP = {
+    'eq': ast.ops.EQ,
+    'neq': ast.ops.NE,
+    'gt': ast.ops.GT,
+    'gte': ast.ops.GE,
+    'lt': ast.ops.LT,
+    'lte': ast.ops.LE,
+    'contains': qlast.LIKE,
+    'startswith': qlast.LIKE,
+    'endswith': qlast.LIKE,
+}
+
+
 class GQLCoreSchema:
     def __init__(self, edb_schema):
         '''Create a graphql schema based on edgedb schema.'''
@@ -78,7 +95,7 @@ class GQLCoreSchema:
 
         self._gql_interfaces = {}
         self._gql_objtypes = {}
-        self._gql_fields = {}
+        self._gql_inobjtypes = {}
 
         self._define_types()
 
@@ -89,8 +106,13 @@ class GQLCoreSchema:
 
         self._gql_schema = GraphQLSchema(
             query=query,
-            types=[objt for name, objt in self._gql_objtypes.items()
-                   if name != 'Query'],
+            types=[
+                objt for name, objt in
+                sorted(itertools.chain(self._gql_objtypes.items(),
+                                       self._gql_inobjtypes.items()),
+                       key=lambda x: x[0])
+                if name != 'Query'
+            ],
         )
 
     def get_short_name(self, name):
@@ -142,7 +164,9 @@ class GQLCoreSchema:
                     continue
                 fields[name.split('::', 1)[1]] = GraphQLField(
                     GraphQLList(GraphQLNonNull(gqltype)),
-                    args=self.get_args(name),
+                    args={
+                        'filter': GraphQLArgument(self._gql_inobjtypes[name]),
+                    },
                 )
         else:
             edb_type = self.edb_schema.get(typename)
@@ -153,15 +177,25 @@ class GQLCoreSchema:
                 ptr = edb_type.resolve_pointer(self.edb_schema, name)
                 target = self._get_target(ptr)
                 if target:
-                    args = (self.get_args(ptr.target.name)
-                            if isinstance(ptr.target, ObjectType) else None)
+                    args = None
+                    if isinstance(ptr.target, ObjectType):
+                        args = {
+                            'filter': GraphQLArgument(
+                                self._gql_inobjtypes[ptr.target.name]),
+                        }
                     fields[name.name] = GraphQLField(target, args=args)
 
         return fields
 
     @lru_cache(maxsize=None)
-    def get_args(self, typename):
-        args = OrderedDict()
+    def get_input_fields(self, typename):
+        selftype = self._gql_inobjtypes[typename]
+        fields = OrderedDict()
+        fields['and'] = GraphQLInputObjectField(
+            GraphQLList(GraphQLNonNull(selftype)))
+        fields['or'] = GraphQLInputObjectField(
+            GraphQLList(GraphQLNonNull(selftype)))
+        fields['not'] = GraphQLInputObjectField(selftype)
 
         edb_type = self.edb_schema.get(typename)
         for name in sorted(edb_type.pointers, key=lambda x: x.name):
@@ -174,14 +208,35 @@ class GQLCoreSchema:
                 continue
 
             target = self._convert_edb_type(ptr.target)
-            if target:
-                args[name.name] = GraphQLArgument(target)
+            intype = self._gql_inobjtypes.get(f'Filter{target.name}')
+            if intype:
+                fields[name.name] = GraphQLInputObjectField(intype)
 
-        return args
+        return fields
+
+    def define_generic_input_types(self):
+        eq = ['eq', 'neq']
+        comp = eq + ['gte', 'gt', 'lte', 'lt']
+        string = comp + ['contains', 'startswith', 'endswith']
+
+        self._make_generic_input_type(GraphQLBoolean, *eq)
+        self._make_generic_input_type(GraphQLID, *eq)
+        self._make_generic_input_type(GraphQLInt, *comp)
+        self._make_generic_input_type(GraphQLFloat, *comp)
+        self._make_generic_input_type(GraphQLString, *string)
+
+    def _make_generic_input_type(self, base, *ops):
+        name = f'Filter{base.name}'
+        self._gql_inobjtypes[name] = GraphQLInputObjectType(
+            name=name,
+            fields={op: GraphQLInputObjectField(base) for op in ops},
+        )
 
     def _define_types(self):
         interface_types = []
         obj_types = []
+
+        self.define_generic_input_types()
 
         for modname in self.modules:
             # get all descendants of this abstract type
@@ -196,12 +251,20 @@ class GQLCoreSchema:
 
         # interfaces
         for t in interface_types:
+            short_name = self.get_short_name(t.name)
             gqltype = GraphQLInterfaceType(
-                name=self.get_short_name(t.name),
+                name=short_name,
                 fields=partial(self.get_fields, t.name),
                 resolve_type=lambda obj, info: obj,
             )
             self._gql_interfaces[t.name] = gqltype
+
+            # input object types corresponding to this interface
+            gqlintype = GraphQLInputObjectType(
+                name='Filter' + short_name,
+                fields=partial(self.get_input_fields, t.name),
+            )
+            self._gql_inobjtypes[t.name] = gqlintype
 
         # object types
         for t in obj_types:
@@ -216,8 +279,9 @@ class GQLCoreSchema:
                         st.name in self._gql_interfaces):
                     interfaces.append(self._gql_interfaces[st.name])
 
+            short_name = self.get_short_name(t.name)
             gqltype = GraphQLObjectType(
-                name=self.get_short_name(t.name) + 'Type',
+                name=short_name + 'Type',
                 fields=partial(self.get_fields, t.name),
                 interfaces=interfaces,
             )
