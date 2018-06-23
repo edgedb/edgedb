@@ -42,6 +42,7 @@ class GraphQLTranslatorContext:
         self.vars = {}
         self.fields = []
         self.path = []
+        self.filter = None
         self.include_base = [False]
         self.gql_schema = gt.Schema(gqlcore)
         self.gqlcore_schema = gqlcore._gql_schema
@@ -263,10 +264,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         target = self.get_field_type(
             prevt, node.name,
             args={
-                arg.name:
-                    (self._context.vars[arg.value.value]
-                     if isinstance(arg.value, gqlast.Variable) else
-                     arg.value.topython())
+                arg.name: self._get_field_arg_value(arg)
                 for arg in node.arguments
             },
             context=node.context)
@@ -278,6 +276,16 @@ class GraphQLTranslator(ast.NodeVisitor):
                 context=node.context)
 
         return top
+
+    def _get_field_arg_value(self, arg):
+        if isinstance(arg.value, gqlast.Variable):
+            return self._context.vars[arg.value.value]
+        elif isinstance(arg.value, gqlast.InputObjectLiteral):
+            # this value only matters for introspection, but
+            # introspection can never have an InputObjectLiteral
+            return {}
+        else:
+            return arg.value.topython()
 
     def _get_parent_and_current_type(self):
         path = self._context.path[-1]
@@ -392,8 +400,8 @@ class GraphQLTranslator(ast.NodeVisitor):
                 if shape:
                     shape.elements = vals
                 if filterable:
-                    filterable.where = self._visit_path_where(
-                        node.arguments)
+                    args_dict = {arg.name: arg for arg in node.arguments or []}
+                    filterable.where = self._visit_path_filter(args_dict)
 
         path.pop()
         return spec
@@ -444,25 +452,12 @@ class GraphQLTranslator(ast.NodeVisitor):
         self._context.path.append([Step(frag.on, frag_type)])
         self._context.include_base.append(is_specialized)
 
-    def _visit_where(self, arguments):
-        if not arguments:
+    def _visit_path_filter(self, arguments):
+        f_arg = arguments.get('filter')
+        if not f_arg:
             return None
 
-        def get_path_prefix():
-            path = self._context.path[0]
-            return [qlast.ObjectRef(module=path[1].module,
-                                    name=path[1].short_name)]
-
-        return self._join_expressions(self._visit_arguments(
-            arguments, get_path_prefix=get_path_prefix))
-
-    def _visit_path_where(self, arguments):
-        if not arguments:
-            return None
-
-        return self._join_expressions(
-            self._visit_arguments(arguments,
-                                  get_path_prefix=self.get_path_prefix))
+        return self.visit(f_arg.value)
 
     def get_path_prefix(self, end_trim=None):
         # flatten the path
@@ -487,25 +482,42 @@ class GraphQLTranslator(ast.NodeVisitor):
         )
         return prefix
 
-    def _visit_arguments(self, args, *, get_path_prefix):
+    def visit_ListLiteral(self, node):
+        return qlast.Array(elements=self.visit(node.value))
+
+    def visit_InputObjectLiteral(self, node):
+        # this represents some expression to be used in filter
         result = []
-        for arg in args:
-            result.append(self.visit_Argument(
-                arg, get_path_prefix=get_path_prefix))
+        for field in node.value:
+            result.append(self.visit(field))
 
-        return result
+        return self._join_expressions(result)
 
-    def visit_Argument(self, node, *, get_path_prefix):
-        op = ast.ops.EQ
+    def visit_ObjectField(self, node):
         name_parts = node.name
 
+        # handle boolean ops
+        if name_parts == 'and':
+            return self._visit_list_of_inputs(node.value.value, ast.ops.AND)
+        elif name_parts == 'or':
+            return self._visit_list_of_inputs(node.value.value, ast.ops.OR)
+        elif name_parts == 'not':
+            return qlast.UnaryOp(op=ast.ops.NOT,
+                                 operand=self.visit(node.value))
+
+        # handle various scalar ops
+        op = gt.GQL_TO_OPS_MAP.get(name_parts)
+
+        if op:
+            value = self.visit(node.value)
+            return qlast.BinOp(left=self._context.filter, op=op, right=value)
+
+        # we're at the beginning of a scalar op
         _, target = self._get_parent_and_current_type()
 
-        name = get_path_prefix()
+        name = self.get_path_prefix()
         name.append(qlast.Ptr(ptr=qlast.ObjectRef(name=name_parts)))
         name = qlast.Path(steps=name)
-
-        value = self.visit(node.value)
 
         # potentially need to cast the 'name' side into a <str>, so as
         # to be compatible with the 'value'
@@ -518,21 +530,19 @@ class GraphQLTranslator(ast.NodeVisitor):
                 type=qlast.TypeName(maintype=qlast.ObjectRef(name='str')),
             )
 
-        return qlast.BinOp(left=name, op=op, right=value)
+        self._context.filter = name
 
-    def visit_ListLiteral(self, node):
-        return qlast.Array(elements=self.visit(node.value))
-
-    def visit_ObjectLiteral(self, node):
-        raise GraphQLValidationError(
-            "don't know how to translate an Object literal to EdgeQL",
-            context=node.context)
+        return self.visit(node.value)
 
     def visit_Variable(self, node):
         return qlast.Parameter(name=node.value[1:])
 
     def visit_Literal(self, node):
         return qlast.Constant(value=node.value)
+
+    def _visit_list_of_inputs(self, inputs, op):
+        result = [self.visit(node) for node in inputs]
+        return self._join_expressions(result, op)
 
     def _join_expressions(self, exprs, op=ast.ops.AND):
         if not exprs:
