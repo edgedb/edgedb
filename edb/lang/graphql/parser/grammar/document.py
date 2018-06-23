@@ -33,7 +33,7 @@ def check_const(expr):
     elif isinstance(expr, gqlast.ListLiteral):
         for val in expr.value:
             check_const(val)
-    elif isinstance(expr, gqlast.ObjectLiteral):
+    elif isinstance(expr, gqlast.InputObjectLiteral):
         for field in expr.value:
             check_const(field.value)
 
@@ -118,10 +118,10 @@ class BaseValue(Nonterm):
         self.val = gqlast.ListLiteral(value=kids[1].val)
 
     def reduce_LCBRACKET_RCBRACKET(self, *kids):
-        self.val = gqlast.ObjectLiteral(value={})
+        self.val = gqlast.InputObjectLiteral(value={})
 
     def reduce_LCBRACKET_ObjectFieldList_RCBRACKET(self, *kids):
-        self.val = gqlast.ObjectLiteral(value=kids[1].val)
+        self.val = gqlast.InputObjectLiteral(value=kids[1].val)
 
 
 class Value(Nonterm):

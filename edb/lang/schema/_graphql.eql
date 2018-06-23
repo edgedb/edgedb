@@ -19,7 +19,7 @@
 
 CREATE FUNCTION graphql::short_name(std::str) -> std::str
     FROM SQL $$
-        SELECT regexp_replace($1, '.+?::(.+$)', '\1');
+        SELECT regexp_replace($1, '.+?::(.+$)', '\1') || 'Type';
     $$;
 
 # create Query

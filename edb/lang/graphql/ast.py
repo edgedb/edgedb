@@ -89,7 +89,7 @@ class ListLiteral(Literal):
         return [val.topython() for val in self.value]
 
 
-class ObjectLiteral(Literal):
+class InputObjectLiteral(Literal):
     def topython(self):
         return {field.name: field.value.topython() for field in self.value}
 
