@@ -162,7 +162,7 @@ class GraphQLSourceGenerator(codegen.SourceGenerator):
         self._visit_list(node.value, separator=', ')
         self.write(']')
 
-    def visit_ObjectLiteral(self, node):
+    def visit_InputObjectLiteral(self, node):
         if node.value:
             self.write('{')
             self.new_lines = 1
