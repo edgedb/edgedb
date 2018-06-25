@@ -68,7 +68,6 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.volatility_ref = None
             self.group_by_rels = {}
 
-            self.shape_format = ShapeFormat.SERIALIZED
             self.disable_semi_join = set()
             self.unique_paths = set()
 
@@ -91,7 +90,6 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.volatility_ref = prevlevel.volatility_ref
             self.group_by_rels = prevlevel.group_by_rels
 
-            self.shape_format = prevlevel.shape_format
             self.disable_semi_join = prevlevel.disable_semi_join.copy()
             self.unique_paths = prevlevel.unique_paths.copy()
 

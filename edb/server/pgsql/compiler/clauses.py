@@ -107,7 +107,6 @@ def compile_filter_clause(
         if ctx1.stmt is ctx1.toplevel_stmt:
             ctx1.toplevel_clause = ctx1.clause
         ctx1.expr_exposed = False
-        ctx1.shape_format = context.ShapeFormat.SERIALIZED
 
         # In WHERE we compile ir.Set as a boolean disjunction:
         #    EXISTS(SELECT FROM SetRel WHERE SetRel.value)

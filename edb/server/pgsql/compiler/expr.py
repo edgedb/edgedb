@@ -27,9 +27,7 @@ from edb.lang.ir import ast as irast
 from edb.lang.ir import utils as irutils
 
 from edb.lang.schema import scalars as s_scalars
-from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import objects as s_obj
-from edb.lang.schema import pointers as s_pointers
 from edb.lang.schema import types as s_types
 
 from edb.server.pgsql import ast as pgast
@@ -43,6 +41,7 @@ from . import expr as expr_compiler  # NOQA
 from . import output
 from . import pathctx
 from . import relgen
+from . import shapecomp
 from . import typecomp
 
 
@@ -62,9 +61,8 @@ def compile_Set(
         # this helps in GROUP BY queries.
         value = dispatch.compile(ir_set.expr, ctx=ctx)
         pathctx.put_path_value_var(ctx.rel, ir_set.path_id, value, env=ctx.env)
-        shape = _get_shape(ir_set, ctx=ctx)
-        if shape:
-            value = _compile_shape(ir_set, shape=shape, ctx=ctx)
+        if output.in_serialization_ctx(ctx) and ir_set.shape:
+            value = _compile_shape(ir_set, shape=ir_set.shape, ctx=ctx)
 
     elif ir_set.path_scope_id is not None and not is_toplevel:
         # This Set is behind a scope fence, so compute it
@@ -533,9 +531,8 @@ def _compile_set(
 
     relgen.get_set_rvar(ir_set, ctx=ctx)
 
-    shape = _get_shape(ir_set, ctx=ctx)
-    if shape:
-        value = _compile_shape(ir_set, shape=shape, ctx=ctx)
+    if output.in_serialization_ctx(ctx) and ir_set.shape:
+        value = _compile_shape(ir_set, shape=ir_set.shape, ctx=ctx)
     else:
         value = pathctx.get_path_value_var(
             ctx.rel, ir_set.path_id, env=ctx.env)
@@ -543,74 +540,33 @@ def _compile_set(
     return value
 
 
-def _get_shape(
-        ir_set: irast.Set, *,
-        ctx: context.CompilerContextLevel) -> \
-        typing.Optional[typing.List[irast.Set]]:
-
-    if (not ctx.expr_exposed and
-            ctx.shape_format != context.ShapeFormat.FLAT):
-        return []
-
-    return ir_set.shape
-
-
 def _compile_shape(
         ir_set: irast.Set, shape: typing.List[irast.Set], *,
         ctx: context.CompilerContextLevel) -> pgast.TupleVar:
-    elements = []
 
-    with ctx.newscope() as shapectx:
-        shapectx.disable_semi_join.add(ir_set.path_id)
-        shapectx.unique_paths.add(ir_set.path_id)
+    result = shapecomp.compile_shape(ir_set, shape, ctx=ctx)
 
-        for el in shape:
-            rptr = el.rptr
-            ptrcls = rptr.ptrcls
-            ptrdir = rptr.direction or s_pointers.PointerDirection.Outbound
-            is_singleton = ptrcls.singular(ptrdir)
-
-            if (irutils.is_subquery_set(el) or
-                    isinstance(el.scls, s_objtypes.ObjectType) or
-                    not is_singleton or
-                    not ptrcls.required):
-                wrapper = relgen.set_as_subquery(
-                    el, as_value=True, ctx=shapectx)
-                if not is_singleton:
-                    value = relgen.set_to_array(
-                        ir_set=el, query=wrapper, ctx=shapectx)
-                else:
-                    value = wrapper
-            else:
-                value = dispatch.compile(el, ctx=shapectx)
-
-            elements.append(astutils.tuple_element_for_shape_el(el, value))
-
-    result = pgast.TupleVar(elements=elements, named=True)
-    pathctx.put_path_value_var(
-        ctx.rel, ir_set.path_id, result, force=True, env=ctx.env)
-
-    for element in elements:
+    for element in result.elements:
         # The ref might have already been added by the nested shape
         # processing, so add it conditionally.
-        pathctx.put_path_value_var_if_not_exists(
-            ctx.rel, element.path_id, element.val, env=ctx.env)
+        pathctx.put_path_var_if_not_exists(
+            ctx.rel, element.path_id, element.val, aspect='serialized',
+            env=ctx.env)
 
-    if output.in_serialization_ctx(ctx):
-        ser_elements = []
-        for el in elements:
-            ser_val = pathctx.get_path_serialized_or_value_var(
-                ctx.rel, el.path_id, env=ctx.env)
-            ser_elements.append(pgast.TupleElement(
-                path_id=el.path_id,
-                name=el.name,
-                val=ser_val
-            ))
+    ser_elements = []
+    for el in result.elements:
+        ser_val = pathctx.get_path_serialized_or_value_var(
+            ctx.rel, el.path_id, env=ctx.env)
+        ser_elements.append(pgast.TupleElement(
+            path_id=el.path_id,
+            name=el.name,
+            val=ser_val
+        ))
 
-        ser_result = pgast.TupleVar(elements=ser_elements, named=True)
-        sval = output.serialize_expr(ser_result, env=ctx.env)
-        pathctx.put_path_serialized_var(
-            ctx.rel, ir_set.path_id, sval, force=True, env=ctx.env)
+    ser_result = pgast.TupleVar(elements=ser_elements, named=True)
+    sval = output.serialize_expr(ser_result, env=ctx.env)
+    pathctx.put_path_serialized_var(
+        ctx.rel, ir_set.path_id, sval, force=True, env=ctx.env)
 
     return result
 

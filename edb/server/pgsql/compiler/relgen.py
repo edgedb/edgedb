@@ -1136,7 +1136,14 @@ def process_set_as_tuple_indirection(
         subctx.expr_exposed = False
         rvar = get_set_rvar(tuple_set, ctx=subctx)
 
-    return new_simple_set_rvar(ir_set, rvar)
+        if not ir_set.path_id.startswith(tuple_set.path_id):
+            # Tuple indirection set is fenced, so we need to
+            # wrap the reference in a subquery to ensure path_id
+            # remapping.
+            stmt.view_path_id_map[ir_set.path_id] = ir_set.expr.path_id
+            rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=subctx)
+
+    return new_simple_set_rvar(ir_set, rvar, ['value', 'source'])
 
 
 def process_set_as_expr(
@@ -1288,15 +1295,19 @@ def process_set_as_agg_expr(
 
             for i, ir_arg in enumerate(ir_set.expr.args):
                 dispatch.compile(ir_arg, ctx=argctx)
-                arg_ref = pathctx.get_path_value_var(
-                    argctx.rel, ir_arg.path_id, env=argctx.env)
 
-                if isinstance(arg_ref, pgast.TupleVar):
-                    # tuple
-                    if output.in_serialization_ctx(ctx=argctx):
+                if output.in_serialization_ctx(ctx=argctx):
+                    arg_ref = pathctx.get_path_serialized_or_value_var(
+                        argctx.rel, ir_arg.path_id, env=argctx.env)
+
+                    if isinstance(arg_ref, pgast.TupleVar):
                         arg_ref = output.serialize_expr(
                             arg_ref, env=argctx.env)
-                    else:
+                else:
+                    arg_ref = pathctx.get_path_value_var(
+                        argctx.rel, ir_arg.path_id, env=argctx.env)
+
+                    if isinstance(arg_ref, pgast.TupleVar):
                         arg_ref = output.output_as_value(
                             arg_ref, env=argctx.env)
 

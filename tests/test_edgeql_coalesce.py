@@ -20,7 +20,6 @@
 import os.path
 import unittest
 
-from edb.client import exceptions as exc
 from edb.server import _testbase as tb
 
 
@@ -114,17 +113,17 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_scalar_06(self):
-        with self.assertRaisesRegex(
-                exc.EdgeQLError, r'inconsistent path'):
-            await self.con.execute(r"""
-                WITH MODULE test
-                SELECT Issue.time_estimate ?? -1
-                # the FILTER is illegal because `Issue.time_estimate`
-                # is used only as an OPTIONAL argument in the outer scope
-                FILTER NOT EXISTS Issue.time_estimate;
-            """)
+        # The result is either an empty set if at least one
+        # estimate exists, or `-1` if no estimates exist.
+        # Our database contains one estimate.
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT Issue.time_estimate ?? -1
+            FILTER NOT EXISTS Issue.time_estimate;
+        """, [
+            []
+        ])
 
     async def test_edgeql_coalesce_scalar_07(self):
         await self.assert_sorted_query_result(r'''

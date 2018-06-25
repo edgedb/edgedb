@@ -49,6 +49,7 @@ from . import dbobj
 from . import dispatch
 from . import pathctx
 from . import relctx
+from . import shapecomp
 from . import typecomp
 
 
@@ -326,7 +327,6 @@ def process_insert_body(
         subctx.rel_hierarchy[select] = insert_stmt
 
         subctx.expr_exposed = False
-        subctx.shape_format = context.ShapeFormat.FLAT
 
         if iterator_cte is not None:
             subctx.path_scope = ctx.path_scope.new_child()
@@ -502,7 +502,6 @@ def process_update_body(
         subctx.path_scope[ir_stmt.subject.path_id] = update_stmt
         subctx.rel = update_stmt
         subctx.expr_exposed = False
-        subctx.shape_format = context.ShapeFormat.FLAT
 
         for shape_el in ir_stmt.subject.shape:
             with subctx.newscope() as scopectx:
@@ -902,10 +901,19 @@ def process_link_values(
                 input_rel_ctx.path_scope[iterator_cte.query.path_id] = \
                     row_query
             input_rel_ctx.expr_exposed = False
-            input_rel_ctx.shape_format = context.ShapeFormat.FLAT
             input_rel_ctx.volatility_ref = pathctx.get_path_identity_var(
                 row_query, ir_stmt.subject.path_id, env=input_rel_ctx.env)
             dispatch.compile(ir_expr, ctx=input_rel_ctx)
+            if ir_expr.shape:
+                shape_tuple = shapecomp.compile_shape(
+                    ir_expr, ir_expr.shape, ctx=input_rel_ctx)
+
+                for element in shape_tuple.elements:
+                    pathctx.put_path_var_if_not_exists(
+                        input_rel_ctx.rel, element.path_id, element.val,
+                        aspect='value', env=input_rel_ctx.env)
+            else:
+                shape_tuple = None
 
     input_stmt = input_rel
 
@@ -925,17 +933,15 @@ def process_link_values(
 
     path_id = ir_expr.path_id
 
-    output = pathctx.get_path_value_output(
-        input_stmt, path_id, env=ctx.env)
-
-    if isinstance(output, pgast.TupleVar):
-        for element in output.elements:
+    if shape_tuple is not None:
+        for element in shape_tuple.elements:
             name = element.path_id.rptr_name()
             if name is None:
                 name = element.path_id[-1].name
             colname = common.edgedb_name_to_pg_name(name)
-            source_data.setdefault(
-                colname, dbobj.get_column(input_rvar, element.name))
+            val = pathctx.get_rvar_path_value_var(
+                input_rvar, element.path_id, env=ctx.env)
+            source_data.setdefault(colname, val)
     else:
         if target_is_scalar:
             target_ref = pathctx.get_rvar_path_value_var(

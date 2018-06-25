@@ -3616,7 +3616,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             {'t': [[1, 2], [3, 4]]},
         ]])
 
-    async def test_edgeql_select_struct_01(self):
+    async def test_edgeql_select_tuple_05(self):
         await self.assert_query_result(r"""
             WITH MODULE test
             SELECT (
@@ -3627,8 +3627,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'statuses': 2, 'issues': 4}],
         ])
 
-    async def test_edgeql_select_struct_02(self):
-        # Struct in a common set expr.
+    async def test_edgeql_select_tuple_06(self):
+        # Tuple in a common set expr.
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
@@ -3642,8 +3642,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [6],
         ])
 
-    async def test_edgeql_select_struct_03(self):
-        # Object in a struct.
+    async def test_edgeql_select_tuple_07(self):
+        # Object in a tuple.
         await self.assert_query_result(r"""
             WITH
                 MODULE test,
@@ -3662,8 +3662,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['2'],
         ])
 
-    async def test_edgeql_select_struct_04(self):
-        # Object in a struct returned directly.
+    async def test_edgeql_select_tuple_08(self):
+        # Object in a tuple returned directly.
         await self.assert_query_result(r"""
             WITH
                 MODULE test
@@ -3679,8 +3679,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         ])
 
-    async def test_edgeql_select_struct_05(self):
-        # Object in a struct referred to directly.
+    async def test_edgeql_select_tuple_09(self):
+        # Object in a tuple referred to directly.
         await self.assert_query_result(r"""
             WITH
                 MODULE test
@@ -3692,7 +3692,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['Yury'],
         ])
 
-    async def test_edgeql_select_tuple_06(self):
+    async def test_edgeql_select_tuple_10(self):
         # Tuple comparison
         await self.assert_query_result(r"""
             WITH

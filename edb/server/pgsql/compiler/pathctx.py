@@ -43,7 +43,30 @@ from . import output
 class PathAspect(s_enum.StrEnum):
     IDENTITY = 'identity'
     VALUE = 'value'
+    SOURCE = 'source'
     SERIALIZED = 'serialized'
+
+
+# A mapping of more specific aspect -> less specific aspect for objects
+OBJECT_ASPECT_SPECIFICITY_MAP = {
+    PathAspect.IDENTITY: PathAspect.VALUE,
+    PathAspect.VALUE: PathAspect.SOURCE,
+    PathAspect.SERIALIZED: PathAspect.SOURCE,
+}
+
+# A mapping of more specific aspect -> less specific aspect for primitives
+PRIMITIVE_ASPECT_SPECIFICITY_MAP = {
+    PathAspect.SERIALIZED: PathAspect.VALUE,
+}
+
+
+def get_less_specific_aspect(path_id: irast.PathId, aspect: str):
+    if path_id.is_objtype_path():
+        mapping = OBJECT_ASPECT_SPECIFICITY_MAP
+    else:
+        mapping = PRIMITIVE_ASPECT_SPECIFICITY_MAP
+
+    return mapping.get(aspect)
 
 
 def map_path_id(
@@ -152,6 +175,13 @@ def get_path_var(
         src_path_id = path_id.ptr_path()
 
     rel_rvar = maybe_get_path_rvar(rel, path_id, aspect=aspect, env=env)
+
+    if rel_rvar is None:
+        alt_aspect = get_less_specific_aspect(path_id, aspect)
+        if alt_aspect is not None:
+            rel_rvar = maybe_get_path_rvar(
+                rel, path_id, aspect=alt_aspect, env=env)
+
     if rel_rvar is None:
         if src_path_id.is_objtype_path():
             if aspect == 'identity':
@@ -166,11 +196,27 @@ def get_path_var(
                 rel, src_path_id, aspect=src_aspect, env=env)
 
             if rel_rvar is None:
-                rel_rvar = get_path_rvar(
+                rel_rvar = maybe_get_path_rvar(
                     rel, src_path_id.src_path(), aspect=src_aspect, env=env)
         else:
-            rel_rvar = get_path_rvar(
+            rel_rvar = maybe_get_path_rvar(
                 rel, src_path_id, aspect=src_aspect, env=env)
+
+        if src_aspect != 'source' and path_id != src_path_id:
+            rel_rvar = maybe_get_path_rvar(
+                rel, src_path_id, aspect='source', env=env)
+
+    if rel_rvar is None and alt_aspect is not None:
+        # There is no source range var for the requested aspect,
+        # check if there is a cached var with less specificity.
+        var = rel.path_namespace.get((path_id, alt_aspect))
+        if var is not None:
+            return var
+
+    if rel_rvar is None:
+        raise LookupError(
+            f'there is no range var for '
+            f'{src_path_id} {src_aspect} in {rel}')
 
     source_rel = rel_rvar.query
 
@@ -192,11 +238,6 @@ def get_path_var(
     outvar = get_path_output(
         source_rel, drilldown_path_id, ptr_info=ptr_info,
         aspect=aspect, env=env)
-
-    if is_relation_rvar(rel_rvar) and aspect not in {'identity', 'value'}:
-        raise LookupError(
-            f'{path_id} {aspect} is not defined in {rel}'
-        )
 
     fieldref = dbobj.get_rvar_fieldref(rel_rvar, outvar)
     put_path_var(rel, path_id, fieldref, aspect=aspect, env=env)
@@ -525,6 +566,9 @@ def _get_rel_path_output(
 def find_path_output(
         rel: pgast.Query, path_id: irast.PathId, ref: pgast.Base, *,
         env: context.Environment) -> str:
+    if isinstance(ref, pgast.TupleVar):
+        return None
+
     for key, other_ref in rel.path_namespace.items():
         if _same_expr(other_ref, ref) and key in rel.path_outputs:
             return rel.path_outputs.get(key)
@@ -593,6 +637,18 @@ def get_path_output(
     return result
 
 
+def maybe_get_path_output(
+        rel: pgast.BaseRelation, path_id: irast.PathId, *,
+        aspect: str,
+        ptr_info: typing.Optional[pg_types.PointerStorageInfo]=None,
+        env: context.Environment) -> typing.Optional[pgast.OutputVar]:
+    try:
+        return get_path_output(rel, path_id=path_id, aspect=aspect,
+                               ptr_info=ptr_info, env=env)
+    except LookupError:
+        return None
+
+
 def get_path_identity_output(
         rel: pgast.Query, path_id: irast.PathId, *,
         env: context.Environment) -> pgast.OutputVar:
@@ -647,19 +703,30 @@ def get_path_output_or_null(
         rel: pgast.Query, path_id: irast.PathId, *,
         aspect: str, env: context.Environment) -> \
         typing.Tuple[pgast.OutputVar, bool]:
-    try:
-        ref = get_path_output(rel, path_id, aspect=aspect, env=env)
-        is_null = False
-    except LookupError:
-        alias = env.aliases.get('null')
-        restarget = pgast.ResTarget(
-            name=alias,
-            val=pgast.Constant(val=None))
-        if hasattr(rel, 'returning_list'):
-            rel.returning_list.append(restarget)
-        else:
-            rel.target_list.append(restarget)
-        is_null = True
-        ref = pgast.ColumnRef(name=[alias], nullable=True)
 
-    return ref, is_null
+    path_id = map_path_id(path_id, rel.view_path_id_map)
+
+    ref = maybe_get_path_output(rel, path_id, aspect=aspect, env=env)
+    if ref is not None:
+        return ref, False
+
+    alt_aspect = get_less_specific_aspect(path_id, aspect)
+    if alt_aspect is not None:
+        ref = maybe_get_path_output(rel, path_id, aspect=alt_aspect, env=env)
+        if ref is not None:
+            return ref, False
+
+    alias = env.aliases.get('null')
+    restarget = pgast.ResTarget(
+        name=alias,
+        val=pgast.Constant(val=None))
+
+    if hasattr(rel, 'returning_list'):
+        rel.returning_list.append(restarget)
+    else:
+        rel.target_list.append(restarget)
+
+    ref = pgast.ColumnRef(name=[alias], nullable=True)
+    rel.path_outputs[path_id, aspect] = ref
+
+    return ref, True

@@ -269,6 +269,16 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [['2', 'Open']]
         ])
 
+    async def test_edgeql_functions_array_agg_12(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test
+            SELECT
+                array_agg(User{name} ORDER BY User.name);
+        ''', [
+            [[{'name': 'Elvis'}, {'name': 'Yury'}]]
+        ])
+
     async def test_edgeql_functions_array_unpack_01(self):
         await self.assert_query_result(r'''
             SELECT [1, 2];
