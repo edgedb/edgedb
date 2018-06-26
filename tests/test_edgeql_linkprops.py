@@ -798,6 +798,24 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             {2, 3},
         ])
 
+    async def test_edgeql_props_computable_01(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT User {
+                name,
+                my_deck := (SELECT Card { @foo := Card.name }
+                            FILTER .name = 'Djinn')
+            }
+            FILTER User.name = 'Alice';
+        ''', [
+            [{
+                'name': 'Alice',
+                'my_deck': {
+                    '@foo': 'Djinn'
+                }
+            }],
+        ])
+
     async def test_edgeql_props_agg_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test

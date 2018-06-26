@@ -374,7 +374,7 @@ def _normalize_view_ptr_expr(
 
     if qlexpr is not None or ptr_target is not ptrcls.target:
         if not ptrcls_is_derived:
-            if ptrcls.is_link_property():
+            if is_linkprop:
                 rptrcls = view_rptr.derived_ptrcls
                 if rptrcls is None:
                     rptrcls = schemactx.derive_view(
