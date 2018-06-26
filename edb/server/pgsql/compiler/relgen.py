@@ -279,7 +279,7 @@ def set_as_subquery(
     # be aggregated into an array.
     with ctx.subrel() as subctx:
         wrapper = subctx.rel
-        dispatch.compile(ir_set, ctx=subctx)
+        dispatch.visit(ir_set, ctx=subctx)
 
         if as_value:
 
@@ -763,7 +763,7 @@ def process_set_as_subquery(
                     pathctx.get_path_identity_output(
                         subrel, path_id=ir_source.path_id, env=ctx.env)
 
-        dispatch.compile(ir_set.expr, ctx=newctx)
+        dispatch.visit(ir_set.expr, ctx=newctx)
 
         if semi_join:
             src_ref = pathctx.maybe_get_path_identity_var(
@@ -851,12 +851,12 @@ def process_set_as_setop(
         with newctx.subrel() as _, _.newscope() as scopectx:
             larg = scopectx.rel
             larg.view_path_id_map[ir_set.path_id] = expr.left.path_id
-            dispatch.compile(expr.left, ctx=scopectx)
+            dispatch.visit(expr.left, ctx=scopectx)
 
         with newctx.subrel() as _, _.newscope() as scopectx:
             rarg = scopectx.rel
             rarg.view_path_id_map[ir_set.path_id] = expr.right.path_id
-            dispatch.compile(expr.right, ctx=scopectx)
+            dispatch.visit(expr.right, ctx=scopectx)
 
     with ctx.subrel() as subctx:
         subqry = subctx.rel
@@ -882,7 +882,7 @@ def process_set_as_distinct(
     with ctx.subrel() as subctx:
         subqry = subctx.rel
         subqry.view_path_id_map[ir_set.path_id] = expr.expr.path_id
-        dispatch.compile(expr.expr, ctx=subctx)
+        dispatch.visit(expr.expr, ctx=subctx)
         subrvar = dbobj.rvar_for_rel(subqry, lateral=True, env=subctx.env)
 
     relctx.include_rvar(stmt, subrvar, ir_set.path_id, ctx=ctx)
@@ -906,14 +906,14 @@ def process_set_as_ifelse(
 
     with ctx.new() as newctx:
         newctx.expr_exposed = False
-        dispatch.compile(expr.condition, ctx=newctx)
+        dispatch.visit(expr.condition, ctx=newctx)
         condref = relctx.get_path_var(
             stmt, path_id=expr.condition.path_id, aspect='value', ctx=newctx)
 
     with ctx.subrel() as _, _.newscope() as subctx:
         larg = subctx.rel
         larg.view_path_id_map[ir_set.path_id] = expr.if_expr.path_id
-        dispatch.compile(expr.if_expr, ctx=subctx)
+        dispatch.visit(expr.if_expr, ctx=subctx)
 
         larg.where_clause = astutils.extend_binop(
             larg.where_clause,
@@ -923,7 +923,7 @@ def process_set_as_ifelse(
     with ctx.subrel() as _, _.newscope() as subctx:
         rarg = subctx.rel
         rarg.view_path_id_map[ir_set.path_id] = expr.else_expr.path_id
-        dispatch.compile(expr.else_expr, ctx=subctx)
+        dispatch.visit(expr.else_expr, ctx=subctx)
 
         rarg.where_clause = astutils.extend_binop(
             rarg.where_clause,
@@ -954,8 +954,8 @@ def process_set_as_coalesce(
 
         if expr.rcardinality == irast.Cardinality.ONE:
             # Singleton RHS, simply use scalar COALESCE.
-            dispatch.compile(expr.left, ctx=newctx)
-            dispatch.compile(expr.right, ctx=newctx)
+            dispatch.visit(expr.left, ctx=newctx)
+            dispatch.visit(expr.right, ctx=newctx)
 
             set_expr = pgast.CoalesceExpr(args=[
                 pathctx.get_path_value_var(
@@ -995,7 +995,7 @@ def process_set_as_coalesce(
                         larg = scopectx.rel
                         larg.view_path_id_map[ir_set.path_id] = \
                             expr.left.path_id
-                        dispatch.compile(expr.left, ctx=scopectx)
+                        dispatch.visit(expr.left, ctx=scopectx)
 
                         lvar = pathctx.get_path_value_var(
                             larg, path_id=expr.left.path_id, env=scopectx.env)
@@ -1015,7 +1015,7 @@ def process_set_as_coalesce(
                         rarg = scopectx.rel
                         rarg.view_path_id_map[ir_set.path_id] = \
                             expr.right.path_id
-                        dispatch.compile(expr.right, ctx=scopectx)
+                        dispatch.visit(expr.right, ctx=scopectx)
 
                     marker = sub2ctx.env.aliases.get('m')
 
@@ -1077,8 +1077,8 @@ def process_set_as_equivalence(
         ctx: context.CompilerContextLevel) -> SetRVars:
     expr = ir_set.expr
 
-    dispatch.compile(expr.left, ctx=ctx)
-    dispatch.compile(expr.right, ctx=ctx)
+    dispatch.visit(expr.left, ctx=ctx)
+    dispatch.visit(expr.right, ctx=ctx)
 
     if expr.op == irast.NEQUIVALENT:
         op = 'IS DISTINCT FROM'
@@ -1115,7 +1115,7 @@ def process_set_as_tuple(
             )
             stmt.view_path_id_map[path_id] = element.val.path_id
 
-            dispatch.compile(element.val, ctx=subctx)
+            dispatch.visit(element.val, ctx=subctx)
             elements.append(pgast.TupleElement(path_id=path_id))
 
             var = pathctx.maybe_get_path_var(
@@ -1301,7 +1301,7 @@ def process_set_as_agg_expr(
             args = []
 
             for i, ir_arg in enumerate(ir_set.expr.args):
-                dispatch.compile(ir_arg, ctx=argctx)
+                dispatch.visit(ir_arg, ctx=argctx)
 
                 if output.in_serialization_ctx(ctx=argctx):
                     arg_ref = pathctx.get_path_serialized_or_value_var(

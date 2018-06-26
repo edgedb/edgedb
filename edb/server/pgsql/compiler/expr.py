@@ -55,6 +55,34 @@ def compile_Set(
 
     is_toplevel = ctx.toplevel_stmt is None
 
+    _compile_set_impl(ir_set, ctx=ctx)
+
+    if is_toplevel:
+        return output.top_output_as_value(ctx.rel, env=ctx.env)
+    else:
+        value = pathctx.get_path_value_var(
+            ctx.rel, ir_set.path_id, env=ctx.env)
+
+        return output.output_as_value(value, env=ctx.env)
+
+
+@dispatch.visit.register(irast.Set)
+def visit_Set(
+        ir_set: irast.Set, *,
+        ctx: context.CompilerContextLevel) -> None:
+
+    if ctx.env.singleton_mode:
+        return _compile_set_in_singleton_mode(ir_set, ctx=ctx)
+
+    _compile_set_impl(ir_set, ctx=ctx)
+
+
+def _compile_set_impl(
+        ir_set: irast.Set, *,
+        ctx: context.CompilerContextLevel) -> None:
+
+    is_toplevel = ctx.toplevel_stmt is None
+
     if isinstance(ir_set.expr, irast.Constant):
         # Avoid creating needlessly complicated constructs for
         # constant expressions.  Besides being an optimization,
@@ -62,22 +90,17 @@ def compile_Set(
         value = dispatch.compile(ir_set.expr, ctx=ctx)
         pathctx.put_path_value_var(ctx.rel, ir_set.path_id, value, env=ctx.env)
         if output.in_serialization_ctx(ctx) and ir_set.shape:
-            value = _compile_shape(ir_set, shape=ir_set.shape, ctx=ctx)
+            _compile_shape(ir_set, shape=ir_set.shape, ctx=ctx)
 
     elif ir_set.path_scope_id is not None and not is_toplevel:
         # This Set is behind a scope fence, so compute it
         # in a fenced context.
         with ctx.newscope() as scopectx:
-            value = _compile_set(ir_set, ctx=scopectx)
+            _compile_set(ir_set, ctx=scopectx)
 
     else:
         # All other sets.
-        value = _compile_set(ir_set, ctx=ctx)
-
-    if is_toplevel:
-        return output.top_output_as_value(ctx.rel, env=ctx.env)
-    else:
-        return output.output_as_value(value, env=ctx.env)
+        _compile_set(ir_set, ctx=ctx)
 
 
 @dispatch.compile.register(irast.Parameter)
@@ -540,17 +563,12 @@ def _tuple_to_row_expr(
 
 def _compile_set(
         ir_set: irast.Set, *,
-        ctx: context.CompilerContextLevel) -> pgast.Base:
+        ctx: context.CompilerContextLevel) -> None:
 
     relgen.get_set_rvar(ir_set, ctx=ctx)
 
     if output.in_serialization_ctx(ctx) and ir_set.shape:
-        value = _compile_shape(ir_set, shape=ir_set.shape, ctx=ctx)
-    else:
-        value = pathctx.get_path_value_var(
-            ctx.rel, ir_set.path_id, env=ctx.env)
-
-    return value
+        _compile_shape(ir_set, shape=ir_set.shape, ctx=ctx)
 
 
 def _compile_shape(

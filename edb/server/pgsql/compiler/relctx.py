@@ -286,22 +286,21 @@ def new_empty_rvar(
         ],
         nullable=True
     )
+
+    emptyrel = pgast.SelectStmt()
+    empty_rvar = dbobj.rvar_for_rel(emptyrel, env=ctx.env)
+
     rvar = dbobj.rvar_for_rel(nullrel, env=ctx.env)
     rvar.path_scope.add(ir_set.path_id)
     rvar.value_scope.add(ir_set.path_id)
     null_ref = pgast.ColumnRef(name=[nullref_alias], nullable=True)
     pathctx.put_rvar_path_output(rvar, ir_set.path_id, aspect='value',
                                  var=null_ref, env=ctx.env)
-    pathctx.put_path_var(rvar, ir_set.path_id, aspect='value',
-                         var=null_ref, env=ctx.env)
+    pathctx.put_path_rvar(nullrel, ir_set.path_id, aspect='value',
+                          rvar=empty_rvar, env=ctx.env)
     if ir_set.path_id.is_objtype_path():
         pathctx.put_rvar_path_output(rvar, ir_set.path_id, aspect='identity',
                                      var=null_ref, env=ctx.env)
-        pathctx.put_path_var(rvar, ir_set.path_id, aspect='identity',
-                             var=null_ref, env=ctx.env)
-
-        emptyrel = pgast.SelectStmt()
-        empty_rvar = dbobj.rvar_for_rel(emptyrel, env=ctx.env)
         pathctx.put_path_rvar(nullrel, path_id=ir_set.path_id,
                               rvar=empty_rvar, aspect='source', env=ctx.env)
     return rvar

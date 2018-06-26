@@ -227,7 +227,7 @@ def get_dml_range(
             relctx.include_rvar(range_stmt, iterator_rvar,
                                 path_id=iterator_set.path_id, ctx=subctx)
 
-        dispatch.compile(target_ir_set, ctx=subctx)
+        dispatch.visit(target_ir_set, ctx=subctx)
 
         pathctx.get_path_identity_output(
             range_stmt, target_ir_set.path_id, env=subctx.env)
@@ -403,7 +403,7 @@ def process_insert_body(
                 pathctx.put_path_rvar_if_not_exists(
                     wrapper, rptr.source.path_id, insert_rvar,
                     aspect='value', env=scopectx.env)
-                dispatch.compile(shape_el, ctx=scopectx)
+                dispatch.visit(shape_el, ctx=scopectx)
                 tuple_el = astutils.tuple_element_for_shape_el(shape_el, None)
                 prop_elements.append(tuple_el)
 
@@ -432,7 +432,7 @@ def compile_insert_shape_element(
             insvalctx.volatility_ref = context.NO_VOLATILITY
 
         insvalctx.path_scope[ir_stmt.subject.path_id] = insert_stmt
-        dispatch.compile(shape_el, ctx=insvalctx)
+        dispatch.visit(shape_el, ctx=insvalctx)
 
     return insvalctx.rel
 
@@ -903,7 +903,7 @@ def process_link_values(
             input_rel_ctx.expr_exposed = False
             input_rel_ctx.volatility_ref = pathctx.get_path_identity_var(
                 row_query, ir_stmt.subject.path_id, env=input_rel_ctx.env)
-            dispatch.compile(ir_expr, ctx=input_rel_ctx)
+            dispatch.visit(ir_expr, ctx=input_rel_ctx)
             if ir_expr.shape:
                 shape_tuple = shapecomp.compile_shape(
                     ir_expr, ir_expr.shape, ctx=input_rel_ctx)

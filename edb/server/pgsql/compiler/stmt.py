@@ -207,7 +207,7 @@ def compile_GroupStmt(
             pathctx.put_path_bond(gvquery, group_path_id)
 
             for group_set in stmt.groupby:
-                dispatch.compile(group_set, ctx=gvctx)
+                dispatch.visit(group_set, ctx=gvctx)
                 path_id = group_set.path_id
                 if path_id.is_objtype_path():
                     pathctx.put_path_bond(gvquery, path_id)

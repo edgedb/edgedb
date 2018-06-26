@@ -28,6 +28,15 @@ from . import context
 
 @functools.singledispatch
 def compile(
-        ir: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
+        ir: irast.Base, *,
+        ctx: context.CompilerContextLevel) -> pgast.Base:
     raise NotImplementedError(
         f'no IR compiler handler for {ir.__class__}')
+
+
+@functools.singledispatch
+def visit(
+        ir: irast.Base, *,
+        ctx: context.CompilerContextLevel) -> None:
+    """A compilation version that does not pull the value eagerly."""
+    compile(ir, ctx=ctx)

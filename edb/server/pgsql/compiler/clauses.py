@@ -52,7 +52,7 @@ def compile_iterator_expr(
     with ctx.new() as subctx:
         subctx.rel = query
 
-        dispatch.compile(iterator_expr, ctx=subctx)
+        dispatch.visit(iterator_expr, ctx=subctx)
         iterator_rvar = relctx.get_path_rvar(
             query, iterator_expr.path_id, aspect='value', ctx=ctx)
         iterator_query = iterator_rvar.query
@@ -77,7 +77,7 @@ def compile_output(
         if newctx.expr_exposed is None:
             newctx.expr_exposed = True
 
-        dispatch.compile(ir_set, ctx=newctx)
+        dispatch.visit(ir_set, ctx=newctx)
 
         path_id = ir_set.path_id
 
@@ -111,7 +111,7 @@ def compile_filter_clause(
         # In WHERE we compile ir.Set as a boolean disjunction:
         #    EXISTS(SELECT FROM SetRel WHERE SetRel.value)
         with ctx1.subrel() as subctx:
-            dispatch.compile(ir_set, ctx=subctx)
+            dispatch.visit(ir_set, ctx=subctx)
             wrapper = subctx.rel
             wrapper.where_clause = pathctx.get_path_value_var(
                 wrapper, ir_set.path_id, env=subctx.env)

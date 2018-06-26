@@ -188,6 +188,8 @@ def get_path_var(
         if alt_aspect is not None:
             rel_rvar = maybe_get_path_rvar(
                 rel, path_id, aspect=alt_aspect, env=env)
+    else:
+        alt_aspect = None
 
     if rel_rvar is None:
         if src_path_id.is_objtype_path():
@@ -218,6 +220,7 @@ def get_path_var(
         # check if there is a cached var with less specificity.
         var = rel.path_namespace.get((path_id, alt_aspect))
         if var is not None:
+            put_path_var(rel, path_id, var, aspect=aspect, env=env)
             return var
 
     if rel_rvar is None:
@@ -746,6 +749,7 @@ def get_path_output_or_null(
     if alt_aspect is not None:
         ref = maybe_get_path_output(rel, path_id, aspect=alt_aspect, env=env)
         if ref is not None:
+            rel.path_outputs[path_id, aspect] = ref
             return ref, False
 
     alias = env.aliases.get('null')
