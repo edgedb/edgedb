@@ -99,6 +99,12 @@ class Set(Base):
             f'<ir.Set \'{self.path_id or self.scls.name}\' at 0x{id(self):x}>'
 
 
+class TypeRef(Base):
+
+    maintype: str
+    subtypes: typing.List[sn.Name]
+
+
 class Command(Base):
     pass
 
@@ -195,6 +201,13 @@ class EquivalenceOp(BaseBinOp):
     pass
 
 
+class TypeCheckOp(Expr):
+
+    left: Set
+    right: typing.Union[TypeRef, Array]
+    op: ast.ops.Operator
+
+
 class IfElseExpr(Expr):
 
     condition: Set
@@ -248,12 +261,6 @@ class SliceIndirection(Expr):
     start: Base
     stop: Base
     step: Base
-
-
-class TypeRef(Expr):
-
-    maintype: str
-    subtypes: typing.List[sn.Name]
 
 
 class TypeCast(Expr):

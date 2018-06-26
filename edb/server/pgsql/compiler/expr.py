@@ -293,7 +293,9 @@ def compile_SliceIndirection(
 
 @dispatch.compile.register(irast.BinOp)
 def compile_BinOp(
-        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
+        expr: irast.Base, *,
+        ctx: context.CompilerContextLevel) -> pgast.Base:
+
     with ctx.new() as newctx:
         newctx.expr_exposed = False
         op = expr.op
@@ -301,102 +303,93 @@ def compile_BinOp(
         left = dispatch.compile(expr.left, ctx=newctx)
         right = dispatch.compile(expr.right, ctx=newctx)
 
-    if isinstance(expr.op, ast.ops.TypeCheckOperator):
-        result = pgast.FuncCall(
-            name=('edgedb', 'issubclass'),
-            args=[left, right])
-
-        if expr.op == ast.ops.IS_NOT:
-            result = astutils.new_unop(ast.ops.NOT, result)
-
+    if not isinstance(expr.left, irast.EmptySet):
+        left_type = _infer_type(expr.left, ctx=ctx)
     else:
-        if not isinstance(expr.left, irast.EmptySet):
-            left_type = _infer_type(expr.left, ctx=ctx)
-        else:
-            left_type = None
+        left_type = None
 
-        if not isinstance(expr.right, irast.EmptySet):
-            right_type = _infer_type(expr.right, ctx=ctx)
-        else:
-            right_type = None
+    if not isinstance(expr.right, irast.EmptySet):
+        right_type = _infer_type(expr.right, ctx=ctx)
+    else:
+        right_type = None
 
-        if (not isinstance(expr.left, irast.EmptySet) and
-                not isinstance(expr.right, irast.EmptySet)):
-            left_pg_type = pg_types.pg_type_from_object(
-                ctx.env.schema, left_type, True)
+    if (not isinstance(expr.left, irast.EmptySet) and
+            not isinstance(expr.right, irast.EmptySet)):
+        left_pg_type = pg_types.pg_type_from_object(
+            ctx.env.schema, left_type, True)
 
-            right_pg_type = pg_types.pg_type_from_object(
-                ctx.env.schema, right_type, True)
+        right_pg_type = pg_types.pg_type_from_object(
+            ctx.env.schema, right_type, True)
 
-            if (left_pg_type in {('text',), ('varchar',)} and
-                    right_pg_type in {('text',), ('varchar',)} and
-                    op == ast.ops.ADD):
-                op = '||'
+        if (left_pg_type in {('text',), ('varchar',)} and
+                right_pg_type in {('text',), ('varchar',)} and
+                op == ast.ops.ADD):
+            op = '||'
 
-        if isinstance(left_type, s_types.Tuple):
-            left = _tuple_to_row_expr(expr.left, ctx=newctx)
-            left_count = len(left.args)
-        else:
-            left_count = 0
+    if isinstance(left_type, s_types.Tuple):
+        left = _tuple_to_row_expr(expr.left, ctx=newctx)
+        left_count = len(left.args)
+    else:
+        left_count = 0
 
-        if isinstance(right_type, s_types.Tuple):
-            right = _tuple_to_row_expr(expr.right, ctx=newctx)
-            right_count = len(right.args)
-        else:
-            right_count = 0
+    if isinstance(right_type, s_types.Tuple):
+        right = _tuple_to_row_expr(expr.right, ctx=newctx)
+        right_count = len(right.args)
+    else:
+        right_count = 0
 
-        if left_count != right_count:
-            # Postgres does not allow comparing rows with
-            # unequal number of entries, but we want to allow
-            # this.  Fortunately, we know that such comparison is
-            # always False.
-            result = pgast.Constant(val=False)
-        else:
-            if is_bool_op:
-                # Transform logical operators to force
-                # the correct behaviour with respect to NULLs.
-                # See the OrFilterFunction comment for details.
-                if ctx.clause == 'where':
-                    if expr.op == ast.ops.OR:
-                        result = pgast.FuncCall(
-                            name=('edgedb', '_or'),
-                            args=[left, right]
-                        )
-                    else:
-                        # For the purposes of the WHERE clause,
-                        # AND operator works correctly, as
-                        # it will either return NULL or FALSE,
-                        # which both will disqualify the row.
-                        result = astutils.new_binop(left, right, op=op)
+    if left_count != right_count:
+        # Postgres does not allow comparing rows with
+        # unequal number of entries, but we want to allow
+        # this.  Fortunately, we know that such comparison is
+        # always False.
+        result = pgast.Constant(val=False)
+    else:
+        if is_bool_op:
+            # Transform logical operators to force
+            # the correct behaviour with respect to NULLs.
+            # See the OrFilterFunction comment for details.
+            if ctx.clause == 'where':
+                if expr.op == ast.ops.OR:
+                    result = pgast.FuncCall(
+                        name=('edgedb', '_or'),
+                        args=[left, right]
+                    )
                 else:
-                    # For expressions outside WHERE, we
-                    # always want the result to be NULL
-                    # if either operand is NULL.
-                    bitop = '&' if expr.op == ast.ops.AND else '|'
-                    bitcond = astutils.new_binop(
-                        lexpr=pgast.TypeCast(
-                            arg=left,
-                            type_name=pgast.TypeName(
-                                name=('int',)
-                            )
-                        ),
-                        rexpr=pgast.TypeCast(
-                            arg=right,
-                            type_name=pgast.TypeName(
-                                name=('int',)
-                            )
-                        ),
-                        op=bitop
-                    )
-                    bitcond = pgast.TypeCast(
-                        arg=bitcond,
-                        type_name=pgast.TypeName(
-                            name=('bool',)
-                        )
-                    )
-                    result = bitcond
+                    # For the purposes of the WHERE clause,
+                    # AND operator works correctly, as
+                    # it will either return NULL or FALSE,
+                    # which both will disqualify the row.
+                    result = astutils.new_binop(left, right, op=op)
             else:
-                result = astutils.new_binop(left, right, op=op)
+                # For expressions outside WHERE, we
+                # always want the result to be NULL
+                # if either operand is NULL.
+                bitop = '&' if expr.op == ast.ops.AND else '|'
+                bitcond = astutils.new_binop(
+                    lexpr=pgast.TypeCast(
+                        arg=left,
+                        type_name=pgast.TypeName(
+                            name=('int',)
+                        )
+                    ),
+                    rexpr=pgast.TypeCast(
+                        arg=right,
+                        type_name=pgast.TypeName(
+                            name=('int',)
+                        )
+                    ),
+                    op=bitop
+                )
+                bitcond = pgast.TypeCast(
+                    arg=bitcond,
+                    type_name=pgast.TypeName(
+                        name=('bool',)
+                    )
+                )
+                result = bitcond
+        else:
+            result = astutils.new_binop(left, right, op=op)
 
     return result
 
@@ -408,6 +401,26 @@ def compile_UnaryOp(
         subctx.expr_exposed = False
         operand = dispatch.compile(expr.expr, ctx=subctx)
     return pgast.Expr(name=expr.op, rexpr=operand, kind=pgast.ExprKind.OP)
+
+
+@dispatch.compile.register(irast.TypeCheckOp)
+def compile_TypeCheckOp(
+        expr: irast.TypeCheckOp, *,
+        ctx: context.CompilerContextLevel) -> pgast.Base:
+
+    with ctx.new() as newctx:
+        newctx.expr_exposed = False
+        left = dispatch.compile(expr.left, ctx=newctx)
+        right = dispatch.compile(expr.right, ctx=newctx)
+
+    result = pgast.FuncCall(
+        name=('edgedb', 'issubclass'),
+        args=[left, right])
+
+    if expr.op == ast.ops.IS_NOT:
+        result = astutils.new_unop(ast.ops.NOT, result)
+
+    return result
 
 
 @dispatch.compile.register(irast.IfElseExpr)

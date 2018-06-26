@@ -142,11 +142,15 @@ class IRDecompiler(ast.visitor.NodeVisitor):
     def visit_BinOp(self, node):
         result = qlast.BinOp()
         result.left = self.visit(node.left)
+        result.right = self.visit(node.right)
+        result.op = node.op
+        return result
 
-        if isinstance(node.op, ast.ops.TypeCheckOperator):
-            # Trim the trailing __type__ added by the compiler
-            result.left.steps = result.left.steps[:-1]
-
+    def visit_TypeCheckOp(self, node):
+        result = qlast.BinOp()
+        result.left = self.visit(node.left)
+        # Trim the trailing __type__ added by the compiler
+        result.left.steps = result.left.steps[:-1]
         result.right = self.visit(node.right)
         result.op = node.op
         return result

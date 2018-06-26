@@ -235,7 +235,6 @@ def __infer_binop(ir, schema):
     left_type, right_type = _infer_binop_args(ir.left, ir.right, schema)
 
     if isinstance(ir.op, (ast.ops.ComparisonOperator,
-                          ast.ops.TypeCheckOperator,
                           ast.ops.MembershipOperator)):
         result = schema.get('std::bool')
     else:
@@ -266,6 +265,12 @@ def __infer_binop(ir, schema):
 
 @_infer_type.register(irast.EquivalenceOp)
 def __infer_equivop(ir, schema):
+    left_type, right_type = _infer_binop_args(ir.left, ir.right, schema)
+    return schema.get('std::bool')
+
+
+@_infer_type.register(irast.TypeCheckOp)
+def __infer_typecheckop(ir, schema):
     left_type, right_type = _infer_binop_args(ir.left, ir.right, schema)
     return schema.get('std::bool')
 

@@ -550,7 +550,7 @@ def try_fold_binop(
 
 
 def compile_type_check_op(
-        expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.BinOp:
+        expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.TypeCheckOp:
     # <Expr> IS <Type>
     left = dispatch.compile(expr.left, ctx=ctx)
     with ctx.new() as subctx:
@@ -567,7 +567,7 @@ def compile_type_check_op(
 
     right = typegen.process_type_ref_expr(right)
 
-    return irast.BinOp(left=left, right=right, op=expr.op)
+    return irast.TypeCheckOp(left=left, right=right, op=expr.op)
 
 
 def _compile_set_op(

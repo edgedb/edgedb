@@ -141,6 +141,11 @@ def __infer_equivop(ir, singletons, schema):
     return _common_cardinality([ir.left, ir.right], singletons, schema)
 
 
+@_infer_cardinality.register(irast.TypeCheckOp)
+def __infer_typecheckop(ir, singletons, schema):
+    return infer_cardinality(ir.left, singletons, schema)
+
+
 @_infer_cardinality.register(irast.UnaryOp)
 def __infer_unaryop(ir, singletons, schema):
     return infer_cardinality(ir.expr, singletons, schema)
