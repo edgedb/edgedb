@@ -100,6 +100,13 @@ def get_path_var(
     if isinstance(rel, pgast.CommonTableExpr):
         rel = rel.query
 
+    # Check if we already have a var, before remapping the path_id.
+    # This is useful for serialized aspect disambiguation in tuples,
+    # since process_set_as_tuple() records serialized vars with
+    # original path_id.
+    if (path_id, aspect) in rel.path_namespace:
+        return rel.path_namespace[path_id, aspect]
+
     if rel.view_path_id_map:
         path_id = map_path_id(path_id, rel.view_path_id_map)
 
@@ -241,6 +248,12 @@ def get_path_var(
 
     fieldref = dbobj.get_rvar_fieldref(rel_rvar, outvar)
     put_path_var(rel, path_id, fieldref, aspect=aspect, env=env)
+
+    if isinstance(fieldref, pgast.TupleVar):
+        for element in fieldref.elements:
+            put_path_var(rel, element.path_id, element.val,
+                         aspect=aspect, env=env)
+
     return fieldref
 
 
@@ -584,6 +597,16 @@ def get_path_output(
     if view_path_id_map:
         path_id = map_path_id(path_id, view_path_id_map)
 
+    return _get_path_output(rel, path_id=path_id, aspect=aspect,
+                            ptr_info=ptr_info, env=env)
+
+
+def _get_path_output(
+        rel: pgast.BaseRelation, path_id: irast.PathId, *,
+        aspect: str,
+        ptr_info: typing.Optional[pg_types.PointerStorageInfo]=None,
+        env: context.Environment) -> pgast.OutputVar:
+
     result = rel.path_outputs.get((path_id, aspect))
     if result is not None:
         return result
@@ -604,10 +627,19 @@ def get_path_output(
         for el in ref.elements:
             el_path_id = reverse_map_path_id(
                 el.path_id, rel.view_path_id_map)
-            element = get_path_output(
-                rel, el_path_id, aspect=aspect, env=env)
+
+            try:
+                # Similarly to get_path_var(), check for outer path_id
+                # first for tuple serialized var disambiguation.
+                element = _get_path_output(
+                    rel, el_path_id, aspect=aspect, env=env)
+            except LookupError:
+                element = get_path_output(
+                    rel, el_path_id, aspect=aspect, env=env)
+
             elements.append(pgast.TupleElement(
                 path_id=el_path_id, name=element))
+
         result = pgast.TupleVar(elements=elements, named=ref.named)
 
     else:

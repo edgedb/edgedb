@@ -1113,10 +1113,17 @@ def process_set_as_tuple(
                 ir_set.path_id, element.name,
                 ir_set.scls.element_types[element.name]
             )
+            stmt.view_path_id_map[path_id] = element.val.path_id
 
             dispatch.compile(element.val, ctx=subctx)
-            stmt.view_path_id_map[path_id] = element.val.path_id
             elements.append(pgast.TupleElement(path_id=path_id))
+
+            var = pathctx.maybe_get_path_var(
+                stmt, element.val.path_id,
+                aspect='serialized', env=subctx.env)
+            if var is not None:
+                pathctx.put_path_var(stmt, path_id, var,
+                                     aspect='serialized', env=subctx.env)
 
         set_expr = pgast.TupleVar(elements=elements, named=expr.named)
 

@@ -91,7 +91,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_scope_tuple_03(self):
         # get the User names and ids
         res = await self.con.execute(r'''
@@ -103,7 +102,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ORDER BY User.name;
         ''')
 
-        # there's a bug that makes both User shapes the same one
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT _ := (User { name }, User { id })
