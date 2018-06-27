@@ -495,6 +495,34 @@ def try_fold_arithmetic_binop(
             irast.Constant(value=value, type=result_type), ctx=ctx)
 
 
+def try_fold_comparison_binop(
+        op: ast.ops.Operator, left: irast.Set, right: irast.Set, *,
+        ctx: context.ContextLevel) -> typing.Optional[irast.Set]:
+    """Try folding a comparison expr into a constant."""
+    left = left.expr
+    right = right.expr
+
+    if op == ast.ops.EQ:
+        value = left.value == right.value
+    elif op == ast.ops.NE:
+        value = left.value != right.value
+    elif op == ast.ops.GT:
+        value = left.value > right.value
+    elif op == ast.ops.GE:
+        value = left.value >= right.value
+    elif op == ast.ops.LT:
+        value = left.value < right.value
+    elif op == ast.ops.LE:
+        value = left.value <= right.value
+    else:
+        value = None
+
+    if value is not None:
+        return setgen.ensure_set(
+            irast.Constant(value=value, type=ctx.schema.get('std::bool')),
+            ctx=ctx)
+
+
 def try_fold_binop(
         binop: irast.BinOp, *,
         ctx: context.ContextLevel) -> typing.Optional[irast.Set]:
@@ -510,11 +538,13 @@ def try_fold_binop(
     op = binop.op
 
     if (isinstance(left.expr, irast.Constant) and
-            isinstance(right.expr, irast.Constant) and
-            result_type.issubclass(real_t)):
-
+            isinstance(right.expr, irast.Constant)):
         # Left and right nodes are constants.
-        folded = try_fold_arithmetic_binop(op, left, right, ctx=ctx)
+        if isinstance(op, ast.ops.ComparisonOperator):
+            folded = try_fold_comparison_binop(op, left, right, ctx=ctx)
+
+        elif result_type.issubclass(real_t):
+            folded = try_fold_arithmetic_binop(op, left, right, ctx=ctx)
 
     elif op in {ast.ops.ADD, ast.ops.MUL}:
         # Let's check if we have (CONST + (OTHER_CONST + X))

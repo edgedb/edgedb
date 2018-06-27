@@ -137,3 +137,19 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
             """SELECT (1 * len('a')) * 2""",
             """SELECT (2 * std::len('a'))""",
         )
+
+    def test_edgeql_utils_normalize_10(self):
+        self._assert_normalize_expr(
+            """SELECT 1 > 2""",
+            """SELECT False""",
+        )
+
+        self._assert_normalize_expr(
+            """SELECT 1 = 1""",
+            """SELECT True""",
+        )
+
+        self._assert_normalize_expr(
+            """SELECT 1 < (1 + 1)""",
+            """SELECT True""",
+        )
