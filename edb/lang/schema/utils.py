@@ -250,7 +250,7 @@ def find_item_suggestions(
 
     suggestions = []
 
-    if collection:
+    if collection is not None:
         suggestions.extend(collection)
     else:
         if modname:

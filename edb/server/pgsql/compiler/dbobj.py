@@ -262,7 +262,11 @@ def range_for_ptrcls(
 def range_for_pointer(
         pointer: s_links.Link, *,
         env: context.Environment) -> pgast.BaseRangeVar:
-    return range_for_ptrcls(pointer.ptrcls, pointer.direction, env=env)
+    ptrcls = pointer.ptrcls
+    if ptrcls.derived_from is not None:
+        ptrcls = ptrcls.get_nearest_non_derived_parent()
+
+    return range_for_ptrcls(ptrcls, pointer.direction, env=env)
 
 
 def range_from_queryset(

@@ -323,6 +323,8 @@ class InheritingObject(derivable.DerivableObject):
     is_abstract = so.Field(bool, default=False,
                            inheritable=False, compcoef=0.909)
     is_derived = so.Field(bool, False, compcoef=0.909)
+    derived_from = so.Field(so.NamedObject, None, compcoef=0.909,
+                            inheritable=False)
     is_final = so.Field(bool, default=False, compcoef=0.909)
     is_virtual = so.Field(bool, default=False, compcoef=0.5)
 
@@ -477,6 +479,12 @@ class InheritingObject(derivable.DerivableObject):
         super().finalize(schema, bases=bases, dctx=dctx)
         self.mro = compute_mro(self)[1:]
         self.acquire_ancestor_inheritance(schema, dctx=dctx)
+
+    def get_nearest_non_derived_parent(self):
+        obj = self
+        while obj.derived_from is not None:
+            obj = obj.derived_from
+        return obj
 
     @classmethod
     def get_root_classes(cls):

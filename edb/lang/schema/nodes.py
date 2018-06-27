@@ -107,6 +107,8 @@ class NodeCommand(named.NamedObjectCommand):
 
                 for vptr in view.own_pointers.values():
                     vschema.add(vptr)
+                    if not hasattr(vptr, 'own_pointers'):
+                        continue
                     for vlprop in vptr.own_pointers.values():
                         vschema.add(vlprop)
 

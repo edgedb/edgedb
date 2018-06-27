@@ -31,6 +31,7 @@ async def fetch(
                 edgedb._resolve_type_name(l.spectargets) AS spectargets,
                 l.name AS name,
                 edgedb._resolve_type_name(l.bases) AS bases,
+                edgedb._resolve_type_name(l.derived_from) AS derived_from,
                 l.cardinality,
                 l.required,
                 l.computable,
@@ -38,6 +39,7 @@ async def fetch(
                 l.description,
                 l.is_abstract,
                 l.is_final,
+                l.is_derived,
                 l.readonly,
                 l.default
             FROM
@@ -55,6 +57,8 @@ async def fetch_properties(
                 p.name                  AS name,
                 edgedb._resolve_type_name(p.bases)
                                         AS bases,
+                edgedb._resolve_type_name(p.derived_from)
+                                        AS derived_from,
                 p.cardinality           AS cardinality,
                 p.title                 AS title,
                 p.description           AS description,
@@ -65,7 +69,11 @@ async def fetch_properties(
                 edgedb._resolve_type_name(p.source)
                                         AS source,
                 edgedb._resolve_type(p.target)
-                                        AS target
+                                        AS target,
+
+                p.is_abstract           AS is_abstract,
+                p.is_final              AS is_final,
+                p.is_derived            AS is_derived
             FROM
                 edgedb.Property p
             ORDER BY

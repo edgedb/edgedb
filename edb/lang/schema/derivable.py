@@ -72,6 +72,7 @@ class DerivableObjectBase:
 
         if mark_derived:
             derived.is_derived = True
+            derived.derived_from = self
 
         if add_to_schema:
             existing_derived = schema.get(derived.name, default=None)

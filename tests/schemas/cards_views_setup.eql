@@ -81,6 +81,12 @@ CREATE VIEW test::DaveCard := (
 );
 
 
+CREATE VIEW test::AliasedFriends := (
+    WITH MODULE test
+    SELECT User { my_friends := User.friends, my_name := User.name }
+);
+
+
 CREATE VIEW test::expert_map := (
     SELECT {
         ('Alice', 'pro'),

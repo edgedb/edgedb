@@ -644,7 +644,7 @@ def computable_ptr_set(
     subctx.aliases = ctx.aliases
     subctx.stmt = ctx.stmt
     subctx.view_scls = ptrcls.target
-    subctx.view_rptr = context.ViewRPtr(source_scls, ptrcls, rptr=rptr)
+    subctx.view_rptr = context.ViewRPtr(source_scls, ptrcls=ptrcls, rptr=rptr)
     subctx.toplevel_stmt = ctx.toplevel_stmt
     subctx.path_scope = ctx.path_scope
     subctx.class_shapes = ctx.class_shapes.copy()

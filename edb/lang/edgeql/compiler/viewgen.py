@@ -27,7 +27,6 @@ from edb.lang.ir import ast as irast
 from edb.lang.ir import utils as irutils
 
 from edb.lang.schema import links as s_links
-from edb.lang.schema import lproperties as s_props
 from edb.lang.schema import name as sn
 from edb.lang.schema import nodes as s_nodes
 from edb.lang.schema import pointers as s_pointers
@@ -253,7 +252,8 @@ def _normalize_view_ptr_expr(
 
         if shape_el.elements:
             sub_view_rptr = context.ViewRPtr(
-                view_scls, ptrcls, is_insert=is_insert, is_update=is_update)
+                view_scls, ptrcls=ptrcls,
+                is_insert=is_insert, is_update=is_update)
 
             sub_path_id = path_id.extend(ptrcls, target=ptrcls.target)
             ctx.path_scope.attach_path(sub_path_id)
@@ -304,9 +304,13 @@ def _normalize_view_ptr_expr(
             base_ptrcls = ptrcls = setgen.resolve_ptr(
                 ptrsource, ptrname, s_pointers.PointerDirection.Outbound,
                 ctx=ctx)
+
+            ptr_name = ptrcls.shortname
         except errors.EdgeQLReferenceError:
             if is_mutation:
                 raise
+
+            base_ptrcls = ptrcls = None
 
             ptr_module = (
                 ptrname[0] or
@@ -314,13 +318,7 @@ def _normalize_view_ptr_expr(
                 scls.name.module
             )
 
-            if is_linkprop:
-                ptr_metacls = s_props.Property
-            else:
-                ptr_metacls = s_links.Link
-
             ptr_name = sn.SchemaName(module=ptr_module, name=ptrname[1])
-            base_ptrcls = ptrcls = ptr_metacls(name=ptr_name)
 
         qlexpr = astutils.ensure_qlstmt(compexpr)
 
@@ -331,7 +329,9 @@ def _normalize_view_ptr_expr(
             # evaluation of link properties on computable links,
             # most importantly, in INSERT/UPDATE context.
             shape_expr_ctx.view_rptr = context.ViewRPtr(
-                view_scls, ptrcls, is_insert=is_insert, is_update=is_update)
+                view_scls, ptrcls=ptrcls, ptrcls_name=ptr_name,
+                ptrcls_is_linkprop=is_linkprop,
+                is_insert=is_insert, is_update=is_update)
 
             shape_expr_ctx.path_scope.unnest_fence = True
 
@@ -341,6 +341,10 @@ def _normalize_view_ptr_expr(
             irexpr = dispatch.compile(qlexpr, ctx=shape_expr_ctx)
 
             irexpr.context = compexpr.context
+
+            if base_ptrcls is None:
+                base_ptrcls = ptrcls = shape_expr_ctx.view_rptr.ptrcls
+
             derived_ptrcls = shape_expr_ctx.view_rptr.derived_ptrcls
             if derived_ptrcls is not None:
                 ptrcls_is_derived = True

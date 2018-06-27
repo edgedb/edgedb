@@ -572,6 +572,11 @@ class IntrospectionMech:
             elif name != 'std::link':
                 bases = (sn.Name('std::link'), )
 
+            if r['derived_from']:
+                derived_from = schema.get(r['derived_from'])
+            else:
+                derived_from = None
+
             title = self.json_to_word_combination(r['title'])
             description = r['description']
 
@@ -599,6 +604,7 @@ class IntrospectionMech:
                 spectargets=spectargets, cardinality=cardinality,
                 required=required,
                 title=title, description=description,
+                derived_from=derived_from, is_derived=r['is_derived'],
                 is_abstract=r['is_abstract'], is_final=r['is_final'],
                 readonly=r['readonly'], computable=r['computable'],
                 default=default)
@@ -675,6 +681,11 @@ class IntrospectionMech:
             description = r['description']
             source = schema.get(r['source']) if r['source'] else None
 
+            if r['derived_from']:
+                derived_from = schema.get(r['derived_from'])
+            else:
+                derived_from = None
+
             default = self.unpack_default(r['default'])
 
             required = r['required']
@@ -690,7 +701,9 @@ class IntrospectionMech:
                 name=name, source=source, target=target, required=required,
                 title=title, description=description, readonly=r['readonly'],
                 computable=r['computable'], default=default,
-                cardinality=cardinality)
+                cardinality=cardinality, derived_from=derived_from,
+                is_derived=r['is_derived'], is_abstract=r['is_abstract'],
+                is_final=r['is_final'])
 
             if bases and bases[0] in {'std::target', 'std::source'}:
                 if bases[0] == 'std::target' and source is not None:

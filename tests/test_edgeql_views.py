@@ -218,3 +218,30 @@ class TestEdgeQLViews(tb.QueryTestCase):
                 'deck_cost': 20
             }]
         ])
+
+    async def test_edgeql_computable_aliased_link_01(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT AliasedFriends {
+                my_name,
+                my_friends: {
+                    @nickname
+                } ORDER BY .name
+            }
+            FILTER .name = 'Alice';
+        ''', [
+            [{
+                'my_name': 'Alice',
+                'my_friends': [
+                    {
+                        '@nickname': 'Swampy'
+                    },
+                    {
+                        '@nickname': 'Firefighter'
+                    },
+                    {
+                        '@nickname': 'Grumpy'
+                    },
+                ]
+            }]
+        ])
