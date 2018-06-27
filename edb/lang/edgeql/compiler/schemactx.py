@@ -120,6 +120,7 @@ def derive_view(
         *qualifiers,
         derived_name: typing.Optional[sn.SchemaName]=None,
         derived_name_quals: typing.Optional[typing.Sequence[str]]=(),
+        derived_name_base: typing.Optional[str]=None,
         is_insert: bool=False,
         is_update: bool=False,
         add_to_schema: bool=True,
@@ -127,22 +128,10 @@ def derive_view(
     if source is None:
         source = scls
 
-    if derived_name is None:
-        if not derived_name_quals:
-            derived_name_quals = (ctx.aliases.get('view'),)
-
-        if ctx.derived_target_module:
-            derived_sname = scls.get_specialized_name(
-                scls.shortname, *derived_name_quals)
-
-            derived_name = sn.SchemaName(
-                module=ctx.derived_target_module, name=derived_sname)
-        elif source is scls:
-            derived_sname = scls.get_specialized_name(
-                scls.shortname, *derived_name_quals)
-
-            derived_name = sn.SchemaName(
-                module='__view__', name=derived_sname)
+    if derived_name is None and (ctx.derived_target_module or source is scls):
+        derived_name = derive_view_name(
+            scls=scls, derived_name_quals=derived_name_quals,
+            derived_name_base=derived_name_base, ctx=ctx)
 
     if scls.generic():
         derived = scls.derive(
@@ -184,3 +173,26 @@ def derive_view(
         ctx.view_nodes[derived.name] = derived
 
     return derived
+
+
+def derive_view_name(
+        scls: s_obj.Object,
+        derived_name_quals: typing.Optional[typing.Sequence[str]]=(),
+        derived_name_base: typing.Optional[str]=None, *,
+        ctx: context.ContextLevel) -> sn.Name:
+
+    if not derived_name_quals:
+        derived_name_quals = (ctx.aliases.get('view'),)
+
+    if not derived_name_base:
+        derived_name_base = scls.shortname
+
+    if ctx.derived_target_module:
+        derived_name_module = ctx.derived_target_module
+    else:
+        derived_name_module = '__view__'
+
+    derived_sname = scls.get_specialized_name(
+        derived_name_base, *derived_name_quals)
+
+    return sn.SchemaName(module=derived_name_module, name=derived_sname)

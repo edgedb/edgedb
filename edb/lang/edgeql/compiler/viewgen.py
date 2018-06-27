@@ -145,11 +145,8 @@ def _process_view(
                 # so the link class has not been derived.  But for
                 # the purposes of shape tracking, we must derive it
                 # still.
-                source = schemactx.derive_view(
-                    view_rptr.ptrcls, view_rptr.source, view_scls,
-                    is_insert=view_rptr.is_insert,
-                    is_update=view_rptr.is_update, ctx=ctx)
-                view_rptr.derived_ptrcls = source
+                source = derive_ptrcls(
+                    view_rptr, target_scls=view_scls, ctx=ctx)
 
             ctx.class_shapes[source].append(ptrcls)
 
@@ -191,6 +188,8 @@ def _normalize_view_ptr_expr(
                 raise errors.EdgeQLError(
                     'invalid reference to link property '
                     'in top level shape', context=lexpr.context)
+            if view_rptr.ptrcls is None:
+                derive_ptrcls(view_rptr, target_scls=view_scls, ctx=ctx)
             ptrsource = scls = view_rptr.ptrcls
         source = qlast.Source()
     else:
@@ -252,7 +251,7 @@ def _normalize_view_ptr_expr(
 
         if shape_el.elements:
             sub_view_rptr = context.ViewRPtr(
-                view_scls, ptrcls=ptrcls,
+                ptrsource if is_linkprop else view_scls, ptrcls=ptrcls,
                 is_insert=is_insert, is_update=is_update)
 
             sub_path_id = path_id.extend(ptrcls, target=ptrcls.target)
@@ -329,7 +328,8 @@ def _normalize_view_ptr_expr(
             # evaluation of link properties on computable links,
             # most importantly, in INSERT/UPDATE context.
             shape_expr_ctx.view_rptr = context.ViewRPtr(
-                view_scls, ptrcls=ptrcls, ptrcls_name=ptr_name,
+                ptrsource if is_linkprop else view_scls,
+                ptrcls=ptrcls, ptrcls_name=ptr_name,
                 ptrcls_is_linkprop=is_linkprop,
                 is_insert=is_insert, is_update=is_update)
 
@@ -381,11 +381,8 @@ def _normalize_view_ptr_expr(
             if is_linkprop:
                 rptrcls = view_rptr.derived_ptrcls
                 if rptrcls is None:
-                    rptrcls = schemactx.derive_view(
-                        view_rptr.ptrcls, view_rptr.source, view_scls,
-                        is_insert=view_rptr.is_insert,
-                        is_update=view_rptr.is_update, ctx=ctx)
-                    view_rptr.derived_ptrcls = rptrcls
+                    rptrcls = derive_ptrcls(
+                        view_rptr, target_scls=view_scls, ctx=ctx)
 
                 src_scls = rptrcls
             else:
@@ -408,6 +405,43 @@ def _normalize_view_ptr_expr(
         raise errors.EdgeQLError(msg, context=shape_el.context)
 
     return ptrcls
+
+
+def derive_ptrcls(
+        view_rptr: context.ViewRPtr, *,
+        target_scls: s_nodes.Node,
+        ctx: context.ContextLevel) -> s_pointers.Pointer:
+
+    if view_rptr.ptrcls is None:
+        if view_rptr.base_ptrcls is not None:
+            derived_name = schemactx.derive_view_name(
+                view_rptr.base_ptrcls,
+                derived_name_base=view_rptr.ptrcls_name,
+                derived_name_quals=(view_rptr.source.name,),
+                ctx=ctx)
+
+            view_rptr.ptrcls = schemactx.derive_view(
+                view_rptr.base_ptrcls, view_rptr.source, target_scls,
+                derived_name=derived_name,
+                is_insert=view_rptr.is_insert,
+                is_update=view_rptr.is_update,
+                ctx=ctx
+            )
+
+            view_rptr.derived_ptrcls = view_rptr.ptrcls
+        else:
+            raise RuntimeError(
+                'ViewRPtr does not define ptrcls or base_ptrcls')
+
+    else:
+        view_rptr.derived_ptrcls = schemactx.derive_view(
+            view_rptr.ptrcls, view_rptr.source, target_scls,
+            is_insert=view_rptr.is_insert,
+            is_update=view_rptr.is_update,
+            ctx=ctx
+        )
+
+    return view_rptr.derived_ptrcls
 
 
 def _link_has_shape(

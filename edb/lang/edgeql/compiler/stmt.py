@@ -504,9 +504,13 @@ def compile_query_subject(
         is_update: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
 
-    if (view_rptr is not None and view_rptr.ptrcls is None and
-            view_rptr.ptrcls_name is not None):
+    need_rptr_derivation = (
+        view_rptr is not None and
+        view_rptr.ptrcls is None and
+        view_rptr.ptrcls_name is not None
+    )
 
+    if need_rptr_derivation:
         matching_type = (
             expr.rptr is not None and
             view_rptr.ptrcls_is_linkprop ==
@@ -516,28 +520,14 @@ def compile_query_subject(
             # the parent shape, ie. Spam { alias := Foo.bar }, so
             # `Spam.alias` should be a subclass of `Foo.bar` inheriting
             # its properties.
-            parent = expr.rptr.ptrcls
-            derived_name = s_name.Name(
-                module=ctx.derived_target_module or '__view__',
-                name=parent.get_specialized_name(
-                    view_rptr.ptrcls_name,
-                    view_rptr.source.name))
-
-            target = view_scls if view_scls is not None else expr.scls
-
-            view_rptr.ptrcls = schemactx.derive_view(
-                parent, view_rptr.source, target,
-                derived_name=derived_name, ctx=ctx)
-
-            if shape is None or view_scls is not None:
-                view_rptr.derived_ptrcls = view_rptr.ptrcls
+            view_rptr.base_ptrcls = expr.rptr.ptrcls
         else:
             if expr.path_id.is_objtype_path():
                 ptr_metacls = s_links.Link
             else:
                 ptr_metacls = s_props.Property
 
-            view_rptr.ptrcls = ptr_metacls(name=view_rptr.ptrcls_name)
+            view_rptr.base_ptrcls = ptr_metacls(name=view_rptr.ptrcls_name)
 
     if shape is not None and view_scls is None:
         if (view_name is None and
@@ -552,6 +542,10 @@ def compile_query_subject(
             is_update=is_update, ctx=ctx)
     else:
         inner_path_id = None
+
+    if need_rptr_derivation and view_rptr.ptrcls is None:
+        target = view_scls if view_scls is not None else expr.scls
+        viewgen.derive_ptrcls(view_rptr, target_scls=target, ctx=ctx)
 
     if view_scls is not None:
         expr.scls = view_scls

@@ -633,11 +633,20 @@ def computable_ptr_set(
     source_scls = self_.scls
     # process_view() may generate computable pointer expressions
     # in the form "self.linkname".  To prevent infinite recursion,
-    # self must resolve to view base type, NOT the view type itself.
+    # self must resolve to the parent type of the view NOT the view
+    # type itself.  Similarly, when resolving computable link properties
+    # make sure that we use rptr.ptrcls.derived_from.
     if source_scls.is_view():
         self_ = copy.copy(self_)
         self_.scls = source_scls.peel_view()
         self_.shape = []
+
+        if self_.rptr is not None:
+            derived_from = self_.rptr.ptrcls.derived_from
+            if (derived_from is not None and not derived_from.generic() and
+                    derived_from.derived_from is not None and
+                    ptrcls.is_link_property()):
+                self_.rptr.ptrcls = derived_from
 
     subctx.anchors[qlast.Source] = self_
 
