@@ -167,6 +167,12 @@ CREATE FUNCTION std::re_test(std::str, std::str) -> std::bool
         SELECT $1 ~ $2;
     $$;
 
+CREATE FUNCTION std::re_replace(std::str, std::str, std::str, std::str = '')
+        -> std::str
+    FROM SQL $$
+        SELECT regexp_replace($1, $2, $3, $4);
+    $$;
+
 CREATE FUNCTION std::current_date() -> std::date
     FROM SQL 'SELECT current_date';
 
