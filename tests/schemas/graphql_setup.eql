@@ -72,3 +72,19 @@ INSERT Person {
     active := True,
     score := 4.2
 };
+
+WITH MODULE test
+INSERT Foo {
+    `select` := 'a',
+};
+
+WITH MODULE test
+INSERT Foo {
+    `select` := 'b',
+    after := 'w',
+};
+
+WITH MODULE test
+INSERT Foo {
+    after := 'q',
+};

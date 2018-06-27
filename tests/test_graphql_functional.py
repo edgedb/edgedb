@@ -54,7 +54,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
     async def test_graphql_functional_query_02(self):
         result = await self.con.execute(r"""
             query {
-                User {
+                User(order: {name: {dir: ASC}}) {
                     name
                     age
                     groups {
@@ -65,7 +65,6 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             }
         """, graphql=True)
 
-        result[0][0]['User'].sort(key=lambda x: x['name'])
         self.assert_data_shape(result, [[{
             'User': [{
                 'name': 'Alice',
@@ -211,19 +210,21 @@ class TestGraphQLFunctional(tb.QueryTestCase):
     async def test_graphql_functional_arguments_05(self):
         result = await self.con.execute(r"""
             query {
-                User(filter: {
-                    or: [
-                        {not: {name: {eq: "Bob"}}},
-                        {age: {eq: 20}}
-                    ]
-                }) {
+                User(
+                    filter: {
+                        or: [
+                            {not: {name: {eq: "Bob"}}},
+                            {age: {eq: 20}}
+                        ]
+                    },
+                    order: {name: {dir: ASC}}
+                ) {
                     name
                     score
                 }
             }
         """, graphql=True)
 
-        result[0][0]['User'].sort(key=lambda x: x['name'])
         self.assert_data_shape(result, [[{
             'User': [
                 {'name': 'Alice', 'score': 5},
@@ -235,19 +236,21 @@ class TestGraphQLFunctional(tb.QueryTestCase):
     async def test_graphql_functional_arguments_06(self):
         result = await self.con.execute(r"""
             query {
-                User(filter: {
-                    or: [
-                        {name: {neq: "Bob"}},
-                        {age: {eq: 20}}
-                    ]
-                }) {
+                User(
+                    filter: {
+                        or: [
+                            {name: {neq: "Bob"}},
+                            {age: {eq: 20}}
+                        ]
+                    },
+                    order: {name: {dir: ASC}}
+                ) {
                     name
                     score
                 }
             }
         """, graphql=True)
 
-        result[0][0]['User'].sort(key=lambda x: x['name'])
         self.assert_data_shape(result, [[{
             'User': [
                 {'name': 'Alice', 'score': 5},
@@ -316,6 +319,98 @@ class TestGraphQLFunctional(tb.QueryTestCase):
         self.assert_data_shape(result, [[{
             'User': [
                 {'name': 'Jane', 'age': 25},
+            ],
+        }]])
+
+    async def test_graphql_functional_arguments_10(self):
+        result = await self.con.execute(r"""
+            query {
+                User(
+                    order: {
+                        age: {dir: DESC}
+                        name: {dir: ASC}
+                    }
+                ) {
+                    name
+                    age
+                }
+            }
+        """, graphql=True)
+
+        self.assert_data_shape(result, [[{
+            'User': [
+                {'age': 27, 'name': 'Alice'},
+                {'age': 25, 'name': 'Jane'},
+                {'age': 25, 'name': 'John'},
+                {'age': 21, 'name': 'Bob'},
+            ],
+        }]])
+
+    async def test_graphql_functional_arguments_11(self):
+        result = await self.con.execute(r"""
+            query {
+                User(
+                    order: {
+                        name: {dir: ASC}
+                        age: {dir: DESC}
+                    }
+                ) {
+                    name
+                    age
+                }
+            }
+        """, graphql=True)
+
+        self.assert_data_shape(result, [[{
+            'User': [
+                {'age': 27, 'name': 'Alice'},
+                {'age': 21, 'name': 'Bob'},
+                {'age': 25, 'name': 'Jane'},
+                {'age': 25, 'name': 'John'},
+            ],
+        }]])
+
+    async def test_graphql_functional_arguments_12(self):
+        result = await self.con.execute(r"""
+            query {
+                Foo(
+                    order: {
+                        select: {dir: ASC, nulls: BIGGEST}
+                    }
+                ) {
+                    after
+                    select
+                }
+            }
+        """, graphql=True)
+
+        self.assert_data_shape(result, [[{
+            'Foo': [
+                {'after': None, 'select': 'a'},
+                {'after': 'w', 'select': 'b'},
+                {'after': 'q', 'select': None},
+            ],
+        }]])
+
+    async def test_graphql_functional_arguments_13(self):
+        result = await self.con.execute(r"""
+            query {
+                Foo(
+                    order: {
+                        select: {dir: DESC, nulls: SMALLEST}
+                    }
+                ) {
+                    after
+                    select
+                }
+            }
+        """, graphql=True)
+
+        self.assert_data_shape(result, [[{
+            'Foo': [
+                {'after': 'w', 'select': 'b'},
+                {'after': None, 'select': 'a'},
+                {'after': 'q', 'select': None},
             ],
         }]])
 

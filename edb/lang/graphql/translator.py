@@ -400,8 +400,12 @@ class GraphQLTranslator(ast.NodeVisitor):
                 if shape:
                     shape.elements = vals
                 if filterable:
-                    args_dict = {arg.name: arg for arg in node.arguments or []}
-                    filterable.where = self._visit_path_filter(args_dict)
+                    where, orderby, offset, limit = \
+                        self._visit_arguments(node.arguments)
+                    filterable.where = where
+                    filterable.orderby = orderby
+                    filterable.offset = offset
+                    filterable.limit = limit
 
         path.pop()
         return spec
@@ -452,12 +456,17 @@ class GraphQLTranslator(ast.NodeVisitor):
         self._context.path.append([Step(frag.on, frag_type)])
         self._context.include_base.append(is_specialized)
 
-    def _visit_path_filter(self, arguments):
-        f_arg = arguments.get('filter')
-        if not f_arg:
-            return None
+    def _visit_arguments(self, arguments):
+        where = offset = limit = None
+        orderby = []
 
-        return self.visit(f_arg.value)
+        for arg in arguments:
+            if arg.name == 'filter':
+                where = self.visit(arg.value)
+            elif arg.name == 'order':
+                orderby = self.visit_order(arg.value)
+
+        return where, orderby, offset, limit
 
     def get_path_prefix(self, end_trim=None):
         # flatten the path
@@ -494,19 +503,19 @@ class GraphQLTranslator(ast.NodeVisitor):
         return self._join_expressions(result)
 
     def visit_ObjectField(self, node):
-        name_parts = node.name
+        fname = node.name
 
         # handle boolean ops
-        if name_parts == 'and':
+        if fname == 'and':
             return self._visit_list_of_inputs(node.value.value, ast.ops.AND)
-        elif name_parts == 'or':
+        elif fname == 'or':
             return self._visit_list_of_inputs(node.value.value, ast.ops.OR)
-        elif name_parts == 'not':
+        elif fname == 'not':
             return qlast.UnaryOp(op=ast.ops.NOT,
                                  operand=self.visit(node.value))
 
         # handle various scalar ops
-        op = gt.GQL_TO_OPS_MAP.get(name_parts)
+        op = gt.GQL_TO_OPS_MAP.get(fname)
 
         if op:
             value = self.visit(node.value)
@@ -516,12 +525,12 @@ class GraphQLTranslator(ast.NodeVisitor):
         _, target = self._get_parent_and_current_type()
 
         name = self.get_path_prefix()
-        name.append(qlast.Ptr(ptr=qlast.ObjectRef(name=name_parts)))
+        name.append(qlast.Ptr(ptr=qlast.ObjectRef(name=fname)))
         name = qlast.Path(steps=name)
 
         # potentially need to cast the 'name' side into a <str>, so as
         # to be compatible with the 'value'
-        typename = target.get_field_type(name_parts).short_name
+        typename = target.get_field_type(fname).short_name
         if (typename != 'str' and
             gt.EDB_TO_GQL_SCALARS_MAP[typename] in {GraphQLString,
                                                     GraphQLID}):
@@ -533,6 +542,63 @@ class GraphQLTranslator(ast.NodeVisitor):
         self._context.filter = name
 
         return self.visit(node.value)
+
+    def visit_order(self, node):
+        # if there is no specific ordering, then order by id
+        if not node.value:
+            return [qlast.SortExpr(
+                path=qlast.Path(
+                    steps=[qlast.Ptr(ptr=qlast.ObjectRef(name='id'))],
+                    partial=True,
+                ),
+                direction=qlast.SortAsc,
+            )]
+
+        # Ordering is handled by specifying a list of special Ordering objects.
+        # Validation is already handled by this point.
+        orderby = []
+        for enum in node.value:
+            name, direction, nulls = self._visit_order_item(enum)
+            orderby.append(qlast.SortExpr(
+                path=qlast.Path(
+                    steps=[qlast.Ptr(ptr=qlast.ObjectRef(name=name))],
+                    partial=True,
+                ),
+                direction=direction,
+                nones_order=nulls,
+            ))
+
+        return orderby
+
+    def _visit_order_item(self, node):
+        name = node.name
+        direction = nulls = None
+
+        for part in node.value.value:
+            if part.name == 'dir':
+                direction = part.value.value
+            if part.name == 'nulls':
+                nulls = part.value.value
+
+        # direction is a required field, so we can rely on it having
+        # one of two values
+        if direction == 'ASC':
+            direction = qlast.SortAsc
+            # nulls are optional, but are 'SMALLEST' by default
+            if nulls == 'BIGGEST':
+                nulls = qlast.NonesLast
+            else:
+                nulls = qlast.NonesFirst
+
+        else:  # DESC
+            direction = qlast.SortDesc
+            # nulls are optional, but are 'SMALLEST' by default
+            if nulls == 'BIGGEST':
+                nulls = qlast.NonesFirst
+            else:
+                nulls = qlast.NonesLast
+
+        return name, direction, nulls
 
     def visit_Variable(self, node):
         return qlast.Parameter(name=node.value[1:])

@@ -1203,6 +1203,37 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
+    def test_graphql_translation_arguments_13(self):
+        r"""
+        query {
+            User(
+                order: {
+                    age: {dir: DESC},
+                    name: {dir: ASC, nulls: BIGGEST}
+                    # both of the above will end up with EMPTY LAST
+                    # because of different ordering and nulls default
+                }
+            ) {
+                name
+                age
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            User := (SELECT
+                test::User {
+                    name,
+                    age
+                }
+                ORDER BY
+                    .age DESC EMPTY LAST THEN
+                    .name ASC EMPTY LAST
+            )
+        };
+        """
+
     def test_graphql_translation_variables_01(self):
         r"""
         query($name: String) {
@@ -2662,10 +2693,16 @@ class TestGraphQLTranslation(TranslatorTest):
                     {"kind": "SCALAR", "name": "String"},
                     {"kind": "INPUT_OBJECT", "name": "FilterID"},
                     {"kind": "SCALAR", "name": "ID"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderFoo"},
+                    {"kind": "INPUT_OBJECT", "name": "Ordering"},
+                    {"kind": "ENUM", "name": "directionEnum"},
+                    {"kind": "ENUM", "name": "nullsOrderingEnum"},
                     {"kind": "INTERFACE", "name": "Foo"},
                     {"kind": "INPUT_OBJECT", "name": "FilterNamedObject"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderNamedObject"},
                     {"kind": "INTERFACE", "name": "NamedObject"},
                     {"kind": "INPUT_OBJECT", "name": "FilterObject"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderObject"},
                     {"kind": "INTERFACE", "name": "Object"},
                     {"kind": "INPUT_OBJECT", "name": "FilterPerson"},
                     {"kind": "INPUT_OBJECT", "name": "FilterBoolean"},
@@ -2674,14 +2711,19 @@ class TestGraphQLTranslation(TranslatorTest):
                     {"kind": "SCALAR", "name": "Int"},
                     {"kind": "INPUT_OBJECT", "name": "FilterFloat"},
                     {"kind": "SCALAR", "name": "Float"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderPerson"},
                     {"kind": "INTERFACE", "name": "Person"},
                     {"kind": "INPUT_OBJECT", "name": "FilterUserGroup"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderUserGroup"},
                     {"kind": "INTERFACE", "name": "UserGroup"},
                     {"kind": "INPUT_OBJECT", "name": "FilterSetting"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderSetting"},
                     {"kind": "INTERFACE", "name": "Setting"},
                     {"kind": "INPUT_OBJECT", "name": "FilterProfile"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderProfile"},
                     {"kind": "INTERFACE", "name": "Profile"},
                     {"kind": "INPUT_OBJECT", "name": "FilterUser"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderUser"},
                     {"kind": "INTERFACE", "name": "User"},
                     {"kind": "OBJECT", "name": "__Schema"},
                     {"kind": "OBJECT", "name": "__Type"},
@@ -2695,8 +2737,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     {"kind": "OBJECT", "name": "PersonType"},
                     {"kind": "OBJECT", "name": "ProfileType"},
                     {"kind": "OBJECT", "name": "SettingType"},
-                    {"kind": "OBJECT", "name": "UserGroupType"}
-                    {"kind": "OBJECT", "name": "UserType"},
+                    {"kind": "OBJECT", "name": "UserGroupType"},
+                    {"kind": "OBJECT", "name": "UserType"}
                 ]
             }'
         };
@@ -2724,10 +2766,16 @@ class TestGraphQLTranslation(TranslatorTest):
                     {"kind": "SCALAR", "name": "String"},
                     {"kind": "INPUT_OBJECT", "name": "FilterID"},
                     {"kind": "SCALAR", "name": "ID"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderFoo"},
+                    {"kind": "INPUT_OBJECT", "name": "Ordering"},
+                    {"kind": "ENUM", "name": "directionEnum"},
+                    {"kind": "ENUM", "name": "nullsOrderingEnum"},
                     {"kind": "INTERFACE", "name": "Foo"},
                     {"kind": "INPUT_OBJECT", "name": "FilterNamedObject"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderNamedObject"},
                     {"kind": "INTERFACE", "name": "NamedObject"},
                     {"kind": "INPUT_OBJECT", "name": "FilterObject"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderObject"},
                     {"kind": "INTERFACE", "name": "Object"},
                     {"kind": "INPUT_OBJECT", "name": "FilterPerson"},
                     {"kind": "INPUT_OBJECT", "name": "FilterBoolean"},
@@ -2736,14 +2784,19 @@ class TestGraphQLTranslation(TranslatorTest):
                     {"kind": "SCALAR", "name": "Int"},
                     {"kind": "INPUT_OBJECT", "name": "FilterFloat"},
                     {"kind": "SCALAR", "name": "Float"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderPerson"},
                     {"kind": "INTERFACE", "name": "Person"},
                     {"kind": "INPUT_OBJECT", "name": "FilterUserGroup"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderUserGroup"},
                     {"kind": "INTERFACE", "name": "UserGroup"},
                     {"kind": "INPUT_OBJECT", "name": "FilterSetting"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderSetting"},
                     {"kind": "INTERFACE", "name": "Setting"},
                     {"kind": "INPUT_OBJECT", "name": "FilterProfile"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderProfile"},
                     {"kind": "INTERFACE", "name": "Profile"},
                     {"kind": "INPUT_OBJECT", "name": "FilterUser"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderUser"},
                     {"kind": "INTERFACE", "name": "User"},
                     {"kind": "OBJECT", "name": "__Schema"},
                     {"kind": "OBJECT", "name": "__Type"},
@@ -2757,8 +2810,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     {"kind": "OBJECT", "name": "PersonType"},
                     {"kind": "OBJECT", "name": "ProfileType"},
                     {"kind": "OBJECT", "name": "SettingType"},
-                    {"kind": "OBJECT", "name": "UserGroupType"}
-                    {"kind": "OBJECT", "name": "UserType"},
+                    {"kind": "OBJECT", "name": "UserGroupType"},
+                    {"kind": "OBJECT", "name": "UserType"}
                 ]
             }'
         };
@@ -2849,10 +2902,16 @@ class TestGraphQLTranslation(TranslatorTest):
                     {"kind": "SCALAR", "name": "String"},
                     {"kind": "INPUT_OBJECT", "name": "FilterID"},
                     {"kind": "SCALAR", "name": "ID"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderFoo"},
+                    {"kind": "INPUT_OBJECT", "name": "Ordering"},
+                    {"kind": "ENUM", "name": "directionEnum"},
+                    {"kind": "ENUM", "name": "nullsOrderingEnum"},
                     {"kind": "INTERFACE", "name": "Foo"},
                     {"kind": "INPUT_OBJECT", "name": "FilterNamedObject"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderNamedObject"},
                     {"kind": "INTERFACE", "name": "NamedObject"},
                     {"kind": "INPUT_OBJECT", "name": "FilterObject"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderObject"},
                     {"kind": "INTERFACE", "name": "Object"},
                     {"kind": "INPUT_OBJECT", "name": "FilterPerson"},
                     {"kind": "INPUT_OBJECT", "name": "FilterBoolean"},
@@ -2861,14 +2920,19 @@ class TestGraphQLTranslation(TranslatorTest):
                     {"kind": "SCALAR", "name": "Int"},
                     {"kind": "INPUT_OBJECT", "name": "FilterFloat"},
                     {"kind": "SCALAR", "name": "Float"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderPerson"},
                     {"kind": "INTERFACE", "name": "Person"},
                     {"kind": "INPUT_OBJECT", "name": "FilterUserGroup"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderUserGroup"},
                     {"kind": "INTERFACE", "name": "UserGroup"},
                     {"kind": "INPUT_OBJECT", "name": "FilterSetting"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderSetting"},
                     {"kind": "INTERFACE", "name": "Setting"},
                     {"kind": "INPUT_OBJECT", "name": "FilterProfile"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderProfile"},
                     {"kind": "INTERFACE", "name": "Profile"},
                     {"kind": "INPUT_OBJECT", "name": "FilterUser"},
+                    {"kind": "INPUT_OBJECT", "name": "OrderUser"},
                     {"kind": "INTERFACE", "name": "User"},
                     {"kind": "OBJECT", "name": "__Schema"},
                     {"kind": "OBJECT", "name": "__Type"},
@@ -4209,6 +4273,17 @@ class TestGraphQLTranslation(TranslatorTest):
                                     "ofType": null
                                 },
                                 "defaultValue": null
+                            },
+                            {
+                                "name": "order",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": "OrderSetting",
+                                    "kind": "INPUT_OBJECT",
+                                    "ofType": null
+                                },
+                                "defaultValue": null
                             }
                         ],
                         "type": {
@@ -4225,6 +4300,320 @@ class TestGraphQLTranslation(TranslatorTest):
                         "isDeprecated": false,
                         "deprecationReason": null
                     }
+                ]
+            }'
+        };
+        """
+
+    def test_graphql_translation_type_09(self):
+        r"""
+        fragment _t on __Type {
+            name
+            kind
+        }
+
+        query {
+            __type(name: "FilterUser") {
+                __typename
+                ..._t
+                inputFields {
+                    name
+                    type {
+                        ..._t
+                        ofType {
+                            ..._t
+                            ofType {
+                                ..._t
+                                ofType {
+                                    ..._t
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            __type := <json>'{
+                "__typename": "__Type",
+                "name": "FilterUser",
+                "kind": "INPUT_OBJECT",
+                "inputFields": [
+                    {
+                        "name": "and",
+                        "type": {
+                            "name": null,
+                            "kind": "LIST",
+                            "ofType": {
+                                "name": null,
+                                "kind": "NON_NULL",
+                                "ofType": {
+                                    "name": "FilterUser",
+                                    "kind": "INPUT_OBJECT",
+                                    "ofType": null
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "name": "or",
+                        "type": {
+                            "name": null,
+                            "kind": "LIST",
+                            "ofType": {
+                                "name": null,
+                                "kind": "NON_NULL",
+                                "ofType": {
+                                    "name": "FilterUser",
+                                    "kind": "INPUT_OBJECT",
+                                    "ofType": null
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "name": "not",
+                        "type": {
+                            "name": "FilterUser",
+                            "kind": "INPUT_OBJECT",
+                            "ofType": null
+                        }
+                    },
+                    {
+                        "name": "active",
+                        "type": {
+                            "name": "FilterBoolean",
+                            "kind": "INPUT_OBJECT",
+                            "ofType": null
+                        }
+                    },
+                    {
+                        "name": "age",
+                        "type": {
+                            "name": "FilterInt",
+                            "kind": "INPUT_OBJECT",
+                            "ofType": null
+                        }
+                    },
+                    {
+                        "name": "id",
+                        "type": {
+                            "name": "FilterID",
+                            "kind": "INPUT_OBJECT",
+                            "ofType": null
+                        }
+                    },
+                    {
+                        "name": "name",
+                        "type": {
+                            "name": "FilterString",
+                            "kind": "INPUT_OBJECT",
+                            "ofType": null
+                        }
+                    },
+                    {
+                        "name": "score",
+                        "type": {
+                            "name": "FilterFloat",
+                            "kind": "INPUT_OBJECT",
+                            "ofType": null
+                        }
+                    }
+                ]
+            }'
+        };
+        """
+
+    def test_graphql_translation_type_10(self):
+        r"""
+        fragment _t on __Type {
+            name
+            kind
+        }
+
+        query {
+            __type(name: "OrderUser") {
+                __typename
+                ..._t
+                inputFields {
+                    name
+                    type {
+                        ..._t
+                        ofType {
+                            ..._t
+                            ofType {
+                                ..._t
+                                ofType {
+                                    ..._t
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            __type := <json>'{
+                "__typename": "__Type",
+                "name": "OrderUser",
+                "kind": "INPUT_OBJECT",
+                "inputFields": [
+                    {
+                        "name": "active",
+                        "type": {
+                            "name": "Ordering",
+                            "kind": "INPUT_OBJECT",
+                            "ofType": null
+                        }
+                    },
+                    {
+                        "name": "age",
+                        "type": {
+                            "name": "Ordering",
+                            "kind": "INPUT_OBJECT",
+                            "ofType": null
+                        }
+                    },
+                    {
+                        "name": "id",
+                        "type": {
+                            "name": "Ordering",
+                            "kind": "INPUT_OBJECT",
+                            "ofType": null
+                        }
+                    },
+                    {
+                        "name": "name",
+                        "type": {
+                            "name": "Ordering",
+                            "kind": "INPUT_OBJECT",
+                            "ofType": null
+                        }
+                    },
+                    {
+                        "name": "score",
+                        "type": {
+                            "name": "Ordering",
+                            "kind": "INPUT_OBJECT",
+                            "ofType": null
+                        }
+                    }
+                ]
+            }'
+        };
+        """
+
+    def test_graphql_translation_type_11(self):
+        r"""
+        fragment _t on __Type {
+            name
+            kind
+        }
+
+        query {
+            __type(name: "Ordering") {
+                __typename
+                ..._t
+                inputFields {
+                    name
+                    defaultValue
+                    type {
+                        ..._t
+                        ofType {
+                            ..._t
+                            ofType {
+                                ..._t
+                                ofType {
+                                    ..._t
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            __type := <json>'{
+                "__typename": "__Type",
+                "name": "Ordering",
+                "kind": "INPUT_OBJECT",
+                "inputFields": [
+                    {
+                        "name": "dir",
+                        "defaultValue": null,
+                        "type": {
+                            "name": null,
+                            "kind": "NON_NULL",
+                            "ofType": {
+                                "name": "directionEnum",
+                                "kind": "ENUM",
+                                "ofType": null
+                            }
+                        }
+                    },
+                    {
+                        "name": "nulls",
+                        "defaultValue": "\\"SMALLEST\\"",
+                        "type": {
+                            "name": "nullsOrderingEnum",
+                            "kind": "ENUM",
+                            "ofType": null
+                        }
+                    }
+                ]
+            }'
+        };
+        """
+
+    def test_graphql_translation_type_12(self):
+        r"""
+        query {
+            directionEnum: __type(name: "directionEnum") {
+                __typename
+                name
+                kind
+                enumValues {
+                    name
+                }
+            }
+            nullsOrderingEnum: __type(name: "nullsOrderingEnum") {
+                __typename
+                name
+                kind
+                enumValues {
+                    name
+                }
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            directionEnum := <json>'{
+                "__typename": "__Type",
+                "name": "directionEnum",
+                "kind": "ENUM",
+                "enumValues": [
+                    {"name": "ASC"},
+                    {"name": "DESC"}
+                ]
+            }',
+            nullsOrderingEnum := <json>'{
+                "__typename": "__Type",
+                "name": "nullsOrderingEnum",
+                "kind": "ENUM",
+                "enumValues": [
+                    {"name": "SMALLEST"},
+                    {"name": "BIGGEST"}
                 ]
             }'
         };

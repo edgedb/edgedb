@@ -18,7 +18,7 @@
 
 
 from collections import OrderedDict
-from functools import partial, lru_cache
+from functools import partial
 from graphql import (
     GraphQLSchema,
     GraphQLObjectType,
@@ -34,7 +34,9 @@ from graphql import (
     GraphQLFloat,
     GraphQLBoolean,
     GraphQLID,
+    GraphQLEnumType,
 )
+from graphql.type import GraphQLEnumValue
 import itertools
 
 from edb.lang.common import ast
@@ -97,6 +99,7 @@ class GQLCoreSchema:
         self._gql_interfaces = {}
         self._gql_objtypes = {}
         self._gql_inobjtypes = {}
+        self._gql_ordertypes = {}
 
         self._define_types()
 
@@ -154,7 +157,12 @@ class GQLCoreSchema:
 
         return target
 
-    @lru_cache(maxsize=None)
+    def _get_args(self, typename):
+        return {
+            'filter': GraphQLArgument(self._gql_inobjtypes[typename]),
+            'order': GraphQLArgument(self._gql_ordertypes[typename]),
+        }
+
     def get_fields(self, typename):
         fields = OrderedDict()
 
@@ -165,9 +173,7 @@ class GQLCoreSchema:
                     continue
                 fields[name.split('::', 1)[1]] = GraphQLField(
                     GraphQLList(GraphQLNonNull(gqltype)),
-                    args={
-                        'filter': GraphQLArgument(self._gql_inobjtypes[name]),
-                    },
+                    args=self._get_args(name),
                 )
         else:
             edb_type = self.edb_schema.get(typename)
@@ -178,18 +184,16 @@ class GQLCoreSchema:
                 ptr = edb_type.resolve_pointer(self.edb_schema, name)
                 target = self._get_target(ptr)
                 if target:
-                    args = None
                     if isinstance(ptr.target, ObjectType):
-                        args = {
-                            'filter': GraphQLArgument(
-                                self._gql_inobjtypes[ptr.target.name]),
-                        }
+                        args = self._get_args(ptr.target.name)
+                    else:
+                        args = None
+
                     fields[name.name] = GraphQLField(target, args=args)
 
         return fields
 
-    @lru_cache(maxsize=None)
-    def get_input_fields(self, typename):
+    def get_filter_fields(self, typename):
         selftype = self._gql_inobjtypes[typename]
         fields = OrderedDict()
         fields['and'] = GraphQLInputObjectField(
@@ -220,7 +224,7 @@ class GQLCoreSchema:
 
         return fields
 
-    def define_generic_input_types(self):
+    def define_generic_filter_types(self):
         eq = ['eq', 'neq']
         comp = eq + ['gte', 'gt', 'lte', 'lt']
         string = comp + ['like', 'ilike']
@@ -238,11 +242,64 @@ class GQLCoreSchema:
             fields={op: GraphQLInputObjectField(base) for op in ops},
         )
 
+    def define_generic_order_types(self):
+        self._gql_ordertypes['directionEnum'] = GraphQLEnumType(
+            'directionEnum',
+            values=OrderedDict(
+                ASC=GraphQLEnumValue(),
+                DESC=GraphQLEnumValue()
+            )
+        )
+        self._gql_ordertypes['nullsOrderingEnum'] = GraphQLEnumType(
+            'nullsOrderingEnum',
+            values=OrderedDict(
+                SMALLEST=GraphQLEnumValue(),
+                BIGGEST=GraphQLEnumValue(),
+            )
+        )
+        self._gql_ordertypes['Ordering'] = GraphQLInputObjectType(
+            'Ordering',
+            fields=OrderedDict(
+                dir=GraphQLInputObjectField(
+                    GraphQLNonNull(self._gql_ordertypes['directionEnum']),
+                ),
+                nulls=GraphQLInputObjectField(
+                    self._gql_ordertypes['nullsOrderingEnum'],
+                    default_value='SMALLEST',
+                ),
+            )
+        )
+
+    def get_order_fields(self, typename):
+        fields = OrderedDict()
+
+        edb_type = self.edb_schema.get(typename)
+        for name in sorted(edb_type.pointers, key=lambda x: x.name):
+            if name.name == '__type__':
+                continue
+
+            ptr = edb_type.resolve_pointer(self.edb_schema, name)
+
+            if not isinstance(ptr.target, ScalarType):
+                continue
+
+            target = self._convert_edb_type(ptr.target)
+            # this makes sure that we can only order by properties
+            # that can be reflected into GraphQL
+            intype = self._gql_inobjtypes.get(f'Filter{target.name}')
+            if intype:
+                fields[name.name] = GraphQLInputObjectField(
+                    self._gql_ordertypes['Ordering']
+                )
+
+        return fields
+
     def _define_types(self):
         interface_types = []
         obj_types = []
 
-        self.define_generic_input_types()
+        self.define_generic_filter_types()
+        self.define_generic_order_types()
 
         for modname in self.modules:
             # get all descendants of this abstract type
@@ -266,11 +323,18 @@ class GQLCoreSchema:
             self._gql_interfaces[t.name] = gqltype
 
             # input object types corresponding to this interface
-            gqlintype = GraphQLInputObjectType(
+            gqlfiltertype = GraphQLInputObjectType(
                 name='Filter' + short_name,
-                fields=partial(self.get_input_fields, t.name),
+                fields=partial(self.get_filter_fields, t.name),
             )
-            self._gql_inobjtypes[t.name] = gqlintype
+            self._gql_inobjtypes[t.name] = gqlfiltertype
+
+            # ordering input type
+            gqlordertype = GraphQLInputObjectType(
+                name='Order' + short_name,
+                fields=partial(self.get_order_fields, t.name),
+            )
+            self._gql_ordertypes[t.name] = gqlordertype
 
         # object types
         for t in obj_types:
