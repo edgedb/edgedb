@@ -18,8 +18,8 @@
 
 
 CREATE FUNCTION graphql::short_name(std::str) -> std::str
-    FROM SQL $$
-        SELECT regexp_replace($1, '.+?::(.+$)', '\1');
+    FROM EdgeQL $$
+        SELECT re_replace($0, '.+?::(.+$)', '\1')
     $$;
 
 # create Query

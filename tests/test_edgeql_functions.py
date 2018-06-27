@@ -466,6 +466,32 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [True],
         ])
 
+    async def test_edgeql_functions_re_replace_01(self):
+        await self.assert_query_result(r'''
+            SELECT re_replace('Hello World', 'l', 'L');
+            SELECT re_replace('Hello World', 'l', 'L', 'g');
+            SELECT re_replace('Hello World', '[a-z]', '~', 'i');
+            SELECT re_replace('Hello World', '[a-z]', '~', 'gi');
+        ''', [
+            ['HeLlo World'],
+            ['HeLLo WorLd'],
+            ['~ello World'],
+            ['~~~~~ ~~~~~'],
+        ])
+
+    async def test_edgeql_functions_re_replace_02(self):
+        await self.assert_query_result(r'''
+            SELECT re_replace(test::User.name, '[aeiou]', '~');
+            SELECT re_replace(test::User.name, '[aeiou]', '~', 'g');
+            SELECT re_replace(test::User.name, '[aeiou]', '~', 'i');
+            SELECT re_replace(test::User.name, '[aeiou]', '~', 'gi');
+        ''', [
+            {'Elv~s', 'Y~ry'},
+            {'Elv~s', 'Y~ry'},
+            {'~lvis', 'Y~ry'},
+            {'~lv~s', 'Y~ry'},
+        ])
+
     async def test_edgeql_functions_sum_01(self):
         await self.assert_query_result(r'''
             SELECT sum({1, 2, 3, -4, 5});
