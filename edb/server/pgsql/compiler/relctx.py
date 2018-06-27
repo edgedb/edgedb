@@ -240,9 +240,14 @@ def get_path_rvar(
 def get_path_var(
         stmt: pgast.Query, path_id: irast.PathId, *,
         aspect: str, ctx: context.CompilerContextLevel) -> pgast.OutputVar:
-    rvar, path_id = _get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
-    return pathctx.get_rvar_path_var(
-        rvar, path_id, aspect=aspect, env=ctx.env)
+    var = pathctx.maybe_get_path_var(
+        stmt, path_id=path_id, aspect=aspect, env=ctx.env)
+    if var is not None:
+        return var
+    else:
+        rvar, path_id = _get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
+        return pathctx.get_rvar_path_var(
+            rvar, path_id, aspect=aspect, env=ctx.env)
 
 
 def maybe_get_path_rvar(
