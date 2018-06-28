@@ -31,6 +31,7 @@ RUNTIME_DEPS = [
     'prompt_toolkit>=1.0.15,<2.0.0',
     'pygments',
     'setproctitle',
+    'typing_inspect~=0.3.1',
 ]
 
 

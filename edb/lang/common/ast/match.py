@@ -19,7 +19,7 @@
 
 """Generic AST tree pattern matching."""
 
-import collections
+import collections.abc
 import types
 
 from edb.lang.common import adapter, ast
@@ -142,7 +142,7 @@ def _match_node(pattern, node, context):
 
         else:
             if (
-                    isinstance(field_value, collections.Container) and
+                    isinstance(field_value, collections.abc.Container) and
                     not isinstance(field_value, str)):
                 if len(field_value) != len(node_value):
                     return None

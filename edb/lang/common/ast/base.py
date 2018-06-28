@@ -22,6 +22,8 @@ import collections.abc
 import functools
 import typing
 
+import typing_inspect
+
 from edb.lang.common import markup
 
 
@@ -45,15 +47,30 @@ class Field:
 
 class MetaAST(type):
     def __new__(mcls, name, bases, dct):
-        if '__annotations__' in dct:
-            module_name = dct['__module__']
+        cls = super().__new__(mcls, name, bases, dct)
+
+        if '__annotations__' not in dct:
+            return cls
+
+        try:
+            annos = typing.get_type_hints(cls)
+        except Exception:
+            raise RuntimeError(
+                f'unable to resolve type annotations for '
+                f'{cls.__module__}.{cls.__qualname__}')
+
+        if annos:
+            annos = {k: v for k, v in annos.items()
+                     if k in dct['__annotations__']}
+
+            module_name = cls.__module__
             fields_attrname = f'_{name}__fields'
 
             if fields_attrname in dct:
                 raise RuntimeError(
                     'cannot combine class annotations and '
                     'legacy __fields attribute in '
-                    f'{dct["__module__"]}.{dct["__qualname__"]}')
+                    f'{cls.__module__}.{cls.__qualname__}')
 
             hidden = ()
             if '__ast_hidden__' in dct:
@@ -64,14 +81,15 @@ class MetaAST(type):
                 meta = set(dct['__ast_meta__'])
 
             fields = []
-            for f_name, f_type in dct['__annotations__'].items():
-                f_fullname = f'{module_name}.{dct["__qualname__"]}.{f_name}'
+            for f_name, f_type in annos.items():
+                f_fullname = f'{module_name}.{cls.__qualname__}.{f_name}'
 
                 if f_type is object:
                     f_type = None
 
                 if f_name in dct:
-                    f_default = dct.pop(f_name)
+                    f_default = dct[f_name]
+                    delattr(cls, f_name)
                 else:
                     f_default = None
 
@@ -83,9 +101,9 @@ class MetaAST(type):
                 fields.append((f_name, f_type, f_default,
                                True, None, f_hidden, f_meta))
 
-            dct[fields_attrname] = fields
+            setattr(cls, fields_attrname, fields)
 
-        return super().__new__(mcls, name, bases, dct)
+        return cls
 
     def __init__(cls, name, bases, dct):
         super().__init__(name, bases, dct)
@@ -322,46 +340,47 @@ def iter_fields(node, *, include_meta=True, exclude_unset=False):
         yield field_name, field_val
 
 
-def _is_union(type_):
-    return type_.__class__ is typing.Union.__class__
-
-
-def _is_typing(type_):
-    return _is_union(type_) or isinstance(type_, typing.TypingMeta)
-
-
 def _is_optional(type_):
-    return _is_union(type_) and type(None) in type_.__args__
+    return typing_inspect.is_union_type(type_) and type(None) in type_.__args__
 
 
 def _check_annotation(f_type, f_fullname, f_default):
-    if _is_typing(f_type):
-        if _is_union(f_type):
-            for t in f_type.__args__:
-                _check_annotation(t, f_fullname, f_default)
+    if typing_inspect.is_tuple_type(f_type):
+        if f_default is not None:
+            raise RuntimeError(
+                f'invalid type annotation on {f_fullname}: '
+                f'default is defined for tuple type')
 
+        f_default = tuple
+
+    elif typing_inspect.is_union_type(f_type):
+        for t in f_type.__args__:
+            _check_annotation(t, f_fullname, f_default)
+
+    elif typing_inspect.is_generic_type(f_type):
+        if f_default is not None:
+            raise RuntimeError(
+                f'invalid type annotation on {f_fullname}: '
+                f'default is defined for container type '
+                f'{f_type!r}')
+
+        ot = typing_inspect.get_origin(f_type)
+        if ot is None:
+            raise RuntimeError(
+                f'cannot find origin of a generic type {f_type}')
+
+        if ot in (list, typing.List):
+            f_default = list
+        elif ot in (set, typing.Set):
+            f_default = set
+        elif ot in (frozenset, typing.FrozenSet):
+            f_default = frozenset
+        elif ot in (dict, typing.Dict):
+            f_default = dict
         else:
-            if (issubclass(f_type, typing.Container) and
-                    f_default is not None):
-                raise RuntimeError(
-                    f'invalid type annotation on {f_fullname}: '
-                    f'default is defined for container type '
-                    f'{f_type!r}')
-
-            if issubclass(f_type, typing.List):
-                f_default = list
-            elif issubclass(f_type, typing.Tuple):
-                f_default = tuple
-            elif issubclass(f_type, typing.Set):
-                f_default = set
-            elif issubclass(f_type, typing.FrozenSet):
-                f_default = frozenset
-            elif issubclass(f_type, typing.Dict):
-                f_default = dict
-            else:
-                raise RuntimeError(
-                    f'invalid type annotation on {f_fullname}: '
-                    f'{f_type!r} is not supported')
+            raise RuntimeError(
+                f'invalid type annotation on {f_fullname}: '
+                f'{f_type!r} is not supported')
 
     elif f_type is not None:
         if not isinstance(f_type, type):
@@ -394,9 +413,10 @@ def _check_tuple_type(type_, value, raise_error, instance_type):
         raise_error(str(type_), value)
 
     eltype = None
+    type_args = type_.__args__
 
     for i, el in enumerate(value):
-        new_eltype = type_.__args__[i]
+        new_eltype = type_args[i]
         if new_eltype is not Ellipsis:
             eltype = new_eltype
         if eltype is not None:
@@ -407,8 +427,9 @@ def _check_mapping_type(type_, value, raise_error, instance_type):
     if not isinstance(value, instance_type):
         raise_error(str(type_), value)
 
-    ktype = type_.__args__[0]
-    vtype = type_.__args__[1]
+    type_args = type_.__args__
+    ktype = type_args[0]
+    vtype = type_args[1]
     for k, v in value.items():
         _check_type(ktype, k, raise_error)
         if not k and not _is_optional(ktype):
@@ -420,36 +441,38 @@ def _check_type(type_, value, raise_error):
     if type_ is None:
         return
 
-    if not _is_typing(type_):
-        if value is not None and not isinstance(value, type_):
-            raise_error(type_.__name__, value)
-
-    else:
-        if _is_union(type_):
-            for t in type_.__args__:
-                try:
-                    _check_type(t, value, raise_error)
-                except TypeError as e:
-                    pass
-                else:
-                    break
+    if typing_inspect.is_union_type(type_):
+        for t in type_.__args__:
+            try:
+                _check_type(t, value, raise_error)
+            except TypeError as e:
+                pass
             else:
-                raise_error(str(type_), value)
+                break
+        else:
+            raise_error(str(type_), value)
 
-        elif issubclass(type_, typing.List):
+    elif typing_inspect.is_tuple_type(type_):
+        _check_tuple_type(type_, value, raise_error, tuple)
+
+    elif typing_inspect.is_generic_type(type_):
+        ot = typing_inspect.get_origin(type_)
+
+        if ot in (list, typing.List):
             _check_container_type(type_, value, raise_error, list)
 
-        elif issubclass(type_, typing.Tuple):
-            _check_tuple_type(type_, value, raise_error, tuple)
-
-        elif issubclass(type_, typing.Set):
+        elif ot in (set, typing.Set):
             _check_container_type(type_, value, raise_error, set)
 
-        elif issubclass(type_, typing.FrozenSet):
+        elif ot in (frozenset, typing.FrozenSet):
             _check_container_type(type_, value, raise_error, frozenset)
 
-        elif issubclass(type_, typing.Dict):
+        elif ot in (dict, typing.Dict):
             _check_mapping_type(type_, value, raise_error, dict)
 
-        elif issubclass(type_, typing.Meta):
+        elif ot is not None:
             raise TypeError(f'unsupported typing type: {type_!r}')
+
+    else:
+        if value is not None and not isinstance(value, type_):
+            raise_error(type_.__name__, value)

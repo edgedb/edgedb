@@ -93,6 +93,11 @@ class ASTBaseTests(unittest.TestCase):
             field_typing_tuple: typing.Tuple[Base, ...]
             field_typing_union: typing.Union[str, bytes]
             field_typing_union_list: typing.List[typing.Union[str, bytes]]
+            field_typing_str: str
+            field_typing_optional_str: typing.Optional[str]
+            field_typing_mapping: typing.Dict[int, str]
+            field_typing_mapping_opt_key: \
+                typing.Dict[typing.Optional[int], str]
 
         self.assertEqual(Node().field_list, [])
         self.assertEqual(Node().field_typing_list, [])
@@ -130,6 +135,22 @@ class ASTBaseTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             Node().field_typing_union_list = 'abc'
 
+        Node().field_typing_str = 'aaa'
+        # All fields in AST are optional
+        Node().field_typing_str = None
+
+        Node().field_typing_optional_str = None
+        Node().field_typing_optional_str = 'aaa'
+
+        Node().field_typing_mapping = {1: 'a'}
+        with self.assertRaises(TypeError):
+            Node().field_typing_mapping = {'a': 1}
+        with self.assertRaisesRegex(RuntimeError, 'empty key'):
+            Node().field_typing_mapping = {None: 1}
+        with self.assertRaisesRegex(TypeError, 'expected str but got int'):
+            Node().field_typing_mapping_opt_key = {None: 1}
+        Node().field_typing_mapping_opt_key = {None: '1'}
+
         class Node(ast.AST):
             field1: str
             field2: object
@@ -146,8 +167,8 @@ class ASTBaseTests(unittest.TestCase):
             class Node1(ast.AST):
                 field: typing.Any  # We don't want to use/support it.
 
-        with self.assertRaisesRegex(RuntimeError,
-                                    r"'abc' is not a type"):
+        with self.assertRaisesRegex(
+                RuntimeError, r'unable to resolve type annotations'):
             class Node2(ast.AST):
                 field: 'abc'
 
