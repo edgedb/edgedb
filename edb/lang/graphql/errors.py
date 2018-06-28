@@ -42,3 +42,7 @@ class GraphQLCoreError(GraphQLError):
 
         self.line = line
         self.col = col
+
+
+class GraphQLTranslationError(GraphQLError):
+    pass

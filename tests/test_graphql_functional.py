@@ -18,6 +18,7 @@
 
 
 import os
+import unittest  # NOQA
 import uuid
 
 from edb.server import _testbase as tb
@@ -412,6 +413,151 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 {'after': None, 'select': 'a'},
                 {'after': 'q', 'select': None},
             ],
+        }]])
+
+    async def test_graphql_functional_arguments_14(self):
+        result = await self.con.execute(r"""
+            query {
+                User(
+                    order: {name: {dir: ASC}},
+                    first: 2
+                ) {
+                    name
+                    age
+                }
+            }
+        """, graphql=True)
+
+        self.assert_data_shape(result, [[{
+            'User': [
+                {'age': 27, 'name': 'Alice'},
+                {'age': 21, 'name': 'Bob'},
+            ],
+        }]])
+
+    async def test_graphql_functional_arguments_15(self):
+        result = await self.con.execute(r"""
+            query {
+                u0: User(
+                    order: {name: {dir: ASC}},
+                    after: "0",
+                    first: 2
+                ) {
+                    name
+                }
+                u1: User(
+                    order: {name: {dir: ASC}},
+                    first: 2
+                ) {
+                    name
+                }
+                u2: User(
+                    order: {name: {dir: ASC}},
+                    after: "0",
+                    before: "2"
+                ) {
+                    name
+                }
+                u3: User(
+                    order: {name: {dir: ASC}},
+                    before: "2",
+                    last: 1
+                ) {
+                    name
+                }
+            }
+        """, graphql=True)
+
+        self.assert_data_shape(result, [[{
+            'u0': [
+                {'name': 'Bob'},
+                {'name': 'Jane'},
+            ],
+            'u1': [
+                {'name': 'Alice'},
+                {'name': 'Bob'},
+            ],
+            'u2': [
+                {'name': 'Bob'},
+            ],
+            'u3': [
+                {'name': 'Bob'},
+            ],
+        }]])
+
+    # FIXME: 'last' is not fully implemented in all cases and ideally
+    # requires negative OFFSET to be implemented
+    @unittest.expectedFailure
+    async def test_graphql_functional_arguments_16(self):
+        result = await self.con.execute(r"""
+            query {
+                u4: User(
+                    order: {name: {dir: ASC}},
+                    after: "2",
+                    last: 2
+                ) {
+                    name
+                }
+                u5: User(
+                    order: {name: {dir: ASC}},
+                    after: "0",
+                    last: 2
+                ) {
+                    name
+                }
+                u6: User(
+                    order: {name: {dir: ASC}},
+                    after: "0",
+                    before: "3",
+                    first: 2,
+                    last: 1
+                ) {
+                    name
+                }
+            }
+        """, graphql=True)
+
+        self.assert_data_shape(result, [[{
+            'u4': [
+                {'name': 'John'},
+            ],
+            'u5': [
+                {'name': 'Jane'},
+                {'name': 'John'},
+            ],
+            'u6': [
+                {'name': 'Jane'},
+            ],
+        }]])
+
+    async def test_graphql_functional_arguments_17(self):
+        result = await self.con.execute(r"""
+            query {
+                User(filter: {name: {eq: "Jane"}}) {
+                    name
+                    groups {
+                        name
+                        settings(
+                            order: {name: {dir: ASC}},
+                            first: 1
+                        ) {
+                            name
+                        }
+                    }
+                }
+            }
+        """, graphql=True)
+
+        self.assert_data_shape(result, [[{
+            'User': [{
+                'name': 'Jane',
+                'groups': [{
+                    'name': 'upgraded',
+                    'settings': [{
+                        'name': 'perks'
+                    }]
+                }]
+            }]
         }]])
 
     async def test_graphql_functional_fragment_02(self):

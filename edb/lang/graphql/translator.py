@@ -406,6 +406,11 @@ class GraphQLTranslator(ast.NodeVisitor):
                     filterable.orderby = orderby
                     filterable.offset = offset
                     filterable.limit = limit
+                    # just to make sure that limit doesn't change the
+                    # serialization from list to a single object, we
+                    # need to force CARDINALITY '*'
+                    if limit is not None:
+                        filterable.cardinality = qlast.Cardinality.MANY
 
         path.pop()
         return spec
@@ -459,12 +464,68 @@ class GraphQLTranslator(ast.NodeVisitor):
     def _visit_arguments(self, arguments):
         where = offset = limit = None
         orderby = []
+        first = last = before = after = None
 
         for arg in arguments:
-            if arg.name == 'filter':
-                where = self.visit(arg.value)
-            elif arg.name == 'order':
-                orderby = self.visit_order(arg.value)
+            try:
+                if arg.name == 'filter':
+                    where = self.visit(arg.value)
+                elif arg.name == 'order':
+                    orderby = self.visit_order(arg.value)
+                elif arg.name == 'first':
+                    first = arg.value.value
+                    if first < 0:
+                        raise ValueError(f"{arg.name!r} cannot be negative")
+                elif arg.name == 'last':
+                    last = arg.value.value
+                    if last < 0:
+                        raise ValueError(f"{arg.name!r} cannot be negative")
+                elif arg.name == 'before':
+                    before = int(arg.value.value)
+                    if before < 0:
+                        raise ValueError(f"{arg.name!r} cannot be negative")
+                elif arg.name == 'after':
+                    after = int(arg.value.value)
+                    if after < 0:
+                        raise ValueError(f"{arg.name!r} cannot be negative")
+                    # The +1 is to make 'after' into an appropriate index.
+                    #
+                    # 0--a--1--b--2--c--3-- ... we call element at
+                    # index 0 (or "element 0" for short), the element
+                    # immediately after the mark 0. So after "element
+                    # 0" really means after "index 1".
+                    after += 1
+            except Exception:
+                raise GraphQLValidationError(
+                    f"invalid value for {arg.name!r}: {arg.value.value!r}",
+                    context=arg.context)
+
+        # convert before, after, first and last into offset and limit
+        if after is not None:
+            offset = after
+        if before is not None:
+            limit = before - (after or 0)
+        if first is not None:
+            if limit is None:
+                limit = first
+            else:
+                limit = min(first, limit)
+        if last is not None:
+            if limit is not None:
+                if last < limit:
+                    offset = (offset or 0) + limit - last
+                    limit = last
+            else:
+                # FIXME: there wasn't any limit, so we can define last
+                # in terms of offset alone without negative OFFSET
+                # implementation
+                raise NotImplementedError
+
+        # convert integers into qlast literals
+        if offset is not None and not isinstance(offset, qlast.Base):
+            offset = qlast.Constant(value=max(0, offset))
+        if limit is not None:
+            limit = qlast.Constant(value=max(0, limit))
 
         return where, orderby, offset, limit
 

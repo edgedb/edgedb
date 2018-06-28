@@ -1234,6 +1234,94 @@ class TestGraphQLTranslation(TranslatorTest):
         };
         """
 
+    def test_graphql_translation_arguments_14(self):
+        r"""
+        query {
+            User(
+                order: {name: {dir: ASC}},
+                first: 2
+            ) {
+                name
+                age
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            User := (
+                WITH CARDINALITY '*'
+                SELECT
+                    test::User {
+                        name,
+                        age
+                    }
+                ORDER BY .name ASC EMPTY FIRST
+                LIMIT 2
+            )
+        };
+        """
+
+    def test_graphql_translation_arguments_15(self):
+        r"""
+        query {
+            User(
+                order: {name: {dir: ASC}},
+                after: "1",
+                first: 2
+            ) {
+                name
+                age
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            User := (
+                WITH CARDINALITY '*'
+                SELECT
+                    test::User {
+                        name,
+                        age
+                    }
+                ORDER BY .name ASC EMPTY FIRST
+                OFFSET 2 LIMIT 2
+            )
+        };
+        """
+
+    # FIXME: 'last' is not fully implemented in all cases and ideally
+    # requires negative OFFSET to be implemented
+    @unittest.expectedFailure
+    def test_graphql_translation_arguments_16(self):
+        r"""
+        query {
+            User(
+                order: {name: {dir: ASC}},
+                last: 2
+            ) {
+                name
+                age
+            }
+        }
+
+% OK %
+
+        SELECT graphql::Query {
+            User := (
+                WITH CARDINALITY '*'
+                SELECT
+                    test::User {
+                        name,
+                        age
+                    }
+                ORDER BY .name ASC EMPTY FIRST
+                OFFSET -2
+            )
+        };
+        """
+
     def test_graphql_translation_variables_01(self):
         r"""
         query($name: String) {
@@ -2697,6 +2785,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     {"kind": "INPUT_OBJECT", "name": "Ordering"},
                     {"kind": "ENUM", "name": "directionEnum"},
                     {"kind": "ENUM", "name": "nullsOrderingEnum"},
+                    {"kind": "SCALAR", "name": "Int"},
                     {"kind": "INTERFACE", "name": "Foo"},
                     {"kind": "INPUT_OBJECT", "name": "FilterNamedObject"},
                     {"kind": "INPUT_OBJECT", "name": "OrderNamedObject"},
@@ -2708,7 +2797,6 @@ class TestGraphQLTranslation(TranslatorTest):
                     {"kind": "INPUT_OBJECT", "name": "FilterBoolean"},
                     {"kind": "SCALAR", "name": "Boolean"},
                     {"kind": "INPUT_OBJECT", "name": "FilterInt"},
-                    {"kind": "SCALAR", "name": "Int"},
                     {"kind": "INPUT_OBJECT", "name": "FilterFloat"},
                     {"kind": "SCALAR", "name": "Float"},
                     {"kind": "INPUT_OBJECT", "name": "OrderPerson"},
@@ -2770,6 +2858,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     {"kind": "INPUT_OBJECT", "name": "Ordering"},
                     {"kind": "ENUM", "name": "directionEnum"},
                     {"kind": "ENUM", "name": "nullsOrderingEnum"},
+                    {"kind": "SCALAR", "name": "Int"},
                     {"kind": "INTERFACE", "name": "Foo"},
                     {"kind": "INPUT_OBJECT", "name": "FilterNamedObject"},
                     {"kind": "INPUT_OBJECT", "name": "OrderNamedObject"},
@@ -2781,7 +2870,6 @@ class TestGraphQLTranslation(TranslatorTest):
                     {"kind": "INPUT_OBJECT", "name": "FilterBoolean"},
                     {"kind": "SCALAR", "name": "Boolean"},
                     {"kind": "INPUT_OBJECT", "name": "FilterInt"},
-                    {"kind": "SCALAR", "name": "Int"},
                     {"kind": "INPUT_OBJECT", "name": "FilterFloat"},
                     {"kind": "SCALAR", "name": "Float"},
                     {"kind": "INPUT_OBJECT", "name": "OrderPerson"},
@@ -2906,6 +2994,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     {"kind": "INPUT_OBJECT", "name": "Ordering"},
                     {"kind": "ENUM", "name": "directionEnum"},
                     {"kind": "ENUM", "name": "nullsOrderingEnum"},
+                    {"kind": "SCALAR", "name": "Int"},
                     {"kind": "INTERFACE", "name": "Foo"},
                     {"kind": "INPUT_OBJECT", "name": "FilterNamedObject"},
                     {"kind": "INPUT_OBJECT", "name": "OrderNamedObject"},
@@ -2917,7 +3006,6 @@ class TestGraphQLTranslation(TranslatorTest):
                     {"kind": "INPUT_OBJECT", "name": "FilterBoolean"},
                     {"kind": "SCALAR", "name": "Boolean"},
                     {"kind": "INPUT_OBJECT", "name": "FilterInt"},
-                    {"kind": "SCALAR", "name": "Int"},
                     {"kind": "INPUT_OBJECT", "name": "FilterFloat"},
                     {"kind": "SCALAR", "name": "Float"},
                     {"kind": "INPUT_OBJECT", "name": "OrderPerson"},
@@ -4281,6 +4369,50 @@ class TestGraphQLTranslation(TranslatorTest):
                                     "__typename": "__Type",
                                     "name": "OrderSetting",
                                     "kind": "INPUT_OBJECT",
+                                    "ofType": null
+                                },
+                                "defaultValue": null
+                            },
+                            {
+                                "name": "first",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": "Int",
+                                    "kind": "SCALAR",
+                                    "ofType": null
+                                },
+                                "defaultValue": null
+                            },
+                            {
+                                "name": "last",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": "Int",
+                                    "kind": "SCALAR",
+                                    "ofType": null
+                                },
+                                "defaultValue": null
+                            },
+                            {
+                                "name": "before",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": "String",
+                                    "kind": "SCALAR",
+                                    "ofType": null
+                                },
+                                "defaultValue": null
+                            },
+                            {
+                                "name": "after",
+                                "description": null,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": "String",
+                                    "kind": "SCALAR",
                                     "ofType": null
                                 },
                                 "defaultValue": null

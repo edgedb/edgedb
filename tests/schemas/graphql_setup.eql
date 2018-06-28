@@ -36,7 +36,8 @@ INSERT UserGroup {
 
 WITH MODULE test
 INSERT UserGroup {
-    name := 'upgraded'
+    name := 'upgraded',
+    settings := (SELECT Setting)
 };
 
 WITH MODULE test

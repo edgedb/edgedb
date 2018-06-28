@@ -49,7 +49,7 @@ from edb.lang.schema import types as s_types
 from edb.lang.schema.objtypes import ObjectType
 from edb.lang.schema.scalars import ScalarType
 
-from .errors import GraphQLCoreError
+from .errors import GraphQLCoreError, GraphQLTranslationError
 
 
 EDB_TO_GQL_SCALARS_MAP = {
@@ -161,6 +161,12 @@ class GQLCoreSchema:
         return {
             'filter': GraphQLArgument(self._gql_inobjtypes[typename]),
             'order': GraphQLArgument(self._gql_ordertypes[typename]),
+            'first': GraphQLArgument(GraphQLInt),
+            'last': GraphQLArgument(GraphQLInt),
+            # before and after are supposed to be opaque values
+            # serialized to string
+            'before': GraphQLArgument(GraphQLString),
+            'after': GraphQLArgument(GraphQLString),
         }
 
     def get_fields(self, typename):
@@ -468,8 +474,11 @@ class GQLBaseType(metaclass=GQLTypeMeta):
         if edb_base is None and self.edb_type:
             edb_base = schema.edb_schema.get(self.edb_type)
 
-        assert edb_base is not None
-        assert schema is not None
+        if edb_base is None:
+            raise GraphQLTranslationError(
+                "cannot determine the EdgeDB base type")
+        if schema is None:
+            raise GraphQLTranslationError("schema is missing")
 
         # __typename
         if name is None:
@@ -656,7 +665,9 @@ class GQLQuery(GQLBaseType):
         fkey = get_fkey(name, argsmap)
         target = None
 
-        assert isinstance(name, str)
+        if not isinstance(name, str):
+            raise GraphQLTranslationError(
+                f"field name must be a str, got {type(name).__name__}")
 
         if name == '__type':
             if fkey in self._fields:
