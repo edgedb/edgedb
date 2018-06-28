@@ -26,6 +26,7 @@ import typing
 from edb.lang.common import ast
 
 from edb.lang.ir import ast as irast
+from edb.lang.ir import inference as irinference
 from edb.lang.ir import utils as irutils
 
 from edb.lang.schema import scalars as s_scalars
@@ -951,8 +952,10 @@ def process_set_as_coalesce(
 
     with ctx.new() as newctx:
         newctx.expr_exposed = False
+        rcard = irinference.infer_cardinality(
+            expr.right, scope_tree=ctx.scope_tree, schema=newctx.env.schema)
 
-        if expr.rcardinality == irast.Cardinality.ONE:
+        if rcard == irast.Cardinality.ONE:
             # Singleton RHS, simply use scalar COALESCE.
             dispatch.visit(expr.left, ctx=newctx)
             dispatch.visit(expr.right, ctx=newctx)

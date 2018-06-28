@@ -88,8 +88,6 @@ def _process_view(
 
     for shape_el in elements:
         with ctx.newscope(fenced=True) as scopectx:
-            scopectx.singletons = ctx.singletons.copy()
-            scopectx.singletons.add(path_id)
             pointers.append(_normalize_view_ptr_expr(
                 shape_el, view_scls, path_id=path_id,
                 is_insert=is_insert, is_update=is_update,

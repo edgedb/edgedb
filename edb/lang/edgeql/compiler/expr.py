@@ -26,7 +26,6 @@ from edb.lang.common import ast
 from edb.lang.common import parsing
 
 from edb.lang.ir import ast as irast
-from edb.lang.ir import inference as irinference
 from edb.lang.ir import utils as irutils
 
 from edb.lang.schema import basetypes as s_basetypes
@@ -282,10 +281,6 @@ def compile_Coalesce(
     with ctx.new() as newctx:
         larg = setgen.ensure_set(
             dispatch.compile(expr.args[0], ctx=newctx), ctx=newctx)
-        lcard = irinference.infer_cardinality(
-            larg, singletons=newctx.singletons,
-            schema=newctx.schema
-        )
 
         pathctx.register_set_in_scope(larg, ctx=ctx)
         pathctx.mark_path_as_optional(larg.path_id, ctx=ctx)
@@ -295,20 +290,9 @@ def compile_Coalesce(
                 with nestedscopectx.newscope(fenced=True) as fencectx:
                     rarg = setgen.scoped_set(
                         dispatch.compile(rarg_ql, ctx=fencectx), ctx=fencectx)
-                    rcard = irinference.infer_cardinality(
-                        rarg, singletons=fencectx.singletons,
-                        schema=fencectx.schema
-                    )
 
-                coalesce = irast.Coalesce(
-                    left=larg, lcardinality=lcard,
-                    right=rarg, rcardinality=rcard
-                )
+                coalesce = irast.Coalesce(left=larg, right=rarg)
                 larg = setgen.generated_set(coalesce, ctx=nestedscopectx)
-                lcard = irinference.infer_cardinality(
-                    larg, singletons=nestedscopectx.singletons,
-                    schema=nestedscopectx.schema
-                )
 
     return larg
 

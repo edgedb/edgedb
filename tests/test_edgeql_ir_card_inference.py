@@ -38,11 +38,19 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
         ir = compiler.compile_to_ir(source, self.schema)
 
         cardinality = irinference.infer_cardinality(
-            ir, set(), self.schema)
+            ir, scope_tree=ir.scope_tree, schema=self.schema)
         expected_cardinality = irast.Cardinality(
             textwrap.dedent(expected).strip(' \n'))
         self.assertEqual(cardinality, expected_cardinality,
                          'unexpected cardinality:\n' + source)
+
+    def test_edgeql_ir_card_inference_00(self):
+        """
+        WITH MODULE test
+        SELECT Card
+% OK %
+        *
+        """
 
     def test_edgeql_ir_card_inference_01(self):
         """
@@ -106,4 +114,12 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
         SELECT Card LIMIT 1
 % OK %
         1
+        """
+
+    def test_edgeql_ir_card_inference_09(self):
+        """
+        WITH MODULE test
+        SELECT Card FILTER Card.<deck[IS User].name = 'Bob'
+% OK %
+        *
         """

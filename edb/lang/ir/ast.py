@@ -217,9 +217,7 @@ class IfElseExpr(Expr):
 
 class Coalesce(Base):
     left: Set
-    lcardinality: Cardinality = Cardinality.DEFAULT
     right: Set
-    rcardinality: Cardinality = Cardinality.DEFAULT
 
 
 class SortExpr(Base):

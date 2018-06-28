@@ -291,12 +291,10 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                         )
                     )
 
-                    singletons = {
-                        irast.PathId(source)
-                    }
-
+                    scope_tree = irast.new_scope_tree()
+                    scope_tree.attach_path(irast.PathId(source))
                     cardinality = ir_inference.infer_cardinality(
-                        ir, singletons, schema)
+                        ir, scope_tree.attach_fence(), schema)
 
                     if cardinality == qlast.Cardinality.ONE:
                         link_card = pointers.PointerCardinality.ManyToOne

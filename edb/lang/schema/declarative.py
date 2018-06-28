@@ -31,8 +31,9 @@ from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import codegen as edgeql_codegen
 from edb.lang.edgeql import codegen as qlcodegen
 
-from edb.lang.ir import utils as ir_utils
+from edb.lang.ir import ast as ir_ast
 from edb.lang.ir import inference as ir_inference
+from edb.lang.ir import utils as ir_utils
 
 from . import ast as s_ast
 from . import parser as s_parser
@@ -803,12 +804,15 @@ class DeclarationLoader:
                     'computable links must not define explicit cardinality',
                     context=expr.context)
 
-            singletons = set()
+            scope_tree_root = ir_ast.new_scope_tree()
             if self_set is not None:
-                singletons.add(self_set.path_id)
+                scope_tree_root.attach_path(self_set.path_id)
+                scope_tree = scope_tree_root.attach_fence()
+            else:
+                scope_tree = scope_tree_root
 
             cardinality = \
-                ir_inference.infer_cardinality(ir, singletons, self._schema)
+                ir_inference.infer_cardinality(ir, scope_tree, self._schema)
 
             if cardinality == qlast.Cardinality.MANY:
                 ptr.cardinality = s_pointers.PointerCardinality.ManyToMany

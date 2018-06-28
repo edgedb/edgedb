@@ -92,13 +92,7 @@ def set_path_alias(
 
 def infer_cardinality(
         expr: irast.Base, *, ctx: context.ContextLevel) -> irast.Cardinality:
-    scope_fence = ctx.path_scope.parent_fence
-    if scope_fence is not None:
-        singletons = scope_fence.get_all_visible()
-    else:
-        singletons = set()
-
-    return irinference.infer_cardinality(expr, singletons, ctx.schema)
+    return irinference.infer_cardinality(expr, ctx.path_scope, ctx.schema)
 
 
 def enforce_singleton(expr: irast.Base, *, ctx: context.ContextLevel) -> None:
