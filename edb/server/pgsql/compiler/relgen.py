@@ -138,11 +138,16 @@ def get_set_rvar(
         # about it later.
         subctx.pending_query = stmt
 
+        is_empty_set = isinstance(ir_set, irast.EmptySet)
+
         is_optional = (
             subctx.scope_tree.is_optional(path_id) or
             path_id in subctx.force_optional
         )
-        if is_optional:
+
+        optional_wrapping = is_optional and not is_empty_set
+
+        if optional_wrapping:
             stmt, optrel = prepare_optional_rel(
                 ir_set=ir_set, stmt=stmt, ctx=subctx)
             subctx.pending_query = subctx.rel = stmt
@@ -155,9 +160,12 @@ def get_set_rvar(
 
         rvars = _get_set_rvar(ir_set, ctx=subctx)
 
-        if is_optional:
+        if optional_wrapping:
             rvars = finalize_optional_rel(ir_set, optrel=optrel,
                                           rvars=rvars, ctx=subctx)
+        elif not is_optional and is_empty_set:
+            null_query = rvars.main.rvar.query
+            null_query.where_clause = pgast.Constant(val=False)
 
         for set_rvar in rvars.new:
             # overwrite_path_rvar is needed because we want
@@ -484,7 +492,8 @@ def finalize_optional_rel(
         relctx.include_rvar(stmt, wrapper_rvar, ir_set.path_id, ctx=subctx)
 
         stmt.where_clause = astutils.extend_binop(
-            stmt.where_clause, dbobj.get_column(wrapper_rvar, optrel.marker))
+            stmt.where_clause,
+            dbobj.get_column(wrapper_rvar, optrel.marker, nullable=False))
 
         stmt.nullable = True
 
@@ -594,7 +603,7 @@ def process_set_as_path(
 
     if ir_set.path_id.is_type_indirection_path():
         get_set_rvar(ir_source, ctx=ctx)
-        poly_rvar = relctx.new_poly_rvar(ir_set, nullable=True, ctx=ctx)
+        poly_rvar = relctx.new_poly_rvar(ir_set, ctx=ctx)
         relctx.include_rvar(stmt, poly_rvar, ir_set.path_id, ctx=ctx)
 
         sub_rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
@@ -828,14 +837,14 @@ def process_set_as_membership_expr(
             pathctx.get_path_value_output(
                 wrapper, ir_set.path_id, env=ctx.env)
 
-            if expr.op == ast.ops.NOT_IN:
-                with subctx.subrel() as subsubctx:
-                    coalesce = pgast.CoalesceExpr(
-                        args=[wrapper, pgast.Constant(val=True)])
+            coalesce_val = expr.op == ast.ops.NOT_IN
+            with subctx.subrel() as subsubctx:
+                coalesce = pgast.CoalesceExpr(
+                    args=[wrapper, pgast.Constant(val=coalesce_val)])
 
-                    wrapper = subsubctx.rel
-                    pathctx.put_path_value_var(
-                        wrapper, ir_set.path_id, coalesce, env=subsubctx.env)
+                wrapper = subsubctx.rel
+                pathctx.put_path_value_var(
+                    wrapper, ir_set.path_id, coalesce, env=subsubctx.env)
 
             sub_rvar = relctx.new_rel_rvar(ir_set, wrapper, ctx=subctx)
 
@@ -1070,7 +1079,8 @@ def process_set_as_coalesce(
                 stmt, subrvar, path_id=ir_set.path_id, ctx=newctx)
 
             stmt.where_clause = astutils.extend_binop(
-                stmt.where_clause, dbobj.get_column(subrvar, marker))
+                stmt.where_clause,
+                dbobj.get_column(subrvar, marker, nullable=False))
 
     rvar = dbobj.rvar_for_rel(stmt, lateral=True, env=ctx.env)
     return new_simple_set_rvar(ir_set, rvar)
@@ -1223,7 +1233,8 @@ def process_set_as_func_expr(
         stmt.from_clause.append(func_rvar)
 
         if len(colnames) == 1:
-            set_expr = dbobj.get_column(func_rvar, colnames[0])
+            set_expr = dbobj.get_column(
+                func_rvar, colnames[0], nullable=set_expr.nullable)
         else:
             set_expr = pgast.TupleVar(
                 elements=[
@@ -1232,7 +1243,8 @@ def process_set_as_func_expr(
                             ir_set.path_id, n, rtype.element_types[n],
                         ),
                         name=n,
-                        val=dbobj.get_column(func_rvar, n)
+                        val=dbobj.get_column(
+                            func_rvar, n, nullable=set_expr.nullable)
                     )
                     for n in colnames
                 ],

@@ -570,7 +570,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_scope_tuple_12(self):
         await self.assert_query_result(r'''
             # this is similar to test_edgeql_scope_tuple_04

@@ -38,6 +38,7 @@ from . import astutils
 from . import context
 from . import dbobj
 from . import output
+from . import typecomp
 
 
 class PathAspect(s_enum.StrEnum):
@@ -161,10 +162,10 @@ def get_path_var(
         # Path vars produced by UNION expressions can be "optional",
         # i.e the record is accepted as-is when such var is NULL.
         # This is necessary to correctly join heterogeneous UNIONs.
-        fieldref = dbobj.get_rvar_fieldref(
+        var = dbobj.get_rvar_var(
             None, first, optional=optional, nullable=optional or nullable)
-        put_path_var(rel, path_id, fieldref, aspect=aspect, env=env)
-        return fieldref
+        put_path_var(rel, path_id, var, aspect=aspect, env=env)
+        return var
 
     if ptrcls is None:
         if len(path_id) == 1:
@@ -249,15 +250,15 @@ def get_path_var(
         source_rel, drilldown_path_id, ptr_info=ptr_info,
         aspect=aspect, env=env)
 
-    fieldref = dbobj.get_rvar_fieldref(rel_rvar, outvar)
-    put_path_var(rel, path_id, fieldref, aspect=aspect, env=env)
+    var = dbobj.get_rvar_var(rel_rvar, outvar)
+    put_path_var(rel, path_id, var, aspect=aspect, env=env)
 
-    if isinstance(fieldref, pgast.TupleVar):
-        for element in fieldref.elements:
+    if isinstance(var, pgast.TupleVar):
+        for element in var.elements:
             put_path_var(rel, element.path_id, element.val,
                          aspect=aspect, env=env)
 
-    return fieldref
+    return var
 
 
 def get_path_identity_var(
@@ -276,8 +277,13 @@ def is_relation_rvar(
         rvar: pgast.BaseRangeVar) -> bool:
     return (
         isinstance(rvar, pgast.RangeVar) and
-        isinstance(rvar.relation, pgast.Relation)
+        is_terminal_relation(rvar.relation)
     )
+
+
+def is_terminal_relation(
+        rel: pgast.BaseRelation) -> bool:
+    return isinstance(rel, (pgast.Relation, pgast.NullRelation))
 
 
 def maybe_get_path_var(
@@ -401,14 +407,14 @@ def get_rvar_path_var(
 
     if (path_id, aspect) in rvar.path_outputs:
         outvar = rvar.path_outputs[path_id, aspect]
-    elif isinstance(rvar.query, pgast.Relation):
+    elif is_relation_rvar(rvar):
         outvar = _get_rel_path_output(rvar.query, path_id, aspect=aspect,
                                       env=env)
     else:
         # Range is another query.
         outvar = get_path_output(rvar.query, path_id, aspect=aspect, env=env)
 
-    return dbobj.get_rvar_fieldref(rvar, outvar)
+    return dbobj.get_rvar_var(rvar, outvar)
 
 
 def put_rvar_path_output(
@@ -559,22 +565,50 @@ def _get_rel_path_output(
             raise LookupError(
                 f'invalid request for scalar path {path_id} {aspect}')
 
-    if path_id.rptr_dir() != s_pointers.PointerDirection.Outbound:
+        elif aspect == 'serialized':
+            aspect = 'value'
+
+    var = rel.path_outputs.get((path_id, aspect))
+    if var is not None:
+        return var
+
+    ptrcls = path_id.rptr()
+    rptr_dir = path_id.rptr_dir()
+
+    if (rptr_dir is not None and
+            rptr_dir != s_pointers.PointerDirection.Outbound):
         raise LookupError(
             f'{path_id} is an inbound pointer and cannot be resolved '
             f'on a base relation')
 
-    ptrcls = path_id.rptr()
+    if isinstance(rel, pgast.NullRelation):
+        if ptrcls is not None:
+            target = ptrcls.target
+        else:
+            target = path_id[-1]
 
-    if ptrcls is None:
-        raise ValueError(
-            f'could not resolve trailing pointer class for {path_id}')
+        if ptr_info is not None:
+            name = ptr_info.column_name
+        else:
+            name = env.aliases.get('v')
 
-    ptr_info = pg_types.get_pointer_storage_info(
-        ptrcls, resolve_type=False, link_bias=False)
+        val = typecomp.cast(pgast.Constant(val=None, nullable=True),
+                            source_type=target,
+                            target_type=target,
+                            force=True, env=env)
 
-    result = pgast.ColumnRef(name=[ptr_info.column_name],
-                             nullable=rel.nullable or not ptrcls.required)
+        rel.target_list.append(pgast.ResTarget(name=name, val=val))
+        result = pgast.ColumnRef(name=[name], nullable=True)
+    else:
+        if ptrcls is None:
+            raise ValueError(
+                f'could not resolve trailing pointer class for {path_id}')
+
+        ptr_info = pg_types.get_pointer_storage_info(
+            ptrcls, resolve_type=False, link_bias=False)
+
+        result = pgast.ColumnRef(name=[ptr_info.column_name],
+                                 nullable=not ptrcls.required)
     rel.path_outputs[path_id, aspect] = result
     return result
 
@@ -592,7 +626,7 @@ def find_path_output(
 
 def get_path_output(
         rel: pgast.BaseRelation, path_id: irast.PathId, *,
-        aspect: str,
+        aspect: str, allow_nullable: bool=True,
         ptr_info: typing.Optional[pg_types.PointerStorageInfo]=None,
         env: context.Environment) -> pgast.OutputVar:
 
@@ -601,12 +635,13 @@ def get_path_output(
         path_id = map_path_id(path_id, view_path_id_map)
 
     return _get_path_output(rel, path_id=path_id, aspect=aspect,
-                            ptr_info=ptr_info, env=env)
+                            ptr_info=ptr_info, allow_nullable=allow_nullable,
+                            env=env)
 
 
 def _get_path_output(
         rel: pgast.BaseRelation, path_id: irast.PathId, *,
-        aspect: str,
+        aspect: str, allow_nullable: bool=True,
         ptr_info: typing.Optional[pg_types.PointerStorageInfo]=None,
         env: context.Environment) -> pgast.OutputVar:
 
@@ -614,7 +649,7 @@ def _get_path_output(
     if result is not None:
         return result
 
-    if isinstance(rel, pgast.Relation):
+    if is_terminal_relation(rel):
         return _get_rel_path_output(rel, path_id, aspect=aspect,
                                     ptr_info=ptr_info, env=env)
     else:
@@ -635,10 +670,12 @@ def _get_path_output(
                 # Similarly to get_path_var(), check for outer path_id
                 # first for tuple serialized var disambiguation.
                 element = _get_path_output(
-                    rel, el_path_id, aspect=aspect, env=env)
+                    rel, el_path_id, aspect=aspect,
+                    allow_nullable=False, env=env)
             except LookupError:
                 element = get_path_output(
-                    rel, el_path_id, aspect=aspect, env=env)
+                    rel, el_path_id, aspect=aspect,
+                    allow_nullable=False, env=env)
 
             elements.append(pgast.TupleElement(
                 path_id=el_path_id, name=element))
@@ -658,12 +695,20 @@ def _get_path_output(
             else:
                 rel.target_list.append(restarget)
 
+            nullable = is_nullable(ref, env=env)
+
             if isinstance(ref, pgast.ColumnRef):
-                nullable = ref.nullable
                 optional = ref.optional
             else:
-                nullable = rel.nullable
                 optional = None
+
+            if nullable and not allow_nullable:
+                var = get_path_var(rel, path_id, aspect=aspect, env=env)
+                rel.where_clause = astutils.extend_binop(
+                    rel.where_clause,
+                    pgast.NullTest(arg=var, negated=True)
+                )
+                nullable = False
 
             result = pgast.ColumnRef(
                 name=[alias], nullable=nullable, optional=optional)
@@ -766,3 +811,20 @@ def get_path_output_or_null(
     rel.path_outputs[path_id, aspect] = ref
 
     return ref, True
+
+
+def is_nullable(
+        expr: pgast.Base, *,
+        env: context.Environment) -> bool:
+    try:
+        return expr.nullable
+    except AttributeError:
+        if isinstance(expr, pgast.Query):
+            tl_len = len(expr.target_list)
+            if tl_len != 1:
+                raise RuntimeError(
+                    f'subquery used as a value returns {tl_len} columns')
+
+            return is_nullable(expr.target_list[0].val, env=env)
+        else:
+            raise

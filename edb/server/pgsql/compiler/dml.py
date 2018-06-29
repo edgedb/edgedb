@@ -822,7 +822,7 @@ def process_linkprop_update(
     cond = astutils.new_binop(
         pathctx.get_rvar_path_identity_var(
             dml_cte_rvar, ir_stmt.subject.path_id, env=ctx.env),
-        dbobj.get_column(target_tab, 'std::source'),
+        dbobj.get_column(target_tab, 'std::source', nullable=False),
         ast.ops.EQ
     )
 

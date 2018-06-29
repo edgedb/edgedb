@@ -37,7 +37,6 @@ from . import astutils
 from . import context
 from . import dbobj
 from . import pathctx
-from . import typecomp
 
 
 def pull_path_namespace(
@@ -277,58 +276,32 @@ def maybe_get_path_var(
 def new_empty_rvar(
         ir_set: irast.EmptySet, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
-    nullref_alias = ctx.env.aliases.get('e')
-    val = typecomp.cast(pgast.Constant(val=None, nullable=True),
-                        source_type=ir_set.scls, target_type=ir_set.scls,
-                        force=True, env=ctx.env)
-
-    nullrel = pgast.SelectStmt(
-        target_list=[
-            pgast.ResTarget(
-                val=val,
-                name=nullref_alias
-            )
-        ],
-        nullable=True
-    )
-
-    emptyrel = pgast.SelectStmt()
-    empty_rvar = dbobj.rvar_for_rel(emptyrel, env=ctx.env)
-
+    nullrel = pgast.NullRelation(path_id=ir_set.path_id)
     rvar = dbobj.rvar_for_rel(nullrel, env=ctx.env)
     rvar.path_scope.add(ir_set.path_id)
     rvar.value_scope.add(ir_set.path_id)
-    null_ref = pgast.ColumnRef(name=[nullref_alias], nullable=True)
-    pathctx.put_rvar_path_output(rvar, ir_set.path_id, aspect='value',
-                                 var=null_ref, env=ctx.env)
-    pathctx.put_path_rvar(nullrel, ir_set.path_id, aspect='value',
-                          rvar=empty_rvar, env=ctx.env)
-    if ir_set.path_id.is_objtype_path():
-        pathctx.put_rvar_path_output(rvar, ir_set.path_id, aspect='identity',
-                                     var=null_ref, env=ctx.env)
-        pathctx.put_path_rvar(nullrel, path_id=ir_set.path_id,
-                              rvar=empty_rvar, aspect='source', env=ctx.env)
     return rvar
 
 
 def new_root_rvar(
-        ir_set: irast.Set, nullable: bool=False, *,
+        ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
     if not isinstance(ir_set.scls, s_objtypes.ObjectType):
         raise ValueError('cannot create root rvar for non-object path')
 
     set_rvar = dbobj.range_for_set(ir_set, env=ctx.env)
-    set_rvar.nullable = nullable
     set_rvar.path_scope.add(ir_set.path_id)
     set_rvar.value_scope.add(ir_set.path_id)
 
     if ir_set.rptr and ir_set.rptr.is_inbound:
+        ptrcls = ir_set.rptr.ptrcls
         ptr_info = pg_types.get_pointer_storage_info(
-            ir_set.rptr.ptrcls, resolve_type=False, link_bias=False)
+            ptrcls, resolve_type=False, link_bias=False)
 
         if ptr_info.table_type == 'ObjectType':
             # Inline link
-            rref = dbobj.get_column(None, ptr_info.column_name)
+            rref = dbobj.get_column(None, ptr_info.column_name,
+                                    nullable=not ptrcls.required)
             set_rvar.path_scope.add(ir_set.path_id.src_path())
             pathctx.put_rvar_path_output(
                 set_rvar, ir_set.path_id.src_path(),
@@ -338,17 +311,18 @@ def new_root_rvar(
 
 
 def new_poly_rvar(
-        ir_set: irast.Set, *, nullable: bool=False,
+        ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
 
-    rvar = new_root_rvar(ir_set, nullable=nullable, ctx=ctx)
+    rvar = new_root_rvar(ir_set, ctx=ctx)
     rvar.path_scope.add(ir_set.path_id.src_path())
     return rvar
 
 
 def new_pointer_rvar(
-        ir_ptr: irast.Pointer, *, nullable: bool=False,
-        link_bias: bool=False, src_rvar: pgast.BaseRangeVar,
+        ir_ptr: irast.Pointer, *,
+        link_bias: bool=False,
+        src_rvar: pgast.BaseRangeVar,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
 
     ptrcls = ir_ptr.ptrcls
@@ -359,14 +333,15 @@ def new_pointer_rvar(
     if ptr_info.table_type == 'ObjectType':
         # Inline link
         return _new_inline_pointer_rvar(
-            ir_ptr, nullable=nullable, ptr_info=ptr_info,
+            ir_ptr, ptr_info=ptr_info,
             src_rvar=src_rvar, ctx=ctx)
     else:
-        return _new_mapped_pointer_rvar(ir_ptr, nullable, ctx=ctx)
+        return _new_mapped_pointer_rvar(ir_ptr, ctx=ctx)
 
 
 def _new_inline_pointer_rvar(
-        ir_ptr: irast.Pointer, *, nullable: bool=False, lateral: bool=True,
+        ir_ptr: irast.Pointer, *,
+        lateral: bool=True,
         ptr_info: pg_types.PointerStorageInfo,
         src_rvar: pgast.BaseRangeVar,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
@@ -391,11 +366,10 @@ def _new_inline_pointer_rvar(
 
 
 def _new_mapped_pointer_rvar(
-        ir_ptr: irast.Pointer, nullable: bool=False, *,
+        ir_ptr: irast.Pointer, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
     ptrcls = ir_ptr.ptrcls
     ptr_rvar = dbobj.range_for_pointer(ir_ptr, env=ctx.env)
-    ptr_rvar.nullable = nullable
     # Set up references according to the link direction.
     if isinstance(ptrcls, s_links.Link):
         # XXX: fix this once Properties are Sources
@@ -405,7 +379,7 @@ def _new_mapped_pointer_rvar(
     else:
         src_col = common.edgedb_name_to_pg_name('std::source')
 
-    source_ref = dbobj.get_column(None, src_col)
+    source_ref = dbobj.get_column(None, src_col, nullable=False)
 
     if isinstance(ptrcls, s_links.Link):
         # XXX: fix this once Properties are Sources
@@ -415,7 +389,7 @@ def _new_mapped_pointer_rvar(
     else:
         tgt_col = common.edgedb_name_to_pg_name('std::target')
 
-    target_ref = dbobj.get_column(None, tgt_col)
+    target_ref = dbobj.get_column(None, tgt_col, nullable=not ptrcls.required)
 
     if ir_ptr.direction == s_pointers.PointerDirection.Inbound:
         near_ref = target_ref
@@ -463,7 +437,8 @@ def new_static_class_rvar(
     set_rvar = new_root_rvar(ir_set, ctx=ctx)
     clsname = pgast.Constant(val=ir_set.rptr.source.scls.material_type().name)
     nameref = dbobj.get_column(
-        set_rvar, common.edgedb_name_to_pg_name('schema::name'))
+        set_rvar, common.edgedb_name_to_pg_name('schema::name'),
+        nullable=False)
     condition = astutils.new_binop(nameref, clsname, op='=')
     substmt = pgast.SelectStmt()
     include_rvar(substmt, set_rvar, ir_set.path_id, ctx=ctx)

@@ -126,7 +126,6 @@ class BaseRangeVar(Base):
     """Range variable, used in FROM clauses."""
 
     alias: Alias
-    nullable: bool
 
     @property
     def is_distinct(self):
@@ -154,8 +153,6 @@ RangeTypes = typing.Union[BaseRangeVar, _Ref]
 
 class BaseRelation(Base):
     name: str
-    # Whether the query output can contain NULLs.
-    nullable: bool = True
 
 
 class Relation(BaseRelation, EdgeQLPathInfo):
@@ -163,7 +160,6 @@ class Relation(BaseRelation, EdgeQLPathInfo):
 
     catalogname: str
     schemaname: str
-    nullable: bool = False  # no EdgeDB table ever has a NULL row
 
 
 class RangeVar(BaseRangeVar):
@@ -194,8 +190,6 @@ class ColumnRef(OutputVar):
 
     # Column name list.
     name: typing.List[typing.Union[str, Star]]
-    # Whether NULL is possible.
-    nullable: bool
     # Whether the col is an optional path bond (i.e accepted when NULL)
     optional: bool
 
@@ -308,6 +302,13 @@ class CommonTableExpr(BaseRelation):
         )
 
 
+class NullRelation(BaseRelation, EdgeQLPathInfo):
+    """Special relation that produces nulls for all its attributes."""
+
+    target_list: typing.List[ResTarget]
+    where_clause: Base
+
+
 class Query(BaseRelation, EdgeQLPathInfo):
     """Generic superclass representing a query."""
 
@@ -335,6 +336,10 @@ class DML(Base):
     relation: RangeTypes
     # List of expressions returned
     returning_list: typing.List[ResTarget]
+
+    @property
+    def target_list(self):
+        return self.returning_list
 
 
 class InsertStmt(Query, DML):
@@ -642,6 +647,8 @@ class SubLink(Base):
     type: SubLinkType
     # Sublink expression
     expr: Base
+    # Sublink is never NULL
+    nullable: bool = False
 
 
 class RowExpr(BaseExpr):

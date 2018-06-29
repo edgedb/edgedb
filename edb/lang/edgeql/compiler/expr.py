@@ -279,11 +279,8 @@ def compile_Coalesce(
         return irutils.new_empty_set(ctx.schema, alias=ctx.aliases.get('e'))
 
     with ctx.newscope() as newctx:
-        larg = setgen.ensure_set(
+        leftmost_arg = larg = setgen.ensure_set(
             dispatch.compile(expr.args[0], ctx=newctx), ctx=newctx)
-
-        pathctx.register_set_in_scope(larg, ctx=ctx)
-        pathctx.mark_path_as_optional(larg.path_id, ctx=ctx)
 
         for rarg_ql in expr.args[1:]:
             with newctx.new() as nestedscopectx:
@@ -293,6 +290,13 @@ def compile_Coalesce(
 
                 coalesce = irast.Coalesce(left=larg, right=rarg)
                 larg = setgen.generated_set(coalesce, ctx=nestedscopectx)
+
+        # Make sure any empty set types are properly resolved
+        # before entering them into the scope tree.
+        irutils.infer_type(larg, schema=ctx.schema)
+
+        pathctx.register_set_in_scope(leftmost_arg, ctx=ctx)
+        pathctx.mark_path_as_optional(leftmost_arg.path_id, ctx=ctx)
 
     return larg
 
@@ -633,12 +637,19 @@ def compile_equivalence_op(
     #   | {True}, iff A != ∅ ∧ B = ∅
     #   | {True}, iff A = ∅ ∧ B != ∅
     left = setgen.ensure_set(dispatch.compile(expr.left, ctx=ctx), ctx=ctx)
+    right = setgen.ensure_set(dispatch.compile(expr.right, ctx=ctx), ctx=ctx)
+    result = irast.EquivalenceOp(left=left, right=right, op=expr.op)
+
+    # Make sure any empty set types are properly resolved
+    # before entering them into the scope tree.
+    irutils.infer_type(result, schema=ctx.schema)
+
     pathctx.register_set_in_scope(left, ctx=ctx)
     pathctx.mark_path_as_optional(left.path_id, ctx=ctx)
-    right = setgen.ensure_set(dispatch.compile(expr.right, ctx=ctx), ctx=ctx)
     pathctx.register_set_in_scope(right, ctx=ctx)
     pathctx.mark_path_as_optional(right.path_id, ctx=ctx)
-    return irast.EquivalenceOp(left=left, right=right, op=expr.op)
+
+    return result
 
 
 def compile_membership_op(

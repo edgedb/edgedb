@@ -379,10 +379,12 @@ class ScopeTreeNode:
         if node is not None:
             node.optional = True
 
-    def is_optional(self, path_id):
+    def is_optional(self, path_id) -> bool:
         node = self.find_visible(path_id)
         if node is not None:
             return node.optional
+        else:
+            return False
 
     def remove(self):
         """Remove this node from the tree (subtree becomes independent)."""

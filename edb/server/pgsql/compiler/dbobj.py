@@ -53,7 +53,6 @@ def range_for_material_objtype(
     relation = pgast.Relation(
         schemaname=table_schema_name,
         name=table_name,
-        nullable=False,
         path_id=path_id,
     )
 
@@ -305,19 +304,19 @@ def range_from_queryset(
 
 def get_column(
         rvar: pgast.BaseRangeVar,
-        colspec: typing.Union[pgast.ColumnRef, str], *,
+        colspec: typing.Union[str, pgast.ColumnRef], *,
         optional: bool=False, nullable: bool=None) -> pgast.ColumnRef:
 
     if isinstance(colspec, pgast.ColumnRef):
         colname = colspec.name[-1]
         if nullable is None:
-            nullable = rvar.nullable if rvar is not None else colspec.nullable
+            nullable = colspec.nullable
         optional = colspec.optional
     else:
         colname = colspec
         if nullable is None:
-            nullable = rvar.nullable if rvar is not None else False
-        optional = optional
+            # Assume the column is nullable unless told otherwise.
+            nullable = True
 
     if rvar is None:
         name = [colname]
@@ -338,38 +337,37 @@ def rvar_for_rel(
             subquery=rel,
             alias=pgast.Alias(aliasname=alias, colnames=colnames),
             lateral=lateral,
-            nullable=rel.nullable
         )
     else:
         alias = env.aliases.get(rel.name)
 
         rvar = pgast.RangeVar(
             relation=rel,
-            nullable=rel.nullable,
             alias=pgast.Alias(aliasname=alias, colnames=colnames)
         )
 
     return rvar
 
 
-def get_rvar_fieldref(
-        rvar: typing.Optional[pgast.BaseRangeVar],
-        colname: typing.Union[str, pgast.TupleVar],
+def get_rvar_var(
+        rvar: typing.Optional[pgast.BaseRangeVar], var: pgast.OutputVar,
         *, optional: bool=False, nullable: bool=None) \
         -> typing.Union[pgast.ColumnRef, pgast.TupleVar]:
 
-    if isinstance(colname, pgast.TupleVar):
+    assert isinstance(var, pgast.OutputVar)
+
+    if isinstance(var, pgast.TupleVar):
         elements = []
 
-        for el in colname.elements:
-            val = get_rvar_fieldref(rvar, el.name)
+        for el in var.elements:
+            val = get_rvar_var(rvar, el.name)
             elements.append(
                 pgast.TupleElement(
                     path_id=el.path_id, name=el.name, val=val))
 
-        fieldref = pgast.TupleVar(elements, named=colname.named)
+        fieldref = pgast.TupleVar(elements, named=var.named)
     else:
-        fieldref = get_column(rvar, colname, optional=optional,
+        fieldref = get_column(rvar, var, optional=optional,
                               nullable=nullable)
 
     return fieldref

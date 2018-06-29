@@ -121,6 +121,20 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.new_lines = 1
         self.write(')')
 
+    def visit_NullRelation(self, node):
+        self.write('(SELECT ')
+        if node.target_list:
+            self.visit_list(node.target_list)
+        if node.where_clause:
+            self.indentation += 1
+            self.new_lines = 1
+            self.write('WHERE')
+            self.new_lines = 1
+            self.indentation += 1
+            self.visit(node.where_clause)
+            self.indentation -= 2
+        self.write(')')
+
     def visit_SelectStmt(self, node):
         if node.values:
             self._visit_values_expr(node)
@@ -390,7 +404,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def visit_RangeVar(self, node):
         rel = node.relation
 
-        if isinstance(rel, pgast.Relation):
+        if isinstance(rel, (pgast.Relation, pgast.NullRelation)):
             self.visit(rel)
         elif isinstance(rel, pgast.CommonTableExpr):
             self.write(common.quote_ident(rel.name))

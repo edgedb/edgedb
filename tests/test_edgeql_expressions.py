@@ -755,7 +755,6 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT [1, 2] + [3, 4];
             ''')
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_array_06(self):
         await self.assert_query_result('''
             SELECT [1, <int64>{}];
@@ -763,7 +762,6 @@ class TestExpressions(tb.QueryTestCase):
             [],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_array_07(self):
         await self.assert_query_result('''
             WITH
@@ -1168,7 +1166,6 @@ class TestExpressions(tb.QueryTestCase):
             [[1, ['a', 'b', [0.1, 0.2]], 2, 3]],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_tuple_14(self):
         await self.assert_query_result('''
             SELECT (1, <int64>{});
@@ -1176,7 +1173,6 @@ class TestExpressions(tb.QueryTestCase):
             [],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_tuple_15(self):
         await self.assert_query_result('''
             WITH
