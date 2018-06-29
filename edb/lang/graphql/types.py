@@ -49,7 +49,7 @@ from edb.lang.schema import types as s_types
 from edb.lang.schema.objtypes import ObjectType
 from edb.lang.schema.scalars import ScalarType
 
-from .errors import GraphQLCoreError, GraphQLTranslationError
+from . import errors as g_errors
 
 
 EDB_TO_GQL_SCALARS_MAP = {
@@ -118,6 +118,9 @@ class GQLCoreSchema:
         ]
         types = sorted(types, key=lambda x: x.name)
         self._gql_schema = GraphQLSchema(query=query, types=types)
+
+        # this map is used for GQL -> EQL translator needs
+        self._type_map = {}
 
     def get_short_name(self, name):
         return name.split('::', 1)[-1]
@@ -213,7 +216,7 @@ class GQLCoreSchema:
             if name.name == '__type__':
                 continue
             if name.name in fields:
-                raise GraphQLCoreError(
+                raise g_errors.GraphQLCoreError(
                     f"{name.name!r} of {typename} clashes with special "
                     "reserved fields required for GraphQL conversion"
                 )
@@ -363,62 +366,15 @@ class GQLCoreSchema:
             )
             self._gql_objtypes[t.name] = gqltype
 
-
-def get_fkey(*args):
-    '''Make a hashable key from args.'''
-
-    if not args:
-        return None
-    else:
-        result = []
-        for arg in args:
-            if isinstance(arg, (list, tuple)):
-                result.append(get_fkey(*arg))
-
-            elif isinstance(arg, dict):
-                newargs = [(key, val) for key, val in arg.items()]
-                newargs.sort()
-                result.append(get_fkey(*newargs))
-
-            else:
-                result.append(arg)
-
-    if len(result) == 1:
-        return result[0]
-    else:
-        return tuple(result)
-
-
-class CompleteShadowingFields:
-    def __contains__(self, item):
-        return True
-
-
-ALL_FIELDS = CompleteShadowingFields()
-NO_FIELDS = set()
-
-
-class Schema:
-    '''This is the schema from GQL perspective.'''
-
-    def __init__(self, gqlcore):
-        self._schema = gqlcore.edb_schema
-        self._type_map = {}
-        self.modules = gqlcore.modules
-
-    @property
-    def edb_schema(self):
-        return self._schema
-
-    def get(self, name, **kwargs):
-        '''Get a GQL type either by name or based on EdgeDB type.'''
+    def get(self, name, *, dummy=False):
+        '''Get a special GQL type either by name or based on EdgeDB type.'''
         # normalize name and possibly add 'edb_base' to kwargs
         edb_base = None
+        kwargs = {'dummy': dummy}
 
         if isinstance(name, str):
-            if '::' not in name:
-                if name in {'__Schema', '__Type', 'Query'}:
-                    name = f'graphql::{name}'
+            if name == 'Query':
+                name = f'graphql::{name}'
 
         else:
             edb_base = name
@@ -438,7 +394,7 @@ class Schema:
             kwargs['edb_base'] = edb_base
 
         # check if the type already exists
-        fkey = get_fkey(name, kwargs)
+        fkey = (name, dummy)
         gqltype = self._type_map.get(fkey)
 
         if not gqltype:
@@ -464,28 +420,22 @@ class GQLTypeMeta(type):
 
 class GQLBaseType(metaclass=GQLTypeMeta):
     edb_type = None
-    shadow_fields = NO_FIELDS
 
     def __init__(self, schema, **kwargs):
         name = kwargs.get('name', None)
         edb_base = kwargs.get('edb_base', None)
         dummy = kwargs.get('dummy', False)
+        self._shadow_fields = ()
 
         if edb_base is None and self.edb_type:
             edb_base = schema.edb_schema.get(self.edb_type)
-
-        if edb_base is None:
-            raise GraphQLTranslationError(
-                "cannot determine the EdgeDB base type")
-        if schema is None:
-            raise GraphQLTranslationError("schema is missing")
 
         # __typename
         if name is None:
             self._name = f'{edb_base.name.module}::{edb_base.name.name}'
         else:
             self._name = name
-        # determine module from name is not already specified
+        # determine module from name if not already specified
         if not hasattr(self, '_module'):
             if '::' in self._name:
                 self._module = self._name.split('::', 1)[0]
@@ -530,10 +480,6 @@ class GQLBaseType(metaclass=GQLTypeMeta):
         )
 
     @property
-    def shadow(self):
-        return self.shadow_fields == ALL_FIELDS
-
-    @property
     def schema(self):
         return self._schema
 
@@ -551,14 +497,14 @@ class GQLBaseType(metaclass=GQLTypeMeta):
         return self.schema.get(base, **kwargs)
 
     def is_field_shadowed(self, name):
-        return name in self.shadow_fields
+        return name in self._shadow_fields
 
     def get_field_type(self, name, argsmap=None):
         if self.dummy:
             return None
 
         # this is just shadowing a real EdgeDB type
-        fkey = get_fkey(name, argsmap)
+        fkey = (name, self.dummy)
         target = self._fields.get(fkey)
 
         if target is None:
@@ -581,9 +527,8 @@ class GQLBaseType(metaclass=GQLTypeMeta):
             self.edb_schema, name) is not None
 
     def issubclass(self, other):
-        if isinstance(other, GQLBaseType):
-            if self.shadow:
-                return self.edb_base.issubclass(other.edb_base)
+        if isinstance(other, GQLShadowType):
+            return self.edb_base.issubclass(other.edb_base)
 
         return False
 
@@ -638,48 +583,31 @@ class GQLBaseType(metaclass=GQLTypeMeta):
 
 
 class GQLShadowType(GQLBaseType):
-    shadow_fields = ALL_FIELDS
-
-
-class GQLSchema(GQLBaseType):
-    edb_type = 'graphql::__Schema'
-
-
-class GQLType(GQLBaseType):
-    edb_type = 'graphql::__Type'
+    def is_field_shadowed(self, name):
+        return self.has_native_field(name)
 
 
 class GQLQuery(GQLBaseType):
     edb_type = 'graphql::Query'
-    shadow_fields = {'__typename'}
 
     def __init__(self, schema, **kwargs):
         self.modules = schema.modules
         super().__init__(schema, **kwargs)
+        self._shadow_fields = ('__typename',)
 
     @property
     def short_name(self):
         return self._name.rsplit('--', 1)[-1]
 
     def get_field_type(self, name, argsmap=None):
-        fkey = get_fkey(name, argsmap)
+        fkey = (name, self.dummy)
         target = None
 
-        if not isinstance(name, str):
-            raise GraphQLTranslationError(
-                f"field name must be a str, got {type(name).__name__}")
-
-        if name == '__type':
+        if name in {'__type', '__schema'}:
             if fkey in self._fields:
                 return self._fields[fkey]
 
-            target = self.convert_edb_to_gql_type('__Type', dummy=True)
-
-        elif name == '__schema':
-            if fkey in self._fields:
-                return self._fields[fkey]
-
-            target = self.convert_edb_to_gql_type('__Schema', dummy=True)
+            target = self.convert_edb_to_gql_type('Query', dummy=True)
 
         else:
             target = super().get_field_type(name, argsmap)

@@ -19,10 +19,6 @@
 
 # these are just some placeholders for packaging GraphQL queries
 
-type __Type
-
-type __Schema
-
 type Query:
     property __typename := 'Query'
 

@@ -24,7 +24,7 @@ class GraphQLError(EdgeDBError):
     pass
 
 
-class GraphQLValidationError(GraphQLError):
+class GraphQLTranslationError(GraphQLError):
     def __init__(self, msg, *, context=None):
         super().__init__(msg)
 
@@ -36,13 +36,13 @@ class GraphQLValidationError(GraphQLError):
             self.line = self.col = self.context = None
 
 
+class GraphQLValidationError(GraphQLTranslationError):
+    pass
+
+
 class GraphQLCoreError(GraphQLError):
     def __init__(self, msg, *, line=None, col=None):
         super().__init__(msg)
 
         self.line = line
         self.col = col
-
-
-class GraphQLTranslationError(GraphQLError):
-    pass
