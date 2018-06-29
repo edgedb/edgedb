@@ -86,7 +86,7 @@ class NodeCommand(named.NamedObjectCommand):
                 expr = qlast.SelectQuery(result=expr)
             ir = qlcompiler.compile_ast_to_ir(
                 expr, schema, derived_target_module=classname.module,
-                result_view_name=classname)
+                result_view_name=classname, modaliases=context.modaliases)
             context.cache_value((expr, classname), ir)
 
         return ir
@@ -106,10 +106,12 @@ class NodeCommand(named.NamedObjectCommand):
                     continue
 
                 for vptr in view.own_pointers.values():
+                    vptr.target = vptr.target.material_type()
                     vschema.add(vptr)
                     if not hasattr(vptr, 'own_pointers'):
                         continue
                     for vlprop in vptr.own_pointers.values():
+                        vlprop.target = vlprop.target.material_type()
                         vschema.add(vlprop)
 
         return vschema

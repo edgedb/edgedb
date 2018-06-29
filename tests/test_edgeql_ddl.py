@@ -459,7 +459,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_ddl_19(self):
         await self.con.execute("""
             SET MODULE test;
@@ -489,11 +488,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             SELECT View2 {
                 foo,
-                connected,
+                connected: {
+                    foo,
+                    bar
+                }
             }
             ORDER BY View2.foo;
         """, [
-            [None],
+            None,
             [1],
             [1],
 

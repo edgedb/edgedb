@@ -216,7 +216,7 @@ def declare_view(
             subctx.stmt = ctx.stmt.parent_stmt
 
         view_name = s_name.SchemaName(
-            module='_',
+            module=ctx.derived_target_module or '_',
             name=s_obj.NamedObject.get_specialized_name(
                 basename,
                 ctx.aliases.get('w')
