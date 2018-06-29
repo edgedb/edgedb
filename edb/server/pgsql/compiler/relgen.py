@@ -138,7 +138,10 @@ def get_set_rvar(
         # about it later.
         subctx.pending_query = stmt
 
-        is_optional = subctx.scope_tree.is_optional(path_id)
+        is_optional = (
+            subctx.scope_tree.is_optional(path_id) or
+            path_id in subctx.force_optional
+        )
         if is_optional:
             stmt, optrel = prepare_optional_rel(
                 ir_set=ir_set, stmt=stmt, ctx=subctx)
@@ -957,15 +960,13 @@ def process_set_as_coalesce(
 
         if rcard == irast.Cardinality.ONE:
             # Singleton RHS, simply use scalar COALESCE.
-            dispatch.visit(expr.left, ctx=newctx)
-            dispatch.visit(expr.right, ctx=newctx)
+            left = dispatch.compile(expr.left, ctx=newctx)
 
-            set_expr = pgast.CoalesceExpr(args=[
-                pathctx.get_path_value_var(
-                    stmt, expr.left.path_id, env=newctx.env),
-                pathctx.get_path_value_var(
-                    stmt, expr.right.path_id, env=newctx.env),
-            ])
+            with newctx.new() as rightctx:
+                rightctx.force_optional.add(expr.right.path_id)
+                right = dispatch.compile(expr.right, ctx=rightctx)
+
+            set_expr = pgast.CoalesceExpr(args=[left, right])
 
             pathctx.put_path_value_var_if_not_exists(
                 stmt, ir_set.path_id, set_expr, env=ctx.env)

@@ -251,6 +251,12 @@ class ScopeTreeNode:
         self.attach_child(fence)
         return fence
 
+    def attach_branch(self) -> 'ScopeTreeNode':
+        """Create and attach an empty branch node."""
+        fence = ScopeTreeNode()
+        self.attach_child(fence)
+        return fence
+
     def attach_path(self, path_id: pathid.PathId) -> None:
         """Attach a scope subtree representing *path_id*."""
 

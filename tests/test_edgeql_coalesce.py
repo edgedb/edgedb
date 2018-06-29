@@ -18,7 +18,6 @@
 
 
 import os.path
-import unittest
 
 from edb.server import _testbase as tb
 
@@ -778,7 +777,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_dependent_21(self):
         await self.assert_query_result(r'''
             WITH
@@ -789,7 +787,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             {'High', 'Low', 'Open', 'Closed'},
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_dependent_22(self):
         await self.assert_query_result(r'''
             WITH
@@ -812,7 +809,6 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             {'H', 'L', 'O', 'C'},
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_coalesce_dependent_23(self):
         await self.assert_sorted_query_result(r'''
             WITH
@@ -826,7 +822,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                 MODULE test,
                 X := {Priority, Status}
             SELECT X {
-                foo := X[IS Priority].name ?? X[IS Status].name[0]
+                foo := X[IS Priority].name[0] ?? X[IS Status].name
             };
 
             WITH

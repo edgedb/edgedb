@@ -208,8 +208,10 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "(test::Card)",
             "(test::Card).>(test::element)[IS std::str] [OPT]",
-            "FENCE": {
-                "(test::Card).>(test::cost)[IS std::int64]"
+            "BRANCH": {
+                "FENCE": {
+                    "(test::Card).>(test::cost)[IS std::int64]"
+                }
             }
         }
         """

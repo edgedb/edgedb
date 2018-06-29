@@ -278,7 +278,7 @@ def compile_Coalesce(
     if all(isinstance(a, qlast.Set) and not a.elements for a in expr.args):
         return irutils.new_empty_set(ctx.schema, alias=ctx.aliases.get('e'))
 
-    with ctx.new() as newctx:
+    with ctx.newscope() as newctx:
         larg = setgen.ensure_set(
             dispatch.compile(expr.args[0], ctx=newctx), ctx=newctx)
 

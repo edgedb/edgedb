@@ -70,6 +70,7 @@ class CompilerContextLevel(compiler.ContextLevel):
 
             self.disable_semi_join = set()
             self.unique_paths = set()
+            self.force_optional = set()
 
             self.path_scope = collections.ChainMap()
             self.scope_tree = None
@@ -92,6 +93,7 @@ class CompilerContextLevel(compiler.ContextLevel):
 
             self.disable_semi_join = prevlevel.disable_semi_join.copy()
             self.unique_paths = prevlevel.unique_paths.copy()
+            self.force_optional = prevlevel.force_optional.copy()
 
             self.path_scope = prevlevel.path_scope
             self.scope_tree = prevlevel.scope_tree
