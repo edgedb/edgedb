@@ -341,7 +341,8 @@ def iter_fields(node, *, include_meta=True, exclude_unset=False):
 
 
 def _is_optional(type_):
-    return typing_inspect.is_union_type(type_) and type(None) in type_.__args__
+    return (typing_inspect.is_union_type(type_) and
+            type(None) in typing_inspect.get_args(type_, evaluate=True))
 
 
 def _check_annotation(f_type, f_fullname, f_default):
@@ -354,7 +355,7 @@ def _check_annotation(f_type, f_fullname, f_default):
         f_default = tuple
 
     elif typing_inspect.is_union_type(f_type):
-        for t in f_type.__args__:
+        for t in typing_inspect.get_args(f_type, evaluate=True):
             _check_annotation(t, f_fullname, f_default)
 
     elif typing_inspect.is_generic_type(f_type):
@@ -403,7 +404,8 @@ def _check_container_type(type_, value, raise_error, instance_type):
     if not isinstance(value, instance_type):
         raise_error(str(type_), value)
 
-    eltype = type_.__args__[0]
+    type_args = typing_inspect.get_args(type_, evaluate=True)
+    eltype = type_args[0]
     for el in value:
         _check_type(eltype, el, raise_error)
 
@@ -413,7 +415,7 @@ def _check_tuple_type(type_, value, raise_error, instance_type):
         raise_error(str(type_), value)
 
     eltype = None
-    type_args = type_.__args__
+    type_args = typing_inspect.get_args(type_, evaluate=True)
 
     for i, el in enumerate(value):
         new_eltype = type_args[i]
@@ -427,7 +429,7 @@ def _check_mapping_type(type_, value, raise_error, instance_type):
     if not isinstance(value, instance_type):
         raise_error(str(type_), value)
 
-    type_args = type_.__args__
+    type_args = typing_inspect.get_args(type_, evaluate=True)
     ktype = type_args[0]
     vtype = type_args[1]
     for k, v in value.items():
@@ -442,7 +444,7 @@ def _check_type(type_, value, raise_error):
         return
 
     if typing_inspect.is_union_type(type_):
-        for t in type_.__args__:
+        for t in typing_inspect.get_args(type_, evaluate=True):
             try:
                 _check_type(t, value, raise_error)
             except TypeError as e:
