@@ -91,8 +91,14 @@ def __infer_typeref(ir, scope_tree, schema):
 @_infer_cardinality.register(irast.Set)
 def __infer_set(ir, scope_tree, schema):
     parent_fence = scope_tree.parent_fence
-    if parent_fence is not None and parent_fence.is_visible(ir.path_id):
-        return ONE
+    if parent_fence is not None:
+        if scope_tree.namespaces:
+            path_id = ir.path_id.strip_namespace(scope_tree.namespaces)
+        else:
+            path_id = ir.path_id
+
+        if parent_fence.is_visible(path_id):
+            return ONE
 
     if ir.rptr is not None:
         if ir.rptr.ptrcls.singular(ir.rptr.direction):

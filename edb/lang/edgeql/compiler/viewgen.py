@@ -245,7 +245,11 @@ def _normalize_view_ptr_expr(
         else:
             ptr_target = ptrcls.target
 
-        ptr_cardinality = ptrcls.cardinality
+        if ptrcls in ctx.pending_cardinality:
+            # We do not know the parent's pointer cardinality yet.
+            ptr_cardinality = None
+        else:
+            ptr_cardinality = ptrcls.cardinality
 
         if shape_el.elements:
             sub_view_rptr = context.ViewRPtr(
@@ -348,11 +352,7 @@ def _normalize_view_ptr_expr(
                 ptrcls_is_derived = True
                 ptrcls = derived_ptrcls
 
-        inferred_cardinality = pathctx.infer_cardinality(irexpr, ctx=ctx)
-        if inferred_cardinality == irast.Cardinality.MANY:
-            ptr_cardinality = s_pointers.PointerCardinality.ManyToMany
-        else:
-            ptr_cardinality = s_pointers.PointerCardinality.ManyToOne
+        ptr_cardinality = None
 
         ptr_target = irutils.infer_type(irexpr, ctx.schema)
         if ptr_target is None:
@@ -370,9 +370,6 @@ def _normalize_view_ptr_expr(
                 f'{str(ptr_target.name)!r} (expecting '
                 f'{" or ".join(expected)})'
             )
-
-        if is_mutation and base_ptrcls.singular():
-            pathctx.enforce_singleton(irexpr, ctx=ctx)
 
     if qlexpr is not None or ptr_target is not ptrcls.target:
         if not ptrcls_is_derived:
@@ -396,7 +393,15 @@ def _normalize_view_ptr_expr(
             ptrcls.computable = True
 
     if not is_mutation:
-        ptrcls.cardinality = ptr_cardinality
+        if ptr_cardinality is None:
+            if compexpr is not None:
+                ctx.pending_cardinality.add(ptrcls)
+            elif ptrcls is not base_ptrcls:
+                ctx.pointer_derivation_map[base_ptrcls].append(ptrcls)
+
+            ptrcls.cardinality = None
+        else:
+            ptrcls.cardinality = ptr_cardinality
 
     if ptrcls.shortname == 'std::__type__' and qlexpr is not None:
         msg = 'cannot assign to __type__'

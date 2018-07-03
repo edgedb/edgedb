@@ -60,14 +60,14 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ORDER BY _.1 THEN _.0.name;
         ''', [
             [
-                [{'a': [1], 'name': 'Alice'}, 1],
-                [{'a': [1], 'name': 'Bob'}, 1],
-                [{'a': [1], 'name': 'Carol'}, 1],
-                [{'a': [1], 'name': 'Dave'}, 1],
-                [{'a': [2], 'name': 'Alice'}, 2],
-                [{'a': [2], 'name': 'Bob'}, 2],
-                [{'a': [2], 'name': 'Carol'}, 2],
-                [{'a': [2], 'name': 'Dave'}, 2],
+                [{'a': 1, 'name': 'Alice'}, 1],
+                [{'a': 1, 'name': 'Bob'}, 1],
+                [{'a': 1, 'name': 'Carol'}, 1],
+                [{'a': 1, 'name': 'Dave'}, 1],
+                [{'a': 2, 'name': 'Alice'}, 2],
+                [{'a': 2, 'name': 'Bob'}, 2],
+                [{'a': 2, 'name': 'Carol'}, 2],
+                [{'a': 2, 'name': 'Dave'}, 2],
             ]
         ])
 
@@ -191,7 +191,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 [
                     {
                         'name': 'Alice',
-                        'fr': [{'@nickname': 'Swampy'}],
+                        'fr': {'@nickname': 'Swampy'},
                     },
                     {
                         'name': 'Bob',
@@ -200,7 +200,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 [
                     {
                         'name': 'Alice',
-                        'fr': [{'@nickname': 'Firefighter'}],
+                        'fr': {'@nickname': 'Firefighter'},
                     },
                     {
                         'name': 'Carol',
@@ -209,7 +209,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 [
                     {
                         'name': 'Alice',
-                        'fr': [{'@nickname': 'Grumpy'}],
+                        'fr': {'@nickname': 'Grumpy'},
                     },
                     {
                         'name': 'Dave',
@@ -218,7 +218,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 [
                     {
                         'name': 'Dave',
-                        'fr': [{'@nickname': None}],
+                        'fr': {'@nickname': None},
                     },
                     {
                         'name': 'Bob',
@@ -243,9 +243,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 [
                     {
                         'name': 'Alice',
-                        'foo': [
-                            {'name': 'Alice'},
-                        ],
+                        'foo': {'name': 'Alice'},
                     },
                     {
                         'name': 'Alice',
@@ -254,9 +252,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 [
                     {
                         'name': 'Bob',
-                        'foo': [
-                            {'name': 'Alice'},
-                        ],
+                        'foo': {'name': 'Alice'},
                     },
                     {
                         'name': 'Alice',
@@ -265,9 +261,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 [
                     {
                         'name': 'Carol',
-                        'foo': [
-                            {'name': 'Alice'},
-                        ],
+                        'foo': {'name': 'Alice'},
                     },
                     {
                         'name': 'Alice',
@@ -276,9 +270,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 [
                     {
                         'name': 'Dave',
-                        'foo': [
-                            {'name': 'Alice'},
-                        ],
+                        'foo': {'name': 'Alice'},
                     },
                     {
                         'name': 'Alice',
@@ -320,7 +312,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_scope_tuple_08(self):
         await self.assert_query_result(r'''
             # compare to test_edgeql_scope_filter_03 to see how it
@@ -328,7 +319,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             WITH
                 MODULE test,
                 U2 := User
-            SELECT _ := (
+            SELECT (
                 User {
                     name,
                     friends_of_others := (
@@ -347,7 +338,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 }
             )
             FILTER U2.friends.name = 'Bob'
-            ORDER BY _.0.name THEN _.1;
+            ORDER BY User.name THEN U2.friends.name;
         ''', [
             [
                 [
@@ -371,9 +362,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 [
                     {
                         'name': 'Carol',
-                        'friends_of_others': [
-                            {'name': 'Bob'},
-                        ],
+                        'friends_of_others': {'name': 'Bob'},
                     },
                     {
                         'name': 'Bob',
@@ -445,9 +434,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 [
                     {
                         'name': 'Carol',
-                        'friends_of_others': [
-                            {'name': 'Bob'},
-                        ],
+                        'friends_of_others': {'name': 'Bob'},
                     },
                     {
                         'name': 'Bob',
@@ -502,7 +489,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             [2.25],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_scope_tuple_11(self):
         await self.assert_query_result(r'''
             WITH MODULE test

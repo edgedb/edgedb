@@ -23,7 +23,6 @@
 import typing
 
 from edb.lang.ir import ast as irast
-from edb.lang.ir import inference as irinference
 
 from edb.lang.schema import objects as s_obj
 
@@ -88,17 +87,3 @@ def set_path_alias(
         path_id: irast.PathId, alias: irast.PathId, *,
         ctx: context.CompilerContext) -> None:
     ctx.path_scope.set_alias(path_id, alias)
-
-
-def infer_cardinality(
-        expr: irast.Base, *, ctx: context.ContextLevel) -> irast.Cardinality:
-    return irinference.infer_cardinality(expr, ctx.path_scope, ctx.schema)
-
-
-def enforce_singleton(expr: irast.Base, *, ctx: context.ContextLevel) -> None:
-    cardinality = infer_cardinality(expr, ctx=ctx)
-    if cardinality != irast.Cardinality.ONE:
-        raise errors.EdgeQLError(
-            'possibly more than one element returned by an expression '
-            'where only singletons are allowed',
-            context=expr.context)

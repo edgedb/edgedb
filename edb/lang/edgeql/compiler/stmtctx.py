@@ -20,9 +20,13 @@
 """EdgeQL compiler statement-level context management."""
 
 
+import functools
 import typing
 
+from edb.lang.edgeql import errors
+
 from edb.lang.ir import ast as irast
+from edb.lang.ir import inference as irinference
 from edb.lang.ir import utils as irutils
 
 from edb.lang.schema import name as s_name
@@ -76,6 +80,11 @@ def init_context(
 def fini_expression(
         ir: irast.Base, *,
         ctx: context.ContextLevel) -> irast.Command:
+    # Run delayed work callbacks.
+    for cb in ctx.completion_work:
+        cb(ctx=ctx)
+    ctx.completion_work.clear()
+
     for ir_set in ctx.all_sets:
         if ir_set.path_id.namespace:
             ir_set.path_id = ir_set.path_id.strip_weak_namespaces()
@@ -90,7 +99,8 @@ def fini_expression(
             if node.path_id.namespace:
                 node.path_id = node.path_id.strip_weak_namespaces()
 
-        cardinality = pathctx.infer_cardinality(ir, ctx=ctx)
+        cardinality = irinference.infer_cardinality(
+            ir, scope_tree=ctx.path_scope, schema=ctx.schema)
     else:
         cardinality = irast.Cardinality.ONE
 
@@ -255,3 +265,84 @@ def declare_view_from_schema(
         ctx.view_sets[vc] = subctx.view_sets[vc]
 
     return vc
+
+
+def infer_pointer_cardinality(
+        *,
+        ptrcls: s_pointers.Pointer,
+        irexpr: irast.Expr,
+        ctx: context.ContextLevel) -> None:
+
+    scope = pathctx.get_set_scope(ir_set=irexpr, ctx=ctx)
+    if scope is None:
+        scope = ctx.path_scope
+    inferred_cardinality = irinference.infer_cardinality(
+        irexpr, scope_tree=scope, schema=ctx.schema)
+
+    if inferred_cardinality == irast.Cardinality.MANY:
+        ptrcls.cardinality = s_pointers.PointerCardinality.ManyToMany
+    else:
+        ptrcls.cardinality = s_pointers.PointerCardinality.ManyToOne
+
+    _update_cardinality_in_derived(ptrcls, ctx=ctx)
+
+
+def _update_cardinality_in_derived(
+        ptrcls: s_pointers.Pointer, *,
+        ctx: context.ContextLevel) -> None:
+
+    children = ctx.pointer_derivation_map.get(ptrcls)
+    if children:
+        for child in children:
+            child.cardinality = ptrcls.cardinality
+            _update_cardinality_in_derived(child, ctx=ctx)
+
+
+def get_pointer_cardinality_later(
+        *,
+        ptrcls: s_pointers.Pointer,
+        irexpr: irast.Expr,
+        ctx: context.ContextLevel) -> None:
+    ctx.pending_cardinality.add(ptrcls)
+    at_stmt_fini(
+        functools.partial(
+            infer_pointer_cardinality,
+            ptrcls=ptrcls, irexpr=irexpr),
+        ctx=ctx)
+
+
+def enforce_singleton_now(
+        irexpr: irast.Base, *,
+        ctx: context.ContextLevel) -> None:
+    scope = pathctx.get_set_scope(ir_set=irexpr, ctx=ctx)
+    if scope is None:
+        scope = ctx.path_scope
+    cardinality = irinference.infer_cardinality(
+        irexpr, scope_tree=scope, schema=ctx.schema)
+    if cardinality != irast.Cardinality.ONE:
+        raise errors.EdgeQLError(
+            'possibly more than one element returned by an expression '
+            'where only singletons are allowed',
+            context=irexpr.context)
+
+
+def enforce_singleton(
+        irexpr: irast.Base, *,
+        ctx: context.ContextLevel) -> None:
+    if not ctx.path_scope_is_temp:
+        # We cannot reliably defer cardinality inference operations
+        # because the current scope is temporary and will not be
+        # accessible when the scheduled inference will run.
+        at_stmt_fini(
+            functools.partial(
+                enforce_singleton_now,
+                irexpr=irexpr
+            ),
+            ctx=ctx
+        )
+
+
+def at_stmt_fini(
+        cb: typing.Callable, *,
+        ctx: context.ContextLevel) -> None:
+    ctx.completion_work.append(cb)

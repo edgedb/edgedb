@@ -149,8 +149,20 @@ class ContextLevel(compiler.ContextLevel):
                               typing.List[s_pointers.Pointer]]  # noqa
     """Object output or modification shapes."""
 
+    completion_work: typing.List[typing.Callable]
+    """A list of callbacks to execute when the whole query has been seen."""
+
+    pending_cardinality: typing.Set[s_pointers.Pointer]
+    """A set of derived pointers for which the cardinality is not yet known."""
+
+    pointer_derivation_map: typing.Dict[s_pointers.Pointer, s_pointers.Pointer]
+    """A parent: children mapping of derived pointer classes."""
+
     path_scope: irast.ScopeTreeNode
     """Path scope tree, with per-lexical-scope levels."""
+
+    path_scope_is_temp: bool
+    """Whether the current path scope is temporary and is to be discarded."""
 
     path_scope_map: typing.Dict[irast.Set, irast.ScopeTreeNode]
     """A forest of scope trees used for views."""
@@ -191,6 +203,9 @@ class ContextLevel(compiler.ContextLevel):
             self.arguments = {}
             self.all_sets = []
             self.stmt_metadata = {}
+            self.completion_work = []
+            self.pending_cardinality = set()
+            self.pointer_derivation_map = collections.defaultdict(list)
 
             self.source_map = {}
             self.view_nodes = {}
@@ -210,6 +225,7 @@ class ContextLevel(compiler.ContextLevel):
             self.view_map = collections.ChainMap()
             self.class_shapes = collections.defaultdict(list)
             self.path_scope = None
+            self.path_scope_is_temp = False
             self.path_scope_map = {}
             self.scope_id_ctr = compiler.Counter()
             self.in_aggregate = False
@@ -230,6 +246,9 @@ class ContextLevel(compiler.ContextLevel):
             self.arguments = prevlevel.arguments
             self.all_sets = prevlevel.all_sets
             self.stmt_metadata = prevlevel.stmt_metadata
+            self.completion_work = prevlevel.completion_work
+            self.pending_cardinality = prevlevel.pending_cardinality
+            self.pointer_derivation_map = prevlevel.pointer_derivation_map
 
             self.source_map = prevlevel.source_map
             self.view_nodes = prevlevel.view_nodes
@@ -243,6 +262,7 @@ class ContextLevel(compiler.ContextLevel):
             self.view_map = prevlevel.view_map
             self.class_shapes = prevlevel.class_shapes
             self.path_scope = prevlevel.path_scope
+            self.path_scope_is_temp = prevlevel.path_scope_is_temp
             self.path_scope_map = prevlevel.path_scope_map
             self.scope_id_ctr = prevlevel.scope_id_ctr
             self.view_scls = prevlevel.view_scls
@@ -328,6 +348,7 @@ class ContextLevel(compiler.ContextLevel):
                     prevlevel.path_scope = irast.new_scope_tree()
 
                 self.path_scope = prevlevel.path_scope.copy()
+                self.path_scope_is_temp = True
 
             if mode in {ContextSwitchMode.NEWFENCE,
                         ContextSwitchMode.NEWFENCE_TEMP}:

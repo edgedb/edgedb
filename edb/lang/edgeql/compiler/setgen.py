@@ -656,6 +656,9 @@ def computable_ptr_set(
     subctx.view_rptr = context.ViewRPtr(source_scls, ptrcls=ptrcls, rptr=rptr)
     subctx.toplevel_stmt = ctx.toplevel_stmt
     subctx.path_scope = ctx.path_scope
+    subctx.pending_cardinality = ctx.pending_cardinality
+    subctx.completion_work = ctx.completion_work
+    subctx.pointer_derivation_map = ctx.pointer_derivation_map
     subctx.class_shapes = ctx.class_shapes.copy()
     subctx.all_sets = ctx.all_sets
     subctx.path_scope_map = ctx.path_scope_map
@@ -730,6 +733,19 @@ def computable_ptr_set(
             is_unnest_fence=True)
 
     comp_ir_set = dispatch.compile(qlexpr, ctx=subctx)
+
+    if ptrcls in ctx.pending_cardinality:
+        comp_ir_set_copy = copy.copy(comp_ir_set)
+
+        stmtctx.get_pointer_cardinality_later(
+            ptrcls=ptrcls, irexpr=comp_ir_set_copy, ctx=ctx)
+
+        def _check_cardinality(ctx):
+            if ptrcls.singular():
+                stmtctx.enforce_singleton_now(comp_ir_set_copy, ctx=ctx)
+
+        stmtctx.at_stmt_fini(_check_cardinality, ctx=ctx)
+
     comp_ir_set.scls = ptrcls.target
     comp_ir_set.path_id = path_id
     comp_ir_set.rptr = rptr

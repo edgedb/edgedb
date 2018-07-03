@@ -27,8 +27,8 @@ from edb.lang.ir import ast as irast
 
 from . import context
 from . import dispatch
-from . import pathctx
 from . import setgen
+from . import stmtctx
 
 
 def compile_where_clause(
@@ -68,7 +68,7 @@ def compile_orderby_clause(
                 ir_sortexpr = dispatch.compile(sortexpr.path, ctx=exprctx)
                 ir_sortexpr = setgen.scoped_set(ir_sortexpr, ctx=exprctx)
                 ir_sortexpr.context = sortexpr.context
-                pathctx.enforce_singleton(ir_sortexpr, ctx=exprctx)
+                stmtctx.enforce_singleton(ir_sortexpr, ctx=exprctx)
 
             result.append(
                 irast.SortExpr(
@@ -89,7 +89,7 @@ def compile_limit_offset_clause(
             int_t = ctx.schema.get('std::int64')
             ir_set = setgen.scoped_set(ir_expr, typehint=int_t, ctx=subctx)
             ir_set.context = expr.context
-            pathctx.enforce_singleton(ir_set, ctx=subctx)
+            stmtctx.enforce_singleton(ir_set, ctx=subctx)
     else:
         ir_set = None
 
