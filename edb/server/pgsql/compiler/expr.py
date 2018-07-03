@@ -463,7 +463,13 @@ def compile_IfElseExpr(
 def compile_Array(
         expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     elements = [dispatch.compile(e, ctx=ctx) for e in expr.elements]
-    return pgast.ArrayExpr(elements=elements)
+    result = pgast.ArrayExpr(elements=elements)
+    if any(el.nullable for el in elements):
+        result = pgast.FuncCall(
+            name=('edgedb', '_nullif_array_nulls'),
+            args=[result]
+        )
+    return result
 
 
 @dispatch.compile.register(irast.TupleIndirection)

@@ -784,6 +784,16 @@ class TestExpressions(tb.QueryTestCase):
             [],
         ])
 
+    async def test_edgeql_expr_array_09(self):
+        await self.assert_query_result('''
+            WITH
+                MODULE schema,
+                A := (SELECT Type FILTER .name = 'test::issue_num_t')
+            SELECT [A.name, A.description];
+        ''', [
+            [],
+        ])
+
     async def test_edgeql_expr_coalesce_01(self):
         await self.assert_query_result(r"""
             SELECT {} ?? 4 ?? 5;

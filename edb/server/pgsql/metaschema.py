@@ -519,6 +519,21 @@ class OrFilterFunction(dbops.Function):
             text='SELECT (a OR b) AND (a::int | b::int)::bool')
 
 
+class NullIfArrayNullsFunction(dbops.Function):
+    """Check if array contains NULLs and if so, return NULL."""
+    def __init__(self):
+        super().__init__(
+            name=('edgedb', '_nullif_array_nulls'),
+            args=[('a', 'anyarray')],
+            returns='anyarray',
+            volatility='stable',
+            language='sql',
+            text='''
+                SELECT CASE WHEN array_position(a, NULL) IS NULL
+                THEN a ELSE NULL END
+            ''')
+
+
 def _field_to_column(field):
     ftype = field.type[0]
     coltype = None
@@ -664,6 +679,7 @@ async def bootstrap(conn):
         dbops.CreateFunction(IsinstanceFunction()),
         dbops.CreateFunction(NormalizeNameFunction()),
         dbops.CreateFunction(OrFilterFunction()),
+        dbops.CreateFunction(NullIfArrayNullsFunction()),
     ])
 
     await commands.execute(Context(conn))
