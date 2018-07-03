@@ -136,8 +136,11 @@ class ContextLevel(compiler.ContextLevel):
     path_id_namespace: typing.Tuple[str, ...]
     """A namespace to use for all path ids."""
 
-    pending_stmt_path_id_namespace: str
-    """A namespace to add for the next new statement."""
+    pending_stmt_own_path_id_namespace: str
+    """A path id namespace to add to the fence of the next statement."""
+
+    pending_stmt_full_path_id_namespace: typing.Set[str]
+    """A set of path id namespaces to use in path ids in the next statement."""
 
     view_map: typing.Dict[irast.PathId, irast.Set]
     """Set translation map.  Used for views."""
@@ -202,7 +205,8 @@ class ContextLevel(compiler.ContextLevel):
             self.stmt = None
             self.singletons = set()
             self.path_id_namespace = tuple()
-            self.pending_stmt_path_id_namespace = None
+            self.pending_stmt_own_path_id_namespace = None
+            self.pending_stmt_full_path_id_namespace = None
             self.view_map = collections.ChainMap()
             self.class_shapes = collections.defaultdict(list)
             self.path_scope = None
@@ -232,8 +236,10 @@ class ContextLevel(compiler.ContextLevel):
             self.view_sets = prevlevel.view_sets
 
             self.path_id_namespace = prevlevel.path_id_namespace
-            self.pending_stmt_path_id_namespace = \
-                prevlevel.pending_stmt_path_id_namespace
+            self.pending_stmt_own_path_id_namespace = \
+                prevlevel.pending_stmt_own_path_id_namespace
+            self.pending_stmt_full_path_id_namespace = \
+                prevlevel.pending_stmt_full_path_id_namespace
             self.view_map = prevlevel.view_map
             self.class_shapes = prevlevel.class_shapes
             self.path_scope = prevlevel.path_scope
@@ -253,7 +259,8 @@ class ContextLevel(compiler.ContextLevel):
                 self.class_view_overrides = \
                     prevlevel.class_view_overrides.copy()
 
-                self.pending_stmt_path_id_namespace = None
+                self.pending_stmt_own_path_id_namespace = None
+                self.pending_stmt_full_path_id_namespace = None
 
                 self.view_rptr = None
                 self.view_scls = None
@@ -279,7 +286,8 @@ class ContextLevel(compiler.ContextLevel):
                 self.view_nodes = {}
                 self.view_sets = {}
                 self.path_id_namespace = (self.aliases.get('ns'),)
-                self.pending_stmt_path_id_namespace = None
+                self.pending_stmt_own_path_id_namespace = None
+                self.pending_stmt_full_path_id_namespace = None
 
                 self.view_rptr = None
                 self.view_scls = None

@@ -702,8 +702,11 @@ def computable_ptr_set(
         # class refs into a separate namespace.
         subctx.path_id_namespace = (subctx.aliases.get('ns'),)
     else:
-        subns = subctx.pending_stmt_path_id_namespace = \
-            {irast.WeakNamespace(ctx.aliases.get('ns'))}
+        subctx.pending_stmt_own_path_id_namespace = \
+            irast.WeakNamespace(ctx.aliases.get('ns'))
+
+        subns = subctx.pending_stmt_full_path_id_namespace = \
+            {subctx.pending_stmt_own_path_id_namespace}
 
         self_view = ctx.view_sets.get(self_.scls)
         if self_view:
