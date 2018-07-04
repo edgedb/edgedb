@@ -134,15 +134,12 @@ def top_output_as_value(
             args=[pgast.ColumnRef(name=[stmt_res.name])]
         )
 
-        # XXX: nullability introspection is not reliable,
-        #      remove `True or` once it is.
-        if True or stmt_res.val.nullable:
-            new_val = pgast.CoalesceExpr(
-                args=[
-                    new_val,
-                    pgast.Constant(val='[]')
-                ]
-            )
+        new_val = pgast.CoalesceExpr(
+            args=[
+                new_val,
+                pgast.Constant(val='[]')
+            ]
+        )
 
         result = pgast.SelectStmt(
             target_list=[
