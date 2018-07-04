@@ -1056,7 +1056,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_view_07(self):
         await self.assert_query_result(r"""
             # semantically identical to the previous test
@@ -1082,7 +1081,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_select_view_08(self):
         await self.assert_query_result(r"""
             # semantically similar to previous test, but involving

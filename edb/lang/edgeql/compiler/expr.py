@@ -109,8 +109,6 @@ def compile_Set(
             # an empty set, not to the element.
             with ctx.newscope(fenced=True) as scopectx:
                 ir_set = dispatch.compile(expr.elements[0], ctx=scopectx)
-                ir_set.path_id = setgen.get_expression_path_id(
-                    ir_set.scls, scopectx.aliases.get('expr'), ctx=scopectx)
                 return setgen.scoped_set(ir_set, ctx=scopectx)
         else:
             elements = flatten_set(expr)
