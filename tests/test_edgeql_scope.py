@@ -1174,7 +1174,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
              'Golem3', 'Sprite2', 'Giant eagle2', 'Djinn2'},
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_scope_nested_12(self):
         await self.assert_query_result(r'''
             WITH

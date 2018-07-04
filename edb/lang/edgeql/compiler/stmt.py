@@ -536,15 +536,12 @@ def compile_query_subject(
         if (view_name is None and
                 isinstance(result_alias, s_name.SchemaName)):
             view_name = result_alias
-        inner_path_id = expr.path_id
 
         view_scls = viewgen.process_view(
             scls=expr.scls, path_id=expr.path_id,
             elements=shape, view_rptr=view_rptr,
             view_name=view_name, is_insert=is_insert,
             is_update=is_update, ctx=ctx)
-    else:
-        inner_path_id = None
 
     if need_rptr_derivation and view_rptr.ptrcls is None:
         target = view_scls if view_scls is not None else expr.scls
@@ -557,8 +554,8 @@ def compile_query_subject(
         rptr = view_rptr.rptr if view_rptr is not None else None
         viewgen.compile_view_shapes(expr, rptr=rptr, ctx=ctx)
 
-    if inner_path_id is not None and len(inner_path_id) == 1:
-        ctx.class_view_overrides[inner_path_id[0].name] = expr.scls
+    if (shape is not None or view_scls is not None) and len(expr.path_id) == 1:
+        ctx.class_view_overrides[expr.path_id[0].name] = expr.scls
 
     return expr
 
