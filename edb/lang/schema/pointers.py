@@ -292,8 +292,10 @@ class Pointer(constraints.ConsistencySubject,
         return self.shortname in {'std::source', 'std::target'}
 
     def is_special_pointer(self):
-        return self.shortname in {'std::source', 'std::target', 'std::id',
-                                  'std::linkid'}
+        return self.shortname in {'std::source', 'std::target', 'std::id'}
+
+    def is_protected_pointer(self):
+        return self.is_special_pointer() or self.shortname in {'std::__type__'}
 
     def generic(self):
         return self.source is None

@@ -403,8 +403,8 @@ def _normalize_view_ptr_expr(
         else:
             ptrcls.cardinality = ptr_cardinality
 
-    if ptrcls.shortname == 'std::__type__' and qlexpr is not None:
-        msg = 'cannot assign to __type__'
+    if ptrcls.is_protected_pointer() and qlexpr is not None:
+        msg = f'cannot assign to {ptrcls.shortname.name}'
         raise errors.EdgeQLError(msg, context=shape_el.context)
 
     return ptrcls

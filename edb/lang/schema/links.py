@@ -43,12 +43,6 @@ class Link(sources.Source, pointers.Pointer):
     spectargets = so.Field(named.NamedObjectSet, named.NamedObjectSet,
                            coerce=True)
 
-    @classmethod
-    def get_special_pointers(cls):
-        return (sn.Name('std::source'),
-                sn.Name('std::target'),
-                sn.Name('std::linkid'),)
-
     def init_std_props(self, schema, *, mark_derived=False,
                        add_to_schema=False, dctx=None):
 

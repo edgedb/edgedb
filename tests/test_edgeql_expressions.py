@@ -1303,6 +1303,15 @@ class TestExpressions(tb.QueryTestCase):
                 };
             """)
 
+    async def test_edgeql_expr_cannot_assign_id_01(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'cannot assign to id'):
+            await self.con.execute(r"""
+                SELECT test::Text {
+                    id := <uuid>'77841036-8e35-49ce-b509-2cafa0c25c4f'
+                };
+            """)
+
     async def test_edgeql_expr_if_else_01(self):
         await self.assert_query_result(r"""
             SELECT 'yes' IF True ELSE 'no';
