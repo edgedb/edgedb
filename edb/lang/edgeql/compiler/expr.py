@@ -377,7 +377,8 @@ def _cast_expr(
 
     else:
         typ = typegen.ql_typeref_to_ir_typeref(ql_type, ctx=ctx)
-        return irast.TypeCast(expr=ir_expr, type=typ)
+        return setgen.ensure_set(
+            irast.TypeCast(expr=ir_expr, type=typ), ctx=ctx)
 
 
 @dispatch.compile.register(qlast.TypeFilter)

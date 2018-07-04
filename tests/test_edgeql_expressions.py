@@ -595,9 +595,11 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_cast_09(self):
         await self.assert_query_result(r"""
             SELECT <tuple<str, int64>> ('foo', 42);
+            SELECT <tuple<str, int64>> (1, 2);
             SELECT <tuple<a: str, b: int64>> ('foo', 42);
         """, [
             [['foo', 42]],
+            [['1', 2]],
             [{'a': 'foo', 'b': 42}],
         ])
 
