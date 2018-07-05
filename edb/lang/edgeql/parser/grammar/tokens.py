@@ -149,6 +149,14 @@ class T_EQUALS(Token, lextoken='='):
     pass
 
 
+class T_AMPER(Token, lextoken='&'):
+    pass
+
+
+class T_PIPE(Token, lextoken='|'):
+    pass
+
+
 class T_ICONST(Token):
     pass
 

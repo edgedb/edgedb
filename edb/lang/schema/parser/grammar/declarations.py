@@ -371,7 +371,7 @@ class AttributeDeclaration(Nonterm):
         eql = kids[1].parse_as_attribute_decl()
         self.val = esast.AttributeDeclaration(
             name=eql.name.name,
-            extends=[qlast.TypeName(maintype=base) for base in eql.bases],
+            extends=eql.bases,
             type=eql.type)
 
     def reduce_ATTRIBUTE_ParenRawString_DeclarationSpecsBlob(self, *kids):
@@ -386,7 +386,7 @@ class AttributeDeclaration(Nonterm):
 
         self.val = esast.AttributeDeclaration(
             name=eql.name.name,
-            extends=[qlast.TypeName(maintype=base) for base in eql.bases],
+            extends=eql.bases,
             type=eql.type,
             attributes=attributes)
 

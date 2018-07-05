@@ -34,30 +34,51 @@ def ast_to_typeref(
         node: ql_ast.TypeName, *,
         modaliases: typing.Dict[typing.Optional[str], str],
         schema) -> so.ObjectRef:
-    if node.subtypes:
+    if node.subtypes is not None:
         coll = s_types.Collection.get_class(node.maintype.name)
 
         if issubclass(coll, s_types.Tuple):
             subtypes = collections.OrderedDict()
-            named = False
+            # tuple declaration must either be named or unnamed, but not both
+            named = None
+            unnamed = None
             for si, st in enumerate(node.subtypes):
                 if st.name:
                     named = True
                     type_name = st.name
                 else:
+                    unnamed = True
                     type_name = str(si)
+
+                if named is not None and unnamed is not None:
+                    raise s_err.ItemNotFoundError(
+                        f'mixing named and unnamed tuple declaration '
+                        f'is not supported',
+                        context=node.subtypes[0].context,
+                    )
 
                 subtypes[type_name] = ast_to_typeref(
                     st, modaliases=modaliases, schema=schema)
 
-            return coll.from_subtypes(subtypes, {'named': named})
+            try:
+                return coll.from_subtypes(subtypes, {'named': bool(named)})
+            except s_err.SchemaError as e:
+                # all errors raised inside are pertaining to subtypes, so
+                # the context should point to the first subtype
+                e.set_source_context(node.subtypes[0].context)
+                raise e
+
         else:
             subtypes = []
             for st in node.subtypes:
                 subtypes.append(ast_to_typeref(
                     st, modaliases=modaliases, schema=schema))
 
-            return coll.from_subtypes(subtypes)
+            try:
+                return coll.from_subtypes(subtypes)
+            except s_err.SchemaError as e:
+                e.set_source_context(node.context)
+                raise e
 
     nqname = node.maintype.name
     module = node.maintype.module

@@ -28,7 +28,7 @@ class Precedence(parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
     pass
 
 
-class P_UNION(Precedence, assoc='left', tokens=('UNION', 'DISTINCTUNION')):
+class P_UNION(Precedence, assoc='left', tokens=('UNION',)):
     pass
 
 
@@ -90,6 +90,22 @@ class P_DOUBLEQMARK_OP(Precedence, assoc='right', tokens=('DOUBLEQMARK',)):
 
 
 class P_BRACE(Precedence, assoc='left', tokens=('LBRACE', 'RBRACE')):
+    pass
+
+
+class P_TYPEOF(Precedence, assoc='nonassoc', tokens=('TYPEOF',)):
+    pass
+
+
+class P_INTROSPECT(Precedence, assoc='nonassoc', tokens=('INTROSPECT',)):
+    pass
+
+
+class P_TYPEOR(Precedence, assoc='left', tokens=('PIPE',)):
+    pass
+
+
+class P_TYPEAND(Precedence, assoc='left', tokens=('AMPER',)):
     pass
 
 

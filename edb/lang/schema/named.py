@@ -186,8 +186,12 @@ class CreateNamedObject(CreateOrAlterNamedObject, sd.CreateObject):
             pass
         elif op.property == 'bases':
             node.bases = [
-                qlast.ObjectRef(name=b.classname.name,
-                                module=b.classname.module)
+                qlast.TypeName(
+                    maintype=qlast.ObjectRef(
+                        name=b.classname.name,
+                        module=b.classname.module
+                    )
+                )
                 for b in op.new_value
             ]
         elif op.property == 'mro':

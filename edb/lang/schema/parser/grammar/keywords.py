@@ -19,7 +19,7 @@
 
 import typing
 
-from edb.lang import edgeql
+from edb.lang.edgeql.parser.grammar import keywords as eql_keywords
 
 
 # NOTE: Please update the pygments lexer with any keyword changes made here
@@ -58,21 +58,21 @@ unreserved_keywords = frozenset([
 # to enforce consistency in naming.  E.g. if a type name is a reserved
 # keyword in EdgeQL and needs to be quoted, the same should apply to
 # eschema.
-reserved_keywords = edgeql.keywords.reserved_keywords
+reserved_keywords = eql_keywords.reserved_keywords
 
 
 def _check_keywords():
     ALLOWED_NEW_UNRESERVED = {'import'}
 
     invalid_unreserved_keywords = \
-        edgeql.keywords.reserved_keywords.intersection(unreserved_keywords)
+        eql_keywords.reserved_keywords.intersection(unreserved_keywords)
     if invalid_unreserved_keywords:
         raise ValueError(
             f'The following unreserved eschema keywords are *reserved* '
             f'in EdgeQL: {invalid_unreserved_keywords!r}')
 
     invalid_reserved_keywords = \
-        edgeql.keywords.unreserved_keywords.intersection(reserved_keywords)
+        eql_keywords.unreserved_keywords.intersection(reserved_keywords)
     if invalid_reserved_keywords:
         raise ValueError(
             f'The following reserved eschema keywords are *unreserved* '
@@ -86,14 +86,14 @@ def _check_keywords():
             f'reserved and unreserved: {duplicate_keywords!r}')
 
     new_reserved_keywords = \
-        reserved_keywords - edgeql.keywords.reserved_keywords
+        reserved_keywords - eql_keywords.reserved_keywords
     if new_reserved_keywords:
         raise ValueError(
             f'The following reserved keywords are defined in eschema, '
             f'but not in EdgeQL: {new_reserved_keywords!r}')
 
     new_unreserved_keywords = (unreserved_keywords -
-                               edgeql.keywords.unreserved_keywords -
+                               eql_keywords.unreserved_keywords -
                                ALLOWED_NEW_UNRESERVED)
     if new_unreserved_keywords:
         raise ValueError(
@@ -104,9 +104,9 @@ def _check_keywords():
 _check_keywords()
 
 
-edge_schema_keywords = {k: (edgeql.keywords.tok_name(k), UNRESERVED_KEYWORD)
+edge_schema_keywords = {k: (eql_keywords.tok_name(k), UNRESERVED_KEYWORD)
                         for k in unreserved_keywords}
-edge_schema_keywords.update({k: (edgeql.keywords.tok_name(k), RESERVED_KEYWORD)
+edge_schema_keywords.update({k: (eql_keywords.tok_name(k), RESERVED_KEYWORD)
                              for k in reserved_keywords})
 
 

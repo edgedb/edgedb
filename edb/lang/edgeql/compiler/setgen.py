@@ -161,7 +161,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             if ptr_expr.target:
                 # ... link [IS Target]
                 ptr_target = schemactx.get_schema_type(
-                    ptr_expr.target, ctx=ctx)
+                    ptr_expr.target.maintype, ctx=ctx)
                 if not isinstance(ptr_target, s_objtypes.ObjectType):
                     raise errors.EdgeQLError(
                         f'invalid type filter operand: {ptr_target.name} '

@@ -173,9 +173,6 @@ class ContextLevel(compiler.ContextLevel):
     in_aggregate: bool
     """True if the current location is inside an aggregate function call."""
 
-    path_as_type: bool
-    """True if path references should be treated as type references."""
-
     view_rptr: ViewRPtr
     """Pointer information for the top-level view of the substatement."""
 
@@ -231,7 +228,6 @@ class ContextLevel(compiler.ContextLevel):
             self.in_aggregate = False
             self.view_scls = None
             self.expr_exposed = False
-            self.path_as_type = False
 
             self.partial_path_prefix = None
 
@@ -288,7 +284,6 @@ class ContextLevel(compiler.ContextLevel):
                 self.stmt = None
                 self.singletons = prevlevel.singletons.copy()
                 self.in_aggregate = False
-                self.path_as_type = False
 
                 self.partial_path_prefix = None
 
@@ -315,7 +310,6 @@ class ContextLevel(compiler.ContextLevel):
                 self.stmt = None
                 self.singletons = set()
                 self.in_aggregate = False
-                self.path_as_type = False
 
                 self.partial_path_prefix = None
 
@@ -332,7 +326,6 @@ class ContextLevel(compiler.ContextLevel):
                 self.stmt = prevlevel.stmt
 
                 self.in_aggregate = prevlevel.in_aggregate
-                self.path_as_type = prevlevel.path_as_type
 
                 self.singletons = prevlevel.singletons
 

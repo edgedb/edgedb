@@ -111,7 +111,7 @@ class ScalarTypeDeclaration(Declaration):
 
 
 class AttributeDeclaration(Declaration):
-    type: typing.Optional[qlast.TypeName]
+    type: qlast.TypeExpr
 
 
 class ObjectTypeDeclaration(Declaration):

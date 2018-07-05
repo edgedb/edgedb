@@ -79,9 +79,10 @@ class IRDecompiler(ast.visitor.NodeVisitor):
 
                 if isinstance(rptr.target.scls, s_objtypes.ObjectType):
                     target = rptr.target.scls.shortname
-                    target = qlast.ObjectRef(
-                        name=target.name,
-                        module=target.module)
+                    target = qlast.TypeName(
+                        maintype=qlast.ObjectRef(
+                            name=target.name,
+                            module=target.module))
                 else:
                     target = None
 
@@ -90,7 +91,8 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                         name=pname.name,
                     ),
                     direction=rptr.direction,
-                    target=target)
+                    target=target,
+                )
                 if isinstance(ptrcls.source, s_links.Link):
                     link.type = 'property'
                 links.append(link)

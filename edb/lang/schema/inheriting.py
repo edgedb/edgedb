@@ -121,9 +121,7 @@ class CreateInheritingObject(named.CreateNamedObject, InheritingObjectCommand):
         modaliases = context.modaliases
 
         bases = so.ObjectList(
-            utils.ast_to_typeref(
-                qlast.TypeName(maintype=b),
-                modaliases=modaliases, schema=schema)
+            utils.ast_to_typeref(b, modaliases=modaliases, schema=schema)
             for b in getattr(astnode, 'bases', None) or []
         )
 

@@ -283,10 +283,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ])
 
     async def test_edgeql_ddl_11(self):
-        await self.con.execute("""
+        await self.con.execute(r"""
             CREATE TYPE test::TestContainerLinkObjectType {
                 CREATE PROPERTY test::test_array_link -> array<std::str>;
-                CREATE PROPERTY test::test_array_link_2 -> array<std::str[10]>;
+                # FIXME: for now dimention specs on the array are
+                # disabled pending a syntax change
+                # CREATE PROPERTY test::test_array_link_2 ->
+                #     array<std::str[10]>;
             };
         """)
 
@@ -530,4 +533,55 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute(r"""
                 CREATE FUNCTION test::my_agg(any = [1]) -> array<any>
                     FROM SQL FUNCTION "my_agg";
+            """)
+
+    async def test_edgeql_ddl_21(self):
+        with self.assertRaisesRegex(
+                client_errors.SchemaError,
+                r'unqualified name and no default module set'):
+            await self.con.execute(r"""
+                CREATE ABSTRACT ATTRIBUTE test::bad_attr array;
+            """)
+
+    async def test_edgeql_ddl_22(self):
+        with self.assertRaisesRegex(
+                client_errors.SchemaError,
+                r'unqualified name and no default module set'):
+            await self.con.execute(r"""
+                CREATE ABSTRACT ATTRIBUTE test::bad_attr tuple;
+            """)
+
+    async def test_edgeql_ddl_23(self):
+        with self.assertRaisesRegex(
+                client_errors.SchemaError,
+                r'unexpected number of subtypes, expecting 1'):
+            await self.con.execute(r"""
+                CREATE ABSTRACT ATTRIBUTE test::bad_attr
+                    array<int64, int64, int64>;
+            """)
+
+    async def test_edgeql_ddl_24(self):
+        with self.assertRaisesRegex(
+                client_errors.SchemaError,
+                r'nested arrays are not supported'):
+            await self.con.execute(r"""
+                CREATE ABSTRACT ATTRIBUTE test::bad_attr array<array<int64>>;
+            """)
+
+    async def test_edgeql_ddl_25(self):
+        with self.assertRaisesRegex(
+                client_errors.SchemaError,
+                r'mixing named and unnamed tuple declaration is not '
+                r'supported'):
+            await self.con.execute(r"""
+                CREATE ABSTRACT ATTRIBUTE test::bad_attr
+                    tuple<int64, foo:int64>;
+            """)
+
+    async def test_edgeql_ddl_26(self):
+        with self.assertRaisesRegex(
+                client_errors.SchemaError,
+                r'unexpected number of subtypes, expecting 1'):
+            await self.con.execute(r"""
+                CREATE ABSTRACT ATTRIBUTE test::bad_attr array<>;
             """)

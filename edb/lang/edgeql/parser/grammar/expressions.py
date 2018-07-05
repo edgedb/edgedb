@@ -295,11 +295,11 @@ class OptAnySubShape(Nonterm):
         # typed shape needs to be transformed here into a different
         # expression
         shape = kids[1].val
-        self.val = [shape.expr.steps[0]] + shape.elements
-
-    def reduce_COLON_TypeName(self, *kids):
-        # this kind of shape definition appears in function signatures
-        self.val = [kids[1].val]
+        self.val = [qlast.TypeName(
+            maintype=shape.expr.steps[0],
+            context=context.get_context(shape.expr.steps[0])
+        )]
+        self.val += shape.elements
 
     def reduce_empty(self, *kids):
         self.val = None
@@ -314,11 +314,12 @@ class ShapeElement(Nonterm):
 
         shape = kids[1].val
 
-        if shape and isinstance(shape[0], qlast.ObjectRef):
+        # shape elements can have a path starting with a TypeExpr,
+        # this indicates a polymorphic shape and TypeExpr must be
+        # extracted from the path steps
+        if shape and isinstance(shape[0], qlast.TypeExpr):
             self.val.expr.steps[-1].target = shape[0]
             self.val.elements = shape[1:]
-        elif shape and isinstance(shape[0], qlast.TypeName):
-            self.val.expr.steps[-1].target = shape[0]
         else:
             self.val.elements = shape or []
 
@@ -384,7 +385,7 @@ class ShapePath(Nonterm):
 
 
 class ShapePathPtr(Nonterm):
-    def reduce_LBRACKET_IS_NodeName_RBRACKET(self, *kids):
+    def reduce_LBRACKET_IS_FullTypeExpr_RBRACKET(self, *kids):
         self.val = kids[2].val
 
 
@@ -516,7 +517,8 @@ class Expr(Nonterm):
     # | Expr AND Expr | Expr OR Expr | NOT Expr
     # | Expr LIKE Expr | Expr NOT LIKE Expr
     # | Expr ILIKE Expr | Expr NOT ILIKE Expr
-    # | Expr IS Expr | Expr IS NOT Expr
+    # | Expr IS TypeExpr | Expr IS NOT TypeExpr
+    # | INTROSPECT TypeExpr
     # | Expr IN Expr | Expr NOT IN Expr
     # | Expr '[' Expr ']'
     # | Expr '[' Expr ':' Expr ']'
@@ -559,7 +561,7 @@ class Expr(Nonterm):
             self.val = qlast.Indirection(arg=expr,
                                          indirection=[kids[1].val])
 
-    def reduce_Expr_LBRACKET_IS_NodeName_RBRACKET(self, *kids):
+    def reduce_Expr_LBRACKET_IS_FullTypeExpr_RBRACKET(self, *kids):
         # The path filter rule is here to resolve ambiguity with
         # indexes and slices, so Expr needs to be enforced as a path.
         #
@@ -578,7 +580,7 @@ class Expr(Nonterm):
             # any other expression is a path with a filter
             self.val = qlast.TypeFilter(
                 expr=path,
-                type=qlast.TypeName(maintype=kids[3].val)
+                type=kids[3].val,
             )
 
     def reduce_FuncExpr(self, *kids):
@@ -710,14 +712,17 @@ class Expr(Nonterm):
         self.val = qlast.BinOp(left=kids[0].val, op=qlast.NOT_ILIKE,
                                right=kids[3].val)
 
-    def reduce_Expr_IS_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=ast.ops.IS,
-                               right=kids[2].val)
+    def reduce_Expr_IS_TypeExpr(self, *kids):
+        self.val = qlast.IsOp(left=kids[0].val, op=ast.ops.IS,
+                              right=kids[2].val)
 
     @parsing.precedence(precedence.P_IS)
-    def reduce_Expr_IS_NOT_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=ast.ops.IS_NOT,
-                               right=kids[3].val)
+    def reduce_Expr_IS_NOT_TypeExpr(self, *kids):
+        self.val = qlast.IsOp(left=kids[0].val, op=ast.ops.IS_NOT,
+                              right=kids[3].val)
+
+    def reduce_INTROSPECT_TypeExpr(self, *kids):
+        self.val = qlast.Introspect(type=kids[1].val)
 
     def reduce_Expr_IN_Expr(self, *kids):
         inexpr = kids[2].val
@@ -731,7 +736,7 @@ class Expr(Nonterm):
                                right=inexpr)
 
     @parsing.precedence(precedence.P_TYPECAST)
-    def reduce_LANGBRACKET_TypeName_RANGBRACKET_Expr(
+    def reduce_LANGBRACKET_FullTypeExpr_RANGBRACKET_Expr(
             self, *kids):
         self.val = qlast.TypeCast(expr=kids[3].val, type=kids[1].val)
 
@@ -1041,87 +1046,79 @@ class BaseName(Nonterm):
         self.val = [kids[0].val, kids[2].val]
 
 
-class NonArrayTypeName(Nonterm):
+class SimpleTypeName(Nonterm):
     def reduce_NodeName(self, *kids):
-        maintype = kids[0].val
-
-        # maintype cannot be a collection
-        if maintype.module is None and maintype.name in {'array', 'tuple'}:
-            raise EdgeQLSyntaxError(
-                f"Unexpected {maintype.name!r}",
-                context=kids[0].context)
-
-        self.val = qlast.TypeName(maintype=maintype)
-
-    def reduce_TUPLE_LANGBRACKET_RANGBRACKET(self, *kids):
-        self.val = qlast.TypeName(
-            maintype=qlast.ObjectRef(name='tuple'),
-            subtypes=[],
-        )
-
-    def reduce_TUPLE_LANGBRACKET_TypeNameList_RANGBRACKET(self, *kids):
-        self.val = qlast.TypeName(
-            maintype=qlast.ObjectRef(name='tuple'),
-            subtypes=kids[2].val,
-        )
-
-    def reduce_TUPLE_LANGBRACKET_NamedTupleTypeList_RANGBRACKET(self, *kids):
-        self.val = qlast.TypeName(
-            maintype=qlast.ObjectRef(name='tuple'),
-            subtypes=kids[2].val,
-        )
+        self.val = qlast.TypeName(maintype=kids[0].val)
 
 
-class TypeName(Nonterm):
-    def reduce_NonArrayTypeName(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_ARRAY_LANGBRACKET_NonArrayTypeName_OptDimensions_RANGBRACKET(
-            self, *kids):
-        subtype = kids[2].val
-        dimensions = kids[3].val
-
-        self.val = qlast.TypeName(
-            maintype=qlast.ObjectRef(name='array'),
-            subtypes=[subtype],
-            dimensions=dimensions,
-        )
-
-
-class TypeNameList(ListNonterm, element=TypeName, separator=tokens.T_COMMA):
-    pass
-
-
-class NamedTupleType(Nonterm):
-    def reduce_Identifier_COLON_TypeName(self, *kids):
-        self.val = kids[2].val
-        self.val.name = kids[0].val
-
-
-class NamedTupleTypeList(ListNonterm, element=NamedTupleType,
+class SimpleTypeNameList(ListNonterm, element=SimpleTypeName,
                          separator=tokens.T_COMMA):
     pass
 
 
-class Dimension(Nonterm):
-    def reduce_LBRACKET_RBRACKET(self, *kids):
-        # special value, impossible to get through any other production
-        self.val = -1
+class ExtTypeName(Nonterm):
+    def reduce_NodeName_LANGBRACKET_RANGBRACKET(self, *kids):
+        self.val = qlast.TypeName(
+            maintype=kids[0].val,
+            subtypes=[],
+        )
 
-    def reduce_LBRACKET_ICONST_RBRACKET(self, *kids):
-        self.val = int(kids[1].val)
+    def reduce_NodeName_LANGBRACKET_SubtypeList_RANGBRACKET(self, *kids):
+        self.val = qlast.TypeName(
+            maintype=kids[0].val,
+            subtypes=kids[2].val,
+        )
 
 
-class Dimensions(ListNonterm, element=Dimension):
+# This is a type expression without angle brackets or parentheses
+class TypeExpr(Nonterm):
+    def reduce_SimpleTypeName(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_TYPEOF_Expr(self, *kids):
+        self.val = qlast.TypeOf(expr=kids[0].val)
+
+    def reduce_LPAREN_FullTypeExpr_RPAREN(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_TypeExpr_PIPE_TypeExpr(self, *kids):
+        self.val = qlast.TypeOp(left=kids[0].val, op=qlast.TYPEOR,
+                                right=kids[2].val)
+
+    def reduce_TypeExpr_AMPER_TypeExpr(self, *kids):
+        self.val = qlast.TypeOp(left=kids[0].val, op=qlast.TYPEAND,
+                                right=kids[2].val)
+
+
+# This is a type expression with everything, it is meant to be used
+# inside parentheses or angle brackets.
+class FullTypeExpr(Nonterm):
+    def reduce_SimpleTypeName(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_ExtTypeName(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_FullTypeExpr_PIPE_FullTypeExpr(self, *kids):
+        self.val = qlast.TypeOp(left=kids[0].val, op=qlast.TYPEOR,
+                                right=kids[2].val)
+
+    def reduce_FullTypeExpr_AMPER_FullTypeExpr(self, *kids):
+        self.val = qlast.TypeOp(left=kids[0].val, op=qlast.TYPEAND,
+                                right=kids[2].val)
+
+
+class Subtype(Nonterm):
+    def reduce_FullTypeExpr(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_Identifier_COLON_FullTypeExpr(self, *kids):
+        self.val = kids[2].val
+        self.val.name = kids[0].val
+
+
+class SubtypeList(ListNonterm, element=Subtype, separator=tokens.T_COMMA):
     pass
-
-
-class OptDimensions(Nonterm):
-    def reduce_Dimensions(self, *kids):
-        self.val = [None if v == -1 else v for v in kids[0].val]
-
-    def reduce_empty(self):
-        self.val = None
 
 
 class NodeName(Nonterm):

@@ -267,10 +267,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         SELECT (User.name IN {'Alice', 'Bob'});
         SELECT (User.name NOT IN {'Alice', 'Bob'});
-        SELECT (User.name IS std::str);
-        SELECT (User IS SystemUser);
-        SELECT (User.name IS NOT std::str);
-        SELECT (User IS NOT SystemUser);
         """
 
     def test_edgeql_syntax_ops_11(self):
@@ -412,6 +408,32 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         SELECT (Foo.a ?= Foo.b);
         SELECT (Foo.b ?!= Foo.b);
+        """
+
+    def test_edgeql_syntax_ops_24(self):
+        """
+        SELECT (User.name IS std::str);
+        SELECT (User IS SystemUser);
+        SELECT (User.name IS NOT std::str);
+        SELECT (User IS NOT SystemUser);
+
+        SELECT (User.name IS (array<int>));
+        SELECT (User.name IS (tuple<int, str, array<str>>));
+        """
+
+    def test_edgeql_syntax_ops_25(self):
+        """
+        SELECT User IS SystemUser | Foo;
+        SELECT User IS SystemUser & Foo;
+        SELECT User IS SystemUser & Foo | Bar;
+        SELECT User IS SystemUser & Foo | Bar | (array<int>);
+
+% OK %
+
+        SELECT (User IS (SystemUser | Foo));
+        SELECT (User IS (SystemUser & Foo));
+        SELECT (User IS ((SystemUser & Foo) | Bar));
+        SELECT (User IS (((SystemUser & Foo) | Bar) | (array<int>)));
         """
 
     def test_edgeql_syntax_list_01(self):
@@ -1290,6 +1312,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Foo.bar@__type__;
         """
 
+    def test_edgeql_syntax_path_25(self):
+        # illegal semantically, but syntactically valid
+        """
+        SELECT Foo.bar[IS array<int>];
+        SELECT Foo.bar[IS int64];
+        SELECT Foo.bar[IS tuple<array<int>, str>];
+        """
+
     def test_edgeql_syntax_type_interpretation_01(self):
         """
         SELECT Foo[IS Bar].spam;
@@ -1413,14 +1443,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_cast_05(self):
         """
         SELECT <array<int64>>$1;
-        SELECT <array<int[2][3]>>$1;
+        SELECT <std::array<std::str>>$1;
         """
 
     def test_edgeql_syntax_cast_07(self):
         """
         SELECT <tuple<>>$1;
         SELECT <tuple<Foo, int, str>>$1;
-        SELECT <tuple<obj: Foo, count: int, name: str>>$1;
+        SELECT <std::tuple<obj: Foo, count: int, name: str>>$1;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected string '1'",
@@ -2332,19 +2362,6 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         # test parsing of array types
         """
         CREATE ABSTRACT ATTRIBUTE std::foo array<int64>;
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int64[]>;
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int64[][]>;
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int64[][][]>;
-
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int64[3]>;
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int64[4][5]>;
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int64[3][4][5]>;
-
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int64[][5]>;
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int64[4][]>;
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int64[][4][5]>;
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int64[3][4][]>;
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int64[][4][]>;
         """
 
     def test_edgeql_syntax_ddl_attribute_05(self):
@@ -2368,39 +2385,33 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         CREATE ABSTRACT ATTRIBUTE std::foo tuple<Baz, tuple<int64, foo::Bar>>;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected 'array'", line=2, col=44)
+    # illegal semantically, but syntactically valid
     def test_edgeql_syntax_ddl_attribute_09(self):
         """
         CREATE ABSTRACT ATTRIBUTE std::foo array;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected ','", line=2, col=55)
+    # illegal semantically, but syntactically valid
     def test_edgeql_syntax_ddl_attribute_10(self):
         """
         CREATE ABSTRACT ATTRIBUTE std::foo array<int64, int64, int64>;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected '<'", line=2, col=55)
+    # illegal semantically, but syntactically valid
     def test_edgeql_syntax_ddl_attribute_11(self):
         """
-        CREATE ABSTRACT ATTRIBUTE std::foo array<array<int64[]>>;
+        CREATE ABSTRACT ATTRIBUTE std::foo array<array<int64>>;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected ':'", line=2, col=60)
+    # illegal semantically, but syntactically valid
     def test_edgeql_syntax_ddl_attribute_12(self):
         """
         CREATE ABSTRACT ATTRIBUTE std::foo tuple<int64, foo:int64>;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected '>'", line=2, col=64)
     def test_edgeql_syntax_ddl_attribute_13(self):
         """
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<foo:int64, str>;
+        CREATE ABSTRACT ATTRIBUTE std::foo bar<foo:int64, str>;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -2410,15 +2421,13 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         CREATE ABSTRACT ATTRIBUTE std::paramtypes;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected '>'", line=2, col=50)
+    # illegal semantically, but syntactically valid
     def test_edgeql_syntax_ddl_attribute_15(self):
         """
         CREATE ABSTRACT ATTRIBUTE std::foo array<>;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected 'tuple'", line=2, col=44)
+    # illegal semantically, but syntactically valid
     def test_edgeql_syntax_ddl_attribute_16(self):
         """
         CREATE ABSTRACT ATTRIBUTE std::foo tuple;

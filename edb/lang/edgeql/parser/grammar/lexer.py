@@ -97,7 +97,7 @@ class EdgeQLLexer(lexer.Lexer):
         # SQL ops
         Rule(token='self',
              next_state=STATE_KEEP,
-             regexp=r'[,()\[\].@;:+\-*/%^<>=]'),
+             regexp=r'[,()\[\].@;:+\-*/%^<>=&|]'),
 
         Rule(token='FCONST',
              next_state=STATE_KEEP,

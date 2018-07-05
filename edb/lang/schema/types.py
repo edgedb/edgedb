@@ -23,6 +23,7 @@ import enum
 from edb.lang.common import typed
 
 from . import derivable
+from . import error as s_err
 from . import expr as s_expr
 from . import name as s_name
 from . import objects as so
@@ -178,7 +179,7 @@ class Collection(Type):
         elif schema_name == 'tuple':
             return Tuple
         else:
-            raise ValueError(
+            raise s_err.SchemaError(
                 'unknown collection type: {!r}'.format(schema_name))
 
     @classmethod
@@ -235,15 +236,18 @@ class Array(Collection):
     @classmethod
     def from_subtypes(cls, subtypes, typemods=None):
         if len(subtypes) != 1:
-            raise ValueError(
+            raise s_err.SchemaError(
                 f'unexpected number of subtypes, expecting 1: {subtypes!r}')
+        stype = subtypes[0]
+
+        if isinstance(stype, Array):
+            raise s_err.SchemaError(f'nested arrays are not supported')
 
         if typemods:
             dimensions = typemods[0]
         else:
             dimensions = []
 
-        stype = subtypes[0]
         if isinstance(stype, cls):
             # There is no array of arrays, only multi-dimensional arrays.
             element_type = stype.element_type

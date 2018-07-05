@@ -186,7 +186,10 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
             source_name = parent_ctx.op.classname
             target_type = None
 
-            if len(astnode.targets) > 1:
+            # FIXME: this is an approximate solution
+            targets = qlast.get_targets(astnode.target)
+
+            if len(targets) > 1:
                 cmd.add(
                     sd.AlterObjectProperty(
                         property='spectargets',
@@ -194,14 +197,14 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                             utils.ast_to_typeref(
                                 t, modaliases=context.modaliases,
                                 schema=schema)
-                            for t in astnode.targets
+                            for t in targets
                         ])
                     )
                 )
 
                 target_name = sources.Source.gen_virt_parent_name(
                     (sn.Name(module=t.maintype.module, name=t.maintype.name)
-                     for t in astnode.targets),
+                     for t in targets),
                     module=source_name.module
                 )
 
@@ -240,7 +243,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                 else:
                     alter_db_ctx.op.add(create_virt_parent)
             else:
-                target_expr = astnode.targets[0]
+                target_expr = targets[0]
                 if isinstance(target_expr, qlast.TypeName):
                     target = utils.ast_to_typeref(
                         target_expr, modaliases=context.modaliases,
@@ -316,7 +319,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                     raise s_err.SchemaDefinitionError(
                         f'invalid link target, expected object type, got '
                         f'{target_type.__class__.__name__}',
-                        context=astnode.targets[0].context
+                        context=astnode.target.context
                     )
 
             cmd.add(
@@ -437,11 +440,8 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
             pass
         elif op.property == 'spectargets':
             if op.new_value:
-                node.targets = [
-                    qlast.ObjectRef(name=t.classname.name,
-                                    module=t.classname.module)
-                    for t in op.new_value
-                ]
+                node.target = qlast.union_targets(
+                    [t.classname for t in op.new_value])
         elif op.property == 'default':
             self._encode_default(context, node, op)
         elif op.property == 'required':
@@ -453,9 +453,9 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                 v = qlast.Constant(value=str(op.new_value.weight))
                 self._set_attribute_ast(context, node, 'search_weight', v)
         elif op.property == 'target' and objtype:
-            if not node.targets:
+            if not node.target:
                 t = op.new_value
-                node.targets = [utils.typeref_to_ast(t)]
+                node.target = utils.typeref_to_ast(t)
         else:
             super()._apply_field_ast(context, node, op)
 
@@ -499,7 +499,9 @@ class AlterTarget(sd.Command):
         parent_ctx = context.get(LinkSourceCommandContext)
         source_name = parent_ctx.op.classname
 
-        if len(astnode.targets) > 1:
+        targets = qlast.get_targets(astnode.target)
+
+        if len(targets) > 1:
             alter_ptr_ctx = context.get(pointers.PointerCommandContext)
 
             alter_ptr_ctx.op.add(
@@ -512,14 +514,14 @@ class AlterTarget(sd.Command):
                                 name=t.name
                             )
                         )
-                        for t in astnode.targets
+                        for t in targets
                     ])
                 )
             )
 
             target_name = sources.Source.gen_virt_parent_name(
                 (sn.Name(module=t.module, name=t.name)
-                 for t in astnode.targets),
+                 for t in targets),
                 module=source_name.module
             )
 
@@ -553,12 +555,7 @@ class AlterTarget(sd.Command):
             else:
                 alter_db_ctx.op.add(create_virt_parent)
         else:
-            target = so.ObjectRef(
-                classname=sn.Name(
-                    module=astnode.targets[0].module,
-                    name=astnode.targets[0].name
-                )
-            )
+            target = targets[0]
 
         cmd.new_value = target
 

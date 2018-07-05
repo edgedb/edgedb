@@ -306,10 +306,10 @@ commands_block('Alter', RenameStmt, SetFieldStmt, DropFieldStmt, opt=False)
 
 
 class Extending(Nonterm):
-    def reduce_EXTENDING_NodeName(self, *kids):
+    def reduce_EXTENDING_SimpleTypeName(self, *kids):
         self.val = [kids[1].val]
 
-    def reduce_EXTENDING_LPAREN_NodeNameList_RPAREN(self, *kids):
+    def reduce_EXTENDING_LPAREN_SimpleTypeNameList_RPAREN(self, *kids):
         self.val = kids[2].val
 
 
@@ -355,11 +355,11 @@ class OptInheritPosition(Nonterm):
 
 
 class AlterExtending(Nonterm):
-    def reduce_EXTENDING_NodeNameList_OptInheritPosition(self, *kids):
+    def reduce_EXTENDING_SimpleTypeNameList_OptInheritPosition(self, *kids):
         self.val = qlast.AlterAddInherit(bases=kids[1].val,
                                          position=kids[2].val)
 
-    def reduce_DROP_EXTENDING_NodeNameList(self, *kids):
+    def reduce_DROP_EXTENDING_SimpleTypeNameList(self, *kids):
         self.val = qlast.AlterDropInherit(bases=kids[2].val)
 
     def reduce_AlterAbstract(self, *kids):
@@ -777,7 +777,7 @@ class DropScalarTypeStmt(Nonterm):
 #
 class CreateAttributeStmt(Nonterm):
     def reduce_CreateAttributeWithType(self, *kids):
-        r"""%reduce CREATE ABSTRACT ATTRIBUTE NodeName TypeName OptExtending \
+        r"""%reduce CREATE ABSTRACT ATTRIBUTE NodeName FullTypeExpr OptExtending \
                     OptCreateCommandsBlock"""
         self.val = qlast.CreateAttribute(
             name=kids[3].val,
@@ -830,7 +830,7 @@ class DropIndexStmt(Nonterm):
 
 class AlterTargetStmt(Nonterm):
     def reduce_ALTER_TYPE_NodeNameList(self, *kids):
-        self.val = qlast.AlterTarget(targets=kids[2].val)
+        self.val = qlast.AlterTarget(target=kids[2].val)
 
 
 #
@@ -899,7 +899,7 @@ class CreateConcretePropertyStmt(Nonterm):
     def reduce_CreateRegularRequiredProperty(self, *kids):
         r"""%reduce \
             CREATE REQUIRED PROPERTY NodeName \
-            ARROW TypeName OptCreateConcretePropertyCommandsBlock \
+            ARROW FullTypeExpr OptCreateConcretePropertyCommandsBlock \
         """
         self.val = qlast.CreateConcreteProperty(
             name=kids[3].val,
@@ -911,7 +911,7 @@ class CreateConcretePropertyStmt(Nonterm):
     def reduce_CreateRegularProperty(self, *kids):
         r"""%reduce \
             CREATE PROPERTY NodeName \
-            ARROW TypeName OptCreateConcretePropertyCommandsBlock \
+            ARROW FullTypeExpr OptCreateConcretePropertyCommandsBlock \
         """
         self.val = qlast.CreateConcreteProperty(
             name=kids[2].val,
@@ -920,7 +920,7 @@ class CreateConcretePropertyStmt(Nonterm):
             commands=kids[5].val
         )
 
-    def reduce_CREATE_PROPERTY_NodeName_AS_Expr(self, *kids):
+    def reduce_CREATE_PROPERTY_NodeName_TURNSTILE_Expr(self, *kids):
         self.val = qlast.CreateConcreteProperty(
             name=kids[2].val,
             target=kids[4].val
@@ -1077,31 +1077,31 @@ class CreateConcreteLinkStmt(Nonterm):
     def reduce_CreateRegularRequiredLink(self, *kids):
         r"""%reduce \
             CREATE REQUIRED LINK LinkName \
-            ARROW TypeNameList OptCreateConcreteLinkCommandsBlock \
+            ARROW FullTypeExpr OptCreateConcreteLinkCommandsBlock \
         """
         self.val = qlast.CreateConcreteLink(
             name=kids[3].val,
             is_required=True,
-            targets=kids[5].val,
+            target=kids[5].val,
             commands=kids[6].val
         )
 
     def reduce_CreateRegularLink(self, *kids):
         r"""%reduce \
             CREATE LINK LinkName \
-            ARROW TypeNameList OptCreateConcreteLinkCommandsBlock \
+            ARROW FullTypeExpr OptCreateConcreteLinkCommandsBlock \
         """
         self.val = qlast.CreateConcreteLink(
             name=kids[2].val,
             is_required=False,
-            targets=kids[4].val,
+            target=kids[4].val,
             commands=kids[5].val
         )
 
     def reduce_CREATE_LINK_NodeName_TURNSTILE_Expr(self, *kids):
         self.val = qlast.CreateConcreteLink(
             name=kids[2].val,
-            targets=[kids[4].val]
+            target=kids[4].val
         )
 
 
@@ -1393,7 +1393,7 @@ class OptDefault(Nonterm):
 
 
 class FuncDeclArg(Nonterm):
-    def reduce_ArgQualifier_TypeName_OptDefault(self, *kids):
+    def reduce_ArgQualifier_FullTypeExpr_OptDefault(self, *kids):
         self.val = qlast.FuncParam(
             name=None,
             qualifier=kids[0].val,
@@ -1403,7 +1403,7 @@ class FuncDeclArg(Nonterm):
 
     def reduce_kwarg(self, *kids):
         r"""%reduce DOLLAR Identifier COLON \
-                ArgQualifier TypeName OptDefault \
+                ArgQualifier FullTypeExpr OptDefault \
         """
         self.val = qlast.FuncParam(
             name=kids[1].val,
@@ -1594,5 +1594,5 @@ class DropFunctionStmt(Nonterm):
 
 
 class FunctionType(Nonterm):
-    def reduce_TypeName(self, *kids):
+    def reduce_FullTypeExpr(self, *kids):
         self.val = kids[0].val

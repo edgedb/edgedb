@@ -32,7 +32,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                          'issues_setup.eql')
 
     async def test_edgeql_select_unique_01(self):
-        await self.assert_query_result('''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT
                 Issue.watchers.<owner[IS Issue] {
@@ -824,7 +824,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OFFSET <int64>User.<owner[IS Issue].number;
             """)
 
-    async def test_edgeql_select_specialized_01(self):
+    async def test_edgeql_select_polymorphic_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT
@@ -865,7 +865,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_select_specialized_02(self):
+    async def test_edgeql_select_polymorphic_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT User{
@@ -883,7 +883,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         ])
 
-    async def test_edgeql_select_specialized_03(self):
+    async def test_edgeql_select_polymorphic_03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT User{
@@ -901,6 +901,132 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     {'number': '1'},
                 ],
             }],
+        ])
+
+    async def test_edgeql_select_polymorphic_04(self):
+        # Since using a polymorphic shape element means that sometimes
+        # that element may be empty, it is prohibited to access
+        # protected property such as `id` on it as that would be
+        # equivalent to re-writing it.
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'cannot access id on a polymorphic shape element'):
+            await self.con.execute(r'''
+                WITH MODULE test
+                SELECT User {
+                    [IS Named].id,
+                };
+            ''')
+
+    async def test_edgeql_select_polymorphic_05(self):
+        # Since using a polymorphic shape element means that sometimes
+        # that element may be empty, it is prohibited to access
+        # protected link such as `__type__` on it as that would be
+        # equivalent to re-writing it.
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'cannot access __type__ on a polymorphic shape element'):
+            await self.con.execute(r'''
+                WITH MODULE test
+                SELECT User {
+                    [IS Named].__type__: {
+                        name
+                    },
+                };
+            ''')
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_polymorphic_06(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Object[IS Status].name;
+
+            WITH MODULE test
+            SELECT Object[IS Priority].name;
+
+            WITH MODULE test
+            SELECT Object[IS Status].name ?? Object[IS Priority].name;
+        ''', [
+            {
+                'Closed',
+                'Open',
+            },
+            {
+                'High',
+                'Low',
+            },
+            {
+                'Closed',
+                'High',
+                'Low',
+                'Open',
+            },
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_polymorphic_07(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Object[IS Status | Priority].name;
+            # the above should be equivalent to this:
+            # SELECT Object[IS Status].name ?? Object[IS Priority].name;
+        ''', [
+            {
+                'Closed',
+                'High',
+                'Low',
+                'Open',
+            },
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_select_polymorphic_08(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Object {
+                [IS Status | Priority].name,
+            } ORDER BY .name;
+
+            # the above should be equivalent to this:
+            WITH MODULE test
+            SELECT Object {
+                name := Object[IS Status].name ?? Object[IS Priority].name,
+            } ORDER BY .name;
+        ''', [
+            [
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': 'Closed'},
+                {'name': 'High'},
+                {'name': 'Low'},
+                {'name': 'Open'}
+            ],
+            [
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': 'Closed'},
+                {'name': 'High'},
+                {'name': 'Low'},
+                {'name': 'Open'}
+            ],
         ])
 
     async def test_edgeql_select_view_01(self):
@@ -1122,7 +1248,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT
                 Text {body}
-            FILTER Text IS NOT (Comment, Issue)
+            FILTER Text IS NOT Comment | Issue
             ORDER BY Text.body;
         ''', [
             [
@@ -3995,7 +4121,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_virtual_target_01(self):
-        await self.assert_query_result('''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue {
                 number,

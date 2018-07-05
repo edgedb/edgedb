@@ -97,6 +97,37 @@ def type_to_ql_typeref(t: s_obj.Object) -> qlast.TypeName:
 
 
 def ql_typeref_to_ir_typeref(
+        ql_t: qlast.TypeExpr, *,
+        ctx: context.ContextLevel) -> typing.Union[irast.Array, irast.TypeRef]:
+
+    types = _ql_typeexpr_to_ir_typeref(ql_t, ctx=ctx)
+    if len(types) > 1:
+        return irast.Array(
+            elements=types
+        )
+    else:
+        return types[0]
+
+
+def _ql_typeexpr_to_ir_typeref(
+        ql_t: qlast.TypeExpr, *,
+        ctx: context.ContextLevel) -> typing.List[irast.TypeRef]:
+
+    # FIXME: currently this only handles type union
+    if isinstance(ql_t, qlast.TypeOp):
+        if ql_t.op == qlast.TYPEOR:
+            return (_ql_typeexpr_to_ir_typeref(ql_t.left, ctx=ctx) +
+                    _ql_typeexpr_to_ir_typeref(ql_t.right, ctx=ctx))
+
+        raise errors.EdgeQLSyntaxError(
+            f'type operator {ql_t.op!r} is not implemented',
+            context=ql_t.context)
+
+    else:
+        return [_ql_typeref_to_ir_typeref(ql_t, ctx=ctx)]
+
+
+def _ql_typeref_to_ir_typeref(
         ql_t: qlast.TypeName, *,
         ctx: context.ContextLevel) -> irast.TypeRef:
     maintype = ql_t.maintype

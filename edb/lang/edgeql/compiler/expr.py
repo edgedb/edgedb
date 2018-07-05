@@ -59,9 +59,7 @@ def compile_BinOp(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
     try_folding = True
 
-    if isinstance(expr.op, ast.ops.TypeCheckOperator):
-        op_node = compile_type_check_op(expr, ctx=ctx)
-    elif isinstance(expr.op, qlast.SetOperator):
+    if isinstance(expr.op, qlast.SetOperator):
         op_node = compile_set_op(expr, ctx=ctx)
         try_folding = False
     elif isinstance(expr.op, qlast.EquivalenceOperator):
@@ -78,6 +76,18 @@ def compile_BinOp(
         folded = try_fold_binop(op_node, ctx=ctx)
         if folded is not None:
             return folded
+
+    return setgen.ensure_set(op_node, ctx=ctx)
+
+
+@dispatch.compile.register(qlast.IsOp)
+def compile_IsOp(
+        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
+    op_node = compile_type_check_op(expr, ctx=ctx)
+
+    folded = try_fold_binop(op_node, ctx=ctx)
+    if folded is not None:
+        return folded
 
     return setgen.ensure_set(op_node, ctx=ctx)
 
@@ -573,13 +583,9 @@ def try_fold_binop(
 
 
 def compile_type_check_op(
-        expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.TypeCheckOp:
-    # <Expr> IS <Type>
+        expr: qlast.IsOp, *, ctx: context.ContextLevel) -> irast.TypeCheckOp:
+    # <Expr> IS <TypeExpr>
     left = dispatch.compile(expr.left, ctx=ctx)
-    with ctx.new() as subctx:
-        subctx.path_as_type = True
-        right = dispatch.compile(expr.right, ctx=subctx)
-
     ltype = irutils.infer_type(left, ctx.schema)
     left = setgen.ptr_step_set(
         left, source=ltype, ptr_name=('std', '__type__'),
@@ -588,8 +594,7 @@ def compile_type_check_op(
 
     pathctx.register_set_in_scope(left, ctx=ctx)
 
-    right = typegen.process_type_ref_expr(right)
-
+    right = typegen.ql_typeref_to_ir_typeref(expr.right, ctx=ctx)
     return irast.TypeCheckOp(left=left, right=right, op=expr.op)
 
 

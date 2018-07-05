@@ -67,9 +67,6 @@ NOT_LIKE = EdgeQLMatchOperator('NOT LIKE')
 ILIKE = EdgeQLMatchOperator('ILIKE')
 NOT_ILIKE = EdgeQLMatchOperator('NOT ILIKE')
 
-IS_OF = EdgeQLOperator('IS OF')
-IS_NOT_OF = EdgeQLOperator('IS NOT OF')
-
 
 class EquivalenceOperator(EdgeQLOperator):
     pass
@@ -77,6 +74,14 @@ class EquivalenceOperator(EdgeQLOperator):
 
 EQUIVALENT = EquivalenceOperator('?=')
 NEQUIVALENT = EquivalenceOperator('?!=')
+
+
+class TypeOperator(EdgeQLOperator):
+    pass
+
+
+TYPEOR = TypeOperator('|')
+TYPEAND = TypeOperator('&')
 
 
 class SortOrder(s_enum.StrEnum):
@@ -235,45 +240,66 @@ class UnaryOp(Expr):
     operand: Expr
 
 
-class Ptr(Base):
-    ptr: ObjectRef
-    direction: str
-    target: Expr
-    type: str
-
-
-class _TypeName(Expr):
+class TypeExpr(Base):
     pass
 
 
-class TypeName(_TypeName):
+class TypeOf(TypeExpr):
+    expr: Expr
+
+
+class TypeName(TypeExpr):
     name: str  # name is used for types in named tuples
     maintype: ObjectRef
-    subtypes: typing.Optional[typing.List[_TypeName]]
+    subtypes: typing.Optional[typing.List[TypeExpr]]
     dimensions: typing.Optional[typing.List[int]]
+
+
+class TypeOp(TypeExpr):
+    name: str
+    left: TypeExpr
+    op: str
+    right: TypeExpr
 
 
 class FuncParam(Base):
     name: str
-    type: TypeName
+    type: TypeExpr
     qualifier: SetQualifier = SetQualifier.DEFAULT
     default: Expr  # noqa (pyflakes bug)
 
 
+class IsOp(Expr):
+    left: Expr
+    op: str
+    right: TypeExpr
+
+
 class TypeFilter(Expr):
     expr: Expr
-    type: TypeName
+    type: TypeExpr
+
+
+class Ptr(Base):
+    ptr: ObjectRef
+    direction: str
+    target: TypeExpr
+    type: str
 
 
 class Path(Expr):
-    steps: typing.List[typing.Union[Expr, Ptr]]
+    steps: typing.List[typing.Union[Expr, Ptr, TypeExpr]]
     quantifier: Expr
     partial: bool = False
 
 
 class TypeCast(Expr):
     expr: Expr
-    type: TypeName
+    type: TypeExpr
+
+
+class Introspect(Expr):
+    type: TypeExpr
 
 
 class IfElse(Expr):
@@ -448,16 +474,16 @@ class ExpressionText(DDL):
 
 
 class AlterAddInherit(DDL):
-    bases: typing.List[ObjectRef]
+    bases: typing.List[TypeName]
     position: Position
 
 
 class AlterDropInherit(DDL):
-    bases: typing.List[ObjectRef]
+    bases: typing.List[TypeName]
 
 
 class AlterTarget(DDL):
-    targets: typing.List[ObjectRef]
+    target: TypeExpr
 
 
 class ObjectDDL(CompositeDDL):
@@ -478,7 +504,7 @@ class DropObject(ObjectDDL):
 
 
 class CreateExtendingObject(CreateObject):
-    bases: typing.List[ObjectRef]
+    bases: typing.List[TypeName]
     is_abstract: bool = False
     is_final: bool = False
 
@@ -562,7 +588,7 @@ class DropEvent(DropObject):
 
 
 class CreateAttribute(CreateExtendingObject):
-    type: typing.Optional[TypeName]
+    type: typing.Optional[TypeExpr]
 
 
 class DropAttribute(DropObject):
@@ -595,7 +621,7 @@ class DropProperty(DropObject):
 
 class CreateConcreteProperty(CreateObject):
     is_required: bool = False
-    target: Expr
+    target: typing.Union[Expr, TypeExpr]
 
 
 class AlterConcreteProperty(AlterObject):
@@ -650,7 +676,7 @@ class DropLink(DropObject):
 
 class CreateConcreteLink(CreateExtendingObject):
     is_required: bool = False
-    targets: typing.List[Expr]
+    target: typing.Union[Expr, TypeExpr]
 
 
 class AlterConcreteLink(AlterObject):
@@ -740,7 +766,7 @@ class FunctionCode(Clause):
 
 class CreateFunction(CreateObject):
     args: typing.List[FuncParam]
-    returning: TypeName
+    returning: TypeExpr
     aggregate: bool = False
     initial_value: Expr
     code: FunctionCode
@@ -758,3 +784,36 @@ class DropFunction(DropObject):
 
 class SessionStateDecl(Expr):
     items: typing.List[BaseAlias]
+
+
+#
+# These utility functions work on EdgeQL AST nodes
+#
+
+
+def get_targets(target: TypeExpr):
+    if target is None:
+        return []
+    elif isinstance(target, TypeOp):
+        return get_targets(target.left) + get_targets(target.left)
+    else:
+        return [target]
+
+
+def union_targets(names):
+    target = TypeName(
+        maintype=ObjectRef(name=names[0].name,
+                           module=names[0].module)
+    )
+
+    for tname in names[1:]:
+        target = TypeOp(
+            left=target,
+            op=TYPEOR,
+            right=TypeName(
+                maintype=ObjectRef(name=tname.name,
+                                   module=tname.module)
+            )
+        )
+
+    return target

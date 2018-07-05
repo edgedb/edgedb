@@ -167,18 +167,20 @@ def _normalize_view_ptr_expr(
     is_mutation = is_insert or is_update
     # Pointers may be qualified by the explicit source
     # class, which is equivalent to Expr[IS Type].
-    is_polymorphic = len(steps) == 2
+    is_polymorphic = isinstance(steps[0], qlast.TypeExpr)
     scls = view_scls.peel_view()
     ptrsource = scls
     qlexpr = None
 
     if is_polymorphic:
+        ptype = steps[0]
         source = qlast.TypeFilter(
             expr=qlast.Path(steps=[qlast.Source()]),
-            type=qlast.TypeName(maintype=steps[0]))
+            type=ptype)
         lexpr = steps[1]
-        ptrsource = schemactx.get_schema_type(steps[0], ctx=ctx)
+        ptrsource = schemactx.get_schema_type(ptype.maintype, ctx=ctx)
     elif len(steps) == 1:
+        # regular shape
         lexpr = steps[0]
         is_linkprop = lexpr.type == 'property'
         if is_linkprop:
@@ -205,7 +207,7 @@ def _normalize_view_ptr_expr(
         #     INSERT Foo { bar := (INSERT Spam { name := 'name' }) }
         if lexpr.target is not None:
             ptr_target = schemactx.get_schema_type(
-                lexpr.target, ctx=ctx)
+                lexpr.target.maintype, ctx=ctx)
         else:
             ptr_target = None
 
@@ -226,7 +228,7 @@ def _normalize_view_ptr_expr(
     if compexpr is None:
         if lexpr.target is not None:
             ptr_target = schemactx.get_schema_type(
-                lexpr.target, ctx=ctx)
+                lexpr.target.maintype, ctx=ctx)
         else:
             ptr_target = None
 
@@ -404,7 +406,11 @@ def _normalize_view_ptr_expr(
             ptrcls.cardinality = ptr_cardinality
 
     if ptrcls.is_protected_pointer() and qlexpr is not None:
-        msg = f'cannot assign to {ptrcls.shortname.name}'
+        if is_polymorphic:
+            msg = (f'cannot access {ptrcls.shortname.name} on a polymorphic '
+                   f'shape element')
+        else:
+            msg = f'cannot assign to {ptrcls.shortname.name}'
         raise errors.EdgeQLError(msg, context=shape_el.context)
 
     return ptrcls

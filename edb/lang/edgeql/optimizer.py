@@ -267,12 +267,11 @@ class EdgeQLOptimizer:
 
             if bases:
                 for base in bases:
-                    base.module = self._process_module_ref(
-                        context, base.module)
+                    base.maintype.module = self._process_module_ref(
+                        context, base.maintype.module)
 
             if isinstance(expr, qlast.CreateConcreteLink):
-                for t in expr.targets:
-                    self._process_expr(context, t)
+                self._process_expr(context, expr.target)
 
             elif isinstance(expr, qlast.CreateConcreteProperty):
                 self._process_expr(context, expr.target)
@@ -286,9 +285,8 @@ class EdgeQLOptimizer:
                     context, action.module)
 
         elif isinstance(expr, qlast.AlterTarget):
-            for target in expr.targets:
-                target.module = self._process_module_ref(
-                    context, target.module)
+            expr.target.maintype.module = self._process_module_ref(
+                context, expr.target.maintype.module)
 
         elif isinstance(expr, qlast.Rename):
             expr.new_name.module = self._process_module_ref(

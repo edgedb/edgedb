@@ -337,6 +337,20 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.right)
         self.write(')')
 
+    def visit_IsOp(self, node):
+        self.write('(')
+        self.visit(node.left)
+        self.write(' ' + str(node.op).upper() + ' ')
+        self.visit(node.right)
+        self.write(')')
+
+    def visit_TypeOp(self, node):
+        self.write('(')
+        self.visit(node.left)
+        self.write(' ' + str(node.op).upper() + ' ')
+        self.visit(node.right)
+        self.write(')')
+
     def visit_IfElse(self, node):
         self.write('(')
         self.visit(node.if_expr)
@@ -586,6 +600,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(' IS None')
 
     def visit_TypeName(self, node):
+        parenthesize = (
+            isinstance(node.parent, (edgeql_ast.IsOp, edgeql_ast.TypeOp)) and
+            node.subtypes is not None
+        )
+        if parenthesize:
+            self.write('(')
         if node.name is not None:
             self.write(ident_to_str(node.name), ': ')
         if isinstance(node.maintype, edgeql_ast.Path):
@@ -602,6 +622,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     else:
                         self.write('[', str(dim), ']')
             self.write('>')
+        if parenthesize:
+            self.write(')')
 
     # DDL nodes
 
@@ -909,7 +931,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         def after_name():
             self.write(' -> ')
-            self.visit_list(node.targets, newlines=False)
+            self.visit(node.target)
         self._visit_CreateObject(node, *keywords, after_name=after_name)
 
     def visit_AlterConcreteLink(self, node):
@@ -920,7 +942,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_AlterTarget(self, node):
         self.write('ALTER TYPE ')
-        self.visit_list(node.targets, newlines=False)
+        self.visit_list(node.target, newlines=False)
 
     def visit_CreateObjectType(self, node):
         keywords = []

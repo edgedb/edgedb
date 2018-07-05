@@ -40,9 +40,6 @@ def register_set_in_scope(
         ir_set: irast.Set, *,
         path_scope: irast.ScopeTreeNode=None,
         ctx: context.CompilerContext) -> None:
-    if ctx.path_as_type:
-        return
-
     if path_scope is None:
         path_scope = ctx.path_scope
 
