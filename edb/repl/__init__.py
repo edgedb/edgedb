@@ -494,3 +494,6 @@ def main():
         return
 
     Cli(connect_kwargs).run()
+
+
+main_dev = main

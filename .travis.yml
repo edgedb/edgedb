@@ -7,8 +7,6 @@ matrix:
           sudo: false
           language: python
           python: "3.6"
-          addons:
-              apt: {packages: [postgresql-10]}
 
 branches:
     # Avoid building PR branches.
@@ -22,11 +20,6 @@ cache:
     pip: true
     directories:
         - build
-
-# Only cache the parser build products.
-before_cache:
-    - find build -type f ! -wholename '*.pickle' -delete
-    - find build -type d -empty -delete
 
 install:
     - .ci/travis-install.sh

@@ -17,14 +17,17 @@
 #
 
 
-import argparse
 import os.path
+import pathlib
 import shutil
 import sys
 import unittest
 
+import click
+
 from edb.server import cluster as edgedb_cluster
 from edb.server import _testbase as tb
+from edb.tools.edb import edbcommands
 
 
 class TestResult:
@@ -56,32 +59,20 @@ def die(msg):
     sys.exit(1)
 
 
-def parse_connect_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '-D', '--data-dir', type=str,
-        default=os.path.join(os.environ['HOME'], '.edgedb'),
-        help='database cluster directory (default ~/.edgedb)')
-    parser.add_argument(
-        '-s', '--start-directory', type=str,
-        help='directory to start test discovery from')
-    parser.add_argument(
-        '-j', '--jobs', type=int,
-        help='number of parallel processes to use (defaults to CPU count)')
-
-    args = parser.parse_args()
-
-    if args.start_directory:
-        testsdir = args.start_directory
-    else:
-        testsdir = os.path.abspath(os.path.dirname(__file__))
-
-    return testsdir, args.data_dir, args.jobs
-
-
-def main():
-    tests_dir, data_dir, jobs = parse_connect_args()
-
+@edbcommands.command()
+@click.option(
+    '-D', '--data-dir', type=str, envvar='EDGEDB_DATADIR',
+    default=str(pathlib.Path.home() / '.edgedb'),
+    help='database cluster directory')
+@click.option(
+    '-t', '--tests-dir', type=str,
+    default=str(pathlib.Path(__file__).parent.parent.parent.resolve() /
+                'tests'),
+    help='directory to start test discovery from')
+@click.option('-j', '--jobs', type=int,
+              default=lambda: round(os.cpu_count() * 0.75),
+              help='number of parallel processes to use')
+def inittestdb(*, data_dir, jobs, tests_dir):
     if os.path.exists(data_dir):
         if not os.path.isdir(data_dir):
             die(f'{data_dir!r} exists and is not a directory')
@@ -113,7 +104,3 @@ def main():
         raise
     finally:
         tb.shutdown_worker_servers(servers, destroy=destroy_cluster)
-
-
-if __name__ == '__main__':
-    main()

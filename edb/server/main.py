@@ -98,7 +98,10 @@ def _run_server(cluster, args):
 
 
 def run_server(args):
-    logger.info('EdgeDB server starting.')
+    if edgedb_cluster.is_in_dev_mode():
+        logger.info('EdgeDB server starting in DEV mode.')
+    else:
+        logger.info('EdgeDB server starting.')
 
     pg_cluster_started_by_us = False
 
@@ -113,7 +116,7 @@ def run_server(args):
         if args['timezone']:
             server_settings['TimeZone'] = args['timezone']
 
-        cluster = pg_cluster.Cluster(data_dir=args['data_dir'])
+        cluster = edgedb_cluster.get_pg_cluster(args['data_dir'])
         cluster_status = cluster.get_status()
 
         if cluster_status == 'not-initialized':
@@ -225,5 +228,6 @@ def main(**kwargs):
         run_server(kwargs)
 
 
-if __name__ == '__main__':
+def main_dev():
+    edgedb_cluster.enable_dev_mode()
     main()

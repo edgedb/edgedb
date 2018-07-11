@@ -20,6 +20,9 @@
 import argparse
 import sys
 
+
+from edb.server import cluster
+
 from . import init as init_mod
 
 
@@ -48,5 +51,6 @@ def main(argv=sys.argv[1:], env=None):
         init_mod.main(args, env)
 
 
-if __name__ == '__main__':
+def main_dev():
+    cluster.enable_dev_mode()
     main()

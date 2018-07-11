@@ -19,3 +19,4 @@
 
 from .edb import edbcommands  # noqa
 from . import test  # noqa
+from . import inittestdb  # noqa

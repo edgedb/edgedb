@@ -19,7 +19,9 @@
 
 import click
 
+from edb.server import cluster
+
 
 @click.group()
 def edbcommands():
-    pass
+    cluster.enable_dev_mode()

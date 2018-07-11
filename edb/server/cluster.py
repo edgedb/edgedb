@@ -20,6 +20,7 @@
 import asyncio
 import errno
 import os
+import pathlib
 import random
 import socket
 import subprocess
@@ -29,6 +30,7 @@ import time
 
 from asyncpg import cluster as pg_cluster
 
+import edb
 from edb import client as edgedb_client
 from edb.client import connect_utils
 from edb.server import defines as edgedb_defines
@@ -76,13 +78,41 @@ def find_available_port(port_range=(49152, 65535), max_tries=1000):
     return port
 
 
+def enable_dev_mode():
+    os.environ['__EDGEDB_DEVMODE'] = '1'
+
+
+def is_in_dev_mode() -> bool:
+    devmode = os.environ.get('__EDGEDB_DEVMODE', '0')
+    return devmode.lower() not in ('0', '', 'false')
+
+
+def get_pg_config_path() -> os.PathLike:
+    if is_in_dev_mode():
+        root = pathlib.Path(edb.server.__path__[0]).parent.parent
+        pg_config = (root / 'build' / 'postgres' /
+                     'install' / 'bin' / 'pg_config').resolve()
+        if not pg_config.exists():
+            raise ClusterError('DEV mode: Could not find PostgreSQL build, '
+                               'run `pip install -e .`')
+
+        return pg_config
+    else:
+        raise ClusterError('could not find pg_config')
+
+
+def get_pg_cluster(data_dir: os.PathLike) -> pg_cluster.Cluster:
+    pg_config = get_pg_config_path()
+    return pg_cluster.Cluster(data_dir=data_dir, pg_config_path=str(pg_config))
+
+
 class ClusterError(Exception):
     pass
 
 
 class Cluster:
     def __init__(
-            self, data_dir_or_pg_cluster, *, pg_config_path=None,
+            self, data_dir_or_pg_cluster, *,
             pg_superuser='postgres', port=edgedb_defines.EDGEDB_PORT,
             env=None):
         if (isinstance(data_dir_or_pg_cluster, str) and
@@ -118,8 +148,7 @@ class Cluster:
         else:
             self._data_dir = data_dir_or_pg_cluster
             self._location = self._data_dir
-            self._pg_cluster = self._get_pg_cluster(
-                self._data_dir, pg_config_path)
+            self._pg_cluster = get_pg_cluster(self._data_dir)
 
             self._edgedb_cmd.extend(['-D', self._data_dir])
 
@@ -128,9 +157,6 @@ class Cluster:
         self._port = port
         self._effective_port = None
         self._env = env
-
-    def _get_pg_cluster(self, data_dir, pg_config_path):
-        return pg_cluster.Cluster(data_dir, pg_config_path=pg_config_path)
 
     def get_status(self):
         pg_status = self._pg_cluster.get_status()
@@ -309,13 +335,11 @@ class Cluster:
 class TempCluster(Cluster):
     def __init__(
             self, *, data_dir_suffix=None, data_dir_prefix=None,
-            data_dir_parent=None, pg_config_path=None,
-            env=None):
+            data_dir_parent=None, env=None):
         self._data_dir = tempfile.mkdtemp(
             suffix=data_dir_suffix, prefix=data_dir_prefix,
             dir=data_dir_parent)
-        super().__init__(self._data_dir, pg_config_path=pg_config_path,
-                         env=env)
+        super().__init__(self._data_dir, env=env)
 
 
 class RunningCluster(Cluster):
