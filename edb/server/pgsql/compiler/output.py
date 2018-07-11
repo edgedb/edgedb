@@ -64,7 +64,9 @@ def output_as_value(
         env: context.Environment) -> pgast.Base:
 
     if isinstance(expr, pgast.TupleVar):
-        val = pgast.ImplicitRowExpr(args=[e.val for e in expr.elements])
+        val = pgast.ImplicitRowExpr(args=[
+            output_as_value(e.val, env=env) for e in expr.elements
+        ])
     else:
         val = expr
 
