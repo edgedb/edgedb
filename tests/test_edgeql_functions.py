@@ -249,14 +249,15 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_array_agg_10(self):
-        await self.assert_query_result(r"""
-            WITH MODULE test
-            SELECT array_agg(
-                [<str>Issue.number, Issue.status.name]
-                ORDER BY Issue.number);
-        """, [
-            [[['1', 'Open'], ['2', 'Open'], ['3', 'Closed'], ['4', 'Closed']]]
-        ])
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r"'array_agg'.+?cannot take.+?array"):
+            await self.con.execute(r"""
+                WITH MODULE test
+                SELECT array_agg(
+                    [<str>Issue.number, Issue.status.name]
+                    ORDER BY Issue.number);
+            """)
 
     @unittest.expectedFailure
     async def test_edgeql_functions_array_agg_11(self):
@@ -264,7 +265,8 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             WITH MODULE test
             SELECT array_agg(
                 (<str>Issue.number, Issue.status.name)
-                ORDER BY Issue.number)[1];
+                ORDER BY Issue.number
+            )[1];
         """, [
             [['2', 'Open']]
         ])
@@ -297,6 +299,50 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 {'number': '1', 'watchers_array': [{'name': 'Yury'}]},
                 {'number': '2', 'watchers_array': [{'name': 'Elvis'}]},
                 {'number': '3', 'watchers_array': [{'name': 'Elvis'}]}
+            ]
+        ])
+
+    async def test_edgeql_functions_array_agg_14(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r"'array_agg'.+?cannot take.+?array"):
+            await self.con.execute(r'''
+                WITH MODULE test
+                SELECT array_agg(array_agg(User.name));
+            ''')
+
+    @unittest.expectedFailure
+    async def test_edgeql_functions_array_agg_15(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT array_agg(
+                ([([User.name],)],) ORDER BY User.name
+            );
+        ''', [
+            [       # result set
+                [   # array_agg
+                    [[[['Elvis']]]], [[[['Yury']]]],
+                ]
+            ]
+        ])
+
+    async def test_edgeql_functions_array_agg_16(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT array_agg(   # outer array
+                (               # tuple
+                    array_agg(  # array
+                        (       # tuple
+                            array_agg(User.name ORDER BY User.name),
+                        )
+                    ),
+                )
+            );
+        ''', [
+            [       # result set
+                [   # outer array_agg
+                    [[[['Elvis', 'Yury']]]]
+                ]
             ]
         ])
 

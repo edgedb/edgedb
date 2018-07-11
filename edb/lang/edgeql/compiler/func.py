@@ -63,8 +63,10 @@ def compile_FunctionCall(
         fctx.in_func_call = True
         args, kwargs, arg_types = process_func_args(expr, funcname, ctx=fctx)
 
+        fatal_array_check = len(funcs) == 1
         for funcobj in funcs:
-            if check_function(funcobj, arg_types):
+            if check_function(expr, funcname, funcobj, arg_types,
+                              fatal_array_check=fatal_array_check):
                 break
         else:
             raise errors.EdgeQLError(
@@ -88,8 +90,11 @@ def compile_FunctionCall(
 
 
 def check_function(
+        expr: qlast.FunctionCall,
+        funcname: sn.Name,
         func: s_func.Function,
-        arg_types: typing.Iterable[s_obj.Object]) -> bool:
+        arg_types: typing.Iterable[s_obj.Object],
+        fatal_array_check: bool = False) -> bool:
     if not func.paramtypes:
         if not arg_types:
             # Match: `func` is a function without parameters
@@ -110,9 +115,10 @@ def check_function(
                 return False
         return True
 
-    for pt, pd, at in itertools.zip_longest(func.paramtypes,
-                                            func.paramdefaults,
-                                            arg_types):
+    for pn, pt, pd, at in itertools.zip_longest(func.paramnames,
+                                                func.paramtypes,
+                                                func.paramdefaults,
+                                                arg_types):
         if pt is None:
             # We have more arguments than parameters.
             if func.varparam is not None:
@@ -132,6 +138,23 @@ def check_function(
             # the argument; check if they are compatible.
             if not at.issubclass(pt):
                 return False
+
+            rt = func.returntype
+            # If the parameter type is 'any', the return type is
+            # 'array<any>', and the argument is also an 'array', then
+            # this is an invalid function invocation.
+            if (pt.name == 'std::any' and
+                    isinstance(rt, s_types.Array) and
+                    rt.get_subtypes()[0].name == 'std::any' and
+                    isinstance(at, s_types.Array)):
+
+                if fatal_array_check:
+                    raise errors.EdgeQLError(
+                        f'function {funcname!r} returning {rt.name} cannot '
+                        f'take {at.name} as a polymorphic argument',
+                        context=expr.context)
+                else:
+                    return False
 
     # Match, the `func` passed all checks.
     return True

@@ -522,3 +522,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 }
             ]
         ])
+
+    async def test_edgeql_ddl_20(self):
+        with self.assertRaisesRegex(
+                client_errors.EdgeQLError,
+                r'Cannot create a function.+any.+cannot have a default'):
+            await self.con.execute(r"""
+                CREATE FUNCTION test::my_agg(any = [1]) -> array<any>
+                    FROM SQL FUNCTION "my_agg";
+            """)

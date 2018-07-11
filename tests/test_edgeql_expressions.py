@@ -796,6 +796,44 @@ class TestExpressions(tb.QueryTestCase):
             [],
         ])
 
+    async def test_edgeql_expr_array_10(self):
+        with self.assertRaisesRegex(exc.EdgeQLError, 'nested array'):
+            await self.con.execute(r'''
+                SELECT [[1, 2], [3, 4]];
+            ''')
+
+    async def test_edgeql_expr_array_11(self):
+        with self.assertRaisesRegex(exc.EdgeQLError, 'nested array'):
+            await self.con.execute(r'''
+                SELECT [array_agg({1, 2})];
+            ''')
+
+    async def test_edgeql_expr_array_12(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r"'array_agg'.+?cannot take.+?array"):
+            await self.con.execute(r'''
+                SELECT array_agg([1, 2, 3]);
+            ''')
+
+    async def test_edgeql_expr_array_13(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r"'array_agg'.+?cannot take.+?array"):
+            await self.con.execute(r'''
+                SELECT array_agg(array_agg({1, 2 ,3}));
+            ''')
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_array_14(self):
+        await self.assert_query_result('''
+            SELECT [([([1],)],)];
+        ''', [
+            [   # result set
+                [[[[[1]]]]]
+            ],
+        ])
+
     async def test_edgeql_expr_coalesce_01(self):
         await self.assert_query_result(r"""
             SELECT {} ?? 4 ?? 5;

@@ -191,6 +191,12 @@ def compile_Tuple(
 def compile_Array(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     elements = [dispatch.compile(e, ctx=ctx) for e in expr.elements]
+    # check that none of the elements are themselves arrays
+    for el, expr_el in zip(elements, expr.elements):
+        if isinstance(irutils.infer_type(el, ctx.schema), s_types.Array):
+            raise errors.EdgeQLError(
+                f'nested arrays are not supported',
+                context=expr_el.context)
     return setgen.generated_set(irast.Array(elements=elements), ctx=ctx)
 
 

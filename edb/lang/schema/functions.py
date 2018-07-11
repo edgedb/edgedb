@@ -112,6 +112,16 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
         props = super().get_struct_properties(schema)
         fullname = self._get_function_fullname(
             props['name'], props.get('paramtypes'))
+
+        # check that params of type 'any' don't have defaults
+        for pn, pt, pd in zip(props['paramnames'], props['paramtypes'],
+                              props['paramdefaults']):
+            if pt.name == 'std::any' and pd is not None:
+                raise ql_errors.EdgeQLError(
+                    f'Cannot create a function {self.classname}: '
+                    f'polymorphic parameter of type {pt.name} cannot have '
+                    f'a default value', context=self.source_context)
+
         func = schema.get(fullname, None)
         if func:
             raise ql_errors.EdgeQLError(
