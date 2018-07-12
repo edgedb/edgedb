@@ -151,6 +151,9 @@ class TypeDesc(_TypeDesc):
 
     @classmethod
     def _get_id(cls, data):
+        if data['collection'] == 'tuple' and not data['subtypes']:
+            return s_obj.get_known_type_id('empty-tuple')
+
         s = (
             f"{data['maintype']!r}\x00{data['name']!r}\x00"
             f"{data['collection']!r}\x00"
