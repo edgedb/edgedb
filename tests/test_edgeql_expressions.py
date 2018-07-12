@@ -824,7 +824,6 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT array_agg(array_agg({1, 2 ,3}));
             ''')
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_array_14(self):
         await self.assert_query_result('''
             SELECT [([([1],)],)];

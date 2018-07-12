@@ -263,6 +263,10 @@ def _get_set_rvar(
         # EXISTS(), which is a special kind of an aggregate.
         rvars = process_set_as_exists_expr(ir_set, stmt, ctx=ctx)
 
+    elif isinstance(ir_set.expr, irast.Array):
+        # Array literal: "[" expr ... "]"
+        rvars = process_set_as_array_expr(ir_set, stmt, ctx=ctx)
+
     elif ir_set.expr is not None:
         # All other expressions.
         rvars = process_set_as_expr(ir_set, stmt, ctx=ctx)
@@ -1496,5 +1500,42 @@ def process_set_as_exists_expr(
             set_expr = astutils.new_unop(ast.ops.NOT, set_expr)
 
     pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
+    rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
+    return new_simple_set_rvar(ir_set, rvar)
+
+
+def process_set_as_array_expr(
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> SetRVars:
+    elements = []
+    s_elements = []
+    serializing = output.in_serialization_ctx(ctx=ctx)
+
+    for ir_element in ir_set.expr.elements:
+        element = dispatch.compile(ir_element, ctx=ctx)
+        elements.append(element)
+
+        if serializing:
+            s_var = pathctx.maybe_get_path_serialized_var(
+                stmt, ir_element.path_id, env=ctx.env)
+
+            if s_var is None:
+                v_var = pathctx.get_path_value_var(
+                    stmt, ir_element.path_id, env=ctx.env)
+                s_var = output.serialize_expr(v_var, env=ctx.env)
+            else:
+                s_var = output.serialize_expr(s_var, env=ctx.env)
+
+            s_elements.append(s_var)
+
+    set_expr = astutils.safe_array_expr(elements)
+    pathctx.put_path_value_var_if_not_exists(
+        stmt, ir_set.path_id, set_expr, env=ctx.env)
+
+    if serializing:
+        s_set_expr = astutils.safe_array_expr(s_elements)
+        pathctx.put_path_serialized_var(
+            stmt, ir_set.path_id, s_set_expr, env=ctx.env)
+
     rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
     return new_simple_set_rvar(ir_set, rvar)

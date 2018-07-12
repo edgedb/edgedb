@@ -463,13 +463,7 @@ def compile_IfElseExpr(
 def compile_Array(
         expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     elements = [dispatch.compile(e, ctx=ctx) for e in expr.elements]
-    result = pgast.ArrayExpr(elements=elements)
-    if any(el.nullable for el in elements):
-        result = pgast.FuncCall(
-            name=('edgedb', '_nullif_array_nulls'),
-            args=[result]
-        )
-    return result
+    return astutils.safe_array_expr(elements)
 
 
 @dispatch.compile.register(irast.TupleIndirection)
@@ -561,9 +555,9 @@ def _tuple_to_row_expr(
         tuple_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> pgast.ImplicitRowExpr:
     tuple_val = dispatch.compile(tuple_set, ctx=ctx)
-    if not isinstance(tuple_val, pgast.ImplicitRowExpr):
+    if not isinstance(tuple_val, (pgast.RowExpr, pgast.ImplicitRowExpr)):
         raise RuntimeError('tuple compilation unexpectedly did '
-                           'not return ImplicitRowExpr')
+                           'not return a RowExpr or ImplicitRowExpr')
     return tuple_val
 
 

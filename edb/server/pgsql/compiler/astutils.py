@@ -17,6 +17,8 @@
 #
 
 
+import typing
+
 from edb.lang.common import ast
 
 from edb.lang.schema import pointers as s_pointers
@@ -112,3 +114,13 @@ def join_condition(lref: pgast.ColumnRef, rref: pgast.ColumnRef) -> pgast.Base:
             path_cond, opt_cond, op=ast.ops.OR)
 
     return path_cond
+
+
+def safe_array_expr(elements: typing.List[pgast.Base]) -> pgast.Base:
+    result = pgast.ArrayExpr(elements=elements)
+    if any(el.nullable for el in elements):
+        result = pgast.FuncCall(
+            name=('edgedb', '_nullif_array_nulls'),
+            args=[result]
+        )
+    return result

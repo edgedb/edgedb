@@ -64,7 +64,12 @@ def output_as_value(
         env: context.Environment) -> pgast.Base:
 
     if isinstance(expr, pgast.TupleVar):
-        val = pgast.ImplicitRowExpr(args=[
+        if len(expr.elements) > 1:
+            RowCls = pgast.ImplicitRowExpr
+        else:
+            RowCls = pgast.RowExpr
+
+        val = RowCls(args=[
             output_as_value(e.val, env=env) for e in expr.elements
         ])
     else:
@@ -92,7 +97,8 @@ def serialize_expr(
     if env.output_format == context.OutputFormat.JSON:
         if isinstance(expr, pgast.TupleVar):
             val = tuple_var_as_json_object(expr, env=env)
-        elif isinstance(expr, pgast.ImplicitRowExpr):
+
+        elif isinstance(expr, (pgast.RowExpr, pgast.ImplicitRowExpr)):
             val = pgast.FuncCall(
                 name=('jsonb_build_array',), args=expr.args,
                 null_safe=True)

@@ -311,7 +311,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 SELECT array_agg(array_agg(User.name));
             ''')
 
-    @unittest.expectedFailure
     async def test_edgeql_functions_array_agg_15(self):
         await self.assert_query_result(r'''
             WITH MODULE test
