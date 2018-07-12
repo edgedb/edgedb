@@ -659,10 +659,11 @@ def computable_ptr_set(
     subctx.pending_cardinality = ctx.pending_cardinality
     subctx.completion_work = ctx.completion_work
     subctx.pointer_derivation_map = ctx.pointer_derivation_map
-    subctx.class_shapes = ctx.class_shapes.copy()
+    subctx.class_shapes = ctx.class_shapes
     subctx.all_sets = ctx.all_sets
     subctx.path_scope_map = ctx.path_scope_map
     subctx.scope_id_ctr = ctx.scope_id_ctr
+    subctx.expr_exposed = ctx.expr_exposed
 
     if ptrcls.is_link_property():
         source_path_id = rptr.source.path_id.ptr_path()
@@ -697,7 +698,6 @@ def computable_ptr_set(
         subctx.view_sets = qlctx.view_sets.copy()
         subctx.view_map = qlctx.view_map.new_child()
         subctx.singletons = qlctx.singletons.copy()
-        subctx.class_shapes = qlctx.class_shapes.copy()
         subctx.path_id_namespce = qlctx.path_id_namespace
 
     if qlctx is None:

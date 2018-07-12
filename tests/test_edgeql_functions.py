@@ -279,6 +279,27 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [[{'name': 'Elvis'}, {'name': 'Yury'}]]
         ])
 
+    async def test_edgeql_functions_array_agg_13(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test
+            SELECT
+                Issue {
+                    number,
+                    watchers_array := array_agg(Issue.watchers {name})
+                }
+            FILTER
+                EXISTS Issue.watchers
+            ORDER BY
+                Issue.number;
+        ''', [
+            [
+                {'number': '1', 'watchers_array': [{'name': 'Yury'}]},
+                {'number': '2', 'watchers_array': [{'name': 'Elvis'}]},
+                {'number': '3', 'watchers_array': [{'name': 'Elvis'}]}
+            ]
+        ])
+
     async def test_edgeql_functions_array_unpack_01(self):
         await self.assert_query_result(r'''
             SELECT [1, 2];
