@@ -645,6 +645,7 @@ async def bootstrap(conn):
         dbops.DropSchema(name='public'),
         dbops.CreateSchema(name='edgedb'),
         dbops.CreateExtension(dbops.Extension(name='uuid-ossp')),
+        dbops.CreateExtension(dbops.Extension(name='recordext')),
         dbops.CreateCompositeType(TypeNodeType()),
         dbops.CreateCompositeType(TypeType()),
         dbops.CreateCompositeType(TypeDescNodeType()),

@@ -330,18 +330,18 @@ def set_to_array(
     result = pgast.SelectStmt()
     relctx.include_rvar(result, subrvar, path_id=ir_set.path_id, ctx=ctx)
 
-    if output.in_serialization_ctx(ctx):
-        val = pathctx.maybe_get_path_serialized_var(
-            result, ir_set.path_id, env=ctx.env)
+    val = pathctx.maybe_get_path_serialized_var(
+        result, ir_set.path_id, env=ctx.env)
 
-        if val is None:
-            val = pathctx.get_path_value_var(
-                result, ir_set.path_id, env=ctx.env)
-            val = output.serialize_expr(val, env=ctx.env)
-            pathctx.put_path_serialized_var(
-                result, ir_set.path_id, val, force=True, env=ctx.env)
-    else:
-        val = pathctx.get_path_value_var(result, ir_set.path_id, env=ctx.env)
+    if val is None:
+        value_var = pathctx.get_path_value_var(
+            result, ir_set.path_id, env=ctx.env)
+        val = output.serialize_expr(value_var, env=ctx.env)
+        pathctx.put_path_serialized_var(
+            result, ir_set.path_id, val, force=True, env=ctx.env)
+
+    if ir_set.path_id.is_objtype_path():
+        val = output.prepare_tuple_for_aggregation(val, env=ctx.env)
 
     result.target_list = [
         pgast.ResTarget(

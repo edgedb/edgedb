@@ -135,12 +135,29 @@ def _compile_postgres(build_base):
             f.write(source_stamp)
 
 
+def _compile_postgres_extensions(build_base):
+
+    ext_base = (pathlib.Path(__file__).parent / 'ext').resolve()
+    pg_config = (build_base / 'postgres' / 'install' /
+                 'bin' / 'pg_config').resolve()
+
+    for path in ext_base.iterdir():
+        if path.is_dir():
+            subprocess.run(
+                ['make', 'PG_CONFIG=' + str(pg_config)],
+                cwd=str(path), check=True)
+            subprocess.run(
+                ['make', 'PG_CONFIG=' + str(pg_config), 'install'],
+                cwd=str(path), check=True)
+
+
 class build(distutils_build.build):
 
     def run(self, *args, **kwargs):
         super().run(*args, **kwargs)
         _compile_parsers(pathlib.Path(self.build_lib))
         _compile_postgres(pathlib.Path(self.build_base))
+        _compile_postgres_extensions(pathlib.Path(self.build_base))
 
 
 class develop(setuptools_develop.develop):
@@ -148,6 +165,7 @@ class develop(setuptools_develop.develop):
     def run(self, *args, **kwargs):
         _compile_parsers(pathlib.Path('build/lib'), inplace=True)
         _compile_postgres(pathlib.Path('build').resolve())
+        _compile_postgres_extensions(pathlib.Path('build').resolve())
 
         scripts = self.distribution.entry_points['console_scripts']
         patched_scripts = [s + '_dev' for s in scripts]

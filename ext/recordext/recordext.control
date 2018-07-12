@@ -1,0 +1,4 @@
+# recordext extension
+comment = 'recordext - extra functions for anonymous row types'
+default_version = '1.0'
+relocatable = true
