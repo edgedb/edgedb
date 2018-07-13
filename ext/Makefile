@@ -16,12 +16,12 @@
 # limitations under the License.
 #
 
-MODULE_big = recordext
+MODULE_big = edbsys
 OBJS = recordext.o $(WIN32RES)
 
-EXTENSION = recordext
-DATA = recordext--1.0.sql
-PGFILEDESC = "recordext - extra functions for anonymous row types"
+EXTENSION = edbsys
+DATA = edbsys--1.0.sql
+PGFILEDESC = "edbsys - EdgeDB system extensions to core Postgres"
 
 PG_CONFIG ?= pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)

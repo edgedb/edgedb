@@ -137,18 +137,19 @@ def _compile_postgres(build_base):
 
 def _compile_postgres_extensions(build_base):
 
-    ext_base = (pathlib.Path(__file__).parent / 'ext').resolve()
+    ext_dir = (pathlib.Path(__file__).parent / 'ext').resolve()
     pg_config = (build_base / 'postgres' / 'install' /
                  'bin' / 'pg_config').resolve()
 
-    for path in ext_base.iterdir():
-        if path.is_dir():
-            subprocess.run(
-                ['make', 'PG_CONFIG=' + str(pg_config)],
-                cwd=str(path), check=True)
-            subprocess.run(
-                ['make', 'PG_CONFIG=' + str(pg_config), 'install'],
-                cwd=str(path), check=True)
+    if not ext_dir.exists():
+        raise RuntimeError('missing Postgres extension directory')
+
+    subprocess.run(
+        ['make', 'PG_CONFIG=' + str(pg_config)],
+        cwd=str(ext_dir), check=True)
+    subprocess.run(
+        ['make', 'PG_CONFIG=' + str(pg_config), 'install'],
+        cwd=str(ext_dir), check=True)
 
 
 class build(distutils_build.build):
