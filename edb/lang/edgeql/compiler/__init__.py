@@ -65,7 +65,7 @@ def compile_to_ir(expr,
                   arg_types=None,
                   security_context=None,
                   modaliases=None,
-                  implicit_id_in_shapes=True):
+                  implicit_id_in_shapes=False):
     """Compile given EdgeQL statement into EdgeDB IR."""
 
     if debug.flags.edgeql_compile:
@@ -89,7 +89,7 @@ def compile_ast_to_ir(tree,
                       derived_target_module=None,
                       result_view_name=None,
                       modaliases=None,
-                      implicit_id_in_shapes=True):
+                      implicit_id_in_shapes=False):
     """Compile given EdgeQL AST into EdgeDB IR."""
 
     if debug.flags.edgeql_compile:

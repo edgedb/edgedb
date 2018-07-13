@@ -73,8 +73,7 @@ def plan_statement(stmt, backend, flags={}, *, timer):
         # Queries
         with timer.timeit('compile_eql_to_ir'):
             ir = ql_compiler.compile_ast_to_ir(
-                stmt, schema=schema, modaliases=modaliases,
-                implicit_id_in_shapes=False)
+                stmt, schema=schema, modaliases=modaliases)
 
         return backend.compile(ir, output_format=compiler.OutputFormat.JSON,
                                timer=timer)

@@ -237,7 +237,7 @@ class ContextLevel(compiler.ContextLevel):
 
             self.view_rptr = None
             self.toplevel_result_view_name = None
-            self.implicit_id_in_shapes = True
+            self.implicit_id_in_shapes = False
 
         else:
             self.schema = prevlevel.schema

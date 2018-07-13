@@ -462,6 +462,81 @@ def _link_has_shape(
     return False
 
 
+def _get_shape_configuration(
+        ir_set: irast.Set, *,
+        rptr: typing.Optional[irast.Pointer]=None,
+        parent_view_type: typing.Optional[s_types.ViewType]=None,
+        ctx: context.ContextLevel) \
+        -> typing.List[typing.Tuple[irast.Set, s_pointers.Pointer]]:
+
+    """Return a list of (source_set, ptrcls) pairs as a shape for a given set.
+    """
+
+    scls = ir_set.scls
+
+    sources = []
+    link_view = False
+    is_objtype = ir_set.path_id.is_objtype_path()
+
+    if rptr is None:
+        rptr = ir_set.rptr
+
+    link_view = (
+        rptr is not None and
+        not rptr.ptrcls.is_link_property() and
+        _link_has_shape(rptr.ptrcls, ctx=ctx)
+    )
+
+    if is_objtype or not link_view:
+        sources.append(scls)
+
+    if link_view:
+        sources.append(rptr.ptrcls)
+
+    shape_ptrs = []
+
+    id_present_in_shape = False
+
+    for source in sources:
+        for ptr in ctx.class_shapes[source]:
+            if (ptr.is_link_property() and
+                    ir_set.path_id != rptr.target.path_id):
+                path_tip = rptr.target
+            else:
+                path_tip = ir_set
+
+            shape_ptrs.append((path_tip, ptr))
+
+            if source is scls and ptr.is_id_pointer():
+                id_present_in_shape = True
+
+    implicit_id = (
+        # source expression is an object
+        is_objtype and
+        (
+            # shape is unspecified
+            not shape_ptrs or
+            # implicit ids are always wanted
+            ctx.implicit_id_in_shapes or
+            # we are inside an UPDATE shape and this is
+            # an explicit expression (link target update)
+            (parent_view_type == s_types.ViewType.Update and
+             ir_set.expr is not None)
+        )
+    )
+
+    if implicit_id and not id_present_in_shape:
+        # We want the id in this shape and it's not already there,
+        # so insert it in the first position.
+        for ptr in scls.pointers.values():
+            if ptr.is_id_pointer():
+                ctx.class_shapes[scls].insert(0, ptr)
+                shape_ptrs.insert(0, (ir_set, ptr))
+                break
+
+    return shape_ptrs
+
+
 @functools.singledispatch
 def compile_view_shapes(
         expr: irast.Base, *,
@@ -477,68 +552,14 @@ def _compile_view_shapes_in_set(
         rptr: typing.Optional[irast.Pointer]=None,
         parent_view_type: typing.Optional[s_types.ViewType]=None,
         ctx: context.ContextLevel) -> None:
+
     scls = ir_set.scls
 
-    sources = []
-    link_view = False
-    if ir_set.path_id.is_objtype_path():
-        sources.append(scls)
-
-    if rptr is None:
-        rptr = ir_set.rptr
-
-    if (rptr is not None and
-            not rptr.ptrcls.is_link_property() and
-            _link_has_shape(rptr.ptrcls, ctx=ctx)):
-        link_view = True
-        sources.append(rptr.ptrcls)
-
-    is_objtype = ir_set.path_id.is_objtype_path()
     is_mutation = scls.view_type in (
         s_types.ViewType.Update, s_types.ViewType.Insert)
 
-    shape_ptrs = []
-
-    if is_objtype or link_view:
-        for source in sources:
-            for ptr in source.pointers.values():
-                implicit_id = (
-                    ctx.implicit_id_in_shapes or
-                    not ctx.class_shapes[source]
-                )
-
-                if ptr not in ctx.class_shapes[source]:
-                    if ptr.is_id_pointer() and implicit_id:
-                        ctx.class_shapes[source].append(ptr)
-                    else:
-                        continue
-
-                if is_objtype and ptr.is_endpoint_pointer():
-                    continue
-
-                if ((scls.view_type == s_types.ViewType.Update or
-                        (parent_view_type == s_types.ViewType.Update and
-                         ir_set.expr is None)) and
-                        ptr not in ctx.source_map and
-                        not _link_has_shape(ptr, ctx=ctx)):
-                    continue
-
-                if ((scls.view_type == s_types.ViewType.Insert or
-                        (parent_view_type == s_types.ViewType.Insert and
-                         ir_set.expr is None)) and
-                        ptr.default is None and ptr not in ctx.source_map):
-                    continue
-
-                if (ptr.is_link_property() and
-                        ir_set.path_id != rptr.target.path_id):
-                    path_tip = rptr.target
-                else:
-                    path_tip = ir_set
-
-                shape_ptrs.append((path_tip, ptr))
-    else:
-        for ptr in ctx.class_shapes[scls]:
-            shape_ptrs.append((ir_set, ptr))
+    shape_ptrs = _get_shape_configuration(
+        ir_set, rptr=rptr, parent_view_type=parent_view_type, ctx=ctx)
 
     if shape_ptrs:
         if (isinstance(ir_set.expr, irast.SelectStmt) and

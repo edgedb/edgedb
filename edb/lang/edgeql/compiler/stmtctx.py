@@ -54,7 +54,7 @@ def init_context(
         security_context: typing.Optional[str]=None,
         derived_target_module: typing.Optional[str]=None,
         result_view_name: typing.Optional[str]=None,
-        implicit_id_in_shapes: bool=True) -> \
+        implicit_id_in_shapes: bool=False) -> \
         context.ContextLevel:
     stack = context.CompilerContext()
     ctx = stack.current
