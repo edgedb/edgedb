@@ -595,7 +595,8 @@ def _compile_shape(
         ))
 
     ser_result = pgast.TupleVar(elements=ser_elements, named=True)
-    sval = output.serialize_expr(ser_result, env=ctx.env)
+    sval = output.serialize_expr(
+        ser_result, path_id=ir_set.path_id, env=ctx.env)
     pathctx.put_path_serialized_var(
         ctx.rel, ir_set.path_id, sval, force=True, env=ctx.env)
 

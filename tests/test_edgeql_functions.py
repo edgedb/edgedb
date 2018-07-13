@@ -259,7 +259,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                     ORDER BY Issue.number);
             """)
 
-    @unittest.expectedFailure
     async def test_edgeql_functions_array_agg_11(self):
         await self.assert_query_result(r"""
             WITH MODULE test

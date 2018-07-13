@@ -19,18 +19,22 @@
 
 """Compilation helpers for output formatting and serialization."""
 
+from edb.lang.ir import ast as irast
+from edb.lang.schema import types as s_types
 
 from edb.server.pgsql import ast as pgast
 
 from . import context
 
 
-def tuple_var_as_json_object(tvar, *, env):
+def tuple_var_as_json_object(tvar, *, path_id, env):
     if not tvar.named:
         return pgast.FuncCall(
             name=('jsonb_build_array',),
-            args=[serialize_expr(t.val, nested=True, env=env)
-                  for t in tvar.elements],
+            args=[
+                serialize_expr(t.val, path_id=t.path_id, nested=True, env=env)
+                for t in tvar.elements
+            ],
             null_safe=True, nullable=tvar.nullable)
     else:
         keyvals = []
@@ -45,7 +49,8 @@ def tuple_var_as_json_object(tvar, *, env):
                     name = '@' + name
             keyvals.append(pgast.Constant(val=name))
             if isinstance(element.val, pgast.TupleVar):
-                val = serialize_expr(element.val, env=env)
+                val = serialize_expr(
+                    element.val, path_id=element.path_id, env=env)
             else:
                 val = element.val
             keyvals.append(val)
@@ -80,9 +85,10 @@ def output_as_value(
 
 def serialize_expr_if_needed(
         expr: pgast.Base, *,
+        path_id: irast.PathId,
         ctx: context.CompilerContextLevel) -> pgast.Base:
     if in_serialization_ctx(ctx):
-        val = serialize_expr(expr, env=ctx.env)
+        val = serialize_expr(expr, path_id=path_id, env=ctx.env)
     else:
         val = expr
 
@@ -91,20 +97,28 @@ def serialize_expr_if_needed(
 
 def serialize_expr(
         expr: pgast.Base, *,
+        path_id: irast.PathId,
         nested: bool=False,
         env: context.Environment) -> pgast.Base:
 
     if env.output_format == context.OutputFormat.JSON:
         if isinstance(expr, pgast.TupleVar):
-            val = tuple_var_as_json_object(expr, env=env)
+            val = tuple_var_as_json_object(expr, path_id=path_id, env=env)
 
         elif isinstance(expr, (pgast.RowExpr, pgast.ImplicitRowExpr)):
             val = pgast.FuncCall(
                 name=('jsonb_build_array',), args=expr.args,
                 null_safe=True)
+
+        elif isinstance(path_id[-1], s_types.Tuple):
+            val = pgast.FuncCall(
+                name=('edgedb', 'row_to_jsonb_array',), args=[expr],
+                null_safe=True)
+
         elif not nested:
             val = pgast.FuncCall(
                 name=('to_jsonb',), args=[expr], null_safe=True)
+
         else:
             val = expr
 

@@ -765,7 +765,7 @@ def get_path_serialized_output(
 
     ref = get_path_serialized_or_value_var(rel, path_id, env=env)
 
-    ref = output.serialize_expr(ref, env=env)
+    ref = output.serialize_expr(ref, path_id=path_id, env=env)
     alias = get_path_output_alias(path_id, aspect, env=env)
 
     restarget = pgast.ResTarget(name=alias, val=ref)

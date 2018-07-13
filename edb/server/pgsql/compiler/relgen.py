@@ -247,8 +247,7 @@ def _get_set_rvar(
 
     elif isinstance(ir_set.expr, irast.TupleIndirection):
         # Named tuple indirection.
-        rvars = process_set_as_tuple_indirection(
-            ir_set, stmt, ctx=ctx)
+        rvars = process_set_as_tuple_indirection(ir_set, stmt, ctx=ctx)
 
     elif isinstance(ir_set.expr, irast.FunctionCall):
         if any(k == irast.SetQualifier.SET_OF
@@ -340,7 +339,8 @@ def set_to_array(
     if val is None:
         value_var = pathctx.get_path_value_var(
             result, ir_set.path_id, env=ctx.env)
-        val = output.serialize_expr(value_var, env=ctx.env)
+        val = output.serialize_expr(
+            value_var, path_id=ir_set.path_id, env=ctx.env)
         pathctx.put_path_serialized_var(
             result, ir_set.path_id, val, force=True, env=ctx.env)
 
@@ -1329,7 +1329,7 @@ def process_set_as_agg_expr(
 
                     if isinstance(arg_ref, pgast.TupleVar):
                         arg_ref = output.serialize_expr(
-                            arg_ref, env=argctx.env)
+                            arg_ref, path_id=ir_arg.path_id, env=argctx.env)
                 else:
                     arg_ref = pathctx.get_path_value_var(
                         argctx.rel, ir_arg.path_id, env=argctx.env)
@@ -1451,8 +1451,10 @@ def process_set_as_agg_expr(
             with newctx.new() as ivctx:
                 ivctx.expr_exposed = True
                 iv = dispatch.compile(expr.initial_value.expr, ctx=ivctx)
-                iv = output.serialize_expr_if_needed(iv, ctx=ctx)
-                set_expr = output.serialize_expr_if_needed(set_expr, ctx=ctx)
+                iv = output.serialize_expr_if_needed(
+                    iv, path_id=ir_set.path_id, ctx=ctx)
+                set_expr = output.serialize_expr_if_needed(
+                    set_expr, path_id=ir_set.path_id, ctx=ctx)
         else:
             iv = dispatch.compile(expr.initial_value.expr, ctx=newctx)
 
@@ -1522,9 +1524,11 @@ def process_set_as_array_expr(
             if s_var is None:
                 v_var = pathctx.get_path_value_var(
                     stmt, ir_element.path_id, env=ctx.env)
-                s_var = output.serialize_expr(v_var, env=ctx.env)
+                s_var = output.serialize_expr(
+                    v_var, path_id=ir_element.path_id, env=ctx.env)
             else:
-                s_var = output.serialize_expr(s_var, env=ctx.env)
+                s_var = output.serialize_expr(
+                    s_var, path_id=ir_element.path_id, env=ctx.env)
 
             s_elements.append(s_var)
 

@@ -24,3 +24,12 @@ CREATE FUNCTION bless_record(record)
 RETURNS record
 AS '$libdir/recordext'
 LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
+
+
+--
+-- Convert the given record into a jsonb array.
+--
+CREATE FUNCTION row_to_jsonb_array(record)
+RETURNS jsonb
+AS '$libdir/recordext'
+LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
