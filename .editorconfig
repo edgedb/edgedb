@@ -7,3 +7,7 @@ insert_final_newline = true
 [*.{py,pyx,pxd,pxi,yml,h}]
 indent_size = 4
 indent_style = space
+
+[ext/*.{c,cpp,h}]
+indent_size = 4
+indent_style = tab

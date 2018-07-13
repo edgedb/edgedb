@@ -44,6 +44,7 @@ from . import dispatch
 from . import output
 from . import pathctx
 from . import relctx
+from . import typecomp
 
 
 class SetRVar:
@@ -1168,7 +1169,38 @@ def process_set_as_tuple_indirection(
             stmt.view_path_id_map[ir_set.path_id] = ir_set.expr.path_id
             rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=subctx)
 
-    return new_simple_set_rvar(ir_set, rvar, ['value', 'source'])
+        source_rvar = pathctx.maybe_get_path_rvar(
+            stmt, tuple_set.path_id, aspect='source', env=subctx.env)
+
+        if source_rvar is None:
+            # Lack of visible tuple source means we are
+            # an indirection over an opaque tuple, e.g. in
+            # `SELECT [(1,)][0].0`.  This means we must
+            # use an explicit row attribute dereference.
+            tuple_val = pathctx.get_path_value_var(
+                stmt, path_id=tuple_set.path_id, env=subctx.env)
+
+            type_sentinel = typecomp.cast(
+                pgast.Constant(val=None),
+                source_type=ir_set.scls, target_type=ir_set.scls, force=True,
+                env=subctx.env)
+
+            tuple_atts = list(tuple_set.scls.element_types.keys())
+            att_idx = pgast.Constant(
+                val=tuple_atts.index(ir_set.expr.name) + 1
+            )
+
+            set_expr = pgast.FuncCall(
+                name=('edgedb', 'row_getattr_by_num'),
+                args=[tuple_val, att_idx, type_sentinel]
+            )
+
+            pathctx.put_path_var_if_not_exists(
+                stmt, ir_set.path_id, set_expr, aspect='value', env=subctx.env)
+
+            rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=subctx)
+
+    return new_simple_set_rvar(ir_set, rvar)
 
 
 def process_set_as_expr(

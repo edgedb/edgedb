@@ -1331,6 +1331,20 @@ class TestExpressions(tb.QueryTestCase):
             [1, [66, 88], 2],
         ]])
 
+    async def test_edgeql_expr_tuple_indirection_10(self):
+        await self.assert_query_result(r"""
+            SELECT [(0, 1)][0].1;
+        """, [[
+            1,
+        ]])
+
+    async def test_edgeql_expr_tuple_indirection_11(self):
+        await self.assert_query_result(r"""
+            SELECT [(a := 1, b := 2)][0].b;
+        """, [[
+            2,
+        ]])
+
     async def test_edgeql_expr_cannot_assign_dunder_type_01(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError, r'cannot assign to __type__'):

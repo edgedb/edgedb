@@ -24,14 +24,17 @@
 #include "funcapi.h"
 #include "nodes/makefuncs.h"
 #include "parser/parse_func.h"
+#include "utils/builtins.h"
 #include "utils/lsyscache.h"
+#include "utils/syscache.h"
 #include "utils/typcache.h"
 
 PG_MODULE_MAGIC;
 
-PG_FUNCTION_INFO_V1(bless_record);
-PG_FUNCTION_INFO_V1(row_to_jsonb_array);
+static const char *_get_type_name(Oid typeoid);
 
+
+PG_FUNCTION_INFO_V1(bless_record);
 
 Datum
 bless_record(PG_FUNCTION_ARGS)
@@ -52,6 +55,85 @@ bless_record(PG_FUNCTION_ARGS)
 	PG_RETURN_HEAPTUPLEHEADER(rec);
 }
 
+
+/*
+ * SQL function row_getattr_by_num(record, attnum, any) -> any
+ *
+ * This is essentially equivalent to the GetAttributeByNum()
+ * function.  The function is polymorphic, the caller must
+ * pass the type of the returned attribute value in the
+ * third argument as NULL::<type>.
+ */
+PG_FUNCTION_INFO_V1(row_getattr_by_num);
+
+Datum
+row_getattr_by_num(PG_FUNCTION_ARGS)
+{
+	HeapTupleHeader rec = PG_GETARG_HEAPTUPLEHEADER(0);
+	int				attnum = PG_GETARG_INT32(1);
+	Oid				val_type = get_fn_expr_argtype(fcinfo->flinfo, 2);
+
+	HeapTupleData	tuple;
+	Oid				tup_type;
+	int32			tup_typmod;
+	TupleDesc		tup_desc;
+	int				i, j;
+	Datum			val;
+	Oid				att_type;
+	bool			isnull;
+	Form_pg_attribute att;
+
+	if (!AttributeNumberIsValid(attnum))
+		elog(ERROR, "invalid attribute number %d", attnum);
+
+	tup_type = HeapTupleHeaderGetTypeId(rec);
+	tup_typmod = HeapTupleHeaderGetTypMod(rec);
+	tup_desc = lookup_rowtype_tupdesc(tup_type, tup_typmod);
+
+	tuple.t_len = HeapTupleHeaderGetDatumLength(rec);
+	ItemPointerSetInvalid(&(tuple.t_self));
+	tuple.t_tableOid = InvalidOid;
+	tuple.t_data = rec;
+
+	for (i = 0, j = 0; i < tup_desc->natts; i++)
+	{
+		att = TupleDescAttr(tup_desc, i);
+
+		if (att->attisdropped)
+			continue;
+
+		j += 1;
+
+		if (j == attnum)
+		{
+			val = heap_getattr(&tuple, i + 1, tup_desc, &isnull);
+			break;
+		}
+	}
+
+	att_type = att->atttypid;
+	if (att_type == UNKNOWNOID)
+	{
+		/* Uncasted string literal come in as a cstring pointer,
+		 * and we must cast it into text before returning.
+		 */
+		 val = CStringGetTextDatum(DatumGetCString(val));
+		 att_type = TEXTOID;
+	}
+
+	ReleaseTupleDesc(tup_desc);
+
+	if (att_type != val_type)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("expected tuple attribute type \"%s\", got \"%s\"",
+						_get_type_name(val_type),
+						_get_type_name(att->atttypid))));
+
+	PG_RETURN_DATUM(val);
+}
+
+
 /*
  * SQL function row_to_jsonb_array(record) -> jsonb
  *
@@ -63,6 +145,8 @@ bless_record(PG_FUNCTION_ARGS)
  * Datum by forwarding the record's attributes to
  * jsonb_build_array().
  */
+PG_FUNCTION_INFO_V1(row_to_jsonb_array);
+
 Datum
 row_to_jsonb_array(PG_FUNCTION_ARGS)
 {
@@ -138,5 +222,25 @@ row_to_jsonb_array(PG_FUNCTION_ARGS)
 			InvalidOid, InvalidOid, COERCE_EXPLICIT_CALL),
 		&jbba_finfo);
 
-	return FunctionCallInvoke(&jbba_fcinfo);
+	PG_RETURN_DATUM(FunctionCallInvoke(&jbba_fcinfo));
+}
+
+
+static const char *
+_get_type_name(Oid typeoid)
+{
+	HeapTuple		type_tuple;
+	Form_pg_type 	type_struct;
+	const char 		*result;
+
+	type_tuple = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typeoid));
+	if (!HeapTupleIsValid(type_tuple))
+		elog(ERROR, "cache lookup failed for type %u", typeoid);
+
+	type_struct = (Form_pg_type) GETSTRUCT(type_tuple);
+	result = pstrdup(NameStr(type_struct->typname));
+
+	ReleaseSysCache(type_tuple);
+
+	return result;
 }

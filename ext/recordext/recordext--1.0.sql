@@ -27,6 +27,15 @@ LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
 
 
 --
+-- Return the given attribute value from a row value.
+--
+CREATE FUNCTION row_getattr_by_num(record, integer, anyelement)
+RETURNS anyelement
+AS '$libdir/recordext'
+LANGUAGE C CALLED ON NULL INPUT IMMUTABLE PARALLEL SAFE;
+
+
+--
 -- Convert the given record into a jsonb array.
 --
 CREATE FUNCTION row_to_jsonb_array(record)
