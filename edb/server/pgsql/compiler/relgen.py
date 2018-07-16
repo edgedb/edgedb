@@ -348,12 +348,24 @@ def set_to_array(
     if ir_set.path_id.is_objtype_path():
         val = output.prepare_tuple_for_aggregation(val, env=ctx.env)
 
-    result.target_list = [
-        pgast.ResTarget(
-            val=pgast.FuncCall(
+    pg_type = output.get_pg_type(ir_set.scls, ctx=ctx)
+
+    agg_expr = pgast.CoalesceExpr(
+        args=[
+            pgast.FuncCall(
                 name=('array_agg',),
                 args=[val],
+            ),
+            pgast.TypeCast(
+                arg=pgast.ArrayExpr(elements=[]),
+                type_name=pgast.TypeName(name=pg_type, array_bounds=[-1])
             )
+        ]
+    )
+
+    result.target_list = [
+        pgast.ResTarget(
+            val=agg_expr
         )
     ]
 

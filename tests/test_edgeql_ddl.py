@@ -374,7 +374,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [1],
             [1],
             [
-                {'bar2': None, 'foo2': 'Alice'},
+                {'bar2': {}, 'foo2': 'Alice'},
                 {'bar2': {'Alice'}, 'foo2': 'Bob'},
                 {'bar2': {'Alice', 'Bob'}, 'foo2': 'Carol'}
             ],
@@ -452,7 +452,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ORDER BY .name;
         """, [
             [
-                {'name': 'bar::bar_t', 'constraints': None},
+                {'name': 'bar::bar_t', 'constraints': []},
                 {'name': 'foo::foo_t', 'constraints': [
                     {'name': 'std::expression'}
                 ]},

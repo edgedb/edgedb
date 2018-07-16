@@ -69,11 +69,11 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             'User': [{
                 'name': 'Alice',
                 'age': 27,
-                'groups': None
+                'groups': []
             }, {
                 'name': 'Bob',
                 'age': 21,
-                'groups': None
+                'groups': []
             }, {
                 'name': 'Jane',
                 'age': 25,
@@ -166,7 +166,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             'User': [{
                 'name': 'Bob',
                 'age': 21,
-                'groups': None,
+                'groups': [],
             }],
         }]])
 
@@ -204,7 +204,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
         """, graphql=True)
 
         self.assert_data_shape(result, [[{
-            'User': None,
+            'User': [],
         }]])
 
     async def test_graphql_functional_arguments_05(self):
@@ -457,11 +457,11 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             'User': [{
                 'name': 'Alice',
                 '__typename': 'UserType',
-                'groups': None
+                'groups': []
             }, {
                 'name': 'Bob',
                 '__typename': 'PersonType',
-                'groups': None
+                'groups': []
             }, {
                 'name': 'Jane',
                 '__typename': 'UserType',

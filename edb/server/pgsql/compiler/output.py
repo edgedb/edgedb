@@ -19,10 +19,14 @@
 
 """Compilation helpers for output formatting and serialization."""
 
+import typing
+
 from edb.lang.ir import ast as irast
+from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import types as s_types
 
 from edb.server.pgsql import ast as pgast
+from edb.server.pgsql import types as pgtypes
 
 from . import context
 
@@ -129,6 +133,22 @@ def serialize_expr(
         raise RuntimeError(f'unexpected output format: {env.output_format!r}')
 
     return val
+
+
+def get_pg_type(
+        schema_type: s_types.Type, *,
+        ctx: context.CompilerContextLevel) -> typing.Tuple[str]:
+
+    if in_serialization_ctx(ctx):
+        if ctx.env.output_format == context.OutputFormat.JSON:
+            return ('jsonb',)
+        elif isinstance(schema_type, s_objtypes.ObjectType):
+            return ('record',)
+        else:
+            return pgtypes.pg_type_from_object(ctx.env.schema, schema_type)
+
+    else:
+        return pgtypes.pg_type_from_object(ctx.env.schema, schema_type)
 
 
 def prepare_tuple_for_aggregation(

@@ -915,10 +915,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ''', [
             [{
                 'number': '1',
-                'related_to': None
+                'related_to': []
             }, {
                 'number': '2',
-                'related_to': None
+                'related_to': []
             }, {
                 'number': '3',
                 'related_to': [
@@ -926,7 +926,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 ]
             }, {
                 'number': '4',
-                'related_to': None
+                'related_to': []
             }],
         ])
 

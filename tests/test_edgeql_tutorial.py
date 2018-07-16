@@ -277,7 +277,7 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
                     'fullname': 'Alice Liddell'
                 },
                 {
-                    'follower': None,
+                    'follower': {},
                     'fullname': 'Bob Sponge'
                 },
                 {
@@ -336,7 +336,7 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
                 },
                 {
                     'fullname': 'Bob Sponge',
-                    'following': None
+                    'following': []
                 },
                 {
                     'fullname': 'Carol Danvers',

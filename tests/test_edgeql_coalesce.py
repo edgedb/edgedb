@@ -231,10 +231,10 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ORDER BY Issue.number;
         ''', [
             [
-                {'number': '1', 'related_to': None, 'time_estimate': 60},
-                {'number': '2', 'related_to': None, 'time_estimate': 90},
-                {'number': '3', 'related_to': None, 'time_estimate': 90},
-                {'number': '4', 'related_to': None, 'time_estimate': None},
+                {'number': '1', 'related_to': [], 'time_estimate': 60},
+                {'number': '2', 'related_to': [], 'time_estimate': 90},
+                {'number': '3', 'related_to': [], 'time_estimate': 90},
+                {'number': '4', 'related_to': [], 'time_estimate': None},
                 {
                     'number': '5',
                     'related_to': [{'time_estimate': 60}],

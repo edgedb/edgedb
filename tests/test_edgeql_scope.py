@@ -684,7 +684,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             [
                 {
                     'name': 'Alice',
-                    'friends_of_others': None,
+                    'friends_of_others': [],
                 },
                 {
                     'name': 'Bob',
@@ -795,11 +795,11 @@ class TestEdgeQLScope(tb.QueryTestCase):
             [
                 {
                     'name': 'Bob',
-                    'friends': None
+                    'friends': [],
                 },
                 {
                     'name': 'Carol',
-                    'friends': None
+                    'friends': [],
                 },
                 {
                     'name': 'Dave',
@@ -857,7 +857,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             [
                 {
                     'name': 'Carol',
-                    'friends': None
+                    'friends': []
                 },
                 {
                     'name': 'Dave',
@@ -892,11 +892,11 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 },
                 {
                     'name': 'Bob',
-                    'friends': None
+                    'friends': []
                 },
                 {
                     'name': 'Carol',
-                    'friends': None
+                    'friends': []
                 },
                 {
                     'name': 'Dave',
@@ -951,7 +951,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 },
                 {
                     'name': 'Bob',
-                    'friends': None
+                    'friends': []
                 },
             ]
         ])
@@ -981,15 +981,15 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 },
                 {
                     'name': 'Bob',
-                    'friends': None
+                    'friends': [],
                 },
                 {
                     'name': 'Carol',
-                    'friends': None
+                    'friends': [],
                 },
                 {
                     'name': 'Dave',
-                    'friends': None,
+                    'friends': [],
                 },
             ]
         ])
@@ -1191,7 +1191,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             }
             FILTER Card.name = 'Dragon';
         ''', [
-            [{'name': 'Dragon', 'owner': None}]
+            [{'name': 'Dragon', 'owner': []}]
         ])
 
     async def test_edgeql_scope_detached_01(self):
@@ -1361,21 +1361,21 @@ class TestEdgeQLScope(tb.QueryTestCase):
             """, [
             [
                 {'name': 'Alice', 'friends': [{'name': 'Carol'}]},
-                {'name': 'Bob', 'friends': None},
-                {'name': 'Carol', 'friends': None},
-                {'name': 'Dave', 'friends': None},
+                {'name': 'Bob', 'friends': []},
+                {'name': 'Carol', 'friends': []},
+                {'name': 'Dave', 'friends': []},
             ],
             [
                 {'name': 'Alice', 'fr': [{'name': 'Carol'}]},
-                {'name': 'Bob', 'fr': None},
-                {'name': 'Carol', 'fr': None},
-                {'name': 'Dave', 'fr': None},
+                {'name': 'Bob', 'fr': []},
+                {'name': 'Carol', 'fr': []},
+                {'name': 'Dave', 'fr': []},
             ],
             [
                 {'name': 'Alice', 'fr': [{'name': 'Carol'}]},
-                {'name': 'Bob', 'fr': None},
-                {'name': 'Carol', 'fr': None},
-                {'name': 'Dave', 'fr': None},
+                {'name': 'Bob', 'fr': []},
+                {'name': 'Carol', 'fr': []},
+                {'name': 'Dave', 'fr': []},
             ],
         ])
 

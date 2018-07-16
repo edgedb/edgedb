@@ -248,11 +248,11 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 },
                 {
                     'name': 'Carol',
-                    'deck': None,
+                    'deck': [],
                 },
                 {
                     'name': 'Dave',
-                    'deck': None,
+                    'deck': [],
                 }
             ]
         ])
