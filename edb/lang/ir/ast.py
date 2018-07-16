@@ -81,6 +81,16 @@ class Pointer(Base):
         return self.direction == s_pointers.PointerDirection.Inbound
 
 
+class _BaseTypeRef(Base):
+    pass
+
+
+class TypeRef(_BaseTypeRef):
+
+    maintype: str
+    subtypes: typing.List[_BaseTypeRef]
+
+
 class Set(Base):
 
     path_id: PathId
@@ -97,12 +107,6 @@ class Set(Base):
     def __repr__(self):
         return \
             f'<ir.Set \'{self.path_id or self.scls.name}\' at 0x{id(self):x}>'
-
-
-class TypeRef(Base):
-
-    maintype: str
-    subtypes: typing.List[sn.Name]
 
 
 class Command(Base):
