@@ -15,14 +15,14 @@
 -- limitations under the License.
 
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
-\echo Use "CREATE EXTENSION recordext" to load this file. \quit
+\echo Use "CREATE EXTENSION edbsys" to load this file. \quit
 
 --
 -- "Bless" the passed record.
 --
 CREATE FUNCTION bless_record(record)
 RETURNS record
-AS '$libdir/recordext'
+AS '$libdir/edbsys'
 LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
 
 
@@ -31,7 +31,7 @@ LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
 --
 CREATE FUNCTION row_getattr_by_num(record, integer, anyelement)
 RETURNS anyelement
-AS '$libdir/recordext'
+AS '$libdir/edbsys'
 LANGUAGE C CALLED ON NULL INPUT IMMUTABLE PARALLEL SAFE;
 
 
@@ -40,5 +40,5 @@ LANGUAGE C CALLED ON NULL INPUT IMMUTABLE PARALLEL SAFE;
 --
 CREATE FUNCTION row_to_jsonb_array(record)
 RETURNS jsonb
-AS '$libdir/recordext'
+AS '$libdir/edbsys'
 LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;

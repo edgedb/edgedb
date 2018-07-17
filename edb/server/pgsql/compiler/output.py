@@ -162,7 +162,7 @@ def prepare_tuple_for_aggregation(
         # tuple type, and so any attempt to access it would fail with
         # "record type has not been registered".  To combat this,
         # call BlessTupleDesc() (exposed through the
-        # recordext.bless_record() function) to register the the tuple
+        # edgedb.bless_record() function) to register the the tuple
         # description in the global cache.
         result = pgast.FuncCall(
             name=('edgedb', 'bless_record'),
