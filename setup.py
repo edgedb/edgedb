@@ -157,8 +157,6 @@ class build(distutils_build.build):
     def run(self, *args, **kwargs):
         super().run(*args, **kwargs)
         _compile_parsers(pathlib.Path(self.build_lib))
-        _compile_postgres(pathlib.Path(self.build_base))
-        _compile_postgres_extensions(pathlib.Path(self.build_base))
 
 
 class develop(setuptools_develop.develop):
