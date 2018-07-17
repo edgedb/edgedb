@@ -186,7 +186,6 @@ setup(
     author='MagicStack Inc.',
     author_email='hello@magic.io',
     packages=['edb'],
-    provides=['edb'],
     include_package_data=True,
     cmdclass={
         'build': build,
