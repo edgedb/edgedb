@@ -1,0 +1,3 @@
+recursive-include edb *.eql *.eschema *.py *.txt
+recursive-include tests *.eql *.eschema *.py
+include LICENSE README.md logo.svg
