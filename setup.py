@@ -22,6 +22,7 @@ import pathlib
 import platform
 import shutil
 import subprocess
+import textwrap
 
 from distutils.command import build as distutils_build
 
@@ -70,6 +71,29 @@ def _compile_parsers(build_lib, inplace=False):
         parsing.Spec(spec, pickleFile=str(cache), verbose=True)
         if inplace:
             shutil.copy2(cache, base_path / pickle_path)
+
+
+def _compile_build_meta(build_lib, pg_config):
+    content = textwrap.dedent('''\
+        #
+        # This source file is part of the EdgeDB open source project.
+        #
+        # Copyright 2008-present MagicStack Inc. and the EdgeDB authors.
+        #
+        # Licensed under the Apache License, Version 2.0 (the "License");
+        #
+        # THIS FILE HAS BEEN AUTOMATICALLY GENERATED.
+        #
+
+        PG_CONFIG_PATH = {pg_config!r}
+    ''').format(pg_config=pg_config)
+
+    directory = build_lib / 'edb' / 'server'
+    if not directory.exists():
+        directory.mkdir(parents=True)
+
+    with open(directory / '_buildmeta.py', 'w+t') as f:
+        f.write(content)
 
 
 def _compile_postgres(build_base):
@@ -154,9 +178,23 @@ def _compile_postgres_extensions(build_base):
 
 class build(distutils_build.build):
 
+    user_options = distutils_build.build.user_options + [
+        ('pg-config=', None, 'path to pg_config to use with this build')
+    ]
+
+    def initialize_options(self):
+        super().initialize_options()
+        self.pg_config = None
+
+    def finalize_options(self):
+        super().finalize_options()
+
     def run(self, *args, **kwargs):
         super().run(*args, **kwargs)
-        _compile_parsers(pathlib.Path(self.build_lib))
+        build_lib = pathlib.Path(self.build_lib)
+        _compile_parsers(build_lib)
+        if self.pg_config:
+            _compile_build_meta(build_lib, self.pg_config)
 
 
 class develop(setuptools_develop.develop):

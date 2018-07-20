@@ -96,9 +96,19 @@ def get_pg_config_path() -> os.PathLike:
             raise ClusterError('DEV mode: Could not find PostgreSQL build, '
                                'run `pip install -e .`')
 
-        return pg_config
     else:
-        raise ClusterError('could not find pg_config')
+        try:
+            from . import _buildmeta
+            pg_config = _buildmeta.PG_CONFIG_PATH
+        except (ImportError, AttributeError):
+            raise ClusterError('could not find pg_config') from None
+
+        if not pathlib.Path(pg_config).is_file():
+            raise ClusterError(
+                f'invalid pg_config path: {pg_config!r}: file does not exist '
+                f'or is not a regular file')
+
+    return pg_config
 
 
 def get_pg_cluster(data_dir: os.PathLike) -> pg_cluster.Cluster:
