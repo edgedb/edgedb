@@ -319,6 +319,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.expr)
         self.write(')')
 
+    def visit_RequiredExpr(self, node):
+        self.write('REQUIRED (')
+        self.visit(node.expr)
+        self.write(')')
+
     def visit_DetachedExpr(self, node):
         self.write('DETACHED ')
         self.visit(node.expr)

@@ -316,6 +316,10 @@ class ExistsPredicate(Expr):
     expr: Expr
 
 
+class RequiredExpr(Expr):
+    expr: Expr
+
+
 class TupleElement(Base):
     name: ObjectRef
     val: Expr

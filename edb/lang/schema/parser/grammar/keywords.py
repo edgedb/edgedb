@@ -46,7 +46,6 @@ unreserved_keywords = frozenset([
     "of",
     "on",
     "property",
-    "required",
     "scalar",
     "type",
     "value",

@@ -531,6 +531,8 @@ class Expr(Nonterm):
     # | Expr UNION Expr | Expr UNION ALL Expr
     # | DISTINCT Expr
     # | DETACHED Expr
+    # | EXISTS Expr
+    # | REQUIRED Expr
     # | '__source__' | '__subject__'
 
     def reduce_Path(self, *kids):
@@ -598,17 +600,17 @@ class Expr(Nonterm):
     def reduce_NamedTuple(self, *kids):
         self.val = kids[0].val
 
-    @parsing.precedence(precedence.P_UMINUS)
     def reduce_EXISTS_Expr(self, *kids):
         self.val = qlast.ExistsPredicate(expr=kids[1].val)
 
-    @parsing.precedence(precedence.P_UMINUS)
     def reduce_DISTINCT_Expr(self, *kids):
         self.val = qlast.UnaryOp(op=qlast.DISTINCT, operand=kids[1].val)
 
-    @parsing.precedence(precedence.P_UMINUS)
     def reduce_DETACHED_Expr(self, *kids):
         self.val = qlast.DetachedExpr(expr=kids[1].val)
+
+    def reduce_REQUIRED_Expr(self, *kids):
+        self.val = qlast.RequiredExpr(expr=kids[1].val)
 
     @parsing.precedence(precedence.P_UMINUS)
     def reduce_PLUS_Expr(self, *kids):

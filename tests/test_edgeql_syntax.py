@@ -436,6 +436,11 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT (User IS (((SystemUser & Foo) | Bar) | (array<int>)));
         """
 
+    def test_edgeql_syntax_required_01(self):
+        """
+        SELECT REQUIRED (User.groups.description);
+        """
+
     def test_edgeql_syntax_list_01(self):
         """
         SELECT (some_list_fn())[2];

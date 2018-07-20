@@ -113,6 +113,26 @@ class P_UMINUS(Precedence, assoc='right'):
     pass
 
 
+class P_EXISTS(Precedence, assoc='right', tokens=('EXISTS',),
+               rel_to_last='='):
+    pass
+
+
+class P_DETACHED(Precedence, assoc='right', tokens=('DETACHED',),
+                 rel_to_last='='):
+    pass
+
+
+class P_DISTINCT(Precedence, assoc='right', tokens=('DISTINCT',),
+                 rel_to_last='='):
+    pass
+
+
+class P_REQUIRED(Precedence, assoc='right', tokens=('REQUIRED',),
+                 rel_to_last='='):
+    pass
+
+
 class P_POW_OP(Precedence, assoc='right', tokens=('CIRCUMFLEX',)):
     pass
 
