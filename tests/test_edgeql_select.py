@@ -935,7 +935,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 };
             ''')
 
-    @unittest.expectedFailure
     async def test_edgeql_select_polymorphic_06(self):
         await self.assert_query_result(r'''
             WITH MODULE test

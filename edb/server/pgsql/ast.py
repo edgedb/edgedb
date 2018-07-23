@@ -82,11 +82,15 @@ class BaseExpr(ImmutableBase):
     def _is_nullable(self, kwargs: typing.Dict[str, object],
                      nullable: typing.Optional[bool]) -> bool:
         if nullable is None:
-            nullable = False
-            for v in kwargs.values():
-                if getattr(v, 'nullable', None):
-                    nullable = True
-                    break
+            nullable = self._infer_nullability(kwargs)
+        return nullable
+
+    def _infer_nullability(self, kwargs: typing.Dict[str, object]) -> bool:
+        nullable = False
+        for v in kwargs.values():
+            if getattr(v, 'nullable', None):
+                nullable = True
+                break
         return nullable
 
 
@@ -670,6 +674,10 @@ class CoalesceExpr(BaseExpr):
 
     # The arguments.
     args: typing.List[Base]
+
+    def _infer_nullability(self, kwargs: typing.Dict[str, object]) -> bool:
+        args = kwargs['args']
+        return all(getattr(v, 'nullable', False) for v in args)
 
 
 class NullTest(BaseExpr):
