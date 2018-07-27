@@ -2832,3 +2832,12 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
         DROP VIEW Foo;
         """
+
+    def test_edgeql_syntax_ddl_index_01(self):
+        """
+        CREATE INDEX title_name ON Foo;
+
+        CREATE INDEX title_name ON __subject__.title;
+
+        DROP INDEX title_name;
+        """

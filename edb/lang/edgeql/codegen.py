@@ -968,7 +968,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'TYPE')
 
     def visit_CreateIndex(self, node):
-        after_name = lambda: self.write('(', node.expr, ')')
+        def after_name():
+            self.write(' ON ')
+            self.visit(node.expr)
         self._visit_CreateObject(node, 'INDEX', after_name=after_name)
 
     def visit_DropIndex(self, node):

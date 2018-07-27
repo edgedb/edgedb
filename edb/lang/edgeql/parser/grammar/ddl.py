@@ -174,6 +174,12 @@ class InnerDDLStmt(Nonterm):
     def reduce_DropFunctionStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_CreateIndexStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DropIndexStmt(self, *kids):
+        self.val = kids[0].val
+
 
 class Semicolons(Nonterm):
     # one or more semicolons
