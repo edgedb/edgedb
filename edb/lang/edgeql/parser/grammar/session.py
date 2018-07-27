@@ -32,7 +32,7 @@ class SessionStmt(Nonterm):
 
 
 class SetDecl(Nonterm):
-    def reduce_AliasDecl(self, *kids):
+    def reduce_AliasedWithDecl(self, *kids):
         self.val = kids[0].val
 
 
