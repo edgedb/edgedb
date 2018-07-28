@@ -1570,6 +1570,18 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         WITH MODULE `~all.abstract.bar` SELECT Foo;
         """
 
+    def test_edgeql_syntax_with_09(self):
+        """
+        WITH PROVISIONAL foo_count
+        SELECT foo_count(Foo);
+        """
+
+    def test_edgeql_syntax_with_10(self):
+        """
+        WITH my_count := PROVISIONAL std_ext::foo_count
+        SELECT my_count(Foo);
+        """
+
     def test_edgeql_syntax_detached_01(self):
         """
         WITH F := DETACHED Foo

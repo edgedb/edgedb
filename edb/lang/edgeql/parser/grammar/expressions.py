@@ -232,22 +232,29 @@ class WithBlock(Nonterm):
         self.val = WithBlockData(aliases=aliases, cardinality=cardinality)
 
 
-class AliasDecl(Nonterm):
+class SimpleWithDecl(Nonterm):
     def reduce_MODULE_ModuleName(self, *kids):
         self.val = qlast.ModuleAliasDecl(
             module='.'.join(kids[1].val))
 
-    def reduce_Identifier_TURNSTILE_MODULE_ModuleName(self, *kids):
-        self.val = qlast.ModuleAliasDecl(
-            alias=kids[0].val,
-            module='.'.join(kids[3].val))
+    def reduce_PROVISIONAL_NodeName(self, *kids):
+        self.val = qlast.ProvisionalDecl(name=kids[1].val)
+
+
+class AliasedWithDecl(Nonterm):
+    def reduce_SimpleWithDecl(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_Identifier_TURNSTILE_SimpleWithDecl(self, *kids):
+        self.val = kids[2].val
+        self.val.alias = kids[0].val
 
     def reduce_AliasedExpr(self, *kids):
         self.val = kids[0].val
 
 
 class WithDecl(Nonterm):
-    def reduce_AliasDecl(self, *kids):
+    def reduce_AliasedWithDecl(self, *kids):
         self.val = kids[0].val
 
     def reduce_CARDINALITY_SCONST(self, *kids):

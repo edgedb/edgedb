@@ -157,22 +157,24 @@ class SortExpr(Clause):
 
 
 class BaseAlias(Clause):
-    pass
+    alias: str
 
 
 class AliasedExpr(BaseAlias):
     expr: Expr
-    alias: str
 
 
 class ModuleAliasDecl(BaseAlias):
     module: str
-    alias: str
 
 
 class ObjectRef(Expr):
     name: str
     module: str
+
+
+class ProvisionalDecl(BaseAlias):
+    name: ObjectRef
 
 
 class Source(Expr):
@@ -373,7 +375,7 @@ class GroupExpr(Expr):
 #
 
 class Statement(Expr):
-    aliases: typing.List[typing.Union[AliasedExpr, ModuleAliasDecl]]
+    aliases: typing.List[BaseAlias]
     cardinality: Cardinality = Cardinality.DEFAULT
 
 

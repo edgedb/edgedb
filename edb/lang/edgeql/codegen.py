@@ -305,6 +305,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('MODULE ')
         self.write(any_ident_to_str(node.module))
 
+    def visit_ProvisionalDecl(self, node):
+        if node.alias:
+            self.write(ident_to_str(node.alias))
+            self.write(' := ')
+        self.write('PROVISIONAL ')
+        self.visit(node.name)
+
     def visit_SortExpr(self, node):
         self.visit(node.path)
         if node.direction:

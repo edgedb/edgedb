@@ -56,6 +56,7 @@ unreserved_keywords = frozenset([
     "on",
     "policy",
     "property",
+    "provisional",
     "rename",
     "scalar",
     "target",
