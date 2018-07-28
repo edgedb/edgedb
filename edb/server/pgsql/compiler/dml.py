@@ -422,6 +422,7 @@ def compile_insert_shape_element(
         ctx: context.CompilerContextLevel) -> pgast.Query:
 
     with ctx.newscope() as insvalctx:
+        insvalctx.force_optional.add(shape_el.path_id)
         if iterator_id is not None:
             insvalctx.volatility_ref = iterator_id
         else:

@@ -497,6 +497,19 @@ def compile_result_clause(
         expr = setgen.ensure_set(
             dispatch.compile(result_expr, ctx=sctx), ctx=sctx)
 
+        # Check if we have an empty set assigned to a pointer in an INSERT
+        # or UPDATE. If so, there's no need to explicitly specify the
+        # empty set type and it can be assumed to match the pointer target
+        # type.
+        if (view_rptr and
+                (view_rptr.is_insert or view_rptr.is_update) and
+                view_rptr.ptrcls and
+                isinstance(expr, irast.EmptySet) and
+                expr.scls is None):
+            # force the empty set type to match the pointer it's assigned to
+            t = view_rptr.ptrcls.target
+            irutils.amend_empty_set_type(expr, t, ctx.schema)
+
         result = compile_query_subject(
             expr, shape=shape, view_rptr=view_rptr, view_name=view_name,
             result_alias=result_alias,

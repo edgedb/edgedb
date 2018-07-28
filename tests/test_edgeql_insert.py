@@ -863,3 +863,88 @@ class TestInsert(tb.QueryTestCase):
                 }],
             }],
         ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_insert_empty_01(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            INSERT InsertTest {
+                l1 := {},
+                l2 := 99,
+                # l3 has a default value
+                l3 := {},
+            };
+
+            WITH MODULE test
+            SELECT InsertTest {
+                l1,
+                l2,
+                l3
+            };
+        """, [
+            {1},
+            [{
+                'l1': None,
+                'l2': 99,
+                'l3': None,
+            }],
+        ])
+
+    async def test_edgeql_insert_empty_02(self):
+        with self.assertRaisesRegex(
+                exc.InvalidPointerTargetError,
+                r"invalid target for link.*std::str.*expecting 'std::int64'"):
+            await self.con.execute(r"""
+                WITH MODULE test
+                INSERT InsertTest {
+                    l1 := <str>{},
+                    l2 := 99,
+                };
+                """)
+
+    @unittest.expectedFailure
+    async def test_edgeql_insert_empty_03(self):
+        with self.assertRaisesRegex(
+                exc.MissingRequiredPointerError,
+                r"missing value for required pointer"):
+            await self.con.execute(r"""
+                WITH MODULE test
+                INSERT InsertTest {
+                    l2 := {},
+                };
+                """)
+
+    @unittest.expectedFailure
+    async def test_edgeql_insert_empty_04(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            INSERT InsertTest {
+                l2 := 99,
+                subordinates := {}
+            };
+
+            WITH MODULE test
+            SELECT InsertTest {
+                l2,
+                subordinates
+            };
+        """, [
+            {1},
+            [{
+                'l2': 99,
+                'subordinates': {},
+            }],
+        ])
+
+    async def test_edgeql_insert_empty_05(self):
+        with self.assertRaisesRegex(
+                exc.InvalidPointerTargetError,
+                r"invalid target for link.*std::Object.*"
+                r"expecting 'test::Subordinate'"):
+            await self.con.execute(r"""
+                WITH MODULE test
+                INSERT InsertTest {
+                    l2 := 99,
+                    subordinates := <Object>{}
+                };
+                """)

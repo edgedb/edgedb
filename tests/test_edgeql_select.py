@@ -2714,7 +2714,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             # Any binary operator with one operand as empty results in an
             # empty result, because the cross product of anything with an
             # empty set is empty.
-            #
             SELECT test::Issue.number = <str>{};
             """, [
             [],
@@ -2723,7 +2722,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_empty_02(self):
         await self.assert_query_result(r"""
             # Test short-circuiting operations with empty
-            #
             SELECT test::Issue.number = '1' OR <bool>{};
             SELECT test::Issue.number = 'X' OR <bool>{};
             SELECT test::Issue.number = '1' AND <bool>{};
@@ -2738,7 +2736,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_empty_03(self):
         await self.assert_query_result(r"""
             # Test short-circuiting operations with empty
-            #
             SELECT count(test::Issue.number = '1' OR <bool>{});
             SELECT count(test::Issue.number = 'X' OR <bool>{});
             SELECT count(test::Issue.number = '1' AND <bool>{});
@@ -2749,6 +2746,36 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [0],
             [0],
         ])
+
+    async def test_edgeql_select_empty_04(self):
+        await self.assert_query_result(r"""
+            # Perfectly legal way to mask 'name' with empty set of
+            # some arbitrary type.
+            WITH MODULE test
+            SELECT Issue {
+                number,
+                name := <int64>{}
+            } ORDER BY .number;
+            """, [
+            [
+                {'number': '1', 'name': None},
+                {'number': '2', 'name': None},
+                {'number': '3', 'name': None},
+                {'number': '4', 'name': None},
+            ],
+        ])
+
+    async def test_edgeql_select_empty_05(self):
+        with self.assertRaisesRegex(exc.EdgeQLError,
+                                    r'could not determine expression type'):
+            await self.con.execute(r"""
+                WITH MODULE test
+                SELECT Issue {
+                    number,
+                    # the empty set is of an unspecified type
+                    name := {}
+                } ORDER BY .number;
+                """)
 
     async def test_edgeql_select_cross_01(self):
         await self.assert_query_result(r"""

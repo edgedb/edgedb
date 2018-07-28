@@ -21,53 +21,15 @@ import os.path
 import unittest
 
 from edb.server import _testbase as tb
+from edb.client import exceptions as exc
 
 
 class TestUpdate(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'updates.eschema')
 
-    SETUP = """
-        INSERT test::Status {
-            name := 'Open'
-        };
-
-        INSERT test::Status {
-            name := 'Closed'
-        };
-
-        INSERT test::Tag {
-            name := 'fun'
-        };
-
-        INSERT test::Tag {
-            name := 'boring'
-        };
-
-        INSERT test::Tag {
-            name := 'wow'
-        };
-
-            WITH MODULE test
-            INSERT UpdateTest {
-                name := 'update-test1',
-                status := (SELECT Status FILTER Status.name = 'Open')
-            };
-
-            WITH MODULE test
-            INSERT UpdateTest {
-                name := 'update-test2',
-                comment := 'second',
-                status := (SELECT Status FILTER Status.name = 'Open')
-            };
-
-            WITH MODULE test
-            INSERT UpdateTest {
-                name := 'update-test3',
-                comment := 'third',
-                status := (SELECT Status FILTER Status.name = 'Closed')
-            };
-    """
+    SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
+                         'updates.eql')
 
     def setUp(self):
         super().setUp()
@@ -1246,3 +1208,76 @@ class TestUpdate(tb.QueryTestCase):
                 },
             ]
         ])
+
+    async def test_edgeql_update_empty_01(self):
+        await self.assert_query_result(r"""
+            # just clear all the comments
+            WITH MODULE test
+            UPDATE UpdateTest
+            SET {
+                comment := {}
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest.comment;
+        """, [
+            {3},
+            {},
+        ])
+
+    async def test_edgeql_update_empty_02(self):
+        with self.assertRaisesRegex(
+                exc.InvalidPointerTargetError,
+                r"invalid target for link.*std::int64.*expecting 'std::str'"):
+            await self.con.execute(r"""
+                # just clear all the comments
+                WITH MODULE test
+                UPDATE UpdateTest
+                SET {
+                    comment := <int64>{}
+                };
+                """)
+
+    async def test_edgeql_update_empty_03(self):
+        with self.assertRaisesRegex(
+                exc.MissingRequiredPointerError,
+                r"missing value for required pointer"):
+            await self.con.execute(r"""
+                # just clear all the comments
+                WITH MODULE test
+                UPDATE UpdateTest
+                SET {
+                    name := {}
+                };
+                """)
+
+    @unittest.expectedFailure
+    async def test_edgeql_update_empty_04(self):
+        await self.assert_query_result(r"""
+            # just clear all the statuses
+            WITH MODULE test
+            UPDATE UpdateTest
+            SET {
+                status := {}
+            };
+
+            WITH MODULE test
+            SELECT UpdateTest.status;
+        """, [
+            {3},
+            {},
+        ])
+
+    async def test_edgeql_update_empty_05(self):
+        with self.assertRaisesRegex(
+                exc.InvalidPointerTargetError,
+                r"invalid target for link.*std::Object.*"
+                r"expecting 'test::Status'"):
+            await self.con.execute(r"""
+                # just clear all the statuses
+                WITH MODULE test
+                UPDATE UpdateTest
+                SET {
+                    status := <Object>{}
+                };
+                """)
