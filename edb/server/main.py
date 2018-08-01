@@ -21,9 +21,11 @@ import asyncio
 import getpass
 import ipaddress
 import logging
+import os
 import os.path
 import setproctitle
 import signal
+import socket
 import sys
 
 import click
@@ -64,6 +66,23 @@ def _init_cluster(cluster, args):
         cluster, bootstrap_args, loop=loop))
 
 
+def _sd_notify(message):
+    notify_socket = os.environ.get('NOTIFY_SOCKET')
+    if not notify_socket:
+        return
+
+    if notify_socket[0] == '@':
+        notify_socket = '\0' + notify_socket[1:]
+
+    sd_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    sd_sock.connect(notify_socket)
+
+    try:
+        sd_sock.sendall(message.encode())
+    finally:
+        sd_sock.close()
+
+
 def _run_server(cluster, args):
     loop = asyncio.get_event_loop()
     srv = None
@@ -83,10 +102,15 @@ def _run_server(cluster, args):
 
         loop.add_signal_handler(signal.SIGTERM, terminate_server, srv, loop)
         logger.info('Serving on %s:%s', args['bind_address'], args['port'])
+
+        # Notify systemd that we've started up.
+        _sd_notify('READY=1')
+
         loop.run_forever()
 
     except KeyboardInterrupt:
         logger.info('Shutting down.')
+        _sd_notify('STOPPING=1')
         srv.close()
         loop.run_until_complete(srv.wait_closed())
         srv = None
