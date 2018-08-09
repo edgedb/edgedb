@@ -87,23 +87,37 @@ def is_in_dev_mode() -> bool:
     return devmode.lower() not in ('0', '', 'false')
 
 
+def get_pg_config_path_from_build_meta() -> os.PathLike:
+    try:
+        from . import _buildmeta
+        return pathlib.Path(_buildmeta.PG_CONFIG_PATH)
+    except (ImportError, AttributeError):
+        raise LookupError('could not find pg_config in build metadata') \
+            from None
+
+
 def get_pg_config_path() -> os.PathLike:
     if is_in_dev_mode():
         root = pathlib.Path(edb.server.__path__[0]).parent.parent
         pg_config = (root / 'build' / 'postgres' /
                      'install' / 'bin' / 'pg_config').resolve()
-        if not pg_config.exists():
+        if not pg_config.is_file():
+            try:
+                pg_config = get_pg_config_path_from_build_meta()
+            except LookupError:
+                pass
+
+        if not pg_config.is_file():
             raise ClusterError('DEV mode: Could not find PostgreSQL build, '
                                'run `pip install -e .`')
 
     else:
         try:
-            from . import _buildmeta
-            pg_config = _buildmeta.PG_CONFIG_PATH
-        except (ImportError, AttributeError):
+            pg_config = get_pg_config_path_from_build_meta()
+        except LookupError:
             raise ClusterError('could not find pg_config') from None
 
-        if not pathlib.Path(pg_config).is_file():
+        if not pg_config.is_file():
             raise ClusterError(
                 f'invalid pg_config path: {pg_config!r}: file does not exist '
                 f'or is not a regular file')
