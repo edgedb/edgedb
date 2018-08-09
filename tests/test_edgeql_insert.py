@@ -817,3 +817,50 @@ class TestInsert(tb.QueryTestCase):
                 }],
             ]
         )
+
+    @unittest.expectedFailure
+    async def test_edgeql_insert_linkprops_01(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            FOR i IN {'1', '2', '3'} UNION (
+                INSERT Subordinate {
+                    name := 'linkproptest ' + i
+                }
+            );
+
+            WITH MODULE test
+            INSERT InsertTest {
+                l2 := 99,
+                subordinates := (
+                    FOR x IN {('a', '1'), ('b', '2'), ('c', '3')} UNION (
+                        SELECT Subordinate {@comment := x.0}
+                        FILTER .name[-1] = x.1
+                    )
+                )
+            };
+
+            WITH MODULE test
+            SELECT InsertTest {
+                l2,
+                subordinates: {
+                    name,
+                    @comment,
+                } ORDER BY InsertTest.subordinates.name
+            };
+        """, [
+            {3},
+            {1},
+            [{
+                'l2': 99,
+                'subordinates': [{
+                    'name': 'linkproptest 1',
+                    '@comment': 'a',
+                }, {
+                    'name': 'linkproptest 2',
+                    '@comment': 'b',
+                }, {
+                    'name': 'linkproptest 3',
+                    '@comment': 'c',
+                }],
+            }],
+        ])
