@@ -119,7 +119,7 @@ def _is_exc_info(args):
     return (
         isinstance(args, tuple) and
         len(args) == 3 and
-        issubclass(args[0], Exception)
+        issubclass(args[0], BaseException)
     )
 
 
@@ -318,8 +318,8 @@ class MultiLineRenderer(BaseRenderer):
         self.completed_tests = 0
 
         test_modules = {test.__class__.__module__ for test in tests}
-        max_test_module_len = max(len(self._render_modname(name))
-                                  for name in test_modules)
+        max_test_module_len = max((len(self._render_modname(name))
+                                   for name in test_modules), default=0)
         self.first_col_width = max_test_module_len + 1  # 1 == len(' ')
 
         self.buffer = collections.defaultdict(str)
