@@ -123,7 +123,9 @@ class Statement(Command):
     scope_tree: ScopeTreeNode
     scope_map: typing.Dict[Set, str]
     source_map: typing.Dict[s_pointers.Pointer,
-                            typing.Tuple[qlast.Expr, compiler.ContextLevel]]
+                            typing.Tuple[qlast.Expr,
+                                         compiler.ContextLevel,
+                                         PathId]]
 
 
 class Expr(Base):

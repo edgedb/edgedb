@@ -496,8 +496,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 Card {
                     name,
                     percent_cost := (
-                        # XXX: cardinality is not inferred correctly,
-                        #      Card.<deck is in the tuple, so it's a singleton
                         SELECT <int64>(100 * Card.cost / Card.<deck.deck_cost)
                     ),
                 },

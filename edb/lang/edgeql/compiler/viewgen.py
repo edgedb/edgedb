@@ -391,7 +391,7 @@ def _normalize_view_ptr_expr(
                 derived_name_quals=[view_scls.name], ctx=ctx)
 
         if qlexpr is not None:
-            ctx.source_map[ptrcls] = (qlexpr, ctx)
+            ctx.source_map[ptrcls] = (qlexpr, ctx, path_id)
             ptrcls.computable = True
 
     if not is_mutation:

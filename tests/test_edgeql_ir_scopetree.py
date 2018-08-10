@@ -344,6 +344,8 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         """
 
     def test_edgeql_ir_scope_tree_16(self):
+        # Apparent misplaced "(_::__view__|U@@w~1)" in the FILTER
+        # fence is due to a view_map replacement artifact.
         """
         WITH MODULE test,
             U := (
@@ -374,7 +376,10 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                     "FENCE": {
                         "(test::Card)",
                         "FENCE": {
-                            "(_::__view__|U@@w~1).>(test::deck)[IS test::Card]"
+                            "(_::__view__|U@@w~1)\
+.>(test::deck)[IS test::Card]": {
+                                "(_::__view__|U@@w~1)"
+                            }
                         }
                     }
                 }

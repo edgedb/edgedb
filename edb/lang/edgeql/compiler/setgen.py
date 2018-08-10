@@ -211,11 +211,16 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
                 extra_scopes[scope_set] = subctx.path_scope
 
-        mapped = ctx.view_map.get(path_tip.path_id)
-        if mapped is not None:
-            path_tip = new_set(
-                path_id=mapped.path_id,
-                scls=path_tip.scls, expr=mapped.expr, ctx=ctx)
+        for key_path_id in path_tip.path_id.iter_weak_namespace_prefixes():
+            mapped = ctx.view_map.get(key_path_id)
+            if mapped is not None:
+                path_tip = new_set(
+                    path_id=mapped.path_id,
+                    scls=path_tip.scls,
+                    expr=mapped.expr,
+                    rptr=mapped.rptr,
+                    ctx=ctx)
+                break
 
         path_sets.append(path_tip)
 
@@ -430,7 +435,7 @@ def _is_computable_ptr(
         force_computable: bool=False,
         ctx: context.ContextLevel) -> bool:
     try:
-        qlexpr, qlctx = ctx.source_map[ptrcls]
+        qlexpr, _, _ = ctx.source_map[ptrcls]
     except KeyError:
         pass
     else:
@@ -676,7 +681,7 @@ def computable_ptr_set(
     subctx.path_scope.contain_path(path_id)
 
     try:
-        qlexpr, qlctx = ctx.source_map[ptrcls]
+        qlexpr, qlctx, source_path_id = ctx.source_map[ptrcls]
     except KeyError:
         if not ptrcls.default:
             raise ValueError(
@@ -688,6 +693,7 @@ def computable_ptr_set(
             qlexpr = qlast.Constant(value=ptrcls.default)
 
         qlctx = None
+        source_path_id = None
     else:
         subctx.modaliases = qlctx.modaliases.copy()
         subctx.aliased_views = qlctx.aliased_views.new_child()
@@ -698,7 +704,7 @@ def computable_ptr_set(
         subctx.view_sets = qlctx.view_sets.copy()
         subctx.view_map = qlctx.view_map.new_child()
         subctx.singletons = qlctx.singletons.copy()
-        subctx.path_id_namespce = qlctx.path_id_namespace
+        subctx.path_id_namespace = qlctx.path_id_namespace
 
     if qlctx is None:
         # This is a schema-level computable expression, put all
@@ -720,12 +726,18 @@ def computable_ptr_set(
         else:
             if self_.path_id.namespace:
                 subns.update(self_.path_id.namespace)
-            inner_path_id = pathctx.get_path_id(
-                self_.scls, ctx=subctx).merge_namespace(subns)
+
+            if source_path_id is not None:
+                inner_path_id = source_path_id
+            else:
+                inner_path_id = pathctx.get_path_id(self_.scls, ctx=subctx)
+
+            inner_path_id = inner_path_id.merge_namespace(subns)
 
         remapped_source = new_set_from_set(rptr.source, ctx=subctx)
         remapped_source.path_id = \
             remapped_source.path_id.merge_namespace(subns)
+        remapped_source.rptr = rptr.source.rptr
         subctx.view_map[inner_path_id] = remapped_source
 
     if isinstance(qlexpr, qlast.Statement) and unnest_fence:
