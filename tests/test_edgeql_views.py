@@ -245,3 +245,33 @@ class TestEdgeQLViews(tb.QueryTestCase):
                 ]
             }]
         ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_computable_nested_01(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Card {
+                name,
+                owned := (
+                    WITH O := Card.<deck
+                    SELECT O {
+                        name,
+                        # simple computable
+                        fr0 := count(O.friends),
+                        # computable with a view defined
+                        fr1 := (WITH F := O.friends SELECT count(F)),
+                    }
+                    ORDER BY .name
+                )
+            } FILTER .name = 'Giant turtle';
+        ''', [
+            [{
+                'name': 'Giant turtle',
+                'owned': [
+                    {'fr0': 3, 'fr1': 3, 'name': 'Alice'},
+                    {'fr0': 0, 'fr1': 0, 'name': 'Bob'},
+                    {'fr0': 0, 'fr1': 0, 'name': 'Carol'},
+                    {'fr0': 1, 'fr1': 1, 'name': 'Dave'},
+                ]
+            }]
+        ])
