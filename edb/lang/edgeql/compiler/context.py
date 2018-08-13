@@ -112,8 +112,16 @@ class ContextLevel(compiler.ContextLevel):
     aliased_views: typing.Dict[str, s_nodes.Node]
     """A dictionary of views aliased in a statement body."""
 
-    view_class_map: typing.Dict[s_nodes.Node, s_nodes.Node]  # noqa
-    """Object mapping (used by schema-level views)."""
+    schema_view_cache: typing.Dict[s_nodes.Node, s_nodes.Node]  # noqa
+    """Type cache used by schema-level views."""
+
+    expr_view_cache: typing.Dict[typing.Tuple[qlast.Base, str],
+                                 irast.Set]  # noqa
+    """Type cache used by expression-level views."""
+
+    shape_type_cache: typing.Dict[typing.Tuple[qlast.ShapeElement, ...],
+                                  s_nodes.Node]
+    """Type cache for shape expressions."""
 
     class_view_overrides: typing.Dict[s_name.SchemaName, s_nodes.Node]  # noqa
     """Object mapping used by implicit view override in SELECT."""
@@ -208,7 +216,9 @@ class ContextLevel(compiler.ContextLevel):
             self.view_nodes = {}
             self.view_sets = {}
             self.aliased_views = collections.ChainMap()
-            self.view_class_map = {}
+            self.schema_view_cache = {}
+            self.expr_view_cache = {}
+            self.shape_type_cache = {}
             self.class_view_overrides = {}
 
             self.clause = None
@@ -249,6 +259,9 @@ class ContextLevel(compiler.ContextLevel):
             self.source_map = prevlevel.source_map
             self.view_nodes = prevlevel.view_nodes
             self.view_sets = prevlevel.view_sets
+            self.schema_view_cache = prevlevel.schema_view_cache
+            self.expr_view_cache = prevlevel.expr_view_cache
+            self.shape_type_cache = prevlevel.shape_type_cache
 
             self.path_id_namespace = prevlevel.path_id_namespace
             self.pending_stmt_own_path_id_namespace = \
@@ -271,7 +284,6 @@ class ContextLevel(compiler.ContextLevel):
                 self.anchors = prevlevel.anchors.copy()
                 self.modaliases = prevlevel.modaliases.copy()
                 self.aliased_views = prevlevel.aliased_views.new_child()
-                self.view_class_map = prevlevel.view_class_map.copy()
                 self.class_view_overrides = \
                     prevlevel.class_view_overrides.copy()
 
@@ -294,8 +306,8 @@ class ContextLevel(compiler.ContextLevel):
                 self.anchors = prevlevel.anchors.copy()
                 self.modaliases = prevlevel.modaliases.copy()
                 self.aliased_views = collections.ChainMap()
-                self.view_class_map = {}
                 self.class_view_overrides = {}
+                self.expr_exposed = False
 
                 self.source_map = {}
                 self.view_nodes = {}
@@ -319,7 +331,6 @@ class ContextLevel(compiler.ContextLevel):
                 self.anchors = prevlevel.anchors
                 self.modaliases = prevlevel.modaliases
                 self.aliased_views = prevlevel.aliased_views
-                self.view_class_map = prevlevel.view_class_map
                 self.class_view_overrides = prevlevel.class_view_overrides
 
                 self.clause = prevlevel.clause

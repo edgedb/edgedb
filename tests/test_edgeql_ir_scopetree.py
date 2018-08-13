@@ -377,9 +377,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                         "(test::Card)",
                         "FENCE": {
                             "(_::__view__|U@@w~1)\
-.>(test::deck)[IS test::Card]": {
-                                "(_::__view__|U@@w~1)"
-                            }
+.>(test::deck)[IS test::Card]"
                         }
                     }
                 }
@@ -544,6 +542,14 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
             "FENCE": {
                 "(test::User).>(test::deck)[IS test::Card]": {
                     "FENCE": {
+                        "(test::User).>(test::deck)[IS test::Card]",
+                        "FENCE": {
+                            "(test::User).>(test::deck)[IS test::Card]\
+@(test::count)[IS std::int64]"
+                        }
+                    },
+                    "FENCE": {
+                        "(test::User).>(test::deck)[IS test::Card]",
                         "FENCE": {
                             "(test::User).>(test::deck)[IS test::Card]\
 @(test::count)[IS std::int64]"
@@ -570,14 +576,14 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "(test::User)",
             "FENCE": {
-                "(_::__view__|x@@w~2)": {
+                "(_::__view__|x@@w~1)": {
                     "FENCE": {
                         "(test::User).>(test::deck)[IS test::Card]"
                     }
                 },
                 "(test::User).>(test::deck)[IS test::Card]",
                 "FENCE": {
-                    "(_::__view__|x@@w~2).>(test::name)[IS std::str]"
+                    "(_::__view__|x@@w~1).>(test::name)[IS std::str]"
                 }
             }
         }
@@ -596,6 +602,107 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                 "FENCE": {
                     "(_::__view__|A@@w~1)",
                     "(test::User)"
+                }
+            }
+        }
+        """
+
+    def test_edgeql_ir_scope_tree_25(self):
+        """
+        WITH MODULE test
+        SELECT User {
+            select_deck := (
+                FOR letter IN {'I', 'B'}
+                UNION (
+                    SELECT User.deck {
+                        name,
+                        @letter := letter
+                    }
+                    FILTER User.deck.name[0] = letter
+                )
+            )
+        } FILTER .name = 'Alice'
+
+% OK %
+        "FENCE": {
+            "(test::User)",
+            "FENCE": {
+                "(_::__view__|letter@@w~1)",
+                "(test::User).>(test::select_deck)[IS test::Card]",
+                "FENCE": {
+                    "(test::User).>(test::deck)[IS test::Card]",
+                    "FENCE": {
+                        "(test::User).>(test::deck)[IS test::Card]\
+.>(test::name)[IS std::str]"
+                    }
+                }
+            },
+            "FENCE": {
+                "(test::User).>(test::name)[IS std::str]"
+            }
+        }
+        """
+
+    def test_edgeql_ir_scope_tree_26(self):
+        """
+        WITH MODULE test
+        SELECT User {
+            select_deck := (
+                FOR letter IN {'I', 'B'}
+                UNION foo := (
+                    SELECT User.deck {
+                        name,
+                        @letter := letter
+                    }
+                    FILTER User.deck.name[0] = letter
+                )
+            )
+        } FILTER .name = 'Alice'
+
+% OK %
+        "FENCE": {
+            "(test::User)",
+            "FENCE": {
+                "(_::__view__|foo@@w~2)": {
+                    "FENCE": {
+                        "(test::User).>(test::deck)[IS test::Card]",
+                        "FENCE": {
+                            "(test::User).>(test::deck)[IS test::Card]\
+.>(test::name)[IS std::str]"
+                        }
+                    }
+                },
+                "(_::__view__|letter@@w~1)",
+                "(test::User).>(test::select_deck)[IS test::Card]"
+            },
+            "FENCE": {
+                "(test::User).>(test::name)[IS std::str]"
+            }
+        }
+        """
+
+    def test_edgeql_ir_scope_tree_27(self):
+        """
+        WITH MODULE test
+        INSERT User {
+            name := 'Carol',
+            deck := (
+                SELECT Card {@count := 5 - Card.cost} FILTER .element != 'Fire'
+            )
+        }
+
+% OK %
+        "FENCE": {
+            "(test::User)",
+            "FENCE": {
+                "(test::Card)",
+                "(test::User).>(test::deck)[IS test::Card]",
+                "FENCE": {
+                    "(test::Card).>(test::element)[IS std::str]"
+                },
+                "FENCE": {
+                    "(test::User).>(test::deck)[IS test::Card]\
+.>(test::cost)[IS std::int64]"
                 }
             }
         }

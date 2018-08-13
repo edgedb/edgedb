@@ -101,47 +101,7 @@ class PathId:
             return result
 
     def __str__(self):
-        result = ''
-
-        if not self._path:
-            return ''
-
-        if self._namespace:
-            ns_str = []
-            for item in sorted(self._namespace):
-                if isinstance(item, WeakNamespace):
-                    ns_str.append(f'[{item}]')
-                else:
-                    ns_str.append(item)
-
-            result += f'{"@".join(ns_str)}@@'
-
-        path = self._norm_path
-
-        result += f'({path[0].name})'
-
-        for i in range(1, len(path) - 1, 2):
-            ptr = path[i][0]
-            ptrdir = path[i][1]
-            is_lprop = path[i][2]
-            tgt = path[i + 1]
-
-            if tgt:
-                lexpr = f'({ptr})[IS {tgt.name}]'
-            else:
-                lexpr = f'({ptr})'
-
-            if is_lprop:
-                step = '@'
-            else:
-                step = f'.{ptrdir}'
-
-            result += f'{step}{lexpr}'
-
-        if self._is_ptr:
-            result += '@'
-
-        return result
+        return self.pformat_internal(debug=False)
 
     __repr__ = __str__
 
@@ -159,7 +119,10 @@ class PathId:
         else:
             new_namespace = self._namespace | frozenset(namespace)
 
-        return self.replace_namespace(new_namespace)
+        if new_namespace != self._namespace:
+            return self.replace_namespace(new_namespace)
+        else:
+            return self
 
     def strip_weak_namespaces(self):
         stripped_ns = tuple(bit for bit in self._namespace
@@ -184,6 +147,52 @@ class PathId:
 
         for weak_ns in weak_nses:
             yield self.replace_namespace(self._namespace - {weak_ns})
+
+    def pformat_internal(self, debug=False):
+        result = ''
+
+        if not self._path:
+            return ''
+
+        if self._namespace:
+            ns_str = []
+            for item in sorted(self._namespace):
+                if isinstance(item, WeakNamespace):
+                    ns_str.append(f'[{item}]')
+                else:
+                    ns_str.append(item)
+
+            result += f'{"@".join(ns_str)}@@'
+
+        path = self._norm_path
+
+        result += f'({path[0].name})'
+
+        for i in range(1, len(path) - 1, 2):
+            if debug:
+                ptr = path[i][0]
+            else:
+                ptr = s_pointers.Pointer.get_shortname(path[i][0])
+            ptrdir = path[i][1]
+            is_lprop = path[i][2]
+            tgt = path[i + 1]
+
+            if tgt:
+                lexpr = f'({ptr})[IS {tgt.name}]'
+            else:
+                lexpr = f'({ptr})'
+
+            if is_lprop:
+                step = '@'
+            else:
+                step = f'.{ptrdir}'
+
+            result += f'{step}{lexpr}'
+
+        if self._is_ptr:
+            result += '@'
+
+        return result
 
     def pformat(self):
         """Pretty PathId format for user-visible messages."""
@@ -299,7 +308,7 @@ class PathId:
 
         result = self.__class__()
         result._path = self._path + ((link, direction), target)
-        lnk = (link.shortname, direction, is_linkprop)
+        lnk = (link.name, direction, is_linkprop)
         norm_target = target.material_type()
         result._norm_path = self._norm_path + (lnk, norm_target)
         result._namespace = self._namespace

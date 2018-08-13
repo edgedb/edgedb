@@ -554,9 +554,17 @@ def update_scope(
     ctx.path_scope = ctx.path_scope.new_child()
     ctx.path_scope.update({p.path_id: stmt for p in scope_tree.path_children})
 
+    if (isinstance(ir_set.expr, irast.Stmt) and
+            ir_set.expr.iterator_stmt is not None):
+        iter_path_id = ir_set.expr.iterator_stmt.path_id
+    else:
+        iter_path_id = None
+
     for child_path in scope_tree.get_all_paths():
         parent_scope = scope_tree.parent
-        if parent_scope is None or not parent_scope.is_visible(child_path):
+        if ((parent_scope is None or
+                not parent_scope.is_visible(child_path)) and
+                child_path != iter_path_id):
             stmt.path_id_mask.add(child_path)
 
 

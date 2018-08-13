@@ -138,11 +138,6 @@ def derive_view(
             ctx.schema, source, target, *qualifiers, name=derived_name,
             mark_derived=True)
     else:
-        # If this is already a derived class, reuse its name,
-        # so that the correct storage relations are used in DML.
-        if derived_name is None:
-            derived_name = scls.name
-
         derived = scls.derive_copy(
             ctx.schema, source, target, *qualifiers, name=derived_name,
             attrs=dict(bases=[scls]), mark_derived=True)

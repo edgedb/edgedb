@@ -20,6 +20,7 @@
 """EdgeQL set compilation functions."""
 
 
+import contextlib
 import copy
 import typing
 
@@ -86,6 +87,7 @@ def new_set_from_set(
         expr=ir_set.expr,
         ctx=ctx
     )
+    result.rptr = ir_set.rptr
     return result
 
 
@@ -129,7 +131,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 refnode = anchors.get(step.name)
 
             if refnode is not None:
-                path_tip = copy.copy(refnode)
+                path_tip = new_set_from_set(
+                    refnode, preserve_scope_ns=True, ctx=ctx)
             else:
                 scls = schemactx.get_schema_type(
                     step, item_types=(s_objtypes.ObjectType,), ctx=ctx)
@@ -435,7 +438,7 @@ def _is_computable_ptr(
         force_computable: bool=False,
         ctx: context.ContextLevel) -> bool:
     try:
-        qlexpr, _, _ = ctx.source_map[ptrcls]
+        qlexpr = ctx.source_map[ptrcls][0]
     except KeyError:
         pass
     else:
@@ -630,58 +633,28 @@ def computable_ptr_set(
         ctx: context.ContextLevel) -> irast.Set:
     """Return ir.Set for a pointer defined as a computable."""
     ptrcls = rptr.ptrcls
-
-    # Must use an entirely separate context, as the computable
-    # expression is totally independent from the surrounding query.
-    subctx = stmtctx.init_context(schema=ctx.schema)
-    self_ = rptr.source
-    source_scls = self_.scls
+    source_set = rptr.source
+    source_scls = source_set.scls
     # process_view() may generate computable pointer expressions
     # in the form "self.linkname".  To prevent infinite recursion,
     # self must resolve to the parent type of the view NOT the view
     # type itself.  Similarly, when resolving computable link properties
     # make sure that we use rptr.ptrcls.derived_from.
     if source_scls.is_view():
-        self_ = copy.copy(self_)
-        self_.scls = source_scls.peel_view()
-        self_.shape = []
+        source_set = new_set_from_set(
+            source_set, preserve_scope_ns=True, ctx=ctx)
+        source_set.scls = source_scls.peel_view()
+        source_set.shape = []
 
-        if self_.rptr is not None:
-            derived_from = self_.rptr.ptrcls.derived_from
+        if source_set.rptr is not None:
+            derived_from = source_set.rptr.ptrcls.derived_from
             if (derived_from is not None and not derived_from.generic() and
                     derived_from.derived_from is not None and
                     ptrcls.is_link_property()):
-                self_.rptr.ptrcls = derived_from
-
-    subctx.anchors[qlast.Source] = self_
-
-    subctx.aliases = ctx.aliases
-    subctx.stmt = ctx.stmt
-    subctx.view_scls = ptrcls.target
-    subctx.view_rptr = context.ViewRPtr(source_scls, ptrcls=ptrcls, rptr=rptr)
-    subctx.toplevel_stmt = ctx.toplevel_stmt
-    subctx.path_scope = ctx.path_scope
-    subctx.pending_cardinality = ctx.pending_cardinality
-    subctx.completion_work = ctx.completion_work
-    subctx.pointer_derivation_map = ctx.pointer_derivation_map
-    subctx.class_shapes = ctx.class_shapes
-    subctx.all_sets = ctx.all_sets
-    subctx.path_scope_map = ctx.path_scope_map
-    subctx.scope_id_ctr = ctx.scope_id_ctr
-    subctx.expr_exposed = ctx.expr_exposed
-
-    if ptrcls.is_link_property():
-        source_path_id = rptr.source.path_id.ptr_path()
-    else:
-        source_path_id = rptr.target.path_id.src_path()
-
-    path_id = source_path_id.extend(
-        ptrcls, s_pointers.PointerDirection.Outbound, ptrcls.target)
-
-    subctx.path_scope.contain_path(path_id)
+                source_set.rptr.ptrcls = derived_from
 
     try:
-        qlexpr, qlctx, source_path_id = ctx.source_map[ptrcls]
+        qlexpr, qlctx, inner_source_path_id = ctx.source_map[ptrcls]
     except KeyError:
         if not ptrcls.default:
             raise ValueError(
@@ -693,58 +666,40 @@ def computable_ptr_set(
             qlexpr = qlast.Constant(value=ptrcls.default)
 
         qlctx = None
-        source_path_id = None
-    else:
-        subctx.modaliases = qlctx.modaliases.copy()
-        subctx.aliased_views = qlctx.aliased_views.new_child()
-        if source_scls.is_view():
-            subctx.aliased_views[self_.scls.name] = None
-        subctx.source_map = qlctx.source_map.copy()
-        subctx.view_nodes = qlctx.view_nodes.copy()
-        subctx.view_sets = qlctx.view_sets.copy()
-        subctx.view_map = qlctx.view_map.new_child()
-        subctx.singletons = qlctx.singletons.copy()
-        subctx.path_id_namespace = qlctx.path_id_namespace
+        inner_source_path_id = None
 
     if qlctx is None:
-        # This is a schema-level computable expression, put all
-        # class refs into a separate namespace.
-        subctx.path_id_namespace = (subctx.aliases.get('ns'),)
+        # Schema-level computable, completely detached context
+        newctx = ctx.detached
     else:
-        subctx.pending_stmt_own_path_id_namespace = \
-            irast.WeakNamespace(ctx.aliases.get('ns'))
+        newctx = _get_computable_ctx(
+            rptr=rptr,
+            source=source_set,
+            source_scls=source_scls,
+            inner_source_path_id=inner_source_path_id,
+            qlctx=qlctx,
+            ctx=ctx)
 
-        subns = subctx.pending_stmt_full_path_id_namespace = \
-            {subctx.pending_stmt_own_path_id_namespace}
+    if ptrcls.is_link_property():
+        source_path_id = rptr.source.path_id.ptr_path()
+    else:
+        source_path_id = rptr.target.path_id.src_path()
 
-        self_view = ctx.view_sets.get(self_.scls)
-        if self_view:
-            if self_view.path_id.namespace:
-                subns.update(self_view.path_id.namespace)
-            inner_path_id = self_view.path_id.merge_namespace(
-                subctx.path_id_namespace + tuple(subns))
-        else:
-            if self_.path_id.namespace:
-                subns.update(self_.path_id.namespace)
+    path_id = source_path_id.extend(
+        ptrcls, s_pointers.PointerDirection.Outbound, ptrcls.target)
 
-            if source_path_id is not None:
-                inner_path_id = source_path_id
-            else:
-                inner_path_id = pathctx.get_path_id(self_.scls, ctx=subctx)
+    with newctx() as subctx:
+        subctx.view_scls = ptrcls.target
+        subctx.view_rptr = context.ViewRPtr(
+            source_scls, ptrcls=ptrcls, rptr=rptr)
+        subctx.anchors[qlast.Source] = source_set
+        subctx.path_scope.contain_path(path_id)
 
-            inner_path_id = inner_path_id.merge_namespace(subns)
+        if isinstance(qlexpr, qlast.Statement) and unnest_fence:
+            subctx.stmt_metadata[qlexpr] = context.StatementMetadata(
+                is_unnest_fence=True)
 
-        remapped_source = new_set_from_set(rptr.source, ctx=subctx)
-        remapped_source.path_id = \
-            remapped_source.path_id.merge_namespace(subns)
-        remapped_source.rptr = rptr.source.rptr
-        subctx.view_map[inner_path_id] = remapped_source
-
-    if isinstance(qlexpr, qlast.Statement) and unnest_fence:
-        subctx.stmt_metadata[qlexpr] = context.StatementMetadata(
-            is_unnest_fence=True)
-
-    comp_ir_set = dispatch.compile(qlexpr, ctx=subctx)
+        comp_ir_set = dispatch.compile(qlexpr, ctx=subctx)
 
     if ptrcls in ctx.pending_cardinality:
         comp_ir_set_copy = copy.copy(comp_ir_set)
@@ -765,3 +720,73 @@ def computable_ptr_set(
     rptr.target = comp_ir_set
 
     return comp_ir_set
+
+
+def _get_computable_ctx(
+        *,
+        rptr: irast.Pointer,
+        source: irast.Set,
+        source_scls: s_nodes.Node,
+        inner_source_path_id: irast.PathId,
+        qlctx: context.ContextLevel,
+        ctx: context.ContextLevel) -> typing.ContextManager:
+    @contextlib.contextmanager
+    def newctx():
+        with ctx.new() as subctx:
+            subctx.class_view_overrides = {}
+            subctx.partial_path_prefix = None
+
+            subctx.modaliases = qlctx.modaliases.copy()
+            subctx.aliased_views = qlctx.aliased_views.new_child()
+            if source_scls.is_view():
+                subctx.aliased_views[source.scls.name] = None
+            subctx.source_map = qlctx.source_map.copy()
+            subctx.view_nodes = qlctx.view_nodes.copy()
+            subctx.view_sets = qlctx.view_sets.copy()
+            subctx.view_map = qlctx.view_map.new_child()
+            subctx.singletons = qlctx.singletons.copy()
+
+            source_scope = pathctx.get_set_scope(rptr.source, ctx=ctx)
+            if source_scope and source_scope.namespaces:
+                subctx.path_id_namespace += tuple(source_scope.namespaces)
+
+            subctx.pending_stmt_own_path_id_namespace = \
+                irast.WeakNamespace(ctx.aliases.get('ns'))
+
+            subns = subctx.pending_stmt_full_path_id_namespace = \
+                {subctx.pending_stmt_own_path_id_namespace}
+
+            self_view = ctx.view_sets.get(source.scls)
+            if self_view:
+                if self_view.path_id.namespace:
+                    subns.update(self_view.path_id.namespace)
+                inner_path_id = self_view.path_id.merge_namespace(
+                    subctx.path_id_namespace + tuple(subns))
+            else:
+                if source.path_id.namespace:
+                    subns.update(source.path_id.namespace)
+
+                if inner_source_path_id is not None:
+                    # The path id recorded in the source map may
+                    # contain namespaces referring to a temporary
+                    # scope subtree used by `process_view()`.
+                    # Since we recompile the computable expression
+                    # using the current path id namespace, the
+                    # original source path id needs to be fixed.
+                    inner_path_id = inner_source_path_id \
+                        .strip_namespace(qlctx.path_id_namespace) \
+                        .merge_namespace(subctx.path_id_namespace)
+                else:
+                    inner_path_id = pathctx.get_path_id(
+                        source.scls, ctx=subctx)
+
+                inner_path_id = inner_path_id.merge_namespace(subns)
+
+            remapped_source = new_set_from_set(rptr.source, ctx=subctx)
+            remapped_source.path_id = \
+                remapped_source.path_id.merge_namespace(subns)
+            remapped_source.rptr = rptr.source.rptr
+            subctx.view_map[inner_path_id] = remapped_source
+            yield subctx
+
+    return newctx

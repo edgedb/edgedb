@@ -99,14 +99,17 @@ class ScopeTreeNode:
 
     @property
     def name(self):
+        return self._name(debug=False)
+
+    def _name(self, debug):
         if self.path_id is None:
             return f'FENCE' if self.fenced else f'BRANCH'
         else:
-            return f'{self.path_id}{" [OPT]" if self.optional else ""}'
+            pid = self.path_id.pformat_internal(debug=debug)
+            return f'{pid}{" [OPT]" if self.optional else ""}'
 
-    @property
-    def debugname(self):
-        parts = [f'{self.name}']
+    def debugname(self, fuller=False):
+        parts = [f'{self._name(debug=fuller)}']
         if self.unique_id:
             parts.append(f'uid:{self.unique_id}')
         if self.namespaces:
@@ -520,7 +523,7 @@ class ScopeTreeNode:
         else:
             return ''
 
-    def pdebugformat(self):
+    def pdebugformat(self, fuller=False):
         if self.children:
             child_formats = []
             for c in self.children:
@@ -530,9 +533,9 @@ class ScopeTreeNode:
 
             child_formats = sorted(child_formats)
             children = textwrap.indent(',\n'.join(child_formats), '    ')
-            return f'"{self.debugname}": {{\n{children}\n}}'
+            return f'"{self.debugname(fuller=fuller)}": {{\n{children}\n}}'
         else:
-            return f'"{self.debugname}"'
+            return f'"{self.debugname(fuller=fuller)}"'
 
     def _set_parent(self, parent):
         current_parent = self.parent

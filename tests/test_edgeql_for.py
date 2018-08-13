@@ -239,3 +239,28 @@ class TestEdgeQLFor(tb.QueryTestCase):
                 'Sprite',
             }
         ])
+
+    async def test_edgeql_for_in_computable_01(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT User {
+                select_deck := (
+                    FOR letter IN {'I', 'B'}
+                    UNION _ := (
+                        SELECT User.deck {
+                            name,
+                            @letter := letter
+                        }
+                        FILTER User.deck.name[0] = letter
+                    )
+                    ORDER BY _.name
+                )
+            } FILTER .name = 'Alice';
+        ''', [[
+            {
+                'select_deck': [
+                    {'name': 'Bog monster', '@letter': 'B'},
+                    {'name': 'Imp', '@letter': 'I'},
+                ]
+            }
+        ]])

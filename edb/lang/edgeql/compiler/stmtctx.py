@@ -205,42 +205,49 @@ def populate_anchors(
 def declare_view(
         expr: qlast.Base, alias: str, *,
         fully_detached: bool=False,
+        temporary_scope: bool=True,
         ctx: context.ContextLevel) -> irast.Set:
-    expr = astutils.ensure_qlstmt(expr)
 
-    with ctx.newscope(temporary=True, fenced=True) as subctx:
+    with ctx.newscope(temporary=temporary_scope, fenced=True) as subctx:
         if not fully_detached:
+            cached_view_set = ctx.expr_view_cache.get((expr, alias))
             # Detach the view namespace and record the prefix
             # in the parent statement's fence node.
-            subctx.path_id_namespace = (
-                subctx.path_id_namespace +
-                (irast.WeakNamespace(ctx.aliases.get('ns')),))
+            add_ns = (irast.WeakNamespace(ctx.aliases.get('ns')),)
+            subctx.path_id_namespace = subctx.path_id_namespace + add_ns
             ctx.path_scope.namespaces.add(subctx.path_id_namespace[-1])
-
-        if isinstance(alias, s_name.SchemaName):
-            basename = alias
         else:
-            basename = s_name.SchemaName(module='__view__', name=alias)
+            cached_view_set = None
 
         if ctx.stmt is not None:
             subctx.stmt = ctx.stmt.parent_stmt
 
-        view_name = s_name.SchemaName(
-            module=ctx.derived_target_module or '_',
-            name=s_obj.NamedObject.get_specialized_name(
-                basename,
-                ctx.aliases.get('w')
+        if cached_view_set is not None:
+            subctx.view_scls = cached_view_set.scls
+            view_name = cached_view_set.scls.name
+        else:
+            if isinstance(alias, s_name.SchemaName):
+                basename = alias
+            else:
+                basename = s_name.SchemaName(module='__view__', name=alias)
+
+            view_name = s_name.SchemaName(
+                module=ctx.derived_target_module or '_',
+                name=s_obj.NamedObject.get_specialized_name(
+                    basename,
+                    ctx.aliases.get('w')
+                )
             )
-        )
+
         subctx.toplevel_result_view_name = view_name
 
-        view_set = dispatch.compile(expr, ctx=subctx)
-        # The view path id _itself_ should not be in the nested
-        # namespace.
+        view_set = dispatch.compile(astutils.ensure_qlstmt(expr), ctx=subctx)
+        # The view path id _itself_ should not be in the nested namespace.
         view_set.path_id = view_set.path_id.replace_namespace(
             ctx.path_id_namespace)
         ctx.aliased_views[alias] = view_set.scls
         ctx.path_scope_map[view_set] = subctx.path_scope
+        ctx.expr_view_cache[expr, alias] = view_set
 
     return view_set
 
@@ -248,7 +255,7 @@ def declare_view(
 def declare_view_from_schema(
         viewcls: s_obj.Object, *,
         ctx: context.ContextLevel) -> irast.Set:
-    vc = ctx.view_class_map.get(viewcls)
+    vc = ctx.schema_view_cache.get(viewcls)
     if vc is not None:
         return vc
 
@@ -258,7 +265,7 @@ def declare_view_from_schema(
                      fully_detached=True, ctx=subctx)
 
         vc = subctx.aliased_views[viewcls.name]
-        ctx.view_class_map[viewcls] = vc
+        ctx.schema_view_cache[viewcls] = vc
         ctx.source_map.update(subctx.source_map)
         ctx.aliased_views[viewcls.name] = subctx.aliased_views[viewcls.name]
         ctx.view_nodes[vc.name] = vc

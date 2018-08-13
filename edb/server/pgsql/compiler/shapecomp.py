@@ -45,6 +45,24 @@ def compile_shape(
         shapectx.disable_semi_join.add(ir_set.path_id)
         shapectx.unique_paths.add(ir_set.path_id)
 
+        if (isinstance(ir_set.expr, irast.Stmt) and
+                ir_set.expr.iterator_stmt is not None):
+            # The source set for this shape is a FOR statement,
+            # which is special in that besides set path_id it
+            # should also expose the path_id of the FOR iterator
+            # so that shape element expressions that might contain
+            # an iterator reference find it properly.
+            #
+            # So, for:
+            #    SELECT Bar {
+            #        foo := (FOR x := ... UNION Foo { spam := x })
+            #    }
+            #
+            # the path scope when processing the shape of Bar.foo
+            # should be {'Bar.foo', 'x'}.
+            iter_path_id = ir_set.expr.iterator_stmt.path_id
+            shapectx.path_scope[iter_path_id] = ctx.rel
+
         for el in shape:
             rptr = el.rptr
             ptrcls = rptr.ptrcls

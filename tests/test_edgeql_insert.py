@@ -818,8 +818,7 @@ class TestInsert(tb.QueryTestCase):
             ]
         )
 
-    @unittest.expectedFailure
-    async def test_edgeql_insert_linkprops_01(self):
+    async def test_edgeql_insert_linkprops_with_for_01(self):
         await self.assert_query_result(r"""
             WITH MODULE test
             FOR i IN {'1', '2', '3'} UNION (
@@ -846,9 +845,9 @@ class TestInsert(tb.QueryTestCase):
                     name,
                     @comment,
                 } ORDER BY InsertTest.subordinates.name
-            };
+            } FILTER .l2 = 99;
         """, [
-            {3},
+            [{}, ...],
             {1},
             [{
                 'l2': 99,

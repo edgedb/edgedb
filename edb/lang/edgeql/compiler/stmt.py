@@ -159,6 +159,7 @@ def compile_ForQuery(
             view_rptr=ctx.view_rptr,
             result_alias=qlstmt.result_alias,
             view_name=ctx.toplevel_result_view_name,
+            forward_rptr=True,
             ctx=sctx)
 
         stmt.where = clauses.compile_where_clause(
@@ -460,12 +461,17 @@ def compile_result_clause(
         view_rptr: typing.Optional[context.ViewRPtr]=None,
         view_name: typing.Optional[s_name.SchemaName]=None,
         result_alias: typing.Optional[str]=None,
+        forward_rptr: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
     with ctx.new() as sctx:
         sctx.clause = 'result'
         if sctx.stmt is ctx.toplevel_stmt:
             sctx.toplevel_clause = sctx.clause
             sctx.expr_exposed = True
+
+        if forward_rptr:
+            sctx.view_rptr = view_rptr
+            # sctx.view_scls = view_scls
 
         if isinstance(result, qlast.Shape):
             result_expr = result.expr
@@ -475,7 +481,15 @@ def compile_result_clause(
             shape = None
 
         if result_alias:
-            stmtctx.declare_view(result_expr, alias=result_alias, ctx=sctx)
+            # `SELECT foo := expr` is largely equivalent to
+            # `WITH foo := expr SELECT foo` with one important exception:
+            # the scope namespace does not get added to the current query
+            # path scope.  This is needed to handle FOR queries correctly.
+            with sctx.newscope(temporary=True, fenced=True) as scopectx:
+                stmtctx.declare_view(
+                    result_expr, alias=result_alias,
+                    temporary_scope=False, ctx=scopectx)
+
             result_expr = qlast.Path(
                 steps=[qlast.ObjectRef(name=result_alias)]
             )
