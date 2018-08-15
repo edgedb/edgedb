@@ -193,6 +193,9 @@ class ContextLevel(compiler.ContextLevel):
     implicit_id_in_shapes: bool
     """Whether to include the id property in object shapes implicitly."""
 
+    empty_result_type_hint: s_types.Type
+    """Type to use if the statement result expression is an empty set ctor."""
+
     def __init__(self, prevlevel, mode):
         self.mode = mode
 
@@ -240,6 +243,7 @@ class ContextLevel(compiler.ContextLevel):
             self.view_rptr = None
             self.toplevel_result_view_name = None
             self.implicit_id_in_shapes = False
+            self.empty_result_type_hint = None
 
         else:
             self.schema = prevlevel.schema
@@ -275,6 +279,7 @@ class ContextLevel(compiler.ContextLevel):
             self.toplevel_clause = prevlevel.toplevel_clause
             self.toplevel_stmt = prevlevel.toplevel_stmt
             self.implicit_id_in_shapes = prevlevel.implicit_id_in_shapes
+            self.empty_result_type_hint = prevlevel.empty_result_type_hint
 
             if mode == ContextSwitchMode.SUBQUERY:
                 self.anchors = prevlevel.anchors.copy()

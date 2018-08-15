@@ -64,6 +64,10 @@ def ensure_qlstmt(expr):
     return expr
 
 
+def is_ql_empty_set(expr):
+    return isinstance(expr, qlast.Set) and len(expr.elements) == 0
+
+
 def is_exists_expr_set(ir_expr):
     return (
         isinstance(ir_expr, irast.Set) and

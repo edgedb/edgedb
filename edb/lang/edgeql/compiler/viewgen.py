@@ -352,6 +352,7 @@ def _normalize_view_ptr_expr(
 
             if is_mutation:
                 shape_expr_ctx.expr_exposed = True
+                shape_expr_ctx.empty_result_type_hint = ptrcls.target
 
             irexpr = dispatch.compile(qlexpr, ctx=shape_expr_ctx)
 

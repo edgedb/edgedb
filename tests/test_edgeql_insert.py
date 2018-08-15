@@ -864,7 +864,6 @@ class TestInsert(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_insert_empty_01(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -902,7 +901,6 @@ class TestInsert(tb.QueryTestCase):
                 };
                 """)
 
-    @unittest.expectedFailure
     async def test_edgeql_insert_empty_03(self):
         with self.assertRaisesRegex(
                 exc.MissingRequiredPointerError,
@@ -914,7 +912,6 @@ class TestInsert(tb.QueryTestCase):
                 };
                 """)
 
-    @unittest.expectedFailure
     async def test_edgeql_insert_empty_04(self):
         await self.assert_query_result(r"""
             WITH MODULE test

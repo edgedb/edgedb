@@ -694,6 +694,7 @@ def computable_ptr_set(
             source_scls, ptrcls=ptrcls, rptr=rptr)
         subctx.anchors[qlast.Source] = source_set
         subctx.path_scope.contain_path(path_id)
+        subctx.empty_result_type_hint = ptrcls.target
 
         if isinstance(qlexpr, qlast.Statement) and unnest_fence:
             subctx.stmt_metadata[qlexpr] = context.StatementMetadata(

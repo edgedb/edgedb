@@ -1251,7 +1251,6 @@ class TestUpdate(tb.QueryTestCase):
                 };
                 """)
 
-    @unittest.expectedFailure
     async def test_edgeql_update_empty_04(self):
         await self.assert_query_result(r"""
             # just clear all the statuses
