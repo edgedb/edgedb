@@ -237,35 +237,7 @@ class Cluster:
                 'cluster in {!r} has already been initialized'.format(
                     self._location))
 
-        is_running = 'running' in cluster_status
-
-        conn_args = {'port': find_available_port(), }
-
-        default_server_settings = {
-            'log_connections': 'yes',
-            'log_statement': 'all',
-            'log_disconnections': 'yes',
-            'log_min_messages': 'WARNING',
-            'client_min_messages': 'WARNING',
-        }
-
-        default_server_settings.update(server_settings)
-        server_settings = default_server_settings
-
-        if cluster_status == 'not-initialized':
-            self._pg_cluster.init(username=self._pg_superuser, locale='C')
-            self._pg_cluster.start(
-                server_settings=server_settings, **conn_args)
-
-        elif not is_running:
-            self._pg_cluster.start(
-                server_settings=server_settings, **conn_args)
-
-        try:
-            self._init(self._pg_cluster)
-        finally:
-            if not is_running:
-                self._pg_cluster.stop()
+        self._init(self._pg_cluster)
 
     def start(self, wait=60, **settings):
         port = settings.pop('port', None) or self._port

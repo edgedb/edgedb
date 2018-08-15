@@ -135,6 +135,7 @@ def run_server(args):
             'log_statement': 'all',
             'log_disconnections': 'yes',
             'log_min_messages': 'INFO',
+            'client_min_messages': 'INFO',
         }
 
         if args['timezone']:
@@ -146,7 +147,8 @@ def run_server(args):
         if cluster_status == 'not-initialized':
             logger.info(
                 'Initializing database cluster in %s', args['data_dir'])
-            initdb_output = cluster.init(username='postgres')
+            initdb_output = cluster.init(
+                username='postgres', locale='C', encoding='UTF8')
             for line in initdb_output.splitlines():
                 logger.debug('initdb: %s', line)
             cluster.reset_hba()
