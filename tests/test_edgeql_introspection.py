@@ -650,3 +650,11 @@ class TestIntrospection(tb.QueryTestCase):
             DELETE test::Status;
             DELETE test::User;
         """)
+
+    async def test_edgeql_introspection_database_01(self):
+        res = await self.query(r"""
+            WITH MODULE schema
+            SELECT count(Database.name);
+        """)
+
+        self.assertGreater(res[0][0], 0)

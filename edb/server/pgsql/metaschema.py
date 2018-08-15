@@ -26,6 +26,7 @@ from edb.lang.common import adapter, nlang, typed
 
 from edb.lang.schema import attributes as s_attrs
 from edb.lang.schema import constraints as s_constraints
+from edb.lang.schema import database as s_db
 from edb.lang.schema import expr as s_expr
 from edb.lang.schema import functions as s_funcs
 from edb.lang.schema import inheriting as s_inheriting
@@ -591,7 +592,8 @@ def get_interesting_metaclasses():
     metaclasses = [
         mcls for mcls in metaclasses
         if (not issubclass(mcls, (s_obj.ObjectRef, s_types.Collection)) and
-            not isinstance(mcls, adapter.Adapter))
+            not isinstance(mcls, adapter.Adapter) and
+            not issubclass(mcls, (s_db.Database)))
     ]
 
     return metaclasses[1:]
@@ -973,6 +975,22 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
     return dbops.View(name=tabname(ptr), query=link_query)
 
 
+def _generate_database_view(schema):
+    Database = schema.get('schema::Database')
+
+    view_query = f'''
+        SELECT
+            datname         AS {dbname('schema::name')},
+            NULL            AS {dbname('schema::description')}
+        FROM
+            pg_database
+        WHERE
+            datname NOT IN ('postgres', 'template0', 'template1')
+    '''
+
+    return dbops.View(name=tabname(Database), query=view_query)
+
+
 def _generate_param_view(schema):
     FuncParam = schema.get('schema::Parameter')
 
@@ -1299,6 +1317,9 @@ async def generate_views(conn, schema):
 
     fp_view = _generate_param_view(schema)
     views[fp_view.name] = fp_view
+
+    db_view = _generate_database_view(schema)
+    views[db_view.name] = db_view
 
     types_view = views[tabname(schema.get('schema::Type'))]
     types_view.query += '\nUNION ALL\n' + '\nUNION ALL\n'.join(f'''
