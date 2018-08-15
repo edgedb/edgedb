@@ -290,6 +290,13 @@ class IRDecompiler(ast.visitor.NodeVisitor):
 
         return result
 
+    def visit_IfElseExpr(self, node):
+        result = qlast.IfElse()
+        result.condition = self.visit(node.condition)
+        result.if_expr = self.visit(node.if_expr)
+        result.else_expr = self.visit(node.else_expr)
+        return result
+
     def _is_none(self, expr):
         return (
             expr is None or (
