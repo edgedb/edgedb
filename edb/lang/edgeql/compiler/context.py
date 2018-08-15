@@ -138,9 +138,6 @@ class ContextLevel(compiler.ContextLevel):
     stmt: irast.Stmt
     """Statement node currently being built."""
 
-    singletons: typing.Set[irast.Set]
-    """A set of Set nodes for which the cardinality is ONE in this context."""
-
     path_id_namespace: typing.Tuple[str, ...]
     """A namespace to use for all path ids."""
 
@@ -225,7 +222,6 @@ class ContextLevel(compiler.ContextLevel):
             self.toplevel_clause = None
             self.toplevel_stmt = None
             self.stmt = None
-            self.singletons = set()
             self.path_id_namespace = tuple()
             self.pending_stmt_own_path_id_namespace = None
             self.pending_stmt_full_path_id_namespace = None
@@ -294,7 +290,6 @@ class ContextLevel(compiler.ContextLevel):
                 self.view_scls = None
                 self.clause = None
                 self.stmt = None
-                self.singletons = prevlevel.singletons.copy()
                 self.in_aggregate = False
 
                 self.partial_path_prefix = None
@@ -320,7 +315,6 @@ class ContextLevel(compiler.ContextLevel):
                 self.view_scls = None
                 self.clause = None
                 self.stmt = None
-                self.singletons = set()
                 self.in_aggregate = False
 
                 self.partial_path_prefix = None
@@ -337,8 +331,6 @@ class ContextLevel(compiler.ContextLevel):
                 self.stmt = prevlevel.stmt
 
                 self.in_aggregate = prevlevel.in_aggregate
-
-                self.singletons = prevlevel.singletons
 
                 self.partial_path_prefix = prevlevel.partial_path_prefix
 

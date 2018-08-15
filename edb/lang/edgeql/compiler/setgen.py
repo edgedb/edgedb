@@ -744,7 +744,6 @@ def _get_computable_ctx(
             subctx.view_nodes = qlctx.view_nodes.copy()
             subctx.view_sets = qlctx.view_sets.copy()
             subctx.view_map = qlctx.view_map.new_child()
-            subctx.singletons = qlctx.singletons.copy()
 
             source_scope = pathctx.get_set_scope(rptr.source, ctx=ctx)
             if source_scope and source_scope.namespaces:

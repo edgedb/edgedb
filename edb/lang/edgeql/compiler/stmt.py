@@ -211,7 +211,7 @@ def compile_GroupQuery(
 
             with subjctx.new() as grpctx:
                 stmt.groupby = compile_groupby_clause(
-                    expr.groupby, singletons=grpctx.singletons, ctx=grpctx)
+                    expr.groupby, ctx=grpctx)
 
         with ictx.subquery() as isctx, isctx.newscope(fenced=True) as sctx:
             o_stmt = sctx.stmt = irast.SelectStmt()
@@ -576,7 +576,6 @@ def compile_query_subject(
 
 def compile_groupby_clause(
         groupexprs: typing.Iterable[qlast.Base], *,
-        singletons: typing.Set[irast.Set],
         ctx: context.ContextLevel) -> typing.List[irast.Set]:
     result = []
     if not groupexprs:
@@ -587,9 +586,6 @@ def compile_groupby_clause(
         if sctx.stmt.parent_stmt is None:
             sctx.toplevel_clause = sctx.clause
 
-        sctx.singletons = sctx.singletons.copy()
-        sctx.singletons.update(singletons)
-
         ir_groupexprs = []
         for groupexpr in groupexprs:
             with sctx.newscope(fenced=True) as scopectx:
@@ -597,7 +593,5 @@ def compile_groupby_clause(
                     dispatch.compile(groupexpr, ctx=scopectx), ctx=scopectx)
                 ir_groupexpr.context = groupexpr.context
                 ir_groupexprs.append(ir_groupexpr)
-
-                ctx.singletons.add(ir_groupexpr.path_id)
 
     return ir_groupexprs
