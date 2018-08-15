@@ -355,6 +355,9 @@ CREATE ABSTRACT TYPE schema::Object {
 };
 
 
+CREATE TYPE schema::Database EXTENDING schema::Object;
+
+
 # Base type for all *types*.
 CREATE ABSTRACT TYPE schema::Type EXTENDING schema::Object;
 
