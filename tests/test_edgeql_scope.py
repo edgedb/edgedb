@@ -1510,6 +1510,107 @@ class TestEdgeQLScope(tb.QueryTestCase):
             {'name': 'Bog monster'}
         ]])
 
+    @unittest.expectedFailure
+    async def test_edgeql_scope_computables_03(self):
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test
+            SELECT User {
+                name,
+                # a sub-shape with a computable property is ordered
+                deck: {
+                    name,
+                    elemental_cost,
+                } ORDER BY .name
+            } FILTER .name = 'Alice';
+        """, [[
+            {
+                'name': 'Alice',
+                'deck': [
+                    {'name': 'Bog monster', 'elemental_cost': '2 Water'},
+                    {'name': 'Dragon', 'elemental_cost': '5 Fire'},
+                    {'name': 'Giant turtle', 'elemental_cost': '3 Water'},
+                    {'name': 'Imp', 'elemental_cost': '1 Fire'},
+                ],
+            }
+        ]])
+
+    async def test_edgeql_scope_computables_04(self):
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test
+            SELECT User {
+                name,
+                # a sub-shape with a computable link is ordered
+                deck: {
+                    name,
+                    owners: {
+                        name
+                    },
+                } ORDER BY .name
+            } FILTER .name = 'Alice';
+        """, [[
+            {
+                'name': 'Alice',
+                'deck': [
+                    {
+                        'name': 'Bog monster',
+                        'owners': [{'name': 'Alice'}, {'name': 'Bob'},
+                                   {'name': 'Carol'}, {'name': 'Dave'}],
+                    },
+                    {
+                        'name': 'Dragon',
+                        'owners': [{'name': 'Alice'}, {'name': 'Dave'}]},
+                    {
+                        'name': 'Giant turtle',
+                        'owners': [{'name': 'Alice'}, {'name': 'Bob'},
+                                   {'name': 'Carol'}, {'name': 'Dave'}],
+                    },
+                    {
+                        'name': 'Imp',
+                        'owners': [{'name': 'Alice'}],
+                    },
+                ],
+            }
+        ]])
+
+    async def test_edgeql_scope_computables_05(self):
+        await self.assert_query_result(r"""
+            WITH
+                MODULE test
+            SELECT User {
+                name,
+                # a sub-shape with a computable derived from a
+                # computable link is ordered
+                deck: {
+                    name,
+                    o_name := User.deck.owners.name,
+                } ORDER BY .name
+            } FILTER .name = 'Alice';
+        """, [[
+            {
+                'name': 'Alice',
+                'deck': [
+                    {
+                        'name': 'Bog monster',
+                        'o_name': {'Alice', 'Bob', 'Carol', 'Dave'},
+                    },
+                    {
+                        'name': 'Dragon',
+                        'o_name': {'Alice', 'Dave'},
+                    },
+                    {
+                        'name': 'Giant turtle',
+                        'o_name': {'Alice', 'Bob', 'Carol', 'Dave'},
+                    },
+                    {
+                        'name': 'Imp',
+                        'o_name': {'Alice'},
+                    },
+                ],
+            }
+        ]])
+
     async def test_edgeql_scope_with_01(self):
         # Test that same symbol can be re-used in WITH block.
         await self.assert_query_result(r"""

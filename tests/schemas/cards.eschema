@@ -46,6 +46,9 @@ type Card extending Named:
     required property element -> str
     required property cost -> int64
     link owners := __source__.<deck[IS User]
+    # computable property
+    property elemental_cost :=
+        <str>__source__.cost + ' ' + __source__.element
 
 
 type SpecialCard extending Card
