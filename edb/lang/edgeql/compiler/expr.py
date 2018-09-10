@@ -389,7 +389,7 @@ def _cast_expr(
         # generate a new EmptySet node of the requested type.
         scls = typegen.ql_typeref_to_type(ql_type, ctx=ctx)
         return irutils.new_empty_set(ctx.schema, scls=scls,
-                                     alias=ir_expr.path_id[-1].name.name)
+                                     alias=ir_expr.path_id.target.name.name)
 
     else:
         typ = typegen.ql_typeref_to_ir_typeref(ql_type, ctx=ctx)

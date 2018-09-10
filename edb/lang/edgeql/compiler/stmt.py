@@ -205,7 +205,7 @@ def compile_GroupQuery(
             subject_set = setgen.scoped_set(
                 dispatch.compile(expr.subject, ctx=subjctx), ctx=subjctx)
 
-            alias = expr.subject_alias or subject_set.path_id[0].name
+            alias = expr.subject_alias or subject_set.path_id.target.name
             stmt.subject = stmtctx.declare_inline_view(
                 subject_set, alias, ctx=ictx)
 
@@ -594,7 +594,7 @@ def compile_query_subject(
         viewgen.compile_view_shapes(expr, rptr=rptr, ctx=ctx)
 
     if (shape is not None or view_scls is not None) and len(expr.path_id) == 1:
-        ctx.class_view_overrides[expr.path_id[0].name] = expr.scls
+        ctx.class_view_overrides[expr.path_id.target.name] = expr.scls
 
     return expr
 

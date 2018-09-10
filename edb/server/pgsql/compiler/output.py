@@ -46,7 +46,7 @@ def tuple_var_as_json_object(tvar, *, path_id, env):
         for element in tvar.elements:
             rptr = element.path_id.rptr()
             if rptr is None:
-                name = element.path_id[-1].name.name
+                name = element.path_id.target.name.name
             else:
                 name = rptr.shortname.name
                 if rptr.is_link_property():
@@ -114,7 +114,7 @@ def serialize_expr(
                 name=('jsonb_build_array',), args=expr.args,
                 null_safe=True)
 
-        elif isinstance(path_id[-1], s_types.Tuple):
+        elif isinstance(path_id.target, s_types.Tuple):
             val = pgast.FuncCall(
                 name=('edgedb', 'row_to_jsonb_array',), args=[expr],
                 null_safe=True)

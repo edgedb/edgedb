@@ -531,7 +531,7 @@ def get_set_rel_alias(ir_set: irast.Set) -> str:
         if isinstance(ir_set.scls, s_types.Collection):
             alias_hint = ir_set.scls.schema_name
         else:
-            alias_hint = ir_set.path_id[-1].name.name.replace('~', '-')
+            alias_hint = ir_set.path_id.target.name.name.replace('~', '-')
 
     return alias_hint
 

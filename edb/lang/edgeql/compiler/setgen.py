@@ -394,25 +394,23 @@ def extend_path(
         unnest_fence: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
     """Return a Set node representing the new path tip."""
-    if target is None:
-        target = ptrcls.get_far_endpoint(direction)
 
     if ptrcls.is_link_property():
-        path_id = source_set.path_id.ptr_path().extend(
-            ptrcls, direction, target)
-    elif direction != s_pointers.PointerDirection.Inbound:
-        source = ptrcls.get_near_endpoint(direction)
-        if not source_set.scls.issubclass(source):
-            # Polymorphic link reference
-            source_set = class_indirection_set(
-                source_set, source, optional=True, ctx=ctx)
-
-        path_id = source_set.path_id.extend(ptrcls, direction, target)
+        src_path_id = source_set.path_id.ptr_path()
     else:
-        path_id = source_set.path_id.extend(ptrcls, direction, target)
+        if direction != s_pointers.PointerDirection.Inbound:
+            source = ptrcls.get_near_endpoint(direction)
+            if not source_set.scls.issubclass(source):
+                # Polymorphic link reference
+                source_set = class_indirection_set(
+                    source_set, source, optional=True, ctx=ctx)
 
-    if ctx.path_id_namespace:
-        path_id = path_id.merge_namespace(ctx.path_id_namespace)
+        src_path_id = source_set.path_id
+
+    if target is None:
+        target = ptrcls.get_far_endpoint(direction)
+    path_id = src_path_id.extend(ptrcls, direction, target,
+                                 ns=ctx.path_id_namespace)
 
     target_set = new_set(scls=target, path_id=path_id, ctx=ctx)
 

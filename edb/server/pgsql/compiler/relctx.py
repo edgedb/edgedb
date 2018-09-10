@@ -399,7 +399,6 @@ def _new_mapped_pointer_rvar(
         far_ref = target_ref
 
     ptr_rvar.query.path_id = ir_ptr.target.path_id.ptr_path()
-    ptr_rvar.path_scope.add(ptr_rvar.query.path_id)
 
     src_pid = ir_ptr.source.path_id
     tgt_pid = ir_ptr.target.path_id

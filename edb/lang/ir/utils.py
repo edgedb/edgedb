@@ -93,7 +93,7 @@ def get_id_path_id(
         path_id: irast.PathId, *,
         schema: s_schema.Schema) -> irast.PathId:
     """For PathId representing an object, return (PathId).(std::id)."""
-    source: s_sources.Source = path_id[-1]
+    source: s_sources.Source = path_id.target
     assert isinstance(source, s_objtypes.ObjectType)
     return path_id.extend(
         source.resolve_pointer(schema, 'std::id'),
@@ -137,7 +137,7 @@ def is_scalar_view_set(ir_expr):
         isinstance(ir_expr, irast.Set) and
         len(ir_expr.path_id) == 1 and
         ir_expr.path_id.is_scalar_path() and
-        ir_expr.path_id[0].is_view()
+        ir_expr.path_id.target.is_view()
     )
 
 
@@ -255,7 +255,7 @@ class TypeIndirectionLink(s_links.Link):
 def type_indirection_path_id(path_id, target_type, *, optional: bool,
                              cardinality: s_pointers.PointerCardinality):
     return path_id.extend(
-        TypeIndirectionLink(path_id[-1], target_type,
+        TypeIndirectionLink(path_id.target, target_type,
                             optional=optional, cardinality=cardinality),
         s_pointers.PointerDirection.Outbound,
         target_type

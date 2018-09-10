@@ -44,7 +44,7 @@ def is_polymorphic_type(t):
 
 
 def amend_empty_set_type(es: irast.EmptySet, t: s_obj.Object, schema) -> None:
-    alias = es.path_id[-1].name.name
+    alias = es.path_id.target.name.name
     scls_name = s_name.Name(module='__expr__', name=alias)
     scls = t.__class__(name=scls_name, bases=[t])
     scls.acquire_ancestor_inheritance(schema)

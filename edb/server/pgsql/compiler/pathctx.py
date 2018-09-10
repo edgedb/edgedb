@@ -176,7 +176,7 @@ def get_path_var(
         if ptr_info.table_type != 'link' and not is_inbound:
             # This is a link prop that is stored in source rel,
             # step back to link source rvar.
-            src_path_id = path_id[:-4]
+            src_path_id = path_id.src_path().src_path()
 
     elif ptr_info.table_type != 'ObjectType' and not is_inbound:
         # Ref is in the mapping rvar.
@@ -392,10 +392,10 @@ def get_path_output_alias(
     if rptr is not None:
         ptrname = rptr.shortname
         alias_base = ptrname.name
-    elif isinstance(path_id[-1], s_types.Collection):
-        alias_base = path_id[-1].schema_name
+    elif isinstance(path_id.target, s_types.Collection):
+        alias_base = path_id.target.schema_name
     else:
-        alias_base = path_id[-1].name.name
+        alias_base = path_id.target.name.name
 
     return env.aliases.get(f'{alias_base}_{aspect}')
 
@@ -585,7 +585,7 @@ def _get_rel_path_output(
         if ptrcls is not None:
             target = ptrcls.target
         else:
-            target = path_id[-1]
+            target = path_id.target
 
         if ptr_info is not None:
             name = ptr_info.column_name

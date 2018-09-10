@@ -26,7 +26,7 @@ from edb.lang.schema import types as s_types
 class PathId:
     """Unique identifier of a path in an expression."""
 
-    __slots__ = ('_path', '_norm_path', '_namespace', '_is_ptr')
+    __slots__ = ('_path', '_norm_path', '_namespace', '_prefix', '_is_ptr')
 
     def __init__(self, initializer=None, *, namespace=None):
         if isinstance(initializer, PathId):
@@ -37,6 +37,7 @@ class PathId:
             else:
                 self._namespace = initializer._namespace
             self._is_ptr = initializer._is_ptr
+            self._prefix = initializer._prefix
         elif initializer is not None:
             if not isinstance(initializer, s_types.Type):
                 raise ValueError(
@@ -49,16 +50,19 @@ class PathId:
             else:
                 self._norm_path = (initializer,)
             self._namespace = frozenset(namespace) if namespace else None
+            self._prefix = None
             self._is_ptr = False
         else:
             self._path = ()
             self._norm_path = ()
             self._namespace = frozenset(namespace) if namespace else None
+            self._prefix = None
             self._is_ptr = False
 
     def __hash__(self):
         return hash((
-            self.__class__, self._norm_path, self._namespace, self._is_ptr))
+            self.__class__, self._norm_path,
+            self._namespace, self._prefix, self._is_ptr))
 
     def __eq__(self, other):
         if not isinstance(other, PathId):
@@ -67,38 +71,48 @@ class PathId:
         return (
             self._norm_path == other._norm_path and
             self._namespace == other._namespace and
+            self._prefix == other._prefix and
             self._is_ptr == other._is_ptr
         )
 
     def __len__(self):
         return len(self._path)
 
-    def __getitem__(self, n):
-        if not isinstance(n, slice):
-            return self._path[n]
-        else:
-            # Validate that slicing results in a
-            # valid PathId, it must not produce a path ending
-            # with a pointer spec.  Slicing off the start
-            # is not allowed either.
-            if (n.start != 0 and n.start is not None or
-                    (n.step is not None and n.step != 1)):
-                raise KeyError(f'invalid PathId slice: {n!r}')
+    def get_prefix(self, size):
+        # Validate that slicing results in a
+        # valid PathId, it must not produce a path ending
+        # with a pointer spec.
+        stop_point = self._path[size - 1:size]
+        if stop_point and isinstance(stop_point[0], tuple):
+            raise KeyError(f'invalid PathId slice: {size!r}')
 
-            stop_point = self._path[n.stop - 1:n.stop]
-            if stop_point and isinstance(stop_point[0], tuple):
-                raise KeyError(f'invalid PathId slice: {n!r}')
+        return self._get_prefix(size)
 
-            result = self.__class__()
-            result._path = self._path[n]
-            result._norm_path = self._norm_path[n]
-            result._namespace = self._namespace
+    def _get_prefix(self, size):
+        if size < 0:
+            size = len(self._path) + size
 
-            if n.stop < len(self) and self._norm_path[n.stop][2]:
-                # A link property ref has been chopped off.
-                result._is_ptr = True
+        if size == len(self._path):
+            return self
 
-            return result
+        if self._prefix is not None:
+            prefix_len = len(self._prefix)
+            if prefix_len == size:
+                return self._prefix
+            elif prefix_len > size:
+                return self._prefix._get_prefix(size)
+
+        result = self.__class__()
+        result._path = self._path[0:size]
+        result._norm_path = self._norm_path[0:size]
+        result._prefix = self._prefix
+        result._namespace = self._namespace
+
+        if size < len(self._path) and self._norm_path[size][2]:
+            # A link property ref has been chopped off.
+            result._is_ptr = True
+
+        return result
 
     def __str__(self):
         return self.pformat_internal(debug=False)
@@ -106,11 +120,8 @@ class PathId:
     __repr__ = __str__
 
     def replace_namespace(self, namespace):
-        result = self.__class__()
-        result._path = self._path
-        result._norm_path = self._norm_path
+        result = self.__class__(self)
         result._namespace = frozenset(namespace) if namespace else None
-        result._is_ptr = self._is_ptr
         return result
 
     def merge_namespace(self, namespace):
@@ -125,9 +136,17 @@ class PathId:
             return self
 
     def strip_weak_namespaces(self):
-        stripped_ns = tuple(bit for bit in self._namespace
-                            if not isinstance(bit, WeakNamespace))
-        return self.replace_namespace(stripped_ns)
+        if self._namespace is not None:
+            stripped_ns = tuple(bit for bit in self._namespace
+                                if not isinstance(bit, WeakNamespace))
+            result = self.replace_namespace(stripped_ns)
+
+            if result._prefix is not None:
+                result._prefix = result._prefix.strip_weak_namespaces()
+        else:
+            result = self
+
+        return result
 
     def strip_namespace(self, namespace):
         if self._namespace and namespace:
@@ -227,14 +246,14 @@ class PathId:
         return result
 
     def rptr(self):
-        if len(self) > 1:
-            return self[-2][0]
+        if len(self._path) > 1:
+            return self._path[-2][0]
         else:
             return None
 
     def rptr_dir(self):
-        if len(self) > 1:
-            return self[-2][1]
+        if len(self._path) > 1:
+            return self._path[-2][1]
         else:
             return None
 
@@ -246,8 +265,8 @@ class PathId:
             return None
 
     def src_path(self):
-        if len(self) > 1:
-            return self[:-2]
+        if len(self._path) > 1:
+            return self._get_prefix(-2)
         else:
             return None
 
@@ -260,10 +279,15 @@ class PathId:
             return result
 
     def iter_prefixes(self, include_ptr=False):
-        yield self[:1]
+        if self._prefix is not None:
+            yield from self._prefix.iter_prefixes(include_ptr=include_ptr)
+            start = len(self._prefix)
+        else:
+            yield self._get_prefix(1)
+            start = 1
 
-        for i in range(1, len(self) - 1, 2):
-            path_id = self[:i + 2]
+        for i in range(start, len(self._path) - 1, 2):
+            path_id = self._get_prefix(i + 2)
             if path_id.is_ptr_path():
                 yield path_id.tgt_path()
                 if include_ptr:
@@ -272,7 +296,7 @@ class PathId:
                 yield path_id
 
     def startswith(self, path_id):
-        return self[:len(path_id)] == path_id
+        return self._get_prefix(len(path_id)) == path_id
 
     def replace_prefix(self, prefix, replacement):
         if self.startswith(prefix):
@@ -283,13 +307,20 @@ class PathId:
                 result._norm_path = \
                     replacement._norm_path + self._norm_path[prefix_len:]
                 result._namespace = replacement._namespace
+
+                if self._prefix is not None and len(self._prefix) > prefix_len:
+                    result._prefix = self._prefix.replace_prefix(
+                        prefix, replacement)
+                else:
+                    result._prefix = replacement._prefix
+
                 return result
             else:
                 return replacement
         else:
             return self
 
-    def extend(self, link, direction=None, target=None):
+    def extend(self, link, direction=None, target=None, *, ns=None):
         if not self:
             raise ValueError('cannot extend empty PathId')
 
@@ -311,7 +342,31 @@ class PathId:
         lnk = (link.name, direction, is_linkprop)
         norm_target = target.material_type()
         result._norm_path = self._norm_path + (lnk, norm_target)
-        result._namespace = self._namespace
+
+        if ns:
+            if self._namespace:
+                result._namespace = self._namespace | frozenset(ns)
+            else:
+                result._namespace = frozenset(ns)
+        else:
+            result._namespace = self._namespace
+
+        if self._namespace:
+            self_hard_ns = frozenset(n for n in self._namespace
+                                     if not isinstance(n, WeakNamespace))
+        else:
+            self_hard_ns = frozenset()
+
+        if result._namespace:
+            result_hard_ns = frozenset(n for n in result._namespace
+                                       if not isinstance(n, WeakNamespace))
+        else:
+            result_hard_ns = frozenset()
+
+        if self_hard_ns != result_hard_ns:
+            result._prefix = self
+        else:
+            result._prefix = self._prefix
 
         return result
 
@@ -323,16 +378,20 @@ class PathId:
             result._is_ptr = True
             return result
 
+    @property
+    def target(self):
+        return self._path[-1]
+
     def is_objtype_path(self):
         return (
             not self.is_ptr_path() and
-            isinstance(self._path[-1], s_objtypes.ObjectType)
+            isinstance(self.target, s_objtypes.ObjectType)
         )
 
     def is_scalar_path(self):
         return (
             not self.is_ptr_path() and
-            isinstance(self._path[-1], s_scalars.ScalarType)
+            isinstance(self.target, s_scalars.ScalarType)
         )
 
     def is_ptr_path(self):
