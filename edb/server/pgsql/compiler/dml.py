@@ -85,7 +85,8 @@ def init_dml_stmt(
         dml_stmt, target_ir_set.path_id, dml_stmt.relation, env=ctx.env)
     pathctx.put_path_source_rvar(
         dml_stmt, target_ir_set.path_id, dml_stmt.relation, env=ctx.env)
-    dml_stmt.path_scope.add(target_ir_set.path_id)
+    pathctx.put_path_bond(
+        dml_stmt, target_ir_set.path_id)
 
     dml_cte = pgast.CommonTableExpr(
         query=dml_stmt,

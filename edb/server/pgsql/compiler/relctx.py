@@ -278,7 +278,7 @@ def new_empty_rvar(
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
     nullrel = pgast.NullRelation(path_id=ir_set.path_id)
     rvar = dbobj.rvar_for_rel(nullrel, env=ctx.env)
-    rvar.path_scope.add(ir_set.path_id)
+    pathctx.put_rvar_path_bond(rvar, ir_set.path_id)
     rvar.value_scope.add(ir_set.path_id)
     return rvar
 
@@ -290,7 +290,7 @@ def new_root_rvar(
         raise ValueError('cannot create root rvar for non-object path')
 
     set_rvar = dbobj.range_for_set(ir_set, env=ctx.env)
-    set_rvar.path_scope.add(ir_set.path_id)
+    pathctx.put_rvar_path_bond(set_rvar, ir_set.path_id)
     set_rvar.value_scope.add(ir_set.path_id)
 
     if ir_set.rptr and ir_set.rptr.is_inbound:
@@ -302,7 +302,8 @@ def new_root_rvar(
             # Inline link
             rref = dbobj.get_column(None, ptr_info.column_name,
                                     nullable=not ptrcls.required)
-            set_rvar.path_scope.add(ir_set.path_id.src_path())
+            pathctx.put_rvar_path_bond(
+                set_rvar, ir_set.path_id.src_path())
             pathctx.put_rvar_path_output(
                 set_rvar, ir_set.path_id.src_path(),
                 aspect='identity', var=rref, env=ctx.env)
@@ -315,7 +316,7 @@ def new_poly_rvar(
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
 
     rvar = new_root_rvar(ir_set, ctx=ctx)
-    rvar.path_scope.add(ir_set.path_id.src_path())
+    pathctx.put_rvar_path_bond(rvar, ir_set.path_id.src_path())
     return rvar
 
 
@@ -359,7 +360,7 @@ def _new_inline_pointer_rvar(
     far_ref = pathctx.get_rvar_path_identity_var(
         src_rvar, far_pid, env=ctx.env)
 
-    ptr_rvar.path_scope.add(far_pid)
+    pathctx.put_rvar_path_bond(ptr_rvar, far_pid)
     pathctx.put_path_identity_var(ptr_rel, far_pid, var=far_ref, env=ctx.env)
 
     return ptr_rvar
@@ -398,12 +399,12 @@ def _new_mapped_pointer_rvar(
         near_ref = source_ref
         far_ref = target_ref
 
-    ptr_rvar.query.path_id = ir_ptr.target.path_id.ptr_path()
-
     src_pid = ir_ptr.source.path_id
     tgt_pid = ir_ptr.target.path_id
-    ptr_rvar.path_scope.add(src_pid)
+    ptr_pid = tgt_pid.ptr_path()
 
+    ptr_rvar.query.path_id = ptr_pid
+    pathctx.put_rvar_path_bond(ptr_rvar, src_pid)
     pathctx.put_rvar_path_output(ptr_rvar, src_pid, aspect='identity',
                                  var=near_ref, env=ctx.env)
     pathctx.put_rvar_path_output(ptr_rvar, src_pid, aspect='value',
@@ -412,7 +413,7 @@ def _new_mapped_pointer_rvar(
                                  var=far_ref, env=ctx.env)
 
     if tgt_pid.is_objtype_path():
-        ptr_rvar.path_scope.add(tgt_pid)
+        pathctx.put_rvar_path_bond(ptr_rvar, tgt_pid)
         pathctx.put_rvar_path_output(ptr_rvar, tgt_pid, aspect='identity',
                                      var=far_ref, env=ctx.env)
 

@@ -381,8 +381,13 @@ def put_path_serialized_var_if_not_exists(
 
 
 def put_path_bond(
-        stmt: pgast.Query, path_id: irast.PathId):
+        stmt: pgast.Query, path_id: irast.PathId) -> None:
     stmt.path_scope.add(path_id)
+
+
+def put_rvar_path_bond(
+        rvar: pgast.BaseRangeVar, path_id: irast.PathId) -> None:
+    put_path_bond(rvar.query, path_id)
 
 
 def get_path_output_alias(

@@ -70,7 +70,7 @@ def range_for_material_objtype(
         qry = pgast.SelectStmt()
         qry.from_clause.append(rvar)
         pathctx.put_path_value_rvar(qry, path_id, rvar, env=env)
-        qry.path_scope.add(path_id)
+        pathctx.put_path_bond(qry, path_id)
 
         set_ops.append(('union', qry))
 
@@ -87,7 +87,7 @@ def range_for_material_objtype(
             )
 
             pathctx.put_path_value_rvar(qry, path_id, rvar, env=env)
-            qry.path_scope.add(path_id)
+            pathctx.put_path_bond(qry, path_id)
 
             if op == 'replace':
                 op = 'union'
@@ -128,7 +128,7 @@ def range_for_objtype(
             )
 
             pathctx.put_path_value_rvar(qry, path_id, c_rvar, env=env)
-            qry.path_scope.add(path_id)
+            pathctx.put_path_bond(qry, path_id)
 
             set_ops.append(('union', qry))
 
