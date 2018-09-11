@@ -409,7 +409,11 @@ class Cli:
 
 async def execute(conn_args, data):
     con = await client.connect(**conn_args)
-    print(await con.execute(data))
+    result = await con.execute(data)
+
+    for entry in result:
+        entry_mkup = markup._serialize(entry)
+        markup_term.render(entry_mkup, renderer=ResultRenderer)
 
 
 def parse_connect_args():
