@@ -1152,6 +1152,13 @@ class ShortNodeName(Nonterm):
             name=kids[0].val)
 
 
+# ShortNodeNameList is needed in DDL, but it's worthwhile to define it
+# here, near ShortNodeName.
+class ShortNodeNameList(ListNonterm, element=ShortNodeName,
+                        separator=tokens.T_COMMA):
+    pass
+
+
 class AnyNodeName(Nonterm):
     # NOTE: A non-qualified name that can be ANY identifier.
     #

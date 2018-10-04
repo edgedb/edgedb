@@ -735,6 +735,16 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_DropDatabase(self, node):
         self._visit_DropObject(node, 'DATABASE')
 
+    def visit_CreateRole(self, node):
+        after_name = lambda: self._ddl_visit_bases(node)
+        self._visit_CreateObject(node, 'ROLE', after_name=after_name)
+
+    def visit_AlterRole(self, node):
+        self._visit_AlterObject(node, 'ROLE')
+
+    def visit_DropRole(self, node):
+        self._visit_DropObject(node, 'ROLE')
+
     def visit_CreateDelta(self, node):
         def after_name():
             if node.parents:

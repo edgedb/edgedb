@@ -478,7 +478,7 @@ class ExpressionText(DDL):
 
 
 class AlterAddInherit(DDL):
-    bases: typing.List[TypeName]
+    bases: typing.Union[typing.List[TypeName], typing.List[ObjectRef]]
     position: Position
 
 
@@ -564,6 +564,18 @@ class AlterModule(AlterObject):
 
 
 class DropModule(DropObject):
+    pass
+
+
+class CreateRole(CreateObject):
+    bases: typing.List[ObjectRef]
+
+
+class AlterRole(AlterObject):
+    pass
+
+
+class DropRole(DropObject):
     pass
 
 
