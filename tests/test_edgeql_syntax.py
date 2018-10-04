@@ -2226,6 +2226,59 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         DROP DATABASE abstract;
         """
 
+    def test_edgeql_syntax_ddl_role_01(self):
+        """
+        CREATE ROLE username;
+        CREATE ROLE abstract;
+        CREATE ROLE `mytest"role"`;
+        CREATE ROLE `mytest"role"`
+            EXTENDING (delegated, `mytest"baserole"`);
+
+% OK %
+
+        CREATE ROLE username;
+        CREATE ROLE abstract;
+        CREATE ROLE `mytest"role"`;
+        CREATE ROLE `mytest"role"`
+            EXTENDING (delegated, `mytest"baserole"`);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected 'all'",
+                  line=2, col=21)
+    def test_edgeql_syntax_ddl_role_02(self):
+        """
+        CREATE ROLE all;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected '::'",
+                  line=2, col=24)
+    def test_edgeql_syntax_ddl_role_03(self):
+        """
+        CREATE ROLE foo::bar;
+        """
+
+    def test_edgeql_syntax_ddl_role_04(self):
+        """
+        DROP ROLE username;
+        """
+
+    def test_edgeql_syntax_ddl_role_05(self):
+        """
+        CREATE ROLE username EXTENDING generic {
+            SET allow_login := True;
+            SET password := 'secret';
+        };
+        """
+
+    def test_edgeql_syntax_ddl_role_06(self):
+        """
+        ALTER ROLE username {
+            SET allow_login := False;
+            SET password := {};
+            EXTENDING generic, morestuff;
+        };
+        """
+
     def test_edgeql_syntax_ddl_delta_01(self):
         """
         ALTER MIGRATION test::d_links01_0 {

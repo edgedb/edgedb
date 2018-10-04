@@ -42,6 +42,15 @@ class DDLStmt(Nonterm):
     def reduce_DropDatabaseStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_CreateRoleStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_AlterRoleStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DropRoleStmt(self, *kids):
+        self.val = kids[0].val
+
     def reduce_OptWithDDLStmt(self, *kids):
         self.val = kids[0].val
 
@@ -514,6 +523,77 @@ class CreateDatabaseStmt(Nonterm):
 class DropDatabaseStmt(Nonterm):
     def reduce_DROP_DATABASE_AnyNodeName(self, *kids):
         self.val = qlast.DropDatabase(name=kids[2].val)
+
+
+#
+# CREATE ROLE
+#
+class ShortExtending(Nonterm):
+    def reduce_EXTENDING_ShortNodeName(self, *kids):
+        self.val = [kids[1].val]
+
+    def reduce_EXTENDING_LPAREN_ShortNodeNameList_RPAREN(self, *kids):
+        self.val = kids[2].val
+
+
+class OptShortExtending(Nonterm):
+    def reduce_ShortExtending(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_empty(self, *kids):
+        self.val = []
+
+
+class CreateRoleStmt(Nonterm):
+    def reduce_CreateRoleStmt(self, *kids):
+        r"""%reduce CREATE ROLE ShortNodeName OptShortExtending \
+                                OptCreateCommandsBlock \
+        """
+        self.val = qlast.CreateRole(
+            name=kids[2].val,
+            bases=kids[3].val,
+            commands=kids[4].val,
+        )
+
+
+#
+# ALTER ROLE
+#
+class AlterRoleExtending(Nonterm):
+    def reduce_EXTENDING_ShortNodeNameList_OptInheritPosition(self, *kids):
+        self.val = qlast.AlterAddInherit(bases=kids[1].val,
+                                         position=kids[2].val)
+
+    def reduce_DROP_EXTENDING_ShortNodeNameList(self, *kids):
+        self.val = qlast.AlterDropInherit(bases=kids[2].val)
+
+
+commands_block(
+    'AlterRole',
+    RenameStmt,
+    SetFieldStmt,
+    DropFieldStmt,
+    AlterRoleExtending,
+    opt=False
+)
+
+
+class AlterRoleStmt(Nonterm):
+    def reduce_ALTER_ROLE_ShortNodeName_AlterRoleCommandsBlock(self, *kids):
+        self.val = qlast.AlterRole(
+            name=kids[2].val,
+            commands=kids[3].val,
+        )
+
+
+#
+# DROP ROLE
+#
+class DropRoleStmt(Nonterm):
+    def reduce_DROP_ROLE_ShortNodeName(self, *kids):
+        self.val = qlast.DropRole(
+            name=kids[2].val,
+        )
 
 
 #
