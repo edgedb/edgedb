@@ -2837,6 +2837,27 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             };
         """
 
+    def test_edgeql_syntax_ddl_type_04(self):
+        """
+        CREATE TYPE mymod::Foo {
+            CREATE LINK bar0 -> mymod::Bar {
+                ON TARGET DELETE RESTRICT;
+            };
+            CREATE LINK bar1 -> mymod::Bar {
+                ON TARGET DELETE DELETE SOURCE;
+            };
+            CREATE LINK bar2 -> mymod::Bar {
+                ON TARGET DELETE SET EMPTY;
+            };
+            CREATE LINK bar3 -> mymod::Bar {
+                ON TARGET DELETE SET DEFAULT;
+            };
+            CREATE LINK bar4 -> mymod::Bar {
+                ON TARGET DELETE DEFERRED RESTRICT;
+            };
+        };
+        """
+
     def test_edgeql_syntax_set_command_01(self):
         """
         SET MODULE default;

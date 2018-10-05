@@ -1147,6 +1147,31 @@ class DropLinkStmt(Nonterm):
 
 
 #
+# CREATE TYPE ... { CREATE LINK ... { ON TARGET DELETE ...
+#
+class OnTargetDeleteStmt(Nonterm):
+    def reduce_ON_TARGET_DELETE_RESTRICT(self, *kids):
+        self.val = qlast.OnTargetDelete(
+            cascade=qlast.LinkTargetDeleteAction.RESTRICT)
+
+    def reduce_ON_TARGET_DELETE_DELETE_SOURCE(self, *kids):
+        self.val = qlast.OnTargetDelete(
+            cascade=qlast.LinkTargetDeleteAction.DELETE_SOURCE)
+
+    def reduce_ON_TARGET_DELETE_SET_EMPTY(self, *kids):
+        self.val = qlast.OnTargetDelete(
+            cascade=qlast.LinkTargetDeleteAction.SET_EMPTY)
+
+    def reduce_ON_TARGET_DELETE_SET_DEFAULT(self, *kids):
+        self.val = qlast.OnTargetDelete(
+            cascade=qlast.LinkTargetDeleteAction.SET_DEFAULT)
+
+    def reduce_ON_TARGET_DELETE_DEFERRED_RESTRICT(self, *kids):
+        self.val = qlast.OnTargetDelete(
+            cascade=qlast.LinkTargetDeleteAction.DEFERRED_RESTRICT)
+
+
+#
 # CREATE TYPE ... { CREATE LINK
 #
 
@@ -1155,7 +1180,8 @@ commands_block(
     SetFieldStmt,
     CreateConcreteConstraintStmt,
     CreateConcretePropertyStmt,
-    CreateLocalPolicyStmt
+    CreateLocalPolicyStmt,
+    OnTargetDeleteStmt,
 )
 
 
@@ -1207,6 +1233,7 @@ commands_block(
     CreateLocalPolicyStmt,
     AlterLocalPolicyStmt,
     DropLocalPolicyStmt,
+    OnTargetDeleteStmt,
     opt=False
 )
 
