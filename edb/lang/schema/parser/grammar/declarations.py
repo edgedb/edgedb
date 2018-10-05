@@ -824,6 +824,9 @@ class DeclarationSpec(Nonterm):
     def reduce_Policy(self, kid):
         self.val = kid.val
 
+    def reduce_OnDelete(self, kid):
+        self.val = kid.val
+
 
 class DeclarationSpecs(ListNonterm, element=DeclarationSpec):
     pass
@@ -904,6 +907,7 @@ class Link(Nonterm):
         attributes = []
         policies = []
         properties = []
+        on_delete = None
 
         for spec in p.spec:
             if isinstance(spec, esast.Constraint):
@@ -914,6 +918,13 @@ class Link(Nonterm):
                 properties.append(spec)
             elif isinstance(spec, esast.Policy):
                 policies.append(spec)
+            elif isinstance(spec, esast.OnTargetDelete):
+                if on_delete:
+                    raise SchemaSyntaxError(  # TODO: better error message
+                        "More than one 'on target delete' specification",
+                        context=spec.context)
+                else:
+                    on_delete = spec
             else:
                 raise SchemaSyntaxError(  # TODO: better error message
                     'illegal definition', context=spec.context)
@@ -925,7 +936,8 @@ class Link(Nonterm):
             attributes=attributes,
             constraints=constraints,
             policies=policies,
-            properties=properties)
+            properties=properties,
+            on_delete=on_delete)
 
     def reduce_LINK_Spec(self, *kids):
         self.val = self._process_pointerspec(kids[1].val)
@@ -995,6 +1007,28 @@ class Property(Nonterm):
 class Policy(Nonterm):
     def reduce_ON_ObjectName_ObjectName_NL(self, *kids):
         self.val = esast.Policy(event=kids[1].val, action=kids[2].val)
+
+
+class OnDelete(Nonterm):
+    def reduce_ON_TARGET_DELETE_RESTRICT_NL(self, *kids):
+        self.val = esast.OnTargetDelete(
+            cascade=qlast.LinkTargetDeleteAction.RESTRICT)
+
+    def reduce_ON_TARGET_DELETE_DELETE_SOURCE_NL(self, *kids):
+        self.val = esast.OnTargetDelete(
+            cascade=qlast.LinkTargetDeleteAction.DELETE_SOURCE)
+
+    def reduce_ON_TARGET_DELETE_SET_EMPTY_NL(self, *kids):
+        self.val = esast.OnTargetDelete(
+            cascade=qlast.LinkTargetDeleteAction.SET_EMPTY)
+
+    def reduce_ON_TARGET_DELETE_SET_DEFAULT_NL(self, *kids):
+        self.val = esast.OnTargetDelete(
+            cascade=qlast.LinkTargetDeleteAction.SET_DEFAULT)
+
+    def reduce_ON_TARGET_DELETE_DEFERRED_RESTRICT_NL(self, *kids):
+        self.val = esast.OnTargetDelete(
+            cascade=qlast.LinkTargetDeleteAction.DEFERRED_RESTRICT)
 
 
 class Index(Nonterm):

@@ -81,12 +81,17 @@ class Index(Spec):
     expression: qlast.Base
 
 
+class OnTargetDelete(Spec):
+    cascade: qlast.LinkTargetDeleteAction
+
+
 class Property(Pointer):
     pass
 
 
 class Link(Pointer):
     properties: typing.List[Property]
+    on_delete: OnTargetDelete
 
 
 # # XXX: to be killed

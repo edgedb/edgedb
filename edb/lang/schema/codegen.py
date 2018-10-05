@@ -53,25 +53,29 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self.visit(names[-1])
 
     def _visit_specs(self, node):
-        if (hasattr(node, 'attributes') and node.attributes or
-                hasattr(node, 'constraints') and node.constraints or
-                hasattr(node, 'links') and node.links or
-                hasattr(node, 'properties') and node.properties):
+        if (getattr(node, 'attributes', None) or
+                getattr(node, 'constraints', None) or
+                getattr(node, 'links', None) or
+                getattr(node, 'on_delete', None) or
+                getattr(node, 'properties', None)):
             self.write(':')
             self.new_lines = 1
             self.indentation += 1
-            if hasattr(node, 'links'):
+            if getattr(node, 'links', None):
                 self._visit_list(node.links)
-            if hasattr(node, 'properties'):
+            if getattr(node, 'properties', None):
                 self._visit_list(node.properties)
-            if hasattr(node, 'attributes'):
+            if getattr(node, 'attributes', None):
                 self._visit_list(node.attributes)
-            if hasattr(node, 'constraints'):
+            if getattr(node, 'constraints', None):
                 self._visit_list(node.constraints)
-            if hasattr(node, 'policies'):
+            if getattr(node, 'policies', None):
                 self._visit_list(node.policies)
-            if hasattr(node, 'indexes'):
+            if getattr(node, 'indexes', None):
                 self._visit_list(node.indexes)
+            if getattr(node, 'on_delete', None):
+                self.visit(node.on_delete)
+
             self.indentation -= 1
         self.new_lines = 2
 
@@ -320,6 +324,10 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self.write(' := ')
             self.visit(node.value)
             self.new_lines = 1
+
+    def visit_OnTargetDelete(self, node):
+        self.write('on target delete ', node.cascade.lower())
+        self.new_lines = 1
 
     def _literal_to_str(self, value):
         if isinstance(value, str):

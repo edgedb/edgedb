@@ -194,6 +194,36 @@ type Commit:
             required property номер -> int16
         """
 
+    def test_eschema_syntax_type_17(self):
+        """
+        type Foo:
+            link bar0 -> Bar:
+                on target delete restrict
+
+            link bar1 -> Bar:
+                on target delete delete source
+
+            link bar2 -> Bar:
+                on target delete set empty
+
+            link bar3 -> Bar:
+                on target delete set default
+
+            link bar4 -> Bar:
+                on target delete deferred restrict
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  "More than one 'on target delete' specification",
+                  line=5, col=17)
+    def test_eschema_syntax_type_18(self):
+        """
+        type Foo:
+            link bar0 -> Bar:
+                on target delete restrict
+                on target delete delete source
+        """
+
     def test_eschema_syntax_link_target_type_01(self):
         """
 type User:
