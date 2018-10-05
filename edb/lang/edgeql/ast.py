@@ -127,6 +127,14 @@ class Cardinality(s_enum.StrEnum):
     DEFAULT = ''
 
 
+class LinkTargetDeleteAction(s_enum.StrEnum):
+    RESTRICT = 'RESTRICT'
+    DELETE_SOURCE = 'DELETE SOURCE'
+    SET_EMPTY = 'SET EMPTY'
+    SET_DEFAULT = 'SET DEFAULT'
+    DEFERRED_RESTRICT = 'DEFERRED RESTRICT'
+
+
 class Base(ast.AST):
     __ast_hidden__ = {'context'}
     context: parsing.ParserContext
@@ -488,6 +496,10 @@ class AlterDropInherit(DDL):
 
 class AlterTarget(DDL):
     target: TypeExpr
+
+
+class OnTargetDelete(DDL):
+    cascade: LinkTargetDeleteAction
 
 
 class ObjectDDL(CompositeDDL):

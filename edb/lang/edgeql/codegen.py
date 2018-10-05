@@ -959,6 +959,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('ALTER TYPE ')
         self.visit_list(node.target, newlines=False)
 
+    def visit_OnTargetDelete(self, node):
+        self.write('ON TARGET DELETE ', node.cascade)
+
     def visit_CreateObjectType(self, node):
         keywords = []
 
