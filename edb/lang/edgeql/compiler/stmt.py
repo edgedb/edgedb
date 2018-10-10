@@ -185,6 +185,11 @@ def compile_ForQuery(
 @dispatch.compile.register(qlast.GroupQuery)
 def compile_GroupQuery(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
+
+    raise errors.EdgeQLSyntaxError(
+        "'GROUP' statement is not currently implemented",
+        context=expr.context)
+
     with ctx.subquery() as ictx:
         stmt = irast.GroupStmt()
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
