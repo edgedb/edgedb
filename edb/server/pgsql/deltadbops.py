@@ -528,6 +528,16 @@ class AlterTableInheritableConstraintBase(
 
         return [drop_ins_trigger, drop_upd_trigger]
 
+    def create_constr_trigger_function(self, constraint):
+        proc_name = constraint.get_trigger_procname()
+        proc_text = constraint.get_trigger_proc_text()
+
+        func = dbops.Function(
+            name=proc_name, text=proc_text, volatility='stable',
+            returns='trigger', language='plpgsql')
+
+        return [dbops.CreateOrReplaceFunction(func)]
+
     def drop_constr_trigger_function(self, proc_name):
         return [dbops.DropFunction(name=proc_name, args=())]
 
@@ -543,22 +553,14 @@ class AlterTableInheritableConstraintBase(
         if not constraint.is_natively_inherited():
             # The constraint is not inherited by descendant tables natively,
             # use triggers to emulate inheritance.
-            #
 
             # Create trigger function
-            #
-            proc_name = constraint.get_trigger_procname()
-            proc_text = constraint.get_trigger_proc_text()
-            proc = dbops.CreateFunction(
-                dbops.Function(
-                    name=proc_name, text=proc_text, volatility='stable',
-                    returns='trigger', language='plpgsql'))
-            self.add_command(proc)
+            self.add_commands(self.create_constr_trigger_function(constraint))
 
             # Add a (disabled) inheritable trigger on self.
             # Trigger inheritance will propagate and maintain
             # the trigger on current and future descendants.
-            #
+            proc_name = constraint.get_trigger_procname()
             cr_trigger = self.create_constr_trigger(
                 self.name, constraint, proc_name)
             self.add_commands(cr_trigger)
@@ -581,11 +583,8 @@ class AlterTableInheritableConstraintBase(
                 name=old_proc_name, args=(), new_name=new_proc_name)
             self.add_command(rename_proc)
 
-            new_proc_text = new_constraint.get_trigger_proc_text()
-            alter_text = dbops.AlterFunctionReplaceText(
-                name=new_proc_name, args=(), new_text=new_proc_text)
-
-            self.add_command(alter_text)
+            self.add_commands(
+                self.create_constr_trigger_function(new_constraint))
 
             mv_trigger = self.rename_constr_trigger(self.name)
             self.add_commands(mv_trigger)
