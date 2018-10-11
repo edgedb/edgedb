@@ -361,12 +361,13 @@ def __infer_index(ir, schema):
 
     str_t = schema.get('std::str')
     int_t = schema.get('std::int64')
+    json_t = schema.get('std::json')
 
     result = None
 
     if node_type.issubclass(str_t):
 
-        if not index_type.issubclass(int_t):
+        if not index_type.implicitly_castable_to(int_t, schema):
             raise ql_errors.EdgeQLError(
                 f'cannot index string by {index_type.name}, '
                 f'{int_t.name} was expected',
@@ -374,9 +375,21 @@ def __infer_index(ir, schema):
 
         result = str_t
 
+    elif node_type.issubclass(json_t):
+
+        if not (index_type.implicitly_castable_to(int_t, schema) or
+                index_type.implicitly_castable_to(str_t, schema)):
+
+            raise ql_errors.EdgeQLError(
+                f'cannot index json by {index_type.name}, '
+                f'{int_t.name} or {str_t.name} was expected',
+                context=ir.index.context)
+
+        result = json_t
+
     elif isinstance(node_type, s_types.Array):
 
-        if not index_type.issubclass(int_t):
+        if not index_type.implicitly_castable_to(int_t, schema):
             raise ql_errors.EdgeQLError(
                 f'cannot index array by {index_type.name}, '
                 f'{int_t.name} was expected',

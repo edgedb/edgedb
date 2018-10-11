@@ -136,17 +136,104 @@ class RaiseExceptionFunction(dbops.Function):
     text = '''
     BEGIN
         RAISE EXCEPTION '%', msg;
-        RETURN 'foo';
+        RETURN rtype;
     END;
     '''
 
     def __init__(self):
         super().__init__(
             name=('edgedb', '_raise_exception'),
-            args=[('msg', ('text',))],
-            returns=('text',),
+            args=[('msg', ('text',)), ('rtype', ('anyelement',))],
+            returns=('anyelement',),
             volatility='immutable',
             language='plpgsql',
+            text=self.text)
+
+
+class RaiseSpecificExceptionFunction(dbops.Function):
+    text = '''
+    BEGIN
+        RAISE EXCEPTION USING ERRCODE = exc, MESSAGE = msg, DETAIL = det;
+        RETURN rtype;
+    END;
+    '''
+
+    def __init__(self):
+        super().__init__(
+            name=('edgedb', '_raise_specific_exception'),
+            args=[('exc', ('text',)), ('msg', ('text',)), ('det', ('text',)),
+                  ('rtype', ('anyelement',))],
+            returns=('anyelement',),
+            volatility='immutable',
+            language='plpgsql',
+            text=self.text)
+
+
+class RaiseExceptionOnNullFunction(dbops.Function):
+    """Return the passed value or raise an exception if it's NULL."""
+    text = '''
+        SELECT
+            coalesce(val, edgedb._raise_specific_exception(exc, msg, det, val))
+    '''
+
+    def __init__(self):
+        super().__init__(
+            name=('edgedb', '_raise_exception_on_null'),
+            args=[('val', ('anyelement',)), ('exc', ('text',)),
+                  ('msg', ('text',)), ('det', ('text',))],
+            returns=('anyelement',),
+            volatility='immutable',
+            text=self.text)
+
+
+class RaiseExceptionOnEmptyStringFunction(dbops.Function):
+    """Return the passed string or raise an exception if it's empty."""
+    text = '''
+        SELECT
+            CASE WHEN char_length(val) = 0 THEN
+                edgedb._raise_specific_exception(exc, msg, det, val)
+            ELSE
+                val
+            END;
+    '''
+
+    def __init__(self):
+        super().__init__(
+            name=('edgedb', '_raise_exception_on_empty'),
+            args=[('val', ('anyelement',)), ('exc', ('text',)),
+                  ('msg', ('text',)), ('det', ('text',))],
+            returns=('anyelement',),
+            volatility='immutable',
+            text=self.text)
+
+
+class AssertJSONTypeFunction(dbops.Function):
+    """Assert that the JSON type matches what is expected."""
+    text = '''
+        SELECT
+            CASE WHEN array_position(typenames, jsonb_typeof(val)) IS NULL THEN
+                edgedb._raise_specific_exception(
+                    'wrong_object_type',
+                    coalesce(
+                        msg,
+                        'expected json ' || array_to_string(typenames, ', ') ||
+                        '; got json ' || jsonb_typeof(val)
+                    ),
+                    det,
+                    NULL::jsonb
+                )
+            ELSE
+                val
+            END
+    '''
+
+    def __init__(self):
+        super().__init__(
+            name=('edgedb', '_assert_jsonb_type'),
+            args=[('val', ('jsonb',)), ('typenames', ('text[]',)),
+                  ('msg', ('text',), 'NULL'), ('det', ('text',), "''")],
+            returns=('jsonb',),
+            volatility='immutable',
             text=self.text)
 
 
@@ -268,8 +355,9 @@ class ResolveSimpleTypeIdFunction(dbops.Function):
             (SELECT id FROM edgedb.NamedObject
              WHERE name = type::text),
             edgedb._raise_exception(
-                'resolve_type_id: unknown type: "' || type || '"'
-            )::uuid
+                'resolve_type_id: unknown type: "' || type || '"',
+                NULL::uuid
+            )
         )
     '''
 
@@ -307,8 +395,9 @@ class ResolveSimpleTypeNameFunction(dbops.Function):
             (SELECT name FROM edgedb.NamedObject
              WHERE id = type::uuid),
             edgedb._raise_exception(
-                'resolve_type_name: unknown type: "' || type || '"'
-            )::text
+                'resolve_type_name: unknown type: "' || type || '"',
+                NULL::text
+            )
         )
     '''
 
@@ -951,6 +1040,135 @@ class ParseTriggerConditionFunction(dbops.Function):
             text=self.__class__.text)
 
 
+class ArrayIndexWithBoundsFunction(dbops.Function):
+    """Get an array element or raise an out-of-bounds exception."""
+    text = '''
+        SELECT edgedb._raise_exception_on_null(
+            val[index],
+            'array_subscript_error',
+            'array index ' || (index - 1)::text || ' is out of bounds',
+            det
+        )
+    '''
+
+    def __init__(self):
+        super().__init__(
+            name=('edgedb', '_array_index'),
+            args=[('val', ('anyarray',)), ('index', ('bigint',)),
+                  ('det', ('text',))],
+            returns=('anyelement',),
+            volatility='immutable',
+            text=self.text)
+
+
+class StringIndexWithBoundsFunction(dbops.Function):
+    """Get a string character or raise an out-of-bounds exception."""
+    text = '''
+        SELECT edgedb._raise_exception_on_empty(
+            substr(val, index::int, 1),
+            'invalid_parameter_value',
+            'string index ' || (index - 1)::text || ' is out of bounds',
+            det
+        )
+    '''
+
+    def __init__(self):
+        super().__init__(
+            name=('edgedb', '_string_index'),
+            args=[('val', ('text',)), ('index', ('bigint',)),
+                  ('det', ('text',))],
+            returns=('text',),
+            volatility='immutable',
+            text=self.text)
+
+
+class JSONIndexByTextFunction(dbops.Function):
+    """Get a JSON element by text index or raise an exception."""
+    text = r'''
+        SELECT
+            CASE jsonb_typeof(val)
+            WHEN 'object' THEN (
+                edgedb._raise_exception_on_null(
+                    val -> index,
+                    'invalid_parameter_value',
+                    'json index ' || quote_literal(index) ||
+                    ' is out of bounds',
+                    det
+                )
+            )
+            WHEN 'array' THEN (
+                edgedb._raise_specific_exception(
+                    'wrong_object_type',
+                    'cannot index json ' || jsonb_typeof(val) ||
+                    ' by ' || pg_typeof(index)::text,
+                    det,
+                    NULL::jsonb
+                )
+            )
+            ELSE
+                edgedb._raise_specific_exception(
+                    'wrong_object_type',
+                    'cannot index json ' || jsonb_typeof(val),
+                    det,
+                    NULL::jsonb
+                )
+            END
+    '''
+
+    def __init__(self):
+        super().__init__(
+            name=('edgedb', '_json_index'),
+            args=[('val', ('jsonb',)), ('index', ('text',)),
+                  ('det', ('text',))],
+            returns=('jsonb',),
+            volatility='immutable',
+            strict=True,
+            text=self.text)
+
+
+class JSONIndexByIntFunction(dbops.Function):
+    """Get a JSON element by int index or raise an exception."""
+    text = r'''
+        SELECT
+            CASE jsonb_typeof(val)
+            WHEN 'object' THEN (
+                edgedb._raise_specific_exception(
+                    'wrong_object_type',
+                    'cannot index json ' || jsonb_typeof(val) ||
+                    ' by ' || pg_typeof(index)::text,
+                    det,
+                    NULL::jsonb
+                )
+            )
+            WHEN 'array' THEN (
+                edgedb._raise_exception_on_null(
+                    val -> index,
+                    'invalid_parameter_value',
+                    'json index ' || index::text || ' is out of bounds',
+                    det
+                )
+            )
+            ELSE
+                edgedb._raise_specific_exception(
+                    'wrong_object_type',
+                    'cannot index json ' || jsonb_typeof(val),
+                    det,
+                    NULL::jsonb
+                )
+            END
+    '''
+
+    def __init__(self):
+        super().__init__(
+            name=('edgedb', '_json_index'),
+            args=[('val', ('jsonb',)), ('index', ('int',)),
+                  ('det', ('text',))],
+            returns=('jsonb',),
+            volatility='immutable',
+            strict=True,
+            text=self.text)
+
+
 def _field_to_column(field):
     ftype = field.type[0]
     coltype = None
@@ -1086,6 +1304,10 @@ async def bootstrap(conn):
 
     commands.add_commands([
         dbops.CreateFunction(RaiseExceptionFunction()),
+        dbops.CreateFunction(RaiseSpecificExceptionFunction()),
+        dbops.CreateFunction(RaiseExceptionOnNullFunction()),
+        dbops.CreateFunction(RaiseExceptionOnEmptyStringFunction()),
+        dbops.CreateFunction(AssertJSONTypeFunction()),
         dbops.CreateFunction(DeriveUUIDFunction()),
         dbops.CreateFunction(ResolveSimpleTypeIdFunction()),
         dbops.CreateFunction(ResolveSimpleTypeIdListFunction()),
@@ -1111,6 +1333,10 @@ async def bootstrap(conn):
         dbops.CreateCompositeType(TableInheritanceDescType()),
         dbops.CreateFunction(GetTableDescendantsFunction()),
         dbops.CreateFunction(ParseTriggerConditionFunction()),
+        dbops.CreateFunction(ArrayIndexWithBoundsFunction()),
+        dbops.CreateFunction(StringIndexWithBoundsFunction()),
+        dbops.CreateFunction(JSONIndexByTextFunction()),
+        dbops.CreateFunction(JSONIndexByIntFunction()),
     ])
 
     block = dbops.PLTopBlock(disable_ddl_triggers=True)

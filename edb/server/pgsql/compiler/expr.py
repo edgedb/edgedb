@@ -19,6 +19,7 @@
 
 """Compilation handlers for non-statement expressions."""
 
+import json
 import typing
 
 from edb.lang.common import ast
@@ -159,11 +160,17 @@ def compile_TypeCast(
 @dispatch.compile.register(irast.IndexIndirection)
 def compile_IndexIndirection(
         expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
-    # Handle Expr[Index], where Expr may be std::str or array<T>.
-    # For strings we translate this into substr calls, whereas
-    # for arrays the native slice syntax is used.
+    # Handle Expr[Index], where Expr may be std::str, array<T> or
+    # std::json. For strings we translate this into substr calls,
+    # whereas for arrays the native index access is used. JSON is
+    # handled by using the `->` accessor. Additionally, in all of the
+    # above cases a boundary-check is performed on the index and an
+    # exception is potentially raised.
     is_string = False
     arg_type = _infer_type(expr.expr, ctx=ctx)
+    # line, column and filename are captured here to be used with the
+    # error message
+    exc_details = get_exc_details(expr.index)
 
     with ctx.new() as subctx:
         subctx.expr_exposed = False
@@ -172,6 +179,28 @@ def compile_IndexIndirection(
 
     if isinstance(arg_type, s_scalars.ScalarType):
         b = arg_type.get_topmost_concrete_base()
+
+        # JSON accessors already handle negative offset and count from
+        # 0, so we don't need any of the additional processing of the
+        # index expression that str and arrays require.
+        if b.name == 'std::json':
+            # At this point the index is either a text or some
+            # integer. If the index is an integer, cast it into int.
+            index_t = _infer_type(expr.index, ctx=ctx)
+            int_t = ctx.env.schema.get('std::anyint')
+            if index_t.issubclass(int_t):
+                index = pgast.TypeCast(
+                    arg=index,
+                    type_name=pgast.TypeName(
+                        name=('int',)
+                    )
+                )
+
+            return pgast.FuncCall(
+                name=('edgedb', '_json_index'),
+                args=[subj, index, exc_details]
+            )
+
         is_string = b.name == 'std::str'
 
     one = pgast.Constant(val=1)
@@ -200,20 +229,15 @@ def compile_IndexIndirection(
         args=[when_expr], defresult=index_plus_one)
 
     if is_string:
-        index = pgast.TypeCast(
-            arg=index,
-            type_name=pgast.TypeName(
-                name=('int',)
-            )
-        )
         result = pgast.FuncCall(
-            name=('substr',),
-            args=[subj, index, one]
+            name=('edgedb', '_string_index'),
+            args=[subj, index, exc_details]
         )
     else:
-        indirection = pgast.Indices(ridx=index)
-        result = pgast.Indirection(
-            arg=subj, indirection=[indirection])
+        result = pgast.FuncCall(
+            name=('edgedb', '_array_index'),
+            args=[subj, index, exc_details]
+        )
 
     return result
 
@@ -646,3 +670,17 @@ def _infer_type(
         expr: irast.Base, *,
         ctx: context.CompilerContextLevel) -> s_obj.Object:
     return irutils.infer_type(expr, schema=ctx.env.schema)
+
+
+def get_exc_details(expr: irast.Base) -> pgast.Base:
+    if expr.context:
+        details = pgast.Constant(val=json.dumps({
+            'line': expr.context.start.line,
+            'column': expr.context.start.column,
+            'name': expr.context.name,
+        }).encode('utf-8'))
+
+    else:
+        details = pgast.Constant(val=None)
+
+    return details

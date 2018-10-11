@@ -702,9 +702,13 @@ class TestExpressions(tb.QueryTestCase):
             SELECT [1, 2, 3, 4, 5][-2:];
             SELECT [1, 2, 3, 4, 5][:-2];
 
-            SELECT [1, 2][10] ?? 42;
+            # slice of something non-existent
+            SELECT [1, 2][10:11];
 
             SELECT <array<int64>>[];
+
+            SELECT [1, 2, 3, 4, 5][<int16>2];
+            SELECT [1, 2, 3, 4, 5][<int32>2];
         """, [
             [[1]],
             [[1, 2, 3, 4, 5]],
@@ -719,9 +723,12 @@ class TestExpressions(tb.QueryTestCase):
             [[4, 5]],
             [[1, 2, 3]],
 
-            [42],
+            [[]],
 
             [[]],
+
+            [3],
+            [3],
         ])
 
     async def test_edgeql_expr_array_02(self):
@@ -834,6 +841,24 @@ class TestExpressions(tb.QueryTestCase):
             ],
         ])
 
+    async def test_edgeql_expr_array_15(self):
+        with self.assertRaisesRegex(
+                # FIXME: possibly a different error should be used here
+                exc.UnknownEdgeDBError,
+                r'array index 10 is out of bounds'):
+            await self.con.execute("""
+                SELECT [1, 2, 3][10];
+            """)
+
+    async def test_edgeql_expr_array_16(self):
+        with self.assertRaisesRegex(
+                # FIXME: possibly a different error should be used here
+                exc.UnknownEdgeDBError,
+                r'array index -7 is out of bounds'):
+            await self.con.execute("""
+                SELECT [1, 2, 3][-10];
+            """)
+
     async def test_edgeql_expr_coalesce_01(self):
         await self.assert_query_result(r"""
             SELECT {} ?? 4 ?? 5;
@@ -884,6 +909,9 @@ class TestExpressions(tb.QueryTestCase):
             SELECT 'qwerty'[2:-1];
             SELECT 'qwerty'[-2:];
             SELECT 'qwerty'[:-2];
+
+            SELECT 'qwerty'[<int16>2];
+            SELECT 'qwerty'[<int32>2];
         """, [
             ['qwerty'],
             ['e'],
@@ -896,6 +924,9 @@ class TestExpressions(tb.QueryTestCase):
             ['ert'],
             ['ty'],
             ['qwer'],
+
+            ['e'],
+            ['e'],
         ])
 
     async def test_edgeql_expr_string_02(self):
@@ -906,189 +937,28 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT '123'['1'];
             """)
 
-    async def test_edgeql_expr_json_01(self):
-        await self.assert_query_result("""
-            SELECT <json>'"qwerty"';
-            SELECT <json>'1';
-            SELECT <json>'2.3e-2';
+    async def test_edgeql_expr_string_03(self):
+        with self.assertRaisesRegex(
+                # FIXME: possibly a different error should be used here
+                exc.UnknownEdgeDBError,
+                r'string index 10 is out of bounds'):
+            await self.con.execute("""
+                SELECT '123'[10];
+            """)
 
-            SELECT <json>'true';
-            SELECT <json>'false';
-            SELECT <json>'null';
-
-            SELECT <json>'[2, "a", 3.456]';
-            SELECT <json>'[2, "a", 3.456, [["b", 1]]]';
-
-            SELECT <json>'{
-                "a": 1,
-                "b": 2.87,
-                "c": [2, "a", 3.456],
-                "d": {
-                    "d1": 1,
-                    "d2": {
-                        "d3": true
-                    }
-                },
-                "e": null,
-                "f": false
-            }';
-        """, [
-            ['qwerty'],
-            [1],
-            [0.023],
-
-            [True],
-            [False],
-            [None],
-
-            [[2, 'a', 3.456]],
-            [[2, 'a', 3.456, [['b', 1]]]],
-
-            [{
-                'a': 1,
-                'b': 2.87,
-                'c': [2, 'a', 3.456],
-                'd': {
-                    'd1': 1,
-                    'd2': {
-                        'd3': True
-                    }
-                },
-                'e': None,
-                'f': False
-            }],
-        ])
-
-    async def test_edgeql_expr_json_02(self):
-        await self.assert_query_result("""
-            SELECT <str><json>'"qwerty"';
-            SELECT <int64><json>'1';
-            SELECT <float64><json>'2.3e-2';
-
-            SELECT <bool><json>'true';
-            SELECT <bool><json>'false';
-
-            SELECT <array<int64>><json>'[2, 3, 5]';
-        """, [
-            ['qwerty'],
-            [1],
-            [0.023],
-
-            [True],
-            [False],
-
-            [[2, 3, 5]],
-        ])
-
-    async def test_edgeql_expr_json_03(self):
-        await self.assert_query_result("""
-            SELECT <str><json>'null';
-            SELECT <int64><json>'null';
-            SELECT <float64><json>'null';
-            SELECT <bool><json>'null';
-        """, [
-            [],
-            [],
-            [],
-            [],
-        ])
-
-    async def test_edgeql_expr_json_04(self):
-        await self.assert_query_result("""
-            SELECT <str><json>'null' ?= <str>{};
-            SELECT <int64><json>'null' ?= <int64>{};
-            SELECT <float64><json>'null' ?= <float64>{};
-            SELECT <bool><json>'null' ?= <bool>{};
-        """, [
-            [True],
-            [True],
-            [True],
-            [True],
-        ])
-
-    async def test_edgeql_expr_json_05(self):
-        await self.assert_query_result("""
-            SELECT <json>{} ?= (SELECT x := <json>'1' FILTER x = <json>'2');
-            SELECT <json>{} ?= <json>'null';
-        """, [
-            [True],
-            [False],
-        ])
-
-    # XXX: in the future we may want a function that converts a JSON
-    # array into an array of JSON
-
-    @unittest.expectedFailure
-    async def test_edgeql_expr_json_07(self):
-        await self.assert_query_result("""
-            SELECT json_typeof(<json>'2');
-            SELECT json_typeof(<json>'2');
-            SELECT json_typeof(<json>'"foo"');
-            SELECT json_typeof(<json>'true');
-            SELECT json_typeof(<json>'false');
-            SELECT json_typeof(<json>'null');
-            SELECT json_typeof(<json>'[]');
-            SELECT json_typeof(<json>'[2]');
-            SELECT json_typeof(<json>'{}');
-            SELECT json_typeof(<json>'{"a": 2}');
-        """, [
-            ['number'],
-            ['number'],
-            ['string'],
-            ['boolean'],
-            ['boolean'],
-            ['null'],
-            ['array'],
-            ['array'],
-            ['object'],
-            ['object'],
-        ])
-
-    @unittest.expectedFailure
-    async def test_edgeql_expr_json_08(self):
-        await self.assert_query_result("""
-            SELECT json_array_unpack(<json>'[1, "a", null]');
-        """, [
-            [1, 'a', None],
-        ])
-
-    @unittest.expectedFailure
-    async def test_edgeql_expr_json_09(self):
-        await self.assert_query_result("""
-            SELECT json_object_unpack(<json>'{"q": 1, "w": "a", "e": null}');
-        """, [
-            {
-                ('q', 1),
-                ('w', 'a'),
-                ('e', None),
-            },
-        ])
-
-    @unittest.expectedFailure
-    async def test_edgeql_expr_json_10(self):
-        await self.assert_query_result("""
-            SELECT <json>'[1, 'a', 3]'[0] = <json>1;
-            SELECT <json>'[1, 'a', 3]'[1] = <json>'a';
-            SELECT <json>'[1, 'a', 3]'[2] = <json>3;
-            SELECT <json>'[1, 'a', 3]'[3] ?= <json>{};
-        """, [
-            [True],
-            [True],
-            [True],
-            [True],
-        ])
-
-    @unittest.expectedFailure
-    async def test_edgeql_expr_json_11(self):
-        await self.assert_query_result("""
-            SELECT <json>'{"a": 1, "b": null}'["a"] = <json>1;
-            SELECT <json>'{"a": 1, "b": null}'["b"] = <json>'null';
-            SELECT <json>'{"a": 1, "b": null}'["c"] ?= <json>{};
-        """, [
-            [True],
-            [True],
-            [True],
-        ])
+    async def test_edgeql_expr_string_04(self):
+        # There's an inherent problem with negative offsets that they
+        # resolve into some other offset that gets passed to substr.
+        # So potentially this can be prettified by introducing an
+        # extra layer of a function call or some other mechanism for
+        # storing the "original" offset value.
+        with self.assertRaisesRegex(
+                # FIXME: possibly a different error should be used here
+                exc.UnknownEdgeDBError,
+                r'string index -7 is out of bounds'):
+            await self.con.execute("""
+                SELECT '123'[-10];
+            """)
 
     async def test_edgeql_expr_tuple_01(self):
         await self.assert_query_result(r"""

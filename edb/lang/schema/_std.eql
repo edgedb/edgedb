@@ -204,6 +204,31 @@ CREATE FUNCTION std::current_datetime() -> std::datetime
 CREATE FUNCTION std::uuid_generate_v1mc() -> std::uuid
     FROM SQL 'SELECT edgedb.uuid_generate_v1mc()';
 
+# JSON functions
+CREATE FUNCTION std::json_typeof($json: std::json) -> std::str
+    FROM SQL FUNCTION 'jsonb_typeof';
+
+CREATE FUNCTION std::json_array_unpack($arr: std::json) -> SET OF std::json
+    FROM SQL FUNCTION 'jsonb_array_elements';
+
+CREATE FUNCTION std::json_object_unpack($obj: std::json) ->
+        SET OF tuple<std::str, std::json>
+    FROM SQL FUNCTION 'jsonb_each';
+
+CREATE FUNCTION std::json_get($json: std::json, VARIADIC $path: std::str) ->
+        OPTIONAL std::json
+    FROM SQL FUNCTION 'jsonb_extract_path';
+
+CREATE FUNCTION std::json_to_str($json: std::json) -> std::str
+    FROM SQL $$
+        SELECT $1::text
+    $$;
+
+CREATE FUNCTION std::str_to_json($str: std::str) -> std::json
+    FROM SQL $$
+        SELECT $1::jsonb
+    $$;
+
 CREATE ABSTRACT CONSTRAINT std::constraint
 {
     SET errmessage := 'invalid {__subject__}';

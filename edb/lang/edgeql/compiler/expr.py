@@ -430,7 +430,9 @@ def compile_Indirection(
     for indirection_el in expr.indirection:
         if isinstance(indirection_el, qlast.Index):
             idx = dispatch.compile(indirection_el.index, ctx=ctx)
-            node = irast.IndexIndirection(expr=node, index=idx)
+            idx.context = indirection_el.index.context
+            node = irast.IndexIndirection(expr=node, index=idx,
+                                          context=expr.context)
 
         elif isinstance(indirection_el, qlast.Slice):
             if indirection_el.start:
