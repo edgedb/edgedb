@@ -408,6 +408,35 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [110, 120],
         ])
 
+    async def test_edgeql_functions_array_get_01(self):
+        await self.assert_query_result(r'''
+            SELECT array_get([1, 2, 3], 2);
+            SELECT array_get([1, 2, 3], -2);
+            SELECT array_get([1, 2, 3], 20);
+            SELECT array_get([1, 2, 3], -20);
+        ''', [
+            [3],
+            [2],
+            [],
+            [],
+        ])
+
+    async def test_edgeql_functions_array_get_02(self):
+        await self.assert_query_result(r'''
+            SET MODULE test;
+
+            SELECT array_get(array_agg(Issue.number ORDER BY Issue.number), 2);
+            SELECT array_get(array_agg(Issue.number ORDER BY Issue.number), -2);
+            SELECT array_get(array_agg(Issue.number), 20);
+            SELECT array_get(array_agg(Issue.number), -20);
+        ''', [
+            None,
+            ['3'],
+            ['3'],
+            [],
+            [],
+        ])
+
     async def test_edgeql_functions_re_match_01(self):
         await self.assert_query_result(r'''
             SELECT re_match('AbabaB', 'ab');
