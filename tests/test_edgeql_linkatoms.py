@@ -743,7 +743,8 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
-            FILTER .tag_array[0] = 'metal'
+            # array_get is used to safely default to {}
+            FILTER array_get(.tag_array, 0) = 'metal'
             ORDER BY .name;
         ''', [
             [
@@ -781,7 +782,8 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
-            FILTER NOT EXISTS .tag_array[3]  # no item has 3 elements
+            # no item has 3 elements
+            FILTER NOT EXISTS array_get(.tag_array, 3)
             ORDER BY .name;
         ''', [
             [

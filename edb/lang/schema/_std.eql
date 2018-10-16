@@ -138,6 +138,20 @@ CREATE FUNCTION std::array_enumerate(array<std::any>) ->
         SET OF tuple<std::any, std::int64>
     FROM SQL FUNCTION '--system--';
 
+# TODO: this function will later also take a
+#       NAMED ONLY $default: any = <any>{}
+CREATE FUNCTION std::array_get(array<std::any>, std::int64)
+        -> OPTIONAL std::any
+    FROM SQL $$
+        SELECT $1[(
+            CASE WHEN $2 < 0 THEN
+                array_upper($1, 1) + $2 + 1
+            ELSE
+                $2 + 1
+            END
+        )]
+    $$;
+
 CREATE FUNCTION std::len(std::str) -> std::int64
     FROM SQL FUNCTION 'char_length';
 
