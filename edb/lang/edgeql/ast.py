@@ -117,8 +117,13 @@ AggNONE = SetModifier.NONE
 class SetQualifier(s_enum.StrEnum):
     SET_OF = 'SET OF'
     OPTIONAL = 'OPTIONAL'
-    VARIADIC = 'VARIADIC'
     DEFAULT = ''
+
+
+class ParameterKind(s_enum.StrEnum):
+    VARIADIC = 'VARIADIC'
+    NAMED_ONLY = 'NAMED ONLY'
+    POSITIONAL = 'POSITIONAL'
 
 
 class Cardinality(s_enum.StrEnum):
@@ -274,6 +279,7 @@ class FuncParam(Base):
     name: str
     type: TypeExpr
     qualifier: SetQualifier = SetQualifier.DEFAULT
+    kind: ParameterKind
     default: Expr  # noqa (pyflakes bug)
 
 

@@ -39,6 +39,7 @@ async def fetch(
                 a.localfinalexpr        AS localfinalexpr,
                 a.finalexpr             AS finalexpr,
                 a.errmessage            AS errmessage,
+                a.paramnames,
                 edgedb._resolve_type(a.paramtypes)
                                         AS paramtypes,
                 a.varparam              AS varparam,

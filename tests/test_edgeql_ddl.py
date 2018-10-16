@@ -74,10 +74,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                                     'Cannot create a function'):
 
             await self.con.execute("""
-                CREATE FUNCTION test::my_lower(std::str) -> std::str
+                CREATE FUNCTION test::my_lower($s: std::str) -> std::str
                     FROM SQL FUNCTION 'lower';
 
-                CREATE FUNCTION test::my_lower(SET OF std::str)
+                CREATE FUNCTION test::my_lower($s: SET OF std::str)
                     -> std::str {
                     INITIAL VALUE '';
                     FROM SQL FUNCTION 'count';
@@ -85,25 +85,25 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             """)
 
         await self.con.execute("""
-            DROP FUNCTION test::my_lower(std::str);
+            DROP FUNCTION test::my_lower($s: std::str);
         """)
 
         with self.assertRaisesRegex(client_errors.EdgeQLError,
                                     'Cannot create a function'):
 
             await self.con.execute("""
-                CREATE FUNCTION test::my_lower(SET OF std::any)
+                CREATE FUNCTION test::my_lower($s: SET OF std::any)
                     -> std::str {
                     INITIAL VALUE '';
                     FROM SQL FUNCTION 'count';
                 };
 
-                CREATE FUNCTION test::my_lower(std::any) -> std::str
+                CREATE FUNCTION test::my_lower($s: std::any) -> std::str
                     FROM SQL FUNCTION 'lower';
             """)
 
         await self.con.execute("""
-            DROP FUNCTION test::my_lower(std::any);
+            DROP FUNCTION test::my_lower($s: std::any);
         """)
 
     async def test_edgeql_ddl_06(self):
@@ -122,13 +122,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     SELECT $1::text
                 $$;
 
-            CREATE FUNCTION test::my_sql_func3(std::str)
+            CREATE FUNCTION test::my_sql_func3(VARIADIC $s: std::str)
                 -> std::str
                 FROM SQL $$
                     SELECT $1::text
                 $$;
 
-            CREATE FUNCTION test::my_sql_func4(VARIADIC std::str)
+            CREATE FUNCTION test::my_sql_func4(VARIADIC $s: std::str)
                 -> std::str
                 FROM SQL $$
                     SELECT array_to_string($1, '-')
@@ -140,13 +140,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     SELECT '{long_func_name}'::text
                 $$;
 
-            CREATE FUNCTION test::my_sql_func6(std::str='a' + 'b')
+            CREATE FUNCTION test::my_sql_func6($a: std::str='a' + 'b')
                 -> std::str
                 FROM SQL $$
                     SELECT $1 || 'c'
                 $$;
 
-            CREATE FUNCTION test::my_sql_func7(array<std::int64>)
+            CREATE FUNCTION test::my_sql_func7($s: array<std::int64>)
                 -> std::int64
                 FROM SQL $$
                     SELECT sum(s)::bigint FROM UNNEST($1) AS s
@@ -156,7 +156,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.assert_query_result(fr"""
             SELECT test::my_sql_func1();
             SELECT test::my_sql_func2('foo');
-            SELECT test::my_sql_func3('bar');
             SELECT test::my_sql_func4('fizz', 'buzz');
             SELECT test::{long_func_name}();
             SELECT test::my_sql_func6();
@@ -165,7 +164,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         """, [
             ['spam'],
             ['foo'],
-            ['bar'],
             ['fizz-buzz'],
             [long_func_name],
             ['abc'],
@@ -176,11 +174,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute(f"""
             DROP FUNCTION test::my_sql_func1();
             DROP FUNCTION test::my_sql_func2($foo: std::str);
-            DROP FUNCTION test::my_sql_func3(std::str);
-            DROP FUNCTION test::my_sql_func4(VARIADIC std::str);
+            DROP FUNCTION test::my_sql_func3($s: std::str);
+            DROP FUNCTION test::my_sql_func4(VARIADIC $s: std::str);
             DROP FUNCTION test::{long_func_name}();
-            DROP FUNCTION test::my_sql_func6(std::str='a' + 'b');
-            DROP FUNCTION test::my_sql_func7(array<std::int64>);
+            DROP FUNCTION test::my_sql_func6($a: std::str='a' + 'b');
+            DROP FUNCTION test::my_sql_func7($s: array<std::int64>);
         """)
 
     async def test_edgeql_ddl_07(self):
@@ -188,7 +186,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                                     'could not.*broken_sql.*not constant'):
             await self.con.execute(f"""
                 CREATE FUNCTION test::broken_sql_func1(
-                    std::int64=(SELECT schema::ObjectType))
+                    $a: std::int64=(SELECT schema::ObjectType))
                 -> std::str
                 FROM SQL $$
                     SELECT 'spam'::text
@@ -203,24 +201,24 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     SELECT 'sp' + 'am'
                 $$;
 
-            CREATE FUNCTION test::my_edgeql_func2(std::str)
+            CREATE FUNCTION test::my_edgeql_func2($s: std::str)
                 -> schema::ObjectType
                 FROM EdgeQL $$
                     SELECT
                         schema::ObjectType
-                    FILTER schema::ObjectType.name = $0
+                    FILTER schema::ObjectType.name = $s
                 $$;
 
-            CREATE FUNCTION test::my_edgeql_func3(std::int64)
+            CREATE FUNCTION test::my_edgeql_func3($s: std::int64)
                 -> std::int64
                 FROM EdgeQL $$
-                    SELECT $0 + 10
+                    SELECT $s + 10
                 $$;
 
-            CREATE FUNCTION test::my_edgeql_func4(std::int64)
+            CREATE FUNCTION test::my_edgeql_func4($i: std::int64)
                 -> array<std::int64>
                 FROM EdgeQL $$
-                    SELECT [$0, 1, 2, 3]
+                    SELECT [$i, 1, 2, 3]
                 $$;
         """)
 
@@ -238,9 +236,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.con.execute(f"""
             DROP FUNCTION test::my_edgeql_func1();
-            DROP FUNCTION test::my_edgeql_func2(std::str);
-            DROP FUNCTION test::my_edgeql_func3(std::int64);
-            DROP FUNCTION test::my_edgeql_func4(std::int64);
+            DROP FUNCTION test::my_edgeql_func2($s: std::str);
+            DROP FUNCTION test::my_edgeql_func3($s: std::int64);
+            DROP FUNCTION test::my_edgeql_func4($i: std::int64);
         """)
 
     async def test_edgeql_ddl_09(self):
@@ -531,7 +529,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 client_errors.EdgeQLError,
                 r'Cannot create a function.+any.+cannot have a default'):
             await self.con.execute(r"""
-                CREATE FUNCTION test::my_agg(any = [1]) -> array<any>
+                CREATE FUNCTION test::my_agg($s: any = [1]) -> array<any>
                     FROM SQL FUNCTION "my_agg";
             """)
 

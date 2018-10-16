@@ -229,7 +229,7 @@ class DeleteFunction(named.DeleteNamedObject, FunctionCommand):
         return cls._get_function_fullname(name, paramtypes)
 
 
-def parameters_from_ast(astnode, modaliases, schema):
+def parameters_from_ast(astnode, modaliases, schema, *, allow_named=True):
     paramdefaults = []
     paramnames = []
     paramtypes = []
@@ -247,7 +247,12 @@ def parameters_from_ast(astnode, modaliases, schema):
         paramtypes.append(utils.ast_to_typeref(
             arg.type, modaliases=modaliases, schema=schema))
 
-        if arg.qualifier == qlast.SetQualifier.VARIADIC:
+        if arg.kind is qlast.ParameterKind.VARIADIC:
             variadic = argi
+
+        if arg.kind is qlast.ParameterKind.NAMED_ONLY and not allow_named:
+            raise ql_errors.EdgeQLError(
+                'named only parameters are not allowed in this context',
+                context=astnode.context)
 
     return paramnames, paramdefaults, paramtypes, paramkinds, variadic
