@@ -17,9 +17,9 @@
 #
 
 
-CREATE FUNCTION graphql::short_name(std::str) -> std::str
+CREATE FUNCTION graphql::short_name($name: std::str) -> std::str
     FROM EdgeQL $$
-        SELECT re_replace($0, '.+?::(.+$)', '\1') + 'Type'
+        SELECT re_replace($name, '.+?::(.+$)', '\1') + 'Type'
     $$;
 
 # create Query

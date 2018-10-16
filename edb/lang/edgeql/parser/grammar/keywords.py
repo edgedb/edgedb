@@ -54,8 +54,10 @@ unreserved_keywords = frozenset([
     "last",
     "link",
     "migration",
+    "named",
     "of",
     "on",
+    "only",
     "policy",
     "property",
     "rename",
@@ -70,6 +72,7 @@ unreserved_keywords = frozenset([
     "type",
     "using",
     "value",
+    "variadic",
     "view",
 ])
 
@@ -126,7 +129,6 @@ reserved_keywords = frozenset([
     "typeof",
     "update",
     "union",
-    "variadic",
     "with",
 ])
 

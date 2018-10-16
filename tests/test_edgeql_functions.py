@@ -426,7 +426,8 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SET MODULE test;
 
             SELECT array_get(array_agg(Issue.number ORDER BY Issue.number), 2);
-            SELECT array_get(array_agg(Issue.number ORDER BY Issue.number), -2);
+            SELECT array_get(array_agg(
+                Issue.number ORDER BY Issue.number), -2);
             SELECT array_get(array_agg(Issue.number), 20);
             SELECT array_get(array_agg(Issue.number), -20);
         ''', [

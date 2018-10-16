@@ -1505,30 +1505,35 @@ class OptDefault(Nonterm):
         self.val = kids[1].val
 
 
-class FuncDeclArg(Nonterm):
-    def reduce_ArgQualifier_FullTypeExpr_OptDefault(self, *kids):
-        self.val = qlast.FuncParam(
-            name=None,
-            qualifier=kids[0].val,
-            type=kids[1].val,
-            default=kids[2].val
-        )
+class OptParameterKind(Nonterm):
 
+    def reduce_empty(self):
+        self.val = qlast.ParameterKind.POSITIONAL
+
+    def reduce_VARIADIC(self, kid):
+        self.val = qlast.ParameterKind.VARIADIC
+
+    def reduce_NAMED_ONLY(self, *kids):
+        self.val = qlast.ParameterKind.NAMED_ONLY
+
+
+class FuncDeclArg(Nonterm):
     def reduce_kwarg(self, *kids):
-        r"""%reduce DOLLAR Identifier COLON \
-                ArgQualifier FullTypeExpr OptDefault \
+        r"""%reduce OptParameterKind DOLLAR AnyIdentifier COLON \
+                OptTypeQualifier FullTypeExpr OptDefault \
         """
         self.val = qlast.FuncParam(
-            name=kids[1].val,
-            qualifier=kids[3].val,
-            type=kids[4].val,
-            default=kids[5].val
+            kind=kids[0].val,
+            name=kids[2].val,
+            qualifier=kids[4].val,
+            type=kids[5].val,
+            default=kids[6].val
         )
 
-    def reduce_DOLLAR_Identifier_OptDefault(self, *kids):
+    def reduce_OptParameterKind_DOLLAR_Identifier_OptDefault(self, *kids):
         raise EdgeQLSyntaxError(
-            f'missing type declaration for function parameter ${kids[1].val}',
-            context=kids[0].context)
+            f'missing type declaration for function parameter ${kids[2].val}',
+            context=kids[1].context)
 
 
 class FuncDeclArgList(ListNonterm, element=FuncDeclArg,
@@ -1543,29 +1548,44 @@ class CreateFunctionArgs(Nonterm):
     def reduce_LPAREN_FuncDeclArgList_RPAREN(self, *kids):
         args = kids[1].val
 
-        default_arg_seen = False
-        variadic_arg_seen = False
+        last_pos_default_arg = None
+        last_named_arg = None
+        variadic_arg = None
         for arg in args:
-            if arg.qualifier == qlast.SetQualifier.VARIADIC:
-                if variadic_arg_seen:
-                    raise EdgeQLSyntaxError('more than one variadic argument',
-                                            context=arg.context)
-                else:
-                    variadic_arg_seen = True
-            else:
-                if variadic_arg_seen:
+            if arg.kind is qlast.ParameterKind.VARIADIC:
+                if variadic_arg is not None:
                     raise EdgeQLSyntaxError(
-                        'non-variadic argument follows variadic argument',
+                        'more than one variadic argument',
+                        context=arg.context)
+                else:
+                    variadic_arg = arg
+
+            elif arg.kind is qlast.ParameterKind.NAMED_ONLY:
+                last_named_arg = arg
+
+            else:
+                if last_named_arg is not None:
+                    raise EdgeQLSyntaxError(
+                        f'positional argument ${arg.name} '
+                        f'follows named only argument ${last_named_arg.name}',
                         context=arg.context)
 
-            if arg.default is None:
-                if (default_arg_seen and
-                        not arg.qualifier == qlast.SetQualifier.VARIADIC):
+                if variadic_arg is not None:
                     raise EdgeQLSyntaxError(
-                        'non-default argument follows default argument',
+                        f'positional argument ${arg.name} '
+                        f'follows variadic argument ${variadic_arg.name}',
                         context=arg.context)
-            else:
-                default_arg_seen = True
+
+            if arg.kind is qlast.ParameterKind.POSITIONAL:
+                if arg.default is None:
+                    if last_pos_default_arg is not None:
+                        raise EdgeQLSyntaxError(
+                            f'positional argument ${arg.name} without default '
+                            f'follows positional argument '
+                            f'${last_pos_default_arg.name} with default',
+                            context=arg.context)
+                else:
+                    last_pos_default_arg = arg
 
         self.val = args
 
@@ -1665,15 +1685,12 @@ commands_block(
 )
 
 
-class ArgQualifier(Nonterm):
+class OptTypeQualifier(Nonterm):
     def reduce_SET_OF(self, *kids):
         self.val = qlast.SetQualifier.SET_OF
 
     def reduce_OPTIONAL(self, *kids):
         self.val = qlast.SetQualifier.OPTIONAL
-
-    def reduce_VARIADIC(self, *kids):
-        self.val = qlast.SetQualifier.VARIADIC
 
     def reduce_empty(self):
         self.val = qlast.SetQualifier.DEFAULT
@@ -1682,13 +1699,9 @@ class ArgQualifier(Nonterm):
 class CreateFunctionStmt(Nonterm, _ProcessFunctionBlockMixin):
     def reduce_CreateFunction(self, *kids):
         r"""%reduce CREATE FUNCTION NodeName CreateFunctionArgs \
-                ARROW ArgQualifier FunctionType \
+                ARROW OptTypeQualifier FunctionType \
                 CreateFunctionCommandsBlock
         """
-        if kids[5].val == qlast.SetQualifier.VARIADIC:
-            raise EdgeQLSyntaxError(f'Unexpected {kids[5].val.value!r}',
-                                    context=kids[5].context)
-
         self.val = qlast.CreateFunction(
             name=kids[2].val,
             args=kids[3].val,

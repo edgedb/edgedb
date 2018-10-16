@@ -832,7 +832,7 @@ class ArgConstant(Nonterm):
     def reduce_DOLLAR_ICONST(self, *kids):
         self.val = qlast.Parameter(name=str(kids[1].val))
 
-    def reduce_DOLLAR_Identifier(self, *kids):
+    def reduce_DOLLAR_AnyIdentifier(self, *kids):
         self.val = qlast.Parameter(name=kids[1].val)
 
 
@@ -996,8 +996,8 @@ class FuncArgExpr(Nonterm):
     def reduce_Expr(self, *kids):
         self.val = qlast.FuncArg(arg=kids[0].val)
 
-    def reduce_Identifier_TURNSTILE_Expr(self, *kids):
-        self.val = qlast.FuncArg(name=kids[0].val, arg=kids[2].val)
+    def reduce_DOLLAR_AnyIdentifier_TURNSTILE_Expr(self, *kids):
+        self.val = qlast.FuncArg(name=kids[1].val, arg=kids[3].val)
 
 
 class FuncArg(Nonterm):

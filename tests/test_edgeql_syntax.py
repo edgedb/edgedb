@@ -2118,8 +2118,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_function_02(self):
         """
-        SELECT lower(string := User.name);
-        SELECT baz(age := User.age, of := User.name);
+        SELECT lower($string := User.name);
+        SELECT baz($age := User.age, $of := User.name, $select := 1);
         """
 
     def test_edgeql_syntax_function_03(self):
@@ -2353,7 +2353,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_aggregate_02(self):
         """
-        CREATE FUNCTION std::sum(SET OF std::int64)
+        CREATE FUNCTION std::sum($arg: SET OF std::int64)
             -> std::int64 {
             INITIAL VALUE 0;
             FROM SQL FUNCTION 'sum';
@@ -2493,19 +2493,19 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_constraint_01(self):
         """
-        CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC std::any)
+        CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC $p: std::any)
             EXTENDING std::constraint
         {
-            SET errmessage := '{subject} must be one of: {param}.';
-            SET expr := array_contains($param, __subject__);
+            SET errmessage := '{subject} must be one of: {p}.';
+            SET expr := array_contains($p, __subject__);
         };
         """
 
     def test_edgeql_syntax_ddl_constraint_02(self):
         """
-        CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC std::any) {
-            SET errmessage := '{subject} must be one of: {param}.';
-            SET expr := array_contains($param, __subject__);
+        CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC $p: std::any) {
+            SET errmessage := '{subject} must be one of: {$p}.';
+            SET expr := array_contains($p, __subject__);
         };
         """
 
@@ -2563,7 +2563,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_function_02(self):
         """
-        CREATE FUNCTION std::strlen(std::str) -> std::int64
+        CREATE FUNCTION std::strlen($a: std::str) -> std::int64
             FROM SQL FUNCTION 'strlen';
         """
 
@@ -2582,7 +2582,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_function_05(self):
         """
-        CREATE FUNCTION std::strlen($string: std::str, std::int64)
+        CREATE FUNCTION std::strlen($string: std::str, $a: std::int64)
             -> std::int64
             FROM SQL FUNCTION 'strlen';
         """
@@ -2595,7 +2595,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'non-default argument follows', line=2, col=62)
+                  r'\$abc without default follows.*\$string with default',
+                  line=2, col=62)
     def test_edgeql_syntax_ddl_function_07(self):
         """
         CREATE FUNCTION std::strlen($string: std::str = '1', $abc: std::str)
@@ -2603,10 +2604,11 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'non-variadic argument follows', line=3, col=37)
+                  r'positional argument \$abc follows.*\$string',
+                  line=3, col=37)
     def test_edgeql_syntax_ddl_function_08(self):
         """
-        CREATE FUNCTION std::strlen($string: VARIADIC std::str = '1',
+        CREATE FUNCTION std::strlen(VARIADIC $string: std::str = '1',
                                     $abc: std::str)
             -> std::int64;
         """
@@ -2615,14 +2617,14 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
                   'more than one variadic argument', line=3, col=37)
     def test_edgeql_syntax_ddl_function_09(self):
         """
-        CREATE FUNCTION std::strlen($string: VARIADIC std::str = '1',
-                                    $abc: VARIADIC std::str)
+        CREATE FUNCTION std::strlen(VARIADIC $string: std::str = '1',
+                                    VARIADIC $abc: std::str)
             -> std::int64;
         """
 
     def test_edgeql_syntax_ddl_function_10(self):
         """
-        CREATE FUNCTION std::strlen(std::str = '1', VARIADIC std::str)
+        CREATE FUNCTION std::strlen($a: std::str = '1', VARIADIC $b: std::str)
             -> std::int64
             FROM SQL FUNCTION 'strlen';
         """
@@ -2719,21 +2721,23 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected '\)'",
-                  line=3, col=52)
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"missing type declaration for",
+                  line=3, col=46)
     def test_edgeql_syntax_ddl_function_30(self):
         """
         CREATE FUNCTION std::foobar($arg1: str, $arg2: str = 'DEFAULT',
-                                    $arg3: VARIADIC)
+                                    VARIADIC $arg3)
             -> std::int64
             FROM EdgeQL $$$$;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected 'VARIADIC'", line=2, col=41)
+                  "Unexpected 'SET'", line=2, col=43)
     def test_edgeql_syntax_ddl_function_31(self):
+        # parameter name is missing
         """
-        CREATE FUNCTION std::foo(SET OF VARIADIC std::str) -> std::int64;
+        CREATE FUNCTION std::foo(VARIADIC SET OF std::str) -> std::int64;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -2752,16 +2756,52 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
     def test_edgeql_syntax_ddl_function_34(self):
         """
-        CREATE FUNCTION foo(OPTIONAL std::str) ->
+        CREATE FUNCTION foo($a: OPTIONAL std::str) ->
             std::int64 FROM SQL FUNCTION 'aaa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected 'VARIADIC'", line=2, col=54)
+                  "Unexpected 'std'", line=2, col=67)
     def test_edgeql_syntax_ddl_function_35(self):
         """
-        CREATE FUNCTION std::foo(SET OF std::str) -> VARIADIC std::int64
+        CREATE FUNCTION std::foo($a: SET OF std::str) -> VARIADIC std::int64
             FROM SQL $a$SELECT $$foo$$$a$;
+        """
+
+    def test_edgeql_syntax_ddl_function_36(self):
+        """
+        CREATE FUNCTION foo(
+            $a: OPTIONAL std::str,
+            NAMED ONLY $b: OPTIONAL std::str,
+            NAMED ONLY $c: OPTIONAL std::str = '1',
+            NAMED ONLY $d: OPTIONAL std::str
+        ) ->
+            std::int64 FROM SQL FUNCTION 'aaa';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"positional argument \$d follows named only.*\$c\b",
+                  line=6, col=13)
+    def test_edgeql_syntax_ddl_function_37(self):
+        """
+        CREATE FUNCTION foo(
+            $a: OPTIONAL std::str,
+            NAMED ONLY $b: OPTIONAL std::str = '1',
+            NAMED ONLY $c: OPTIONAL std::str,
+            $d: OPTIONAL std::str
+        ) ->
+            std::int64 FROM SQL FUNCTION 'aaa';
+        """
+
+    def test_edgeql_syntax_ddl_function_38(self):
+        """
+        CREATE FUNCTION foo(
+            $set: OPTIONAL std::str,
+            NAMED ONLY $create: OPTIONAL std::str,
+            NAMED ONLY $select: OPTIONAL std::str = '1',
+            VARIADIC $variadic: OPTIONAL std::str = '1'
+        ) ->
+            std::int64 FROM SQL FUNCTION 'aaa';
         """
 
     def test_edgeql_syntax_ddl_property_01(self):

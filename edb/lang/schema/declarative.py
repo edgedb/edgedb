@@ -336,15 +336,10 @@ class DeclarationLoader:
 
             paramnames, paramdefaults, paramtypes, paramkinds, variadic = \
                 s_func.parameters_from_ast(decl, self._mod_aliases,
-                                           self._schema)
+                                           self._schema,
+                                           allow_named=False)
 
-            for pname, pdefault, ptype in zip(paramnames, paramdefaults,
-                                              paramtypes):
-                if pname is not None:
-                    raise s_err.SchemaDefinitionError(
-                        'constraints do not support named parameters',
-                        context=decl.context)
-
+            for pdefault, ptype in zip(paramdefaults, paramtypes):
                 if pdefault is not None:
                     raise s_err.SchemaDefinitionError(
                         'constraints do not support parameters '
@@ -355,6 +350,7 @@ class DeclarationLoader:
                     raise s_err.SchemaDefinitionError(
                         'untyped parameter', context=decl.context)
 
+            constraint.paramnames = paramnames
             constraint.paramtypes = paramtypes
             constraint.varparam = variadic
 

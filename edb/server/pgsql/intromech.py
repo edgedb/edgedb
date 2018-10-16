@@ -386,13 +386,16 @@ class IntrospectionMech:
                     s[1] for s in self.unpack_typedesc_nodes(
                         r['paramtypes']['types'], schema)]
 
+            paramnames = r['paramnames'] if r['paramnames'] else []
+
             constraint = s_constr.Constraint(
                 name=name, subject=subject, title=title,
                 description=description, is_abstract=r['is_abstract'],
                 is_final=r['is_final'], expr=r['expr'],
                 subjectexpr=r['subjectexpr'],
                 localfinalexpr=r['localfinalexpr'], finalexpr=r['finalexpr'],
-                errmessage=r['errmessage'], paramtypes=paramtypes,
+                errmessage=r['errmessage'],
+                paramtypes=paramtypes, paramnames=paramnames,
                 varparam=r['varparam'], args=r['args'])
 
             if subject:

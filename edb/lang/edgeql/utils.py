@@ -18,6 +18,7 @@
 
 
 import copy
+import itertools
 import typing
 
 from edb.lang.common import ast
@@ -51,21 +52,27 @@ def inline_parameters(ql_expr: qlast.Base, args: typing.Dict[str, qlast.Base]):
 
 
 def index_parameters(ql_args: typing.List[qlast.Base], *,
+                     paramnames: typing.List[str],
                      varparam: typing.Optional[int]=None):
-    result = []
-    container = result
+    result = {}
+    varargs = None
 
-    for i, e in enumerate(ql_args):
+    for (i, e), n in itertools.zip_longest(enumerate(ql_args),
+                                           paramnames,
+                                           fillvalue=None):
         if isinstance(e, qlast.SelectQuery):
             e = e.result
 
-        if i == varparam:
-            container = []
-            result.append(qlast.Array(elements=container))
+        if varparam is not None and i == varparam:
+            varargs = []
+            result[n] = qlast.Array(elements=varargs)
 
-        container.append(e)
+        if varargs is not None:
+            varargs.append(e)
+        else:
+            result[n] = e
 
-    return {str(i): arg for i, arg in enumerate(result)}
+    return result
 
 
 def normalize_tree(expr, schema, *, modaliases=None, anchors=None,

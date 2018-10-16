@@ -66,7 +66,7 @@ class Constraint(inheriting.InheritingObject):
     subject = so.Field(so.Object, default=None, inheritable=False)
 
     paramnames = so.Field(so.StringList, default=None, coerce=True,
-                          compcoef=0.4)
+                          compcoef=0.999)
 
     paramtypes = so.Field(so.TypeList, default=None, coerce=True,
                           compcoef=0.857)
@@ -101,6 +101,21 @@ class Constraint(inheriting.InheritingObject):
             schema, source, *qualifiers, as_copy=as_copy,
             mark_derived=mark_derived, add_to_schema=add_to_schema,
             merge_bases=merge_bases, attrs=attrs, dctx=dctx, **kwargs)
+
+    def finalize(self, schema, bases=None, *, dctx=None):
+        super().finalize(schema, bases=bases, dctx=dctx)
+
+        if not self.generic() and self.paramnames is None:
+            self.paramnames = []
+
+            if dctx is not None:
+                from . import delta as sd
+
+                dctx.current().op.add(sd.AlterObjectProperty(
+                    property='paramnames',
+                    new_value=self.paramnames,
+                    source='default'
+                ))
 
     @classmethod
     def _dummy_subject(cls):
@@ -204,7 +219,9 @@ class Constraint(inheriting.InheritingObject):
             ]
 
             args_map = edgeql_utils.index_parameters(
-                args_ql, varparam=varparam)
+                args_ql,
+                paramnames=constraint.paramnames,
+                varparam=varparam)
 
             edgeql_utils.inline_parameters(expr_ql, args_map)
 
@@ -433,7 +450,8 @@ class CreateConstraint(ConstraintCommand,
             if astnode.args:
                 paramnames, paramdefaults, paramtypes, paramkinds, variadic = \
                     s_func.parameters_from_ast(
-                        astnode, context.modaliases, schema)
+                        astnode, context.modaliases, schema,
+                        allow_named=False)
 
                 if variadic is not None:
                     cmd.add(sd.AlterObjectProperty(
@@ -441,13 +459,7 @@ class CreateConstraint(ConstraintCommand,
                         new_value=variadic
                     ))
 
-                for pname, pdefault, ptype in zip(paramnames, paramdefaults,
-                                                  paramtypes):
-                    if pname is not None:
-                        raise ql_errors.EdgeQLError(
-                            'constraints do not support named parameters',
-                            context=astnode.context)
-
+                for pdefault, ptype in zip(paramdefaults, paramtypes):
                     if pdefault is not None:
                         raise ql_errors.EdgeQLError(
                             'constraints do not support parameters '
@@ -457,6 +469,11 @@ class CreateConstraint(ConstraintCommand,
                     if ptype is None:
                         raise ql_errors.EdgeQLError(
                             'untyped parameter', context=astnode.context)
+
+                cmd.add(sd.AlterObjectProperty(
+                    property='paramnames',
+                    new_value=paramnames
+                ))
 
                 cmd.add(sd.AlterObjectProperty(
                     property='paramtypes',

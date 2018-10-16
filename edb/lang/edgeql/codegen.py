@@ -40,6 +40,11 @@ def ident_to_str(ident):
     return edgeql_quote.disambiguate_identifier(ident)
 
 
+def param_to_str(ident):
+    return '$' + edgeql_quote.disambiguate_identifier(
+        ident, allow_reserved=True)
+
+
 class EdgeQLSourceGeneratorError(EdgeDBError):
     pass
 
@@ -498,8 +503,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.compexpr)
 
     def visit_Parameter(self, node):
-        self.write('$')
-        self.write(node.name)
+        self.write(param_to_str(node.name))
 
     def visit_Constant(self, node):
         if isinstance(node.value, str):
@@ -542,6 +546,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_FuncArg(self, node):
         if node.name:
+            self.write('$')
             self.write(node.name)
             self.write(' := ')
         self.visit(node.arg)
@@ -1046,10 +1051,17 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'FUNCTION')
 
     def visit_FuncParam(self, node):
+        if node.kind is edgeql_ast.ParameterKind.VARIADIC:
+            self.write('VARIADIC ')
+        elif node.kind is edgeql_ast.ParameterKind.NAMED_ONLY:
+            self.write('NAMED ONLY ')
+
         if node.name is not None:
-            self.write('$', ident_to_str(node.name), ': ')
+            self.write(param_to_str(node.name), ': ')
+
         if node.qualifier:
             self.write(node.qualifier.upper(), ' ')
+
         self.visit(node.type)
 
         if node.default:

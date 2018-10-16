@@ -94,38 +94,39 @@ CREATE ABSTRACT ATTRIBUTE stdattrs::from_function std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::initial_value std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::varparam std::int64;
 
-CREATE FUNCTION std::lower(std::str) -> std::str
+CREATE FUNCTION std::lower($str: std::str) -> std::str
     FROM SQL FUNCTION 'lower';
 
-CREATE FUNCTION std::sum(SET OF std::int64) -> std::int64 {
+CREATE FUNCTION std::sum($set: SET OF std::int64) -> std::int64 {
     INITIAL VALUE 0;
     FROM SQL FUNCTION 'sum';
 };
 
-CREATE FUNCTION std::sum(SET OF std::float64) -> std::float64 {
+CREATE FUNCTION std::sum($set: SET OF std::float64) -> std::float64 {
     INITIAL VALUE 0;
     FROM SQL FUNCTION 'sum';
 };
 
-CREATE FUNCTION std::count(SET OF std::any) -> std::int64 {
+CREATE FUNCTION std::count($set: SET OF std::any) -> std::int64 {
     INITIAL VALUE 0;
     FROM SQL FUNCTION 'count';
 };
 
-CREATE FUNCTION std::array_agg(SET OF std::any) -> array<std::any> {
+CREATE FUNCTION std::array_agg($set: SET OF std::any) -> array<std::any> {
     INITIAL VALUE [];
     FROM SQL FUNCTION 'array_agg';
 };
 
-CREATE FUNCTION std::is_distinct(SET OF std::any) -> std::bool {
+CREATE FUNCTION std::is_distinct($set: SET OF std::any) -> std::bool {
     INITIAL VALUE True;
     FROM SQL FUNCTION '--system--';
 };
 
-CREATE FUNCTION std::array_unpack(array<std::any>) -> SET OF std::any
+CREATE FUNCTION std::array_unpack($array: array<std::any>) -> SET OF std::any
     FROM SQL FUNCTION '--system--';
 
-CREATE FUNCTION std::array_contains(array<std::any>, std::any) -> std::bool
+CREATE FUNCTION std::array_contains($array: array<std::any>,
+                                    $what: std::any) -> std::bool
     FROM SQL $$
         SELECT
             CASE
@@ -134,13 +135,13 @@ CREATE FUNCTION std::array_contains(array<std::any>, std::any) -> std::bool
             END;
     $$;
 
-CREATE FUNCTION std::array_enumerate(array<std::any>) ->
+CREATE FUNCTION std::array_enumerate($array: array<std::any>) ->
         SET OF tuple<std::any, std::int64>
     FROM SQL FUNCTION '--system--';
 
 # TODO: this function will later also take a
 #       NAMED ONLY $default: any = <any>{}
-CREATE FUNCTION std::array_get(array<std::any>, std::int64)
+CREATE FUNCTION std::array_get($array: array<std::any>, $index: std::int64)
         -> OPTIONAL std::any
     FROM SQL $$
         SELECT $1[(
@@ -152,13 +153,13 @@ CREATE FUNCTION std::array_get(array<std::any>, std::int64)
         )]
     $$;
 
-CREATE FUNCTION std::len(std::str) -> std::int64
+CREATE FUNCTION std::len($str: std::str) -> std::int64
     FROM SQL FUNCTION 'char_length';
 
-CREATE FUNCTION std::len(std::bytes) -> std::int64
+CREATE FUNCTION std::len($bytes: std::bytes) -> std::int64
     FROM SQL FUNCTION 'length';
 
-CREATE FUNCTION std::len(array<std::any>) -> std::int64
+CREATE FUNCTION std::len($array: array<std::any>) -> std::int64
     FROM SQL $$
         SELECT array_length($1, 1)::bigint
     $$;
@@ -166,22 +167,27 @@ CREATE FUNCTION std::len(array<std::any>) -> std::int64
 CREATE FUNCTION std::random() -> std::float64
     FROM SQL FUNCTION 'random';
 
-CREATE FUNCTION std::re_match(std::str, std::str) -> array<std::str>
+CREATE FUNCTION std::re_match($str: std::str,
+                              $pattern: std::str) -> array<std::str>
     FROM SQL $$
         SELECT regexp_matches($1, $2);
     $$;
 
-CREATE FUNCTION std::re_match_all(std::str, std::str) -> SET OF array<std::str>
+CREATE FUNCTION std::re_match_all($str: std::str,
+                                  $pattern: std::str) -> SET OF array<std::str>
     FROM SQL $$
         SELECT regexp_matches($1, $2, 'g');
     $$;
 
-CREATE FUNCTION std::re_test(std::str, std::str) -> std::bool
+CREATE FUNCTION std::re_test($str: std::str, $pattern: std::str) -> std::bool
     FROM SQL $$
         SELECT $1 ~ $2;
     $$;
 
-CREATE FUNCTION std::re_replace(std::str, std::str, std::str, std::str = '')
+CREATE FUNCTION std::re_replace($str: std::str,
+                                $pattern: std::str,
+                                $sub: std::str,
+                                $flags: std::str = '')
         -> std::str
     FROM SQL $$
         SELECT regexp_replace($1, $2, $3, $4);
@@ -210,28 +216,28 @@ CREATE ABSTRACT CONSTRAINT std::expression
     SET expr := __subject__;
 };
 
-CREATE ABSTRACT CONSTRAINT std::max(std::any)
+CREATE ABSTRACT CONSTRAINT std::max($max: std::any)
         EXTENDING std::constraint
 {
-    SET errmessage := 'Maximum allowed value for {__subject__} is {$0}.';
-    SET expr := __subject__ <= $0;
+    SET errmessage := 'Maximum allowed value for {__subject__} is {$max}.';
+    SET expr := __subject__ <= $max;
 };
 
-CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC std::any)
+CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC $vals: std::any)
         EXTENDING std::constraint
 {
-    SET errmessage := '{__subject__} must be one of: {$0}.';
-    SET expr := array_contains($0, __subject__);
+    SET errmessage := '{__subject__} must be one of: {$vals}.';
+    SET expr := array_contains($vals, __subject__);
 };
 
-CREATE ABSTRACT CONSTRAINT std::min(std::any)
+CREATE ABSTRACT CONSTRAINT std::min($min: std::any)
         EXTENDING std::constraint
 {
-    SET errmessage := 'Minimum allowed value for {__subject__} is {$0}.';
-    SET expr := __subject__ >= $0;
+    SET errmessage := 'Minimum allowed value for {__subject__} is {$min}.';
+    SET expr := __subject__ >= $min;
 };
 
-CREATE ABSTRACT CONSTRAINT std::minexclusive(std::any)
+CREATE ABSTRACT CONSTRAINT std::minexclusive($min: std::any)
         EXTENDING std::min
 {
     SET errmessage := '{__subject__} must be greater than {$0}.';
@@ -244,29 +250,29 @@ CREATE ABSTRACT CONSTRAINT std::length ON (len(<std::str>__subject__))
     SET errmessage := 'invalid {__subject__}';
 };
 
-CREATE ABSTRACT CONSTRAINT std::minlength(std::int64)
+CREATE ABSTRACT CONSTRAINT std::minlength($min: std::int64)
         EXTENDING (std::min, std::length)
 {
-    SET errmessage := '{__subject__} must be no shorter than {$0} characters.';
+    SET errmessage := '{__subject__} must be no shorter than {$min} characters.';
 };
 
-CREATE ABSTRACT CONSTRAINT std::regexp(std::any)
+CREATE ABSTRACT CONSTRAINT std::regexp($pattern: std::any)
         EXTENDING std::constraint
 {
     SET errmessage := 'invalid {__subject__}';
-    SET expr := re_test(__subject__, $0);
+    SET expr := re_test(__subject__, $pattern);
 };
 
-CREATE ABSTRACT CONSTRAINT std::maxlength(std::int64)
+CREATE ABSTRACT CONSTRAINT std::maxlength($max: std::int64)
         EXTENDING (std::max, std::length)
 {
-    SET errmessage := '{__subject__} must be no longer than {$0} characters.';
+    SET errmessage := '{__subject__} must be no longer than {$max} characters.';
 };
 
-CREATE ABSTRACT CONSTRAINT std::maxexclusive(std::any)
+CREATE ABSTRACT CONSTRAINT std::maxexclusive($max: std::any)
         EXTENDING std::max
 {
-    SET errmessage := '{__subject__} must be less than {$0}.';
+    SET errmessage := '{__subject__} must be less than {$max}.';
 };
 
 CREATE ABSTRACT CONSTRAINT std::unique

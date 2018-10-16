@@ -844,7 +844,7 @@ type Foo:
         """
         # the line continuation is just to allow long single line
         function myfunc($arg1: str, $arg2: str = 'DEFAULT',
-                        $arg3: variadic std::int64) -> \
+                        variadic $arg3: std::int64) -> \
                         set of int:
             volatile := true
             description :>
@@ -854,7 +854,7 @@ type Foo:
 
 % OK %
         function myfunc($arg1: str, $arg2: str = 'DEFAULT',
-                        $arg3: variadic std::int64) -> \
+                        variadic $arg3: std::int64) -> \
                         set of int:
             volatile := true
             description :=
@@ -867,7 +867,9 @@ type Foo:
         """
         function myfunc($arg1: str,
                         $arg2: str = 'DEFAULT',
-                        $arg3: variadic std::int64) -> set of int:
+                        variadic $arg3: std::int64,
+                        named only $arg4: std::int64,
+                        named only $arg5: std::int64) -> set of int:
             from edgeql :=
                 SELECT blarg
         """
@@ -1015,7 +1017,7 @@ type Foo:
     def test_eschema_syntax_aggregate_04(self):
         """
         aggregate myfunc($arg1: str, $arg2: str = 'DEFAULT',
-                         $arg3: variadic std::int64) -> int64:
+                         variadic $arg3: std::int64) -> int64:
             initial value := 42
             volatile := true
             description := 'myfunc sample'
@@ -1032,12 +1034,13 @@ type Foo:
             from sql function: length
         """
 
-    @tb.must_fail(error.SchemaSyntaxError, r"Unexpected '\)'",
-                  line=3, col=41)
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r"missing type declaration for.*parameter \$arg3",
+                  line=3, col=35)
     def test_eschema_syntax_aggregate_06(self):
         """
         aggregate myfunc($arg1: str, $arg2: str = 'DEFAULT',
-                         $arg3: variadic) -> int64:
+                         variadic $arg3) -> int64:
             initial value := 42
         """
 
