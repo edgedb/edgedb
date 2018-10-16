@@ -17,7 +17,12 @@
 #
 
 
-from .. import common
+import textwrap
+
+from ..common import qname as qn
+from ..common import quote_ident as qi
+from ..common import quote_literal as ql
+
 from . import base
 from . import constraints
 from . import ddl
@@ -27,14 +32,16 @@ class DomainExists(base.Condition):
     def __init__(self, name):
         self.name = name
 
-    async def code(self, context):
-        code = '''SELECT
-                        domain_name
-                    FROM
-                        information_schema.domains
-                    WHERE
-                        domain_schema = $1 AND domain_name = $2'''
-        return code, self.name
+    def code(self, block: base.PLBlock) -> str:
+        return textwrap.dedent(f'''\
+            SELECT
+                domain_name
+            FROM
+                information_schema.domains
+            WHERE
+                domain_schema = {ql(self.name[0])}
+                AND domain_name = {ql(self.name[1])}
+        ''')
 
 
 class CreateDomain(ddl.SchemaObjectOperation):
@@ -46,8 +53,8 @@ class CreateDomain(ddl.SchemaObjectOperation):
             priority=priority)
         self.base = base
 
-    async def code(self, context):
-        return 'CREATE DOMAIN %s AS %s' % (common.qname(*self.name), self.base)
+    def code(self, block: base.PLBlock) -> str:
+        return f'CREATE DOMAIN {qn(*self.name)} AS {self.base}'
 
 
 class RenameDomain(base.CommandGroup):
@@ -78,10 +85,9 @@ class AlterDomainSetSchema(ddl.DDLOperation):
         self.name = name
         self.new_schema = new_schema
 
-    async def code(self, context):
-        code = 'ALTER DOMAIN {} SET SCHEMA {}'.format(
-            common.qname(*self.name), common.quote_ident(self.new_schema))
-        return code
+    def code(self, block: base.PLBlock) -> str:
+        return (f'ALTER DOMAIN {qn(*self.name)} '
+                f'SET SCHEMA {qi(self.new_schema)}')
 
 
 class AlterDomainRenameTo(ddl.DDLOperation):
@@ -94,10 +100,9 @@ class AlterDomainRenameTo(ddl.DDLOperation):
         self.name = name
         self.new_name = new_name
 
-    async def code(self, context):
-        code = 'ALTER DOMAIN {} RENAME TO {}'.format(
-            common.qname(*self.name), common.quote_ident(self.new_name))
-        return code
+    def code(self, block: base.PLBlock) -> str:
+        return (f'ALTER DOMAIN {qn(*self.name)} '
+                f'RENAME TO {qi(self.new_name)}')
 
 
 class AlterDomain(ddl.DDLOperation):
@@ -108,8 +113,8 @@ class AlterDomain(ddl.DDLOperation):
             priority=priority)
         self.name = name
 
-    async def code(self, context):
-        return 'ALTER DOMAIN %s ' % common.qname(*self.name)
+    def prefix_code(self) -> str:
+        return f'ALTER DOMAIN {qn(*self.name)}'
 
     def __repr__(self):
         return '<edb.sync.%s %s>' % (self.__class__.__name__, self.name)
@@ -120,14 +125,16 @@ class AlterDomainAlterDefault(AlterDomain):
         super().__init__(name)
         self.default = default
 
-    async def code(self, context):
-        code = await super().code(context)
+    def code(self, block: base.PLBlock) -> str:
+        code = self.prefix_code()
         if self.default is None:
             code += ' DROP DEFAULT '
         else:
-            value = common.quote_literal(str(
-                self.default)) if self.default is not None else 'None'
-            code += ' SET DEFAULT ' + value
+            if self.default is not None:
+                value = ql(str(self.default))
+            else:
+                value = 'None'
+            code += f' SET DEFAULT {value}'
         return code
 
 
@@ -136,8 +143,8 @@ class AlterDomainAlterNull(AlterDomain):
         super().__init__(name)
         self.null = null
 
-    async def code(self, context):
-        code = await super().code(context)
+    def code(self, block: base.PLBlock) -> str:
+        code = self.prefix_code()
         if self.null:
             code += ' DROP NOT NULL '
         else:
@@ -161,15 +168,19 @@ class DomainConstraint(constraints.Constraint):
 
 
 class AlterDomainAddConstraint(AlterDomainAlterConstraint):
-    async def code(self, context):
-        code = await super().code(context)
+    def code(self, block: base.PLBlock) -> str:
+        code = self.prefix_code()
         constr_name = self._constraint.constraint_name()
-        constr_code = await self._constraint.constraint_code(context)
-        code += ' ADD CONSTRAINT {} {}'.format(constr_name, constr_code)
+        constr_code = self._constraint.constraint_code(block)
+        if isinstance(constr_code, base.PLExpression):
+            code = (f"EXECUTE {ql(code)} || ' ADD CONSTRAINT {constr_name} ' "
+                    f"|| {constr_code}")
+        else:
+            code += f' ADD CONSTRAINT {constr_name} {constr_code}'
         return code
 
-    async def extra(self, context):
-        return await self._constraint.extra(context)
+    def generate_extra(self, block: base.PLBlock):
+        return self._constraint.generate_extra(block)
 
 
 class AlterDomainRenameConstraint(AlterDomainAlterConstraint):
@@ -181,23 +192,22 @@ class AlterDomainRenameConstraint(AlterDomainAlterConstraint):
             neg_conditions=neg_conditions, priority=priority)
         self._new_constraint = new_constraint
 
-    async def code(self, context):
-        code = await super().code(context)
+    def code(self, block: base.PLBlock) -> str:
+        code = self.prefix_code()
         name = self._constraint.constraint_name()
         new_name = self._new_constraint.constraint_name()
-        code += ' RENAME CONSTRAINT {} TO {}'.format(name, new_name)
+        code += f' RENAME CONSTRAINT {name} TO {new_name}'
 
         return code
 
 
 class AlterDomainDropConstraint(AlterDomainAlterConstraint):
-    async def code(self, context):
-        code = await super().code(context)
-        code += ' DROP CONSTRAINT {}'.format(
-            self._constraint.constraint_name())
+    def code(self, block: base.PLBlock) -> str:
+        code = super().prefix_code()
+        code += f' DROP CONSTRAINT {self._constraint.constraint_name()}'
         return code
 
 
 class DropDomain(ddl.SchemaObjectOperation):
-    async def code(self, context):
-        return 'DROP DOMAIN %s' % common.qname(*self.name)
+    def code(self, block: base.PLBlock) -> str:
+        return f'DROP DOMAIN {qn(*self.name)}'

@@ -17,7 +17,11 @@
 #
 
 
-from .. import common
+import textwrap
+
+from ..common import quote_ident as qi
+from ..common import quote_literal as ql
+
 from . import base
 from . import ddl
 
@@ -26,10 +30,15 @@ class SchemaExists(base.Condition):
     def __init__(self, name):
         self.name = name
 
-    async def code(self, context):
-        return (
-            'SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = $1',
-            [self.name])
+    def code(self, block: base.PLBlock) -> str:
+        return textwrap.dedent(f'''\
+            SELECT
+                oid
+            FROM
+                pg_catalog.pg_namespace
+            WHERE
+                nspname = {ql(self.name)}
+        ''')
 
 
 class CreateSchema(ddl.DDLOperation):
@@ -43,8 +52,8 @@ class CreateSchema(ddl.DDLOperation):
         self.opid = name
         self.neg_conditions.add(SchemaExists(self.name))
 
-    async def code(self, context):
-        return 'CREATE SCHEMA %s' % common.quote_ident(self.name)
+    def code(self, block: base.PLBlock) -> str:
+        return f'CREATE SCHEMA {qi(self.name)}'
 
     def __repr__(self):
         return '<edb.sync.%s %s>' % (self.__class__.__name__, self.name)
@@ -55,10 +64,8 @@ class RenameSchema(ddl.SchemaObjectOperation):
         super().__init__(name)
         self.new_name = new_name
 
-    async def code(self, context):
-        return '''ALTER SCHEMA {} RENAME TO {}'''.format(
-            common.quote_ident(self.name),
-            common.quote_ident(self.new_name)), []
+    def code(self, block: base.PLBlock) -> str:
+        return f'ALTER SCHEMA {qi(self.name)} RENAME TO {qi(self.new_name)}'
 
 
 class DropSchema(ddl.DDLOperation):
@@ -69,8 +76,8 @@ class DropSchema(ddl.DDLOperation):
             priority=priority)
         self.name = name
 
-    async def code(self, context):
-        return 'DROP SCHEMA %s' % common.quote_ident(self.name)
+    def code(self, block: base.PLBlock) -> str:
+        return f'DROP SCHEMA {qi(self.name)}'
 
     def __repr__(self):
         return '<edb.sync.%s %s>' % (self.__class__.__name__, self.name)

@@ -20,6 +20,7 @@
 import logging
 import os.path
 
+from edb.lang.common import debug
 from edb.lang import edgeql
 from edb.lang import schema as edgedb_schema
 from edb.lang.schema import ddl as s_ddl
@@ -29,7 +30,6 @@ from edb.server import protocol as edgedb_protocol
 
 from . import backend
 from . import dbops
-from . import delta
 from . import metaschema
 
 
@@ -43,6 +43,14 @@ async def _statement(conn, query, *args, method):
 
 async def _execute(conn, query, *args):
     return await _statement(conn, query, *args, method='execute')
+
+
+async def _execute_block(conn, block: dbops.PLBlock) -> None:
+    sql_text = block.to_string()
+    if debug.flags.bootstrap:
+        debug.header('Bootstrap')
+        debug.dump_code(sql_text, lexer='sql')
+    await _execute(conn, sql_text)
 
 
 async def _ensure_edgedb_user(conn, username, *, is_superuser=False):
@@ -215,22 +223,24 @@ async def _ensure_edgedb_database(conn, database, owner, *, cluster, loop):
             f'Creating database: '
             f'{database}')
 
-        ctx = delta.CommandContext(conn)
+        block = dbops.SQLBlock()
         db = dbops.Database(database, owner=owner)
-        await dbops.CreateDatabase(db).execute(ctx)
+        dbops.CreateDatabase(db).generate(block)
+        await _execute_block(conn, block)
 
         if owner != edgedb_defines.EDGEDB_SUPERUSER:
+            block = dbops.SQLBlock()
+            reassign = dbops.ReassignOwned(
+                edgedb_defines.EDGEDB_SUPERUSER, owner)
+            reassign.generate(block)
+
             dbconn = await cluster.connect(
                 loop=loop, database=database,
                 user=edgedb_defines.EDGEDB_SUPERUSER
             )
 
-            dbconnctx = delta.CommandContext(dbconn)
-
             try:
-                reassign = dbops.ReassignOwned(
-                    edgedb_defines.EDGEDB_SUPERUSER, owner)
-                await reassign.execute(dbconnctx)
+                await _execute_block(dbconn, block)
             finally:
                 await dbconn.close()
 

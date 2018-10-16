@@ -24,6 +24,7 @@ import re
 
 from edb.lang import edgeql
 from edb.lang.common import ast
+from edb.lang.common import typeutils
 from edb.lang.edgeql import ast as qlast
 from edb.lang.graphql import ast as gqlast, parser as gqlparser
 from edb.lang.schema import error as s_error
@@ -704,7 +705,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             for res in results:
                 if isinstance(res, Field):
                     flattened.append(res)
-                elif ast.is_container(res):
+                elif typeutils.is_container(res):
                     flattened.extend(res)
                 else:
                     flattened.append(res)

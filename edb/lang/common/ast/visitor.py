@@ -17,6 +17,8 @@
 #
 
 
+from edb.lang.common import typeutils
+
 from . import base
 
 
@@ -132,7 +134,7 @@ class NodeVisitor:
     def container_visit(self, node):
         result = []
         for elem in node:
-            if base.is_ast_node(elem) or base.is_container(elem):
+            if base.is_ast_node(elem) or typeutils.is_container(elem):
                 result.append(self.visit(elem))
             else:
                 result.append(elem)
@@ -163,7 +165,7 @@ class NodeVisitor:
         return result
 
     def visit(self, node):
-        if base.is_container(node):
+        if typeutils.is_container(node):
             return self.container_visit(node)
         else:
             return self.node_visit(node)
@@ -172,7 +174,7 @@ class NodeVisitor:
         field_results = []
 
         for field, value in base.iter_fields(node, include_meta=False):
-            if base.is_container(value):
+            if typeutils.is_container(value):
                 for item in value:
                     if base.is_ast_node(item):
                         res = self.visit(item)
@@ -201,9 +203,9 @@ def nodes_equal(n1, n2):
             n1v = getattr(n1, field)
             n2v = getattr(n2, field)
 
-            if base.is_container(n1v):
+            if typeutils.is_container(n1v):
                 n1v = list(n1v)
-                if base.is_container(n2v):
+                if typeutils.is_container(n2v):
                     n2v = list(n2v)
                 else:
                     return False

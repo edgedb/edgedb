@@ -18,10 +18,33 @@
 
 
 import base64
+import collections
 import hashlib
+import numbers
+import textwrap
+import typing
 
 from edb.lang.common import markup
-from edb.lang.common import debug
+from edb.lang.common import typeutils
+
+from ..common import quote_ident as qi
+from ..common import quote_literal as ql
+from ..common import quote_type as qt
+
+
+def encode_value(val: object) -> str:
+    """Encode value into an appropriate SQL expression."""
+    if hasattr(val, 'to_sql_expr'):
+        val = val.to_sql_expr()
+    elif typeutils.is_container(val):
+        val_list = [encode_value(el) for el in val]
+        val = f'ARRAY[{", ".join(val_list)}]'
+    elif val is None:
+        val = 'NULL'
+    elif not isinstance(val, numbers.Number):
+        val = ql(str(val))
+
+    return val
 
 
 def pack_name(name, prefix_length=0):
@@ -35,47 +58,160 @@ def pack_name(name, prefix_length=0):
     return name
 
 
-class BaseCommand(metaclass=markup.MarkupCapableMeta):
-    async def get_code_and_vars(self, context):
-        code = await self.code(context)
-        assert code is not None
-        if isinstance(code, tuple):
-            code, vars = code
+class PLExpression(str):
+    pass
+
+
+class SQLBlock:
+    def __init__(self):
+        self.commands = []
+        self.disable_ddl_triggers = True
+
+    def add_block(self):
+        block = PLTopBlock()
+        self.add_command(block)
+        return block
+
+    def to_string(self) -> str:
+        stmts = ((cmd if isinstance(cmd, str) else cmd.to_string()).rstrip()
+                 for cmd in self.commands)
+        body = '\n\n'.join(stmt + ';' if stmt[-1] != ';' else stmt
+                           for stmt in stmts).rstrip()
+        if body[-1] != ';':
+            body += ';'
+
+        return body
+
+    def add_command(self, stmt) -> None:
+        if isinstance(stmt, PLBlock) and not stmt.has_declarations():
+            self.commands.extend(stmt.commands)
         else:
-            vars = None
+            self.commands.append(stmt)
 
-        return code, vars
+    def has_declarations(self) -> bool:
+        return False
 
-    async def execute(self, context):
-        code, vars = await self.get_code_and_vars(context)
 
-        if code:
-            extra = await self.extra(context)
-            extra_before = extra_after = None
+class PLBlock(SQLBlock):
+    def __init__(self, top_block, level):
+        super().__init__()
+        self.top_block = top_block
+        self.varcounter = collections.defaultdict(int)
+        self.shared_vars = set()
+        self.declarations = []
+        self.level = level
+        if top_block is not None:
+            self.disable_ddl_triggers = self.top_block.disable_ddl_triggers
+        else:
+            self.disable_ddl_triggers = False
 
-            if isinstance(extra, dict):
-                extra_before = extra.get('before')
-                extra_after = extra.get('after')
-            else:
-                extra_after = extra
+    def has_declarations(self) -> bool:
+        return bool(self.declarations)
 
-            if extra_before:
-                for cmd in extra_before:
-                    await cmd.execute(context)
+    def has_statements(self) -> bool:
+        return bool(self.commands)
 
-            if debug.flags.delta_execute:
-                debug.header('Executing DDL')
-                debug.print(repr(self))
-                debug.print('CODE:', code)
-                debug.print('VARS:', vars)
+    def get_top_block(self) -> 'PLTopBlock':
+        return self.top_block
 
-            stmt = await context.db.prepare(code)
-            result = await stmt.fetch(*vars)
+    def add_block(self, attach: bool=True):
+        block = PLBlock(top_block=self.top_block, level=self.level + 1)
+        if attach:
+            self.add_command(block)
+        return block
 
-            if extra_after:
-                for cmd in extra_after:
-                    await cmd.execute(context)
-            return result
+    def to_string(self):
+        if self.declarations:
+            vv = (f'    {qi(n)} {qt(t)};' for n, t in self.declarations)
+            decls = 'DECLARE\n' + '\n'.join(vv) + '\n'
+        else:
+            decls = ''
+
+        body = super().to_string()
+
+        return textwrap.indent(f'{decls}BEGIN\n{body}\nEND;',
+                               ' ' * self.level * 4)
+
+    def add_command(self, cmd, *, conditions=None, neg_conditions=None):
+        if conditions or neg_conditions:
+            exprs = []
+            if conditions:
+                for cond in conditions:
+                    if not isinstance(cond, str):
+                        cond_expr = f'EXISTS ({cond.code(self)})'
+                    else:
+                        cond_expr = cond
+                    exprs.append(cond_expr)
+
+            if neg_conditions:
+                for cond in neg_conditions:
+                    if not isinstance(cond, str):
+                        cond_expr = f'EXISTS ({cond.code(self)})'
+                    else:
+                        cond_expr = cond
+                    exprs.append(f'NOT {cond_expr}')
+
+            if_clause = '\n    AND'.join(
+                f'({textwrap.indent(expr, "    ").lstrip()})'
+                for expr in exprs
+            )
+
+            if isinstance(cmd, PLBlock):
+                cmd = cmd.to_string()
+
+            cmd = textwrap.indent(cmd, '    ').rstrip()
+            semicolon = ';' if cmd[-1] != ';' else ''
+            stmt = f'IF {if_clause}\nTHEN\n{cmd}{semicolon}\nEND IF;'
+        else:
+            stmt = cmd
+
+        super().add_command(stmt)
+
+    def get_var_name(self, hint=None):
+        if hint is None:
+            hint = 'v'
+        self.varcounter[hint] += 1
+        return f'{hint}_{self.varcounter[hint]}'
+
+    def declare_var(
+        self,
+        type_name: typing.Union[str, typing.Tuple[str, str]],
+        var_name_prefix: str='v',
+        shared: bool=False,
+    ) -> str:
+        if shared:
+            var_name = var_name_prefix
+            if var_name not in self.shared_vars:
+                self.declarations.append((var_name, type_name))
+                self.shared_vars.add(var_name)
+        else:
+            var_name = self.get_var_name(var_name_prefix)
+            self.declarations.append((var_name, type_name))
+
+        return var_name
+
+
+class PLTopBlock(PLBlock):
+    def __init__(self, *, disable_ddl_triggers: bool=False):
+        super().__init__(top_block=None, level=0)
+        self.disable_ddl_triggers = disable_ddl_triggers
+
+    def add_block(self):
+        block = PLBlock(top_block=self, level=self.level + 1)
+        self.add_command(block)
+        return block
+
+    def to_string(self):
+        body = super().to_string()
+        return f'DO LANGUAGE plpgsql $__$\n{body}\n$__$;'
+
+    def get_top_block(self) -> 'PLTopBlock':
+        return self
+
+
+class BaseCommand(metaclass=markup.MarkupCapableMeta):
+    def generate(self, block):
+        raise NotImplementedError
 
     @classmethod
     def as_markup(cls, self, *, ctx):
@@ -83,12 +219,6 @@ class BaseCommand(metaclass=markup.MarkupCapableMeta):
 
     def dump(self):
         return str(self)
-
-    async def code(self, context):
-        return ''
-
-    async def extra(self, context, *args, **kwargs):
-        return None
 
 
 class Command(BaseCommand):
@@ -98,72 +228,32 @@ class Command(BaseCommand):
         self.neg_conditions = neg_conditions or set()
         self.priority = priority
 
-    async def execute(self, context):
-        ok = (
-            await self.check_conditions(context, self.conditions, True) and
-            await self.check_conditions(context, self.neg_conditions, False)
-        )
+    def generate(self, block) -> None:
+        self_block = self.generate_self_block(block)
+        if self_block is None:
+            return
 
-        result = None
-        if ok:
-            code, vars = await self.get_code_and_vars(context)
-            result = await self.execute_code(context, code, vars)
-        return result
+        self.generate_extra(self_block)
 
-    async def get_extra_commands(self, context):
-        extra = await self.extra(context)
-        extra_before = extra_after = None
+        kwargs = {}
+        if self.conditions:
+            kwargs['conditions'] = self.conditions
+        if self.neg_conditions:
+            kwargs['neg_conditions'] = self.neg_conditions
 
-        if isinstance(extra, dict):
-            extra_before = extra.get('before')
-            extra_after = extra.get('after')
-        else:
-            extra_after = extra
+        block.add_command(self_block, **kwargs)
 
-        return extra_before, extra_after
+    def generate_self_block(self, block: PLBlock) -> typing.Optional[PLBlock]:
+        # Default implementation simply calls self.code()
+        self_block = block.add_block()
+        self_block.add_command(self.code(block))
+        return self_block
 
-    async def execute_code(self, context, code, vars):
-        extra_before, extra_after = await self.get_extra_commands(context)
+    def generate_extra(self, block: PLBlock) -> None:
+        pass
 
-        if extra_before:
-            for cmd in extra_before:
-                await cmd.execute(context)
-
-        result = await self._execute(context, code, vars)
-
-        if extra_after:
-            for cmd in extra_after:
-                await cmd.execute(context)
-
-        return result
-
-    async def _execute(self, context, code, vars):
-        if debug.flags.delta_execute:
-            debug.print(repr(self), '\n')
-            debug.print('CODE:', code)
-            debug.print('VARS:', vars)
-
-        stmt = await context.db.prepare(code)
-
-        if vars is None:
-            vars = []
-
-        result = await stmt.fetch(*vars)
-        return result
-
-    async def check_conditions(self, context, conditions, positive):
-        result = True
-        if conditions:
-            for condition in conditions:
-                result = await condition.execute(context)
-
-                if bool(result) ^ positive:
-                    result = False
-                    break
-            else:
-                result = True
-
-        return result
+    def code(self, block: PLBlock) -> str:
+        raise NotImplementedError
 
 
 class CommandGroup(Command):
@@ -179,24 +269,16 @@ class CommandGroup(Command):
     def add_commands(self, cmds):
         self.commands.extend(cmds)
 
-    async def _execute(self, context, code, vars):
-        if code:
-            result = await super()._execute(context, code, vars)
-        else:
-            result = await self.execute_commands(context)
+    def generate_self_block(self, block: PLBlock) -> typing.Optional[PLBlock]:
+        if not self.commands:
+            return None
 
-        return result
+        self_block = block.add_block()
 
-    async def execute_commands(self, context):
-        result = []
+        for cmd in self.commands:
+            cmd.generate(self_block)
 
-        for c in self.commands:
-            result.append(await c.execute(context))
-
-        return result
-
-    def get_code(self, context):
-        return None
+        return self_block
 
     @classmethod
     def as_markup(cls, self, *, ctx):
@@ -218,106 +300,66 @@ class CommandGroup(Command):
 
 
 class CompositeCommandGroup(CommandGroup):
-    async def code(self, context):
-        if self.commands:
-            prefix_code = self.prefix_code(context)
-            subcommands_code = await self.subcommands_code(context)
+    def generate_self_block(self, block: PLBlock) -> typing.Optional[PLBlock]:
+        if not self.commands:
+            return None
 
-            if subcommands_code:
-                return prefix_code + ' ' + subcommands_code
-        return False
+        self_block = block.add_block()
+        extra_block = self_block.add_block(attach=False)
+        prefix_code = self.prefix_code()
+        actions = []
+        dynamic_actions = []
 
-    def prefix_code(self):
-        return ''
-
-    async def subcommands_code(self, context):
-        cmds = []
         for cmd in self.commands:
-            if isinstance(cmd, tuple):
-                cond = True
-                if cmd[1]:
-                    cond = cond and await \
-                        self.check_conditions(context, cmd[1], True)
-                if cmd[2]:
-                    cond = cond and await \
-                        self.check_conditions(context, cmd[2], False)
-                if cond:
-                    cmds.append(await cmd[0].code(context))
-            else:
-                cmds.append(await cmd.code(context))
-        if cmds:
-            return ', '.join(cmds)
-        else:
-            return False
-
-    async def execute_commands(self, context):
-        # Sub-commands are always executed as part of code()
-        return None
-
-    async def extra(self, context):
-        extra = {}
-        for cmd in self.commands:
-            if isinstance(cmd, tuple):
-                cmd = cmd[0]
-            cmd_extra = await cmd.extra(context, self)
-            if cmd_extra:
-                if isinstance(cmd_extra, dict):
-                    extra_before = cmd_extra.get('before')
-                    extra_after = cmd_extra.get('after')
+            if isinstance(cmd, tuple) and (cmd[1] or cmd[2]):
+                action = cmd[0].code(block)
+                cmd[0].generate_extra(extra_block, self)
+                if isinstance(action, PLExpression):
+                    subcommand = \
+                        f"EXECUTE {ql(prefix_code)} || ' ' || {action}"
                 else:
-                    extra_before = []
-                    extra_after = cmd_extra
+                    subcommand = prefix_code + ' ' + action
+                block.add_command(
+                    subcommand, conditions=cmd[1], neg_conditions=cmd[2])
+            else:
+                action = cmd.code(block)
+                cmd.generate_extra(extra_block, self)
+                if isinstance(action, PLExpression):
+                    subcommand = \
+                        f"EXECUTE {ql(prefix_code)} || ' ' || {action}"
+                    dynamic_actions.append(subcommand)
+                else:
+                    actions.append(action)
 
-                if extra_before:
-                    try:
-                        extra["before"].extend(extra_before)
-                    except KeyError:
-                        extra["before"] = extra_before
+        if actions:
+            command = prefix_code + ' ' + ', '.join(actions)
+            block.add_command(command)
 
-                if extra_after:
-                    try:
-                        extra["after"].extend(extra_after)
-                    except KeyError:
-                        extra["after"] = extra_after
+        if dynamic_actions:
+            for action in dynamic_actions:
+                block.add_command(action)
 
-        return extra
+        if extra_block.has_statements():
+            block.add_command(extra_block)
+
+        return self_block
+
+    def prefix_code(self) -> str:
+        raise NotImplementedError
 
 
 class Condition(BaseCommand):
-    async def execute(self, context):
-        code, vars = await self.get_code_and_vars(context)
-
-        stmt = await context.db.prepare(code)
-        return await stmt.fetch(*vars)
-
-
-class Echo(Command):
-    def __init__(
-            self, msg, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(
-            conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
-        self._msg = msg
-
-    async def code(self, context):
-        return None, ()
-
-    async def execute_code(self, context, code, vars):
-        print(self._msg)
+    pass
 
 
 class Query(Command):
-    def __init__(self, text, params=(), type=None):
+    def __init__(self, text, *, type=None):
         super().__init__()
         self.text = text
-        self.params = params
         self.type = type
 
-    async def code(self, context):
-        return self.text, self.params
-
     def __repr__(self):
-        return '<Query {!r} {!r}>'.format(self.text, self.params)
+        return f'<Query {self.text!r}>'
 
 
 class DefaultMeta(type):

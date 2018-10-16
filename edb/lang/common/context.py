@@ -33,7 +33,9 @@ contexts through the AST structure.
 
 import bisect
 
-from edb.lang.common import ast, markup
+from edb.lang.common import ast
+from edb.lang.common import markup
+from edb.lang.common import typeutils
 
 
 class SourcePoint:
@@ -54,6 +56,45 @@ class ParserContext(markup.MarkupExceptionContext):
         self.end = end
         self.document = document
         self.filename = filename
+        if start.line is None and start.pointer is not None:
+            start.line, start.column = self.line_col_from_offset(start.pointer)
+        if end.line is None and end.pointer is not None:
+            end.line, end.column = self.line_col_from_offset(end.pointer)
+        if start.pointer is None and start.column is None:
+            start.pointer, start.column = self.offset_col_from_line(start.line)
+        if end.pointer is None and end.column is None:
+            end.pointer, end.column = self.offset_col_from_line(end.line)
+
+    def line_col_from_offset(self, offset):
+        line_no = 1
+        col_no = 1
+        remaining = offset
+
+        for line in self.buffer.split('\n'):
+            line_length = len(line) + 1
+            if line_length < remaining:
+                remaining -= line_length
+            else:
+                col_no = remaining
+                break
+            line_no += 1
+
+        return line_no, col_no
+
+    def offset_col_from_line(self, line_no):
+        offset = 0
+        col_no = 1
+
+        for i, line in enumerate(self.buffer.split('\n'), start=1):
+            line_length = len(line) + 1
+
+            if i == line_no:
+                col_no = line_length - len(line.lstrip())
+                break
+
+            offset += line_length
+
+        return offset, col_no
 
     @classmethod
     @markup.serializer.no_ref_detect
@@ -276,7 +317,7 @@ class ContextPropagator(ContextVisitor):
     def container_visit(self, node):
         ctxlist = []
         for el in node:
-            if isinstance(el, ast.AST) or ast.is_container(el):
+            if isinstance(el, ast.AST) or typeutils.is_container(el):
                 ctx = self.visit(el)
 
                 if isinstance(ctx, list):

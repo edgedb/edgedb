@@ -17,8 +17,9 @@
 #
 
 
-from edb.server.pgsql import common
+from ..common import quote_ident as qi
 
+from . import base
 from . import ddl
 
 
@@ -30,18 +31,10 @@ class Extension:
     def get_extension_name(self):
         return self.name
 
-    async def code(self, context):
-        name = common.quote_ident(self.get_extension_name())
-        schema = common.quote_ident(self.schema)
-        return 'CREATE EXTENSION {} WITH SCHEMA {}'.format(name, schema)
-
-    @classmethod
-    async def init_extension(cls, db):
-        pass
-
-    @classmethod
-    async def reset_connection(cls, connection):
-        pass
+    def code(self, block: base.PLBlock) -> str:
+        name = qi(self.get_extension_name())
+        schema = qi(self.schema)
+        return f'CREATE EXTENSION {name} WITH SCHEMA {schema}'
 
 
 class CreateExtension(ddl.DDLOperation):
@@ -55,9 +48,5 @@ class CreateExtension(ddl.DDLOperation):
         self.extension = extension
         self.opid = extension.name
 
-    async def code(self, context):
-        return await self.extension.code(context)
-
-    async def execute(self, context):
-        await super().execute(context)
-        await self.extension.init_extension(context.db)
+    def code(self, block: base.PLBlock) -> str:
+        return self.extension.code(block)

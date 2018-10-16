@@ -17,9 +17,12 @@
 #
 
 
-import re
+import textwrap
 
-from .. import common
+from ..common import qname as qn
+from ..common import quote_ident as qi
+from ..common import quote_type as qt
+
 from . import base
 
 
@@ -39,56 +42,41 @@ class Insert(DMLOperation):
         self.records = records
         self.returning = returning
 
-    async def code(self, context):
+    def code(self, block: base.PLBlock) -> str:
         cols = [(c.name, c.type)
                 for c in self.table.iter_columns(writable_only=True)]
 
-        vals = []
         placeholders = []
-        i = 1
 
         if isinstance(self.records, base.Query):
-            vals.extend(self.records.params)
-            qtext = re.sub(
-                r'\$(\d+)', lambda m: '$%s' % (int(m.groups(1)[0]) + i - 1),
-                self.records.text)
-            values_expr = '({})'.format(qtext)
+            values_expr = '({})'.format(self.records.text)
         else:
             for row in self.records:
                 placeholder_row = []
                 for col, coltype in cols:
                     val = getattr(row, col, None)
                     if val and isinstance(val, base.Query):
-                        vals.extend(val.params)
-                        qtext = re.sub(
-                            r'\$(\d+)',
-                            lambda m: '$%s' % (int(m.groups(1)[0]) + i - 1),
-                            val.text)
-                        placeholder_row.append(
-                            '(%s)%s' % (
-                                qtext, '::{}'.format(val.type)
-                                if val.type is not None else ''))
-                        i += len(val.params)
+                        cast = f'::{qt(val.type)}' if val.type else ''
+                        placeholder_row.append(f'({val.text.strip()}){cast}')
                     elif val is base.Default:
                         placeholder_row.append('DEFAULT')
                     else:
-                        vals.append(val)
-                        placeholder_row.append('$%d::%s' % (i, coltype))
-                        i += 1
-                placeholders.append('(%s)' % ','.join(placeholder_row))
+                        val = base.encode_value(val)
+                        placeholder_row.append(f'{val}::{coltype}')
 
-            values_expr = 'VALUES {}'.format(','.join(placeholders))
+                values_row = textwrap.indent(
+                    ',\n'.join(placeholder_row), '    ')
+                placeholders.append(f'(\n{values_row}\n)')
 
-        qi = common.quote_ident
-        code = 'INSERT INTO {} {} {}'.format(
-            common.qname(*self.table.name),
-            '(' + ','.join(qi(c[0]) for c in cols) + ')' if cols else '',
-            values_expr)
+            values_expr = 'VALUES\n' + ',\n'.join(placeholders)
 
+        col_list = textwrap.indent(',\n'.join(qi(c[0]) for c in cols), '    ')
+        cols = f'(\n{col_list}\n)' if cols else ''
+        code = f'INSERT INTO {qn(*self.table.name)} {cols}\n{values_expr}'
         if self.returning:
             code += ' RETURNING ' + ', '.join(self.returning)
 
-        return (code, vals)
+        return code
 
     def __repr__(self):
         if isinstance(self.records, base.Query):
@@ -97,7 +85,7 @@ class Insert(DMLOperation):
             rows = (', '.join('{}={!r}'.format(c, v) for c, v in row.items())
                     for row in self.records)
             vals = ', '.join('({})'.format(r) for r in rows)
-        return '<edb.sync.{} {} ({})>'.format(
+        return '<{} {} ({})>'.format(
             self.__class__.__name__, self.table.name, vals)
 
 
@@ -118,13 +106,9 @@ class Update(DMLOperation):
         }
         self.include_children = include_children
 
-    async def code(self, context):
-        e = common.quote_ident
-
+    def code(self, block: base.PLBlock) -> str:
         placeholders = []
-        vals = []
 
-        i = 1
         for f in self.fields:
             val = getattr(self.record, f)
 
@@ -132,21 +116,15 @@ class Update(DMLOperation):
                 continue
 
             if isinstance(val, base.Query):
-                expr = re.sub(
-                    r'\$(\d+)',
-                    lambda m: '$%s' % (int(m.groups(1)[0]) + i - 1), val.text)
+                expr = val.text
                 if not expr.startswith('('):
                     expr = '({})'.format(expr)
-                i += len(val.params)
-                vals.extend(val.params)
             elif isinstance(val, base.Default):
                 expr = 'DEFAULT'
             else:
-                expr = '$%d::%s' % (i, self.cols[f])
-                i += 1
-                vals.append(val)
+                expr = f'{base.encode_value(val)}::{self.cols[f]}'
 
-            placeholders.append('%s = %s' % (e(f), expr))
+            placeholders.append(f'{qi(f)} = {expr}')
 
         if self.condition:
             cond = []
@@ -157,29 +135,22 @@ class Update(DMLOperation):
                     field, value = condval
                     op = '='
 
-                field = e(field)
+                field = qi(field)
 
                 if value is None:
-                    cond.append('%s IS NULL' % field)
+                    cond.append(f'{field} IS NULL')
                 else:
                     if isinstance(value, base.Query):
-                        expr = re.sub(
-                            r'\$(\d+)',
-                            lambda m: '$%s' % (int(m.groups(1)[0]) + i - 1),
-                            value.text)
-                        cond.append('{} {} {}'.format(field, op, expr))
-                        i += len(value.params)
-                        vals.extend(value.params)
+                        expr = value.text
+                        cond.append(f'{field} {op} {expr}')
                     else:
-                        cond.append('%s %s $%d' % (field, op, i))
-                        vals.append(value)
-                        i += 1
+                        cond.append(f'{field} {op} {base.encode_value(value)}')
 
             where = 'WHERE ' + ' AND '.join(cond)
         else:
             where = ''
 
-        tabname = common.qname(*self.table.name)
+        tabname = qn(*self.table.name)
         if not self.include_children:
             tabname = 'ONLY {}'.format(tabname)
 
@@ -189,39 +160,15 @@ class Update(DMLOperation):
         if self.returning:
             code += ' RETURNING ' + ', '.join(self.returning)
 
-        return (code, vals)
+        return code
 
     def __repr__(self):
         expr = ','.join(
             '%s=%s' % (f, getattr(self.record, f)) for f in self.fields)
         where = ','.join('%s=%s' % (c[0], c[1])
                          for c in self.condition) if self.condition else ''
-        return '<edb.sync.%s %s %s (%s)>' % (
+        return '<%s %s %s (%s)>' % (
             self.__class__.__name__, self.table.name, expr, where)
-
-
-class Merge(Update):
-    async def code(self, context):
-        code = await super().code(context)
-
-        if not self.returning:
-            if self.condition:
-                cols = (common.quote_ident(c[0]) for c in self.condition)
-                returning = ','.join(cols)
-            else:
-                returning = '*'
-
-            code = (code[0] + ' RETURNING %s' % returning, code[1])
-        return code
-
-    async def execute(self, context):
-        result = await super().execute(context)
-
-        if not result:
-            op = Insert(self.table, records=[self.record])
-            result = await op.execute(context)
-
-        return result
 
 
 class Delete(DMLOperation):
@@ -232,20 +179,15 @@ class Delete(DMLOperation):
         self.condition = condition
         self.include_children = include_children
 
-    async def code(self, context):
-        e = common.quote_ident
-        where = ' AND '.join(
-            '%s = $%d' % (e(c[0]), i + 1)
-            for i, c in enumerate(self.condition))
+    def code(self, block: base.PLBlock) -> str:
+        where = ' AND '.join(f'{qi(c[0])} = {base.encode_value(c[1])}'
+                             for c in self.condition)
 
-        tabname = common.qname(*self.table.name)
+        tabname = qn(*self.table.name)
         if not self.include_children:
-            tabname = 'ONLY {}'.format(tabname)
-        code = 'DELETE FROM %s WHERE %s' % (tabname, where)
+            tabname = f'ONLY {tabname}'
 
-        vals = [c[1] for c in self.condition]
-
-        return (code, vals)
+        return f'DELETE FROM {tabname} WHERE {where}'
 
     def __repr__(self):
         where = ','.join('%s=%s' % (c[0], c[1]) for c in self.condition)

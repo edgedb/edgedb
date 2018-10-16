@@ -18,6 +18,7 @@
 
 
 import json
+import textwrap
 
 from .. import common
 from . import base
@@ -65,31 +66,27 @@ class DDLTrigger(metaclass=DDLTriggerMeta):
     operations = None
 
     @classmethod
-    async def before(cls, context, op):
+    def generate_before(cls, block, op):
         pass
 
     @classmethod
-    async def after(cls, context, op):
+    def generate_after(cls, block, op):
         pass
 
 
 class DDLOperation(base.Command):
-    async def execute(self, context):
+    def generate(self, block: base.PLBlock) -> None:
         triggers = DDLTriggerMeta.get_triggers(self.__class__)
 
-        for trigger in triggers:
-            cmd = await trigger.before(context, self)
-            if cmd:
-                await cmd.execute(context)
+        if not block.disable_ddl_triggers:
+            for trigger in triggers:
+                trigger.generate_before(block, self)
 
-        result = await super().execute(context)
+        super().generate(block)
 
-        for trigger in triggers:
-            cmd = await trigger.after(context, self)
-            if cmd:
-                await cmd.execute(context)
-
-        return result
+        if not block.disable_ddl_triggers:
+            for trigger in triggers:
+                trigger.generate_after(block, self)
 
 
 class SchemaObjectOperation(DDLOperation):
@@ -113,7 +110,7 @@ class Comment(DDLOperation):
         self.object = object
         self.text = text
 
-    async def code(self, context):
+    def code(self, block: base.PLBlock) -> str:
         object_type = self.object.get_type()
         object_id = self.object.get_id()
 
@@ -130,9 +127,11 @@ class ReassignOwned(DDLOperation):
         self.old_role = old_role
         self.new_role = new_role
 
-    async def code(self, context):
-        return (f'REASSIGN OWNED BY {common.quote_ident(self.old_role)} '
-                f'TO {common.quote_ident(self.new_role)}')
+    def code(self, block: base.PLBlock) -> str:
+        return (
+            f'REASSIGN OWNED BY {common.quote_ident(self.old_role)} '
+            f'TO {common.quote_ident(self.new_role)}'
+        )
 
 
 class GetMetadata(base.Command):
@@ -140,32 +139,29 @@ class GetMetadata(base.Command):
         super().__init__()
         self.object = object
 
-    async def code(self, context):
-        code = '''
+    def code(self, block: base.PLBlock) -> str:
+        oid = self.object.get_oid()
+        if isinstance(oid, base.Query):
+            qry = oid.text
+            objoid = block.declare_var('oid')
+            classoid = block.declare_var('oid')
+            objsubid = block.declare_var('oid')
+            block.add_command(
+                qry + f' INTO {objoid}, {classoid}, {objsubid}')
+        else:
+            objoid, classoid, objsubid = oid
+
+        return textwrap.dedent(f'''\
             SELECT
-                substr(description, 5)::json
+                substr(description, 5)::jsonb
              FROM
                 pg_description
              WHERE
-                objoid = $1 AND classoid = $2 AND objsubid = $3
+                objoid = {objoid}
+                AND classoid = {classoid}
+                AND objsubid = {objsubid}
                 AND substr(description, 1, 4) = '$CMR'
-        '''
-
-        oid = self.object.get_oid()
-        if isinstance(oid, base.Command):
-            oid = (await oid.execute(context))[0]
-
-        return code, oid
-
-    async def _execute(self, context, code, vars):
-        result = await super()._execute(context, code, vars)
-
-        if result:
-            result = result[0][0]
-        else:
-            result = None
-
-        return result
+        ''')
 
 
 class PutMetadata(DDLOperation):
@@ -173,21 +169,6 @@ class PutMetadata(DDLOperation):
         super().__init__(**kwargs)
         self.object = object
         self.metadata = metadata
-
-    async def _execute(self, context, code, vars):
-        metadata = self.metadata
-        desc = '$CMR{}'.format(json.dumps(metadata))
-
-        object_type = self.object.get_type()
-        object_id = self.object.get_id()
-
-        code = 'COMMENT ON {type} {id} IS {text}'.format(
-            type=object_type, id=object_id,
-            text=common.quote_literal(desc))
-
-        result = await base.Query(code).execute(context)
-
-        return result
 
     def __repr__(self):
         return \
@@ -199,57 +180,46 @@ class PutMetadata(DDLOperation):
 
 
 class SetMetadata(PutMetadata):
-    async def _execute(self, context, code, vars):
+    def code(self, block: base.PLBlock) -> str:
         metadata = self.metadata
         desc = '$CMR{}'.format(json.dumps(metadata))
 
         object_type = self.object.get_type()
         object_id = self.object.get_id()
 
-        code = 'COMMENT ON {type} {id} IS {text}'.format(
-            type=object_type, id=object_id,
-            text=common.quote_literal(desc))
-
-        result = await base.Query(code).execute(context)
-
-        return result
+        comment = common.quote_literal(desc)
+        return f'COMMENT ON {object_type} {object_id} IS {comment}'
 
 
 class UpdateMetadata(PutMetadata):
-    async def _execute(self, context, code, vars):
-        metadata = await GetMetadata(self.object).execute(context)
+    def code(self, block: base.PLBlock) -> str:
+        metadata_qry = GetMetadata(self.object).code(block)
+        json_v = block.declare_var('jsonb')
+        upd_v = block.declare_var('text')
+        block.add_command(
+            f'{json_v} := ({metadata_qry});')
 
-        if metadata is None:
-            metadata = {}
-
-        metadata.update(self.metadata)
-
-        desc = '$CMR{}'.format(json.dumps(metadata))
+        upd_metadata = common.quote_literal(json.dumps(self.metadata))
+        block.add_command(
+            f"{upd_v} := '$CMR' || ({json_v} || {upd_metadata})::text;")
 
         object_type = self.object.get_type()
         object_id = self.object.get_id()
 
-        code = 'COMMENT ON {type} {id} IS {text}'.format(
-            type=object_type, id=object_id,
-            text=common.quote_literal(desc))
-
-        result = await base.Query(code).execute(context)
-
-        return result
+        return textwrap.dedent(f'''\
+            IF {upd_v} IS NOT NULL THEN
+                EXECUTE 'COMMENT ON {object_type} {object_id} IS ' ||
+                    quote_literal({upd_v});
+            END IF;
+        ''')
 
 
 class CreateObject(SchemaObjectOperation):
-    async def extra(self, context):
-        ops = await super().extra(context)
-
+    def generate_extra(self, block: base.PLBlock) -> None:
+        super().generate_extra(block)
         if self.object.metadata:
-            if ops is None:
-                ops = []
-
             mdata = SetMetadata(self.object, self.object.metadata)
-            ops.append(mdata)
-
-        return ops
+            block.add_command(mdata.code(block))
 
 
 class RenameObject(SchemaObjectOperation):
@@ -260,29 +230,17 @@ class RenameObject(SchemaObjectOperation):
         self.altered_object.rename(new_name)
         self.new_name = new_name
 
-    async def extra(self, context):
-        ops = await super().extra(context)
-
-        if self.altered_object.metadata:
-            if ops is None:
-                ops = []
-
+    def generate_extra(self, block: base.PLBlock) -> None:
+        super().generate_extra(block)
+        if self.object.metadata:
             mdata = UpdateMetadata(
                 self.altered_object, self.altered_object.metadata)
-            ops.append(mdata)
-
-        return ops
+            block.add_command(mdata.code(block))
 
 
 class AlterObject(SchemaObjectOperation):
-    async def extra(self, context):
-        ops = await super().extra(context)
-
+    def generate_extra(self, block: base.PLBlock) -> None:
+        super().generate_extra(block)
         if self.object.metadata:
-            if ops is None:
-                ops = []
-
-            mdata = UpdateMetadata(self.object, self.object.metadata)
-            ops.append(mdata)
-
-        return ops
+            mdata = SetMetadata(self.object, self.object.metadata)
+            block.add_command(mdata.code(block))

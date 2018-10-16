@@ -68,6 +68,9 @@ class flags(metaclass=FlagsMeta):
     pgsql_parser = Flag(
         doc="Debug SQL parser.")
 
+    bootstrap = Flag(
+        doc="Debug server catalog bootstrap.")
+
     edgeql_parser = Flag(
         doc="Debug EdgeQL parser (rebuild grammar verbosly).")
 

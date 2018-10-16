@@ -18,9 +18,13 @@
 
 
 import collections
+import logging
+import re
 import uuid
 
+from edb.lang.common import context as parser_context
 from edb.lang.common import debug
+from edb.lang.common import exceptions
 
 from edb.lang.schema import delta as sd
 
@@ -170,15 +174,66 @@ class Backend(s_deltarepo.DeltaProvider):
 
         context = delta_cmds.CommandContext(self.connection)
 
+        if isinstance(plan, (s_db.CreateDatabase, s_db.DropDatabase)):
+            block = dbops.SQLBlock()
+        else:
+            block = dbops.PLTopBlock()
+
         try:
+            plan.generate(block)
+            ql_text = block.to_string()
+
+            if debug.flags.delta_execute:
+                debug.header('Delta Script')
+                debug.dump_code(ql_text, lexer='sql')
+
             if not isinstance(plan, (s_db.CreateDatabase, s_db.DropDatabase)):
                 async with self.connection.transaction():
+                    await self.connection.execute(ql_text)
                     # Execute all pgsql/delta commands.
-                    await plan.execute(context)
             else:
-                await plan.execute(context)
+                await self.connection.execute(ql_text)
         except Exception as e:
-            raise RuntimeError('failed to apply delta to data backend') from e
+            position = getattr(e, 'position', None)
+            internal_position = getattr(e, 'internal_position', None)
+            context = getattr(e, 'context', '')
+            if context:
+                pl_func_line = re.match(
+                    r'^PL/pgSQL function inline_code_block line (\d+).*$',
+                    getattr(e, 'context', ''))
+            else:
+                pl_func_line = None
+            point = None
+
+            if position is not None:
+                position = int(position)
+                point = parser_context.SourcePoint(
+                    None, None, position)
+                text = e.query
+                if text is None:
+                    # Parse errors
+                    text = ql_text
+
+            elif internal_position is not None:
+                internal_position = int(internal_position)
+                point = parser_context.SourcePoint(
+                    None, None, internal_position)
+                text = e.internal_query
+
+            elif pl_func_line:
+                line = int(pl_func_line.group(1))
+                point = parser_context.SourcePoint(
+                    line, None, None
+                )
+                text = ql_text
+
+            if point is not None:
+                context = parser_context.ParserContext(
+                    'query', text, start=point, end=point)
+                exceptions.replace_context(e, context)
+
+            raise
+
         finally:
             # Exception or not, re-read the schema from Postgres.
             await self.invalidate_schema_cache()
@@ -302,5 +357,19 @@ class Backend(s_deltarepo.DeltaProvider):
 
 async def open_database(pgconn):
     bk = Backend(pgconn)
+    pgconn.add_log_listener(pg_log_listener)
     await bk.getschema()
     return bk
+
+
+logger = logging.getLogger('edb.backend')
+
+
+def pg_log_listener(conn, msg):
+    if msg.severity_en == 'NOTICE':
+        level = logging.INFO
+    elif msg.severity_en == 'WARNING':
+        level = logging.WARNING
+    else:
+        level = logging.DEBUG
+    logger.log(level, msg.message)

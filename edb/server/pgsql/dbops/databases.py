@@ -17,6 +17,8 @@
 #
 
 
+import textwrap
+
 from .. import common
 from . import base
 from . import ddl
@@ -27,7 +29,6 @@ class Database(base.DBObject):
         super().__init__()
         self.name = name
         self.owner = owner
-        self.add_metadata('edgedb', True)
 
     def get_type(self):
         return 'DATABASE'
@@ -40,14 +41,15 @@ class DatabaseExists(base.Condition):
     def __init__(self, name):
         self.name = name
 
-    async def code(self, context):
-        code = '''SELECT
-                        typname
-                    FROM
-                        pg_catalog.pg_database db
-                    WHERE
-                        datname = $1'''
-        return code, self.name
+    def code(self, block: base.PLBlock) -> str:
+        return textwrap.dedent(f'''\
+            SELECT
+                typname
+            FROM
+                pg_catalog.pg_database AS db
+            WHERE
+                datname = {common.quote_literal(self.name)}
+        ''')
 
 
 class CreateDatabase(ddl.CreateObject):
@@ -58,7 +60,7 @@ class CreateDatabase(ddl.CreateObject):
             priority=priority)
         self.object = db
 
-    async def code(self, context):
+    def code(self, block: base.PLBlock) -> str:
         extra = ''
         if self.object.owner:
             extra += f' OWNER={self.object.owner}'
@@ -67,11 +69,6 @@ class CreateDatabase(ddl.CreateObject):
 
 
 class DropDatabase(ddl.SchemaObjectOperation):
-    def __init__(
-            self, name, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(
-            name, conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
 
-    async def code(self, context):
-        return 'DROP DATABASE {}'.format(common.quote_ident(self.name))
+    def code(self, block: base.PLBlock) -> str:
+        return f'DROP DATABASE {common.quote_ident(self.name)}'

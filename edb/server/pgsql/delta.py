@@ -22,6 +22,7 @@ import itertools
 import json
 import pickle
 import re
+import textwrap
 import uuid
 
 from edb.lang.edgeql import ast as ql_ast
@@ -51,15 +52,16 @@ from edb.lang.schema import sources as s_sources
 from edb.lang.schema import types as s_types
 
 from edb.lang.common import ordered
-from edb.lang.common import debug
 from edb.lang.common import markup, nlang
 
 from edb.lang.ir import utils as irutils
 
 from edb.server.pgsql import common
+
 from edb.server.pgsql import dbops, deltadbops, metaschema
 
 from . import ast as pg_ast
+from .common import quote_literal as ql
 from . import compiler
 from . import codegen
 from . import datasources
@@ -93,14 +95,11 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
         for op in self.ops:
             self.pgops.add(op)
 
-    async def execute(self, context):
-        if debug.flags.delta_execute:
-            debug.print('EXECUTING', repr(self))
-
+    def generate(self, block: dbops.PLBlock) -> None:
         for op in sorted(
                 self.pgops, key=lambda i: getattr(i, 'priority', 0),
                 reverse=True):
-            await op.execute(context)
+            op.generate(block)
 
     @classmethod
     def as_markup(cls, self, *, ctx):
@@ -162,6 +161,31 @@ class TypeDesc(_TypeDesc):
         )
 
         return uuid.uuid5(TYPE_ID_NAMESPACE, s)
+
+    def encode(self):
+        if self.subtypes:
+            subtype_list = ', '.join(ql(str(st)) for st in self.subtypes)
+            subtypes = f'ARRAY[{subtype_list}]'
+        else:
+            subtypes = 'ARRAY[]::uuid[]'
+
+        if self.dimensions:
+            dimensions_list = ', '.join(ql(str(d)) for d in self.dimensions)
+            dimensions = f'ARRAY[{dimensions_list}]'
+        else:
+            dimensions = 'ARRAY[]::int[]'
+
+        items = [
+            ql(str(self.id)),
+            ql(self.maintype) if self.maintype else 'NULL',
+            ql(self.name) if self.name else 'NULL',
+            ql(self.collection) if self.collection else 'NULL',
+            subtypes,
+            dimensions,
+            str(self.is_root)
+        ]
+
+        return '(' + ', '.join(items) + ')'
 
 
 class NamedObjectMetaCommand(
@@ -255,16 +279,24 @@ class NamedObjectMetaCommand(
         if result is not value and recvalue is None:
             names = result
             if isinstance(names, list):
-                recvalue = dbops.Query(
-                    '''SELECT edgedb._encode_type(
-                        ROW($1::edgedb.type_desc_node_t[])::edgedb.typedesc_t)
-                    ''',
-                    [names], type='edgedb.type_t')
+                names_str = textwrap.indent(
+                    ',\n'.join(n.encode() for n in names),
+                    ' ' * 8
+                ).lstrip()
+
+                recvalue = dbops.Query(textwrap.dedent('''\
+                    SELECT edgedb._encode_type(
+                        ROW(ARRAY[
+                            {names}
+                        ]::edgedb.type_desc_node_t[])::edgedb.typedesc_t
+                    )
+                ''').format(names=names_str), type=('edgedb', 'type_t'))
             else:
-                recvalue = dbops.Query(
-                    '''SELECT array_agg(id) FROM edgedb.NamedObject
-                       WHERE name = any($1::text[])''',
-                    [names], type='uuid[]')
+                name_array = ', '.join(ql(n) for n in names)
+                recvalue = dbops.Query(textwrap.dedent(f'''\
+                    SELECT array_agg(id) FROM edgedb.NamedObject
+                    WHERE name = any(ARRAY[{name_array}]::text[])
+                '''), type='uuid[]')
 
         elif recvalue is None:
             if result is None and use_defaults:
@@ -1588,10 +1620,10 @@ class CreateObjectType(ObjectTypeMetaCommand,
             constr_name = common.edgedb_name_to_pg_name(
                 self.classname + '.class_check')
 
-            constr_expr = dbops.Query("""
+            constr_expr = dbops.Query(textwrap.dedent(f"""\
                 SELECT '"std::__type__" = ' || quote_literal(id)
-                FROM edgedb.ObjectType WHERE name = $1
-            """, [objtype.name], type='text')
+                FROM edgedb.ObjectType WHERE name = {ql(objtype.name)}
+            """), type='text')
 
             cid_constraint = dbops.CheckConstraint(
                 self.table_name, constr_name, constr_expr, inherit=False)
@@ -2992,9 +3024,9 @@ class AlterDatabase(ObjectMetaCommand, adapts=s_db.AlterDatabase):
     def is_material(self):
         return True
 
-    async def execute(self, context):
+    def generate(self, block: dbops.PLBlock) -> None:
         for op in self.serialize_ops():
-            await op.execute(context)
+            op.generate(block)
 
     def serialize_ops(self):
         queues = {}

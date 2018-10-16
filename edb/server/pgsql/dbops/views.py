@@ -19,7 +19,8 @@
 
 import textwrap
 
-from .. import common
+from ..common import qname as qn
+
 from . import base
 from . import ddl
 
@@ -38,12 +39,6 @@ class CreateView(ddl.SchemaObjectOperation):
                          neg_conditions=neg_conditions, priority=priority)
         self.view = view
 
-    async def code(self, context):
-        code = (
-            'CREATE VIEW {name} AS\n{query}'
-        ).format(
-            name=common.qname(*self.view.name),
-            query=textwrap.indent(textwrap.dedent(self.view.query), '    ')
-        )
-
-        return code
+    def code(self, block: base.PLBlock) -> str:
+        query = textwrap.indent(textwrap.dedent(self.view.query), '    ')
+        return f'CREATE VIEW {qn(*self.view.name)} AS\n{query}'

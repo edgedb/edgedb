@@ -49,5 +49,5 @@ class Constraint(base.DBObject):
         else:
             return self._constraint_name
 
-    async def constraint_code(self):
+    def constraint_code(self, block: base.PLBlock) -> str:
         raise NotImplementedError

@@ -18,9 +18,12 @@
 
 
 import json
+import textwrap
+import typing
 
-from .. import common
-from ..datasources import introspection
+from ..common import qname as qn
+from ..common import quote_ident as qi
+from ..common import quote_literal as ql
 
 from . import base
 from . import ddl
@@ -32,8 +35,8 @@ class TriggerExists(base.Condition):
         self.trigger_name = trigger_name
         self.table_name = table_name
 
-    async def code(self, context):
-        code = '''
+    def code(self, block: base.PLBlock) -> str:
+        return textwrap.dedent(f'''\
             SELECT
                 tg.tgname
             FROM
@@ -43,10 +46,10 @@ class TriggerExists(base.Condition):
                 INNER JOIN pg_catalog.pg_namespace ns
                     ON (ns.oid = tab.relnamespace)
             WHERE
-                tab.relname = $3 AND ns.nspname = $2 AND tg.tgname = $1
-        '''
-
-        return code, (self.trigger_name, ) + self.table_name
+                tab.relname = {ql(self.table_name[1])}
+                AND ns.nspname = {ql(self.table_name[0])}
+                AND tg.tgname = {ql(self.trigger_name)}
+        ''')
 
 
 class Trigger(tables.InheritableTableObject):
@@ -77,11 +80,10 @@ class Trigger(tables.InheritableTableObject):
         return 'TRIGGER'
 
     def get_id(self):
-        return '{} ON {}'.format(
-            common.quote_ident(self.name), common.qname(*self.table_name))
+        return f'{qi(self.name)} ON {qn(*self.table_name)}'
 
     def get_oid(self):
-        qry = '''
+        qry = textwrap.dedent(f'''\
             SELECT
                 'pg_trigger'::regclass::oid AS classoid,
                 pg_trigger.oid AS objectoid,
@@ -91,13 +93,35 @@ class Trigger(tables.InheritableTableObject):
                 INNER JOIN pg_class ON tgrelid = pg_class.oid
                 INNER JOIN pg_namespace ON relnamespace = pg_namespace.oid
             WHERE
-                tgname = $1
-                AND nspname = $2
-                AND relname = $3
-        '''
-        params = (self.name, ) + self.table_name
+                tgname = {ql(self.name)}
+                AND nspname = {ql(self.table_name[0])}
+                AND relname = {ql(self.table_name[1])}
+        ''')
 
-        return base.Query(text=qry, params=params)
+        return base.Query(text=qry)
+
+    def declare_pl_desc_var(self, block: base.PLBlock) -> str:
+        desc_var = block.declare_var(('edgedb', 'intro_trigger_desc_t'))
+        events = ', '.join(ql(e) for e in self.events)
+
+        code = textwrap.dedent(f'''\
+            {desc_var}.table_name := ARRAY[
+                {ql(self.table_name[0])}, {ql(self.table_name[1])}];
+            {desc_var}.name := {ql(self.name)};
+            {desc_var}.proc := ARRAY[
+                {ql(self.procedure[0])}, {ql(self.procedure[1])}];
+            {desc_var}.is_constraint := {self.is_constraint};
+            {desc_var}.granularity := {ql(self.granularity)};
+            {desc_var}.timing := {ql(self.timing)};
+            {desc_var}.events := ARRAY[{events}]::text[];
+            {desc_var}.condition := {ql(self.condition) if self.condition
+                                     else 'NULL'};
+            {desc_var}.metadata := {ql(json.dumps(self.metadata))};
+        ''')
+
+        block.add_command(code)
+
+        return desc_var
 
     @classmethod
     def from_introspection(cls, table_name, trigger_data):
@@ -150,7 +174,7 @@ class Trigger(tables.InheritableTableObject):
                 mod=self.__class__.__module__,
                 cls=self.__class__.__name__,
                 name=self.name,
-                table_name=common.qname(*self.table_name),
+                table_name=qn(*self.table_name),
                 timing=self.timing,
                 events=' OR '.join(self.events))
 
@@ -163,22 +187,75 @@ class CreateTrigger(tables.CreateInheritableTableObject):
             self.neg_conditions.add(
                 TriggerExists(self.trigger.name, self.trigger.table_name))
 
-    async def code(self, context):
-        return '''
+    def code(self, block: base.PLBlock) -> str:
+        return textwrap.dedent('''\
             CREATE {constr}TRIGGER {trigger_name} {timing} {events}
                    ON {table_name}
                    FOR EACH {granularity} {condition}
                    EXECUTE PROCEDURE {procedure}
-        '''.format(
+        ''').format(
             constr='CONSTRAINT ' if self.trigger.is_constraint else '',
-            trigger_name=common.quote_ident(self.trigger.name),
+            trigger_name=qi(self.trigger.name),
             timing=self.trigger.timing,
             events=' OR '.join(self.trigger.events),
-            table_name=common.qname(*self.trigger.table_name),
+            table_name=qn(*self.trigger.table_name),
             granularity=self.trigger.granularity, condition=(
                 'WHEN ({})'.format(self.trigger.condition)
                 if self.trigger.condition else ''),
-            procedure='{}()'.format(common.qname(*self.trigger.procedure)))
+            procedure='{}()'.format(qn(*self.trigger.procedure)))
+
+    @classmethod
+    def pl_code(cls, desc_var: str, block: base.PLBlock) -> str:
+        constr = (
+            f"(CASE WHEN {desc_var}.is_constraint IS NOT NULL"
+            f" THEN 'CONSTRAINT ' ELSE '' END)"
+        )
+        table_name = (
+            f"(quote_ident({desc_var}.table_name[1])"
+            f" || '.' || quote_ident({desc_var}.table_name[2]))"
+        )
+        events = (
+            f"(SELECT string_agg(upper(e), ' OR ')"
+            f" FROM unnest({desc_var}.events) AS e)"
+        )
+
+        cond_var = block.declare_var('text', 'cond')
+
+        condition_code = textwrap.dedent(f"""\
+            {cond_var} := COALESCE(
+                {desc_var}.condition,
+                edgedb._parse_trigger_condition({desc_var}.definition)
+            );
+        """)
+
+        condition = (
+            f"(CASE WHEN {cond_var} IS NOT NULL "
+            f"THEN 'WHEN (' || {cond_var} || ')' "
+            f"ELSE '' END)"
+        )
+
+        procedure = (
+            f"(quote_ident({desc_var}.proc[1])"
+            f" || '.' || quote_ident({desc_var}.proc[2]) || '()')"
+        )
+
+        return condition_code + textwrap.dedent(f'''\
+            EXECUTE
+                'CREATE ' || {constr}
+                || 'TRIGGER ' || quote_ident({desc_var}.name)
+                || ' ' || upper({desc_var}.timing) || ' '
+                || {events}
+                || ' ON ' || {table_name}
+                || ' FOR EACH ' || upper({desc_var}.granularity) || ' '
+                || {condition}
+                || ' EXECUTE PROCEDURE ' || {procedure}
+                ;
+            EXECUTE
+                'COMMENT ON TRIGGER ' || quote_ident({desc_var}.name)
+                || ' ON ' || {table_name} || ' IS '
+                || quote_literal('$CMR' || {desc_var}.metadata::text)
+                ;
+        ''')
 
 
 class AlterTriggerRenameTo(tables.RenameInheritableTableObject):
@@ -189,11 +266,23 @@ class AlterTriggerRenameTo(tables.RenameInheritableTableObject):
             self.conditions.add(
                 TriggerExists(self.trigger.name, self.trigger.table_name))
 
-    async def code(self, context):
-        return 'ALTER TRIGGER {} ON {} RENAME TO {}'.format(
-            common.quote_ident(self.trigger.name),
-            common.qname(*self.trigger.table_name),
-            common.quote_ident(self.new_name))
+    def code(self, block: base.PLBlock) -> str:
+        return (f'ALTER TRIGGER {qi(self.trigger.name)} '
+                f'ON {qn(*self.trigger.table_name)} '
+                f'RENAME TO {qi(self.new_name)}')
+
+    def pl_code(self, desc_var: str, block: base.PLBlock) -> str:
+        table_name = (
+            f"(quote_ident({desc_var}.table_name[1])"
+            f" || '.' || quote_ident({desc_var}.table_name[2]))"
+        )
+
+        return textwrap.dedent(f'''\
+            EXECUTE
+                'ALTER TRIGGER ' || quote_ident({desc_var}.name)
+                || ' ON ' || {table_name}
+                || ' RENAME TO {qi(self.new_name)}';
+        ''')
 
 
 class DropTrigger(tables.DropInheritableTableObject):
@@ -204,10 +293,23 @@ class DropTrigger(tables.DropInheritableTableObject):
             self.conditions.add(
                 TriggerExists(self.trigger.name, self.trigger.table_name))
 
-    async def code(self, context):
-        return 'DROP TRIGGER {trigger_name} ON {table_name}'.format(
-            trigger_name=common.quote_ident(self.trigger.name),
-            table_name=common.qname(*self.trigger.table_name))
+    def code(self, block: base.PLBlock) -> str:
+        return (f'DROP TRIGGER {qi(self.trigger.name)} '
+                f'ON {qn(*self.trigger.table_name)}')
+
+    @classmethod
+    def pl_code(cls, desc_var: str, block: base.PLBlock) -> str:
+        table_name = (
+            f"(quote_ident({desc_var}.table_name[1])"
+            f" || '.' || quote_ident({desc_var}.table_name[2]))"
+        )
+
+        return textwrap.dedent(f'''\
+            EXECUTE
+                'DROP TRIGGER ' || quote_ident({desc_var}.name)
+                || 'ON ' || {table_name}
+                ;
+        ''')
 
 
 class DisableTrigger(ddl.DDLOperation):
@@ -216,13 +318,10 @@ class DisableTrigger(ddl.DDLOperation):
         self.trigger = trigger
         self.self_only = self_only
 
-    async def code(self, context):
-        return \
-            'ALTER TABLE{only} {table_name} ' \
-            'DISABLE TRIGGER {trigger_name}'.format(
-                trigger_name=common.quote_ident(self.trigger.name),
-                table_name=common.qname(*self.trigger.table_name),
-                only=' ONLY' if self.self_only else '')
+    def code(self, block: base.PLBlock) -> str:
+        only = ' ONLY' if self.self_only else ''
+        return (f'ALTER TABLE{only} {qn(*self.trigger.table_name)} '
+                f'DISABLE TRIGGER {qi(self.trigger.name)}')
 
     def __repr__(self):
         return '<{mod}.{cls} {trigger!r}>'.format(
@@ -233,20 +332,25 @@ class DisableTrigger(ddl.DDLOperation):
 
 class DDLTriggerBase:
     @classmethod
-    async def get_inherited_triggers(cls, db, table_name, bases):
-        bases = ['{}.{}'.format(*base.name) for base in bases]
+    def get_inherited_triggers(
+        cls,
+        block: base.PLBlock,
+        bases: typing.List[typing.Tuple[str, str]]
+    ) -> typing.Tuple[str, str]:
+        bases = [ql('{}.{}'.format(*base.name)) for base in bases]
+        var = block.declare_var(
+            ('edgedb', 'intro_trigger_desc_t'), 't', shared=True)
 
-        trig_records = await introspection.tables.fetch_triggers(
-            db, table_list=bases, inheritable_only=True)
-
-        triggers = []
-        for row in trig_records:
-            for r in row['triggers']:
-                trg = Trigger.from_introspection(table_name, r)
-                trg.add_metadata('ddl:inherited', True)
-                triggers.append(trg)
-
-        return triggers
+        return var, textwrap.dedent(f'''\
+            SELECT DISTINCT ON (triggers.name)
+                triggers.*
+            FROM
+                edgedb.introspect_triggers(
+                    table_list := ARRAY[{', '.join(bases)}]::text[],
+                    inheritable_only := TRUE,
+                    include_inherited := TRUE
+                ) AS triggers
+        ''')
 
 
 class DDLTriggerCreateTable(
@@ -254,10 +358,11 @@ class DDLTriggerCreateTable(
     operations = tables.CreateTable,
 
     @classmethod
-    async def after(cls, context, op):
+    def generate_after(cls, block, op):
         # Apply inherited triggers
-        return await cls.apply_inheritance(
-            context, op, cls.get_inherited_triggers, CreateTrigger)
+        return cls.apply_inheritance(
+            block, op, cls.get_inherited_triggers, CreateTrigger,
+            comment='Trigger inheritance propagation on type table creation.')
 
 
 class DDLTriggerAlterTable(
@@ -265,7 +370,7 @@ class DDLTriggerAlterTable(
     operations = tables.AlterTable,
 
     @classmethod
-    async def after(cls, context, op):
-        return await cls.apply_inheritance(
-            context, op, cls.get_inherited_triggers, CreateTrigger,
-            DropTrigger)
+    def generate_after(cls, block, op):
+        return cls.apply_inheritance(
+            block, op, cls.get_inherited_triggers, CreateTrigger, DropTrigger,
+            comment='Trigger inheritance propagation on type table alter.')

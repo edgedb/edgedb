@@ -19,7 +19,11 @@
 
 import textwrap
 
-from .. import common
+from ..common import qname as qn
+from ..common import quote_ident as qi
+from ..common import quote_literal as ql
+from ..common import quote_type as qt
+
 from . import base
 from . import ddl
 
@@ -49,8 +53,10 @@ class FunctionExists(base.Condition):
         self.name = name
         self.args = args
 
-    async def code(self, context):
-        code = '''
+    def code(self, block: base.PLBlock) -> str:
+        args = f"ARRAY[{','.join(qi(a) for a in self.args)}]"
+
+        return textwrap.dedent(f'''\
             SELECT
                 p.proname
             FROM
@@ -58,15 +64,14 @@ class FunctionExists(base.Condition):
                 INNER JOIN pg_catalog.pg_namespace ns
                     ON (ns.oid = p.pronamespace)
             WHERE
-                p.proname = $2 AND ns.nspname = $1
-                AND ($3::text[] IS NULL
-                     OR $3::text[] = ARRAY(SELECT
-                                              format_type(t, NULL)::text
-                                            FROM
-                                              unnest(p.proargtypes) t))
-        '''
-
-        return code, self.name + (self.args, )
+                p.proname = {ql(self.name[1])}
+                AND ns.nspname = {ql(self.name[0])}
+                AND {args}::text[] = ARRAY(
+                    SELECT
+                        format_type(t, NULL)::text
+                    FROM
+                        unnest(p.proargtypes) AS t)
+        ''')
 
 
 class FunctionOperation:
@@ -81,9 +86,9 @@ class FunctionOperation:
 
             if isinstance(arg, tuple):
                 if arg[0] is not None:
-                    arg_expr += common.qname(arg[0])
+                    arg_expr += qn(arg[0])
                 if len(arg) > 1:
-                    arg_expr += ' ' + common.quote_type(arg[1])
+                    arg_expr += ' ' + qt(arg[1])
                     if vararg:
                         arg_expr += '[]'
                 if include_defaults:
@@ -103,7 +108,7 @@ class CreateFunction(ddl.DDLOperation, FunctionOperation):
         super().__init__(**kwargs)
         self.function = function
 
-    async def code(self, context):
+    def code(self, block: base.PLBlock) -> str:
         args = self.format_args(self.function.args, self.function.variadic_arg)
 
         code = textwrap.dedent('''
@@ -114,9 +119,9 @@ class CreateFunction(ddl.DDLOperation, FunctionOperation):
             $____funcbody____$
             LANGUAGE {lang} {volatility} {strict};
         ''').format_map({
-            'name': common.qname(*self.function.name),
+            'name': qn(*self.function.name),
             'args': args,
-            'returns': common.quote_type(self.function.returns),
+            'returns': qt(self.function.returns),
             'lang': self.function.language,
             'volatility': self.function.volatility.upper(),
             'text': textwrap.dedent(self.function.text).strip(),
@@ -131,8 +136,13 @@ class CreateOrReplaceFunction(ddl.DDLOperation, FunctionOperation):
         super().__init__(**kwargs)
         self.function = function
 
-    async def code(self, context):
+    def code(self, block: base.PLBlock) -> str:
         args = self.format_args(self.function.args, self.function.variadic_arg)
+        ret = self.function.returns
+        if isinstance(ret, tuple):
+            returns = f'{qi(ret[0])}.{qt(ret[1])}'
+        else:
+            returns = qt(ret)
 
         code = textwrap.dedent('''
             CREATE OR REPLACE FUNCTION {name}({args})
@@ -142,9 +152,9 @@ class CreateOrReplaceFunction(ddl.DDLOperation, FunctionOperation):
             $____funcbody____$
             LANGUAGE {lang} {volatility} {strict};
         ''').format_map({
-            'name': common.qname(*self.function.name),
+            'name': qn(*self.function.name),
             'args': args,
-            'returns': common.quote_type(self.function.returns),
+            'returns': returns,
             'lang': self.function.language,
             'volatility': self.function.volatility.upper(),
             'text': textwrap.dedent(self.function.text).strip(),
@@ -183,12 +193,10 @@ class AlterFunctionSetSchema(ddl.DDLOperation):
         self.args = args
         self.new_schema = new_schema
 
-    async def code(self, context):
-        code = 'ALTER FUNCTION {}({}) SET SCHEMA {}'.format(
-            common.qname(*self.name),
-            ', '.join(common.quote_ident(a) for a in self.args),
-            common.quote_ident(self.new_schema))
-        return code
+    def code(self, block: base.PLBlock) -> str:
+        args = ', '.join(qi(a) for a in self.args)
+        return (f'ALTER FUNCTION {qn(*self.name)}({args}) '
+                f'SET SCHEMA {qi(self.new_schema)}')
 
 
 class AlterFunctionRenameTo(ddl.DDLOperation):
@@ -202,12 +210,10 @@ class AlterFunctionRenameTo(ddl.DDLOperation):
         self.args = args
         self.new_name = new_name
 
-    async def code(self, context):
-        code = 'ALTER FUNCTION {}({}) RENAME TO {}'.format(
-            common.qname(*self.name),
-            ', '.join(common.quote_ident(a) for a in self.args),
-            common.quote_ident(self.new_name))
-        return code
+    def code(self, block: base.PLBlock) -> str:
+        args = ', '.join(qi(a) for a in self.args)
+        return (f'ALTER FUNCTION {qn(*self.name)}({args}) '
+                f'RENAME TO {qi(self.new_name)}')
 
 
 class DropFunction(ddl.DDLOperation, FunctionOperation):
@@ -232,10 +238,8 @@ class DropFunction(ddl.DDLOperation, FunctionOperation):
         self.args = args
         self.variadic_arg = variadic_arg
 
-    async def code(self, context):
-        code = 'DROP FUNCTION{} {}({})'.format(
-            ' IF EXISTS' if self.conditional else '',
-            common.qname(*self.name),
-            self.format_args(self.args, self.variadic_arg,
-                             include_defaults=False))
-        return code
+    def code(self, block: base.PLBlock) -> str:
+        ifexists = ' IF EXISTS' if self.conditional else ''
+        args = self.format_args(self.args, self.variadic_arg,
+                                include_defaults=False)
+        return f'DROP FUNCTION{ifexists} {qn(*self.name)}({args})'

@@ -30,7 +30,6 @@ from edb.lang import edgeql
 from edb.server.pgsql import common
 from edb.server.pgsql import dbops
 from edb.server.pgsql import metaschema
-from edb.server.pgsql.dbops import catalogs as pg_catalogs
 
 
 class SchemaDBObjectMeta(adapter.Adapter, type(s_obj.Object)):
@@ -87,15 +86,10 @@ class ConstraintCommon:
         name = '{};{}'.format(self._constraint.name, 'schemaconstr')
         return name
 
-    async def extra(self, context):
+    def generate_extra(self, block):
         text = self.raw_constraint_name()
         cmd = dbops.Comment(object=self, text=text)
-        return [cmd]
-
-    def rename_extra(self, context, new_constraint):
-        new_name = new_constraint.raw_constraint_name()
-        cmd = dbops.Comment(object=new_constraint, text=new_name)
-        return [cmd]
+        cmd.generate(block)
 
     @property
     def is_abstract(self):
@@ -109,50 +103,14 @@ class SchemaConstraintDomainConstraint(
         self._exprdata = exprdata
         self._constraint = constraint
 
-    async def extra(self, context):
-        # There seems to be no direct way to COMMENT on a domain constraint.
-        # See http://postgr.es/m/5310157.yWWCtg2qIU@klinga.prans.org
-        # Work this around by updating pg_description directly.
-        #
-        # text = self.raw_constraint_name()
-        # cmd = dbops.Comment(object=self, text=text)
-        # return [cmd]
-
-        table = pg_catalogs.PgDescriptionTable()
-        rec = table.record()
-
-        objoid = dbops.Query(
-            '(SELECT oid FROM pg_constraint WHERE conname = $1)',
-            [self.constraint_name(quote=False)], type='oid')
-
-        classoid = dbops.Query(
-            '''(SELECT c.oid
-                    FROM
-                        pg_class c INNER JOIN pg_namespace ns
-                            ON c.relnamespace = ns.oid
-                    WHERE
-                        c.relname = 'pg_constraint' AND
-                        ns.nspname = 'pg_catalog')
-            ''', [], type='oid')
-
-        rec.objoid = objoid
-        rec.classoid = classoid
-        rec.description = self.raw_constraint_name()
-        rec.objsubid = 0
-
-        cond = [('objoid', objoid), ('classoid', classoid)]
-        cmd = dbops.Merge(table=table, record=rec, condition=cond)
-
-        return [cmd]
-
-    async def constraint_code(self, context):
+    def constraint_code(self, block: dbops.PLBlock) -> str:
         if len(self._exprdata) == 1:
             expr = self._exprdata[0]['exprdata']['plain']
         else:
             exprs = [e['plain'] for e in self._exprdata['exprdata']]
             expr = '(' + ') AND ('.join(exprs) + ')'
 
-        return 'CHECK ({})'.format(expr)
+        return f'CHECK ({expr})'
 
     def __repr__(self):
         return '<{}.{} "{}" "%r">' % (
@@ -168,7 +126,7 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         self._scope = scope
         self._type = type
 
-    async def constraint_code(self, context):
+    def constraint_code(self, block: dbops.PLBlock) -> str:
         if self._scope == 'row':
             if len(self._exprdata) == 1:
                 expr = self._exprdata[0]['exprdata']['plain']
@@ -176,7 +134,7 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
                 exprs = [e['exprdata']['plain'] for e in self._exprdata]
                 expr = '(' + ') AND ('.join(exprs) + ')'
 
-            expr = 'CHECK ({})'.format(expr)
+            expr = f'CHECK ({expr})'
 
         else:
             if self._type != 'unique':
@@ -199,7 +157,7 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
                     chunks = expr['exprdata']['plain_chunks']
                     expr = ', '.join(
                         "{} WITH =".format(chunk) for chunk in chunks)
-                    expr = 'EXCLUDE ({})'.format(expr)
+                    expr = f'EXCLUDE ({expr})'
 
                 constr_exprs.append(expr)
 
@@ -311,15 +269,15 @@ class MultiConstraintItem:
 
 
 class AlterTableAddMultiConstraint(dbops.AlterTableAddConstraint):
-    async def code(self, context):
-        exprs = await self.constraint.constraint_code(context)
+    def code(self, block: dbops.PLBlock) -> str:
+        exprs = self.constraint.constraint_code(block)
 
         if isinstance(exprs, list) and len(exprs) > 1:
             chunks = []
 
             for i, expr in enumerate(exprs):
                 name = self.constraint.numbered_constraint_name(i)
-                chunk = 'ADD CONSTRAINT {} {}'.format(name, expr)
+                chunk = f'ADD CONSTRAINT {name} {expr}'
                 chunks.append(chunk)
 
             code = ', '.join(chunks)
@@ -328,14 +286,14 @@ class AlterTableAddMultiConstraint(dbops.AlterTableAddConstraint):
                 exprs = exprs[0]
 
             name = self.constraint.constraint_name()
-            code = 'ADD CONSTRAINT {} {}'.format(name, exprs)
+            code = f'ADD CONSTRAINT {name} {exprs}'
 
         return code
 
-    async def extra(self, context, alter_table):
+    def generate_extra(self, block, alter_table):
         comments = []
 
-        exprs = await self.constraint.constraint_code(context)
+        exprs = self.constraint.constraint_code(block)
         constr_name = self.constraint.raw_constraint_name()
 
         if isinstance(exprs, list) and len(exprs) > 1:
@@ -348,7 +306,8 @@ class AlterTableAddMultiConstraint(dbops.AlterTableAddConstraint):
             comment = dbops.Comment(self.constraint, constr_name)
             comments.append(comment)
 
-        return comments
+        for comment in comments:
+            comment.generate(block)
 
 
 class AlterTableRenameMultiConstraint(
@@ -367,11 +326,11 @@ class AlterTableRenameMultiConstraint(
         self.constraint = constraint
         self.new_constraint = new_constraint
 
-    async def execute(self, context):
+    def generate(self, block: dbops.PLBlock) -> None:
         c = self.constraint
         nc = self.new_constraint
 
-        exprs = await self.constraint.constraint_code(context)
+        exprs = self.constraint.constraint_code(block)
 
         if isinstance(exprs, list) and len(exprs) > 1:
             for i, expr in enumerate(exprs):
@@ -391,12 +350,12 @@ class AlterTableRenameMultiConstraint(
 
             self.add_command(ac)
 
-        return await super().execute(context)
+        return super().generate(block)
 
-    async def extra(self, context):
+    def generate_extra(self, block: dbops.PLBlock) -> None:
         comments = []
 
-        exprs = await self.new_constraint.constraint_code(context)
+        exprs = self.new_constraint.constraint_code(block)
         constr_name = self.new_constraint.raw_constraint_name()
 
         if isinstance(exprs, list) and len(exprs) > 1:
@@ -409,26 +368,27 @@ class AlterTableRenameMultiConstraint(
             comment = dbops.Comment(self.new_constraint, constr_name)
             comments.append(comment)
 
-        return comments
+        for comment in comments:
+            comment.generate(block)
 
 
 class AlterTableDropMultiConstraint(dbops.AlterTableDropConstraint):
-    async def code(self, context):
-        exprs = await self.constraint.constraint_code(context)
+    def code(self, block: dbops.PLBlock) -> str:
+        exprs = self.constraint.constraint_code(block)
 
         if isinstance(exprs, list) and len(exprs) > 1:
             chunks = []
 
             for i, expr in enumerate(exprs):
                 name = self.constraint.numbered_constraint_name(i)
-                chunk = 'DROP CONSTRAINT {}'.format(name)
+                chunk = f'DROP CONSTRAINT {name}'
                 chunks.append(chunk)
 
             code = ', '.join(chunks)
 
         else:
             name = self.constraint.constraint_name()
-            code = 'DROP CONSTRAINT {}'.format(name)
+            code = f'DROP CONSTRAINT {name}'
 
         return code
 
@@ -630,10 +590,10 @@ class AlterTableAddInheritableConstraint(AlterTableInheritableConstraintBase):
             self.__class__.__module__, self.__class__.__name__,
             self._constraint)
 
-    async def _execute(self, context, code, vars):
+    def generate(self, block):
         if not self._constraint.is_abstract:
             self.create_constraint(self._constraint)
-        await super()._execute(context, code, vars)
+        super().generate(block)
 
 
 class AlterTableRenameInheritableConstraint(
@@ -647,10 +607,10 @@ class AlterTableRenameInheritableConstraint(
             self.__class__.__module__, self.__class__.__name__,
             self._constraint)
 
-    async def execute(self, context):
+    def generate(self, block):
         if not self._constraint.is_abstract:
             self.rename_constraint(self._constraint, self._new_constraint)
-        await super().execute(context)
+        super().generate(block)
 
 
 class AlterTableAlterInheritableConstraint(
@@ -664,9 +624,9 @@ class AlterTableAlterInheritableConstraint(
             self.__class__.__module__, self.__class__.__name__,
             self._constraint)
 
-    async def execute(self, context):
+    def generate(self, block):
         self.alter_constraint(self._constraint, self._new_constraint)
-        await super().execute(context)
+        super().generate(block)
 
 
 class AlterTableDropInheritableConstraint(AlterTableInheritableConstraintBase):
@@ -675,10 +635,10 @@ class AlterTableDropInheritableConstraint(AlterTableInheritableConstraintBase):
             self.__class__.__module__, self.__class__.__name__,
             self._constraint)
 
-    async def execute(self, context):
+    def generate(self, block):
         if not self._constraint.is_abstract:
             self.drop_constraint(self._constraint)
-        await super().execute(context)
+        super().generate(block)
 
 
 class MappingIndex(dbops.Index):

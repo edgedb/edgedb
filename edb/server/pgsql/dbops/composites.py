@@ -112,18 +112,18 @@ class CompositeAttributeCommand:
 
 
 class AlterCompositeAddAttribute(CompositeAttributeCommand):
-    async def code(self, context):
-        return 'ADD {} {}'.format(
-            self.get_attribute_term(), self.attribute.code(context))
+    def code(self, block: base.PLBlock) -> str:
+        return f'ADD {self.get_attribute_term()} {self.attribute.code(block)}'
 
-    async def extra(self, context, alter_type):
-        return await self.attribute.extra(context, alter_type)
+    def generate_extra(self, block: base.PLBlock,
+                       alter: base.CompositeCommandGroup):
+        self.attribute.generate_extra(block, alter)
 
 
 class AlterCompositeDropAttribute(CompositeAttributeCommand):
-    async def code(self, context):
+    def code(self, block: base.PLBlock) -> str:
         attrname = common.qname(self.attribute.name)
-        return 'DROP {} {}'.format(self.get_attribute_term(), attrname)
+        return f'DROP {self.get_attribute_term()} {attrname}'
 
 
 class AlterCompositeAlterAttributeType:
@@ -131,16 +131,14 @@ class AlterCompositeAlterAttributeType:
         self.attribute_name = attribute_name
         self.new_type = new_type
 
-    async def code(self, context):
+    def code(self, block: base.PLBlock) -> str:
         attrterm = self.get_attribute_term()
         attrname = common.quote_ident(str(self.attribute_name))
-        return 'ALTER {} {} SET DATA TYPE {}'.format(
-            attrterm, attrname, self.new_type)
+        return f'ALTER {attrterm} {attrname} SET DATA TYPE {self.new_type}'
 
     def __repr__(self):
-        return '<%s.%s "%s" to %s>' % (
-            self.__class__.__module__, self.__class__.__name__,
-            self.attribute_name, self.new_type)
+        cls = self.__class__
+        return f'<{cls.__name__} {self.attribute_name!r} to {self.new_type}>'
 
 
 class AlterCompositeRenameAttribute:
@@ -153,8 +151,8 @@ class AlterCompositeRenameAttribute:
         self.old_attr_name = old_attr_name
         self.new_attr_name = new_attr_name
 
-    async def code(self, context):
-        code = super().prefix_code(context)
+    def code(self, block: base.PLBlock) -> str:
+        code = super().prefix_code()
         attrterm = self.get_attribute_term()
         old_attr_name = common.quote_ident(str(self.old_attr_name))
         new_attr_name = common.quote_ident(str(self.new_attr_name))

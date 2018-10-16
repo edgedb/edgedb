@@ -17,6 +17,8 @@
 #
 
 
+from edb.lang.common import typeutils
+
 from . import base
 from . import visitor
 
@@ -59,7 +61,7 @@ class NodeTransformer(visitor.NodeVisitor):
         for field, old_value in base.iter_fields(node, include_meta=False):
             old_value = getattr(node, field, None)
 
-            if base.is_container(old_value):
+            if typeutils.is_container(old_value):
                 new_values = old_value.__class__(self.visit(old_value))
                 setattr(node, field, old_value.__class__(new_values))
 

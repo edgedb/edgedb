@@ -17,7 +17,9 @@
 #
 
 
-from .. import common
+from ..common import qname as qn
+from ..common import quote_ident as qi
+
 from . import base
 from . import ddl
 
@@ -26,8 +28,8 @@ class CreateSequence(ddl.SchemaObjectOperation):
     def __init__(self, name):
         super().__init__(name)
 
-    async def code(self, context):
-        return 'CREATE SEQUENCE %s' % common.qname(*self.name)
+    def code(self, block: base.PLBlock) -> str:
+        return f'CREATE SEQUENCE {qn(*self.name)}'
 
 
 class RenameSequence(base.CommandGroup):
@@ -66,10 +68,9 @@ class AlterSequenceSetSchema(ddl.DDLOperation):
         self.name = name
         self.new_schema = new_schema
 
-    async def code(self, context):
-        code = 'ALTER SEQUENCE {} SET SCHEMA {}'.format(
-            common.qname(*self.name), common.quote_ident(self.new_schema))
-        return code
+    def code(self, block: base.PLBlock) -> str:
+        return (f'ALTER SEQUENCE {qn(*self.name)} '
+                f'SET SCHEMA {qi(self.new_schema)}')
 
     def __repr__(self):
         return '<%s.%s "%s.%s" to "%s">' % (
@@ -87,10 +88,8 @@ class AlterSequenceRenameTo(ddl.DDLOperation):
         self.name = name
         self.new_name = new_name
 
-    async def code(self, context):
-        code = 'ALTER SEQUENCE {} RENAME TO {}'.format(
-            common.qname(*self.name), common.quote_ident(self.new_name))
-        return code
+    def code(self, block: base.PLBlock) -> str:
+        return f'ALTER SEQUENCE {qn(*self.name)} RENAME TO {qi(self.new_name)}'
 
     def __repr__(self):
         return '<%s.%s "%s.%s" to "%s">' % (
@@ -102,5 +101,5 @@ class DropSequence(ddl.SchemaObjectOperation):
     def __init__(self, name):
         super().__init__(name)
 
-    async def code(self, context):
-        return 'DROP SEQUENCE %s' % common.qname(*self.name)
+    def code(self, block: base.PLBlock) -> str:
+        return f'DROP SEQUENCE {qn(*self.name)}'

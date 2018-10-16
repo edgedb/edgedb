@@ -25,6 +25,7 @@ import typing
 import typing_inspect
 
 from edb.lang.common import markup
+from edb.lang.common import typeutils
 
 
 class ASTError(Exception):
@@ -274,33 +275,9 @@ def is_ast_node(obj):
     return _is_ast_node_type(obj.__class__)
 
 
-@functools.lru_cache(1024)
-def _is_container_type(cls):
-    return (
-        issubclass(cls, (collections.abc.Container)) and
-        not issubclass(cls, (str, bytes, bytearray, memoryview))
-    )
-
-
-@functools.lru_cache(1024)
-def _is_iterable_type(cls):
-    return (
-        issubclass(cls, collections.abc.Iterable)
-    )
-
-
-def is_container(obj):
-    cls = obj.__class__
-    return _is_container_type(cls) and _is_iterable_type(cls)
-
-
-def is_container_type(type_):
-    return isinstance(type_, type) and _is_container_type(type_)
-
-
 def fix_parent_links(node):
     for field, value in iter_fields(node):
-        if is_container(value):
+        if typeutils.is_container(value):
             for n in value:
                 if is_ast_node(n):
                     n.parent = node
@@ -389,7 +366,7 @@ def _check_annotation(f_type, f_fullname, f_default):
                 f'invalid type annotation on {f_fullname}: '
                 f'{f_type!r} is not a type')
 
-        if is_container_type(f_type):
+        if typeutils.is_container_type(f_type):
             if f_default is not None:
                 raise RuntimeError(
                     f'invalid type annotation on {f_fullname}: '

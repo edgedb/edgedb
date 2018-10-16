@@ -302,8 +302,11 @@ class Cli:
         result = self.run_coroutine(
             self.connection.get_pgcon())
 
+        pg_config = edgedb_cluster.get_pg_config_path()
+        psql = pg_config.parent / 'psql'
+
         cmd = [
-            'psql',
+            str(psql),
             '-h', result['host'],
             '-p', result['port'],
             '-d', self.cur_db,
@@ -500,4 +503,6 @@ def main():
     Cli(connect_kwargs).run()
 
 
-main_dev = main
+def main_dev():
+    edgedb_cluster.enable_dev_mode()
+    main()
