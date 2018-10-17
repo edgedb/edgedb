@@ -99,6 +99,35 @@ def serialize_expr_if_needed(
     return val
 
 
+def serialize_expr_to_json(
+        expr: pgast.Base, *,
+        path_id: irast.PathId,
+        nested: bool=False,
+        env: context.Environment) -> pgast.Base:
+
+    if isinstance(expr, pgast.TupleVar):
+        val = tuple_var_as_json_object(expr, path_id=path_id, env=env)
+
+    elif isinstance(expr, (pgast.RowExpr, pgast.ImplicitRowExpr)):
+        val = pgast.FuncCall(
+            name=('jsonb_build_array',), args=expr.args,
+            null_safe=True)
+
+    elif isinstance(path_id.target, s_types.Tuple):
+        val = pgast.FuncCall(
+            name=('edgedb', 'row_to_jsonb_array',), args=[expr],
+            null_safe=True)
+
+    elif not nested:
+        val = pgast.FuncCall(
+            name=('to_jsonb',), args=[expr], null_safe=True)
+
+    else:
+        val = expr
+
+    return val
+
+
 def serialize_expr(
         expr: pgast.Base, *,
         path_id: irast.PathId,
@@ -106,25 +135,8 @@ def serialize_expr(
         env: context.Environment) -> pgast.Base:
 
     if env.output_format == context.OutputFormat.JSON:
-        if isinstance(expr, pgast.TupleVar):
-            val = tuple_var_as_json_object(expr, path_id=path_id, env=env)
-
-        elif isinstance(expr, (pgast.RowExpr, pgast.ImplicitRowExpr)):
-            val = pgast.FuncCall(
-                name=('jsonb_build_array',), args=expr.args,
-                null_safe=True)
-
-        elif isinstance(path_id.target, s_types.Tuple):
-            val = pgast.FuncCall(
-                name=('edgedb', 'row_to_jsonb_array',), args=[expr],
-                null_safe=True)
-
-        elif not nested:
-            val = pgast.FuncCall(
-                name=('to_jsonb',), args=[expr], null_safe=True)
-
-        else:
-            val = expr
+        val = serialize_expr_to_json(
+            expr, path_id=path_id, nested=nested, env=env)
 
     elif env.output_format == context.OutputFormat.NATIVE:
         val = output_as_value(expr, env=env)

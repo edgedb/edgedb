@@ -685,3 +685,13 @@ def _compile_view_shapes_in_tuple(
         ctx: context.ContextLevel) -> None:
     for element in expr.elements:
         compile_view_shapes(element.val, ctx=ctx)
+
+
+@compile_view_shapes.register(irast.Array)
+def _compile_view_shapes_in_array(
+        expr: irast.Array, *,
+        rptr: typing.Optional[irast.Pointer]=None,
+        parent_view_type: typing.Optional[s_types.ViewType]=None,
+        ctx: context.ContextLevel) -> None:
+    for element in expr.elements:
+        compile_view_shapes(element, ctx=ctx)

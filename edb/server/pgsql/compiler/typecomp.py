@@ -19,6 +19,10 @@
 
 """Functions dealing with PostgreSQL native types and casting."""
 
+import typing
+
+from edb.lang.ir import ast as irast
+from edb.lang.ir import utils as irutils
 
 from edb.lang.common import ast
 from edb.lang.schema import objects as s_obj
@@ -34,6 +38,7 @@ from . import context
 def cast(
         node: pgast.Base, *,
         source_type: s_obj.Object, target_type: s_obj.Object,
+        ir_expr: typing.Optional[irast.Base]=None,
         force: bool=False,
         env: context.Environment) -> pgast.Base:
 
@@ -41,12 +46,12 @@ def cast(
         return node
 
     schema = env.schema
-    real_t = schema.get('std::anyreal')
     int_t = schema.get('std::anyint')
     json_t = schema.get('std::json')
     str_t = schema.get('std::str')
     datetime_t = schema.get('std::datetime')
     bool_t = schema.get('std::bool')
+    real_t = schema.get('std::anyreal')
 
     if isinstance(target_type, s_types.Collection):
         if target_type.schema_name == 'array':
@@ -152,41 +157,66 @@ def cast(
                 op=ast.ops.NE)
 
         elif source_type.issubclass(json_t):
-            if (target_type.issubclass(real_t) or
-                    target_type.issubclass(bool_t)):
-                # Simply cast to text and the to the target type.
-                return cast(
-                    cast(
-                        node,
-                        source_type=source_type,
-                        target_type=str_t,
-                        env=env),
-                    source_type=str_t,
-                    target_type=target_type,
-                    env=env)
+            # When casting from json, we want the text representation
+            # of the *value*, and not a JSON literal, so that
+            # <str><json>'foo' returns 'foo', and not '"foo"'.
+            # Hence, instead of a direct cast, we use the '->>' operator
+            # on an intermediate array container.
 
+            const_type = pg_types.pg_type_from_object(
+                schema, target_type, topbase=True)
+
+            if target_type.issubclass(real_t):
+                expected_json_type = 'number'
+            elif target_type.issubclass(bool_t):
+                expected_json_type = 'boolean'
             elif target_type.issubclass(str_t):
-                # It's not possible to cast jsonb string to text directly,
-                # so we do a trick:
-                # EdgeQL: <str>JSONB_VAL
-                # SQL: array_to_json(ARRAY[JSONB_VAL])->>0
-
-                return astutils.new_binop(
-                    pgast.FuncCall(
-                        name=('array_to_json',),
-                        args=[pgast.ArrayExpr(elements=[node])]),
-                    pgast.Constant(val=0),
-                    op='->>'
-                )
-
+                expected_json_type = 'string'
             elif target_type.issubclass(json_t):
-                return pgast.TypeCast(
-                    arg=node,
-                    type_name=pgast.TypeName(
-                        name=('jsonb',)
-                    )
+                expected_json_type = None
+            else:
+                raise NotImplementedError(
+                    f'cannot not cast {source_type.name} to {target_type.name}'
                 )
 
+            if expected_json_type is not None:
+                if ir_expr is not None:
+                    srcctx = irutils.get_source_context_as_json(ir_expr)
+                else:
+                    srcctx = None
+
+                node = pgast.FuncCall(
+                    name=('edgedb', 'jsonb_assert_type'),
+                    args=[
+                        node,
+                        pgast.ArrayExpr(elements=[
+                            pgast.Constant(val=expected_json_type),
+                            pgast.Constant(val='null'),
+                        ]),
+                        pgast.NamedFuncArg(
+                            name='det',
+                            val=pgast.Constant(val=srcctx)
+                        )
+                    ]
+                )
+
+            return pgast.TypeCast(
+                arg=astutils.new_binop(
+                    lexpr=pgast.FuncCall(
+                        name=('array_to_json',),
+                        args=[pgast.ArrayExpr(elements=[node])]
+                    ),
+                    rexpr=pgast.Constant(val=0),
+                    op='->>'
+                ),
+                type_name=pgast.TypeName(
+                    name=const_type
+                )
+            )
+
+        elif target_type.issubclass(json_t):
+            return pgast.FuncCall(
+                name=('to_jsonb',), args=[node])
         else:
             const_type = pg_types.pg_type_from_object(
                 schema, target_type, topbase=True)
@@ -198,8 +228,9 @@ def cast(
                 )
             )
 
-    raise RuntimeError(
-        f'could not cast {source_type.name} to {target_type.name}')
+    raise NotImplementedError(
+        f'cannot not cast {source_type.name} to {target_type.name}'
+    )
 
 
 def type_node(typename):

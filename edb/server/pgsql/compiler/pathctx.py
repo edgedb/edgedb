@@ -255,8 +255,8 @@ def get_path_var(
 
     if isinstance(var, pgast.TupleVar):
         for element in var.elements:
-            put_path_var(rel, element.path_id, element.val,
-                         aspect=aspect, env=env)
+            put_path_var_if_not_exists(rel, element.path_id, element.val,
+                                       aspect=aspect, env=env)
 
     return var
 

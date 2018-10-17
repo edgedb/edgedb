@@ -76,7 +76,8 @@ def compile_FunctionCall(
 
         fixup_param_scope(funcobj, args, kwargs, ctx=fctx)
 
-        node = irast.FunctionCall(func=funcobj, args=args, kwargs=kwargs)
+        node = irast.FunctionCall(func=funcobj, args=args, kwargs=kwargs,
+                                  context=expr.context)
 
         if funcobj.initial_value is not None:
             rtype = irutils.infer_type(node, fctx.schema)

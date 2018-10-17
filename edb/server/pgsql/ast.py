@@ -509,6 +509,12 @@ class FuncCall(BaseExpr):
         return nullable
 
 
+class NamedFuncArg(Base):
+
+    name: str
+    val: Base
+
+
 class Indices(Base):
     """Array subscript or slice bounds."""
 

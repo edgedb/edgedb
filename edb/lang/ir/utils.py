@@ -17,6 +17,9 @@
 #
 
 
+import json
+import typing
+
 from edb.lang.common import ast
 
 from edb.lang.schema import objtypes as s_objtypes
@@ -25,6 +28,7 @@ from edb.lang.schema import name as s_name
 from edb.lang.schema import pointers as s_pointers
 from edb.lang.schema import schema as s_schema
 from edb.lang.schema import sources as s_sources  # NOQA
+from edb.lang.schema import types as s_types  # NOQA
 
 from . import ast as irast
 from .inference import amend_empty_set_type  # NOQA
@@ -260,3 +264,17 @@ def type_indirection_path_id(path_id, target_type, *, optional: bool,
         s_pointers.PointerDirection.Outbound,
         target_type
     )
+
+
+def get_source_context_as_json(expr: irast.Base) -> typing.Optional[str]:
+    if expr.context:
+        details = json.dumps({
+            'line': expr.context.start.line,
+            'column': expr.context.start.column,
+            'name': expr.context.name,
+        })
+
+    else:
+        details = None
+
+    return details

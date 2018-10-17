@@ -17,6 +17,7 @@
 #
 
 
+import json
 import os.path
 import unittest  # NOQA
 
@@ -495,9 +496,9 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_array_unpack_04(self):
         await self.assert_query_result(r'''
             SELECT json_array_unpack(str_to_json('[2,3,4]')) IN
-                <json>{'2', '3', '4'};
+                <json>{2, 3, 4};
             SELECT json_array_unpack(str_to_json('[2,3,4]')) NOT IN
-                <json>{'2', '3', '4'};
+                <json>{2, 3, 4};
         ''', [
             [True, True, True],
             [False, False, False],
@@ -580,12 +581,16 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             SELECT json_object_unpack(JSONTest.j_object).0 IN {'a', 'b', 'c'};
 
             WITH MODULE test
+            SELECT json_object_unpack(JSONTest.j_object).1 IN <json>{1, 2};
+
+            WITH MODULE test
             SELECT json_object_unpack(JSONTest.j_object).1 IN <json>{'1', '2'};
         ''', [
             [['a', 1], ['b', 1], ['b', 2], ['c', 2]],
             [False, False, False, False],
             [True, True, True, True],
             [True, True, True, True],
+            [False, False, False, False],
         ])
 
     async def test_edgeql_json_object_unpack_03(self):
@@ -710,3 +715,123 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             {'42!'},
             {'42!'},
         ])
+
+    async def test_edgeql_json_cast_object_to_json_01(self):
+        res = await self.query("""
+            WITH MODULE schema
+            SELECT
+                json_to_str(<json>(
+                    SELECT Object {
+                        name,
+                        foo := 'bar',
+                    }
+                    FILTER Object.name = 'std::json'
+                ));
+        """)
+
+        val = res[0][0]
+        self.assertIsInstance(val, str)
+
+        self.assertEqual(
+            json.loads(val),
+            {"foo": "bar", "name": "std::json"}
+        )
+
+    async def test_edgeql_json_cast_object_to_json_02(self):
+        # Test that object-to-json cast works in non-SELECT clause.
+        await self.assert_query_result("""
+            WITH MODULE schema
+            SELECT
+                Object {
+                    name
+                }
+            FILTER
+                json_to_str(<json>(Object {name})) LIKE '%std::json%';
+        """, [
+            [{
+                'name': 'std::json',
+            }]
+        ])
+
+    async def test_edgeql_json_cast_object_to_json_03(self):
+        # Test that object-to-json cast works in tuples as well.
+        await self.assert_query_result("""
+            WITH MODULE schema
+            SELECT
+                True
+            FILTER
+                json_to_str(
+                    (
+                        <tuple<json>>(
+                            (
+                                SELECT Object {
+                                    name,
+                                    foo := 'bar',
+                                }
+                                FILTER Object.name = 'std::json'
+                            ),
+                        )
+                    ).0
+                )
+                LIKE '%std%';
+        """, [
+            [True],
+        ])
+
+    async def test_edgeql_json_cast_object_to_json_04(self):
+        # Test that object-to-json cast works in arrays as well.
+        await self.assert_query_result("""
+            WITH MODULE schema
+            SELECT
+                True
+            FILTER
+                json_to_str(<json>[(
+                    SELECT Object {
+                        name,
+                        foo := 'bar',
+                    }
+                    FILTER Object.name = 'std::json'
+                )])
+                LIKE '%std%';
+        """, [
+            [True],
+        ])
+
+    async def test_edgeql_json_cast_tuple_to_json_01(self):
+        res = await self.query("""
+            WITH MODULE schema
+            SELECT
+                json_to_str(<json>(
+                    1,
+                    (SELECT Object {
+                            name,
+                            foo := 'bar',
+                        }
+                        FILTER Object.name = 'std::json'),
+                ));
+        """)
+
+        val = res[0][0]
+        self.assertIsInstance(val, str)
+
+        self.assertEqual(
+            json.loads(val),
+            [1, {"foo": "bar", "name": "std::json"}]
+        )
+
+    async def test_edgeql_json_cast_tuple_to_json_02(self):
+        res = await self.query("""
+            SELECT
+                json_to_str(<json>(
+                    foo := 1,
+                    bar := [1, 2, 3]
+                ));
+        """)
+
+        val = res[0][0]
+        self.assertIsInstance(val, str)
+
+        self.assertEqual(
+            json.loads(val),
+            {"foo": 1, "bar": [1, 2, 3]}
+        )

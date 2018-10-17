@@ -563,6 +563,7 @@ def new_expression_set(
         path_id=path_id,
         scls=result_type,
         expr=ir_expr,
+        context=ir_expr.context,
         ctx=ctx
     )
 

@@ -570,6 +570,10 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if node.with_ordinality:
             self.write(' WITH ORDINALITY')
 
+    def visit_NamedFuncArg(self, node):
+        self.write(common.quote_ident(node.name), ' => ')
+        self.visit(node.val)
+
     def visit_SubLink(self, node):
         if node.type == pgast.SubLinkType.EXISTS:
             self.write('EXISTS')

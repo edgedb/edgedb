@@ -269,6 +269,10 @@ def _get_set_rvar(
         # Array literal: "[" expr ... "]"
         rvars = process_set_as_array_expr(ir_set, stmt, ctx=ctx)
 
+    elif isinstance(ir_set.expr, irast.TypeCast):
+        # Type cast: <foo>expr
+        rvars = process_set_as_type_cast(ir_set, stmt, ctx=ctx)
+
     elif ir_set.expr is not None:
         # All other expressions.
         rvars = process_set_as_expr(ir_set, stmt, ctx=ctx)
@@ -1214,6 +1218,66 @@ def process_set_as_tuple_indirection(
 
             rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=subctx)
 
+    return new_simple_set_rvar(ir_set, rvar)
+
+
+def process_set_as_type_cast(
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> SetRVars:
+
+    inner_set = ir_set.expr.expr
+    is_json_cast = ir_set.expr.type.maintype == 'std::json'
+
+    with ctx.new() as subctx:
+        if isinstance(inner_set, irast.Array):
+            # Special version of cast of an empty untyped array
+            set_expr = dispatch.compile(ir_set.expr, ctx=subctx)
+        else:
+            ctx.rel.view_path_id_map[ir_set.path_id] = inner_set.path_id
+
+            if (is_json_cast and
+                    isinstance(inner_set.scls,
+                               (s_objtypes.ObjectType, s_types.Collection))):
+                subctx.expr_exposed = True
+                subctx.output_format = context.OutputFormat.JSON
+                implicit_cast = True
+            else:
+                implicit_cast = False
+
+            inner_expr = dispatch.compile(inner_set, ctx=subctx)
+            if implicit_cast:
+                serialized = pathctx.maybe_get_path_serialized_var(
+                    stmt, inner_set.path_id, env=subctx.env)
+
+                if serialized is not None:
+                    if isinstance(inner_set.scls, s_types.Collection):
+                        serialized = output.serialize_expr_to_json(
+                            serialized, path_id=inner_set.path_id,
+                            env=subctx.env)
+
+                    pathctx.put_path_value_var(
+                        stmt, inner_set.path_id, serialized,
+                        force=True, env=subctx.env)
+
+                set_expr = inner_expr
+            else:
+                set_expr = typecomp.cast(
+                    inner_expr, source_type=inner_set.scls,
+                    target_type=ir_set.scls, ir_expr=inner_set,
+                    env=subctx.env)
+
+                # A proper path var mapping way would be to wrap
+                # the inner expression in a subquery, but that
+                # seems excessive for a type cast, so we cover
+                # our tracks here by removing the mapping and
+                # relying on the value and serialized vars
+                # populated above.
+                ctx.rel.view_path_id_map.pop(ir_set.path_id)
+
+    pathctx.put_path_value_var_if_not_exists(
+        stmt, ir_set.path_id, set_expr, env=ctx.env)
+
+    rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
     return new_simple_set_rvar(ir_set, rvar)
 
 

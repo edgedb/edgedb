@@ -44,6 +44,7 @@ from . import pathctx
 from . import setgen
 from . import schemactx
 from . import typegen
+from . import viewgen
 
 from . import func  # NOQA
 
@@ -318,13 +319,20 @@ def compile_Coalesce(
 @dispatch.compile.register(qlast.TypeCast)
 def compile_TypeCast(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    maintype = expr.type.maintype
+    target_typeref = typegen.ql_typeref_to_ir_typeref(expr.type, ctx=ctx)
 
     if (isinstance(expr.expr, qlast.EmptyCollection) and
-            maintype.name == 'array'):
+            target_typeref.maintype == 'array'):
         ir_expr = irast.Array()
     else:
-        ir_expr = dispatch.compile(expr.expr, ctx=ctx)
+        with ctx.new() as subctx:
+            # We use "exposed" mode in case this is a type of a cast
+            # that wants view shapes, e.g. a std::json cast.  We do
+            # this wholesale to support tuple and array casts without
+            # having to analyze the target type (which is cumbersome
+            # in QL AST).
+            subctx.expr_exposed = True
+            ir_expr = dispatch.compile(expr.expr, ctx=subctx)
 
     return setgen.ensure_set(
         _cast_expr(expr.type, ir_expr, ctx=ctx,
@@ -344,57 +352,115 @@ def _cast_expr(
         # if the expr is an empty set (or a coalesce of empty sets).
         orig_type = None
 
+    new_type = typegen.ql_typeref_to_type(ql_type, ctx=ctx)
+    new_typeref = typegen.ql_typeref_to_ir_typeref(ql_type, ctx=ctx)
+    json_t = ctx.schema.get('std::json')
+
     if isinstance(orig_type, s_types.Tuple):
-        # For tuple-to-tuple casts we generate a new tuple
-        # to simplify things on sqlgen side.
-        new_type = typegen.ql_typeref_to_type(ql_type, ctx=ctx)
-        if not isinstance(new_type, s_types.Tuple):
-            raise errors.EdgeQLError(
-                f'cannot cast tuple to {new_type.name}',
-                context=source_context)
+        if new_type.issubclass(json_t):
+            # Casting to std::json involves casting each tuple
+            # element and also keeping the cast around the whole tuple.
+            # This is to trigger the downstream logic of casting
+            # objects (in elements of the tuple).
+            elements = []
+            for i, n in enumerate(orig_type.element_types):
+                val = setgen.generated_set(
+                    irast.TupleIndirection(
+                        expr=ir_expr,
+                        name=n
+                    ),
+                    ctx=ctx
+                )
+                val.path_id = irutils.tuple_indirection_path_id(
+                    ir_expr.path_id, n, orig_type.element_types[n])
 
-        if len(orig_type.element_types) != len(new_type.element_types):
-            raise errors.EdgeQLError(
-                f'cannot cast to {new_type.name}: '
-                f'number of elements is not the same',
-                context=source_context)
-
-        new_names = list(new_type.element_types)
-
-        elements = []
-        for i, n in enumerate(orig_type.element_types):
-            val = setgen.generated_set(
-                irast.TupleIndirection(
-                    expr=ir_expr,
-                    name=n
-                ),
-                ctx=ctx
-            )
-            val.path_id = irutils.tuple_indirection_path_id(
-                ir_expr.path_id, n, orig_type.element_types[n])
-
-            val_type = irutils.infer_type(val, ctx.schema)
-            new_el_name = new_names[i]
-            if val_type != new_type.element_types[new_el_name]:
+                val_type = irutils.infer_type(val, ctx.schema)
                 # Element cast
-                val = _cast_expr(ql_type.subtypes[i], val, ctx=ctx,
+                val = _cast_expr(ql_type, val, ctx=ctx,
                                  source_context=source_context)
 
-            elements.append(irast.TupleElement(name=new_el_name, val=val))
+                elements.append(irast.TupleElement(name=n, val=val))
 
-        return irast.Tuple(named=new_type.named, elements=elements)
+            new_tuple = setgen.ensure_set(
+                irast.Tuple(named=orig_type.named, elements=elements), ctx=ctx)
+
+            return setgen.ensure_set(
+                irast.TypeCast(expr=new_tuple, type=new_typeref), ctx=ctx)
+
+        else:
+            # For tuple-to-tuple casts we generate a new tuple
+            # to simplify things on sqlgen side.
+            if not isinstance(new_type, s_types.Tuple):
+                raise errors.EdgeQLError(
+                    f'cannot cast tuple to {new_type.name}',
+                    context=source_context)
+
+            if len(orig_type.element_types) != len(new_type.element_types):
+                raise errors.EdgeQLError(
+                    f'cannot cast to {new_type.name}: '
+                    f'number of elements is not the same',
+                    context=source_context)
+
+            new_names = list(new_type.element_types)
+
+            elements = []
+            for i, n in enumerate(orig_type.element_types):
+                val = setgen.generated_set(
+                    irast.TupleIndirection(
+                        expr=ir_expr,
+                        name=n
+                    ),
+                    ctx=ctx
+                )
+                val.path_id = irutils.tuple_indirection_path_id(
+                    ir_expr.path_id, n, orig_type.element_types[n])
+
+                val_type = irutils.infer_type(val, ctx.schema)
+                new_el_name = new_names[i]
+                if val_type != new_type.element_types[new_el_name]:
+                    # Element cast
+                    val = _cast_expr(ql_type.subtypes[i], val, ctx=ctx,
+                                     source_context=source_context)
+
+                elements.append(irast.TupleElement(name=new_el_name, val=val))
+
+            return irast.Tuple(named=new_type.named, elements=elements)
 
     elif isinstance(ir_expr, irast.EmptySet):
         # For the common case of casting an empty set, we simply
         # generate a new EmptySet node of the requested type.
-        scls = typegen.ql_typeref_to_type(ql_type, ctx=ctx)
-        return irutils.new_empty_set(ctx.schema, scls=scls,
+        return irutils.new_empty_set(ctx.schema, scls=new_type,
                                      alias=ir_expr.path_id.target.name.name)
 
-    else:
-        typ = typegen.ql_typeref_to_ir_typeref(ql_type, ctx=ctx)
+    elif (isinstance(ir_expr, irast.Set) and
+            isinstance(ir_expr.expr, irast.Array)):
+        if new_type.issubclass(json_t):
+            el_type = ql_type
+        elif not isinstance(new_type, s_types.Array):
+            raise errors.EdgeQLError(
+                f'cannot cast array to {new_type.name}',
+                context=source_context)
+        else:
+            el_type = ql_type.subtypes[0]
+
+        casted_els = []
+        for el in ir_expr.expr.elements:
+            el = _cast_expr(el_type, el, ctx=ctx,
+                            source_context=source_context)
+            casted_els.append(el)
+
+        ir_expr.expr = irast.Array(elements=casted_els)
         return setgen.ensure_set(
-            irast.TypeCast(expr=ir_expr, type=typ), ctx=ctx)
+            irast.TypeCast(expr=ir_expr, type=new_typeref), ctx=ctx)
+
+    else:
+        if new_type.issubclass(json_t) and ir_expr.path_id.is_objtype_path():
+            # JSON casts of objects are special: we want the full shape
+            # and not just an identity.
+            viewgen.compile_view_shapes(ir_expr, ctx=ctx)
+
+        return setgen.ensure_set(
+            irast.TypeCast(expr=ir_expr, type=new_typeref), ctx=ctx)
 
 
 @dispatch.compile.register(qlast.TypeFilter)
@@ -451,7 +517,7 @@ def compile_Indirection(
             raise ValueError('unexpected indirection node: '
                              '{!r}'.format(indirection_el))
 
-    return node
+    return setgen.ensure_set(node, ctx=ctx)
 
 
 def try_fold_arithmetic_binop(

@@ -21,41 +21,41 @@ SET MODULE test;
 
 INSERT JSONTest {
     number := 0,
-    j_string := <json>'"the"',
-    j_number := <json>'2',
-    j_boolean := <json>'true',
-    j_array := <json>'[1, 1, 1]',
-    j_object := <json>'{
+    j_string := <json>'the',
+    j_number := <json>2,
+    j_boolean := <json>true,
+    j_array := str_to_json('[1, 1, 1]'),
+    j_object := str_to_json('{
         "a": 1,
         "b": 2
-    }',
-    data := <json>'null',
+    }'),
+    data := str_to_json('null'),
 };
 
 INSERT JSONTest {
     number := 1,
-    j_string := <json>'"quick"',
-    j_number := <json>'2.7',
-    j_boolean := <json>'false',
-    j_array := <json>'[]',
-    j_object := <json>'{
+    j_string := <json>'quick',
+    j_number := <json>2.7,
+    j_boolean := <json>false,
+    j_array := str_to_json('[]'),
+    j_object := str_to_json('{
         "b": 1,
         "c": 2
-    }',
-    data := <json>'{}',
+    }'),
+    data := str_to_json('{}'),
 };
 
 INSERT JSONTest {
     number := 2,
-    j_string := <json>'"brown"',
-    j_number := <json>'2.71',
-    j_boolean := <json>'true',
-    j_array := <json>'[2, "q", [3], {}, null]',
+    j_string := <json>'brown',
+    j_number := <json>2.71,
+    j_boolean := <json>true,
+    j_array := str_to_json('[2, "q", [3], {}, null]'),
 };
 
 INSERT JSONTest {
     number := 3,
-    data := <json>'[
+    data := str_to_json('[
         1.61,
         null,
         "Fraka",
@@ -70,5 +70,5 @@ INSERT JSONTest {
         },
         75,
         true
-    ]',
+    ]'),
 };

@@ -19,7 +19,6 @@
 
 """Compilation handlers for non-statement expressions."""
 
-import json
 import typing
 
 from edb.lang.common import ast
@@ -121,7 +120,7 @@ def compile_Parameter(
     result = pgast.ParamRef(number=index)
     return typecomp.cast(
         result, source_type=expr.type, target_type=expr.type,
-        force=True, env=ctx.env)
+        ir_expr=expr, force=True, env=ctx.env)
 
 
 @dispatch.compile.register(irast.Constant)
@@ -130,7 +129,7 @@ def compile_Constant(
     result = pgast.Constant(val=expr.value)
     result = typecomp.cast(
         result, source_type=expr.type, target_type=expr.type,
-        force=True, env=ctx.env)
+        ir_expr=expr, force=True, env=ctx.env)
     return result
 
 
@@ -148,13 +147,14 @@ def compile_TypeCast(
 
         return typecomp.cast(
             pg_expr, source_type=target_type,
-            target_type=target_type, force=True, env=ctx.env)
+            target_type=target_type, ir_expr=expr.expr,
+            force=True, env=ctx.env)
 
     else:
         source_type = _infer_type(expr.expr, ctx=ctx)
         return typecomp.cast(
             pg_expr, source_type=source_type, target_type=target_type,
-            env=ctx.env)
+            ir_expr=expr.expr, env=ctx.env)
 
 
 @dispatch.compile.register(irast.IndexIndirection)
@@ -170,7 +170,7 @@ def compile_IndexIndirection(
     arg_type = _infer_type(expr.expr, ctx=ctx)
     # line, column and filename are captured here to be used with the
     # error message
-    exc_details = get_exc_details(expr.index)
+    srcctx = pgast.Constant(val=irutils.get_source_context_as_json(expr.index))
 
     with ctx.new() as subctx:
         subctx.expr_exposed = False
@@ -198,7 +198,7 @@ def compile_IndexIndirection(
 
             return pgast.FuncCall(
                 name=('edgedb', '_json_index'),
-                args=[subj, index, exc_details]
+                args=[subj, index, srcctx]
             )
 
         is_string = b.name == 'std::str'
@@ -231,12 +231,12 @@ def compile_IndexIndirection(
     if is_string:
         result = pgast.FuncCall(
             name=('edgedb', '_string_index'),
-            args=[subj, index, exc_details]
+            args=[subj, index, srcctx]
         )
     else:
         result = pgast.FuncCall(
             name=('edgedb', '_array_index'),
-            args=[subj, index, exc_details]
+            args=[subj, index, srcctx]
         )
 
     return result
@@ -670,17 +670,3 @@ def _infer_type(
         expr: irast.Base, *,
         ctx: context.CompilerContextLevel) -> s_obj.Object:
     return irutils.infer_type(expr, schema=ctx.env.schema)
-
-
-def get_exc_details(expr: irast.Base) -> pgast.Base:
-    if expr.context:
-        details = pgast.Constant(val=json.dumps({
-            'line': expr.context.start.line,
-            'column': expr.context.start.column,
-            'name': expr.context.name,
-        }).encode('utf-8'))
-
-    else:
-        details = pgast.Constant(val=None)
-
-    return details

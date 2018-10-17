@@ -153,7 +153,10 @@ class RaiseExceptionFunction(dbops.Function):
 class RaiseSpecificExceptionFunction(dbops.Function):
     text = '''
     BEGIN
-        RAISE EXCEPTION USING ERRCODE = exc, MESSAGE = msg, DETAIL = det;
+        RAISE EXCEPTION USING
+            ERRCODE = exc,
+            MESSAGE = msg,
+            DETAIL = COALESCE(det, '');
         RETURN rtype;
     END;
     '''
@@ -229,7 +232,7 @@ class AssertJSONTypeFunction(dbops.Function):
 
     def __init__(self):
         super().__init__(
-            name=('edgedb', '_assert_jsonb_type'),
+            name=('edgedb', 'jsonb_assert_type'),
             args=[('val', ('jsonb',)), ('typenames', ('text[]',)),
                   ('msg', ('text',), 'NULL'), ('det', ('text',), "''")],
             returns=('jsonb',),
