@@ -114,10 +114,18 @@ AggDISTINCT = SetModifier.DISTINCT
 AggNONE = SetModifier.NONE
 
 
-class SetQualifier(s_enum.StrEnum):
+class TypeModifier(s_enum.StrEnum):
     SET_OF = 'SET OF'
     OPTIONAL = 'OPTIONAL'
-    DEFAULT = ''
+    SINGLETON = 'SINGLETON'
+
+    def to_edgeql(self):
+        if self is TypeModifier.SET_OF:
+            return 'SET OF'
+        elif self is TypeModifier.OPTIONAL:
+            return 'OPTIONAL'
+        else:
+            return ''
 
 
 class ParameterKind(s_enum.StrEnum):
@@ -278,7 +286,7 @@ class TypeOp(TypeExpr):
 class FuncParam(Base):
     name: str
     type: TypeExpr
-    qualifier: SetQualifier = SetQualifier.DEFAULT
+    typemod: TypeModifier = TypeModifier.SINGLETON
     kind: ParameterKind
     default: Expr  # noqa (pyflakes bug)
 
@@ -804,7 +812,7 @@ class CreateFunction(CreateObject):
     aggregate: bool = False
     initial_value: Expr
     code: FunctionCode
-    set_returning: SetQualifier = SetQualifier.DEFAULT
+    returning_typemod: TypeModifier = TypeModifier.SINGLETON
 
 
 class AlterFunction(AlterObject):

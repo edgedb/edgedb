@@ -336,18 +336,18 @@ class IntrospectionMech:
                 'title': self.json_to_word_combination(row['title']),
                 'description': row['description'],
                 'aggregate': row['aggregate'],
-                'set_returning': row['set_returning'],
-                'varparam': row['varparam'],
+                'return_typemod': row['return_typemod'],
                 'from_function': row['from_function'],
                 'code': row['code'],
                 'initial_value': row['initial_value'],
                 'paramtypes': paramtypes,
                 'paramnames': row['paramnames'] if row['paramnames'] else [],
+                'paramkinds': row['paramkinds'] if row['paramkinds'] else [],
                 'paramdefaults':
                     row['paramdefaults'] if row['paramdefaults'] else [],
-                'paramkinds':
-                    row['paramkinds'] if row['paramkinds'] else [],
-                'returntype': self.unpack_typeref(row['returntype'], schema)
+                'paramtypemods':
+                    row['paramtypemods'] if row['paramtypemods'] else [],
+                'return_type': self.unpack_typeref(row['return_type'], schema)
             }
 
             func = s_funcs.Function(**func_data)
@@ -387,6 +387,7 @@ class IntrospectionMech:
                         r['paramtypes']['types'], schema)]
 
             paramnames = r['paramnames'] if r['paramnames'] else []
+            paramkinds = r['paramkinds'] if r['paramkinds'] else []
 
             constraint = s_constr.Constraint(
                 name=name, subject=subject, title=title,
@@ -396,7 +397,8 @@ class IntrospectionMech:
                 localfinalexpr=r['localfinalexpr'], finalexpr=r['finalexpr'],
                 errmessage=r['errmessage'],
                 paramtypes=paramtypes, paramnames=paramnames,
-                varparam=r['varparam'], args=r['args'])
+                paramkinds=paramkinds,
+                args=r['args'])
 
             if subject:
                 subject.add_constraint(constraint)

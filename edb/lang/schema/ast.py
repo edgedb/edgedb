@@ -159,7 +159,7 @@ class FunctionDeclaration(Declaration):
     aggregate: bool = False
     initial_value: qlast.Base
     code: FunctionCode
-    set_returning: str = ''
+    returning_typemod: qlast.TypeModifier
 
 
 class BasePointerDeclaration(Declaration):

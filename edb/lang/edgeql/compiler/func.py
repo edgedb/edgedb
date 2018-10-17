@@ -107,13 +107,19 @@ def check_function(
 
     if not arg_types:
         # Call without arguments
-        for pi, pd in enumerate(func.paramdefaults):
-            if pd is None and pi != func.varparam:
+        for pi, (pd, pk) in enumerate(zip(func.paramdefaults,
+                                          func.paramkinds)):
+            if pd is None and pk is not irast.ParameterKind.VARIADIC:
                 # There is at least one non-variadic parameter
                 # without default; hence this function cannot
                 # be called without arguments.
                 return False
         return True
+
+    try:
+        varparam = func.paramkinds.index(irast.ParameterKind.VARIADIC)
+    except ValueError:
+        varparam = None
 
     for pn, pt, pd, at in itertools.zip_longest(func.paramnames,
                                                 func.paramtypes,
@@ -121,10 +127,10 @@ def check_function(
                                                 arg_types):
         if pt is None:
             # We have more arguments than parameters.
-            if func.varparam is not None:
+            if varparam is not None:
                 # Function has a variadic parameter
                 # (which must be the last one).
-                pt = func.paramtypes[func.varparam]
+                pt = func.paramtypes[varparam]
             else:
                 # No variadic parameter, hence no match.
                 return False
@@ -139,7 +145,7 @@ def check_function(
             if not at.issubclass(pt):
                 return False
 
-            rt = func.returntype
+            rt = func.return_type
             # If the parameter type is 'any', the return type is
             # 'array<any>', and the argument is also an 'array', then
             # this is an invalid function invocation.
@@ -214,16 +220,17 @@ def fixup_param_scope(
         kwargs: typing.Dict[str, irast.Set], *,
         ctx: context.ContextLevel) -> None:
 
-    varparam_kind = None
+    varparam_mod = None
 
     for i, arg in enumerate(args):
-        if varparam_kind is not None:
-            paramkind = varparam_kind
+        if varparam_mod is not None:
+            param_mod = varparam_mod
         else:
-            paramkind = func.paramkinds[i]
-            if i == func.varparam:
-                varparam_kind = paramkind
-        if paramkind != qlast.SetQualifier.SET_OF:
+            param_mod = func.paramtypemods[i]
+            param_kind = func.paramkinds[i]
+            if param_kind is irast.ParameterKind.VARIADIC:
+                varparam_mod = param_mod
+        if param_mod != qlast.TypeModifier.SET_OF:
             arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
             if arg_scope is not None:
                 arg_scope.collapse()
@@ -231,8 +238,8 @@ def fixup_param_scope(
 
     for name, arg in kwargs.items():
         i = func.paramnames.index(name)
-        paramkind = func.paramkinds[i]
-        if paramkind != qlast.SetQualifier.SET_OF:
+        param_mod = func.paramtypemods[i]
+        if param_mod != qlast.TypeModifier.SET_OF:
             arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
             if arg_scope is not None:
                 arg_scope.collapse()

@@ -522,7 +522,7 @@ def compile_FunctionCall(
         raise RuntimeError(
             'aggregate functions are not supported in simple expressions')
 
-    if funcobj.set_returning:
+    if funcobj.return_typemod is irast.TypeModifier.SET_OF:
         raise RuntimeError(
             'set returning functions are not supported in simple expressions')
 

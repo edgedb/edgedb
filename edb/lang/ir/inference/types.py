@@ -115,7 +115,7 @@ def __infer_set(ir, schema):
 
 @_infer_type.register(irast.FunctionCall)
 def __infer_func_call(ir, schema):
-    rtype = ir.func.returntype
+    rtype = ir.func.return_type
 
     if is_polymorphic_type(rtype):
         # Polymorphic function, determine the result type from

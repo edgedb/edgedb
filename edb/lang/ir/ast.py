@@ -42,7 +42,8 @@ EdgeDBMatchOperator = qlast.EdgeQLMatchOperator
 EquivalenceOperator = qlast.EquivalenceOperator
 SetOperator = qlast.SetOperator
 SetModifier = qlast.SetModifier
-SetQualifier = qlast.SetQualifier
+TypeModifier = qlast.TypeModifier
+ParameterKind = qlast.ParameterKind
 Cardinality = qlast.Cardinality
 
 UNION = qlast.UNION

@@ -334,12 +334,11 @@ class DeclarationLoader:
                 constraint.subjectexpr = s_expr.ExpressionText(
                     qlcodegen.generate_source(subjexpr))
 
-            paramnames, paramdefaults, paramtypes, paramkinds, variadic = \
-                s_func.parameters_from_ast(decl, self._mod_aliases,
-                                           self._schema,
-                                           allow_named=False)
+            pi = s_func.parameters_from_ast(decl, self._mod_aliases,
+                                            self._schema,
+                                            allow_named=False)
 
-            for pdefault, ptype in zip(paramdefaults, paramtypes):
+            for pdefault, ptype in zip(pi.paramdefaults, pi.paramtypes):
                 if pdefault is not None:
                     raise s_err.SchemaDefinitionError(
                         'constraints do not support parameters '
@@ -350,9 +349,9 @@ class DeclarationLoader:
                     raise s_err.SchemaDefinitionError(
                         'untyped parameter', context=decl.context)
 
-            constraint.paramnames = paramnames
-            constraint.paramtypes = paramtypes
-            constraint.varparam = variadic
+            constraint.paramnames = pi.paramnames
+            constraint.paramtypes = pi.paramtypes
+            constraint.paramkinds = pi.paramkinds
 
     def _init_scalars(self, scalars):
         for scalar, scalardecl in scalars.items():

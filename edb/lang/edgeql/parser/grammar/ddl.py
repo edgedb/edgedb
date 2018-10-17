@@ -1525,7 +1525,7 @@ class FuncDeclArg(Nonterm):
         self.val = qlast.FuncParam(
             kind=kids[0].val,
             name=kids[2].val,
-            qualifier=kids[4].val,
+            typemod=kids[4].val,
             type=kids[5].val,
             default=kids[6].val
         )
@@ -1687,13 +1687,13 @@ commands_block(
 
 class OptTypeQualifier(Nonterm):
     def reduce_SET_OF(self, *kids):
-        self.val = qlast.SetQualifier.SET_OF
+        self.val = qlast.TypeModifier.SET_OF
 
     def reduce_OPTIONAL(self, *kids):
-        self.val = qlast.SetQualifier.OPTIONAL
+        self.val = qlast.TypeModifier.OPTIONAL
 
     def reduce_empty(self):
-        self.val = qlast.SetQualifier.DEFAULT
+        self.val = qlast.TypeModifier.SINGLETON
 
 
 class CreateFunctionStmt(Nonterm, _ProcessFunctionBlockMixin):
@@ -1706,7 +1706,7 @@ class CreateFunctionStmt(Nonterm, _ProcessFunctionBlockMixin):
             name=kids[2].val,
             args=kids[3].val,
             returning=kids[6].val,
-            set_returning=kids[5].val,
+            returning_typemod=kids[5].val,
             **self._process_function_body(kids[7])
         )
 

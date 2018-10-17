@@ -68,11 +68,11 @@ class Constraint(inheriting.InheritingObject):
     paramnames = so.Field(so.StringList, default=None, coerce=True,
                           compcoef=0.999)
 
+    paramkinds = so.Field(s_func.FuncParamKindList,
+                          default=None, coerce=True, compcoef=0.4)
+
     paramtypes = so.Field(so.TypeList, default=None, coerce=True,
                           compcoef=0.857)
-
-    # Number of the variadic parameter (+1)
-    varparam = so.Field(int, default=None, compcoef=0.4)
 
     args = so.Field(s_expr.ExpressionList,
                     default=None, coerce=True, inheritable=False,
@@ -114,6 +114,18 @@ class Constraint(inheriting.InheritingObject):
                 dctx.current().op.add(sd.AlterObjectProperty(
                     property='paramnames',
                     new_value=self.paramnames,
+                    source='default'
+                ))
+
+        if not self.generic() and self.paramkinds is None:
+            self.paramkinds = []
+
+            if dctx is not None:
+                from . import delta as sd
+
+                dctx.current().op.add(sd.AlterObjectProperty(
+                    property='paramkinds',
+                    new_value=self.paramkinds,
                     source='default'
                 ))
 
@@ -209,11 +221,6 @@ class Constraint(inheriting.InheritingObject):
 
         args_map = None
         if args:
-            if constraint.varparam is not None:
-                varparam = constraint.varparam
-            else:
-                varparam = None
-
             args_ql = [
                 edgeql_parser.parse(arg, module_aliases) for arg in args
             ]
@@ -221,7 +228,7 @@ class Constraint(inheriting.InheritingObject):
             args_map = edgeql_utils.index_parameters(
                 args_ql,
                 paramnames=constraint.paramnames,
-                varparam=varparam)
+                paramkinds=constraint.paramkinds)
 
             edgeql_utils.inline_parameters(expr_ql, args_map)
 
@@ -448,18 +455,11 @@ class CreateConstraint(ConstraintCommand,
 
         elif isinstance(astnode, qlast.CreateConstraint):
             if astnode.args:
-                paramnames, paramdefaults, paramtypes, paramkinds, variadic = \
-                    s_func.parameters_from_ast(
-                        astnode, context.modaliases, schema,
-                        allow_named=False)
+                pi = s_func.parameters_from_ast(
+                    astnode, context.modaliases, schema,
+                    allow_named=False)
 
-                if variadic is not None:
-                    cmd.add(sd.AlterObjectProperty(
-                        property='varparam',
-                        new_value=variadic
-                    ))
-
-                for pdefault, ptype in zip(paramdefaults, paramtypes):
+                for pdefault, ptype in zip(pi.paramdefaults, pi.paramtypes):
                     if pdefault is not None:
                         raise ql_errors.EdgeQLError(
                             'constraints do not support parameters '
@@ -472,12 +472,17 @@ class CreateConstraint(ConstraintCommand,
 
                 cmd.add(sd.AlterObjectProperty(
                     property='paramnames',
-                    new_value=paramnames
+                    new_value=pi.paramnames
                 ))
 
                 cmd.add(sd.AlterObjectProperty(
                     property='paramtypes',
-                    new_value=paramtypes
+                    new_value=pi.paramtypes
+                ))
+
+                cmd.add(sd.AlterObjectProperty(
+                    property='paramkinds',
+                    new_value=pi.paramkinds
                 ))
 
         # 'subject' can be present in either astnode type

@@ -1803,7 +1803,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_func_07(self):
         await self.con.execute(r'''
-            CREATE FUNCTION test::concat3($sep: std::str,
+            CREATE FUNCTION test::concat3($sep: OPTIONAL std::str,
                                           VARIADIC $s: std::str)
                     -> std::str
                 FROM SQL FUNCTION 'concat_ws';
@@ -1817,28 +1817,41 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     kind,
                     type: {
                         name
-                    }
-                } ORDER BY schema::Function.params.num ASC
+                    },
+                    typemod
+                } ORDER BY .num ASC,
+                return_type: {
+                    name
+                },
+                return_typemod
             } FILTER schema::Function.name = 'test::concat3';
         ''', [
-            [{'params': [
-                {
-                    'num': 0,
-                    'name': 'sep',
-                    'kind': '',
-                    'type': {
-                        'name': 'std::str'
+            [{
+                'params': [
+                    {
+                        'num': 0,
+                        'name': 'sep',
+                        'kind': 'POSITIONAL',
+                        'type': {
+                            'name': 'std::str'
+                        },
+                        'typemod': 'OPTIONAL'
+                    },
+                    {
+                        'num': 1,
+                        'name': 's',
+                        'kind': 'VARIADIC',
+                        'type': {
+                            'name': 'std::str'
+                        },
+                        'typemod': 'SINGLETON'
                     }
+                ],
+                'return_type': {
+                    'name': 'std::str'
                 },
-                {
-                    'num': 1,
-                    'name': 's',
-                    'kind': 'VARIADIC',
-                    'type': {
-                        'name': 'std::str'
-                    }
-                }
-            ]}]
+                'return_typemod': 'SINGLETON'
+            }]
         ])
 
         with self.assertRaisesRegex(exc.EdgeQLError,

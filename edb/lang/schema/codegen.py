@@ -229,8 +229,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self.write('(')
         self.visit_list(node.args, newlines=False)
         self.write(') -> ')
-        if node.set_returning:
-            self.write(node.set_returning, ' ')
+        self.write(node.returning_typemod.to_edgeql(), ' ')
         self.visit(node.returning)
         self.write(':')
         self.new_lines = 1
