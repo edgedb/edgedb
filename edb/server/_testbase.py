@@ -384,7 +384,9 @@ class BaseQueryTestCase(DatabaseTestCase):
         res = await self.con.execute(query)
         # sort the query result by using the supplied key
         for r in res:
-            r.sort(key=key)
+            # don't bother sorting empty things
+            if r:
+                r.sort(key=key)
         self.assert_data_shape(res, result)
         return res
 
