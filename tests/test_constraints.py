@@ -700,7 +700,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                         "name": 'max',
                         "type": {"name": 'std::int64'},
                         "@value": '3',
-                        "typemod": None
+                        "typemod": 'SINGLETON'
                     }
                 ],
                 "is_abstract": False
@@ -714,7 +714,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                         "name": 'max',
                         "type": {"name": 'std::int64'},
                         "@value": None,
-                        "typemod": None
+                        "typemod": 'SINGLETON'
                     }
                 ],
                 "is_abstract": False

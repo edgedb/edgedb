@@ -24,6 +24,7 @@ from edb.lang.common import ast
 
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import errors as ql_errors
+from edb.lang.edgeql import functypes as ql_ft
 
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import pointers as s_pointers
@@ -115,7 +116,7 @@ def __infer_set(ir, scope_tree, schema):
 
 @_infer_cardinality.register(irast.FunctionCall)
 def __infer_func_call(ir, scope_tree, schema):
-    if ir.func.return_typemod is qlast.TypeModifier.SET_OF:
+    if ir.func.return_typemod is ql_ft.TypeModifier.SET_OF:
         return MANY
     else:
         return ONE

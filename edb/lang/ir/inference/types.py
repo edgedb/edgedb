@@ -122,7 +122,7 @@ def __infer_func_call(ir, schema):
         # the argument type.
         if isinstance(rtype, s_types.Tuple):
             for i, arg in enumerate(ir.args):
-                if is_polymorphic_type(ir.func.paramtypes[i]):
+                if is_polymorphic_type(ir.func.params[i].type):
                     arg_type = infer_type(arg, schema)
 
                     stypes = collections.OrderedDict(rtype.element_types)
@@ -135,7 +135,7 @@ def __infer_func_call(ir, schema):
 
         elif isinstance(rtype, s_types.Collection):
             for i, arg in enumerate(ir.args):
-                if is_polymorphic_type(ir.func.paramtypes[i]):
+                if is_polymorphic_type(ir.func.params[i].type):
                     arg_type = infer_type(arg, schema)
 
                     stypes = list(rtype.get_subtypes())
@@ -148,7 +148,7 @@ def __infer_func_call(ir, schema):
 
         else:
             for i, arg in enumerate(ir.args):
-                if is_polymorphic_type(ir.func.paramtypes[i]):
+                if is_polymorphic_type(ir.func.params[i].type):
                     arg_type = infer_type(arg, schema)
                     if isinstance(arg_type, s_types.Collection):
                         stypes = list(arg_type.get_subtypes())

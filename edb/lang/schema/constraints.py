@@ -50,6 +50,9 @@ class CumulativeBoolExpr(s_expr.ExpressionText):
 class Constraint(inheriting.InheritingObject):
     _type = 'constraint'
 
+    params = so.Field(s_func.FuncParameterList, default=None,
+                      coerce=True, compcoef=0.4)
+
     expr = so.Field(s_expr.ExpressionText, default=None, compcoef=0.909,
                     coerce=True)
 
@@ -64,15 +67,6 @@ class Constraint(inheriting.InheritingObject):
                          coerce=True, hashable=False, compcoef=0.909)
 
     subject = so.Field(so.Object, default=None, inheritable=False)
-
-    paramnames = so.Field(so.StringList, default=None, coerce=True,
-                          compcoef=0.999)
-
-    paramkinds = so.Field(s_func.FuncParamKindList,
-                          default=None, coerce=True, compcoef=0.4)
-
-    paramtypes = so.Field(so.TypeList, default=None, coerce=True,
-                          compcoef=0.857)
 
     args = so.Field(s_expr.ExpressionList,
                     default=None, coerce=True, inheritable=False,
@@ -105,27 +99,15 @@ class Constraint(inheriting.InheritingObject):
     def finalize(self, schema, bases=None, *, dctx=None):
         super().finalize(schema, bases=bases, dctx=dctx)
 
-        if not self.generic() and self.paramnames is None:
-            self.paramnames = []
+        if not self.generic() and self.params is None:
+            self.params = []
 
             if dctx is not None:
                 from . import delta as sd
 
                 dctx.current().op.add(sd.AlterObjectProperty(
-                    property='paramnames',
-                    new_value=self.paramnames,
-                    source='default'
-                ))
-
-        if not self.generic() and self.paramkinds is None:
-            self.paramkinds = []
-
-            if dctx is not None:
-                from . import delta as sd
-
-                dctx.current().op.add(sd.AlterObjectProperty(
-                    property='paramkinds',
-                    new_value=self.paramkinds,
+                    property='params',
+                    new_value=self.params,
                     source='default'
                 ))
 
@@ -226,9 +208,7 @@ class Constraint(inheriting.InheritingObject):
             ]
 
             args_map = edgeql_utils.index_parameters(
-                args_ql,
-                paramnames=constraint.paramnames,
-                paramkinds=constraint.paramkinds)
+                args_ql, parameters=constraint.params)
 
             edgeql_utils.inline_parameters(expr_ql, args_map)
 
@@ -455,34 +435,24 @@ class CreateConstraint(ConstraintCommand,
 
         elif isinstance(astnode, qlast.CreateConstraint):
             if astnode.args:
-                pi = s_func.parameters_from_ast(
+                params = s_func.FuncParameterList.from_ast(
                     astnode, context.modaliases, schema,
                     allow_named=False)
 
-                for pdefault, ptype in zip(pi.paramdefaults, pi.paramtypes):
-                    if pdefault is not None:
+                for param in params:
+                    if param.default is not None:
                         raise ql_errors.EdgeQLError(
                             'constraints do not support parameters '
                             'with defaults',
                             context=astnode.context)
 
-                    if ptype is None:
+                    if param.type is None:
                         raise ql_errors.EdgeQLError(
                             'untyped parameter', context=astnode.context)
 
                 cmd.add(sd.AlterObjectProperty(
-                    property='paramnames',
-                    new_value=pi.paramnames
-                ))
-
-                cmd.add(sd.AlterObjectProperty(
-                    property='paramtypes',
-                    new_value=pi.paramtypes
-                ))
-
-                cmd.add(sd.AlterObjectProperty(
-                    property='paramkinds',
-                    new_value=pi.paramkinds
+                    property='params',
+                    new_value=params
                 ))
 
         # 'subject' can be present in either astnode type

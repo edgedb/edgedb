@@ -28,6 +28,7 @@ import uuid
 from edb.lang.edgeql import ast as ql_ast
 from edb.lang.edgeql import compiler as ql_compiler
 from edb.lang.edgeql import errors as ql_errors
+from edb.lang.edgeql import functypes as ql_ft
 
 from edb.lang.schema import attributes as s_attrs
 from edb.lang.schema import scalars as s_scalars
@@ -162,7 +163,7 @@ class TypeDesc(_TypeDesc):
 
         return uuid.uuid5(TYPE_ID_NAMESPACE, s)
 
-    def encode(self):
+    def to_sql_expr(self):
         if self.subtypes:
             subtype_list = ', '.join(ql(str(st)) for st in self.subtypes)
             subtypes = f'ARRAY[{subtype_list}]'
@@ -185,7 +186,7 @@ class TypeDesc(_TypeDesc):
             str(self.is_root)
         ]
 
-        return '(' + ', '.join(items) + ')'
+        return 'ROW(' + ', '.join(items) + ')::edgedb.type_desc_node_t'
 
 
 class NamedObjectMetaCommand(
@@ -273,6 +274,33 @@ class NamedObjectMetaCommand(
             result = value
             recvalue = json.dumps(dict(value))
 
+        elif isinstance(value, s_funcs.FuncParameterList):
+            result = value
+
+            recvalue = []
+            for param in value:
+                enc_type = []
+                self._get_typedesc([(None, param.type)], enc_type)
+                typeq = dbops.Query(
+                    textwrap.dedent('''\
+                        SELECT edgedb._encode_type(
+                            ROW(ARRAY[
+                                {names}
+                            ]::edgedb.type_desc_node_t[])::edgedb.typedesc_t
+                        )
+                    ''').format(names=dbops.encode_value(enc_type)),
+                    type=('edgedb', 'type_t')
+                )
+
+                recvalue.append((
+                    param.pos,
+                    param.name,
+                    param.default,
+                    typeq,
+                    param.typemod,
+                    param.kind,
+                ))
+
         else:
             result = value
 
@@ -280,7 +308,7 @@ class NamedObjectMetaCommand(
             names = result
             if isinstance(names, list):
                 names_str = textwrap.indent(
-                    ',\n'.join(n.encode() for n in names),
+                    ',\n'.join(n.to_sql_expr() for n in names),
                     ' ' * 8
                 ).lstrip()
 
@@ -445,13 +473,10 @@ class FunctionCommand:
     table = metaschema.get_metaclass_table(s_funcs.Function)
 
     def get_varparam(self, func: s_funcs.Function):
-        try:
-            varparam = func.paramkinds.index(ql_ast.ParameterKind.VARIADIC)
-        except ValueError:
-            varparam = None
+        if func.params.variadic:
+            return func.params.variadic.pos + 1
         else:
-            varparam += 1
-        return varparam
+            return None
 
     def get_pgname(self, func: s_funcs.Function):
         return (
@@ -490,20 +515,18 @@ class FunctionCommand:
                 context=self.source_context) from ex
 
     def compile_args(self, func: s_funcs.Function, schema):
-        if not func.paramtypes:
+        if not func.params:
             return
 
         args = []
-        for an, at, ad in itertools.zip_longest(func.paramnames,
-                                                func.paramtypes,
-                                                func.paramdefaults):
-            pg_ad = None
-            if ad is not None:
-                pg_ad = self.compile_default(func, ad, schema)
+        for param in func.params:
+            pg_ad = param.default
+            if pg_ad is not None:
+                pg_ad = self.compile_default(func, pg_ad, schema)
 
-            pg_at = self.get_pgtype(func, at, schema)
+            pg_at = self.get_pgtype(func, param.type, schema)
 
-            args.append((an, pg_at, pg_ad))
+            args.append((param.name, pg_at, pg_ad))
 
         return args
 
@@ -517,23 +540,17 @@ class CreateFunction(FunctionCommand, CreateNamedObject,
             name=self.get_pgname(func),
             args=self.compile_args(func, schema),
             variadic_arg=self.get_varparam(func),
-            set_returning=func.return_typemod is ql_ast.TypeModifier.SET_OF,
+            set_returning=func.return_typemod is ql_ft.TypeModifier.SET_OF,
             returns=self.get_pgtype(func, func.return_type, schema),
             text=func.code)
 
     def compile_edgeql_function(self, func: s_funcs.Function, schema):
         arg_types = None
-        if func.paramtypes:
+        if func.params:
             arg_types = {}
 
-            arg_iter = enumerate(
-                itertools.zip_longest(func.paramnames, func.paramtypes))
-
-            for ai, (an, at) in arg_iter:
-                if an is None:
-                    arg_types[str(ai)] = at
-                else:
-                    arg_types[an] = at
+            for param in func.params:
+                arg_types[param.name] = param.type
 
         body_ir = ql_compiler.compile_to_ir(
             func.code, schema, arg_types=arg_types)
@@ -546,7 +563,7 @@ class CreateFunction(FunctionCommand, CreateNamedObject,
             args=self.compile_args(func, schema),
             variadic_arg=self.get_varparam(func),
             returns=self.get_pgtype(func, func.return_type, schema),
-            set_returning=func.return_typemod is ql_ast.TypeModifier.SET_OF,
+            set_returning=func.return_typemod is ql_ft.TypeModifier.SET_OF,
             text=sql_text)
 
     def apply(self, schema, context):
@@ -565,7 +582,8 @@ class CreateFunction(FunctionCommand, CreateNamedObject,
                 f'unsupported language {func.language}',
                 context=self.source_context)
 
-        self.pgops.add(dbops.CreateFunction(dbf))
+        op = dbops.CreateFunction(dbf)
+        self.pgops.add(op)
         return func
 
 

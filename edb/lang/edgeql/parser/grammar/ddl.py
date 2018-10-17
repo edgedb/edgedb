@@ -22,6 +22,8 @@ import types
 import sys
 
 from edb.lang.edgeql import ast as qlast
+from edb.lang.edgeql import functypes as ft
+
 from edb.lang.common import parsing, context
 from edb.lang.common.parsing import ListNonterm
 
@@ -1508,13 +1510,13 @@ class OptDefault(Nonterm):
 class OptParameterKind(Nonterm):
 
     def reduce_empty(self):
-        self.val = qlast.ParameterKind.POSITIONAL
+        self.val = ft.ParameterKind.POSITIONAL
 
     def reduce_VARIADIC(self, kid):
-        self.val = qlast.ParameterKind.VARIADIC
+        self.val = ft.ParameterKind.VARIADIC
 
     def reduce_NAMED_ONLY(self, *kids):
-        self.val = qlast.ParameterKind.NAMED_ONLY
+        self.val = ft.ParameterKind.NAMED_ONLY
 
 
 class FuncDeclArg(Nonterm):
@@ -1552,7 +1554,7 @@ class CreateFunctionArgs(Nonterm):
         last_named_arg = None
         variadic_arg = None
         for arg in args:
-            if arg.kind is qlast.ParameterKind.VARIADIC:
+            if arg.kind is ft.ParameterKind.VARIADIC:
                 if variadic_arg is not None:
                     raise EdgeQLSyntaxError(
                         'more than one variadic argument',
@@ -1565,7 +1567,7 @@ class CreateFunctionArgs(Nonterm):
                 else:
                     variadic_arg = arg
 
-            elif arg.kind is qlast.ParameterKind.NAMED_ONLY:
+            elif arg.kind is ft.ParameterKind.NAMED_ONLY:
                 last_named_arg = arg
 
             else:
@@ -1581,7 +1583,7 @@ class CreateFunctionArgs(Nonterm):
                         f'follows VARIADIC argument ${variadic_arg.name}',
                         context=arg.context)
 
-            if arg.kind is qlast.ParameterKind.POSITIONAL:
+            if arg.kind is ft.ParameterKind.POSITIONAL:
                 if arg.default is None:
                     if last_pos_default_arg is not None:
                         raise EdgeQLSyntaxError(
@@ -1692,13 +1694,13 @@ commands_block(
 
 class OptTypeQualifier(Nonterm):
     def reduce_SET_OF(self, *kids):
-        self.val = qlast.TypeModifier.SET_OF
+        self.val = ft.TypeModifier.SET_OF
 
     def reduce_OPTIONAL(self, *kids):
-        self.val = qlast.TypeModifier.OPTIONAL
+        self.val = ft.TypeModifier.OPTIONAL
 
     def reduce_empty(self):
-        self.val = qlast.TypeModifier.SINGLETON
+        self.val = ft.TypeModifier.SINGLETON
 
 
 class CreateFunctionStmt(Nonterm, _ProcessFunctionBlockMixin):

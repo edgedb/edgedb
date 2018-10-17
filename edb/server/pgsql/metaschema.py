@@ -118,6 +118,20 @@ class ObjectTable(dbops.Table):
         )
 
 
+class ParameterNodeType(dbops.CompositeType):
+    def __init__(self):
+        super().__init__(name=('edgedb', 'parameter_t'))
+
+        self.add_columns([
+            dbops.Column(name='pos', type='int4'),
+            dbops.Column(name='name', type='text'),
+            dbops.Column(name='default', type='text'),
+            dbops.Column(name='type', type='edgedb.type_t'),
+            dbops.Column(name='typemod', type='text'),
+            dbops.Column(name='kind', type='text'),
+        ])
+
+
 class RaiseExceptionFunction(dbops.Function):
     text = '''
     BEGIN
@@ -957,6 +971,9 @@ def _field_to_column(field):
     elif issubclass(ftype, int):
         coltype = 'bigint'
 
+    elif issubclass(ftype, s_funcs.FuncParameterList):
+        coltype = 'edgedb.parameter_t[]'
+
     else:
         coltype = 'text'
 
@@ -1036,6 +1053,7 @@ async def bootstrap(conn):
         dbops.CreateCompositeType(TypeType()),
         dbops.CreateCompositeType(TypeDescNodeType()),
         dbops.CreateCompositeType(TypeDescType()),
+        dbops.CreateCompositeType(ParameterNodeType()),
         dbops.CreateDomain(('edgedb', 'known_record_marker_t'), 'text'),
         dbops.CreateTable(ObjectTable()),
     ])
@@ -1283,10 +1301,13 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                 FROM
                     (SELECT
                         s.id        AS id,
-                        t.num - 1   AS num
+                        p.pos       AS num
                      FROM
                         edgedb.{mcls.__name__} AS s,
-                        LATERAL UNNEST((s.paramtypes).types)
+
+                        LATERAL UNNEST(s.params) AS p,
+
+                        LATERAL UNNEST((p.type).types)
                             WITH ORDINALITY AS
                                 t(id, maintype, name, collection, subtypes,
                                   dimensions, is_root, num)
@@ -1307,14 +1328,18 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                 FROM
                     (SELECT
                         s.id        AS id,
-                        t.num - 1   AS num,
+                        p.pos       AS num,
                         tv.value    AS value
                      FROM
                         edgedb.{mcls.__name__} AS s,
-                        LATERAL UNNEST((s.paramtypes).types)
+
+                        LATERAL UNNEST(s.params) AS p,
+
+                        LATERAL UNNEST((p.type).types)
                             WITH ORDINALITY AS
                                 t(id, maintype, name, collection, subtypes,
                                   dimensions, is_root, num)
+
                         LEFT JOIN
                             LATERAL UNNEST(s.args)
                                 WITH ORDINALITY AS tv(value, num)
@@ -1403,46 +1428,26 @@ def _generate_param_view(schema):
         FROM
             (SELECT
                 f.id        AS id,
-                t.num - 1   AS num,
-                (CASE WHEN t.collection IS NULL
-                 THEN t.maintype
-                 ELSE t.id END)
+                p.pos      AS num,
+                (CASE WHEN ((p.type).types[1]).collection IS NULL
+                 THEN ((p.type).types[1]).maintype
+                 ELSE ((p.type).types[1]).id END)
                             AS type_id,
-                tn.name     AS name,
-                td.expr     AS def,
-                tm.typemod  AS typemod,
-                tk.kind     AS kind
+                p.name      AS name,
+                p.default   AS def,
+                p.typemod   AS typemod,
+                p.kind      AS kind
              FROM
                 (SELECT
-                    id, paramtypes, paramnames, paramdefaults, paramtypemods,
-                    paramkinds
+                    id, params
                  FROM edgedb.Function
                  UNION ALL
                  SELECT
-                    id, paramtypes, paramnames, NULL as paramdefaults,
-                    NULL as paramtypemods, paramkinds
+                    id, params
                  FROM edgedb.Constraint
                 ) AS f,
-                LATERAL UNNEST((f.paramtypes).types)
-                    WITH ORDINALITY AS
-                        t(id, maintype, name, collection,
-                          subtypes, dimensions, is_root, num)
-                LEFT JOIN
-                    LATERAL UNNEST(f.paramnames)
-                        WITH ORDINALITY AS tn(name, num)
-                    ON (t.num = tn.num)
-                LEFT JOIN
-                    LATERAL UNNEST(f.paramdefaults)
-                        WITH ORDINALITY AS td(expr, num)
-                    ON (t.num = td.num)
-                LEFT JOIN
-                    LATERAL UNNEST(f.paramtypemods)
-                        WITH ORDINALITY AS tm(typemod, num)
-                    ON (t.num = tm.num)
-                LEFT JOIN
-                    LATERAL UNNEST(f.paramkinds)
-                        WITH ORDINALITY AS tk(kind, num)
-                    ON (t.num = tk.num)
+                LATERAL UNNEST(f.params) AS p
+
             ) AS q
     '''
 

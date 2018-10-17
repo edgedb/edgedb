@@ -22,6 +22,8 @@ import typing
 from edb.lang.common import enum as s_enum
 from edb.lang.common import ast, parsing
 
+from . import functypes as ft
+
 
 # Operators
 #
@@ -112,26 +114,6 @@ class SetModifier(s_enum.StrEnum):
 AggALL = SetModifier.ALL
 AggDISTINCT = SetModifier.DISTINCT
 AggNONE = SetModifier.NONE
-
-
-class TypeModifier(s_enum.StrEnum):
-    SET_OF = 'SET OF'
-    OPTIONAL = 'OPTIONAL'
-    SINGLETON = 'SINGLETON'
-
-    def to_edgeql(self):
-        if self is TypeModifier.SET_OF:
-            return 'SET OF'
-        elif self is TypeModifier.OPTIONAL:
-            return 'OPTIONAL'
-        else:
-            return ''
-
-
-class ParameterKind(s_enum.StrEnum):
-    VARIADIC = 'VARIADIC'
-    NAMED_ONLY = 'NAMED ONLY'
-    POSITIONAL = 'POSITIONAL'
 
 
 class Cardinality(s_enum.StrEnum):
@@ -286,8 +268,8 @@ class TypeOp(TypeExpr):
 class FuncParam(Base):
     name: str
     type: TypeExpr
-    typemod: TypeModifier = TypeModifier.SINGLETON
-    kind: ParameterKind
+    typemod: ft.TypeModifier = ft.TypeModifier.SINGLETON
+    kind: ft.ParameterKind
     default: Expr  # noqa (pyflakes bug)
 
 
@@ -812,7 +794,7 @@ class CreateFunction(CreateObject):
     aggregate: bool = False
     initial_value: Expr
     code: FunctionCode
-    returning_typemod: TypeModifier = TypeModifier.SINGLETON
+    returning_typemod: ft.TypeModifier = ft.TypeModifier.SINGLETON
 
 
 class AlterFunction(AlterObject):

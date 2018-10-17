@@ -21,7 +21,9 @@ import typing
 
 from edb.lang.common import enum as s_enum
 from edb.lang.common import ast, parsing
+
 from edb.lang.edgeql import ast as qlast
+from edb.lang.edgeql import functypes as qlft
 
 
 class Base(ast.AST):
@@ -159,7 +161,7 @@ class FunctionDeclaration(Declaration):
     aggregate: bool = False
     initial_value: qlast.Base
     code: FunctionCode
-    returning_typemod: qlast.TypeModifier
+    returning_typemod: qlft.TypeModifier
 
 
 class BasePointerDeclaration(Declaration):

@@ -33,6 +33,7 @@ from edb.lang.schema import types as s_types
 
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import errors
+from edb.lang.edgeql import functypes as qlft
 from edb.lang.edgeql import parser as qlparser
 
 from . import astutils
@@ -95,7 +96,8 @@ def check_function(
         func: s_func.Function,
         arg_types: typing.Iterable[s_obj.Object],
         fatal_array_check: bool = False) -> bool:
-    if not func.paramtypes:
+
+    if not func.params:
         if not arg_types:
             # Match: `func` is a function without parameters
             # being called with no arguments.
@@ -107,49 +109,42 @@ def check_function(
 
     if not arg_types:
         # Call without arguments
-        for pi, (pd, pk) in enumerate(zip(func.paramdefaults,
-                                          func.paramkinds)):
-            if pd is None and pk is not irast.ParameterKind.VARIADIC:
+        for param in func.params:
+            if (param.default is None and
+                    param.kind is not qlft.ParameterKind.VARIADIC):
                 # There is at least one non-variadic parameter
                 # without default; hence this function cannot
                 # be called without arguments.
                 return False
         return True
 
-    try:
-        varparam = func.paramkinds.index(irast.ParameterKind.VARIADIC)
-    except ValueError:
-        varparam = None
-
-    for pn, pt, pd, at in itertools.zip_longest(func.paramnames,
-                                                func.paramtypes,
-                                                func.paramdefaults,
-                                                arg_types):
-        if pt is None:
+    for param, at in itertools.zip_longest(func.params, arg_types):
+        if param is None:
             # We have more arguments than parameters.
-            if varparam is not None:
+            if func.params.variadic is not None:
                 # Function has a variadic parameter
                 # (which must be the last one).
-                pt = func.paramtypes[varparam]
+                param = func.params.variadic
             else:
                 # No variadic parameter, hence no match.
                 return False
 
         elif at is None:
             # We have fewer arguments than parameters.
-            if pd is None:
+            if param is None:
                 return False
+
         else:
             # We have both types for the parameter and for
             # the argument; check if they are compatible.
-            if not at.issubclass(pt):
+            if not at.issubclass(param.type):
                 return False
 
             rt = func.return_type
             # If the parameter type is 'any', the return type is
             # 'array<any>', and the argument is also an 'array', then
             # this is an invalid function invocation.
-            if (pt.name == 'std::any' and
+            if (param.type.name == 'std::any' and
                     isinstance(rt, s_types.Array) and
                     rt.get_subtypes()[0].name == 'std::any' and
                     isinstance(at, s_types.Array)):
@@ -226,20 +221,20 @@ def fixup_param_scope(
         if varparam_mod is not None:
             param_mod = varparam_mod
         else:
-            param_mod = func.paramtypemods[i]
-            param_kind = func.paramkinds[i]
-            if param_kind is irast.ParameterKind.VARIADIC:
+            p = func.params[i]
+            param_mod = p.typemod
+            param_kind = p.kind
+            if param_kind is qlft.ParameterKind.VARIADIC:
                 varparam_mod = param_mod
-        if param_mod != qlast.TypeModifier.SET_OF:
+        if param_mod != qlft.TypeModifier.SET_OF:
             arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
             if arg_scope is not None:
                 arg_scope.collapse()
                 pathctx.assign_set_scope(arg, None, ctx=ctx)
 
     for name, arg in kwargs.items():
-        i = func.paramnames.index(name)
-        param_mod = func.paramtypemods[i]
-        if param_mod != qlast.TypeModifier.SET_OF:
+        p = func.params.get_by_name(name)
+        if p.typemod != qlft.TypeModifier.SET_OF:
             arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
             if arg_scope is not None:
                 arg_scope.collapse()

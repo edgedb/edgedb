@@ -29,18 +29,26 @@ async def fetch(
                 f.name AS name,
                 f.title AS title,
                 f.description AS description,
-                edgedb._resolve_type(f.paramtypes) AS paramtypes,
-                f.paramnames,
-                f.paramkinds,
-                f.paramdefaults,
-                f.paramtypemods,
                 f.aggregate,
                 f.return_typemod,
                 f.language,
                 f.code,
                 f.from_function,
                 f.initial_value,
-                edgedb._resolve_type(f.return_type) AS return_type
+                edgedb._resolve_type(f.return_type) AS return_type,
+
+                (SELECT array_agg(
+                    (p.pos,
+                     p.name,
+                     p.default,
+                     edgedb._resolve_type(p.type),
+                     p.typemod,
+                     p.kind))
+
+                    FROM
+                        unnest(f.params) AS p
+                )                       AS params
+
             FROM
                 edgedb.function f
             ORDER BY
