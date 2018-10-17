@@ -30,12 +30,16 @@ from edb.lang.common import typeutils
 from ..common import quote_ident as qi
 from ..common import quote_literal as ql
 from ..common import quote_type as qt
+from ..common import qname as qn
 
 
 def encode_value(val: object) -> str:
     """Encode value into an appropriate SQL expression."""
     if hasattr(val, 'to_sql_expr'):
         val = val.to_sql_expr()
+    elif isinstance(val, tuple):
+        val_list = [encode_value(el) for el in val]
+        val = f'ROW({", ".join(val_list)})'
     elif typeutils.is_container(val):
         val_list = [encode_value(el) for el in val]
         val = f'ARRAY[{", ".join(val_list)}]'
@@ -43,6 +47,10 @@ def encode_value(val: object) -> str:
         val = 'NULL'
     elif not isinstance(val, numbers.Number):
         val = ql(str(val))
+    elif isinstance(val, int):
+        val = str(int(val))
+    else:
+        val = str(val)
 
     return val
 
@@ -357,6 +365,12 @@ class Query(Command):
         super().__init__()
         self.text = text
         self.type = type
+
+    def to_sql_expr(self):
+        if self.type:
+            return f'({self.text})::{qn(*self.type)}'
+        else:
+            return self.text
 
     def __repr__(self):
         return f'<Query {self.text!r}>'

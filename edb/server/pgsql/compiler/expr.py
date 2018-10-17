@@ -23,6 +23,8 @@ import typing
 
 from edb.lang.common import ast
 
+from edb.lang.edgeql import functypes as ql_ft
+
 from edb.lang.ir import ast as irast
 from edb.lang.ir import utils as irutils
 
@@ -522,7 +524,7 @@ def compile_FunctionCall(
         raise RuntimeError(
             'aggregate functions are not supported in simple expressions')
 
-    if funcobj.return_typemod is irast.TypeModifier.SET_OF:
+    if funcobj.return_typemod is ql_ft.TypeModifier.SET_OF:
         raise RuntimeError(
             'set returning functions are not supported in simple expressions')
 

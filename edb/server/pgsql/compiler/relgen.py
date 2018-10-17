@@ -25,6 +25,8 @@ import typing
 
 from edb.lang.common import ast
 
+from edb.lang.edgeql import functypes as ql_ft
+
 from edb.lang.ir import ast as irast
 from edb.lang.ir import inference as irinference
 from edb.lang.ir import utils as irutils
@@ -251,8 +253,8 @@ def _get_set_rvar(
         rvars = process_set_as_tuple_indirection(ir_set, stmt, ctx=ctx)
 
     elif isinstance(ir_set.expr, irast.FunctionCall):
-        if any(k == irast.TypeModifier.SET_OF
-               for k in ir_set.expr.func.paramtypemods):
+        if any(p.typemod is ql_ft.TypeModifier.SET_OF
+               for p in ir_set.expr.func.params):
             # Call to an aggregate function.
             rvars = process_set_as_agg_expr(ir_set, stmt, ctx=ctx)
         else:
@@ -1263,7 +1265,7 @@ def process_set_as_func_expr(
         set_expr = pgast.FuncCall(
             name=name, args=args, with_ordinality=with_ordinality)
 
-    if funcobj.return_typemod is irast.TypeModifier.SET_OF:
+    if funcobj.return_typemod is ql_ft.TypeModifier.SET_OF:
         rtype = funcobj.return_type
 
         if isinstance(funcobj.return_type, s_types.Tuple):
@@ -1354,8 +1356,8 @@ def process_set_as_agg_expr(
             # check if the aggregate accepts a single argument
             # of std::any to determine serialized input safety.
             serialization_safe = (
-                any(irutils.is_polymorphic_type(p)
-                    for p in funcobj.paramtypes) and
+                any(irutils.is_polymorphic_type(p.type)
+                    for p in funcobj.params) and
                 irutils.is_polymorphic_type(funcobj.return_type)
             )
 

@@ -475,6 +475,18 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
                     vals.append(self._resolve_type_ref(val, schema))
 
                 value = ftype(vals)
+
+            elif hasattr(ftype.type, '_resolve_type_refs'):
+                vals = []
+
+                for val in value:
+                    if hasattr(val, '_resolve_type_refs'):
+                        vals.append(val._resolve_type_refs(schema))
+                    else:
+                        vals.append(val)
+
+                value = ftype(vals)
+
         else:
             value = self.adapt_value(field, value)
 

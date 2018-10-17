@@ -1050,10 +1050,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'FUNCTION')
 
     def visit_FuncParam(self, node):
-        if node.kind is edgeql_ast.ParameterKind.VARIADIC:
-            self.write('VARIADIC ')
-        elif node.kind is edgeql_ast.ParameterKind.NAMED_ONLY:
-            self.write('NAMED ONLY ')
+        self.write(node.kind.to_edgeql(), ' ')
 
         if node.name is not None:
             self.write(param_to_str(node.name), ': ')

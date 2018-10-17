@@ -319,34 +319,37 @@ class IntrospectionMech:
         for scalar in schema.get_objects(type='ScalarType'):
             scalar.acquire_ancestor_inheritance(schema)
 
+    def _decode_func_params(self, row, schema):
+        if row['params']:
+            return [
+                s_funcs.Parameter(
+                    pos=r[0],
+                    name=r[1],
+                    default=r[2],
+                    type=self.unpack_typeref(r[3], schema),
+                    typemod=r[4],
+                    kind=r[5])
+                for r in row['params']
+            ]
+        else:
+            return []
+
     async def read_functions(self, schema):
         func_list = await datasources.schema.functions.fetch(self.connection)
 
         for row in func_list:
             name = sn.Name(row['name'])
 
-            paramtypes = None
-            if row['paramtypes']:
-                paramtypes = [
-                    s[1] for s in self.unpack_typedesc_nodes(
-                        row['paramtypes']['types'], schema)]
-
             func_data = {
                 'name': name,
                 'title': self.json_to_word_combination(row['title']),
                 'description': row['description'],
                 'aggregate': row['aggregate'],
+                'params': self._decode_func_params(row, schema),
                 'return_typemod': row['return_typemod'],
                 'from_function': row['from_function'],
                 'code': row['code'],
                 'initial_value': row['initial_value'],
-                'paramtypes': paramtypes,
-                'paramnames': row['paramnames'] if row['paramnames'] else [],
-                'paramkinds': row['paramkinds'] if row['paramkinds'] else [],
-                'paramdefaults':
-                    row['paramdefaults'] if row['paramdefaults'] else [],
-                'paramtypemods':
-                    row['paramtypemods'] if row['paramtypemods'] else [],
                 'return_type': self.unpack_typeref(row['return_type'], schema)
             }
 
@@ -380,24 +383,14 @@ class IntrospectionMech:
 
             basemap[name] = bases
 
-            paramtypes = None
-            if r['paramtypes']:
-                paramtypes = [
-                    s[1] for s in self.unpack_typedesc_nodes(
-                        r['paramtypes']['types'], schema)]
-
-            paramnames = r['paramnames'] if r['paramnames'] else []
-            paramkinds = r['paramkinds'] if r['paramkinds'] else []
-
             constraint = s_constr.Constraint(
                 name=name, subject=subject, title=title,
+                params=self._decode_func_params(r, schema),
                 description=description, is_abstract=r['is_abstract'],
                 is_final=r['is_final'], expr=r['expr'],
                 subjectexpr=r['subjectexpr'],
                 localfinalexpr=r['localfinalexpr'], finalexpr=r['finalexpr'],
                 errmessage=r['errmessage'],
-                paramtypes=paramtypes, paramnames=paramnames,
-                paramkinds=paramkinds,
                 args=r['args'])
 
             if subject:

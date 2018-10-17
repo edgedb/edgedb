@@ -661,8 +661,8 @@ def _compile_view_shapes_in_fcall(
     funcobj = expr.func
 
     preserves_type = (
-        any(irutils.is_polymorphic_type(p)
-            for p in funcobj.paramtypes) and
+        any(irutils.is_polymorphic_type(p.type)
+            for p in funcobj.params) and
         irutils.is_polymorphic_type(funcobj.return_type)
     )
 
