@@ -166,7 +166,7 @@ class RowRawString(Nonterm):
                 f'Could not parse EdgeQL parameters declaration {expr!r}',
                 context=context) from None
 
-        return (eql.set_returning, eql.returning)
+        return (eql.returning_typemod, eql.returning)
 
 
 class RowRawStr(Nonterm):
@@ -648,12 +648,12 @@ class FunctionDeclCore(Nonterm):
                 raise SchemaSyntaxError(
                     'illegal definition', context=spec.context)
 
-        set_returning, returning = kids[3].parse_as_function_type()
+        returning_typemod, returning = kids[3].parse_as_function_type()
 
         self.val = esast.FunctionDeclaration(
             name=kids[0].val,
             args=kids[1].val,
-            set_returning=set_returning,
+            returning_typemod=returning_typemod,
             returning=returning,
             attributes=attributes,
             initial_value=init_val,

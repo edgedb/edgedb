@@ -444,6 +444,15 @@ class AlterObjectProperty(MetaCommand, adapts=sd.AlterObjectProperty):
 class FunctionCommand:
     table = metaschema.get_metaclass_table(s_funcs.Function)
 
+    def get_varparam(self, func: s_funcs.Function):
+        try:
+            varparam = func.paramkinds.index(ql_ast.ParameterKind.VARIADIC)
+        except ValueError:
+            varparam = None
+        else:
+            varparam += 1
+        return varparam
+
     def get_pgname(self, func: s_funcs.Function):
         return (
             common.edgedb_module_name_to_schema_name(func.shortname.module),
@@ -503,17 +512,13 @@ class CreateFunction(FunctionCommand, CreateNamedObject,
                      adapts=s_funcs.CreateFunction):
 
     def compile_sql_function(self, func: s_funcs.Function, schema):
-        if func.varparam is not None:
-            varparam = func.varparam + 1
-        else:
-            varparam = None
 
         return dbops.Function(
             name=self.get_pgname(func),
             args=self.compile_args(func, schema),
-            variadic_arg=varparam,
-            set_returning=func.set_returning,
-            returns=self.get_pgtype(func, func.returntype, schema),
+            variadic_arg=self.get_varparam(func),
+            set_returning=func.return_typemod is ql_ast.TypeModifier.SET_OF,
+            returns=self.get_pgtype(func, func.return_type, schema),
             text=func.code)
 
     def compile_edgeql_function(self, func: s_funcs.Function, schema):
@@ -536,16 +541,12 @@ class CreateFunction(FunctionCommand, CreateNamedObject,
         sql_text, _ = compiler.compile_ir_to_sql(
             body_ir, schema=schema, ignore_shapes=True)
 
-        if func.varparam is not None:
-            varparam = func.varparam + 1
-        else:
-            varparam = None
-
         return dbops.Function(
             name=self.get_pgname(func),
             args=self.compile_args(func, schema),
-            variadic_arg=varparam,
-            returns=self.get_pgtype(func, func.returntype, schema),
+            variadic_arg=self.get_varparam(func),
+            returns=self.get_pgtype(func, func.return_type, schema),
+            set_returning=func.return_typemod is ql_ast.TypeModifier.SET_OF,
             text=sql_text)
 
     def apply(self, schema, context):
@@ -586,16 +587,12 @@ class DeleteFunction(
 
         if func.code:
             # EdgeQL function (not an alias to an SQL function).
-            if func.varparam is not None:
-                varparam = func.varparam + 1
-            else:
-                varparam = None
 
             self.pgops.add(
                 dbops.DropFunction(
                     name=self.get_pgname(func),
                     args=self.compile_args(func, schema),
-                    variadic_arg=varparam
+                    variadic_arg=self.get_varparam(func)
                 )
             )
 

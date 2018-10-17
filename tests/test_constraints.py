@@ -675,6 +675,52 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         await self.con.execute(qry)
 
+        await self.assert_query_result(r'''
+            SELECT schema::Constraint {
+                name,
+                is_abstract,
+                params: {
+                    num,
+                    name,
+                    kind,
+                    type: {
+                        name
+                    },
+                    typemod,
+                    @value
+                } ORDER BY schema::Constraint.params.num ASC
+            } FILTER .name = 'test::mymax_ext1' ORDER BY .is_abstract;
+        ''', [[
+            {
+                "name": 'test::mymax_ext1',
+                "params": [
+                    {
+                        "num": 0,
+                        "kind": 'POSITIONAL',
+                        "name": 'max',
+                        "type": {"name": 'std::int64'},
+                        "@value": '3',
+                        "typemod": None
+                    }
+                ],
+                "is_abstract": False
+            },
+            {
+                "name": 'test::mymax_ext1',
+                "params": [
+                    {
+                        "num": 0,
+                        "kind": 'POSITIONAL',
+                        "name": 'max',
+                        "type": {"name": 'std::int64'},
+                        "@value": None,
+                        "typemod": None
+                    }
+                ],
+                "is_abstract": False
+            }
+        ]])
+
         # making sure the constraint was applied successfully
         async with self._run_and_rollback():
             with self.assertRaisesRegex(

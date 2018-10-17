@@ -31,16 +31,16 @@ async def fetch(
                 f.description AS description,
                 edgedb._resolve_type(f.paramtypes) AS paramtypes,
                 f.paramnames,
-                f.varparam,
-                f.paramdefaults,
                 f.paramkinds,
+                f.paramdefaults,
+                f.paramtypemods,
                 f.aggregate,
-                f.set_returning,
+                f.return_typemod,
                 f.language,
                 f.code,
                 f.from_function,
                 f.initial_value,
-                edgedb._resolve_type(f.returntype) AS returntype
+                edgedb._resolve_type(f.return_type) AS return_type
             FROM
                 edgedb.function f
             ORDER BY

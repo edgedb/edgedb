@@ -251,8 +251,8 @@ def _get_set_rvar(
         rvars = process_set_as_tuple_indirection(ir_set, stmt, ctx=ctx)
 
     elif isinstance(ir_set.expr, irast.FunctionCall):
-        if any(k == irast.SetQualifier.SET_OF
-               for k in ir_set.expr.func.paramkinds):
+        if any(k == irast.TypeModifier.SET_OF
+               for k in ir_set.expr.func.paramtypemods):
             # Call to an aggregate function.
             rvars = process_set_as_agg_expr(ir_set, stmt, ctx=ctx)
         else:
@@ -1263,10 +1263,10 @@ def process_set_as_func_expr(
         set_expr = pgast.FuncCall(
             name=name, args=args, with_ordinality=with_ordinality)
 
-    if funcobj.set_returning:
-        rtype = funcobj.returntype
+    if funcobj.return_typemod is irast.TypeModifier.SET_OF:
+        rtype = funcobj.return_type
 
-        if isinstance(funcobj.returntype, s_types.Tuple):
+        if isinstance(funcobj.return_type, s_types.Tuple):
             colnames = [name for name in rtype.element_types]
         else:
             colnames = [ctx.env.aliases.get('v')]
@@ -1356,7 +1356,7 @@ def process_set_as_agg_expr(
             serialization_safe = (
                 any(irutils.is_polymorphic_type(p)
                     for p in funcobj.paramtypes) and
-                irutils.is_polymorphic_type(funcobj.returntype)
+                irutils.is_polymorphic_type(funcobj.return_type)
             )
 
             if not serialization_safe:

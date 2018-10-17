@@ -1395,17 +1395,14 @@ def _generate_param_view(schema):
                  WHERE name = 'schema::Parameter')
                             AS {dbname('std::__type__')},
             q.type_id       AS {dbname('schema::type')},
-            (CASE q.varparam=q.num
-             WHEN TRUE THEN 'VARIADIC'
-             ELSE q.kind
-             END)   AS {dbname('schema::kind')},
+            q.kind          AS {dbname('schema::kind')},
+            q.typemod       AS {dbname('schema::typemod')},
             q.num           AS {dbname('schema::num')},
             q.name          AS {dbname('schema::name')},
             q.def           AS {dbname('schema::default')}
         FROM
             (SELECT
                 f.id        AS id,
-                f.varparam  AS varparam,
                 t.num - 1   AS num,
                 (CASE WHEN t.collection IS NULL
                  THEN t.maintype
@@ -1413,16 +1410,17 @@ def _generate_param_view(schema):
                             AS type_id,
                 tn.name     AS name,
                 td.expr     AS def,
+                tm.typemod  AS typemod,
                 tk.kind     AS kind
              FROM
                 (SELECT
-                    id, paramtypes, paramnames, paramdefaults, paramkinds,
-                    varparam
+                    id, paramtypes, paramnames, paramdefaults, paramtypemods,
+                    paramkinds
                  FROM edgedb.Function
                  UNION ALL
                  SELECT
-                    id, paramtypes, NULL as paramnames, NULL as paramdefaults,
-                    NULL as paramkinds, varparam as varparam
+                    id, paramtypes, paramnames, NULL as paramdefaults,
+                    NULL as paramtypemods, paramkinds
                  FROM edgedb.Constraint
                 ) AS f,
                 LATERAL UNNEST((f.paramtypes).types)
@@ -1437,6 +1435,10 @@ def _generate_param_view(schema):
                     LATERAL UNNEST(f.paramdefaults)
                         WITH ORDINALITY AS td(expr, num)
                     ON (t.num = td.num)
+                LEFT JOIN
+                    LATERAL UNNEST(f.paramtypemods)
+                        WITH ORDINALITY AS tm(typemod, num)
+                    ON (t.num = tm.num)
                 LEFT JOIN
                     LATERAL UNNEST(f.paramkinds)
                         WITH ORDINALITY AS tk(kind, num)

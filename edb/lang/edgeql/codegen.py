@@ -1012,8 +1012,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit_list(node.args, newlines=False)
             self.write(')')
             self.write(' -> ')
-            if node.set_returning:
-                self.write(node.set_returning.upper(), ' ')
+            self.write(node.returning_typemod.to_edgeql(), ' ')
             self.visit(node.returning)
 
             if node.commands or node.initial_value:
@@ -1059,8 +1058,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if node.name is not None:
             self.write(param_to_str(node.name), ': ')
 
-        if node.qualifier:
-            self.write(node.qualifier.upper(), ' ')
+        self.write(node.typemod.to_edgeql(), ' ')
 
         self.visit(node.type)
 

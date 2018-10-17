@@ -53,17 +53,19 @@ def inline_parameters(ql_expr: qlast.Base, args: typing.Dict[str, qlast.Base]):
 
 def index_parameters(ql_args: typing.List[qlast.Base], *,
                      paramnames: typing.List[str],
-                     varparam: typing.Optional[int]=None):
+                     paramkinds: typing.List[qlast.ParameterKind]):
     result = {}
     varargs = None
 
-    for (i, e), n in itertools.zip_longest(enumerate(ql_args),
-                                           paramnames,
-                                           fillvalue=None):
+    for (i, e), n, k in itertools.zip_longest(enumerate(ql_args),
+                                              paramnames,
+                                              paramkinds,
+                                              fillvalue=None):
         if isinstance(e, qlast.SelectQuery):
             e = e.result
 
-        if varparam is not None and i == varparam:
+        if k is qlast.ParameterKind.VARIADIC:
+            assert varargs is None
             varargs = []
             result[n] = qlast.Array(elements=varargs)
 

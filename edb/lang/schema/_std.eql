@@ -87,12 +87,11 @@ CREATE ABSTRACT ATTRIBUTE stdattrs::default std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::expression std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::cardinality std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::aggregate std::bool;
-CREATE ABSTRACT ATTRIBUTE stdattrs::set_returning std::bool;
 CREATE ABSTRACT ATTRIBUTE stdattrs::language std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::code std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::from_function std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::initial_value std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::varparam std::int64;
+CREATE ABSTRACT ATTRIBUTE stdattrs::return_typemod std::str;
 
 CREATE FUNCTION std::lower($str: std::str) -> std::str
     FROM SQL FUNCTION 'lower';
@@ -465,6 +464,7 @@ CREATE ABSTRACT TYPE schema::InheritingObject EXTENDING schema::Object {
 
 CREATE TYPE schema::Parameter {
     CREATE REQUIRED LINK schema::type -> schema::Type;
+    CREATE REQUIRED PROPERTY schema::typemod -> std::str;
     CREATE REQUIRED PROPERTY schema::kind -> std::str;
     CREATE REQUIRED PROPERTY schema::num -> std::int64;
     CREATE PROPERTY schema::name -> std::str;
@@ -582,7 +582,7 @@ CREATE TYPE schema::Function EXTENDING schema::Object {
     CREATE LINK schema::params -> schema::Parameter {
         SET cardinality := '**';
     };
-    CREATE LINK schema::returntype -> schema::Type;
+    CREATE LINK schema::return_type -> schema::Type;
+    CREATE PROPERTY schema::return_typemod -> std::str;
     CREATE PROPERTY schema::aggregate -> std::bool;
-    CREATE PROPERTY schema::set_returning -> std::bool;
 };

@@ -17,6 +17,8 @@
 #
 
 
+import typing
+
 from edb.lang.common import typed
 
 from edb.lang.edgeql import ast as qlast
@@ -32,7 +34,20 @@ from . import types as s_types
 from . import utils
 
 
-class FuncParamKindList(typed.TypedList, type=qlast.SetQualifier):
+class ParametersInfo(typing.NamedTuple):
+    paramnames: typing.List[str]
+    paramdefaults: typing.List[str]  # list of EdgeQL snippets
+    paramtypes: typing.List[so.ObjectRef]
+    paramtypemods: typing.List[qlast.TypeModifier]
+    paramkinds: typing.List[qlast.ParameterKind]
+    variadic: typing.Optional[int]
+
+
+class FuncParamTypeModList(typed.TypedList, type=qlast.TypeModifier):
+    pass
+
+
+class FuncParamKindList(typed.TypedList, type=qlast.ParameterKind):
     pass
 
 
@@ -45,15 +60,14 @@ class Function(so.NamedObject):
     paramtypes = so.Field(so.TypeList, default=None, coerce=True,
                           compcoef=0.4)
 
-    paramkinds = so.Field(FuncParamKindList,
-                          default=qlast.SetQualifier.DEFAULT, coerce=True,
-                          compcoef=0.4)
+    paramtypemods = so.Field(FuncParamTypeModList,
+                             default=None, coerce=True, compcoef=0.4)
 
-    # Number of the variadic parameter
-    varparam = so.Field(int, default=None, compcoef=0.4)
+    paramkinds = so.Field(FuncParamKindList,
+                          default=None, coerce=True, compcoef=0.4)
 
     paramdefaults = so.Field(expr.ExpressionList, default=None, coerce=True)
-    returntype = so.Field(so.Object, compcoef=0.2)
+    return_type = so.Field(so.Object, compcoef=0.2)
     aggregate = so.Field(bool, default=False, compcoef=0.4)
 
     code = so.Field(str, default=None, compcoef=0.4)
@@ -64,7 +78,7 @@ class Function(so.NamedObject):
     initial_value = so.Field(expr.ExpressionText, default=None, compcoef=0.4,
                              coerce=True)
 
-    set_returning = so.Field(bool, default=False, compcoef=0.4)
+    return_typemod = so.Field(qlast.TypeModifier, compcoef=0.4, coerce=True)
 
 
 class FunctionCommandContext(sd.ObjectCommandContext):
@@ -137,37 +151,35 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
 
         modaliases = context.modaliases
 
-        paramnames, paramdefaults, paramtypes, paramkinds, variadic = \
-            parameters_from_ast(astnode, modaliases, schema)
-
-        if variadic is not None:
-            cmd.add(sd.AlterObjectProperty(
-                property='varparam',
-                new_value=variadic
-            ))
+        pi = parameters_from_ast(astnode, modaliases, schema)
 
         cmd.add(sd.AlterObjectProperty(
             property='paramnames',
-            new_value=paramnames
+            new_value=pi.paramnames
         ))
 
         cmd.add(sd.AlterObjectProperty(
             property='paramtypes',
-            new_value=paramtypes
+            new_value=pi.paramtypes
+        ))
+
+        cmd.add(sd.AlterObjectProperty(
+            property='paramtypemods',
+            new_value=pi.paramtypemods
         ))
 
         cmd.add(sd.AlterObjectProperty(
             property='paramkinds',
-            new_value=paramkinds
+            new_value=pi.paramkinds
         ))
 
         cmd.add(sd.AlterObjectProperty(
             property='paramdefaults',
-            new_value=paramdefaults
+            new_value=pi.paramdefaults
         ))
 
         cmd.add(sd.AlterObjectProperty(
-            property='returntype',
+            property='return_type',
             new_value=utils.ast_to_typeref(
                 astnode.returning, modaliases=modaliases, schema=schema)
         ))
@@ -178,8 +190,8 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
         ))
 
         cmd.add(sd.AlterObjectProperty(
-            property='set_returning',
-            new_value=astnode.set_returning
+            property='return_typemod',
+            new_value=astnode.returning_typemod
         ))
 
         if astnode.initial_value is not None:
@@ -223,21 +235,22 @@ class DeleteFunction(named.DeleteNamedObject, FunctionCommand):
     def _classname_from_ast(cls, astnode, context, schema):
         name = super()._classname_from_ast(astnode, context, schema)
 
-        _, _, paramtypes, _, _ = parameters_from_ast(
-            astnode, context.modaliases, schema)
+        pi = parameters_from_ast(astnode, context.modaliases, schema)
 
-        return cls._get_function_fullname(name, paramtypes)
+        return cls._get_function_fullname(name, pi.paramtypes)
 
 
 def parameters_from_ast(astnode, modaliases, schema, *, allow_named=True):
     paramdefaults = []
     paramnames = []
     paramtypes = []
+    paramtypemods = []
     paramkinds = []
     variadic = None
     for argi, arg in enumerate(astnode.args):
         paramnames.append(arg.name)
-        paramkinds.append(arg.qualifier)
+        paramtypemods.append(arg.typemod)
+        paramkinds.append(arg.kind)
 
         default = None
         if arg.default is not None:
@@ -255,4 +268,10 @@ def parameters_from_ast(astnode, modaliases, schema, *, allow_named=True):
                 'named only parameters are not allowed in this context',
                 context=astnode.context)
 
-    return paramnames, paramdefaults, paramtypes, paramkinds, variadic
+    return ParametersInfo(
+        paramnames=paramnames,
+        paramdefaults=paramdefaults,
+        paramtypes=paramtypes,
+        paramtypemods=paramtypemods,
+        paramkinds=paramkinds,
+        variadic=variadic)
