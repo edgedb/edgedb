@@ -47,7 +47,7 @@ __all__ = 'serialize',
 
 
 def no_ref_detect(func):
-    """Serializer decorated with ``no_ref_detect`` will be executed wihout
+    """Serializer decorated with ``no_ref_detect`` will be executed without
     prior checking the memo if object was already serialized"""
 
     func.no_ref_detect = True
@@ -87,9 +87,15 @@ class Context:
 def serialize(obj, *, ctx):
     """Serialize arbitrary python object to Markup elements"""
 
-    sr = serializer.dispatch(type(obj))
-    if sr == serializer:
+    tobj = type(obj)
+
+    sr = serializer.dispatch(tobj)
+    if sr is serializer:
         raise LookupError(f'unable to find serializer for object {obj!r}')
+
+    if (sr is serialize_unknown_object and
+            hasattr(tobj, '__dataclass_fields__')):
+        sr = serialize_dataclass
 
     ctx.level += 1
     ctx.run_cnt += 1
@@ -335,9 +341,32 @@ def serialize_mapping(obj, *, ctx, trim_at=100):
         items=map, id=id(obj), trimmed=(trim and cnt >= trim_at))
 
 
+def serialize_dataclass(obj, *, ctx):
+    fields = type(obj).__dataclass_fields__
+
+    node = elements.lang.TreeNode(
+        id=id(obj),
+        name=f'{type(obj).__name__}')
+
+    for fieldname, field in fields.items():
+        try:
+            val = getattr(obj, fieldname)
+        except AttributeError:
+            continue
+
+        if not field.repr:
+            continue
+
+        node.add_child(
+            label=fieldname,
+            node=serialize(val, ctx=ctx))
+
+    return node
+
+
 @serializer.register(object)
 @no_ref_detect
-def serialize_uknown_object(obj, *, ctx):
+def serialize_unknown_object(obj, *, ctx):
     return elements.lang.Object(
         id=id(obj), class_module=type(obj).__module__,
         classname=type(obj).__name__, repr=xrepr(obj, max_len=200))
