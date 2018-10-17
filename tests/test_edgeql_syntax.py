@@ -2780,7 +2780,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"positional argument \$d follows named only.*\$c\b",
+                  r"positional argument \$d follows NAMED ONLY.*\$c\b",
                   line=6, col=13)
     def test_edgeql_syntax_ddl_function_37(self):
         """
@@ -2793,6 +2793,9 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             std::int64 FROM SQL FUNCTION 'aaa';
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"NAMED ONLY argument \$select.*before VARIADIC.*\$variadic",
+                  line=5, col=13)
     def test_edgeql_syntax_ddl_function_38(self):
         """
         CREATE FUNCTION foo(
@@ -2800,6 +2803,44 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
             NAMED ONLY $create: OPTIONAL std::str,
             NAMED ONLY $select: OPTIONAL std::str = '1',
             VARIADIC $variadic: OPTIONAL std::str = '1'
+        ) ->
+            std::int64 FROM SQL FUNCTION 'aaa';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"NAMED ONLY argument \$create.*before VARIADIC.*\$variadic",
+                  line=4, col=13)
+    def test_edgeql_syntax_ddl_function_39(self):
+        """
+        CREATE FUNCTION foo(
+            $set: OPTIONAL std::str,
+            NAMED ONLY $create: OPTIONAL std::str,
+            VARIADIC $variadic: OPTIONAL std::str = '1',
+            NAMED ONLY $select: OPTIONAL std::str = '1'
+        ) ->
+            std::int64 FROM SQL FUNCTION 'aaa';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"positional argument \$select follows VARIADIC.*\$variadic",
+                  line=5, col=13)
+    def test_edgeql_syntax_ddl_function_40(self):
+        """
+        CREATE FUNCTION foo(
+            $set: OPTIONAL std::str,
+            VARIADIC $variadic: OPTIONAL std::str = '1',
+            $select: OPTIONAL std::str = '1'
+        ) ->
+            std::int64 FROM SQL FUNCTION 'aaa';
+        """
+
+    def test_edgeql_syntax_ddl_function_41(self):
+        """
+        CREATE FUNCTION foo(
+            $set: OPTIONAL std::str,
+            VARIADIC $variadic: OPTIONAL std::str = '1',
+            NAMED ONLY $create: OPTIONAL std::str,
+            NAMED ONLY $select: OPTIONAL std::str = '1'
         ) ->
             std::int64 FROM SQL FUNCTION 'aaa';
         """

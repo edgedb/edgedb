@@ -1557,6 +1557,11 @@ class CreateFunctionArgs(Nonterm):
                     raise EdgeQLSyntaxError(
                         'more than one variadic argument',
                         context=arg.context)
+                elif last_named_arg is not None:
+                    raise EdgeQLSyntaxError(
+                        f'NAMED ONLY argument ${last_named_arg.name} '
+                        f'before VARIADIC argument ${arg.name}',
+                        context=last_named_arg.context)
                 else:
                     variadic_arg = arg
 
@@ -1567,13 +1572,13 @@ class CreateFunctionArgs(Nonterm):
                 if last_named_arg is not None:
                     raise EdgeQLSyntaxError(
                         f'positional argument ${arg.name} '
-                        f'follows named only argument ${last_named_arg.name}',
+                        f'follows NAMED ONLY argument ${last_named_arg.name}',
                         context=arg.context)
 
                 if variadic_arg is not None:
                     raise EdgeQLSyntaxError(
                         f'positional argument ${arg.name} '
-                        f'follows variadic argument ${variadic_arg.name}',
+                        f'follows VARIADIC argument ${variadic_arg.name}',
                         context=arg.context)
 
             if arg.kind is qlast.ParameterKind.POSITIONAL:
