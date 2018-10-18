@@ -835,3 +835,59 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             json.loads(val),
             {"foo": 1, "bar": [1, 2, 3]}
         )
+
+    async def test_edgeql_json_slice_01(self):
+        await self.assert_query_result(r'''
+            SELECT str_to_json('[1, "a", 3, null]')[:1];
+            SELECT str_to_json('[1, "a", 3, null]')[:-1];
+            SELECT str_to_json('[1, "a", 3, null]')[1:-1];
+            SELECT str_to_json('[1, "a", 3, null]')[-1:1];
+            SELECT str_to_json('[1, "a", 3, null]')[-100:100];
+            SELECT str_to_json('[1, "a", 3, null]')[100:-100];
+        ''', [
+            [[1]],
+            [[1, 'a', 3]],
+            [['a', 3]],
+            [[]],
+            [[1, 'a', 3, None]],
+            [[]],
+        ])
+
+    async def test_edgeql_json_slice_02(self):
+        await self.assert_query_result(r'''
+            SET MODULE test;
+
+            WITH JT2 := (SELECT JSONTest FILTER .number = 2)
+            SELECT JT2.j_array[:1];
+
+            WITH JT2 := (SELECT JSONTest FILTER .number = 2)
+            SELECT JT2.j_array[:-1];
+
+            WITH JT2 := (SELECT JSONTest FILTER .number = 2)
+            SELECT JT2.j_array[1:-1];
+
+            WITH JT2 := (SELECT JSONTest FILTER .number = 2)
+            SELECT JT2.j_array[-1:1];
+
+            WITH JT2 := (SELECT JSONTest FILTER .number = 2)
+            SELECT JT2.j_array[-100:100];
+
+            WITH JT2 := (SELECT JSONTest FILTER .number = 2)
+            SELECT JT2.j_array[100:-100];
+        ''', [
+            None,
+            [[2]],
+            [[2, "q", [3], {}]],
+            [["q", [3], {}]],
+            [[]],
+            [[2, "q", [3], {}, None]],
+            [[]],
+        ])
+
+    async def test_edgeql_json_slice_03(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'cannot index json array by.*str'):
+
+            await self.con.execute(r"""
+                SELECT str_to_json('[1, "a", 3, null]')[:'1'];
+            """)

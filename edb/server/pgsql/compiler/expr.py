@@ -161,12 +161,12 @@ def compile_TypeCast(
 def compile_IndexIndirection(
         expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     # Handle Expr[Index], where Expr may be std::str, array<T> or
-    # std::json. For strings we translate this into substr calls,
-    # whereas for arrays the native index access is used. JSON is
-    # handled by using the `->` accessor. Additionally, in all of the
-    # above cases a boundary-check is performed on the index and an
-    # exception is potentially raised.
-    is_string = False
+    # std::json. For strings we translate this into substr calls.
+    # Arrays use the native index access. JSON is handled by using the
+    # `->` accessor. Additionally, in all of the above cases a
+    # boundary-check is performed on the index and an exception is
+    # potentially raised.
+    base_name = None
     arg_type = _infer_type(expr.expr, ctx=ctx)
     # line, column and filename are captured here to be used with the
     # error message
@@ -177,62 +177,33 @@ def compile_IndexIndirection(
         subj = dispatch.compile(expr.expr, ctx=subctx)
         index = dispatch.compile(expr.index, ctx=subctx)
 
-    if isinstance(arg_type, s_scalars.ScalarType):
-        b = arg_type.get_topmost_concrete_base()
-
-        # JSON accessors already handle negative offset and count from
-        # 0, so we don't need any of the additional processing of the
-        # index expression that str and arrays require.
-        if b.name == 'std::json':
-            # At this point the index is either a text or some
-            # integer. If the index is an integer, cast it into int.
-            index_t = _infer_type(expr.index, ctx=ctx)
-            int_t = ctx.env.schema.get('std::anyint')
-            if index_t.issubclass(int_t):
-                index = pgast.TypeCast(
-                    arg=index,
-                    type_name=pgast.TypeName(
-                        name=('int',)
-                    )
-                )
-
-            return pgast.FuncCall(
-                name=('edgedb', '_json_index'),
-                args=[subj, index, srcctx]
+    # If the index is some integer, cast it into int, because there's
+    # no backend function that handles indexes larger than int.
+    index_t = _infer_type(expr.index, ctx=ctx)
+    int_t = ctx.env.schema.get('std::anyint')
+    if index_t.issubclass(int_t):
+        index = pgast.TypeCast(
+            arg=index,
+            type_name=pgast.TypeName(
+                name=('int',)
             )
+        )
 
-        is_string = b.name == 'std::str'
+    if isinstance(arg_type, s_scalars.ScalarType):
+        base_name = arg_type.get_topmost_concrete_base().name
 
-    one = pgast.Constant(val=1)
-    zero = pgast.Constant(val=0)
+    if base_name == 'std::json':
+        result = pgast.FuncCall(
+            name=('edgedb', '_json_index'),
+            args=[subj, index, srcctx]
+        )
 
-    when_cond = astutils.new_binop(
-        lexpr=index, rexpr=zero, op=ast.ops.LT)
-
-    index_plus_one = astutils.new_binop(
-        lexpr=index, op=ast.ops.ADD, rexpr=one)
-
-    if is_string:
-        upper_bound = pgast.FuncCall(
-            name=('char_length',), args=[subj])
-    else:
-        upper_bound = pgast.FuncCall(
-            name=('array_upper',), args=[subj, one])
-
-    neg_off = astutils.new_binop(
-        lexpr=upper_bound, rexpr=index_plus_one, op=ast.ops.ADD)
-
-    when_expr = pgast.CaseWhen(
-        expr=when_cond, result=neg_off)
-
-    index = pgast.CaseExpr(
-        args=[when_expr], defresult=index_plus_one)
-
-    if is_string:
+    elif base_name == 'std::str':
         result = pgast.FuncCall(
             name=('edgedb', '_string_index'),
             args=[subj, index, srcctx]
         )
+
     else:
         result = pgast.FuncCall(
             name=('edgedb', '_array_index'),
@@ -245,97 +216,53 @@ def compile_IndexIndirection(
 @dispatch.compile.register(irast.SliceIndirection)
 def compile_SliceIndirection(
         expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
-    # Handle Expr[Start:End], where Expr may be std::str or array<T>.
-    # For strings we translate this into substr calls, whereas
-    # for arrays the native slice syntax is used.
+    # Handle Expr[Index], where Expr may be std::str, array<T> or
+    # std::json. For strings we translate this into substr calls.
+    # Arrays use the native slice syntax. JSON is handled by a
+    # combination of unnesting aggregation and array slicing.
     with ctx.new() as subctx:
         subctx.expr_exposed = False
         subj = dispatch.compile(expr.expr, ctx=subctx)
         start = dispatch.compile(expr.start, ctx=subctx)
         stop = dispatch.compile(expr.stop, ctx=subctx)
 
-    one = pgast.Constant(val=1)
-    zero = pgast.Constant(val=0)
+    base_name = None
 
-    is_string = False
     arg_type = _infer_type(expr.expr, ctx=ctx)
 
     if isinstance(arg_type, s_scalars.ScalarType):
-        b = arg_type.get_topmost_concrete_base()
-        is_string = b.name == 'std::str'
+        base_name = arg_type.get_topmost_concrete_base().name
 
-    if is_string:
-        upper_bound = pgast.FuncCall(
-            name=('char_length',), args=[subj])
-    else:
-        upper_bound = pgast.FuncCall(
-            name=('array_upper',), args=[subj, one])
-
-    if astutils.is_null_const(start):
-        lower = one
-    else:
-        lower = start
-
-        when_cond = astutils.new_binop(
-            lexpr=lower, rexpr=zero, op=ast.ops.LT)
-        lower_plus_one = astutils.new_binop(
-            lexpr=lower, rexpr=one, op=ast.ops.ADD)
-
-        neg_off = astutils.new_binop(
-            lexpr=upper_bound, rexpr=lower_plus_one, op=ast.ops.ADD)
-
-        when_expr = pgast.CaseWhen(
-            expr=when_cond, result=neg_off)
-        lower = pgast.CaseExpr(
-            args=[when_expr], defresult=lower_plus_one)
-
-    if astutils.is_null_const(stop):
-        upper = upper_bound
-    else:
-        upper = stop
-
-        when_cond = astutils.new_binop(
-            lexpr=upper, rexpr=zero, op=ast.ops.LT)
-
-        neg_off = astutils.new_binop(
-            lexpr=upper_bound, rexpr=upper, op=ast.ops.ADD)
-
-        when_expr = pgast.CaseWhen(
-            expr=when_cond, result=neg_off)
-        upper = pgast.CaseExpr(
-            args=[when_expr], defresult=upper)
-
-    if is_string:
-        lower = pgast.TypeCast(
-            arg=lower,
-            type_name=pgast.TypeName(
-                name=('int',)
-            )
+    # any integer indexes must be upcast into int to fit the helper
+    # function signature
+    start = pgast.TypeCast(
+        arg=start,
+        type_name=pgast.TypeName(
+            name=('int',)
         )
+    )
+    stop = pgast.TypeCast(
+        arg=stop,
+        type_name=pgast.TypeName(
+            name=('int',)
+        )
+    )
 
-        args = [subj, lower]
-
-        if upper is not upper_bound:
-            for_length = astutils.new_binop(
-                lexpr=upper, op=ast.ops.SUB, rexpr=lower)
-            for_length = astutils.new_binop(
-                lexpr=for_length, op=ast.ops.ADD, rexpr=one)
-
-            for_length = pgast.TypeCast(
-                arg=for_length,
-                type_name=pgast.TypeName(
-                    name=('int',)
-                )
-            )
-            args.append(for_length)
-
-        result = pgast.FuncCall(name=('substr',), args=args)
-
+    if base_name == 'std::json':
+        result = pgast.FuncCall(
+            name=('edgedb', '_json_slice'),
+            args=[subj, start, stop]
+        )
+    elif base_name == 'std::str':
+        result = pgast.FuncCall(
+            name=('edgedb', '_string_slice'),
+            args=[subj, start, stop]
+        )
     else:
-        indirection = pgast.Indices(
-            lidx=lower, ridx=upper)
-        result = pgast.Indirection(
-            arg=subj, indirection=[indirection])
+        result = pgast.FuncCall(
+            name=('edgedb', '_array_slice'),
+            args=[subj, start, stop]
+        )
 
     return result
 

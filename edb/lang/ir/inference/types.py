@@ -351,7 +351,32 @@ def __infer_exist(ir, schema):
 
 @_infer_type.register(irast.SliceIndirection)
 def __infer_slice(ir, schema):
-    return infer_type(ir.expr, schema)
+    node_type = infer_type(ir.expr, schema)
+
+    str_t = schema.get('std::str')
+    int_t = schema.get('std::int64')
+    json_t = schema.get('std::json')
+
+    if node_type.issubclass(str_t):
+        base_name = 'string'
+    elif node_type.issubclass(json_t):
+        base_name = 'json array'
+    elif isinstance(node_type, s_types.Array):
+        base_name = 'array'
+    else:
+        # the base type is not valid
+        return None
+
+    for index in [ir.start, ir.stop]:
+        index_type = infer_type(index, schema)
+
+        if not index_type.implicitly_castable_to(int_t, schema):
+            raise ql_errors.EdgeQLError(
+                f'cannot index {base_name} by {index_type.name}, '
+                f'{int_t.name} was expected',
+                context=index.context)
+
+    return node_type
 
 
 @_infer_type.register(irast.IndexIndirection)

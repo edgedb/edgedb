@@ -143,13 +143,7 @@ CREATE FUNCTION std::array_enumerate($array: array<std::any>) ->
 CREATE FUNCTION std::array_get($array: array<std::any>, $index: std::int64)
         -> OPTIONAL std::any
     FROM SQL $$
-        SELECT $1[(
-            CASE WHEN $2 < 0 THEN
-                array_upper($1, 1) + $2 + 1
-            ELSE
-                $2 + 1
-            END
-        )]
+        SELECT $1[edgedb._normalize_array_index($2::int, array_upper($1, 1))]
     $$;
 
 CREATE FUNCTION std::len($str: std::str) -> std::int64

@@ -438,6 +438,17 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [],
         ])
 
+    async def test_edgeql_functions_array_get_03(self):
+        with self.assertRaisesRegex(
+                # FIXME: a different error should be used here, this
+                # one leaks postgres types
+                exc.UnknownEdgeDBError,
+                r'integer out of range'):
+
+            await self.con.execute(r'''
+                SELECT array_get([1, 2, 3], 2^40);
+            ''')
+
     async def test_edgeql_functions_re_match_01(self):
         await self.assert_query_result(r'''
             SELECT re_match('AbabaB', 'ab');

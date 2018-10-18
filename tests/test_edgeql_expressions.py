@@ -854,9 +854,44 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 # FIXME: possibly a different error should be used here
                 exc.UnknownEdgeDBError,
-                r'array index -7 is out of bounds'):
+                r'array index -10 is out of bounds'):
             await self.con.execute("""
                 SELECT [1, 2, 3][-10];
+            """)
+
+    async def test_edgeql_expr_array_17(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'cannot index array by.*float64'):
+
+            await self.con.execute("""
+                SELECT [1, 2][1.0];
+            """)
+
+    async def test_edgeql_expr_array_18(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'cannot index array by.*float64'):
+
+            await self.con.execute("""
+                SELECT [1, 2][1.0:3];
+            """)
+
+    async def test_edgeql_expr_array_19(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'cannot index array by.*str'):
+
+            await self.con.execute("""
+                SELECT [1, 2][1:'3'];
+            """)
+
+    async def test_edgeql_expr_array_20(self):
+        with self.assertRaisesRegex(
+                # FIXME: a different error should be used here, this
+                # one leaks postgres types
+                exc.UnknownEdgeDBError,
+                r'integer out of range'):
+
+            await self.con.execute("""
+                SELECT [1, 2][2^40];
             """)
 
     async def test_edgeql_expr_coalesce_01(self):
@@ -947,17 +982,36 @@ class TestExpressions(tb.QueryTestCase):
             """)
 
     async def test_edgeql_expr_string_04(self):
-        # There's an inherent problem with negative offsets that they
-        # resolve into some other offset that gets passed to substr.
-        # So potentially this can be prettified by introducing an
-        # extra layer of a function call or some other mechanism for
-        # storing the "original" offset value.
         with self.assertRaisesRegex(
                 # FIXME: possibly a different error should be used here
                 exc.UnknownEdgeDBError,
-                r'string index -7 is out of bounds'):
+                r'string index -10 is out of bounds'):
             await self.con.execute("""
                 SELECT '123'[-10];
+            """)
+
+    async def test_edgeql_expr_string_05(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'cannot index string by.*float64'):
+
+            await self.con.execute("""
+                SELECT '123'[-1.0];
+            """)
+
+    async def test_edgeql_expr_string_06(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'cannot index string by.*float64'):
+
+            await self.con.execute("""
+                SELECT '123'[1.0:];
+            """)
+
+    async def test_edgeql_expr_string_07(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'cannot index string by.*str'):
+
+            await self.con.execute("""
+                SELECT '123'[:'1'];
             """)
 
     async def test_edgeql_expr_tuple_01(self):
