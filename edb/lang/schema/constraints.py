@@ -407,8 +407,7 @@ class ConstraintCommand(
 
 
 class CreateConstraint(ConstraintCommand,
-                       referencing.CreateReferencedInheritingObject,
-                       s_func.FunctionCommandMixin):
+                       referencing.CreateReferencedInheritingObject):
 
     astnode = [qlast.CreateConcreteConstraint, qlast.CreateConstraint]
     referenced_astnode = qlast.CreateConcreteConstraint
