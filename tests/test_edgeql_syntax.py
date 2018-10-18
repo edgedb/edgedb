@@ -2608,7 +2608,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
                   line=3, col=37)
     def test_edgeql_syntax_ddl_function_08(self):
         """
-        CREATE FUNCTION std::strlen(VARIADIC $string: std::str = '1',
+        CREATE FUNCTION std::strlen(VARIADIC $string: std::str,
                                     $abc: std::str)
             -> std::int64;
         """
@@ -2617,7 +2617,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
                   'more than one variadic argument', line=3, col=37)
     def test_edgeql_syntax_ddl_function_09(self):
         """
-        CREATE FUNCTION std::strlen(VARIADIC $string: std::str = '1',
+        CREATE FUNCTION std::strlen(VARIADIC $string: std::str,
                                     VARIADIC $abc: std::str)
             -> std::int64;
         """
@@ -2828,7 +2828,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         CREATE FUNCTION foo(
             $set: OPTIONAL std::str,
-            VARIADIC $variadic: OPTIONAL std::str = '1',
+            VARIADIC $variadic: OPTIONAL std::str,
             $select: OPTIONAL std::str = '1'
         ) ->
             std::int64 FROM SQL FUNCTION 'aaa';
@@ -2838,11 +2838,21 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         CREATE FUNCTION foo(
             $set: OPTIONAL std::str,
-            VARIADIC $variadic: OPTIONAL std::str = '1',
+            VARIADIC $variadic: OPTIONAL std::str,
             NAMED ONLY $create: OPTIONAL std::str,
             NAMED ONLY $select: OPTIONAL std::str = '1'
         ) ->
             std::int64 FROM SQL FUNCTION 'aaa';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"VARIADIC argument \$b cannot have a default",
+                  line=2, col=37)
+    def test_edgeql_syntax_ddl_function_42(self):
+        """
+        CREATE FUNCTION std::strlen(VARIADIC $b: std::str = '1')
+            -> std::int64
+            FROM SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_property_01(self):

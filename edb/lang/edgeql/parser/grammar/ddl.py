@@ -1567,6 +1567,12 @@ class CreateFunctionArgs(Nonterm):
                 else:
                     variadic_arg = arg
 
+                if arg.default is not None:
+                    raise EdgeQLSyntaxError(
+                        f'VARIADIC argument ${arg.name} '
+                        f'cannot have a default value',
+                        context=arg.context)
+
             elif arg.kind is ft.ParameterKind.NAMED_ONLY:
                 last_named_arg = arg
 
