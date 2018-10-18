@@ -23,7 +23,6 @@ import json
 import pickle
 import re
 import textwrap
-import uuid
 
 from edb.lang.edgeql import ast as ql_ast
 from edb.lang.edgeql import compiler as ql_compiler
@@ -71,7 +70,6 @@ from . import types
 
 
 BACKEND_FORMAT_VERSION = 30
-TYPE_ID_NAMESPACE = uuid.UUID('00e50276-2502-11e7-97f2-27fe51238dbd')
 
 
 class CommandMeta(sd.CommandMeta):
@@ -137,58 +135,6 @@ class Record:
         return '<_Record {!r}>'.format(self._items)
 
 
-_TypeDesc = collections.namedtuple(
-    '_TypeDesc', ['id', 'maintype', 'name', 'collection',
-                  'subtypes', 'dimensions', 'is_root'],
-    module=__name__)
-
-
-class TypeDesc(_TypeDesc):
-    def __new__(cls, **kwargs):
-        if not kwargs.get('id'):
-            kwargs['id'] = cls._get_id(kwargs)
-        return super().__new__(cls, **kwargs)
-
-    @classmethod
-    def _get_id(cls, data):
-        if data['collection'] == 'tuple' and not data['subtypes']:
-            return s_obj.get_known_type_id('empty-tuple')
-
-        s = (
-            f"{data['maintype']!r}\x00{data['name']!r}\x00"
-            f"{data['collection']!r}\x00"
-            f"{','.join(str(s) for s in data['subtypes'])}\x00"
-            f"{':'.join(str(d) for d in data['dimensions'])}"
-        )
-
-        return uuid.uuid5(TYPE_ID_NAMESPACE, s)
-
-    def to_sql_expr(self):
-        if self.subtypes:
-            subtype_list = ', '.join(ql(str(st)) for st in self.subtypes)
-            subtypes = f'ARRAY[{subtype_list}]'
-        else:
-            subtypes = 'ARRAY[]::uuid[]'
-
-        if self.dimensions:
-            dimensions_list = ', '.join(ql(str(d)) for d in self.dimensions)
-            dimensions = f'ARRAY[{dimensions_list}]'
-        else:
-            dimensions = 'ARRAY[]::int[]'
-
-        items = [
-            ql(str(self.id)),
-            ql(self.maintype) if self.maintype else 'NULL',
-            ql(self.name) if self.name else 'NULL',
-            ql(self.collection) if self.collection else 'NULL',
-            subtypes,
-            dimensions,
-            str(self.is_root)
-        ]
-
-        return 'ROW(' + ', '.join(items) + ')::edgedb.type_desc_node_t'
-
-
 class NamedObjectMetaCommand(
         ObjectMetaCommand, s_named.NamedObjectCommand):
     op_priority = 0
@@ -209,87 +155,44 @@ class NamedObjectMetaCommand(
 
         return name
 
-    def _get_typedesc(self, types, typedesc, is_root=True):
-        result = []
-        indexes = []
-        for tn, t in types:
-            # Fill the result with placeholders as we want the
-            # parent types to go first.
-            typedesc.append(())
-            indexes.append(len(typedesc) - 1)
-
-        for i, (tn, t) in enumerate(types):
-            if isinstance(t, s_types.Collection):
-                if isinstance(t, s_types.Tuple) and t.named:
-                    stypes = t.element_types.items()
-                else:
-                    stypes = [(None, st) for st in t.get_subtypes()]
-
-                subtypes = self._get_typedesc(stypes, typedesc, is_root=False)
-                if isinstance(t, s_types.Array):
-                    dimensions = t.dimensions
-                else:
-                    dimensions = []
-                desc = TypeDesc(
-                    maintype=None, name=tn, collection=t.schema_name,
-                    subtypes=subtypes, dimensions=dimensions, is_root=is_root)
-            else:
-                desc = TypeDesc(
-                    maintype=self._get_name(t), name=tn, collection=None,
-                    subtypes=[], dimensions=[], is_root=is_root)
-
-            typedesc[indexes[i]] = desc
-            result.append(desc.id)
-
-        return result
-
     def _serialize_field(self, value, col, *, use_defaults=False):
         recvalue = None
+        result = value
 
         if isinstance(value, (s_obj.ObjectSet, s_obj.ObjectList)):
             result = tuple(self._get_name(v) for v in value)
+            name_array = ', '.join(ql(n) for n in result)
+            recvalue = dbops.Query(
+                f'edgedb._resolve_type_id(ARRAY[{name_array}]::text[])')
 
         elif isinstance(value, s_obj.ObjectDict):
-            result = []
-            self._get_typedesc(value.items(), result)
+            result = s_types.Tuple.from_subtypes(value, {'named': True})
+            recvalue = types.TypeDesc.from_type(result)
 
         elif isinstance(value, s_obj.ObjectCollection):
-            result = []
-            self._get_typedesc([(None, v) for v in value], result)
+            result = s_types.Tuple.from_subtypes(value)
+            recvalue = types.TypeDesc.from_type(result)
 
         elif isinstance(value, s_obj.Object):
-            result = []
-            self._get_typedesc([(None, value)], result)
+            recvalue = types.TypeDesc.from_type(value)
 
         elif isinstance(value, sn.SchemaName):
-            result = value
             recvalue = str(value)
 
         elif isinstance(value, nlang.WordCombination):
-            result = value
             recvalue = json.dumps(value.as_dict())
 
         elif isinstance(value, collections.abc.Mapping):
             # Other dicts are JSON'ed by default
-            result = value
             recvalue = json.dumps(dict(value))
 
         elif isinstance(value, s_funcs.FuncParameterList):
-            result = value
-
             recvalue = []
             for param in value:
-                enc_type = []
-                self._get_typedesc([(None, param.type)], enc_type)
+                type_desc = types.TypeDesc.from_type(param.type)
                 typeq = dbops.Query(
-                    textwrap.dedent('''\
-                        SELECT edgedb._encode_type(
-                            ROW(ARRAY[
-                                {names}
-                            ]::edgedb.type_desc_node_t[])::edgedb.typedesc_t
-                        )
-                    ''').format(names=dbops.encode_value(enc_type)),
-                    type=('edgedb', 'type_t')
+                    'edgedb._encode_type({type_desc})'.format(
+                        type_desc=type_desc.to_sql_expr())
                 )
 
                 recvalue.append((
@@ -301,36 +204,16 @@ class NamedObjectMetaCommand(
                     param.kind,
                 ))
 
-        else:
-            result = value
-
-        if result is not value and recvalue is None:
-            names = result
-            if isinstance(names, list):
-                names_str = textwrap.indent(
-                    ',\n'.join(n.to_sql_expr() for n in names),
-                    ' ' * 8
-                ).lstrip()
-
-                recvalue = dbops.Query(textwrap.dedent('''\
-                    SELECT edgedb._encode_type(
-                        ROW(ARRAY[
-                            {names}
-                        ]::edgedb.type_desc_node_t[])::edgedb.typedesc_t
-                    )
-                ''').format(names=names_str), type=('edgedb', 'type_t'))
-            else:
-                name_array = ', '.join(ql(n) for n in names)
-                recvalue = dbops.Query(textwrap.dedent(f'''\
-                    SELECT array_agg(id) FROM edgedb.NamedObject
-                    WHERE name = any(ARRAY[{name_array}]::text[])
-                '''), type='uuid[]')
-
-        elif recvalue is None:
+        if recvalue is None:
             if result is None and use_defaults:
                 recvalue = dbops.Default
             else:
                 recvalue = result
+        elif isinstance(recvalue, types.TypeDesc):
+            recvalue = dbops.Query(
+                'edgedb._encode_type({type_desc})'.format(
+                    type_desc=recvalue.to_sql_expr())
+            )
 
         return result, recvalue
 

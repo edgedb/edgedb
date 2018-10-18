@@ -283,6 +283,24 @@ class ResolveSimpleTypeIdFunction(dbops.Function):
             strict=True)
 
 
+class ResolveSimpleTypeIdListFunction(dbops.Function):
+    text = '''
+        SELECT
+            array_agg(edgedb._resolve_type_id(t.name) ORDER BY t.ordinality)
+        FROM
+            UNNEST(types) WITH ORDINALITY AS t(name)
+    '''
+
+    def __init__(self):
+        super().__init__(
+            name=('edgedb', '_resolve_type_id'),
+            args=[('types', ('text[]',))],
+            returns=('uuid[]',),
+            volatility='stable',
+            text=self.text,
+            strict=True)
+
+
 class ResolveSimpleTypeNameFunction(dbops.Function):
     text = '''
         SELECT coalesce(
@@ -1070,6 +1088,7 @@ async def bootstrap(conn):
         dbops.CreateFunction(RaiseExceptionFunction()),
         dbops.CreateFunction(DeriveUUIDFunction()),
         dbops.CreateFunction(ResolveSimpleTypeIdFunction()),
+        dbops.CreateFunction(ResolveSimpleTypeIdListFunction()),
         dbops.CreateFunction(ResolveSimpleTypeNameFunction()),
         dbops.CreateFunction(ResolveSimpleTypeNameListFunction()),
         dbops.CreateFunction(ResolveTypeFunction()),

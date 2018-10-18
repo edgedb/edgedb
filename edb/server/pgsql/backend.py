@@ -42,6 +42,7 @@ from edb.server.pgsql import deltadbops
 from . import compiler
 from . import deltarepo as pgsql_deltarepo
 from . import intromech
+from . import types
 
 
 class Query(backend_query.Query):
@@ -258,13 +259,13 @@ class Backend(s_deltarepo.DeltaProvider):
         string_id = f'{coll_type}\x00{":".join(subtypes)}'
         if element_names:
             string_id += f'\x00{":".join(element_names)}'
-        return uuid.uuid5(delta_cmds.TYPE_ID_NAMESPACE, string_id)
+        return uuid.uuid5(types.TYPE_ID_NAMESPACE, string_id)
 
     def _get_union_type_id(self, union_type):
         base_type_id = ','.join(
             str(self.get_type_id(c)) for c in union_type.children(self.schema))
 
-        return uuid.uuid5(delta_cmds.TYPE_ID_NAMESPACE, base_type_id)
+        return uuid.uuid5(types.TYPE_ID_NAMESPACE, base_type_id)
 
     def _describe_type(self, t, view_shapes, _tuples):
         mt = t.material_type()
