@@ -1627,17 +1627,6 @@ class FromFunction(Nonterm):
         self.val = qlast.FunctionCode(language=lang, from_name=kids[3].string)
 
 
-class FromAggregate(Nonterm):
-    def reduce_FROM_Identifier_AGGREGATE_SCONST(self, *kids):
-        lang = _parse_language(kids[1])
-        if lang != qlast.Language.SQL:
-            raise EdgeQLSyntaxError(
-                f'{lang} language is not supported in FROM AGGREGATE clause',
-                context=kids[1].context) from None
-
-        self.val = qlast.FunctionCode(language=lang, from_name=kids[3].string)
-
-
 class InitialValue(Nonterm):
     def reduce_INITIAL_VALUE_Expr(self, *kids):
         val = kids[2].val
@@ -1691,7 +1680,6 @@ class _ProcessFunctionBlockMixin:
 commands_block(
     'CreateFunction',
     FromFunction,
-    FromAggregate,
     SetFieldStmt,
     InitialValue,
     opt=False

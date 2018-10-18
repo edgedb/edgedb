@@ -1040,7 +1040,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write('}')
 
         typ = 'AGGREGATE' if node.aggregate else 'FUNCTION'
-        self._visit_CreateObject(node, typ, after_name=after_name,
+        self._visit_CreateObject(node, 'FUNCTION', after_name=after_name,
                                  render_commands=False)
 
     def visit_AlterFunction(self, node):

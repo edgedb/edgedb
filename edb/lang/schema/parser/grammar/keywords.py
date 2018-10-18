@@ -40,7 +40,6 @@ unreserved_keywords = frozenset([
     "event",
     "final",
     "from",
-    "import",
     "index",
     "inherited",
     "initial",

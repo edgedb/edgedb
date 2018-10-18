@@ -984,66 +984,6 @@ type Foo:
             from edgeql function: some_other_func
         """
 
-    def test_eschema_syntax_aggregate_01(self):
-        """
-        aggregate len() -> std::int64:
-            initial value := 0
-            from sql function: length
-        """
-
-    def test_eschema_syntax_aggregate_02(self):
-        r"""
-        aggregate some_func($foo: std::int64 = 42) -> std::str:
-            initial value := 'start'
-            from sql :>
-                SELECT 'life';
-
-% OK %
-
-        aggregate some_func($foo: std::int64 = 42) -> std::str:
-            initial value := 'start'
-            from sql :=
-                'SELECT \'life\'';
-        """
-
-    def test_eschema_syntax_aggregate_03(self):
-        """
-        aggregate some_func($foo: std::int64 = 42) -> std::str:
-            initial value := ''
-            from edgeql :=
-                SELECT 'life'
-        """
-
-    def test_eschema_syntax_aggregate_04(self):
-        """
-        aggregate myfunc($arg1: str, $arg2: str = 'DEFAULT',
-                         variadic $arg3: std::int64) -> int64:
-            initial value := 42
-            volatile := true
-            description := 'myfunc sample'
-            from sql :=
-                'SELECT blarg;'
-        """
-
-    @tb.must_fail(error.SchemaSyntaxError,
-                  "missing 'initial value' in aggregate definition",
-                  line=2, col=9)
-    def test_eschema_syntax_aggregate_05(self):
-        """
-        aggregate len() -> std::int64:
-            from sql function: length
-        """
-
-    @tb.must_fail(error.SchemaSyntaxError,
-                  r"missing type declaration for.*parameter \$arg3",
-                  line=3, col=35)
-    def test_eschema_syntax_aggregate_06(self):
-        """
-        aggregate myfunc($arg1: str, $arg2: str = 'DEFAULT',
-                         variadic $arg3) -> int64:
-            initial value := 42
-        """
-
     def test_eschema_syntax_view_01(self):
         """
         view FooBaz:

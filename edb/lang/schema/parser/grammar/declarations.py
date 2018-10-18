@@ -250,9 +250,6 @@ class Declaration(Nonterm):
     def reduce_FunctionDeclaration(self, kid):
         self.val = kid.val
 
-    def reduce_AggregateDeclaration(self, kid):
-        self.val = kid.val
-
     def reduce_ViewDeclaration(self, kid):
         self.val = kid.val
 
@@ -608,21 +605,6 @@ class FunctionDeclaration(Nonterm):
 
         if self.val.code is None:
             raise SchemaSyntaxError("missing 'from' in function definition",
-                                    context=kids[0].context)
-
-
-class AggregateDeclaration(Nonterm):
-    def reduce_AGGREGATE_FunctionDeclCore(self, *kids):
-        self.val = kids[1].val
-        self.val.aggregate = True
-
-        if self.val.initial_value is None:
-            raise SchemaSyntaxError(
-                "missing 'initial value' in aggregate definition",
-                context=kids[0].context)
-
-        if self.val.code is None:
-            raise SchemaSyntaxError("missing 'from' in aggregate definition",
                                     context=kids[0].context)
 
 

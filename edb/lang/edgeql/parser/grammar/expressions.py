@@ -528,7 +528,7 @@ class Expr(Nonterm):
     # | '<' TypeName '>' Expr
     # | Expr IF Expr ELSE Expr
     # | Expr ?? Expr
-    # | Expr UNION Expr | Expr UNION ALL Expr
+    # | Expr UNION Expr | Expr UNION Expr
     # | DISTINCT Expr
     # | DETACHED Expr
     # | EXISTS Expr
