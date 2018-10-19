@@ -197,6 +197,8 @@ class TestIntrospection(tb.QueryTestCase):
                         {'name': 'stdattrs::is_final', '@value': 'false'},
                         {'name': 'stdattrs::is_virtual', '@value': 'false'},
                         {'name': 'stdattrs::name', '@value': 'test::todo'},
+                        {'name': 'stdattrs::on_target_delete',
+                         '@value': 'RESTRICT'},
                         {'name': 'stdattrs::readonly', '@value': 'false'},
                         {'name': 'stdattrs::required', '@value': 'false'},
                     ]

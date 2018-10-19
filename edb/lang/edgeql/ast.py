@@ -349,7 +349,7 @@ class Set(Expr):
     elements: typing.List[Expr]
 
 
-# Expressions used only in statemets
+# Expressions used only in statements
 #
 
 class ByExprBase(Base):

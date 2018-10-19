@@ -21,6 +21,7 @@ import collections.abc
 import itertools
 import pathlib
 import re
+import typing
 import uuid
 
 from edb.lang.common import nlang
@@ -74,6 +75,18 @@ def is_named_class(scls):
     return False
 
 
+def default_field_merge(target: 'Object', sources: typing.List['Object'],
+                        field_name: str, *, schema) -> object:
+    ours = getattr(target, field_name)
+    if ours is None:
+        for source in sources:
+            theirs = getattr(source, field_name)
+            if theirs is not None:
+                return theirs
+    else:
+        return ours
+
+
 class Field(struct.Field):
     __slots__ = ('compcoef', 'inheritable', 'hashable', 'simpledelta',
                  'merge_fn', 'ephemeral')
@@ -89,7 +102,14 @@ class Field(struct.Field):
         self.inheritable = inheritable
         self.hashable = hashable
         self.simpledelta = simpledelta
-        self.merge_fn = merge_fn
+
+        if merge_fn is not None:
+            self.merge_fn = merge_fn
+        elif callable(getattr(self.type[0], 'merge_values', None)):
+            self.merge_fn = self.type[0].merge_values
+        else:
+            self.merge_fn = default_field_merge
+
         self.ephemeral = ephemeral
 
 
@@ -261,37 +281,26 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
             if f.inheritable:
                 yield fn
 
-    def merge(self, obj, *, schema, dctx=None):
+    def merge(self, *objs, schema, dctx=None):
         """Merge properties of another object into this object.
 
         Most often use of this method is to implement property
         acquisition through inheritance.
         """
-        if (not isinstance(obj, self.__class__) and
-                not isinstance(self, obj.__class__)):
-            msg = "cannot merge instances of %s and %s" % \
-                (obj.__class__.__name__, self.__class__.__name__)
-            raise s_err.SchemaError(msg)
+        for obj in objs:
+            if (not isinstance(obj, self.__class__) and
+                    not isinstance(self, obj.__class__)):
+                msg = "cannot merge instances of %s and %s" % \
+                    (obj.__class__.__name__, self.__class__.__name__)
+                raise s_err.SchemaError(msg)
 
         for field_name in self.inheritable_fields():
             field = self.__class__.get_field(field_name)
-            FieldType = field.type[0]
-
+            result = field.merge_fn(self, objs, field_name, schema=schema)
             ours = getattr(self, field_name)
-            theirs = getattr(obj, field_name)
-
-            merger = field.merge_fn
-            if not callable(merger):
-                merger = getattr(FieldType, 'merge_values', None)
-
-            if callable(merger):
-                result = merger(ours, theirs, schema=schema)
+            if result is not None or ours is not None:
                 self.set_attribute(field_name, result, dctx=dctx,
                                    source='inheritance')
-            else:
-                if ours is None and theirs is not None:
-                    self.set_attribute(field_name, theirs, dctx=dctx,
-                                       source='inheritance')
 
     def compare(self, other, context=None):
         if (not isinstance(other, self.__class__) and
@@ -683,7 +692,10 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
         assert name in getattr(self, attr)
         return self
 
-    def finalize(self, schema, bases=None, *, dctx=None):
+    def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
+        if not apply_defaults:
+            return
+
         from . import delta as sd
 
         fields = self.setdefaults()
@@ -858,13 +870,17 @@ class ObjectDict(typed.OrderedTypedDict, ObjectCollection,
 
 class ObjectSet(typed.TypedSet, ObjectCollection, type=Object):
     @classmethod
-    def merge_values(cls, ours, theirs, schema):
-        if ours is None and theirs is not None:
-            ours = theirs.copy()
-        elif theirs is not None:
-            ours.update(theirs)
+    def merge_values(cls, target, sources, field_name, *, schema):
+        result = getattr(target, field_name)
+        for source in sources:
+            theirs = getattr(source, field_name)
+            if theirs:
+                if result is None:
+                    result = theirs.copy()
+                else:
+                    result.update(theirs)
 
-        return ours
+        return result
 
     @classmethod
     def compare_values(cls, ours, theirs, context, compcoef):

@@ -31,53 +31,43 @@ from . import planner
 async def execute_plan(plan, protocol):
     backend = protocol.backend
 
-    if isinstance(plan, s_deltas.DeltaCommand):
-        return await backend.run_delta_command(plan)
+    try:
+        if isinstance(plan, s_deltas.DeltaCommand):
+            return await backend.run_delta_command(plan)
 
-    elif isinstance(plan, s_delta.Command):
-        return await backend.run_ddl_command(plan)
+        elif isinstance(plan, s_delta.Command):
+            return await backend.run_ddl_command(plan)
 
-    elif isinstance(plan, planner.TransactionStatement):
-        if plan.op == 'start':
-            protocol.transactions.append(backend.connection.transaction())
-            await protocol.transactions[-1].start()
+        elif isinstance(plan, planner.TransactionStatement):
+            if plan.op == 'start':
+                await backend.start_transaction()
 
-        elif plan.op == 'commit':
-            if not protocol.transactions:
-                raise exceptions.NoActiveTransactionError(
-                    'there is no transaction in progress')
-            transaction = protocol.transactions.pop()
-            await transaction.commit()
+            elif plan.op == 'commit':
+                await backend.commit_transaction()
 
-        elif plan.op == 'rollback':
-            if not protocol.transactions:
-                raise exceptions.NoActiveTransactionError(
-                    'there is no transaction in progress')
-            transaction = protocol.transactions.pop()
-            await transaction.rollback()
-            await backend.invalidate_schema_cache()
-            await backend.getschema()
+            elif plan.op == 'rollback':
+                await backend.rollback_transaction()
 
-        else:
-            raise exceptions.InternalError(
-                'unexpected transaction statement: {!r}'.format(plan))
+            else:
+                raise exceptions.InternalError(
+                    'unexpected transaction statement: {!r}'.format(plan))
 
-    elif isinstance(plan, edgedb_query.Query):
-        try:
+        elif isinstance(plan, edgedb_query.Query):
             ps = await backend.connection.prepare(plan.text)
             return [r[0] for r in await ps.fetch()]
 
-        except asyncpg.PostgresError as e:
-            _error = await backend.translate_pg_error(plan, e)
-            if _error is not None:
-                raise _error from e
-            else:
-                raise
+        elif isinstance(plan, irast.SessionStateCmd):
+            # SET command
 
-    elif isinstance(plan, irast.SessionStateCmd):
-        # SET command
+            await backend.exec_session_state_cmd(plan)
 
-        await backend.exec_session_state_cmd(plan)
+        else:
+            raise exceptions.InternalError(
+                'unexpected plan: {!r}'.format(plan))
 
-    else:
-        raise exceptions.InternalError('unexpected plan: {!r}'.format(plan))
+    except asyncpg.PostgresError as e:
+        _error = await backend.translate_pg_error(plan, e)
+        if _error is not None:
+            raise _error from e
+        else:
+            raise

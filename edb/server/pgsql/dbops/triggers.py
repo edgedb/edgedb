@@ -56,7 +56,7 @@ class Trigger(tables.InheritableTableObject):
     def __init__(
             self, name, *, table_name, events, timing='after',
             granularity='row', procedure, condition=None, is_constraint=False,
-            inherit=False, metadata=None):
+            deferred=False, inherit=False, metadata=None):
         super().__init__(inherit=inherit, metadata=metadata)
 
         self.name = name
@@ -67,11 +67,15 @@ class Trigger(tables.InheritableTableObject):
         self.procedure = procedure
         self.condition = condition
         self.is_constraint = is_constraint
+        self.deferred = deferred
 
         if is_constraint and granularity != 'row':
             msg = 'invalid granularity for ' \
                   'constraint trigger: {}'.format(granularity)
             raise ValueError(msg)
+
+        if deferred and not is_constraint:
+            raise ValueError('only constraint triggers can be deferred')
 
     def rename(self, new_name):
         self.name = new_name
@@ -111,6 +115,7 @@ class Trigger(tables.InheritableTableObject):
             {desc_var}.proc := ARRAY[
                 {ql(self.procedure[0])}, {ql(self.procedure[1])}];
             {desc_var}.is_constraint := {self.is_constraint};
+            {desc_var}.deferred := {self.deferred};
             {desc_var}.granularity := {ql(self.granularity)};
             {desc_var}.timing := {ql(self.timing)};
             {desc_var}.events := ARRAY[{events}]::text[];
@@ -166,7 +171,8 @@ class Trigger(tables.InheritableTableObject):
             name=self.name, table_name=self.table_name, events=self.events,
             timing=self.timing, granularity=self.granularity,
             procedure=self.procedure, condition=self.condition,
-            is_constraint=self.is_constraint, metadata=self.metadata.copy())
+            is_constraint=self.is_constraint, deferred=self.deferred,
+            metadata=self.metadata.copy())
 
     def __repr__(self):
         return \
@@ -191,6 +197,7 @@ class CreateTrigger(tables.CreateInheritableTableObject):
         return textwrap.dedent('''\
             CREATE {constr}TRIGGER {trigger_name} {timing} {events}
                    ON {table_name}
+                   {deferred}
                    FOR EACH {granularity} {condition}
                    EXECUTE PROCEDURE {procedure}
         ''').format(
@@ -199,6 +206,8 @@ class CreateTrigger(tables.CreateInheritableTableObject):
             timing=self.trigger.timing,
             events=' OR '.join(self.trigger.events),
             table_name=qn(*self.trigger.table_name),
+            deferred=('DEFERRABLE INITIALLY DEFERRED'
+                      if self.trigger.deferred else ''),
             granularity=self.trigger.granularity, condition=(
                 'WHEN ({})'.format(self.trigger.condition)
                 if self.trigger.condition else ''),
@@ -228,6 +237,11 @@ class CreateTrigger(tables.CreateInheritableTableObject):
             );
         """)
 
+        deferrability = (
+            f"(CASE WHEN {desc_var}.deferred"
+            f" THEN ' DEFERRABLE INITIALLY DEFERRED' ELSE '' END)"
+        )
+
         condition = (
             f"(CASE WHEN {cond_var} IS NOT NULL "
             f"THEN 'WHEN (' || {cond_var} || ')' "
@@ -246,6 +260,7 @@ class CreateTrigger(tables.CreateInheritableTableObject):
                 || ' ' || upper({desc_var}.timing) || ' '
                 || {events}
                 || ' ON ' || {table_name}
+                || {deferrability}
                 || ' FOR EACH ' || upper({desc_var}.granularity) || ' '
                 || {condition}
                 || ' EXECUTE PROCEDURE ' || {procedure}

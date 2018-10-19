@@ -17,6 +17,8 @@
 #
 
 
+import functools
+
 from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
 from edb.lang.common import enum
@@ -73,15 +75,11 @@ class PointerCardinality(enum.StrEnum):
         return self.__class__(min(self[0], other[0]) + min(self[1], other[1]))
 
     @classmethod
-    def merge_values(cls, ours, theirs, schema):
-        if ours and theirs and ours != theirs:
-            result = ours & theirs
-        elif not ours and theirs:
-            result = theirs
-        else:
-            result = ours
-
-        return result
+    def merge_values(cls, target, sources, field_name, *, schema):
+        def f(values):
+            return functools.reduce(lambda a, b: a & b, values)
+        return utils.merge_reduce(target, sources, field_name,
+                                  schema=schema, f=f)
 
 
 class Pointer(constraints.ConsistencySubject,

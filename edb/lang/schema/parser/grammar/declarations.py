@@ -919,7 +919,7 @@ class Link(Nonterm):
             constraints=constraints,
             policies=policies,
             properties=properties,
-            on_delete=on_delete)
+            on_target_delete=on_delete)
 
     def reduce_LINK_Spec(self, *kids):
         self.val = self._process_pointerspec(kids[1].val)

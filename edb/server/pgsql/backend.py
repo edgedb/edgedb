@@ -83,6 +83,7 @@ class Backend(s_deltarepo.DeltaProvider):
         self._intro_mech = intromech.IntrospectionMech(connection)
 
         self.connection = connection
+        self.transactions = []
 
         repo = pgsql_deltarepo.MetaDeltaRepository(self.connection)
         super().__init__(repo)
@@ -354,6 +355,26 @@ class Backend(s_deltarepo.DeltaProvider):
 
     async def translate_pg_error(self, query, error):
         return await self._intro_mech.translate_pg_error(query, error)
+
+    async def start_transaction(self):
+        self.transactions.append(self.connection.transaction())
+        await self.transactions[-1].start()
+
+    async def commit_transaction(self):
+        if not self.transactions:
+            raise exceptions.NoActiveTransactionError(
+                'there is no transaction in progress')
+        transaction = self.transactions.pop()
+        await transaction.commit()
+
+    async def rollback_transaction(self):
+        if not self.transactions:
+            raise exceptions.NoActiveTransactionError(
+                'there is no transaction in progress')
+        transaction = self.transactions.pop()
+        await transaction.rollback()
+        await self.invalidate_schema_cache()
+        await self.getschema()
 
 
 async def open_database(pgconn):

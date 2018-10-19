@@ -27,14 +27,17 @@ class ExpressionText(str):
 
 class ExpressionList(typed.TypedList, type=literal.Literal):
     @classmethod
-    def merge_values(cls, ours, theirs, schema):
-        if not ours:
+    def merge_values(cls, target, sources, field_name, *, schema):
+        result = getattr(target, field_name)
+        for source in sources:
+            theirs = getattr(source, field_name)
             if theirs:
-                ours = theirs[:]
-        elif theirs and isinstance(ours[-1], ExpressionText):
-            ours.extend(theirs)
+                if result is None:
+                    result = theirs[:]
+                else:
+                    result.extend(theirs)
 
-        return ours
+        return result
 
 
 class ExpressionDict(typed.TypedDict, keytype=str, valuetype=literal.Literal):

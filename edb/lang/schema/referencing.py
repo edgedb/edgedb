@@ -457,17 +457,18 @@ class ReferencingObject(inheriting.InheritingObject,
 
         return similarity
 
-    def merge(self, obj, *, schema, dctx=None):
-        super().merge(obj, schema=schema, dctx=None)
+    def merge(self, *objs, schema, dctx=None):
+        super().merge(*objs, schema=schema, dctx=None)
 
-        for refdict in self.__class__.get_refdicts():
-            # Merge Object references in each registered collection.
-            #
-            this_coll = getattr(self, refdict.attr)
-            other_coll = getattr(obj, refdict.attr)
+        for obj in objs:
+            for refdict in self.__class__.get_refdicts():
+                # Merge Object references in each registered collection.
+                #
+                this_coll = getattr(self, refdict.attr)
+                other_coll = getattr(obj, refdict.attr)
 
-            this_coll.update({k: v for k, v in other_coll.items()
-                              if k not in this_coll})
+                this_coll.update({k: v for k, v in other_coll.items()
+                                 if k not in this_coll})
 
     def delta(self, other, reverse=False, context=None):
         old, new = (other, self) if not reverse else (self, other)
@@ -626,8 +627,9 @@ class ReferencingObject(inheriting.InheritingObject,
 
             setattr(self, attr, attrs)
 
-    def finalize(self, schema, bases=None, *, dctx=None):
-        super().finalize(schema, bases=bases, dctx=dctx)
+    def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
+        super().finalize(schema, bases=bases, apply_defaults=apply_defaults,
+                         dctx=dctx)
 
         if bases is None:
             bases = self.bases

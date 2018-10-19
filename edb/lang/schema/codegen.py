@@ -56,7 +56,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         if (getattr(node, 'attributes', None) or
                 getattr(node, 'constraints', None) or
                 getattr(node, 'links', None) or
-                getattr(node, 'on_delete', None) or
+                getattr(node, 'on_target_delete', None) or
                 getattr(node, 'properties', None)):
             self.write(':')
             self.new_lines = 1
@@ -73,8 +73,8 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
                 self._visit_list(node.policies)
             if getattr(node, 'indexes', None):
                 self._visit_list(node.indexes)
-            if getattr(node, 'on_delete', None):
-                self.visit(node.on_delete)
+            if getattr(node, 'on_target_delete', None):
+                self.visit(node.on_target_delete)
 
             self.indentation -= 1
         self.new_lines = 2

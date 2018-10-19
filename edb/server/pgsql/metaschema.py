@@ -781,6 +781,7 @@ class TriggerDescType(dbops.CompositeType):
             dbops.Column(name='proc', type='text[]'),
             dbops.Column(name='is_constraint', type='bool'),
             dbops.Column(name='granularity', type='text'),
+            dbops.Column(name='deferred', type='bool'),
             dbops.Column(name='timing', type='text'),
             dbops.Column(name='events', type='text[]'),
             dbops.Column(name='definition', type='text'),
@@ -800,6 +801,7 @@ class IntrospectTriggersFunction(dbops.Function):
             trg_proc,
             trg_constraint,
             trg_granularity,
+            trg_deferred,
             trg_timing,
             trg_events,
             trg_definition,
@@ -832,6 +834,8 @@ class IntrospectTriggersFunction(dbops.Function):
                         WHEN (t.tgtype & (1 << 0)) != 0 THEN 'row'
                         ELSE 'statement'
                     END)                                    AS trg_granularity,
+
+                    t.tginitdeferred                        AS trg_deferred,
 
                     (CASE
                         WHEN (t.tgtype & (1 << 1)) != 0 THEN 'before'

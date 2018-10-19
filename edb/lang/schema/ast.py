@@ -35,10 +35,7 @@ class Base(ast.AST):
 
     def __repr__(self):
         ar = self._extra_repr()
-        return '<{}.{} at {:#x}{}>'.format(self.__class__.ns,
-                                           self.__class__.__name__,
-                                           id(self),
-                                           ar)
+        return f'<{self.__class__.__name__} at {id(self):#x}{ar}>'
 
 
 class Spec(Base):
@@ -93,7 +90,7 @@ class Property(Pointer):
 
 class Link(Pointer):
     properties: typing.List[Property]
-    on_delete: OnTargetDelete
+    on_target_delete: OnTargetDelete
 
 
 # # XXX: to be killed

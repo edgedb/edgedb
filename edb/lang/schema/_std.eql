@@ -18,8 +18,6 @@
 
 
 CREATE MODULE std;
-CREATE MODULE stdattrs;  # standard schema attributes need to be in a separate
-                         # module to avoid name conflicts.
 
 CREATE ABSTRACT SCALAR TYPE std::any;
 
@@ -63,35 +61,6 @@ CREATE ABSTRACT ATTRIBUTE std::pattern std::str;
 
 CREATE ABSTRACT SCALAR TYPE std::sequence EXTENDING std::int64;
 
-CREATE ABSTRACT ATTRIBUTE stdattrs::precision array<std::int16>;
-
-CREATE ABSTRACT ATTRIBUTE stdattrs::name std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::is_abstract std::bool;
-CREATE ABSTRACT ATTRIBUTE stdattrs::is_final std::bool;
-CREATE ABSTRACT ATTRIBUTE stdattrs::is_derived std::bool;
-CREATE ABSTRACT ATTRIBUTE stdattrs::is_virtual std::bool;
-CREATE ABSTRACT ATTRIBUTE stdattrs::view_type std::int64;
-CREATE ABSTRACT ATTRIBUTE stdattrs::title std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::description std::str;
-
-CREATE ABSTRACT ATTRIBUTE stdattrs::expr std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::subjectexpr std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::finalexpr std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::errmessage std::str;
-
-CREATE ABSTRACT ATTRIBUTE stdattrs::value std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::required std::bool;
-CREATE ABSTRACT ATTRIBUTE stdattrs::readonly std::bool;
-CREATE ABSTRACT ATTRIBUTE stdattrs::computable std::bool;
-CREATE ABSTRACT ATTRIBUTE stdattrs::default std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::expression std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::cardinality std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::aggregate std::bool;
-CREATE ABSTRACT ATTRIBUTE stdattrs::language std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::code std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::from_function std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::initial_value std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::return_typemod std::str;
 
 CREATE FUNCTION std::lower($str: std::str) -> std::str
     FROM SQL FUNCTION 'lower';
@@ -322,59 +291,7 @@ CREATE ABSTRACT CONSTRAINT std::unique
     SET expr := std::is_distinct(__subject__);
 };
 
-CREATE ACTION std::restrict {
-    SET title := 'Abort the event if a pointer exists';
-};
-
-CREATE ACTION std::cascade {
-    SET title := 'Cascade the event through the pointer';
-};
-
-CREATE ACTION std::delete_pointer {
-    SET title := 'Delete pointer';
-};
-
-CREATE ACTION std::ignore {
-    SET title := 'Ignore the event';
-};
-
-CREATE ACTION std::delete_source {
-    SET title := 'Delete pointer target';
-};
-
-CREATE ACTION std::delete_orphan_target {
-    SET title := 'Delete target if no instances of the inbound pointer to it exist';
-};
-
-CREATE ACTION std::cascade_loaded {
-    SET title := 'Cascade the event through the pointer if target is loaded to the local session';
-};
-
-CREATE ACTION std::delete_target {
-    SET title := 'Delete pointer target';
-};
-
 CREATE EVENT std::event;
-
-CREATE EVENT std::cascade_base EXTENDING std::event;
-
-CREATE EVENT std::cascade_session_detach EXTENDING std::cascade_base;
-
-CREATE EVENT std::cascade_serialize EXTENDING std::cascade_base;
-
-CREATE EVENT std::internal EXTENDING std::event;
-
-CREATE EVENT std::deleted EXTENDING std::internal;
-
-CREATE EVENT std::source_deleted EXTENDING std::deleted;
-
-CREATE EVENT std::self_deleted EXTENDING std::deleted;
-
-CREATE EVENT std::cascade_session_attach EXTENDING std::cascade_base;
-
-CREATE EVENT std::cascade_copy EXTENDING std::cascade_base;
-
-CREATE EVENT std::target_deleted EXTENDING std::deleted;
 
 CREATE ABSTRACT PROPERTY std::property;
 
@@ -382,15 +299,7 @@ CREATE ABSTRACT PROPERTY std::source;
 
 CREATE ABSTRACT PROPERTY std::target;
 
-CREATE ABSTRACT LINK std::link {
-    CREATE POLICY FOR std::cascade_session_detach TO std::cascade_loaded;
-    CREATE POLICY FOR std::cascade_serialize TO std::cascade_loaded;
-    CREATE POLICY FOR std::source_deleted TO std::restrict;
-    CREATE POLICY FOR std::self_deleted TO std::ignore;
-    CREATE POLICY FOR std::cascade_session_attach TO std::cascade_loaded;
-    CREATE POLICY FOR std::target_deleted TO std::restrict;
-    CREATE POLICY FOR std::cascade_copy TO std::ignore;
-};
+CREATE ABSTRACT LINK std::link;
 
 CREATE ABSTRACT PROPERTY std::id EXTENDING std::property;
 
@@ -406,6 +315,46 @@ CREATE ABSTRACT TYPE std::Object {
 # INTROSPECTION SCHEMA
 
 CREATE MODULE schema;
+
+CREATE MODULE stdattrs;  # standard schema attributes need to be in a separate
+                         # module to avoid name conflicts.
+
+# Standard schema item attributes.
+CREATE ABSTRACT ATTRIBUTE stdattrs::name std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::is_abstract std::bool;
+CREATE ABSTRACT ATTRIBUTE stdattrs::is_final std::bool;
+CREATE ABSTRACT ATTRIBUTE stdattrs::is_derived std::bool;
+CREATE ABSTRACT ATTRIBUTE stdattrs::is_virtual std::bool;
+CREATE ABSTRACT ATTRIBUTE stdattrs::view_type std::int64;
+CREATE ABSTRACT ATTRIBUTE stdattrs::title std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::description std::str;
+
+CREATE ABSTRACT ATTRIBUTE stdattrs::expr std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::subjectexpr std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::finalexpr std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::errmessage std::str;
+
+CREATE ABSTRACT ATTRIBUTE stdattrs::value std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::required std::bool;
+CREATE ABSTRACT ATTRIBUTE stdattrs::readonly std::bool;
+CREATE ABSTRACT ATTRIBUTE stdattrs::computable std::bool;
+CREATE ABSTRACT ATTRIBUTE stdattrs::default std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::expression std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::cardinality std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::aggregate std::bool;
+CREATE ABSTRACT ATTRIBUTE stdattrs::language std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::code std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::from_function std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::initial_value std::str;
+CREATE ABSTRACT ATTRIBUTE stdattrs::return_typemod std::str;
+
+CREATE SCALAR TYPE schema::target_delete_action_t EXTENDING std::str {
+    CREATE CONSTRAINT std::enum ('RESTRICT', 'DELETE SOURCE', 'SET EMPTY',
+                                 'SET DEFAULT', 'DEFERRED RESTRICT');
+};
+
+CREATE ABSTRACT ATTRIBUTE stdattrs::on_target_delete
+    schema::target_delete_action_t;
 
 
 # Base type for all schema entities.
@@ -607,6 +556,8 @@ ALTER TYPE schema::Pointer {
 
 ALTER TYPE schema::Link {
     CREATE LINK schema::properties := __source__.pointers;
+    CREATE PROPERTY schema::on_target_delete ->
+        schema::target_delete_action_t;
 };
 
 

@@ -314,6 +314,7 @@ ALTER TYPE test::NamedObject {
     CREATE REQUIRED LINK test::related -> test::NamedObject {
         SET cardinality := '*1';
         SET is_virtual := False;
+        SET on_target_delete := 'RESTRICT';
         SET readonly := False;
     };
     ALTER LINK test::related {

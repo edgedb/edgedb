@@ -326,9 +326,10 @@ class InheritingObject(derivable.DerivableObject):
     is_final = so.Field(bool, default=False, compcoef=0.909)
     is_virtual = so.Field(bool, default=False, compcoef=0.5)
 
-    def merge(self, obj, *, schema, dctx=None):
-        super().merge(obj, schema=schema, dctx=dctx)
-        schema.drop_inheritance_cache(obj)
+    def merge(self, *objs, schema, dctx=None):
+        super().merge(*objs, schema=schema, dctx=dctx)
+        for obj in objs:
+            schema.drop_inheritance_cache(obj)
 
     def delta(self, other, reverse=False, *, context):
         old, new = (other, self) if not reverse else (self, other)
@@ -465,16 +466,16 @@ class InheritingObject(derivable.DerivableObject):
         if bases is None:
             bases = self.bases
 
-        for base in bases:
-            self.merge(base, schema=schema, dctx=dctx)
+        self.merge(*bases, schema=schema, dctx=dctx)
 
     def update_descendants(self, schema, dctx=None):
         for child in self.children(schema):
             child.acquire_ancestor_inheritance(schema, dctx=dctx)
             child.update_descendants(schema, dctx=dctx)
 
-    def finalize(self, schema, bases=None, *, dctx=None):
-        super().finalize(schema, bases=bases, dctx=dctx)
+    def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
+        super().finalize(schema, bases=bases, apply_defaults=apply_defaults,
+                         dctx=dctx)
         self.mro = compute_mro(self)[1:]
         self.acquire_ancestor_inheritance(schema, dctx=dctx)
 

@@ -160,7 +160,7 @@ class DeclarationLoader:
         # and attributes.
         self._init_links(objects['link'])
 
-        # Finaly, we can do the first pass on types
+        # Finally, we can do the first pass on types
         self._init_objtypes(objects['ObjectType'])
 
         # The inheritance merge pass may produce additional objects,
@@ -187,9 +187,12 @@ class DeclarationLoader:
 
         # Arrange classes in the resulting schema according to determined
         # topological order.
+        genlinks = [l for l in links if l.generic()]
+        speclinks = [l for l in links if not l.generic()]
+
         self._schema.reorder(itertools.chain(
             attributes, attrvals, actions, events, constraints,
-            scalars, props, indexes, links, objtypes))
+            scalars, props, indexes, genlinks, objtypes, speclinks))
 
         dctx = s_delta.CommandContext(declarative=True)
 
@@ -661,7 +664,9 @@ class DeclarationLoader:
                     )
 
                 link = link_base.derive(
-                    self._schema, objtype, target, add_to_schema=True)
+                    self._schema, objtype, target,
+                    add_to_schema=True,
+                    apply_defaults=not linkdecl.inherited)
 
                 link.sourcectx = linkdecl.context
 
@@ -669,6 +674,8 @@ class DeclarationLoader:
 
                 link.required = bool(linkdecl.required)
                 link.declared_inherited = linkdecl.inherited
+                if linkdecl.on_target_delete is not None:
+                    link.on_target_delete = linkdecl.on_target_delete.cascade
 
                 cardinality = self._get_literal_attribute(
                     linkdecl, 'cardinality')

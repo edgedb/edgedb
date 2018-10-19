@@ -89,7 +89,6 @@ class Protocol(asyncio.Protocol):
         self._loop = loop
         self.pgconn = None
         self.state = ConnectionState.NOT_CONNECTED
-        self.transactions = []
         self.buffer = bytearray()
 
     def connection_made(self, transport):

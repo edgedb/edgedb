@@ -17,6 +17,8 @@
 #
 
 
+import typing
+
 from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
 
@@ -37,11 +39,52 @@ from . import sources
 from . import utils
 
 
+LinkTargetDeleteAction = qlast.LinkTargetDeleteAction
+
+
+def merge_actions(target: so.Object, sources: typing.List[so.Object],
+                  field_name: str, *, schema) -> object:
+    ours = getattr(target, field_name)
+    if ours is None:
+        current = None
+        current_from = None
+
+        for source in sources:
+            theirs = getattr(source, field_name)
+            if theirs is not None:
+                if current is None:
+                    current = theirs
+                    current_from = source
+                elif current != theirs:
+                    tgt_repr = (f'{target.source.displayname}.'
+                                f'{target.displayname}')
+                    cf_repr = (f'{current_from.source.displayname}.'
+                               f'{current_from.displayname}')
+                    other_repr = (f'{source.source.displayname}.'
+                                  f'{source.displayname}')
+
+                    raise s_err.SchemaError(
+                        f'cannot implicitly resolve the '
+                        f'`on target delete` action for '
+                        f'{tgt_repr!r}: it is defined as {current} in '
+                        f'{cf_repr!r} and as {theirs} in {other_repr!r}; '
+                        f'to resolve, declare `on target delete` '
+                        f'explicitly on {tgt_repr!r}'
+                    )
+        return current
+    else:
+        return ours
+
+
 class Link(sources.Source, pointers.Pointer):
     _type = 'link'
 
     spectargets = so.Field(named.NamedObjectSet, named.NamedObjectSet,
                            coerce=True)
+
+    on_target_delete = so.Field(LinkTargetDeleteAction, None,
+                                coerce=True, compcoef=0.9,
+                                merge_fn=merge_actions)
 
     def init_std_props(self, schema, *, mark_derived=False,
                        add_to_schema=False, dctx=None):
@@ -105,20 +148,34 @@ class Link(sources.Source, pointers.Pointer):
 
         return result
 
-    def finalize(self, schema, bases=None, *, dctx=None):
-        super().finalize(schema, bases=bases, dctx=dctx)
+    def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
+        super().finalize(schema, bases=bases, apply_defaults=apply_defaults,
+                         dctx=dctx)
 
-        if not self.generic() and self.cardinality is None:
-            self.cardinality = pointers.PointerCardinality.ManyToOne
+        if not self.generic() and apply_defaults:
+            if self.cardinality is None:
+                self.cardinality = pointers.PointerCardinality.ManyToOne
 
-            if dctx is not None:
-                from . import delta as sd
+                if dctx is not None:
+                    from . import delta as sd
 
-                dctx.current().op.add(sd.AlterObjectProperty(
-                    property='cardinality',
-                    new_value=self.cardinality,
-                    source='default'
-                ))
+                    dctx.current().op.add(sd.AlterObjectProperty(
+                        property='cardinality',
+                        new_value=self.cardinality,
+                        source='default'
+                    ))
+
+            if self.on_target_delete is None:
+                self.set_default_value(
+                    'on_target_delete', LinkTargetDeleteAction.RESTRICT)
+                if dctx is not None:
+                    from . import delta as sd
+
+                    dctx.current().op.add(sd.AlterObjectProperty(
+                        property='on_target_delete',
+                        new_value=self.on_target_delete,
+                        source='default'
+                    ))
 
     @classmethod
     def get_root_classes(cls):

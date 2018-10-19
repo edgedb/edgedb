@@ -239,22 +239,28 @@ def get_full_inheritance_map(schema, classes):
     return result
 
 
-def merge_sticky_bool(ours, theirs, schema):
-    if ours is not None and theirs is not None:
-        result = max(ours, theirs)
+def merge_reduce(target, sources, field_name, *, schema, f):
+    values = []
+    ours = getattr(target, field_name)
+    if ours is not None:
+        values.append(ours)
+    for source in sources:
+        theirs = getattr(source, field_name)
+        if theirs is not None:
+            values.append(theirs)
+
+    if values:
+        return f(values)
     else:
-        result = theirs if theirs is not None else ours
-
-    return result
+        return None
 
 
-def merge_weak_bool(ours, theirs, schema):
-    if ours is not None and theirs is not None:
-        result = min(ours, theirs)
-    else:
-        result = theirs if theirs is not None else ours
+def merge_sticky_bool(target, sources, field_name, *, schema):
+    return merge_reduce(target, sources, field_name, schema=schema, f=max)
 
-    return result
+
+def merge_weak_bool(target, sources, field_name, *, schema):
+    return merge_reduce(target, sources, field_name, schema=schema, f=min)
 
 
 def find_item_suggestions(

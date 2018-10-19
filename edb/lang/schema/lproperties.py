@@ -98,20 +98,22 @@ class Property(pointers.Pointer):
         result.default = self.default
         return result
 
-    def finalize(self, schema, bases=None, *, dctx=None):
-        super().finalize(schema, bases=bases, dctx=dctx)
+    def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
+        super().finalize(schema, bases=bases, apply_defaults=apply_defaults,
+                         dctx=dctx)
 
-        if not self.generic() and self.cardinality is None:
-            self.cardinality = pointers.PointerCardinality.OneToOne
+        if not self.generic() and apply_defaults:
+            if self.cardinality is None:
+                self.cardinality = pointers.PointerCardinality.OneToOne
 
-            if dctx is not None:
-                from . import delta as sd
+                if dctx is not None:
+                    from . import delta as sd
 
-                dctx.current().op.add(sd.AlterObjectProperty(
-                    property='cardinality',
-                    new_value=self.cardinality,
-                    source='default'
-                ))
+                    dctx.current().op.add(sd.AlterObjectProperty(
+                        property='cardinality',
+                        new_value=self.cardinality,
+                        source='default'
+                    ))
 
     @classmethod
     def get_root_classes(cls):

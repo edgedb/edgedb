@@ -62,13 +62,15 @@ class DerivableObjectBase:
 
     def finalize_derived(self, schema, derived, *, merge_bases=None,
                          replace_original=None, add_to_schema=False,
-                         mark_derived=False, attrs=None, dctx=None, **kwargs):
+                         mark_derived=False, apply_defaults=True,
+                         attrs=None, dctx=None, **kwargs):
 
         if merge_bases:
             derived.acquire_ancestor_inheritance(
                 schema, bases=merge_bases)
 
-        derived.finalize(schema, bases=merge_bases)
+        derived.finalize(schema, bases=merge_bases,
+                         apply_defaults=apply_defaults)
 
         if mark_derived:
             derived.is_derived = True
@@ -105,7 +107,7 @@ class DerivableObjectBase:
     def derive(self, schema, source, *qualifiers, merge_bases=None,
                replace_original=None, add_to_schema=False,
                mark_derived=False, attrs=None, dctx=None,
-               name=None, **kwargs):
+               name=None, apply_defaults=True, **kwargs):
         if not self.generic():
             raise TypeError(
                 'cannot derive from specialized {} {!r}'.format(
@@ -120,7 +122,7 @@ class DerivableObjectBase:
         self.finalize_derived(
             schema, derived, merge_bases=merge_bases,
             add_to_schema=add_to_schema, mark_derived=mark_derived,
-            dctx=dctx)
+            apply_defaults=apply_defaults, dctx=dctx)
 
         return derived
 

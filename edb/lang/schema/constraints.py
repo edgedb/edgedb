@@ -32,19 +32,24 @@ from . import name as sn
 from . import named
 from . import objects as so
 from . import referencing
+from . import utils
 
 
 class CumulativeBoolExpr(s_expr.ExpressionText):
     @classmethod
-    def merge_values(cls, ours, theirs, schema):
-        if ours and theirs and ours != theirs:
-            result = '({}) and ({})'.format(ours, theirs)
-        elif not ours and theirs:
-            result = theirs
-        else:
-            result = ours
+    def merge_values(cls, target, sources, field_name, *, schema):
+        def join(values):
+            # Make the list unique without losing the order.
+            values = list(dict.fromkeys(values).keys())
+            if not values:
+                return None
+            elif len(values) == 1:
+                return values[0]
+            else:
+                return ' and '.join(f'({v})' for v in values)
 
-        return result
+        return utils.merge_reduce(target, sources, field_name,
+                                  schema=schema, f=join)
 
 
 class Constraint(inheriting.InheritingObject):
@@ -79,7 +84,7 @@ class Constraint(inheriting.InheritingObject):
 
     def merge_localexprs(self, obj, schema):
         self.localfinalexpr = CumulativeBoolExpr.merge_values(
-            self.localfinalexpr, obj.localfinalexpr, schema=schema)
+            self, [obj], 'localfinalexpr', schema=schema)
 
     def init_derived(self, schema, source, *qualifiers,
                      as_copy, mark_derived=False, add_to_schema=False,
@@ -96,8 +101,9 @@ class Constraint(inheriting.InheritingObject):
             mark_derived=mark_derived, add_to_schema=add_to_schema,
             merge_bases=merge_bases, attrs=attrs, dctx=dctx, **kwargs)
 
-    def finalize(self, schema, bases=None, *, dctx=None):
-        super().finalize(schema, bases=bases, dctx=dctx)
+    def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
+        super().finalize(schema, bases=bases,
+                         apply_defaults=apply_defaults, dctx=dctx)
 
         if not self.generic() and self.params is None:
             self.params = []

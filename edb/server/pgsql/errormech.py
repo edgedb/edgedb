@@ -33,7 +33,9 @@ class ErrorMech:
             ('cardinality', re.compile(r'^.*".*_cardinality_idx".*$')),
             ('link_target', re.compile(r'^.*link target constraint$')),
             ('constraint', re.compile(r'^.*;schemaconstr(?:#\d+)?".*$')),
-            ('id', re.compile(r'^.*"(?:\w+)_data_pkey".*$')), ))
+            ('id', re.compile(r'^.*"(?:\w+)_data_pkey".*$')),
+            ('link_target_del', re.compile(r'^.*link target policy$')),
+        ))
     }
 
     @classmethod
@@ -116,6 +118,10 @@ class ErrorMech:
 
                 return edgedb_error.InvalidPointerTargetError(msg)
 
+            elif error_type == 'link_target_del':
+                return edgedb_error.ConstraintViolationError(
+                    err.message, detail=err.detail)
+
             elif error_type == 'constraint':
                 constraint_name = \
                     await constr_mech.constraint_name_from_pg_name(
@@ -133,5 +139,6 @@ class ErrorMech:
                 msg = 'unique link constraint violation'
                 errcls = edgedb_error.UniqueConstraintViolationError
                 return errcls(msg=msg)
+
         else:
             return edgedb_error.EdgeDBBackendError(err.message)
