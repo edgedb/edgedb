@@ -367,9 +367,7 @@ logger = logging.getLogger('edb.backend')
 
 
 def pg_log_listener(conn, msg):
-    if msg.severity_en == 'NOTICE':
-        level = logging.INFO
-    elif msg.severity_en == 'WARNING':
+    if msg.severity_en == 'WARNING':
         level = logging.WARNING
     else:
         level = logging.DEBUG
