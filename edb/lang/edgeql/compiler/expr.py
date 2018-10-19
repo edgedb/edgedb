@@ -293,6 +293,9 @@ def compile_Coalesce(
     if all(isinstance(a, qlast.Set) and not a.elements for a in expr.args):
         return irutils.new_empty_set(ctx.schema, alias=ctx.aliases.get('e'))
 
+    # Due to the construction of relgen, the (unfenced) subscope
+    # below is necessary to shield LHS paths from the outer query
+    # to prevent path binding which may break OPTIONAL.
     with ctx.newscope() as newctx:
         leftmost_arg = larg = setgen.ensure_set(
             dispatch.compile(expr.args[0], ctx=newctx), ctx=newctx)
@@ -312,6 +315,7 @@ def compile_Coalesce(
 
         pathctx.register_set_in_scope(leftmost_arg, ctx=ctx)
         pathctx.mark_path_as_optional(leftmost_arg.path_id, ctx=ctx)
+        pathctx.assign_set_scope(leftmost_arg, newctx.path_scope, ctx=ctx)
 
     return larg
 

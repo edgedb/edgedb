@@ -227,16 +227,24 @@ def fixup_param_scope(
             param_kind = p.kind
             if param_kind is qlft.ParameterKind.VARIADIC:
                 varparam_mod = param_mod
-        if param_mod != qlft.TypeModifier.SET_OF:
+        if param_mod is not qlft.TypeModifier.SET_OF:
             arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
             if arg_scope is not None:
                 arg_scope.collapse()
                 pathctx.assign_set_scope(arg, None, ctx=ctx)
 
+            if param_mod is qlft.TypeModifier.OPTIONAL:
+                pathctx.register_set_in_scope(arg, ctx=ctx)
+                pathctx.mark_path_as_optional(arg.path_id, ctx=ctx)
+
     for name, arg in kwargs.items():
         p = func.params.get_by_name(name)
-        if p.typemod != qlft.TypeModifier.SET_OF:
+        if p.typemod is not qlft.TypeModifier.SET_OF:
             arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
             if arg_scope is not None:
                 arg_scope.collapse()
                 pathctx.assign_set_scope(arg, None, ctx=ctx)
+
+            if param_mod is qlft.TypeModifier.OPTIONAL:
+                pathctx.register_set_in_scope(arg, ctx=ctx)
+                pathctx.mark_path_as_optional(arg.path_id, ctx=ctx)

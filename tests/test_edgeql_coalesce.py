@@ -1091,3 +1091,20 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                 True,
             ],
         ])
+
+    async def test_edgeql_coalesce_wrapping_optional(self):
+        await self.con.execute(r'''
+            CREATE FUNCTION test::optfunc(
+                    $a: std::str, $b: OPTIONAL std::str) -> std::str
+                FROM EdgeQL $$
+                    SELECT $b IF $a = 'foo' ELSE $a
+                $$;
+        ''')
+
+        await self.assert_query_result(r'''
+            SELECT test::optfunc('foo', 'b') ?? 'N/A';
+            SELECT test::optfunc('a', <str>{}) ?? 'N/A';
+        ''', [
+            ['b'],
+            ['a'],
+        ])
