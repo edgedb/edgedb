@@ -983,8 +983,29 @@ class FuncApplication(Nonterm):
         module = kids[0].val.module
         func_name = kids[0].val.name
         name = func_name if not module else (module, func_name)
-        self.val = qlast.FunctionCall(func=name,
-                                      args=kids[2].val)
+
+        last_named_seen = None
+        args = []
+        kwargs = {}
+        for argname, argname_ctx, arg in kids[2].val:
+            if argname is not None:
+                if argname in kwargs:
+                    raise EdgeQLSyntaxError(
+                        f"duplicate named argument ${argname}",
+                        context=argname_ctx)
+
+                last_named_seen = argname
+                kwargs[argname] = arg
+
+            else:
+                if last_named_seen is not None:
+                    raise EdgeQLSyntaxError(
+                        f"positional argument after named "
+                        f"argument ${last_named_seen}",
+                        context=arg.context)
+                args.append(arg)
+
+        self.val = qlast.FunctionCall(func=name, args=args, kwargs=kwargs)
 
 
 class FuncExpr(Nonterm):
@@ -992,27 +1013,70 @@ class FuncExpr(Nonterm):
         self.val = kids[0].val
 
 
-class FuncArgExpr(Nonterm):
+class FuncCallArgExpr(Nonterm):
     def reduce_Expr(self, *kids):
-        self.val = qlast.FuncArg(arg=kids[0].val)
+        self.val = (
+            None,
+            None,
+            qlast.FuncArg(arg=kids[0].val, context=kids[0].context))
 
     def reduce_DOLLAR_AnyIdentifier_TURNSTILE_Expr(self, *kids):
-        self.val = qlast.FuncArg(name=kids[1].val, arg=kids[3].val)
+        self.val = (
+            kids[1].val,
+            kids[0].context,
+            qlast.FuncArg(arg=kids[3].val, context=kids[3].context)
+        )
+
+    def reduce_DOLLAR_ICONST_TURNSTILE_Expr(self, *kids):
+        raise EdgeQLSyntaxError(
+            f"numeric named arguments are not supported",
+            context=kids[0].context)
+
+    def reduce_AnyIdentifier_TURNSTILE_Expr(self, *kids):
+        raise EdgeQLSyntaxError(
+            f"named arguments require '$' prefix: "
+            f"rewrite as '${kids[0].val} := ...'",
+            context=kids[0].context)
 
 
-class FuncArg(Nonterm):
-    def reduce_FuncArgExpr_OptFilterClause_OptSortClause(self, *kids):
+class FuncCallArg(Nonterm):
+    def reduce_FuncCallArgExpr_OptFilterClause_OptSortClause(self, *kids):
         self.val = kids[0].val
-        self.val.filter = kids[1].val
-        self.val.sort = kids[2].val
+        self.val[2].filter = kids[1].val
+        self.val[2].sort = kids[2].val
 
 
-class FuncArgList(ListNonterm, element=FuncArg, separator=tokens.T_COMMA):
+class FuncArgList(ListNonterm, element=FuncCallArg, separator=tokens.T_COMMA):
     pass
 
 
 class OptFuncArgList(Nonterm):
     def reduce_FuncArgList(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_empty(self, *kids):
+        self.val = []
+
+
+class PosCallArgExpr(Nonterm):
+    def reduce_Expr(self, *kids):
+        self.val = qlast.FuncArg(arg=kids[0].val)
+
+
+class PosCallArg(Nonterm):
+    def reduce_PosCallArgExpr_OptFilterClause_OptSortClause(self, *kids):
+        self.val = kids[0].val
+        self.val.filter = kids[1].val
+        self.val.sort = kids[2].val
+
+
+class PosCallArgList(ListNonterm, element=PosCallArg,
+                     separator=tokens.T_COMMA):
+    pass
+
+
+class OptPosCallArgList(Nonterm):
+    def reduce_PosCallArgList(self, *kids):
         self.val = kids[0].val
 
     def reduce_empty(self, *kids):

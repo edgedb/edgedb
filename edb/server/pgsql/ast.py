@@ -250,6 +250,12 @@ class ParamRef(BaseExpr):
     number: int
 
 
+class NamedParamRef(BaseExpr):
+    """Named query parameter."""
+
+    name: str
+
+
 class ResTarget(Base):
     """Query result target."""
 

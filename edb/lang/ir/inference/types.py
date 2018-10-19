@@ -27,6 +27,7 @@ from edb.lang.schema import basetypes as s_basetypes
 from edb.lang.schema import inheriting as s_inh
 from edb.lang.schema import name as s_name
 from edb.lang.schema import objects as s_obj
+from edb.lang.schema import scalars as s_scalars
 from edb.lang.schema import types as s_types
 from edb.lang.schema import utils as s_utils
 
@@ -58,33 +59,54 @@ def _infer_common_type(irs: typing.List[irast.Base], schema):
             'cannot determine common type of an empty set',
             context=irs[0].context)
 
-    col_type = None
-    arg_types = []
+    types = []
     empties = []
+
+    seen_object = False
+    seen_scalar = False
+    seen_coll = False
+
     for i, arg in enumerate(irs):
         if isinstance(arg, irast.EmptySet) and arg.scls is None:
             empties.append(i)
             continue
 
-        arg_type = infer_type(arg, schema)
-        arg_types.append(arg_type)
+        t = infer_type(arg, schema)
+        if isinstance(t, s_types.Collection):
+            seen_coll = True
+        elif isinstance(t, s_scalars.ScalarType):
+            seen_scalar = True
+        else:
+            seen_object = True
+        types.append(t)
 
-        if isinstance(arg_type, s_types.Collection):
-            col_type = arg_type
+    if seen_coll + seen_scalar + seen_object > 1:
+        raise ql_errors.EdgeQLError(
+            'cannot determine common type',
+            context=irs[0].context)
 
-    if not arg_types:
+    if not types:
         raise ql_errors.EdgeQLError(
             'cannot determine common type of an empty set',
             context=irs[0].context)
 
-    if col_type is not None:
-        if not all(col_type.issubclass(t) for t in arg_types):
-            raise ql_errors.EdgeQLError(
-                'cannot determine common type',
-                context=irs[0].context)
-        common_type = col_type
+    common_type = None
+    if seen_scalar or seen_coll:
+        it = iter(types)
+        common_type = next(it)
+        while True:
+            next_type = next(it, None)
+            if next_type is None:
+                break
+            common_type = common_type.find_common_implicitly_castable_type(
+                next_type, schema)
+            if common_type is None:
+                break
     else:
-        common_type = s_utils.get_class_nearest_common_ancestor(arg_types)
+        common_type = s_utils.get_class_nearest_common_ancestor(types)
+
+    if common_type is None:
+        return None
 
     for i in empties:
         amend_empty_set_type(irs[i], common_type, schema)
@@ -180,21 +202,20 @@ def __infer_setop(ir, schema):
     left_type = infer_type(ir.left, schema).material_type()
     right_type = infer_type(ir.right, schema).material_type()
 
-    # for purposes of type inference UNION and UNION ALL work almost
-    # the same way
-    if ir.op == qlast.UNION:
+    assert ir.op == qlast.UNION
+
+    if isinstance(left_type, s_scalars.ScalarType):
+        result = left_type.find_common_implicitly_castable_type(
+            right_type, schema)
+
+    else:
         if left_type.issubclass(right_type):
-            result = left_type
-        elif right_type.issubclass(left_type):
             result = right_type
+        elif right_type.issubclass(left_type):
+            result = left_type
         else:
             result = s_inh.create_virtual_parent(
                 schema, [left_type, right_type])
-
-    else:
-        result = infer_type(ir.left, schema)
-        # create_virtual_parent will raise if types are incompatible.
-        s_inh.create_virtual_parent(schema, [left_type, right_type])
 
     return result
 

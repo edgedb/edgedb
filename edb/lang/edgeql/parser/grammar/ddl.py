@@ -731,7 +731,7 @@ class OptDelegated(Nonterm):
 
 
 class OptConcreteConstraintArgList(Nonterm):
-    def reduce_LPAREN_OptFuncArgList_RPAREN(self, *kids):
+    def reduce_LPAREN_OptPosCallArgList_RPAREN(self, *kids):
         self.val = kids[1].val
 
     def reduce_empty(self):
@@ -1519,22 +1519,34 @@ class OptParameterKind(Nonterm):
         self.val = ft.ParameterKind.NAMED_ONLY
 
 
+class FuncDeclArgName(Nonterm):
+
+    def reduce_DOLLAR_AnyIdentifier(self, dk, dp):
+        self.val = dp.val
+        self.context = dk.context
+
+    def reduce_DOLLAR_ICONST(self, dk, di):
+        raise EdgeQLSyntaxError(
+            f'numeric parameters are not supported',
+            context=dk.context)
+
+
 class FuncDeclArg(Nonterm):
     def reduce_kwarg(self, *kids):
-        r"""%reduce OptParameterKind DOLLAR AnyIdentifier COLON \
+        r"""%reduce OptParameterKind FuncDeclArgName COLON \
                 OptTypeQualifier FullTypeExpr OptDefault \
         """
         self.val = qlast.FuncParam(
             kind=kids[0].val,
-            name=kids[2].val,
-            typemod=kids[4].val,
-            type=kids[5].val,
-            default=kids[6].val
+            name=kids[1].val,
+            typemod=kids[3].val,
+            type=kids[4].val,
+            default=kids[5].val
         )
 
-    def reduce_OptParameterKind_DOLLAR_Identifier_OptDefault(self, *kids):
+    def reduce_OptParameterKind_FuncDeclArgName_OptDefault(self, *kids):
         raise EdgeQLSyntaxError(
-            f'missing type declaration for function parameter ${kids[2].val}',
+            f'missing type declaration for function parameter ${kids[1].val}',
             context=kids[1].context)
 
 
@@ -1553,7 +1565,14 @@ class CreateFunctionArgs(Nonterm):
         last_pos_default_arg = None
         last_named_arg = None
         variadic_arg = None
+        names = set()
         for arg in args:
+            if arg.name in names:
+                raise EdgeQLSyntaxError(
+                    f'duplicate parameter name ${arg.name}',
+                    context=arg.context)
+            names.add(arg.name)
+
             if arg.kind is ft.ParameterKind.VARIADIC:
                 if variadic_arg is not None:
                     raise EdgeQLSyntaxError(

@@ -17,7 +17,8 @@
 #
 
 
-import collections
+import functools
+import typing
 
 from edb.lang.edgeql import ast as qlast
 
@@ -113,55 +114,74 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
         return False
 
     def implicitly_castable_to(self, other: s_types.Type, schema) -> bool:
-        if self.issubclass(other) or other.issubclass(self):
-            # ScalarType compatibility is symmetric, i.e. a superclass instance
-            # is compatible with subclasses, as they all share the same
-            # fundamental type.
+        if not isinstance(other, ScalarType):
+            return False
+        left = str(self.get_topmost_concrete_base().name)
+        right = str(other.get_topmost_concrete_base().name)
+        return self._is_implicitly_castable_impl(left, right)
+
+    @functools.lru_cache()
+    def _is_implicitly_castable_impl(self, left: str, right: str) -> bool:
+        if left == right:
             return True
 
-        # In lieu of schema-level cast support, use the
-        # hardcoded cast map to plug the hole.
-        for tn, castable_to in _full_implicit_cast_map.items():
-            t = schema.get(tn)
-            if self.issubclass(t):
-                if other.issubclass(
-                        tuple(schema.get(c) for c in castable_to)):
-                    return True
-                else:
-                    return False
+        while True:
+            left = _implicit_numeric_cast_map.get(left)
+            if left is None:
+                return False
+            if left == right:
+                return True
 
-        return False
+    @functools.lru_cache()
+    def _find_common_castable_type_impl(
+            self, left: str, right: str) -> typing.Optional[str]:
+
+        if left == right:
+            return left
+        if left not in _implicit_numeric_cast_map:
+            return
+        if right not in _implicit_numeric_cast_map:
+            return
+
+        orig_left = left
+        while True:
+            left = _implicit_numeric_cast_map.get(left)
+            if left is None:
+                left = orig_left
+                new_right = _implicit_numeric_cast_map.get(right)
+                if new_right is None:
+                    return right
+                right = new_right
+            if left == right:
+                return left
+
+    def find_common_implicitly_castable_type(
+            self, other: s_types.Type,
+            schema) -> typing.Optional[s_types.Type]:
+
+        if not isinstance(other, ScalarType):
+            return
+
+        left = str(self.get_topmost_concrete_base().name)
+        right = str(other.get_topmost_concrete_base().name)
+
+        if left == right:
+            return schema.get(left)
+
+        result = self._find_common_castable_type_impl(left, right)
+        if result is not None:
+            return schema.get(result)
 
 
-# Target type : source types that can implicitly cast into target
-_implicit_cast_map = {
-    'std::int32': ['std::int16'],
-    'std::int64': ['std::int32'],
-    'std::float64': ['std::float32', 'std::int64'],
-    'std::decimal': ['std::float64']
+# source -> target   (source can be implicitly casted into target)
+_implicit_numeric_cast_map = {
+    'std::int16': 'std::int32',
+    'std::int32': 'std::int64',
+    'std::int64': 'std::float64',
+    'std::float32': 'std::float64',
+    'std::float64': 'std::decimal',
+    'std::decimal': None
 }
-
-# Expanded cast map: source type: target_type
-_full_implicit_cast_map = collections.defaultdict(set)
-
-
-def _build_implicit_cast_map():
-    for target, sources in _implicit_cast_map.items():
-        for source in sources:
-            _full_implicit_cast_map[source].add(target)
-
-    for source, targets in _full_implicit_cast_map.items():
-        seen = set()
-
-        while targets - seen:
-            for target in list(targets):
-                transitive = _full_implicit_cast_map.get(target)
-                if transitive:
-                    targets.update(transitive)
-                seen.add(target)
-
-
-_build_implicit_cast_map()
 
 
 class ScalarTypeCommandContext(sd.ObjectCommandContext,

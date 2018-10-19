@@ -441,13 +441,41 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_array_get_03(self):
         with self.assertRaisesRegex(
                 # FIXME: a different error should be used here, this
-                # one leaks postgres types
+                # one leaks Postgres types
                 exc.UnknownEdgeDBError,
                 r'integer out of range'):
 
             await self.con.execute(r'''
                 SELECT array_get([1, 2, 3], 2^40);
             ''')
+
+    async def test_edgeql_functions_array_get_04(self):
+        await self.assert_query_result(r'''
+            SELECT array_get([1, 2, 3], 0) ?? 42;
+            SELECT array_get([1, 2, 3], 0, $default := -1) ?? 42;
+            SELECT array_get([1, 2, 3], -2) ?? 42;
+            SELECT array_get([1, 2, 3], 20) ?? 42;
+            SELECT array_get([1, 2, 3], -20) ?? 42;
+        ''', [
+            [1],
+            [1],
+            [2],
+            [42],
+            [42],
+        ])
+
+    async def test_edgeql_functions_array_get_05(self):
+        await self.assert_query_result(r'''
+            SELECT array_get([1, 2, 3], 1, $default := 4200) ?? 42;
+            SELECT array_get([1, 2, 3], -2, $default := 4200) ?? 42;
+            SELECT array_get([1, 2, 3], 20, $default := 4200) ?? 42;
+            SELECT array_get([1, 2, 3], -20, $default := 4200) ?? 42;
+        ''', [
+            [2],
+            [2],
+            [4200],
+            [4200],
+        ])
 
     async def test_edgeql_functions_re_match_01(self):
         await self.assert_query_result(r'''
@@ -607,7 +635,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [0.7],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_functions_sum_02(self):
         await self.assert_query_result(r'''
             SELECT sum({1, 2, 3, -4.2, 5});
@@ -615,7 +642,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [6.8],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_functions_sum_03(self):
         await self.assert_query_result(r'''
             SELECT sum({1.0, 2.0, 3.0, -4.2, 5});

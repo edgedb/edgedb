@@ -452,6 +452,9 @@ class TestIntrospection(tb.QueryTestCase):
                     kind,
                     type: {
                         name,
+                        [IS schema::Array].element_type: {
+                            name
+                        }
                     }
                 }
             } FILTER
@@ -465,7 +468,10 @@ class TestIntrospection(tb.QueryTestCase):
                         'num': 0,
                         'kind': 'VARIADIC',
                         'type': {
-                            'name': 'std::any',
+                            'name': 'array',
+                            'element_type': {
+                                'name': 'std::any'
+                            }
                         }
                     }
                 ]

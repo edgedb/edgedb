@@ -216,7 +216,6 @@ class WindowSpec(Clause):
 
 
 class FuncArg(Base):
-    name: str
     arg: Expr
     sort: typing.List[SortExpr]
     filter: Expr
@@ -225,6 +224,7 @@ class FuncArg(Base):
 class FunctionCall(Expr):
     func: typing.Union[tuple, str]
     args: typing.List[FuncArg]
+    kwargs: typing.Dict[str, FuncArg]
     window: WindowSpec
     # FIXME: drop this completely
     agg_set_modifier: typing.Optional[SetModifier]

@@ -546,7 +546,7 @@ def new_expression_set(
         ir_expr, path_id=None, alias=None,
         typehint: typing.Optional[irast.TypeRef]=None, *,
         ctx: context.ContextLevel) -> irast.Set:
-    if isinstance(ir_expr, irast.EmptySet) and typehint is not None:
+    if typehint is not None and irutils.is_empty(ir_expr):
         ir_expr = irast.TypeCast(expr=ir_expr, type=typehint)
 
     result_type = irutils.infer_type(ir_expr, ctx.schema)

@@ -716,6 +716,51 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             {'42!'},
         ])
 
+    async def test_edgeql_json_get_04(self):
+        await self.assert_query_result(r'''
+            SET MODULE test;
+
+            SELECT json_get(JSONTest.data, 'bogus') ?? <json>'oups';
+
+            SELECT json_get(
+                JSONTest.data, '4', 'b', 'bar', '2', 'bogus',
+                $default := <json>'hello'
+            ) ?? <json>'oups';
+
+            SELECT json_get(
+                JSONTest.data, '4', 'b', 'bar', '2', 'bogus',
+                $default := <json>''
+            ) ?? <json>'oups';
+
+            SELECT json_get(
+                JSONTest.data, '4', 'b', 'bar', '2', 'bogus',
+                $default := str_to_json('null')
+            ) ?? <json>'oups';
+
+            SELECT json_get(
+                JSONTest.data, '4', 'b', 'bar', '2', 'bogus',
+                $default := <json>{}
+            ) ?? <json>'oups';
+
+            SELECT json_get(
+                JSONTest.data, '4', 'b', 'bar', '2', 'bingo',
+                $default := <json>''
+            ) ?? <json>'oups';
+
+            SELECT json_get(
+                JSONTest.data, '4', 'b', 'bar', '2', 'bingo'
+            ) ?? <json>'oups';
+        ''', [
+            None,  # SET MODULE
+            ['oups'],
+            ['hello', 'hello', 'hello'],
+            ['', '', ''],
+            [None, None, None],
+            ['oups'],
+            ['', '', '42!'],
+            ['42!']
+        ])
+
     async def test_edgeql_json_cast_object_to_json_01(self):
         res = await self.query("""
             WITH MODULE schema

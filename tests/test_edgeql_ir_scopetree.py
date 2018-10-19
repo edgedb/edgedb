@@ -447,7 +447,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                         "(test::User)"
                     },
                     "(test::User).>(test::friends)[IS test::User]\
-.>(test::deck_cost)[IS std::int64]": {
+.>(test::deck_cost)[IS std::decimal]": {
                         "FENCE": {
                             "FENCE": {
                                 "FENCE": {
@@ -467,7 +467,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                 }
             },
             "FENCE": {
-                "(_::__view__|x@@w~1).>(__tuple__::0)[IS std::float64]"
+                "(_::__view__|x@@w~1).>(__tuple__::0)[IS std::decimal]"
             }
         }
         """

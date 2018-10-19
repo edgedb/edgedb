@@ -89,8 +89,6 @@ class FunctionOperation:
                     arg_expr += qn(arg[0])
                 if len(arg) > 1:
                     arg_expr += ' ' + qt(arg[1])
-                    if vararg:
-                        arg_expr += '[]'
                 if include_defaults:
                     if len(arg) > 2 and arg[2] is not None:
                         arg_expr += ' = ' + arg[2]

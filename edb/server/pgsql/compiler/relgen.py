@@ -1323,7 +1323,7 @@ def process_set_as_func_expr(
                 common.edgedb_module_name_to_schema_name(
                     funcobj.shortname.module),
                 common.edgedb_name_to_pg_name(
-                    funcobj.shortname.name)
+                    funcobj.name)
             )
 
         set_expr = pgast.FuncCall(
@@ -1546,7 +1546,7 @@ def process_set_as_agg_expr(
                 common.edgedb_module_name_to_schema_name(
                     funcobj.shortname.module),
                 common.edgedb_name_to_pg_name(
-                    funcobj.shortname.name)
+                    funcobj.name)
             )
 
         set_expr = pgast.FuncCall(

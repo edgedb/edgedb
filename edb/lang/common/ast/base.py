@@ -277,14 +277,14 @@ def is_ast_node(obj):
 
 def fix_parent_links(node):
     for field, value in iter_fields(node):
-        if typeutils.is_container(value):
-            for n in value:
+        if isinstance(value, dict):
+            for n in value.values():
                 if is_ast_node(n):
                     n.parent = node
                     fix_parent_links(n)
 
-        elif isinstance(value, dict):
-            for n in value.values():
+        elif typeutils.is_container(value):
+            for n in value:
                 if is_ast_node(n):
                     n.parent = node
                     fix_parent_links(n)

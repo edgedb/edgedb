@@ -1771,21 +1771,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     'num': 0,
                     'kind': 'VARIADIC',
                     'type': {
-                        'name': 'std::any'
+                        'name': 'array'
                     }
                 }
             ]}]
         ])
 
-        await self.assert_query_result(r'''
-            SELECT test::concat1('aaa');
-            SELECT test::concat1('aaa', 'bbb');
-            SELECT test::concat1('aaa', 'bbb', 22);
-        ''', [
-            ['aaa'],
-            ['aaabbb'],
-            ['aaabbb22'],
-        ])
+        with self.assertRaisesRegex(exc.EdgeQLError,
+                                    'could not determine array type'):
+            await self.con.execute("SELECT test::concat1('aaa', 'bbb', 2);")
 
         await self.con.execute(r'''
             DROP FUNCTION test::concat1(VARIADIC $s: std::any);
@@ -1806,7 +1800,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             CREATE FUNCTION test::concat3($sep: OPTIONAL std::str,
                                           VARIADIC $s: std::str)
                     -> std::str
-                FROM SQL FUNCTION 'concat_ws';
+                FROM EdgeQL $$
+                    # poor man concat
+                    SELECT (array_get($s, 0) ?? '') +
+                           ($sep ?? '::') +
+                           (array_get($s, 1) ?? '')
+                $$;
         ''')
 
         await self.assert_query_result(r'''
@@ -1816,7 +1815,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     name,
                     kind,
                     type: {
-                        name
+                        name,
+                        [IS schema::Array].element_type: {
+                            name
+                        }
                     },
                     typemod
                 } ORDER BY .num ASC,
@@ -1833,7 +1835,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         'name': 'sep',
                         'kind': 'POSITIONAL',
                         'type': {
-                            'name': 'std::str'
+                            'name': 'std::str',
+                            'element_type': None
                         },
                         'typemod': 'OPTIONAL'
                     },
@@ -1842,7 +1845,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         'name': 's',
                         'kind': 'VARIADIC',
                         'type': {
-                            'name': 'std::str'
+                            'name': 'array',
+                            'element_type': {'name': 'std::str'}
                         },
                         'typemod': 'SINGLETON'
                     }
@@ -1863,11 +1867,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             await self.con.execute(r'SELECT test::concat3("a", 123);')
 
         await self.assert_query_result(r'''
-            SELECT test::concat3('|', '1');
-            SELECT test::concat3('+', '1', '2');
+            SELECT test::concat3('|', '1', '2');
         ''', [
-            ['1'],
-            ['1+2'],
+            ['1|2'],
         ])
 
         await self.con.execute(r'''

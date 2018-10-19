@@ -120,6 +120,14 @@ def get_subquery_shape(ir_expr):
         return None
 
 
+def is_empty(ir_expr):
+    return (
+        isinstance(ir_expr, irast.EmptySet) or
+        (isinstance(ir_expr, irast.Array) and not ir_expr.elements) or
+        (isinstance(ir_expr, irast.Set) and is_empty(ir_expr.expr))
+    )
+
+
 def is_view_set(ir_expr):
     return (
         isinstance(ir_expr, irast.Set) and

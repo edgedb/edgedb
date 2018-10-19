@@ -2158,10 +2158,35 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected 'ALL'", line=2, col=22)
+                  r"Unexpected '1'", line=2, col=26)
     def test_edgeql_syntax_function_05(self):
         """
         SELECT count(ALL 1);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"positional argument after named argument \$b",
+                  line=2, col=43)
+    def test_edgeql_syntax_function_06(self):
+        """
+        SELECT count(1, $a := 1, $b := 1, 2);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"duplicate named argument \$a",
+                  line=2, col=34)
+    def test_edgeql_syntax_function_07(self):
+        """
+        SELECT count(1, $a := 1, $a := 1);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"named arguments require '\$' prefix: "
+                  r"rewrite as '\$a := \.\.\.'",
+                  line=2, col=25)
+    def test_edgeql_syntax_function_08(self):
+        """
+        SELECT count(1, a := 1);
         """
 
     def test_edgeql_syntax_tuple_01(self):
@@ -2853,6 +2878,44 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         CREATE FUNCTION std::strlen(VARIADIC $b: std::str = '1')
             -> std::int64
             FROM SQL FUNCTION 'strlen';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'numeric parameters are not supported',
+                  line=2, col=37)
+    def test_edgeql_syntax_ddl_function_43(self):
+        """
+        CREATE FUNCTION std::strlen($1: int32) -> int64
+            FROM EdgeQL $$ SELECT 1 $$;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'duplicate parameter name \$a$',
+                  line=2, col=57)
+    def test_edgeql_syntax_ddl_function_44(self):
+        """
+        CREATE FUNCTION std::strlen($a: int16, $b: str, $a: int16) -> int64
+            FROM EdgeQL $$ SELECT 1 $$;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'duplicate parameter name \$aa$',
+                  line=3, col=37)
+    def test_edgeql_syntax_ddl_function_45(self):
+        """
+        CREATE FUNCTION std::strlen($aa: int16, $b: str,
+                                    NAMED ONLY $aa: int16) -> int64
+            FROM EdgeQL $$ SELECT 1 $$;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'duplicate parameter name \$aa$',
+                  line=3, col=37)
+    def test_edgeql_syntax_ddl_function_46(self):
+        """
+        CREATE FUNCTION std::strlen($aa: int16, $b: str,
+                                    VARIADIC $aa: int16) -> int64
+            FROM EdgeQL $$ SELECT 1 $$;
         """
 
     def test_edgeql_syntax_ddl_property_01(self):

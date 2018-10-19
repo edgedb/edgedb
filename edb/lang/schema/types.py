@@ -19,6 +19,7 @@
 
 import collections.abc
 import enum
+import typing
 
 from edb.lang.common import typed
 
@@ -59,7 +60,11 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
         return self.implicitly_castable_to(other, schema)
 
     def implicitly_castable_to(self, other: 'Type', schema) -> bool:
-        return self.issubclass(other)
+        return False
+
+    def find_common_implicitly_castable_type(
+            self, other: 'Type', schema) -> typing.Optional['Type']:
+        return
 
     def material_type(self):
         # When self is a view, this returns the material type
@@ -233,6 +238,24 @@ class Array(Collection):
 
         return container(elements)
 
+    def implicitly_castable_to(self, other: Type, schema) -> bool:
+        if not isinstance(other, Array):
+            return False
+
+        return self.element_type.implicitly_castable_to(
+            other.element_type, schema)
+
+    def find_common_implicitly_castable_type(
+            self, other: Type, schema) -> typing.Optional[Type]:
+        if not isinstance(other, Array):
+            return
+
+        subtype = self.element_type.find_common_implicitly_castable_type(
+            other.element_type, schema)
+
+        if subtype is not None:
+            return Array.from_subtypes([subtype])
+
     @classmethod
     def from_subtypes(cls, subtypes, typemods=None):
         if len(subtypes) != 1:
@@ -290,6 +313,37 @@ class Tuple(Collection):
             types = subtypes
 
         return cls(element_types=types, named=named)
+
+    def implicitly_castable_to(self, other: Type, schema) -> bool:
+        if not isinstance(other, Tuple):
+            return False
+
+        if len(self.element_types) != len(other.element_types):
+            return False
+
+        for st, ot in zip(self.element_types, other.element_types):
+            if not st.implicitly_castable_to(ot, schema):
+                return False
+
+        return True
+
+    def find_common_implicitly_castable_type(
+            self, other: Type, schema) -> typing.Optional[Type]:
+
+        if not isinstance(other, Tuple):
+            return
+
+        if len(self.element_types) != len(other.element_types):
+            return
+
+        new_types = []
+        for st, ot in zip(self.element_types, other.element_types):
+            nt = st.find_common_implicitly_castable_type(ot, schema)
+            if nt is None:
+                return
+            new_types.append(nt)
+
+        return Tuple.from_subtypes(new_types)
 
     def get_typemods(self):
         return {'named': self.named}

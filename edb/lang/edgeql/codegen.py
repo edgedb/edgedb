@@ -526,6 +526,16 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write(', ')
             self.visit(arg)
 
+        if node.kwargs:
+            if node.args:
+                self.write(', ')
+
+            for i, (name, arg) in enumerate(node.kwargs.items()):
+                if i > 0:
+                    self.write(', ')
+                self.write(f'${name} := ')
+                self.visit(arg)
+
         self.write(')')
 
         if node.window:
@@ -545,10 +555,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(')')
 
     def visit_FuncArg(self, node):
-        if node.name:
-            self.write('$')
-            self.write(node.name)
-            self.write(' := ')
         self.visit(node.arg)
 
         if node.filter:

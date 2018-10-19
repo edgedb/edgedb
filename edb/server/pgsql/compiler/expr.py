@@ -110,14 +110,19 @@ def compile_Parameter(
         expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     if expr.name.isnumeric():
         index = int(expr.name) + 1
+        result = pgast.ParamRef(number=index)
     else:
-        if expr.name in ctx.argmap:
-            index = ctx.argmap[expr.name]
+        if ctx.env.use_named_params:
+            result = pgast.NamedParamRef(name=expr.name)
         else:
-            index = len(ctx.argmap) + 1
-            ctx.argmap[expr.name] = index
+            if expr.name in ctx.argmap:
+                index = ctx.argmap[expr.name]
+            else:
+                index = len(ctx.argmap) + 1
+                ctx.argmap[expr.name] = index
 
-    result = pgast.ParamRef(number=index)
+            result = pgast.ParamRef(number=index)
+
     return typecomp.cast(
         result, source_type=expr.type, target_type=expr.type,
         ir_expr=expr, force=True, env=ctx.env)
@@ -488,7 +493,7 @@ def compile_FunctionCall(
             common.edgedb_module_name_to_schema_name(
                 funcobj.shortname.module),
             common.edgedb_name_to_pg_name(
-                funcobj.shortname.name)
+                funcobj.name)
         )
 
     result = pgast.FuncCall(name=name, args=args)
