@@ -68,17 +68,18 @@ def _dump(markup, header, file):
     renderers.terminal.render(markup, file=file)
 
 
-def dump(obj, file=None, trim=True, marker=None, **kwargs):
+def dump(*objs, file=None, trim=True, marker=None, **kwargs):
     for kw in kwargs:
         if kw[0] != '_':
             raise TypeError(f'unknown keyword argument {kw!r}')
 
-    if marker:
-        markup = elements.doc.Marker(text=marker)
-        renderers.terminal.render(markup, file=file, ensure_newline=False)
+    for obj in objs:
+        if marker:
+            markup = elements.doc.Marker(text=marker)
+            renderers.terminal.render(markup, file=file, ensure_newline=False)
 
-    markup = _serialize(obj, trim=trim, kwargs=kwargs)
-    _dump(markup, None, file)
+        markup = _serialize(obj, trim=trim, kwargs=kwargs)
+        _dump(markup, None, file)
 
 
 def dump_code(code: str, *, lexer='python', header=None, file=None):
