@@ -603,6 +603,7 @@ class TestExpressions(tb.QueryTestCase):
             [{'a': 'foo', 'b': 42}],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_expr_implicit_cast_01(self):
         await self.assert_query_result(r"""
             SELECT (<int32>1 + 3).__type__.name;
@@ -615,9 +616,92 @@ class TestExpressions(tb.QueryTestCase):
             ['std::int64'],
             ['std::int64'],
             ['std::int32'],
-            ['std::float32'],
-            ['std::float32'],
+            # according to the _implicit_numeric_cast_map, any of the
+            # ints can only be upcast to float64, not float32
             ['std::float64'],
+            ['std::float64'],
+            ['std::float64'],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_implicit_cast_02(self):
+        await self.assert_query_result(r"""
+            SELECT (<float32>1 + <float64>2).__type__.name;
+            SELECT (<int32>1 + <float32>2).__type__.name;
+            SELECT (<int64>1 + <float32>2).__type__.name;
+        """, [
+            ['std::float64'],
+            ['std::float64'],
+            ['std::float64'],
+        ])
+
+    async def test_edgeql_expr_implicit_cast_03(self):
+        # coalescing forces the left scalar operand to be implicitly
+        # upcast to the right one even if the right one is never
+        # technically evaluated (function not called, etc.)
+        await self.assert_query_result(r"""
+            SELECT 3 / 2;
+            SELECT (3 / 2) ?? <float64>{};
+            SELECT 3 / 2 ?? <float64>{};
+            SELECT 3 / 2 ?? random();
+            SELECT 3 / 2 ?? sum({1, 2.0});
+        """, [
+            [1],
+            [1],
+            [1.5],
+            [1.5],
+            [1.5],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_implicit_cast_04(self):
+        # IF should also force implicit casts of the two options
+        await self.assert_query_result(r"""
+            SELECT 3 / (2 IF TRUE ELSE 2.0);
+            SELECT 3 / (2 IF random() > -1 ELSE 2.0);
+
+            SELECT 3 / (2 IF FALSE ELSE 2.0);
+            SELECT 3 / (2 IF random() < -1 ELSE 2.0);
+        """, [
+            [1.5],
+            [1.5],
+            [1.5],
+            [1.5],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_implicit_cast_05(self):
+        await self.assert_query_result(r"""
+            SELECT {[1, 2.0], [3, 4.5]};
+            SELECT {[1, 2], [3, 4.5]};
+        """, [
+            [[1, 2], [3, 4.5]],
+            [[1, 2], [3, 4.5]],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_implicit_cast_06(self):
+        await self.assert_query_result(r"""
+            SELECT {(1, 2.0), (3, 4.5)};
+            SELECT {(1, 2), (3, 4.5)};
+        """, [
+            [[1, 2], [3, 4.5]],
+            [[1, 2], [3, 4.5]],
+        ])
+
+    async def test_edgeql_expr_implicit_cast_07(self):
+        await self.assert_query_result(r"""
+            WITH
+                MODULE schema,
+                A := (
+                    SELECT ObjectType {
+                        a := 1,
+                        b := 1 + 0 * random(),  # float64
+                        c := 1 + 0 * <int64>random(),
+                    })
+            SELECT (3 / (A.a + A.b), 3 / (A.a + A.c)) LIMIT 1;
+        """, [
+            [[1.5, 1]],
         ])
 
     async def test_edgeql_expr_type_01(self):
