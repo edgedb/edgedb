@@ -653,7 +653,6 @@ class TestExpressions(tb.QueryTestCase):
             [1.5],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_implicit_cast_04(self):
         # IF should also force implicit casts of the two options
         await self.assert_query_result(r"""
@@ -669,7 +668,15 @@ class TestExpressions(tb.QueryTestCase):
             [1.5],
         ])
 
-    @unittest.expectedFailure
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'if/else clauses must be of related types, '
+                r'got: std::int64/std::str'):
+
+            await self.con.execute("""
+                SELECT 3 / (2 IF FALSE ELSE '1');
+            """)
+
     async def test_edgeql_expr_implicit_cast_05(self):
         await self.assert_query_result(r"""
             SELECT {[1, 2.0], [3, 4.5]};

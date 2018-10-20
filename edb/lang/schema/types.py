@@ -247,8 +247,12 @@ class Array(Collection):
 
     def find_common_implicitly_castable_type(
             self, other: Type, schema) -> typing.Optional[Type]:
+
         if not isinstance(other, Array):
             return
+
+        if self == other:
+            return self
 
         subtype = self.element_type.find_common_implicitly_castable_type(
             other.element_type, schema)
@@ -333,11 +337,17 @@ class Tuple(Collection):
         if not isinstance(other, Tuple):
             return
 
-        if len(self.element_types) != len(other.element_types):
+        if self == other:
+            return self
+
+        subs = self.get_subtypes()
+        other_subs = other.get_subtypes()
+
+        if len(subs) != len(other_subs):
             return
 
         new_types = []
-        for st, ot in zip(self.element_types, other.element_types):
+        for st, ot in zip(subs, other_subs):
             nt = st.find_common_implicitly_castable_type(ot, schema)
             if nt is None:
                 return

@@ -204,7 +204,7 @@ def __infer_setop(ir, schema):
 
     assert ir.op == qlast.UNION
 
-    if isinstance(left_type, s_scalars.ScalarType):
+    if isinstance(left_type, (s_scalars.ScalarType, s_types.Collection)):
         result = left_type.find_common_implicitly_castable_type(
             right_type, schema)
 
@@ -325,13 +325,12 @@ def __infer_unaryop(ir, schema):
 
 @_infer_type.register(irast.IfElseExpr)
 def __infer_ifelse(ir, schema):
-    if_expr_type = infer_type(ir.if_expr, schema)
-    else_expr_type = infer_type(ir.else_expr, schema)
-
-    result = s_utils.get_class_nearest_common_ancestor(
-        [if_expr_type, else_expr_type])
+    result = _infer_common_type(
+        [ir.if_expr, ir.else_expr], schema)
 
     if result is None:
+        if_expr_type = infer_type(ir.if_expr, schema)
+        else_expr_type = infer_type(ir.else_expr, schema)
         raise ql_errors.EdgeQLError(
             'if/else clauses must be of related types, got: {}/{}'.format(
                 if_expr_type.name, else_expr_type.name),
