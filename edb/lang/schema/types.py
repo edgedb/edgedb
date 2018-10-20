@@ -287,6 +287,24 @@ class Array(Collection):
 
         return cls(element_type=element_type, dimensions=dimensions)
 
+    def __hash__(self):
+        return hash((
+            self.__class__,
+            self.name,
+            self.element_type,
+            tuple(self.dimensions),
+        ))
+
+    def __eq__(self, other):
+        if self.__class__ is not other.__class__:
+            return False
+
+        return (
+            self.name == other.name and
+            self.element_type == other.element_type and
+            self.dimensions == other.dimensions
+        )
+
 
 class Tuple(Collection):
     schema_name = 'tuple'
@@ -353,7 +371,15 @@ class Tuple(Collection):
                 return
             new_types.append(nt)
 
-        return Tuple.from_subtypes(new_types)
+        if (self.named and
+                other.named and
+                self.element_types.keys() == other.element_types.keys()):
+            new_types = dict(zip(self.element_types.keys(), new_types))
+            typemods = {"named": True}
+        else:
+            typemods = None
+
+        return Tuple.from_subtypes(new_types, typemods)
 
     def get_typemods(self):
         return {'named': self.named}
@@ -367,10 +393,11 @@ class Tuple(Collection):
         ))
 
     def __eq__(self, other):
-        if not isinstance(other, self.__class__):
+        if self.__class__ is not other.__class__:
             return False
 
         return (
-            self.named == other.named and self.name == other.name and
+            self.named == other.named and
+            self.name == other.name and
             self.element_types == other.element_types
         )

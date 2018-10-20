@@ -697,6 +697,32 @@ def _compile_set_op(
             dispatch.compile(expr.right, ctx=scopectx),
             ctx=scopectx)
 
+    left_type = irutils.infer_type(left, schema=ctx.schema)
+    right_type = irutils.infer_type(right, schema=ctx.schema)
+
+    if left_type != right_type and isinstance(left_type, s_types.Collection):
+        common_type = left_type.find_common_implicitly_castable_type(
+            right_type, ctx.schema)
+
+        if common_type is None:
+            raise errors.EdgeQLError(
+                f'could not determine type of a set',
+                context=expr.context)
+
+        if left_type != common_type:
+            left = setgen.ensure_set(
+                _cast_expr(typegen.type_to_ql_typeref(common_type),
+                           left, ctx=ctx, source_context=expr.context),
+                ctx=ctx
+            )
+
+        if right_type != common_type:
+            right = setgen.ensure_set(
+                _cast_expr(typegen.type_to_ql_typeref(common_type),
+                           right, ctx=ctx, source_context=expr.context),
+                ctx=ctx
+            )
+
     return setgen.ensure_set(
         irast.SetOp(left=left, right=right, op=expr.op), ctx=ctx)
 
