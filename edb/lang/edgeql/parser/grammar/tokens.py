@@ -129,7 +129,7 @@ class T_DOLLAR(Token, lextoken='$'):
     pass
 
 
-class T_TURNSTILE(Token):
+class T_ASSIGN(Token):
     pass
 
 

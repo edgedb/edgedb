@@ -125,7 +125,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self.visit(node.name)
 
         if node.expr:
-            self._visit_turnstile(node.expr)
+            self._visit_assignment(node.expr)
         elif node.target:
             self.write(' -> ')
             if isinstance(node.target, list):
@@ -151,7 +151,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         else:
             self.write(code)
 
-    def _visit_turnstile(self, node):
+    def _visit_assignment(self, node):
         self.write(' := ')
 
         if (isinstance(node, eqlast.Constant) and
@@ -318,7 +318,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
     def visit_Attribute(self, node):
         self.visit(node.name)
         if isinstance(node.value, eqlast.Base):
-            self._visit_turnstile(node.value)
+            self._visit_assignment(node.value)
         else:
             self.write(' := ')
             self.visit(node.value)

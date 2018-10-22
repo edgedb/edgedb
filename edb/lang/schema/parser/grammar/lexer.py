@@ -181,7 +181,7 @@ class EdgeSchemaLexer(lexer.Lexer):
              next_state=STATE_KEEP,
              regexp=r'::'),
 
-        Rule(token='TURNSTILE',
+        Rule(token='ASSIGN',
              next_state=STATE_RAW_STRING,
              regexp=r':='),
 

@@ -90,7 +90,7 @@ class T_COMMA(Token):
     pass
 
 
-class T_TURNSTILE(Token):
+class T_ASSIGN(Token):
     pass
 
 

@@ -71,7 +71,7 @@ class ExprStmtCore(Nonterm):
 
 
 class AliasedExpr(Nonterm):
-    def reduce_Identifier_TURNSTILE_Expr(self, *kids):
+    def reduce_Identifier_ASSIGN_Expr(self, *kids):
         self.val = qlast.AliasedExpr(alias=kids[0].val, expr=kids[2].val)
 
 
@@ -237,7 +237,7 @@ class AliasDecl(Nonterm):
         self.val = qlast.ModuleAliasDecl(
             module='.'.join(kids[1].val))
 
-    def reduce_Identifier_TURNSTILE_MODULE_ModuleName(self, *kids):
+    def reduce_Identifier_ASSIGN_MODULE_ModuleName(self, *kids):
         self.val = qlast.ModuleAliasDecl(
             alias=kids[0].val,
             module='.'.join(kids[3].val))
@@ -328,7 +328,7 @@ class ShapeElement(Nonterm):
         self.val.offset = kids[4].val[0]
         self.val.limit = kids[4].val[1]
 
-    def reduce_ShapePointer_TURNSTILE_Expr(self, *kids):
+    def reduce_ShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[0].val
         self.val.compexpr = kids[2].val
 
@@ -768,7 +768,7 @@ class NamedTuple(Nonterm):
 
 
 class NamedTupleElement(Nonterm):
-    def reduce_ShortNodeName_TURNSTILE_Expr(self, *kids):
+    def reduce_ShortNodeName_ASSIGN_Expr(self, *kids):
         self.val = qlast.TupleElement(
             name=kids[0].val,
             val=kids[2].val
@@ -1020,19 +1020,19 @@ class FuncCallArgExpr(Nonterm):
             None,
             qlast.FuncArg(arg=kids[0].val, context=kids[0].context))
 
-    def reduce_DOLLAR_AnyIdentifier_TURNSTILE_Expr(self, *kids):
+    def reduce_DOLLAR_AnyIdentifier_ASSIGN_Expr(self, *kids):
         self.val = (
             kids[1].val,
             kids[0].context,
             qlast.FuncArg(arg=kids[3].val, context=kids[3].context)
         )
 
-    def reduce_DOLLAR_ICONST_TURNSTILE_Expr(self, *kids):
+    def reduce_DOLLAR_ICONST_ASSIGN_Expr(self, *kids):
         raise EdgeQLSyntaxError(
             f"numeric named arguments are not supported",
             context=kids[0].context)
 
-    def reduce_AnyIdentifier_TURNSTILE_Expr(self, *kids):
+    def reduce_AnyIdentifier_ASSIGN_Expr(self, *kids):
         raise EdgeQLSyntaxError(
             f"named arguments require '$' prefix: "
             f"rewrite as '${kids[0].val} := ...'",

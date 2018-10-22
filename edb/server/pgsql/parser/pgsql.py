@@ -270,7 +270,7 @@ class T_DOTDOT(Token):
     pass
 
 
-class T_TURNSTILE(Token):
+class T_ASSIGN(Token):
     pass
 
 

@@ -585,7 +585,7 @@ class ViewDeclaration(Nonterm):
         self.val = esast.ViewDeclaration(name=kids[1].val,
                                          attributes=kids[5].val)
 
-    def reduce_VIEW_Identifier_TurnstileBlob(self, *kids):
+    def reduce_VIEW_Identifier_AssignmentBlob(self, *kids):
         self.val = esast.ViewDeclaration(
             name=kids[1].val,
             attributes=[esast.Attribute(
@@ -848,11 +848,11 @@ class DeclarationSpecsBlob(Nonterm):
 # this Nonterminal should NOT automatically compute context as it
 # relies on an external parser
 #
-class TurnstileBlob(parsing.Nonterm):
-    def reduce_TURNSTILE_RawString_NL(self, *kids):
+class AssignmentBlob(parsing.Nonterm):
+    def reduce_ASSIGN_RawString_NL(self, *kids):
         self.val = parse_edgeql_constant(kids[1].val.value, kids[1].context)
 
-    def reduce_TURNSTILE_NL_INDENT_RawString_NL_DEDENT(self, *kids):
+    def reduce_ASSIGN_NL_INDENT_RawString_NL_DEDENT(self, *kids):
         text = kids[3].val.value
         indent = len(re.match(r'^\s*', text).group(0))
         text = textwrap.dedent(text).strip()
@@ -878,7 +878,7 @@ class Spec(Nonterm):
         self.val = PointerSpec(
             name=kids[0].val, target=kids[2].val, spec=kids[3].val, expr=None)
 
-    def reduce_UnqualifiedObjectName_TurnstileBlob(self, *kids):
+    def reduce_UnqualifiedObjectName_AssignmentBlob(self, *kids):
         self.val = PointerSpec(
             name=kids[0].val, target=None, spec=[], expr=kids[1].val)
 
@@ -1075,7 +1075,7 @@ class Value(Nonterm):
         text = textwrap.dedent(text).strip()
         self.val = qlast.Constant(value=text)
 
-    def reduce_TurnstileBlob(self, *kids):
+    def reduce_AssignmentBlob(self, *kids):
         self.val = kids[0].val
 
 

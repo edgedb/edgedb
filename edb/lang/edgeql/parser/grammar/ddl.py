@@ -292,7 +292,7 @@ def commands_block(parent, *commands, opt=True):
 
 class SetFieldStmt(Nonterm):
     # field := <expr>
-    def reduce_SET_NodeName_TURNSTILE_Expr(self, *kids):
+    def reduce_SET_NodeName_ASSIGN_Expr(self, *kids):
         # if the expression is trivial (a literal or variable), it
         # should be treated as an eager expression
         eager = isinstance(kids[3].val,
@@ -1008,7 +1008,7 @@ class CreateConcretePropertyStmt(Nonterm):
             commands=kids[5].val
         )
 
-    def reduce_CREATE_PROPERTY_NodeName_TURNSTILE_Expr(self, *kids):
+    def reduce_CREATE_PROPERTY_NodeName_ASSIGN_Expr(self, *kids):
         self.val = qlast.CreateConcreteProperty(
             name=kids[2].val,
             target=kids[4].val
@@ -1212,7 +1212,7 @@ class CreateConcreteLinkStmt(Nonterm):
             commands=kids[5].val
         )
 
-    def reduce_CREATE_LINK_NodeName_TURNSTILE_Expr(self, *kids):
+    def reduce_CREATE_LINK_NodeName_ASSIGN_Expr(self, *kids):
         self.val = qlast.CreateConcreteLink(
             name=kids[2].val,
             target=kids[4].val
@@ -1382,7 +1382,7 @@ commands_block(
 class CreateViewStmt(Nonterm):
     def reduce_CreateViewShortStmt(self, *kids):
         r"""%reduce \
-            CREATE VIEW NodeName TURNSTILE Expr \
+            CREATE VIEW NodeName ASSIGN Expr \
         """
         self.val = qlast.CreateView(
             name=kids[2].val,
