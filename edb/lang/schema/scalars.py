@@ -118,42 +118,7 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
             return False
         left = str(self.get_topmost_concrete_base().name)
         right = str(other.get_topmost_concrete_base().name)
-        return self._is_implicitly_castable_impl(left, right)
-
-    @functools.lru_cache()
-    def _is_implicitly_castable_impl(self, left: str, right: str) -> bool:
-        if left == right:
-            return True
-
-        while True:
-            left = _implicit_numeric_cast_map.get(left)
-            if left is None:
-                return False
-            if left == right:
-                return True
-
-    @functools.lru_cache()
-    def _find_common_castable_type_impl(
-            self, left: str, right: str) -> typing.Optional[str]:
-
-        if left == right:
-            return left
-        if left not in _implicit_numeric_cast_map:
-            return
-        if right not in _implicit_numeric_cast_map:
-            return
-
-        orig_left = left
-        while True:
-            left = _implicit_numeric_cast_map.get(left)
-            if left is None:
-                left = orig_left
-                new_right = _implicit_numeric_cast_map.get(right)
-                if new_right is None:
-                    return right
-                right = new_right
-            if left == right:
-                return left
+        return _is_implicitly_castable_impl(left, right)
 
     def find_common_implicitly_castable_type(
             self, other: s_types.Type,
@@ -168,7 +133,7 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
         if left == right:
             return schema.get(left)
 
-        result = self._find_common_castable_type_impl(left, right)
+        result = _find_common_castable_type_impl(left, right)
         if result is not None:
             return schema.get(result)
 
@@ -182,6 +147,43 @@ _implicit_numeric_cast_map = {
     'std::float64': 'std::decimal',
     'std::decimal': None
 }
+
+
+@functools.lru_cache()
+def _is_implicitly_castable_impl(left: str, right: str) -> bool:
+    if left == right:
+        return True
+
+    while True:
+        left = _implicit_numeric_cast_map.get(left)
+        if left is None:
+            return False
+        if left == right:
+            return True
+
+
+@functools.lru_cache()
+def _find_common_castable_type_impl(
+        left: str, right: str) -> typing.Optional[str]:
+
+    if left == right:
+        return left
+    if left not in _implicit_numeric_cast_map:
+        return
+    if right not in _implicit_numeric_cast_map:
+        return
+
+    orig_left = left
+    while True:
+        left = _implicit_numeric_cast_map.get(left)
+        if left is None:
+            left = orig_left
+            new_right = _implicit_numeric_cast_map.get(right)
+            if new_right is None:
+                return right
+            right = new_right
+        if left == right:
+            return left
 
 
 class ScalarTypeCommandContext(sd.ObjectCommandContext,
