@@ -306,7 +306,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.modaliases = prevlevel.modaliases.copy()
                 self.aliased_views = collections.ChainMap()
                 self.class_view_overrides = {}
-                self.expr_exposed = False
+                self.expr_exposed = prevlevel.expr_exposed
 
                 self.source_map = {}
                 self.view_nodes = {}

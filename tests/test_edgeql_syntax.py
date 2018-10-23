@@ -638,6 +638,11 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT Пример;
         """
 
+    def test_edgeql_syntax_name_22(self):
+        """
+        SELECT mod::Foo.bar.baz.boo;
+        """
+
     def test_edgeql_syntax_shape_01(self):
         """
         SELECT Foo {bar};
@@ -1590,6 +1595,19 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_detached_04(self):
         """
         SELECT DETACHED Foo.bar;
+
+% OK %
+
+        SELECT (DETACHED Foo).bar;
+        """
+
+    def test_edgeql_syntax_detached_05(self):
+        """
+        SELECT DETACHED mod::Foo.bar;
+
+% OK %
+
+        SELECT (DETACHED mod::Foo).bar;
         """
 
     def test_edgeql_syntax_select_01(self):

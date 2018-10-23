@@ -30,3 +30,6 @@ type JSONTest:
 
     # this property is for more generic JSON handling
     property data -> json
+
+    # these properties are used for testing casting
+    property edb_string -> str

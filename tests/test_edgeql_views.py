@@ -274,3 +274,78 @@ class TestEdgeQLViews(tb.QueryTestCase):
                 ]
             }]
         ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_computable_propagation_01(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT _ := {
+                (SELECT User FILTER .name = 'Alice').deck,
+                (SELECT User FILTER .name = 'Bob').deck
+            } {name}
+            ORDER BY _.name;
+
+            WITH MODULE test
+            # the view should be propagated through _ := DISTINCT since it
+            # maps `any` to `any`
+            SELECT _ := DISTINCT {
+                (SELECT User FILTER .name = 'Alice').deck,
+                (SELECT User FILTER .name = 'Bob').deck
+            } {name}
+            ORDER BY _.name;
+
+            WITH MODULE test
+            # the view should be propagated through _ := DETACHED
+            SELECT _ := DETACHED {
+                (SELECT User FILTER .name = 'Alice').deck,
+                (SELECT User FILTER .name = 'Bob').deck
+            } {name}
+            ORDER BY _.name;
+
+            WITH MODULE test
+            # the view should be propagated through _ := DETACHED
+            SELECT _ := DETACHED ({
+                (SELECT User FILTER .name = 'Alice').deck,
+                (SELECT User FILTER .name = 'Bob').deck
+            } {name})
+            ORDER BY _.name;
+        ''', [
+            [
+                {'name': 'Bog monster'},
+                {'name': 'Bog monster'},
+                {'name': 'Dragon'},
+                {'name': 'Dwarf'},
+                {'name': 'Giant turtle'},
+                {'name': 'Giant turtle'},
+                {'name': 'Golem'},
+                {'name': 'Imp'},
+            ],
+            [
+                {'name': 'Bog monster'},
+                {'name': 'Dragon'},
+                {'name': 'Dwarf'},
+                {'name': 'Giant turtle'},
+                {'name': 'Golem'},
+                {'name': 'Imp'},
+            ],
+            [
+                {'name': 'Bog monster'},
+                {'name': 'Bog monster'},
+                {'name': 'Dragon'},
+                {'name': 'Dwarf'},
+                {'name': 'Giant turtle'},
+                {'name': 'Giant turtle'},
+                {'name': 'Golem'},
+                {'name': 'Imp'},
+            ],
+            [
+                {'name': 'Bog monster'},
+                {'name': 'Bog monster'},
+                {'name': 'Dragon'},
+                {'name': 'Dwarf'},
+                {'name': 'Giant turtle'},
+                {'name': 'Giant turtle'},
+                {'name': 'Golem'},
+                {'name': 'Imp'},
+            ],
+        ])

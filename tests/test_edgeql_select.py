@@ -1375,19 +1375,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             # using DISTINCT on a UNION with overlapping sets of Objects
             WITH MODULE test
-            SELECT _ := DISTINCT ((
-                # Issue 1, 4
-                (SELECT User
-                 FILTER User.name = 'Elvis').<owner[IS Issue]
-            ) UNION (
-                # Issue 1
-                (SELECT User
-                 FILTER User.name = 'Yury').<watchers[IS Issue]
-            ) UNION (
-                # Issue 1, 4
-                SELECT Issue
-                FILTER NOT EXISTS Issue.priority
-            )){number}
+            SELECT _ := (
+                DISTINCT ((
+                    # Issue 1, 4
+                    (SELECT User
+                     FILTER User.name = 'Elvis').<owner[IS Issue]
+                ) UNION (
+                    # Issue 1
+                    (SELECT User
+                     FILTER User.name = 'Yury').<watchers[IS Issue]
+                ) UNION (
+                    # Issue 1, 4
+                    SELECT Issue
+                    FILTER NOT EXISTS Issue.priority
+                ))
+            ) { number }
             ORDER BY _.number;
         """, [
             [{'number': '1'}, {'number': '4'}],
@@ -1427,7 +1429,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     SELECT Issue
                     FILTER Issue.number = '1'
                 )
-            }{number}
+            } { number }
             ORDER BY _.number;
         """, [
             [{'number': '1'}, {'number': '1'}, {'number': '4'}],
@@ -1466,7 +1468,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 (
                     SELECT Issue FILTER Issue.number = '1'
                 )
-            }{number}
+            } { number }
             ORDER BY _.number;
         """, [
             [
@@ -1480,7 +1482,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             # same as above but with a DISTINCT
             WITH MODULE test
-            SELECT _ := DISTINCT {  # equivalent to UNION for Objects
+            SELECT _ := (DISTINCT {  # equivalent to UNION for Objects
                 # Issue 1, 4
                 (
                     SELECT Issue
@@ -1510,7 +1512,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     SELECT Issue
                     FILTER Issue.number = '1'
                 )
-            }{number}
+            }) { number }
             ORDER BY _.number;
         """, [
             [
@@ -4350,3 +4352,53 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 WITH MODULE test
                 SELECT User.nam;
             """)
+
+    async def test_edgeql_select_precedence_01(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'cannot index.*int'):
+
+            await self.con.execute("""
+                # index access is higher precedence than cast
+                SELECT <str>1[0];
+            """)
+
+    async def test_edgeql_select_precedence_02(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'cannot index.*int'):
+
+            await self.con.execute("""
+                WITH MODULE test
+                # index access is higher precedence than cast
+                SELECT <str>Issue.time_estimate[0];
+            """)
+
+    async def test_edgeql_select_precedence_03(self):
+        await self.assert_query_result(r'''
+            SELECT (<str>1)[0];
+
+            WITH MODULE test
+            SELECT (<str>Issue.time_estimate)[0];
+        ''', [
+            ['1'],
+            ['3'],
+        ])
+
+    async def test_edgeql_select_precedence_04(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT EXISTS Issue{number};
+
+            WITH MODULE test
+            SELECT EXISTS Issue;
+        ''', [
+            [True],
+            [True],
+        ])
+
+    async def test_edgeql_select_precedence_05(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT EXISTS Issue{number};
+        ''', [
+            [True],
+        ])

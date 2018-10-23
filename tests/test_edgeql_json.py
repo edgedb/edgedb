@@ -143,6 +143,16 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             [False],
         ])
 
+    @unittest.expectedFailure
+    async def test_edgeql_json_cast_06(self):
+        # XXX: casting into tuples or other deeply nested structures
+        # is not currently implemented
+        await self.assert_query_result(r"""
+            SELECT <tuple<int64, str>><json>[1, 2];
+        """, [
+            [[1, '2']],
+        ])
+
     async def test_edgeql_json_accessor_01(self):
         await self.assert_query_result("""
             SELECT (str_to_json('[1, "a", 3]'))[0] = str_to_json('1');
@@ -840,6 +850,76 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 LIKE '%std%';
         """, [
             [True],
+        ])
+
+    async def test_edgeql_json_cast_object_to_json_05(self):
+        await self.assert_sorted_query_result(r"""
+            # base case
+            WITH MODULE test
+            SELECT
+                JSONTest {number, edb_string};
+
+            WITH MODULE test
+            SELECT
+                JSONTest {number, edb_string}
+            FILTER
+                # casting all the way to the original type with a
+                # strict `=` will discard objects with empty `edb_string`
+                .edb_string =
+                    <str>(<json>(JSONTest{edb_string}))['edb_string'];
+
+            WITH MODULE test
+            SELECT
+                JSONTest {number, edb_string}
+            FILTER
+                # strict `=` will discard objects with empty `edb_string`
+                <json>.edb_string =
+                    (<json>(JSONTest{edb_string}))['edb_string'];
+
+            WITH MODULE test
+            SELECT
+                JSONTest {number, edb_string}
+            FILTER
+                # casting all the way to the original type with a
+                # weak `?=` will not discard anything
+                .edb_string ?=
+                    <str>(<json>(JSONTest{edb_string}))['edb_string'];
+
+            WITH MODULE test
+            SELECT
+                JSONTest {number, edb_string}
+            FILTER
+                # casting both sides into json combined with a
+                # weak `?=` will discard objects with empty `edb_string`
+                <json>.edb_string ?=
+                    (<json>(JSONTest{edb_string}))['edb_string'];
+        """, lambda x: x['number'], [
+            [
+                {'number': 0, 'edb_string': 'jumps'},
+                {'number': 1, 'edb_string': 'over'},
+                {'number': 2, 'edb_string': None},
+                {'number': 3, 'edb_string': None},
+            ],
+
+
+            [
+                {'number': 0, 'edb_string': 'jumps'},
+                {'number': 1, 'edb_string': 'over'},
+            ],
+            [
+                {'number': 0, 'edb_string': 'jumps'},
+                {'number': 1, 'edb_string': 'over'},
+            ],
+            [
+                {'number': 0, 'edb_string': 'jumps'},
+                {'number': 1, 'edb_string': 'over'},
+                {'number': 2, 'edb_string': None},
+                {'number': 3, 'edb_string': None},
+            ],
+            [
+                {'number': 0, 'edb_string': 'jumps'},
+                {'number': 1, 'edb_string': 'over'},
+            ],
         ])
 
     async def test_edgeql_json_cast_tuple_to_json_01(self):

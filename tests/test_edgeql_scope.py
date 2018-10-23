@@ -1432,6 +1432,152 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         ])
 
+    async def test_edgeql_scope_detached_07(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT User {
+                name,
+                fire_deck := (
+                    SELECT User.deck {name, element}
+                    FILTER .element = 'Fire'
+                    ORDER BY .name
+                )
+            };
+        ''')
+        res[0].sort(key=lambda x: x['name'])
+
+        await self.assert_sorted_query_result(r'''
+            # adding a top-level DETACHED should not change anything at all
+            WITH MODULE test
+            SELECT DETACHED User {
+                name,
+                fire_deck := (
+                    SELECT User.deck {name, element}
+                    FILTER .element = 'Fire'
+                    ORDER BY .name
+                )
+            };
+        ''', lambda x: x['name'], res)
+
+    async def test_edgeql_scope_detached_08(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT User {
+                name,
+                fire_deck := (
+                    SELECT User.deck {name, element}
+                    FILTER .element = 'Fire'
+                    ORDER BY .name
+                ).name
+            };
+        ''')
+        res[0].sort(key=lambda x: x['name'])
+
+        await self.assert_sorted_query_result(r'''
+            # adding a top-level DETACHED should not change anything at all
+            WITH MODULE test
+            SELECT DETACHED User {
+                name,
+                fire_deck := (
+                    SELECT User.deck {name, element}
+                    FILTER .element = 'Fire'
+                    ORDER BY .name
+                ).name
+            };
+        ''', lambda x: x['name'], res)
+
+    async def test_edgeql_scope_detached_09(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, r'only singletons are allowed'):
+
+            await self.con.execute(r"""
+                WITH MODULE test
+                SELECT DETACHED User {name}
+                # a subtle error
+                ORDER BY User.name;
+            """)
+
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT DETACHED User {name}
+            # correct usage
+            ORDER BY .name;
+        ''', [[
+            {'name': 'Alice'},
+            {'name': 'Bob'},
+            {'name': 'Carol'},
+            {'name': 'Dave'},
+        ]])
+
+    @unittest.expectedFailure
+    async def test_edgeql_scope_detached_10(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                Card := (SELECT Card FILTER .element = 'Fire')
+            # The contents of the shape will be detached, thus
+            # the `Card` mentioned in the shape will be referring to
+            # the set of all issues and not the one defined in the
+            # WITH clause.
+            SELECT DETACHED (User {
+                name,
+                fire_cards := (
+                    SELECT User.deck {
+                        name,
+                        element,
+                    }
+                    FILTER User.deck IN Card
+                    ORDER BY .name
+                ),
+            })
+            ORDER BY .name;
+        ''', [
+            [
+                {
+                    'name': 'Alice',
+                    'fire_cards': [
+                        {'name': 'Bog monster', 'element': 'Water'},
+                        {'name': 'Dragon', 'element': 'Fire'},
+                        {'name': 'Giant turtle', 'element': 'Water'},
+                        {'name': 'Imp', 'element': 'Fire'},
+                    ],
+                },
+                {
+                    'name': 'Bob',
+                    'fire_cards': [
+                        {'name': 'Bog monster', 'element': 'Water'},
+                        {'name': 'Dwarf', 'element': 'Earth'},
+                        {'name': 'Giant turtle', 'element': 'Water'},
+                        {'name': 'Golem', 'element': 'Earth'},
+                    ],
+                },
+                {
+                    'name': 'Carol',
+                    'fire_cards': [
+                        {'name': 'Bog monster', 'element': 'Water'},
+                        {'name': 'Djinn', 'element': 'Air'},
+                        {'name': 'Dwarf', 'element': 'Earth'},
+                        {'name': 'Giant eagle', 'element': 'Air'},
+                        {'name': 'Giant turtle', 'element': 'Water'},
+                        {'name': 'Golem', 'element': 'Earth'},
+                        {'name': 'Sprite', 'element': 'Air'},
+                    ],
+                },
+                {
+                    'name': 'Dave',
+                    'fire_cards': [
+                        {'name': 'Bog monster', 'element': 'Water'},
+                        {'name': 'Djinn', 'element': 'Air'},
+                        {'name': 'Dragon', 'element': 'Fire'},
+                        {'name': 'Giant eagle', 'element': 'Air'},
+                        {'name': 'Giant turtle', 'element': 'Water'},
+                        {'name': 'Golem', 'element': 'Earth'},
+                        {'name': 'Sprite', 'element': 'Air'},
+                    ],
+                },
+            ],
+        ])
+
     async def test_edgeql_scope_union_01(self):
         await self.assert_sorted_query_result(r'''
             # UNION and `{...}` should create SET OF scoped operands,

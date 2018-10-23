@@ -117,3 +117,6 @@ class TestSession(tb.QueryTestCase):
 
             [['entity', 'user']]
         ])
+
+    # TODO: see if nested WITH block with different modules can be
+    # used to screw things up

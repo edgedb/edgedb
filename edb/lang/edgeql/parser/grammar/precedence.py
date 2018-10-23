@@ -89,10 +89,6 @@ class P_DOUBLEQMARK_OP(Precedence, assoc='right', tokens=('DOUBLEQMARK',)):
     pass
 
 
-class P_BRACE(Precedence, assoc='left', tokens=('LBRACE', 'RBRACE')):
-    pass
-
-
 class P_TYPEOF(Precedence, assoc='nonassoc', tokens=('TYPEOF',)):
     pass
 
@@ -118,11 +114,6 @@ class P_EXISTS(Precedence, assoc='right', tokens=('EXISTS',),
     pass
 
 
-class P_DETACHED(Precedence, assoc='right', tokens=('DETACHED',),
-                 rel_to_last='='):
-    pass
-
-
 class P_DISTINCT(Precedence, assoc='right', tokens=('DISTINCT',),
                  rel_to_last='='):
     pass
@@ -141,6 +132,10 @@ class P_TYPECAST(Precedence, assoc='right'):
     pass
 
 
+class P_BRACE(Precedence, assoc='left', tokens=('LBRACE', 'RBRACE')):
+    pass
+
+
 class P_BRACKET(Precedence, assoc='left', tokens=('LBRACKET', 'RBRACKET')):
     pass
 
@@ -149,11 +144,15 @@ class P_PAREN(Precedence, assoc='left', tokens=('LPAREN', 'RPAREN')):
     pass
 
 
-class P_DOUBLECOLON(Precedence, assoc='left', tokens=('DOUBLECOLON',)):
+class P_DOT(Precedence, assoc='left', tokens=('DOT', 'DOTFW', 'DOTBW')):
     pass
 
 
-class P_DOT(Precedence, assoc='left', tokens=('DOT', 'DOTFW', 'DOTBW')):
+class P_DETACHED(Precedence, assoc='right', tokens=('DETACHED',)):
+    pass
+
+
+class P_DOUBLECOLON(Precedence, assoc='left', tokens=('DOUBLECOLON',)):
     pass
 
 
