@@ -24,6 +24,7 @@ from edb.server import _testbase as tb
 class TestSession(tb.QueryTestCase):
     SETUP = """
         CREATE MODULE foo;
+        CREATE MODULE fuz;
 
         CREATE MIGRATION default::m TO eschema $$
             type User:
@@ -41,7 +42,15 @@ class TestSession(tb.QueryTestCase):
 
         COMMIT MIGRATION foo::m;
 
+        CREATE MIGRATION fuz::m TO eschema $$
+            type Entity:
+                required property name -> str
+        $$;
+
+        COMMIT MIGRATION fuz::m;
+
         WITH MODULE foo INSERT Entity {name := 'entity'};
+        WITH MODULE fuz INSERT Entity {name := 'fuzentity'};
     """
 
     async def test_session_default_module_01(self):
@@ -118,5 +127,29 @@ class TestSession(tb.QueryTestCase):
             [['entity', 'user']]
         ])
 
-    # TODO: see if nested WITH block with different modules can be
-    # used to screw things up
+    async def test_session_set_command_06(self):
+        # Check that nested WITH blocks work correctly, with and
+        # without DETACHED.
+        await self.assert_query_result("""
+            WITH MODULE foo
+                SELECT (
+                    Entity.name,
+                    fuz::Entity.name
+                );
+
+            WITH MODULE foo
+                SELECT (
+                    Entity.name,
+                    (WITH MODULE fuz SELECT Entity.name)
+                );
+
+            WITH MODULE foo
+                SELECT (
+                    Entity.name,
+                    (WITH MODULE fuz SELECT DETACHED Entity.name)
+                );
+        """, [
+            [['entity', 'fuzentity']],
+            [['entity', 'fuzentity']],
+            [['entity', 'fuzentity']],
+        ])
