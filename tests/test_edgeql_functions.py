@@ -440,10 +440,8 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_array_get_03(self):
         with self.assertRaisesRegex(
-                # FIXME: a different error should be used here, this
-                # one leaks Postgres types
-                exc.UnknownEdgeDBError,
-                r'integer out of range'):
+                exc.EdgeQLError,
+                r'could not find a function variant array_get'):
 
             await self.con.execute(r'''
                 SELECT array_get([1, 2, 3], 2^40);

@@ -622,7 +622,10 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                     'unexpected NULLS order: {}'.format(node.nulls))
 
     def visit_TypeCast(self, node):
+        # '::' has very high precedence, so parenthesize the expression.
+        self.write('(')
         self.visit(node.arg)
+        self.write(')')
         self.write('::')
         self.visit(node.type_name)
 

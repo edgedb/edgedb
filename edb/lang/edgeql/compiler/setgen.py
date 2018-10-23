@@ -609,7 +609,8 @@ def ensure_set(
             typehint is not None):
         irutils.amend_empty_set_type(expr, typehint, schema=ctx.schema)
 
-    if typehint is not None and not expr.scls.issubclass(typehint):
+    if (typehint is not None and
+            not expr.scls.implicitly_castable_to(typehint, ctx.schema)):
         raise errors.EdgeQLError(
             f'expecting expression of type {typehint.name}, '
             f'got {expr.scls.name}',

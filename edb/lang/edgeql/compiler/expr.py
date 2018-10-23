@@ -20,6 +20,7 @@
 """EdgeQL non-statement expression compilation functions."""
 
 
+import decimal
 import typing
 
 from edb.lang.common import ast
@@ -30,6 +31,7 @@ from edb.lang.ir import utils as irutils
 
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import pointers as s_pointers
+from edb.lang.schema import scalars as s_scalars
 from edb.lang.schema import types as s_types
 from edb.lang.schema import utils as s_utils
 
@@ -164,18 +166,20 @@ def compile_Constant(
     else:
         if isinstance(expr.value, str):
             std_type = 'std::str'
+        elif isinstance(expr.value, decimal.Decimal):
+            std_type = 'std::decimal'
         elif isinstance(expr.value, float):
             std_type = 'std::float64'
         elif isinstance(expr.value, bool):
             std_type = 'std::bool'
-        elif isinstance(expr.value, int):
-            # Integer value out of int64 bounds, use decimal
-            if expr.value > 2 ** 63 - 1 or expr.value < -2 ** 63:
-                std_type = 'std::decimal'
-            else:
-                std_type = 'std::int64'
         elif isinstance(expr.value, bytes):
             std_type = 'std::bytes'
+        elif isinstance(expr.value, int):
+            # If integer value is out of int64 bounds, use decimal
+            if -2 ** 63 <= expr.value < 2 ** 63:
+                std_type = 'std::int64'
+            else:
+                std_type = 'std::decimal'
         else:
             raise NotImplementedError(
                 f'unexpected value type in Constant AST: {type(expr.value)}')
@@ -567,7 +571,6 @@ def try_fold_arithmetic_binop(
     schema = ctx.schema
 
     real_t = schema.get('std::anyreal')
-    float_t = schema.get('std::anyfloat')
     int_t = schema.get('std::anyint')
 
     left_type = irutils.infer_type(left, schema)
@@ -576,9 +579,8 @@ def try_fold_arithmetic_binop(
     if not left_type.issubclass(real_t) or not right_type.issubclass(real_t):
         return
 
-    result_type = left_type
-    if right_type.issubclass(float_t):
-        result_type = right_type
+    result_type = s_scalars.get_op_type(
+        op, left_type, right_type, schema=schema)
 
     left = left.expr
     right = right.expr

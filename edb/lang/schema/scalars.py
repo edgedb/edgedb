@@ -126,7 +126,7 @@ _implicit_numeric_cast_map = {
     'std::int64': 'std::float64',
     'std::float32': 'std::float64',
     'std::float64': 'std::decimal',
-    'std::decimal': None
+    'std::decimal': 'std::float64',
 }
 
 
@@ -134,41 +134,40 @@ def _is_reachable(graph, source: str, target: str) -> bool:
     if source == target:
         return True
 
+    seen = set()
     while True:
         source = graph.get(source)
-        if source is None:
+        if source is None or source in seen:
             return False
         elif source == target:
             return True
+        seen.add(source)
 
 
 @functools.lru_cache()
-def _is_implicitly_castable_impl(left: str, right: str) -> bool:
-    return _is_reachable(_implicit_numeric_cast_map, left, right)
+def _is_implicitly_castable_impl(source: str, target: str) -> bool:
+    return _is_reachable(_implicit_numeric_cast_map, source, target)
 
 
 @functools.lru_cache()
 def _find_common_castable_type_impl(
-        left: str, right: str) -> typing.Optional[str]:
+        source: str, target: str) -> typing.Optional[str]:
 
-    if left == right:
-        return left
-    if left not in _implicit_numeric_cast_map:
-        return
-    if right not in _implicit_numeric_cast_map:
-        return
+    if _is_implicitly_castable_impl(target, source):
+        return source
+    if _is_implicitly_castable_impl(source, target):
+        return target
 
-    orig_left = left
+    # Elevate target in the castability ladder, and check if
+    # source is castable to it on each step.
+    seen = set()
     while True:
-        left = _implicit_numeric_cast_map.get(left)
-        if left is None:
-            left = orig_left
-            new_right = _implicit_numeric_cast_map.get(right)
-            if new_right is None:
-                return right
-            right = new_right
-        if left == right:
-            return left
+        target = _implicit_numeric_cast_map.get(target)
+        if target is None or target in seen:
+            return None
+        elif _is_implicitly_castable_impl(source, target):
+            return target
+        seen.add(target)
 
 
 # target -> source   (source can be casted into target in assignment)
@@ -229,7 +228,7 @@ _operator_map = {
     ],
 
     ast.ops.DIV: [
-        ('std::int64', 'std::int64', 'std::float64'),
+        ('std::int64', 'std::int64', 'std::int64'),
         ('std::float32', 'std::float32', 'std::float32'),
         ('std::float64', 'std::float64', 'std::float64'),
         ('std::decimal', 'std::decimal', 'std::decimal'),
@@ -295,21 +294,32 @@ def _get_op_type(op: ast.ops.Operator,
         return None
 
     operand_count = len(operands)
+    shortlist = []
+
     for candidate in candidates:
         if len(candidate) != operand_count + 1:
             # Skip candidates with non-matching operand count.
             continue
 
+        cast_count = 0
+
         for def_opr_name, passed_opr in zip(candidate, operands):
             def_opr = schema.get(def_opr_name)
 
-            if not (passed_opr.issubclass(def_opr) or
-                    passed_opr.implicitly_castable_to(def_opr, schema)):
+            if passed_opr.issubclass(def_opr):
+                pass
+            elif passed_opr.implicitly_castable_to(def_opr, schema):
+                cast_count += 1
+            else:
                 break
         else:
-            return schema.get(candidate[-1])
+            shortlist.append((candidate[-1], cast_count))
 
-    return None
+    if shortlist:
+        shortlist.sort(key=lambda c: c[1])
+        return schema.get(shortlist[0][0])
+    else:
+        return None
 
 
 @functools.lru_cache()

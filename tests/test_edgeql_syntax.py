@@ -132,7 +132,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
 
         SELECT 354.32;
         SELECT 35400000000000.32;
-        SELECT 3.54e+19;
+        SELECT 35400000000000000000.32;
         SELECT 3.5432e+20;
         SELECT 3.5432e+20;
         SELECT 3.5432e-20;

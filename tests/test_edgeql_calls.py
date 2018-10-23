@@ -384,16 +384,16 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             {'std::float64'},
 
             {'std::float64'},
-            {'std::decimal'},
+            {'std::float64'},
             {'std::decimal'},
 
             {'std::decimal'},
             {'std::float64'},
-            {'std::float64'},
+            {'std::decimal'},
 
             {'std::float64'},
             {'std::float32'},
-            {'std::float64'},
+            {'std::decimal'},
         ])
 
     async def test_edgeql_calls_11(self):

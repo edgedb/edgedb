@@ -326,7 +326,7 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
 
             if check_default_type:
                 default_type = irutils.infer_type(default, schema)
-                if not default_type.issubclass(p.type):
+                if not default_type.assignment_castable_to(p.type, schema):
                     raise ql_errors.EdgeQLError(
                         f'invalid declaration of parameter ${p.name} of '
                         f'function "{name}()": unexpected type of the default '

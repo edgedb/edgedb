@@ -245,6 +245,13 @@ class Array(Collection):
         return self.element_type.implicitly_castable_to(
             other.element_type, schema)
 
+    def assignment_castable_to(self, other: Type, schema) -> bool:
+        if not isinstance(other, Array):
+            return False
+
+        return self.element_type.assignment_castable_to(
+            other.element_type, schema)
+
     def find_common_implicitly_castable_type(
             self, other: Type, schema) -> typing.Optional[Type]:
 
@@ -345,6 +352,19 @@ class Tuple(Collection):
 
         for st, ot in zip(self.element_types, other.element_types):
             if not st.implicitly_castable_to(ot, schema):
+                return False
+
+        return True
+
+    def assignment_castable_to(self, other: Type, schema) -> bool:
+        if not isinstance(other, Tuple):
+            return False
+
+        if len(self.element_types) != len(other.element_types):
+            return False
+
+        for st, ot in zip(self.element_types, other.element_types):
+            if not st.assignment_castable_to(ot, schema):
                 return False
 
         return True

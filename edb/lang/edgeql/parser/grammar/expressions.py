@@ -19,6 +19,8 @@
 
 import ast as pyast
 import collections
+import decimal
+import numbers
 import re
 
 from edb.lang.common import ast
@@ -621,7 +623,12 @@ class Expr(Nonterm):
 
     @parsing.precedence(precedence.P_UMINUS)
     def reduce_MINUS_Expr(self, *kids):
-        self.val = qlast.UnaryOp(op=ast.ops.UMINUS, operand=kids[1].val)
+        operand = kids[1].val
+        if (isinstance(operand, qlast.Constant) and
+                isinstance(operand.value, numbers.Number)):
+            self.val = qlast.Constant(value=-operand.value)
+        else:
+            self.val = qlast.UnaryOp(op=ast.ops.UMINUS, operand=kids[1].val)
 
     def reduce_Expr_PLUS_Expr(self, *kids):
         self.val = qlast.BinOp(left=kids[0].val, op=ast.ops.ADD,
@@ -848,7 +855,7 @@ class BaseNumberConstant(Nonterm):
         self.val = qlast.Constant(value=int(kids[0].val))
 
     def reduce_FCONST(self, *kids):
-        self.val = qlast.Constant(value=float(kids[0].val))
+        self.val = qlast.Constant(value=decimal.Decimal(kids[0].val))
 
 
 class BaseStringConstant(Nonterm):

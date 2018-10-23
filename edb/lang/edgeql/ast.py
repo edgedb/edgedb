@@ -17,6 +17,7 @@
 #
 
 
+import decimal
 import typing
 
 from edb.lang.common import enum as s_enum
@@ -231,7 +232,7 @@ class FunctionCall(Expr):
 
 
 class Constant(Expr):
-    value: typing.Union[int, str, float, bool, bytes]
+    value: typing.Union[int, str, float, bool, bytes, decimal.Decimal]
 
 
 class Parameter(Expr):
