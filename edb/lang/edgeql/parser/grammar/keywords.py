@@ -88,6 +88,7 @@ future_reserved_keywords = frozenset([
     "explain",
     "fetch",
     "get",
+    "global",
     "grant",
     "import",
     "introspect",
