@@ -427,7 +427,7 @@ class CreateFunction(FunctionCommand, CreateNamedObject,
                 arg_types[param.name] = param.type
 
         body_ir = ql_compiler.compile_to_ir(
-            func.code, schema, arg_types=arg_types)
+            func.code, schema, func=func)
 
         sql_text, _ = compiler.compile_ir_to_sql(
             body_ir,

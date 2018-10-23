@@ -171,6 +171,71 @@ class OrderedTypedDict(
     _base_dict_cls = collections.OrderedDict
 
 
+class FrozenTypedList(AbstractTypedSequence, collections.UserList, type=None):
+
+    def __init__(self, initlist=None):
+        """
+        :param iterable initlist: Values to initialize typed list with.
+        """
+
+        AbstractTypedCollection.__init__(self)
+        collections.UserList.__init__(self, initlist)
+
+        if initlist is not None:
+            self._check_items(self.data)
+
+        self._hash = -1
+
+    def __hash__(self):
+        if self._hash == -1:
+            self._hash = hash(tuple(self))
+        return self._hash
+
+    __eq__ = collections.UserList.__eq__
+
+    def __iter__(self):
+        return iter(self.data)
+
+    def __setitem__(self, i, item):
+        raise NotImplementedError
+
+    def __delitem__(self, i):
+        raise NotImplementedError
+
+    def __add__(self, other):
+        raise NotImplementedError
+
+    def __radd__(self, other):
+        raise NotImplementedError
+
+    def __iadd__(self, other):
+        raise NotImplementedError
+
+    def append(self, item):
+        raise NotImplementedError
+
+    def pop(self, i=-1):
+        raise NotImplementedError
+
+    def insert(self, i, item):
+        raise NotImplementedError
+
+    def extend(self, other):
+        raise NotImplementedError
+
+    def clear(self):
+        raise NotImplementedError
+
+    def sort(self, *args, **kwds):
+        raise NotImplementedError
+
+    def remove(self, item):
+        raise NotImplementedError
+
+    def reverse(self):
+        raise NotImplementedError
+
+
 class TypedList(AbstractTypedSequence, collections.UserList, type=None):
     """List of one-type only elements.  All other properties and interface is
     the same as for the :py:class:`builtins.list`.

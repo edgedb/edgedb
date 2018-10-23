@@ -199,19 +199,19 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 FROM EdgeQL $$
                     SELECT
                         schema::ObjectType
-                    FILTER schema::ObjectType.name = $s
+                    FILTER schema::ObjectType.name = s
                 $$;
 
             CREATE FUNCTION test::my_edgeql_func3(s: std::int64)
                 -> std::int64
                 FROM EdgeQL $$
-                    SELECT $s + 10
+                    SELECT s + 10
                 $$;
 
             CREATE FUNCTION test::my_edgeql_func4(i: std::int64)
                 -> array<std::int64>
                 FROM EdgeQL $$
-                    SELECT [$i, 1, 2, 3]
+                    SELECT [i, 1, 2, 3]
                 $$;
         """)
 
@@ -642,14 +642,45 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     @unittest.expectedFailure
     async def test_edgeql_ddl_29(self):
         try:
-            await self.con.execute('START TRANSACTION')
+            await self.con.execute('START TRANSACTION;')
 
             with self.assertRaises(client_errors.EdgeQLError):
                 await self.con.execute("""
                     CREATE FUNCTION test::ddlf_2(
                         a: int64
-                    ) -> int64
-                        FROM EdgeQL $$ SELECT sum({$a}) $$;
+                    ) -> int64  # should be "decimal", and we want
+                                # EdgeDB to complain about that.
+                        FROM EdgeQL $$ SELECT sum({a}) $$;
                 """)
         finally:
-            await self.con.execute('ROLLBACK')
+            await self.con.execute('ROLLBACK;')
+
+    async def test_edgeql_ddl_30(self):
+        try:
+            await self.con.execute('START TRANSACTION;')
+
+            with self.assertRaisesRegex(
+                    client_errors.EdgeQLError,
+                    r'"\$parameters" cannot not be used in functions'):
+                await self.con.execute("""
+                    CREATE FUNCTION test::ddlf_3(
+                        a: int64
+                    ) -> int64
+                        FROM EdgeQL $$ SELECT $a $$;
+                """)
+        finally:
+            await self.con.execute('ROLLBACK;')
+
+    async def test_edgeql_ddl_31(self):
+        with self.assertRaisesRegex(
+                client_errors.EdgeQLError,
+                r'parameter `sum` is not callable'):
+
+            await self.con.execute('''
+                CREATE FUNCTION test::ddlf_4(
+                    sum: int64
+                ) -> int64
+                    FROM EdgeQL $$
+                        SELECT <int64>sum(sum)
+                    $$;
+            ''')

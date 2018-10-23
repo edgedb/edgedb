@@ -1034,7 +1034,7 @@ class FuncCallArgExpr(Nonterm):
 
     def reduce_DOLLAR_AnyIdentifier_ASSIGN_Expr(self, *kids):
         raise EdgeQLSyntaxError(
-            f"named arguments need no '$' prefix: "
+            f"named arguments do not need a '$' prefix: "
             f"rewrite as '{kids[1].val} := ...'",
             context=kids[0].context)
 

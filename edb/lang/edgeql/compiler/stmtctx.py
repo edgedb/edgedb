@@ -29,6 +29,7 @@ from edb.lang.ir import ast as irast
 from edb.lang.ir import inference as irinference
 from edb.lang.ir import utils as irutils
 
+from edb.lang.schema import functions as s_func
 from edb.lang.schema import name as s_name
 from edb.lang.schema import objects as s_obj
 from edb.lang.schema import pointers as s_pointers
@@ -48,7 +49,7 @@ from . import setgen
 def init_context(
         *,
         schema: s_schema.Schema,
-        arg_types: typing.Optional[typing.Iterable[s_obj.Object]]=None,
+        func: typing.Optional[s_func.Function]=None,
         modaliases: typing.Optional[typing.Dict[str, str]]=None,
         anchors: typing.Optional[typing.Dict[str, s_obj.Object]]=None,
         security_context: typing.Optional[str]=None,
@@ -63,13 +64,11 @@ def init_context(
     if modaliases:
         ctx.modaliases.update(modaliases)
 
-    if arg_types:
-        ctx.arguments.update(arg_types)
-
     if anchors:
         with ctx.newscope(fenced=True) as subctx:
             populate_anchors(anchors, ctx=subctx)
 
+    ctx.func = func
     ctx.derived_target_module = derived_target_module
     ctx.toplevel_result_view_name = result_view_name
     ctx.implicit_id_in_shapes = implicit_id_in_shapes
@@ -106,7 +105,6 @@ def fini_expression(
 
     result = irast.Statement(
         expr=ir,
-        params=ctx.arguments,
         views=ctx.view_nodes,
         source_map=ctx.source_map,
         scope_tree=ctx.path_scope,

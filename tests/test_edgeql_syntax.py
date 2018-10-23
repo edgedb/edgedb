@@ -2181,7 +2181,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"named arguments need no '\$' prefix: "
+                  r"named arguments do not need a '\$' prefix: "
                   r"rewrite as 'a := \.\.\.'",
                   line=2, col=25)
     def test_edgeql_syntax_function_08(self):

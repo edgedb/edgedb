@@ -218,7 +218,7 @@ class Constraint(inheriting.InheritingObject):
 
             edgeql_utils.inline_parameters(expr_ql, args_map)
 
-            args_map = {f'${name}': edgeql.generate_source(val, pretty=False)
+            args_map = {name: edgeql.generate_source(val, pretty=False)
                         for name, val in args_map.items()}
 
             constraint.errmessage = constraint.errmessage.format(

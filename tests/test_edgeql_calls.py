@@ -40,7 +40,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 NAMED ONLY prefix: str = 'pref-'
             ) -> std::str
                 FROM EdgeQL $$
-                    SELECT $prefix + $s + <str>sum(array_unpack($a)) + $suffix
+                    SELECT prefix + s + <str>sum(array_unpack(a)) + suffix
                 $$;
         ''')
 
@@ -88,7 +88,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 VARIADIC a: any
             ) -> std::str
                 FROM EdgeQL $$
-                    SELECT '=' + <str>len($a) + '='
+                    SELECT '=' + <str>len(a) + '='
                 $$;
         ''')
 
@@ -114,7 +114,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 NAMED ONLY b: int32
             ) -> int32
                 FROM EdgeQL $$
-                    SELECT $a + $b
+                    SELECT a + b
                 $$;
         ''')
 
@@ -148,7 +148,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 NAMED ONLY b: array<any> = []
             ) -> int32
                 FROM EdgeQL $$
-                    SELECT $a + len($b)
+                    SELECT a + len(b)
                 $$;
         ''')
 
@@ -179,7 +179,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 NAMED ONLY b: OPTIONAL int64 = <int64>{}
             ) -> int64
                 FROM EdgeQL $$
-                    SELECT $a + $b ?? -100
+                    SELECT a + b ?? -100
                 $$;
         ''')
 
@@ -209,7 +209,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 VARIADIC a: int64
             ) -> int64
                 FROM EdgeQL $$
-                    SELECT <int64>sum(array_unpack($a))
+                    SELECT <int64>sum(array_unpack(a))
                 $$;
         ''')
 
@@ -240,7 +240,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 NAMED ONLY e: int64 = 5
             ) -> array<int64>
                 FROM EdgeQL $$
-                    SELECT [$a, $b, $c, $d, $e]
+                    SELECT [a, b, c, d, e]
                 $$;
         ''')
 
@@ -295,7 +295,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 NAMED ONLY b: int64 = 2
             ) -> int64
                 FROM EdgeQL $$
-                    SELECT $a + $b
+                    SELECT a + b
                 $$;
 
             CREATE FUNCTION test::call8(
@@ -303,7 +303,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 NAMED ONLY b: int64 = 2
             ) -> int64
                 FROM EdgeQL $$
-                    SELECT 1000 + <int64>$a + $b
+                    SELECT 1000 + <int64>a + b
                 $$;
         ''')
 
@@ -402,7 +402,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 a: array<int32>
             ) -> decimal
                 FROM EdgeQL $$
-                    SELECT sum(array_unpack($a))
+                    SELECT sum(array_unpack(a))
                 $$;
         ''')
 
@@ -443,14 +443,14 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 a: anyint
             ) -> int64
                 FROM EdgeQL $$
-                    SELECT <int64>$a + 100
+                    SELECT <int64>a + 100
                 $$;
 
             CREATE FUNCTION test::call12(
                 a: int64
             ) -> int64
                 FROM EdgeQL $$
-                    SELECT <int64>$a + 1
+                    SELECT <int64>a + 1
                 $$;
         ''')
 

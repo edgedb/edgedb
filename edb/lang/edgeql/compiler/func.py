@@ -56,6 +56,11 @@ def compile_FunctionCall(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     with ctx.new() as fctx:
         if isinstance(expr.func, str):
+            if ctx.func is not None and ctx.func.params.get_by_name(expr.func):
+                raise errors.EdgeQLError(
+                    f'parameter `{expr.func}` is not callable',
+                    context=expr.context)
+
             funcname = expr.func
         else:
             funcname = sn.Name(expr.func[1], expr.func[0])
