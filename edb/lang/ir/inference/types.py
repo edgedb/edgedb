@@ -386,7 +386,9 @@ def __infer_slice(ir, schema):
         base_name = 'array'
     else:
         # the base type is not valid
-        return None
+        raise ql_errors.EdgeQLError(
+            f'cannot index {base_name}',
+            context=ir.start.context)
 
     for index in [ir.start, ir.stop]:
         index_type = infer_type(index, schema)
@@ -442,6 +444,11 @@ def __infer_index(ir, schema):
                 context=ir.index.context)
 
         result = node_type.element_type
+
+    else:
+        raise ql_errors.EdgeQLError(
+            f'cannot index {node_type.name}',
+            context=ir.index.context)
 
     return result
 
