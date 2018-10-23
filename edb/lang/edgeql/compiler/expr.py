@@ -28,7 +28,6 @@ from edb.lang.common import parsing
 from edb.lang.ir import ast as irast
 from edb.lang.ir import utils as irutils
 
-from edb.lang.schema import basetypes as s_basetypes
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import pointers as s_pointers
 from edb.lang.schema import types as s_types
@@ -159,7 +158,28 @@ def compile_Set(
 @dispatch.compile.register(qlast.Constant)
 def compile_Constant(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    ct = s_basetypes.normalize_type(expr.value.__class__, ctx.schema)
+
+    if expr.value is None:
+        ct = None
+    else:
+        if isinstance(expr.value, str):
+            std_type = 'std::str'
+        elif isinstance(expr.value, float):
+            std_type = 'std::float64'
+        elif isinstance(expr.value, bool):
+            std_type = 'std::bool'
+        elif isinstance(expr.value, int):
+            # Integer value out of int64 bounds, use decimal
+            if expr.value > 2 ** 63 - 1 or expr.value < -2 ** 63:
+                std_type = 'std::decimal'
+            else:
+                std_type = 'std::int64'
+        else:
+            raise NotImplementedError(
+                f'unexpected value type in Constant AST: {type(expr.value)}')
+
+        ct = ctx.schema.get(std_type)
+
     return setgen.generated_set(
         irast.Constant(value=expr.value, type=ct), ctx=ctx)
 

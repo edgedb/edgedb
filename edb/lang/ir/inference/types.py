@@ -23,7 +23,6 @@ import typing
 
 from edb.lang.common import ast
 
-from edb.lang.schema import basetypes as s_basetypes
 from edb.lang.schema import inheriting as s_inh
 from edb.lang.schema import name as s_name
 from edb.lang.schema import objects as s_obj
@@ -254,26 +253,16 @@ def _infer_binop_args(left, right, schema):
 @_infer_type.register(irast.BinOp)
 def __infer_binop(ir, schema):
     left_type, right_type = _infer_binop_args(ir.left, ir.right, schema)
+    result = None
 
     if isinstance(ir.op, (ast.ops.ComparisonOperator,
                           ast.ops.MembershipOperator)):
         result = schema.get('std::bool')
     else:
-        result = s_basetypes.TypeRules.get_result(
-            ir.op, (left_type, right_type), schema)
-
-        if result is None:
-            result = s_basetypes.TypeRules.get_result(
-                (ir.op, 'reversed'), (right_type, left_type), schema)
-
-        if result is None:
-            if right_type.implicitly_castable_to(left_type, schema):
-                right_type = left_type
-            elif left_type.implicitly_castable_to(right_type, schema):
-                left_type = right_type
-
-            result = s_basetypes.TypeRules.get_result(
-                (ir.op, 'reversed'), (right_type, left_type), schema)
+        if (isinstance(left_type, s_scalars.ScalarType) and
+                isinstance(right_type, s_scalars.ScalarType)):
+            result = s_scalars.get_op_type(
+                ir.op, left_type, right_type, schema=schema)
 
     if result is None:
         raise ql_errors.EdgeQLError(
@@ -301,18 +290,9 @@ def __infer_unaryop(ir, schema):
     result = None
     operand_type = infer_type(ir.expr, schema)
 
-    if ir.op == ast.ops.NOT:
-        if operand_type.name == 'std::bool':
-            result = operand_type
-
-    else:
-        if ir.op not in {ast.ops.UPLUS, ast.ops.UMINUS}:
-            raise ql_errors.EdgeQLError(
-                f'unknown unary operator: {ir.op}',
-                context=ir.context)
-
-        result = s_basetypes.TypeRules.get_result(
-            ir.op, (operand_type,), schema)
+    if isinstance(operand_type, s_scalars.ScalarType):
+        result = s_scalars.get_op_type(
+            ir.op, operand_type, schema=schema)
 
     if result is None:
         raise ql_errors.EdgeQLError(

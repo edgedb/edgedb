@@ -20,10 +20,10 @@
 import functools
 import typing
 
+from edb.lang.common import ast
 from edb.lang.edgeql import ast as qlast
 
 from . import attributes
-from . import basetypes as s_basetypes
 from . import constraints
 from . import delta as sd
 from . import expr
@@ -32,6 +32,7 @@ from . import name as sn
 from . import named
 from . import nodes
 from . import objects as so
+from . import schema as s_schema
 from . import types as s_types
 
 
@@ -84,34 +85,14 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
         result.default = self.default
         return result
 
-    def get_implementation_type(self):
-        """Get the underlying Python type that is used to implement this ScalarType.
-        """
-        base_class = self.get_topmost_concrete_base()
-        return s_basetypes.BaseTypeMeta.get_implementation(base_class.name)
-
-    def coerce(self, value, schema):
-        base_t = self.get_implementation_type()
-
-        if not isinstance(value, base_t):
-            return base_t(value)
-        else:
-            return value
-
-    def assignment_castable_to(self, other: s_types.Type, schema) -> bool:
-        if self.issubclass(other) or other.issubclass(self):
-            # ScalarType compatibility is symmetric, i.e. a superclass instance
-            # is compatible with subclasses, as they all share the same
-            # fundamental type.
+    def assignment_castable_to(self, target: s_types.Type, schema) -> bool:
+        if self.implicitly_castable_to(target, schema):
             return True
 
-        # In addition all numerical types are compatible for purposes
-        # of assignment.
-        real_t = schema.get('std::anyreal')
-        if self.issubclass(real_t) and other.issubclass(real_t):
-            return True
+        source = str(self.get_topmost_concrete_base().name)
+        target = str(target.get_topmost_concrete_base().name)
 
-        return False
+        return _is_assignment_castable_impl(source, target)
 
     def implicitly_castable_to(self, other: s_types.Type, schema) -> bool:
         if not isinstance(other, ScalarType):
@@ -149,17 +130,21 @@ _implicit_numeric_cast_map = {
 }
 
 
-@functools.lru_cache()
-def _is_implicitly_castable_impl(left: str, right: str) -> bool:
-    if left == right:
+def _is_reachable(graph, source: str, target: str) -> bool:
+    if source == target:
         return True
 
     while True:
-        left = _implicit_numeric_cast_map.get(left)
-        if left is None:
+        source = graph.get(source)
+        if source is None:
             return False
-        if left == right:
+        elif source == target:
             return True
+
+
+@functools.lru_cache()
+def _is_implicitly_castable_impl(left: str, right: str) -> bool:
+    return _is_reachable(_implicit_numeric_cast_map, left, right)
 
 
 @functools.lru_cache()
@@ -184,6 +169,159 @@ def _find_common_castable_type_impl(
             right = new_right
         if left == right:
             return left
+
+
+# target -> source   (source can be casted into target in assignment)
+_assignment_numeric_cast_map = {
+    'std::int16': 'std::int32',
+    'std::int32': 'std::int64',
+    'std::float32': 'std::float64',
+    'std::float64': 'std::decimal',
+}
+
+
+@functools.lru_cache()
+def _is_assignment_castable_impl(source: str, target: str) -> bool:
+    return _is_reachable(_assignment_numeric_cast_map, target, source)
+
+
+# Operator type rules: {operator -> [(operand_type, ..., result_type)]}
+# The list of operator variants MUST be defined in the order of
+# decreasing specificity in the implicit cast tower, i.e small int
+# variants must be specified before the large int variants.
+_operator_map = {
+    ast.ops.ADD: [
+        ('std::int16', 'std::int16', 'std::int16'),
+        ('std::int32', 'std::int32', 'std::int32'),
+        ('std::int64', 'std::int64', 'std::int64'),
+        ('std::float32', 'std::float32', 'std::float32'),
+        ('std::float64', 'std::float64', 'std::float64'),
+        ('std::decimal', 'std::decimal', 'std::decimal'),
+        ('std::str', 'std::str', 'std::str'),
+        ('std::bytes', 'std::bytes', 'std::bytes'),
+        ('std::datetime', 'std::timedelta', 'std::datetime'),
+        ('std::time', 'std::timedelta', 'std::time'),
+        ('std::timedelta', 'std::timedelta', 'std::timedelta'),
+    ],
+
+    ast.ops.SUB: [
+        ('std::int16', 'std::int16', 'std::int16'),
+        ('std::int32', 'std::int32', 'std::int32'),
+        ('std::int64', 'std::int64', 'std::int64'),
+        ('std::float32', 'std::float32', 'std::float32'),
+        ('std::float64', 'std::float64', 'std::float64'),
+        ('std::decimal', 'std::decimal', 'std::decimal'),
+        ('std::datetime', 'std::datetime', 'std::timedelta'),
+        ('std::date', 'std::date', 'std::timedelta'),
+        ('std::time', 'std::time', 'std::timedelta'),
+        ('std::datetime', 'std::timedelta', 'std::datetime'),
+        ('std::time', 'std::timedelta', 'std::time'),
+        ('std::timedelta', 'std::timedelta', 'std::timedelta'),
+    ],
+
+    ast.ops.MUL: [
+        ('std::int16', 'std::int16', 'std::int16'),
+        ('std::int32', 'std::int32', 'std::int32'),
+        ('std::int64', 'std::int64', 'std::int64'),
+        ('std::float32', 'std::float32', 'std::float32'),
+        ('std::float64', 'std::float64', 'std::float64'),
+        ('std::decimal', 'std::decimal', 'std::decimal'),
+    ],
+
+    ast.ops.DIV: [
+        ('std::int64', 'std::int64', 'std::float64'),
+        ('std::float32', 'std::float32', 'std::float32'),
+        ('std::float64', 'std::float64', 'std::float64'),
+        ('std::decimal', 'std::decimal', 'std::decimal'),
+        ('std::decimal', 'std::int64', 'std::decimal'),
+    ],
+
+    ast.ops.MOD: [
+        ('std::int16', 'std::int16', 'std::int16'),
+        ('std::int32', 'std::int32', 'std::int32'),
+        ('std::int64', 'std::int64', 'std::int64'),
+        ('std::decimal', 'std::decimal', 'std::decimal'),
+    ],
+
+    ast.ops.POW: [
+        # Non-float numerics use decimal upcast, like std::sum,
+        # floats use float64.
+        ('std::decimal', 'std::decimal', 'std::decimal'),
+        ('std::float64', 'std::float64', 'std::float64'),
+    ],
+
+    ast.ops.OR: [
+        ('std::bool', 'std::bool', 'std::bool'),
+    ],
+
+    ast.ops.AND: [
+        ('std::bool', 'std::bool', 'std::bool'),
+    ],
+
+    ast.ops.NOT: [
+        ('std::bool', 'std::bool'),
+    ],
+
+    ast.ops.UMINUS: [
+        ('std::int16', 'std::int16'),
+        ('std::int32', 'std::int32'),
+        ('std::int64', 'std::int64'),
+        ('std::float32', 'std::float32'),
+        ('std::float64', 'std::float64'),
+        ('std::decimal', 'std::decimal'),
+        ('std::timedelta', 'std::timedelta'),
+    ],
+
+    ast.ops.UPLUS: [
+        ('std::int16', 'std::int16'),
+        ('std::int32', 'std::int32'),
+        ('std::int64', 'std::int64'),
+        ('std::float32', 'std::float32'),
+        ('std::float64', 'std::float64'),
+        ('std::decimal', 'std::decimal'),
+        ('std::timedelta', 'std::timedelta'),
+    ],
+}
+
+
+_commutative_ops = (ast.ops.ADD, ast.ops.MUL, ast.ops.OR, ast.ops.AND)
+
+
+def _get_op_type(op: ast.ops.Operator,
+                 *operands: s_types.Type,
+                 schema: s_schema.Schema) -> typing.Optional[s_types.Type]:
+    candidates = _operator_map.get(op)
+    if not candidates:
+        return None
+
+    operand_count = len(operands)
+    for candidate in candidates:
+        if len(candidate) != operand_count + 1:
+            # Skip candidates with non-matching operand count.
+            continue
+
+        for def_opr_name, passed_opr in zip(candidate, operands):
+            def_opr = schema.get(def_opr_name)
+
+            if not (passed_opr.issubclass(def_opr) or
+                    passed_opr.implicitly_castable_to(def_opr, schema)):
+                break
+        else:
+            return schema.get(candidate[-1])
+
+    return None
+
+
+@functools.lru_cache()
+def get_op_type(op: ast.ops.Operator,
+                *operands: s_types.Type,
+                schema: s_schema.Schema) -> typing.Optional[s_types.Type]:
+    restype = _get_op_type(op, *operands, schema=schema)
+    if restype is None:
+        if op in _commutative_ops and len(operands) == 2:
+            restype = _get_op_type(op, operands[1], operands[0], schema=schema)
+
+    return restype
 
 
 class ScalarTypeCommandContext(sd.ObjectCommandContext,

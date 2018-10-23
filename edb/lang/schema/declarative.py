@@ -28,8 +28,8 @@ from edb.lang.common import topological
 
 from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import codegen as edgeql_codegen
 from edb.lang.edgeql import codegen as qlcodegen
+from edb.lang.edgeql import compiler as qlcompiler
 
 from edb.lang.ir import ast as ir_ast
 from edb.lang.ir import inference as ir_inference
@@ -483,7 +483,6 @@ class DeclarationLoader:
 
         for attrdecl in subjdecl.attributes:
             attr_name = self._get_ref_name(attrdecl.name)
-            value = self._get_literal_value(attrdecl.value)
 
             if hasattr(type(subject), attr_name):
                 # This is a builtin attribute should have already been set
@@ -492,25 +491,26 @@ class DeclarationLoader:
             attribute = self._schema.get(
                 attr_name, module_aliases=self._mod_aliases)
 
-            if (attribute.type.is_container and
-                    not isinstance(value, list)):
-                value = [value]
-
             genname = s_attrs.AttributeValue.get_specialized_name(
                 attribute.name, subject.name)
 
             dername = s_name.Name(name=genname, module=subject.name.module)
 
-            try:
-                value = attribute.type.coerce(value)
-            except ValueError as e:
-                msg = e.args[0].format(name=attribute.name.name)
-                context = attrdecl.context
-                raise s_err.SchemaError(msg, context=context) from e
+            attrval = qlast.TypeCast(
+                expr=attrdecl.value,
+                type=s_utils.typeref_to_ast(attribute.type),
+            )
+
+            # Compiling the attribute value declaration validates it.
+            qlcompiler.compile_ast_fragment_to_ir(
+                attrval, schema=self._schema,
+                module_aliases=self._mod_aliases)
 
             attrvalue = s_attrs.AttributeValue(
                 name=dername, subject=subject,
-                attribute=attribute, value=value)
+                attribute=attribute,
+                value=qlcodegen.generate_source(attrdecl.value, pretty=False))
+
             attrvalue.sourcectx = attrdecl.context
 
             self._schema.add(attrvalue)
@@ -539,7 +539,7 @@ class DeclarationLoader:
             constraint.sourcectx = constrdecl.context
 
             if constrdecl.args:
-                args = [edgeql_codegen.generate_source(arg, pretty=False)
+                args = [qlcodegen.generate_source(arg, pretty=False)
                         for arg in constrdecl.args]
             else:
                 args = []

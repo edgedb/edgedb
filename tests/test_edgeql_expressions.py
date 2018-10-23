@@ -603,7 +603,6 @@ class TestExpressions(tb.QueryTestCase):
             [{'a': 'foo', 'b': 42}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_implicit_cast_01(self):
         await self.assert_query_result(r"""
             SELECT (<int32>1 + 3).__type__.name;
@@ -623,7 +622,6 @@ class TestExpressions(tb.QueryTestCase):
             ['std::float64'],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_implicit_cast_02(self):
         await self.assert_query_result(r"""
             SELECT (<float32>1 + <float64>2).__type__.name;
