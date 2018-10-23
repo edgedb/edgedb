@@ -40,6 +40,8 @@ class EdgeQLLexer(lexer.Lexer):
 
     start_state = STATE_BASE
 
+    MERGE_TOKENS = {('NAMED', 'ONLY')}
+
     NL = 'NL'
     MULTILINE_TOKENS = frozenset(('SCONST',))
     RE_FLAGS = re.X | re.M | re.I
@@ -155,6 +157,12 @@ class EdgeQLLexer(lexer.Lexer):
             common_rules,
     }
 
+    def __init__(self):
+        super().__init__()
+        # add capacity to handle a few tokens composed of 2 elements
+        self._possible_long_token = {x[0] for x in self.MERGE_TOKENS}
+        self._long_token_match = {x[1]: x[0] for x in self.MERGE_TOKENS}
+
     def token_from_text(self, rule_token, txt):
         if rule_token == 'BADIDENT':
             self.handle_error(txt)
@@ -178,6 +186,25 @@ class EdgeQLLexer(lexer.Lexer):
             if tok_type in {'WS', 'NL', 'COMMENT'}:
                 # Strip out whitespace and comments
                 continue
+
+            elif tok_type in self._possible_long_token:
+                # Buffer in case this is NAMED ONLY
+                if not buffer:
+                    buffer.append(tok)
+                else:
+                    yield from iter(buffer)
+                    buffer[:] = [tok]
+
+            elif tok_type in self._long_token_match:
+                prev_token = buffer[-1] if buffer else None
+                if (prev_token and
+                        prev_token.type == self._long_token_match[tok_type]):
+                    tok = prev_token._replace(
+                        value=prev_token.value + ' ' + tok.value,
+                        type=prev_token.type + tok_type)
+                    buffer.pop()
+                yield tok
+
             else:
                 if buffer:
                     yield from iter(buffer)

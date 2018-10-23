@@ -157,6 +157,10 @@ class T_PIPE(Token, lextoken='|'):
     pass
 
 
+class T_NAMEDONLY(Token):
+    pass
+
+
 class T_ICONST(Token):
     pass
 

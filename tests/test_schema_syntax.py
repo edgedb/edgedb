@@ -488,7 +488,7 @@ scalar type constraint_length extending str:
     def test_eschema_syntax_constraint_01(self):
         """
 # Test empty tuple as subject expression
-abstract constraint max($param:any) on (()):
+abstract constraint max(param:any) on (()):
     expr := __subject__ <= $param
     errmessage := 'Maximum allowed value for {subject} is {$param}.'
 
@@ -505,20 +505,20 @@ delegated constraint length:
 
     def test_eschema_syntax_constraint_03(self):
         """
-abstract constraint maxlength($param:any) extending max, length:
+abstract constraint maxlength(param:any) extending max, length:
     errmessage := '{subject} must be no longer than {$param} characters.'
         """
 
     def test_eschema_syntax_constraint_04(self):
         """
-abstract constraint max($param:any):
+abstract constraint max(param:any):
     expr := __subject__ <= $param
     errmessage := 'Maximum allowed value for {subject} is {$param}.'
 
 abstract constraint length:
     subject := str::len(<str>__subject__)
 
-abstract constraint maxlength($param:any) extending max, length:
+abstract constraint maxlength(param:any) extending max, length:
     errmessage := '{subject} must be no longer than {$param} characters.'
         """
 
@@ -533,11 +533,11 @@ abstract constraint maxldistance extending max, distance:
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  r"missing type declaration.*\$param",
+                  r"missing type declaration.*`param`",
                   line=2, col=31)
     def test_eschema_syntax_constraint_06(self):
         """
-abstract constraint maxlength($param) extending max, length
+abstract constraint maxlength(param) extending max, length
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
@@ -552,7 +552,7 @@ scalar type special extending int:
 
     def test_eschema_syntax_constraint_08(self):
         """
-abstract constraint foo($param:Foo) on (len(__subject__.bar)) extending max:
+abstract constraint foo(param:Foo) on (len(__subject__.bar)) extending max:
     errmessage := 'bar must be no more than {$param}.'
         """
 
@@ -818,24 +818,24 @@ type Foo:
 
     def test_eschema_syntax_function_02(self):
         r"""
-        function some_func($foo: std::int64 = 42) -> std::str:
+        function some_func(foo: std::int64 = 42) -> std::str:
             from sql := "SELECT 'life';"
 
 % OK %
 
-        function some_func($foo: std::int64 = 42) -> std::str:
+        function some_func(foo: std::int64 = 42) -> std::str:
             from sql :=
                 'SELECT \'life\';'
         """
 
     def test_eschema_syntax_function_03(self):
         r"""
-        function some_func($foo: std::int64 = 42) -> std::str:
+        function some_func(foo: std::int64 = 42) -> std::str:
             from edgeql :>
                 SELECT 'life';
 
 % OK %
-        function some_func($foo: std::int64 = 42) -> std::str:
+        function some_func(foo: std::int64 = 42) -> std::str:
             from edgeql :=
                 'SELECT \'life\';'
         """
@@ -843,8 +843,8 @@ type Foo:
     def test_eschema_syntax_function_04(self):
         """
         # the line continuation is just to allow long single line
-        function myfunc($arg1: str, $arg2: str = 'DEFAULT',
-                        variadic $arg3: std::int64) -> \
+        function myfunc(arg1: str, arg2: str = 'DEFAULT',
+                        variadic arg3: std::int64) -> \
                         set of int:
             volatile := true
             description :>
@@ -853,8 +853,8 @@ type Foo:
                 SELECT blarg;
 
 % OK %
-        function myfunc($arg1: str, $arg2: str = 'DEFAULT',
-                        variadic $arg3: std::int64) -> \
+        function myfunc(arg1: str, arg2: str = 'DEFAULT',
+                        variadic arg3: std::int64) -> \
                         set of int:
             volatile := true
             description :=
@@ -865,11 +865,11 @@ type Foo:
 
     def test_eschema_syntax_function_05(self):
         """
-        function myfunc($arg1: str,
-                        $arg2: str = 'DEFAULT',
-                        variadic $arg3: std::int64,
-                        named only $arg4: std::int64,
-                        named only $arg5: std::int64) -> set of int:
+        function myfunc(arg1: str,
+                        arg2: str = 'DEFAULT',
+                        variadic arg3: std::int64,
+                        named only arg4: std::int64,
+                        named only arg5: std::int64) -> set of int:
             from edgeql :=
                 SELECT blarg
         """
@@ -879,7 +879,7 @@ type Foo:
                   line=3, col=27)
     def test_eschema_syntax_function_06(self):
         """
-        function some_func($foo: std::int64 = 42) -> std::str:
+        function some_func(foo: std::int64 = 42) -> std::str:
             initial value := 'bad'
             from edgeql :=
                 SELECT 'life'
@@ -887,41 +887,41 @@ type Foo:
 
     def test_eschema_syntax_function_07(self):
         """
-        function some_func($foo: std::int64 = bar(42)) -> std::str:
+        function some_func(foo: std::int64 = bar(42)) -> std::str:
             from edgeql function: some_other_func
         """
 
     def test_eschema_syntax_function_08(self):
         """
-        function some_func($foo: str = ')') -> std::str:
+        function some_func(foo: str = ')') -> std::str:
             from edgeql function: some_other_func
         """
 
     def test_eschema_syntax_function_09(self):
         """
-        function some_func($foo: str = $$)$$) -> std::str:
+        function some_func(foo: str = $$)$$) -> std::str:
             from edgeql function: some_other_func
 
 % OK %
 
-        function some_func($foo: str = ')') -> std::str:
+        function some_func(foo: str = ')') -> std::str:
             from edgeql function: some_other_func
         """
 
     def test_eschema_syntax_function_10(self):
         """
-        function some_func($foo: str = $a1$)$a1$) -> std::str:
+        function some_func(foo: str = $a1$)$a1$) -> std::str:
             from edgeql function: some_other_func
 
 % OK %
 
-        function some_func($foo: str = ')') -> std::str:
+        function some_func(foo: str = ')') -> std::str:
             from edgeql function: some_other_func
         """
 
     def test_eschema_syntax_function_11(self):
         """
-        function some_func($`(`: str = ')') -> std::str:
+        function some_func(`(`: str = ')') -> std::str:
             from edgeql function: some_other_func
         """
 
@@ -935,9 +935,9 @@ type Foo:
 
     def test_eschema_syntax_function_13(self):
         r"""
-        function some_func($`(`:
+        function some_func(`(`:
                 str = ')',
-                $bar: int = bar()) -> std::str:
+                bar: int = bar()) -> std::str:
             from edgeql function: some_other_func
         """
 

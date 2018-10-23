@@ -991,7 +991,7 @@ class FuncApplication(Nonterm):
             if argname is not None:
                 if argname in kwargs:
                     raise EdgeQLSyntaxError(
-                        f"duplicate named argument ${argname}",
+                        f"duplicate named argument `{argname}`",
                         context=argname_ctx)
 
                 last_named_seen = argname
@@ -1001,7 +1001,7 @@ class FuncApplication(Nonterm):
                 if last_named_seen is not None:
                     raise EdgeQLSyntaxError(
                         f"positional argument after named "
-                        f"argument ${last_named_seen}",
+                        f"argument `{last_named_seen}`",
                         context=arg.context)
                 args.append(arg)
 
@@ -1020,11 +1020,11 @@ class FuncCallArgExpr(Nonterm):
             None,
             qlast.FuncArg(arg=kids[0].val, context=kids[0].context))
 
-    def reduce_DOLLAR_AnyIdentifier_ASSIGN_Expr(self, *kids):
+    def reduce_AnyIdentifier_ASSIGN_Expr(self, *kids):
         self.val = (
-            kids[1].val,
+            kids[0].val,
             kids[0].context,
-            qlast.FuncArg(arg=kids[3].val, context=kids[3].context)
+            qlast.FuncArg(arg=kids[2].val, context=kids[2].context)
         )
 
     def reduce_DOLLAR_ICONST_ASSIGN_Expr(self, *kids):
@@ -1032,10 +1032,10 @@ class FuncCallArgExpr(Nonterm):
             f"numeric named arguments are not supported",
             context=kids[0].context)
 
-    def reduce_AnyIdentifier_ASSIGN_Expr(self, *kids):
+    def reduce_DOLLAR_AnyIdentifier_ASSIGN_Expr(self, *kids):
         raise EdgeQLSyntaxError(
-            f"named arguments require '$' prefix: "
-            f"rewrite as '${kids[0].val} := ...'",
+            f"named arguments need no '$' prefix: "
+            f"rewrite as '{kids[1].val} := ...'",
             context=kids[0].context)
 
 

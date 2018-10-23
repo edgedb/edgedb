@@ -452,7 +452,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_array_get_04(self):
         await self.assert_query_result(r'''
             SELECT array_get([1, 2, 3], 0) ?? 42;
-            SELECT array_get([1, 2, 3], 0, $default := -1) ?? 42;
+            SELECT array_get([1, 2, 3], 0, default := -1) ?? 42;
             SELECT array_get([1, 2, 3], -2) ?? 42;
             SELECT array_get([1, 2, 3], 20) ?? 42;
             SELECT array_get([1, 2, 3], -20) ?? 42;
@@ -466,10 +466,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_array_get_05(self):
         await self.assert_query_result(r'''
-            SELECT array_get([1, 2, 3], 1, $default := 4200) ?? 42;
-            SELECT array_get([1, 2, 3], -2, $default := 4200) ?? 42;
-            SELECT array_get([1, 2, 3], 20, $default := 4200) ?? 42;
-            SELECT array_get([1, 2, 3], -20, $default := 4200) ?? 42;
+            SELECT array_get([1, 2, 3], 1, default := 4200) ?? 42;
+            SELECT array_get([1, 2, 3], -2, default := 4200) ?? 42;
+            SELECT array_get([1, 2, 3], 20, default := 4200) ?? 42;
+            SELECT array_get([1, 2, 3], -20, default := 4200) ?? 42;
         ''', [
             [2],
             [2],

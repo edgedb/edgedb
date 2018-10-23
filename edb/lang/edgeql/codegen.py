@@ -533,7 +533,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             for i, (name, arg) in enumerate(node.kwargs.items()):
                 if i > 0:
                     self.write(', ')
-                self.write(f'${name} := ')
+                self.write(f'{name} := ')
                 self.visit(arg)
 
         self.write(')')
@@ -1059,7 +1059,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(node.kind.to_edgeql(), ' ')
 
         if node.name is not None:
-            self.write(param_to_str(node.name), ': ')
+            self.write(ident_to_str(node.name), ': ')
 
         self.write(node.typemod.to_edgeql(), ' ')
 

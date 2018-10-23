@@ -34,10 +34,10 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
     async def test_edgeql_calls_01(self):
         await self.con.execute('''
             CREATE FUNCTION test::call1(
-                $s: str,
-                VARIADIC $a: int64,
-                NAMED ONLY $suffix: str = '-suf',
-                NAMED ONLY $prefix: str = 'pref-'
+                s: str,
+                VARIADIC a: int64,
+                NAMED ONLY suffix: str = '-suf',
+                NAMED ONLY prefix: str = 'pref-'
             ) -> std::str
                 FROM EdgeQL $$
                     SELECT $prefix + $s + <str>sum(array_unpack($a)) + $suffix
@@ -47,17 +47,17 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         try:
             await self.assert_query_result(r'''
                 SELECT test::call1('-');
-                SELECT test::call1('-', $suffix := 's1');
-                SELECT test::call1('-', $prefix := 'p1');
-                SELECT test::call1('-', $suffix := 's1', $prefix := 'p1');
+                SELECT test::call1('-', suffix := 's1');
+                SELECT test::call1('-', prefix := 'p1');
+                SELECT test::call1('-', suffix := 's1', prefix := 'p1');
                 SELECT test::call1('-', 1);
-                SELECT test::call1('-', 1, $suffix := 's1');
-                SELECT test::call1('-', 1, $prefix := 'p1');
+                SELECT test::call1('-', 1, suffix := 's1');
+                SELECT test::call1('-', 1, prefix := 'p1');
                 SELECT test::call1('-', 1, 2, 3, 4, 5);
-                SELECT test::call1('-', 1, 2, 3, 4, 5, $suffix := 's1');
-                SELECT test::call1('-', 1, 2, 3, 4, 5, $prefix := 'p1');
-                SELECT test::call1('-', 1, 2, 3, 4, 5, $prefix := 'p1',
-                                   $suffix := 'aaa');
+                SELECT test::call1('-', 1, 2, 3, 4, 5, suffix := 's1');
+                SELECT test::call1('-', 1, 2, 3, 4, 5, prefix := 'p1');
+                SELECT test::call1('-', 1, 2, 3, 4, 5, prefix := 'p1',
+                                   suffix := 'aaa');
             ''', [
                 ['pref--0-suf'],
                 ['pref--0s1'],
@@ -75,17 +75,17 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         finally:
             await self.con.execute('''
                 DROP FUNCTION test::call1(
-                    $s: str,
-                    VARIADIC $a: int64,
-                    NAMED ONLY $suffix: str,
-                    NAMED ONLY $prefix: str);
+                    s: str,
+                    VARIADIC a: int64,
+                    NAMED ONLY suffix: str,
+                    NAMED ONLY prefix: str);
             ''')
 
     @unittest.expectedFailure
     async def test_edgeql_calls_02(self):
         await self.con.execute('''
             CREATE FUNCTION test::call2(
-                VARIADIC $a: any
+                VARIADIC a: any
             ) -> std::str
                 FROM EdgeQL $$
                     SELECT '=' + <str>len($a) + '='
@@ -104,14 +104,14 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
 
         finally:
             await self.con.execute('''
-                DROP FUNCTION test::call2(VARIADIC $a: any);
+                DROP FUNCTION test::call2(VARIADIC a: any);
             ''')
 
     async def test_edgeql_calls_03(self):
         await self.con.execute('''
             CREATE FUNCTION test::call3(
-                $a: int32,
-                NAMED ONLY $b: int32
+                a: int32,
+                NAMED ONLY b: int32
             ) -> int32
                 FROM EdgeQL $$
                     SELECT $a + $b
@@ -122,8 +122,8 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             'SELECT test::call3(1);',
             'SELECT test::call3(1, 2);',
             'SELECT test::call3(1, 2, 3);',
-            'SELECT test::call3($b := 1);',
-            'SELECT test::call3(1, 2, $b := 1);',
+            'SELECT test::call3(b := 1);',
+            'SELECT test::call3(1, 2, b := 1);',
         ]
 
         try:
@@ -135,8 +135,8 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         finally:
             await self.con.execute('''
                 DROP FUNCTION test::call3(
-                    $a: int32,
-                    NAMED ONLY $b: int32
+                    a: int32,
+                    NAMED ONLY b: int32
                 );
             ''')
 
@@ -144,8 +144,8 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
     async def test_edgeql_calls_04(self):
         await self.con.execute('''
             CREATE FUNCTION test::call4(
-                $a: int32,
-                NAMED ONLY $b: array<any> = []
+                a: int32,
+                NAMED ONLY b: array<any> = []
             ) -> int32
                 FROM EdgeQL $$
                     SELECT $a + len($b)
@@ -155,9 +155,9 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         try:
             await self.assert_query_result(r'''
                 SELECT test::call4(100);
-                SELECT test::call4(100, $b := <int32>[]);
-                SELECT test::call4(100, $b := [1, 2]);
-                SELECT test::call4(100, $b := ['a', 'b']);
+                SELECT test::call4(100, b := <int32>[]);
+                SELECT test::call4(100, b := [1, 2]);
+                SELECT test::call4(100, b := ['a', 'b']);
             ''', [
                 [100],
                 [100],
@@ -167,16 +167,16 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         finally:
             await self.con.execute('''
                 DROP FUNCTION test::call4(
-                    $a: int32,
-                    NAMED ONLY $b: array<any>
+                    a: int32,
+                    NAMED ONLY b: array<any>
                 );
             ''')
 
     async def test_edgeql_calls_05(self):
         await self.con.execute('''
             CREATE FUNCTION test::call5(
-                $a: int64,
-                NAMED ONLY $b: OPTIONAL int64 = <int64>{}
+                a: int64,
+                NAMED ONLY b: OPTIONAL int64 = <int64>{}
             ) -> int64
                 FROM EdgeQL $$
                     SELECT $a + $b ?? -100
@@ -187,8 +187,8 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             await self.assert_query_result(r'''
                 SELECT test::call5(1);
                 SELECT test::call5(<int32>2);
-                SELECT test::call5(1, $b := 20);
-                SELECT test::call5(1, $b := <int16>10);
+                SELECT test::call5(1, b := 20);
+                SELECT test::call5(1, b := <int16>10);
             ''', [
                 [-99],
                 [-98],
@@ -198,15 +198,15 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         finally:
             await self.con.execute('''
                 DROP FUNCTION test::call5(
-                    $a: int64,
-                    NAMED ONLY $b: OPTIONAL int64 = <int64>{}
+                    a: int64,
+                    NAMED ONLY b: OPTIONAL int64 = <int64>{}
                 );
             ''')
 
     async def test_edgeql_calls_06(self):
         await self.con.execute('''
             CREATE FUNCTION test::call6(
-                VARIADIC $a: int64
+                VARIADIC a: int64
             ) -> int64
                 FROM EdgeQL $$
                     SELECT <int64>sum(array_unpack($a))
@@ -226,18 +226,18 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         finally:
             await self.con.execute('''
                 DROP FUNCTION test::call6(
-                    VARIADIC $a: int64
+                    VARIADIC a: int64
                 );
             ''')
 
     async def test_edgeql_calls_07(self):
         await self.con.execute('''
             CREATE FUNCTION test::call7(
-                $a: int64 = 1,
-                $b: int64 = 2,
-                $c: int64 = 3,
-                NAMED ONLY $d: int64 = 4,
-                NAMED ONLY $e: int64 = 5
+                a: int64 = 1,
+                b: int64 = 2,
+                c: int64 = 3,
+                NAMED ONLY d: int64 = 4,
+                NAMED ONLY e: int64 = 5
             ) -> array<int64>
                 FROM EdgeQL $$
                     SELECT [$a, $b, $c, $d, $e]
@@ -247,11 +247,11 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         try:
             await self.assert_query_result(r'''
                 SELECT test::call7();
-                SELECT test::call7($e := 100);
-                SELECT test::call7($d := 200);
-                SELECT test::call7(20, 30, $d := 200);
-                SELECT test::call7(20, 30, $e := 42, $d := 200);
-                SELECT test::call7(20, 30, 1, $d := 200, $e := 42);
+                SELECT test::call7(e := 100);
+                SELECT test::call7(d := 200);
+                SELECT test::call7(20, 30, d := 200);
+                SELECT test::call7(20, 30, e := 42, d := 200);
+                SELECT test::call7(20, 30, 1, d := 200, e := 42);
             ''', [
                 [[1, 2, 3, 4, 5]],
                 [[1, 2, 3, 4, 100]],
@@ -264,11 +264,11 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             cases = [
                 'SELECT test::call7(1, 2, 3, 4, 5);'
                 'SELECT test::call7(1, 2, 3, 4);'
-                'SELECT test::call7(1, $z := 1);'
-                'SELECT test::call7(1, 2, 3, $z := 1);'
-                'SELECT test::call7(1, 2, 3, 4, $z := 1);'
-                'SELECT test::call7(1, 2, 3, $d := 1, $z := 10);'
-                'SELECT test::call7(1, 2, 3, $d := 1, $e := 2, $z := 10);'
+                'SELECT test::call7(1, z := 1);'
+                'SELECT test::call7(1, 2, 3, z := 1);'
+                'SELECT test::call7(1, 2, 3, 4, z := 1);'
+                'SELECT test::call7(1, 2, 3, d := 1, z := 10);'
+                'SELECT test::call7(1, 2, 3, d := 1, e := 2, z := 10);'
             ]
 
             for c in cases:
@@ -280,27 +280,27 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         finally:
             await self.con.execute('''
                 DROP FUNCTION test::call7(
-                    $a: int64 = 1,
-                    $b: int64 = 2,
-                    $c: int64 = 3,
-                    NAMED ONLY $d: int64 = 4,
-                    NAMED ONLY $e: int64 = 5
+                    a: int64 = 1,
+                    b: int64 = 2,
+                    c: int64 = 3,
+                    NAMED ONLY d: int64 = 4,
+                    NAMED ONLY e: int64 = 5
                 );
             ''')
 
     async def test_edgeql_calls_08(self):
         await self.con.execute('''
             CREATE FUNCTION test::call8(
-                $a: int64 = 1,
-                NAMED ONLY $b: int64 = 2
+                a: int64 = 1,
+                NAMED ONLY b: int64 = 2
             ) -> int64
                 FROM EdgeQL $$
                     SELECT $a + $b
                 $$;
 
             CREATE FUNCTION test::call8(
-                $a: float64 = 1.0,
-                NAMED ONLY $b: int64 = 2
+                a: float64 = 1.0,
+                NAMED ONLY b: int64 = 2
             ) -> int64
                 FROM EdgeQL $$
                     SELECT 1000 + <int64>$a + $b
@@ -311,8 +311,8 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             await self.assert_query_result(r'''
                 SELECT test::call8(1);
                 SELECT test::call8(1.0);
-                SELECT test::call8(1, $b := 10);
-                SELECT test::call8(1.0, $b := 10);
+                SELECT test::call8(1, b := 10);
+                SELECT test::call8(1.0, b := 10);
             ''', [
                 [3],
                 [1003],
@@ -328,13 +328,13 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         finally:
             await self.con.execute('''
                 DROP FUNCTION test::call8(
-                    $a: int64,
-                    NAMED ONLY $b: int64
+                    a: int64,
+                    NAMED ONLY b: int64
                 );
 
                 DROP FUNCTION test::call8(
-                    $a: float64,
-                    NAMED ONLY $b: int64
+                    a: float64,
+                    NAMED ONLY b: int64
                 );
             ''')
 
@@ -399,7 +399,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
     async def test_edgeql_calls_11(self):
         await self.con.execute('''
             CREATE FUNCTION test::call11(
-                $a: array<int32>
+                a: array<int32>
             ) -> decimal
                 FROM EdgeQL $$
                     SELECT sum(array_unpack($a))
@@ -432,7 +432,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         finally:
             await self.con.execute('''
                 DROP FUNCTION test::call11(
-                    $a: array<int32>
+                    a: array<int32>
                 );
             ''')
 
@@ -440,14 +440,14 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
     async def test_edgeql_calls_12(self):
         await self.con.execute('''
             CREATE FUNCTION test::call12(
-                $a: anyint
+                a: anyint
             ) -> int64
                 FROM EdgeQL $$
                     SELECT <int64>$a + 100
                 $$;
 
             CREATE FUNCTION test::call12(
-                $a: int64
+                a: int64
             ) -> int64
                 FROM EdgeQL $$
                     SELECT <int64>$a + 1
@@ -466,10 +466,10 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         finally:
             await self.con.execute('''
                 DROP FUNCTION test::call12(
-                    $a: anyint
+                    a: anyint
                 );
 
                 DROP FUNCTION test::call12(
-                    $a: int64
+                    a: int64
                 );
             ''')

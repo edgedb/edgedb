@@ -72,7 +72,6 @@ unreserved_keywords = frozenset([
     "type",
     "using",
     "value",
-    "variadic",
     "view",
 ])
 
@@ -152,6 +151,7 @@ reserved_keywords = future_reserved_keywords | frozenset([
     "true",
     "update",
     "union",
+    "variadic",
     "with",
 ])
 

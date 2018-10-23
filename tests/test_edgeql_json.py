@@ -724,27 +724,27 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
             SELECT json_get(
                 JSONTest.data, '4', 'b', 'bar', '2', 'bogus',
-                $default := <json>'hello'
+                default := <json>'hello'
             ) ?? <json>'oups';
 
             SELECT json_get(
                 JSONTest.data, '4', 'b', 'bar', '2', 'bogus',
-                $default := <json>''
+                default := <json>''
             ) ?? <json>'oups';
 
             SELECT json_get(
                 JSONTest.data, '4', 'b', 'bar', '2', 'bogus',
-                $default := str_to_json('null')
+                default := str_to_json('null')
             ) ?? <json>'oups';
 
             SELECT json_get(
                 JSONTest.data, '4', 'b', 'bar', '2', 'bogus',
-                $default := <json>{}
+                default := <json>{}
             ) ?? <json>'oups';
 
             SELECT json_get(
                 JSONTest.data, '4', 'b', 'bar', '2', 'bingo',
-                $default := <json>''
+                default := <json>''
             ) ?? <json>'oups';
 
             SELECT json_get(

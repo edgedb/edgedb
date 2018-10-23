@@ -1515,15 +1515,20 @@ class OptParameterKind(Nonterm):
     def reduce_VARIADIC(self, kid):
         self.val = ft.ParameterKind.VARIADIC
 
-    def reduce_NAMED_ONLY(self, *kids):
+    def reduce_NAMEDONLY(self, *kids):
         self.val = ft.ParameterKind.NAMED_ONLY
 
 
 class FuncDeclArgName(Nonterm):
 
-    def reduce_DOLLAR_AnyIdentifier(self, dk, dp):
+    def reduce_Identifier(self, dp):
         self.val = dp.val
-        self.context = dk.context
+        self.context = dp.context
+
+    def reduce_DOLLAR_AnyIdentifier(self, dk, dp):
+        raise EdgeQLSyntaxError(
+            f"function parameters need no \$ prefix, rewrite as '{dp.val}'",
+            context=dk.context)
 
     def reduce_DOLLAR_ICONST(self, dk, di):
         raise EdgeQLSyntaxError(
@@ -1546,7 +1551,7 @@ class FuncDeclArg(Nonterm):
 
     def reduce_OptParameterKind_FuncDeclArgName_OptDefault(self, *kids):
         raise EdgeQLSyntaxError(
-            f'missing type declaration for function parameter ${kids[1].val}',
+            f'missing type declaration for the `{kids[1].val}` parameter',
             context=kids[1].context)
 
 
@@ -1569,7 +1574,7 @@ class CreateFunctionArgs(Nonterm):
         for arg in args:
             if arg.name in names:
                 raise EdgeQLSyntaxError(
-                    f'duplicate parameter name ${arg.name}',
+                    f'duplicate parameter name `{arg.name}`',
                     context=arg.context)
             names.add(arg.name)
 
@@ -1580,15 +1585,15 @@ class CreateFunctionArgs(Nonterm):
                         context=arg.context)
                 elif last_named_arg is not None:
                     raise EdgeQLSyntaxError(
-                        f'NAMED ONLY argument ${last_named_arg.name} '
-                        f'before VARIADIC argument ${arg.name}',
+                        f'NAMED ONLY argument `{last_named_arg.name}` '
+                        f'before VARIADIC argument `{arg.name}`',
                         context=last_named_arg.context)
                 else:
                     variadic_arg = arg
 
                 if arg.default is not None:
                     raise EdgeQLSyntaxError(
-                        f'VARIADIC argument ${arg.name} '
+                        f'VARIADIC argument `{arg.name}` '
                         f'cannot have a default value',
                         context=arg.context)
 
@@ -1598,23 +1603,23 @@ class CreateFunctionArgs(Nonterm):
             else:
                 if last_named_arg is not None:
                     raise EdgeQLSyntaxError(
-                        f'positional argument ${arg.name} '
-                        f'follows NAMED ONLY argument ${last_named_arg.name}',
+                        f'positional argument `{arg.name}` '
+                        f'follows NAMED ONLY argument `{last_named_arg.name}`',
                         context=arg.context)
 
                 if variadic_arg is not None:
                     raise EdgeQLSyntaxError(
-                        f'positional argument ${arg.name} '
-                        f'follows VARIADIC argument ${variadic_arg.name}',
+                        f'positional argument `{arg.name}` '
+                        f'follows VARIADIC argument `{variadic_arg.name}`',
                         context=arg.context)
 
             if arg.kind is ft.ParameterKind.POSITIONAL:
                 if arg.default is None:
                     if last_pos_default_arg is not None:
                         raise EdgeQLSyntaxError(
-                            f'positional argument ${arg.name} without default '
-                            f'follows positional argument '
-                            f'${last_pos_default_arg.name} with default',
+                            f'positional argument `{arg.name}` without '
+                            f'default follows positional argument '
+                            f'`{last_pos_default_arg.name}` with default',
                             context=arg.context)
                 else:
                     last_pos_default_arg = arg

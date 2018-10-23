@@ -62,49 +62,49 @@ CREATE ABSTRACT ATTRIBUTE std::pattern std::str;
 CREATE ABSTRACT SCALAR TYPE std::sequence EXTENDING std::int64;
 
 
-CREATE FUNCTION std::lower($str: std::str) -> std::str
+CREATE FUNCTION std::lower(str: std::str) -> std::str
     FROM SQL FUNCTION 'lower';
 
-CREATE FUNCTION std::sum($set: SET OF std::decimal) -> std::decimal {
+CREATE FUNCTION std::sum(s: SET OF std::decimal) -> std::decimal {
     INITIAL VALUE 0;
     FROM SQL FUNCTION 'sum';
 };
 
-CREATE FUNCTION std::sum($set: SET OF std::int64) -> std::decimal {
+CREATE FUNCTION std::sum(s: SET OF std::int64) -> std::decimal {
     INITIAL VALUE 0;
     FROM SQL FUNCTION 'sum';
 };
 
-CREATE FUNCTION std::sum($set: SET OF std::float32) -> std::float32 {
+CREATE FUNCTION std::sum(s: SET OF std::float32) -> std::float32 {
     INITIAL VALUE 0;
     FROM SQL FUNCTION 'sum';
 };
 
-CREATE FUNCTION std::sum($set: SET OF std::float64) -> std::float64 {
+CREATE FUNCTION std::sum(s: SET OF std::float64) -> std::float64 {
     INITIAL VALUE 0;
     FROM SQL FUNCTION 'sum';
 };
 
-CREATE FUNCTION std::count($set: SET OF std::any) -> std::int64 {
+CREATE FUNCTION std::count(s: SET OF std::any) -> std::int64 {
     INITIAL VALUE 0;
     FROM SQL FUNCTION 'count';
 };
 
-CREATE FUNCTION std::array_agg($set: SET OF std::any) -> array<std::any> {
+CREATE FUNCTION std::array_agg(s: SET OF std::any) -> array<std::any> {
     INITIAL VALUE [];
     FROM SQL FUNCTION 'array_agg';
 };
 
-CREATE FUNCTION std::is_distinct($set: SET OF std::any) -> std::bool {
+CREATE FUNCTION std::is_distinct(s: SET OF std::any) -> std::bool {
     INITIAL VALUE True;
     FROM SQL FUNCTION '--system--';
 };
 
-CREATE FUNCTION std::array_unpack($array: array<std::any>) -> SET OF std::any
+CREATE FUNCTION std::array_unpack(array: array<std::any>) -> SET OF std::any
     FROM SQL FUNCTION '--system--';
 
-CREATE FUNCTION std::array_contains($array: array<std::any>,
-                                    $what: std::any) -> std::bool
+CREATE FUNCTION std::array_contains(array: array<std::any>,
+                                    what: std::any) -> std::bool
     FROM SQL $$
         SELECT
             CASE
@@ -113,31 +113,31 @@ CREATE FUNCTION std::array_contains($array: array<std::any>,
             END;
     $$;
 
-CREATE FUNCTION std::array_enumerate($array: array<std::any>) ->
+CREATE FUNCTION std::array_enumerate(array: array<std::any>) ->
         SET OF tuple<std::any, std::int64>
     FROM SQL FUNCTION '--system--';
 
-CREATE FUNCTION std::array_get($array: array<std::any>,
-                               $index: std::int64,
-                               NAMED ONLY $default: OPTIONAL std::any={})
+CREATE FUNCTION std::array_get(array: array<std::any>,
+                               idx: std::int64,
+                               NAMED ONLY default: OPTIONAL std::any={})
         -> OPTIONAL std::any
     FROM SQL $$
         SELECT COALESCE(
             "array"[
                 edgedb._normalize_array_index(
-                    "index"::int, array_upper("array", 1))
+                    "idx"::int, array_upper("array", 1))
             ],
             "default"
         )
     $$;
 
-CREATE FUNCTION std::len($str: std::str) -> std::int64
+CREATE FUNCTION std::len(str: std::str) -> std::int64
     FROM SQL FUNCTION 'char_length';
 
-CREATE FUNCTION std::len($bytes: std::bytes) -> std::int64
+CREATE FUNCTION std::len(bytes: std::bytes) -> std::int64
     FROM SQL FUNCTION 'length';
 
-CREATE FUNCTION std::len($array: array<std::any>) -> std::int64
+CREATE FUNCTION std::len(array: array<std::any>) -> std::int64
     FROM SQL $$
         SELECT array_length("array", 1)::bigint
     $$;
@@ -145,27 +145,27 @@ CREATE FUNCTION std::len($array: array<std::any>) -> std::int64
 CREATE FUNCTION std::random() -> std::float64
     FROM SQL FUNCTION 'random';
 
-CREATE FUNCTION std::re_match($str: std::str,
-                              $pattern: std::str) -> array<std::str>
+CREATE FUNCTION std::re_match(str: std::str,
+                              pattern: std::str) -> array<std::str>
     FROM SQL $$
         SELECT regexp_matches("str", "pattern");
     $$;
 
-CREATE FUNCTION std::re_match_all($str: std::str,
-                                  $pattern: std::str) -> SET OF array<std::str>
+CREATE FUNCTION std::re_match_all(str: std::str,
+                                  pattern: std::str) -> SET OF array<std::str>
     FROM SQL $$
         SELECT regexp_matches("str", "pattern", 'g');
     $$;
 
-CREATE FUNCTION std::re_test($str: std::str, $pattern: std::str) -> std::bool
+CREATE FUNCTION std::re_test(str: std::str, pattern: std::str) -> std::bool
     FROM SQL $$
         SELECT "str" ~ "pattern";
     $$;
 
-CREATE FUNCTION std::re_replace($str: std::str,
-                                $pattern: std::str,
-                                $sub: std::str,
-                                $flags: std::str = '')
+CREATE FUNCTION std::re_replace(str: std::str,
+                                pattern: std::str,
+                                sub: std::str,
+                                flags: std::str = '')
         -> std::str
     FROM SQL $$
         SELECT regexp_replace("str", "pattern", "sub", "flags");
@@ -184,18 +184,18 @@ CREATE FUNCTION std::uuid_generate_v1mc() -> std::uuid
     FROM SQL 'SELECT edgedb.uuid_generate_v1mc()';
 
 # JSON functions
-CREATE FUNCTION std::json_typeof($json: std::json) -> std::str
+CREATE FUNCTION std::json_typeof(json: std::json) -> std::str
     FROM SQL FUNCTION 'jsonb_typeof';
 
-CREATE FUNCTION std::json_array_unpack($arr: std::json) -> SET OF std::json
+CREATE FUNCTION std::json_array_unpack(array: std::json) -> SET OF std::json
     FROM SQL FUNCTION 'jsonb_array_elements';
 
-CREATE FUNCTION std::json_object_unpack($obj: std::json) ->
+CREATE FUNCTION std::json_object_unpack(obj: std::json) ->
         SET OF tuple<std::str, std::json>
     FROM SQL FUNCTION 'jsonb_each';
 
-CREATE FUNCTION std::json_get($json: std::json, VARIADIC $path: std::str,
-                              NAMED ONLY $default: OPTIONAL std::json={}) ->
+CREATE FUNCTION std::json_get(json: std::json, VARIADIC path: std::str,
+                              NAMED ONLY default: OPTIONAL std::json={}) ->
         OPTIONAL std::json
     FROM SQL $$
         SELECT COALESCE(
@@ -204,12 +204,12 @@ CREATE FUNCTION std::json_get($json: std::json, VARIADIC $path: std::str,
         )
     $$;
 
-CREATE FUNCTION std::json_to_str($json: std::json) -> std::str
+CREATE FUNCTION std::json_to_str(json: std::json) -> std::str
     FROM SQL $$
         SELECT "json"::text
     $$;
 
-CREATE FUNCTION std::str_to_json($str: std::str) -> std::json
+CREATE FUNCTION std::str_to_json(str: std::str) -> std::json
     FROM SQL $$
         SELECT "str"::jsonb
     $$;
@@ -225,28 +225,28 @@ CREATE ABSTRACT CONSTRAINT std::expression
     SET expr := __subject__;
 };
 
-CREATE ABSTRACT CONSTRAINT std::max($max: std::any)
+CREATE ABSTRACT CONSTRAINT std::max(max: std::any)
         EXTENDING std::constraint
 {
     SET errmessage := 'Maximum allowed value for {__subject__} is {$max}.';
     SET expr := __subject__ <= $max;
 };
 
-CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC $vals: std::any)
+CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC vals: std::any)
         EXTENDING std::constraint
 {
     SET errmessage := '{__subject__} must be one of: {$vals}.';
     SET expr := array_contains($vals, __subject__);
 };
 
-CREATE ABSTRACT CONSTRAINT std::min($min: std::any)
+CREATE ABSTRACT CONSTRAINT std::min(min: std::any)
         EXTENDING std::constraint
 {
     SET errmessage := 'Minimum allowed value for {__subject__} is {$min}.';
     SET expr := __subject__ >= $min;
 };
 
-CREATE ABSTRACT CONSTRAINT std::minexclusive($min: std::any)
+CREATE ABSTRACT CONSTRAINT std::minexclusive(min: std::any)
         EXTENDING std::min
 {
     SET errmessage := '{__subject__} must be greater than {$min}.';
@@ -259,26 +259,26 @@ CREATE ABSTRACT CONSTRAINT std::length ON (len(<std::str>__subject__))
     SET errmessage := 'invalid {__subject__}';
 };
 
-CREATE ABSTRACT CONSTRAINT std::minlength($min: std::int64)
+CREATE ABSTRACT CONSTRAINT std::minlength(min: std::int64)
         EXTENDING (std::min, std::length)
 {
     SET errmessage := '{__subject__} must be no shorter than {$min} characters.';
 };
 
-CREATE ABSTRACT CONSTRAINT std::regexp($pattern: std::any)
+CREATE ABSTRACT CONSTRAINT std::regexp(pattern: std::any)
         EXTENDING std::constraint
 {
     SET errmessage := 'invalid {__subject__}';
     SET expr := re_test(__subject__, $pattern);
 };
 
-CREATE ABSTRACT CONSTRAINT std::maxlength($max: std::int64)
+CREATE ABSTRACT CONSTRAINT std::maxlength(max: std::int64)
         EXTENDING (std::max, std::length)
 {
     SET errmessage := '{__subject__} must be no longer than {$max} characters.';
 };
 
-CREATE ABSTRACT CONSTRAINT std::maxexclusive($max: std::any)
+CREATE ABSTRACT CONSTRAINT std::maxexclusive(max: std::any)
         EXTENDING std::max
 {
     SET errmessage := '{__subject__} must be less than {$max}.';

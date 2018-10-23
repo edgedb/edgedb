@@ -1751,7 +1751,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_func_05(self):
         await self.con.execute(r'''
-            CREATE FUNCTION test::concat1(VARIADIC $s: std::any) -> std::str
+            CREATE FUNCTION test::concat1(VARIADIC s: std::any) -> std::str
                 FROM SQL FUNCTION 'concat';
         ''')
 
@@ -1782,12 +1782,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             await self.con.execute("SELECT test::concat1('aaa', 'bbb', 2);")
 
         await self.con.execute(r'''
-            DROP FUNCTION test::concat1(VARIADIC $s: std::any);
+            DROP FUNCTION test::concat1(VARIADIC s: std::any);
         ''')
 
     async def test_edgeql_select_func_06(self):
         await self.con.execute(r'''
-            CREATE FUNCTION test::concat2(VARIADIC $s: std::str) -> std::str
+            CREATE FUNCTION test::concat2(VARIADIC s: std::str) -> std::str
                 FROM SQL FUNCTION 'concat';
         ''')
 
@@ -1797,8 +1797,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_func_07(self):
         await self.con.execute(r'''
-            CREATE FUNCTION test::concat3($sep: OPTIONAL std::str,
-                                          VARIADIC $s: std::str)
+            CREATE FUNCTION test::concat3(sep: OPTIONAL std::str,
+                                          VARIADIC s: std::str)
                     -> std::str
                 FROM EdgeQL $$
                     # poor man concat
@@ -1873,7 +1873,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
         await self.con.execute(r'''
-            DROP FUNCTION test::concat3($sep: std::str, VARIADIC $s: std::str);
+            DROP FUNCTION test::concat3(sep: std::str, VARIADIC s: std::str);
         ''')
 
     async def test_edgeql_select_func_08(self):
@@ -1895,7 +1895,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_func_09(self):
         await self.con.execute('''
-            CREATE FUNCTION test::my_edgeql_func1($s: std::str) -> std::str
+            CREATE FUNCTION test::my_edgeql_func1(s: std::str) -> std::str
                 FROM EdgeQL $$
                     SELECT 'str=' + $s
                 $$;
@@ -1908,7 +1908,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
         await self.con.execute('''
-            DROP FUNCTION test::my_edgeql_func1($s: std::str);
+            DROP FUNCTION test::my_edgeql_func1(s: std::str);
         ''')
 
     async def test_edgeql_select_exists_01(self):
