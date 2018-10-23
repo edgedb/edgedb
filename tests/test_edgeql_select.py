@@ -1802,9 +1802,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     -> std::str
                 FROM EdgeQL $$
                     # poor man concat
-                    SELECT (array_get($s, 0) ?? '') +
-                           ($sep ?? '::') +
-                           (array_get($s, 1) ?? '')
+                    SELECT (array_get(s, 0) ?? '') +
+                           (sep ?? '::') +
+                           (array_get(s, 1) ?? '')
                 $$;
         ''')
 
@@ -1897,7 +1897,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.con.execute('''
             CREATE FUNCTION test::my_edgeql_func1(s: std::str) -> std::str
                 FROM EdgeQL $$
-                    SELECT 'str=' + $s
+                    SELECT 'str=' + s
                 $$;
         ''')
 

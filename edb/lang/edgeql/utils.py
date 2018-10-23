@@ -26,6 +26,7 @@ from edb.lang.common import ast
 from . import ast as qlast
 from . import codegen
 from . import compiler
+from . import errors
 from . import parser
 
 
@@ -35,15 +36,23 @@ class ParameterInliner(ast.NodeTransformer):
         super().__init__()
         self.args_map = args_map
 
-    def visit_Parameter(self, node):
+    def visit_Path(self, node):
+        if (len(node.steps) != 1 or
+                not isinstance(node.steps[0], qlast.ObjectRef)):
+            return node
+
+        param_name = node.steps[0].name
         try:
-            arg = self.args_map[node.name]
+            arg = self.args_map[param_name]
         except KeyError:
-            raise ValueError(
-                f'could not resolve {node.name} argument') from None
+            return node
 
         arg = copy.deepcopy(arg)
         return arg
+
+    def visit_Parameter(self, node):
+        raise errors.EdgeQLDefinitionError(
+            f'dollar-prefixed "$parameters" are not supported in constraints')
 
 
 def inline_parameters(ql_expr: qlast.Base, args: typing.Dict[str, qlast.Base]):
@@ -76,10 +85,11 @@ def index_parameters(ql_args: typing.List[qlast.Base], *,
 
 
 def normalize_tree(expr, schema, *, modaliases=None, anchors=None,
-                   inline_anchors=False, arg_types=None):
+                   inline_anchors=False):
+
     ir = compiler.compile_ast_to_ir(
         expr, schema,
-        modaliases=modaliases, anchors=anchors, arg_types=arg_types)
+        modaliases=modaliases, anchors=anchors)
 
     edgeql_tree = compiler.decompile_ir(ir, inline_anchors=inline_anchors)
 

@@ -1097,7 +1097,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             CREATE FUNCTION test::optfunc(
                     a: std::str, b: OPTIONAL std::str) -> std::str
                 FROM EdgeQL $$
-                    SELECT $b IF $a = 'foo' ELSE $a
+                    SELECT b IF a = 'foo' ELSE a
                 $$;
         ''')
 

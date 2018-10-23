@@ -28,9 +28,9 @@ from edb.lang.common import compiler
 from edb.lang.edgeql import ast as qlast
 from edb.lang.ir import ast as irast
 
+from edb.lang.schema import functions as s_func
 from edb.lang.schema import name as s_name
 from edb.lang.schema import nodes as s_nodes
-from edb.lang.schema import objects as so
 from edb.lang.schema import pointers as s_pointers
 from edb.lang.schema import schema as s_schema
 from edb.lang.schema import types as s_types
@@ -89,9 +89,8 @@ class ContextLevel(compiler.ContextLevel):
     or passed to the compiler programmatically.
     """
 
-    arguments: typing.Dict[str, so.Object]
-    """A mapping of statement parameter types passed to the compiler
-    programmatically."""
+    func: typing.Optional[s_func.Function]
+    """Schema function object required when compiling functions bodies."""
 
     all_sets: typing.List[irast.Set]
     """A list of all Set instances generated."""
@@ -205,7 +204,7 @@ class ContextLevel(compiler.ContextLevel):
             self.aliases = compiler.AliasGenerator()
             self.anchors = {}
             self.modaliases = {}
-            self.arguments = {}
+            self.func = None
             self.all_sets = []
             self.stmt_metadata = {}
             self.completion_work = []
@@ -249,7 +248,7 @@ class ContextLevel(compiler.ContextLevel):
             self.schema = prevlevel.schema
             self.derived_target_module = prevlevel.derived_target_module
             self.aliases = prevlevel.aliases
-            self.arguments = prevlevel.arguments
+            self.func = prevlevel.func
             self.all_sets = prevlevel.all_sets
             self.stmt_metadata = prevlevel.stmt_metadata
             self.completion_work = prevlevel.completion_work

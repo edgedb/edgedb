@@ -62,7 +62,7 @@ def compile_to_ir(expr,
                   schema,
                   *,
                   anchors=None,
-                  arg_types=None,
+                  func=None,
                   security_context=None,
                   modaliases=None,
                   implicit_id_in_shapes=False):
@@ -75,7 +75,7 @@ def compile_to_ir(expr,
     tree = parser.parse(expr, modaliases)
 
     return compile_ast_to_ir(
-        tree, schema, anchors=anchors, arg_types=arg_types,
+        tree, schema, anchors=anchors, func=func,
         security_context=security_context, modaliases=modaliases,
         implicit_id_in_shapes=implicit_id_in_shapes)
 
@@ -84,7 +84,7 @@ def compile_ast_to_ir(tree,
                       schema,
                       *,
                       anchors=None,
-                      arg_types=None,
+                      func=None,
                       security_context=None,
                       derived_target_module=None,
                       result_view_name=None,
@@ -98,7 +98,7 @@ def compile_ast_to_ir(tree,
 
     ctx = stmtctx.init_context(
         schema=schema, anchors=anchors, modaliases=modaliases,
-        security_context=security_context, arg_types=arg_types,
+        security_context=security_context, func=func,
         derived_target_module=derived_target_module,
         result_view_name=result_view_name,
         implicit_id_in_shapes=implicit_id_in_shapes)

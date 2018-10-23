@@ -1527,7 +1527,8 @@ class FuncDeclArgName(Nonterm):
 
     def reduce_DOLLAR_AnyIdentifier(self, dk, dp):
         raise EdgeQLSyntaxError(
-            f"function parameters need no \$ prefix, rewrite as '{dp.val}'",
+            f"function parameters do not need a \$ prefix, "
+            f"rewrite as '{dp.val}'",
             context=dk.context)
 
     def reduce_DOLLAR_ICONST(self, dk, di):

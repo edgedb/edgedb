@@ -651,15 +651,15 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     ON (len(__subject__))
             {
                 SET errmessage :=
-                    '{__subject__} must be no longer than {$max} characters.';
-                SET expr := __subject__ <= $max;
+                    '{__subject__} must be no longer than {max} characters.';
+                SET expr := __subject__ <= max;
             };
 
             CREATE ABSTRACT CONSTRAINT test::mymax_ext1(max: std::int64)
                     ON (len(__subject__)) EXTENDING std::max
             {
                 SET errmessage :=
-                    '{__subject__} must be no longer than {$max} characters.';
+                    '{__subject__} must be no longer than {max} characters.';
             };
 
             CREATE TYPE test::ConstraintOnTest1 {
@@ -777,8 +777,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
         qry = r"""
             CREATE ABSTRACT CONSTRAINT test::mymax2(max: std::int64) {
                 SET errmessage :=
-                    '{__subject__} must be no longer than {$max} characters.';
-                SET expr := __subject__ <= $max;
+                    '{__subject__} must be no longer than {max} characters.';
+                SET expr := __subject__ <= max;
             };
 
             CREATE TYPE test::ConstraintOnTest2 {
@@ -791,7 +791,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                         SET errmessage :=
                     # XXX: once simple string concat is possible here
                     #      formatting can be saner
-                    '{__subject__} must be no longer than {$max} characters.';
+                    '{__subject__} must be no longer than {max} characters.';
                     };
                 };
             };
@@ -860,8 +860,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
             CREATE ABSTRACT CONSTRAINT test::mymax3(max: std::int64) {
                 SET errmessage :=
                     '{__subject__} must be no longer ' +
-                    'than {$max} characters.';
-                SET expr := __subject__ <= $max;
+                    'than {max} characters.';
+                SET expr := __subject__ <= max;
             };
 
             CREATE TYPE test::ConstraintOnTest3 {
@@ -892,7 +892,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     'subjectexpr is not a valid constraint attribute'):
                 await self.con.execute("""
                     CREATE ABSTRACT CONSTRAINT test::len_fail(f: std::str) {
-                        SET expr := __subject__ <= $f;
+                        SET expr := __subject__ <= f;
                         SET subjectexpr := len(__subject__);
                     };
                 """)
@@ -903,7 +903,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     'subject is not a valid constraint attribute'):
                 await self.con.execute("""
                     CREATE ABSTRACT CONSTRAINT test::len_fail(f: std::str) {
-                        SET expr := __subject__ <= $f;
+                        SET expr := __subject__ <= f;
                         # doesn't matter what subject is set to, it's illegal
                         SET subject := len(__subject__);
                     };
@@ -915,7 +915,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     'subjectexpr is not a valid constraint attribute'):
                 await self.con.execute("""
                     CREATE ABSTRACT CONSTRAINT test::len_fail(f: std::int64) {
-                        SET expr := __subject__ <= $f;
+                        SET expr := __subject__ <= f;
                     };
 
                     CREATE TYPE test::InvalidConstraintTest1 {
@@ -933,7 +933,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     'subject is not a valid constraint attribute'):
                 await self.con.execute("""
                     CREATE ABSTRACT CONSTRAINT test::len_fail(f: std::int64) {
-                        SET expr := __subject__ <= $f;
+                        SET expr := __subject__ <= f;
                     };
 
                     CREATE TYPE test::InvalidConstraintTest1 {
@@ -959,8 +959,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
                         SET errmessage :=
                       # XXX: once simple string concat is possible here
                       #      formatting can be saner
-                      '{__subject__} must be no longer than {$m} characters.';
-                        SET expr := __subject__ <= $m;
+                      '{__subject__} must be no longer than {m} characters.';
+                        SET expr := __subject__ <= m;
                     };
 
                     CREATE TYPE test::InvalidConstraintTest2 {
@@ -976,7 +976,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
         qry = """
             CREATE ABSTRACT CONSTRAINT test::foo_alter(a: std::any) {
                 SET errmessage := 'foo';
-                SET expr := __subject__ = $a;
+                SET expr := __subject__ = a;
             };
 
             CREATE TYPE test::ConstraintAlterTest1 {
@@ -1043,7 +1043,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     (len(__subject__))
             {
                 SET errmessage := 'foo';
-                SET expr := __subject__ = $f;
+                SET expr := __subject__ = f;
             };
 
             CREATE TYPE test::ConstraintAlterTest2 {
@@ -1151,3 +1151,30 @@ class TestConstraintsDDL(tb.DDLTestCase):
                 "constraint expression expected to return a bool value, "
                 "got 'str'"):
             await self.con.execute(qry)
+
+    async def test_constraints_ddl_error_06(self):
+        # testing the generalized constraint with 'ON (...)' clause
+        qry = r"""
+            CREATE ABSTRACT CONSTRAINT test::mymax_er_06(max: std::int64)
+                    ON (len(__subject__))
+            {
+                SET expr := __subject__ <= $max;
+            };
+
+            CREATE TYPE test::ConstraintOnTest_err_06 {
+                CREATE PROPERTY test::foo -> std::str {
+                    CREATE CONSTRAINT test::mymax_er_06(3);
+                };
+            };
+        """
+
+        try:
+            await self.con.execute('START TRANSACTION;')
+
+            with self.assertRaisesRegex(
+                    exceptions.UnknownEdgeDBError,
+                    r'dollar-prefixed.*not supported'):
+                await self.con.execute(qry)
+
+        finally:
+            await self.con.execute('ROLLBACK;')

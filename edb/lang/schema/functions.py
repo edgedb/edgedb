@@ -18,6 +18,7 @@
 
 
 import copy
+import functools
 import typing
 
 from edb.lang.common import persistent_hash as ph
@@ -82,6 +83,12 @@ class Parameter(struct.Struct):
 
         return ir
 
+    def __hash__(self):
+        return hash((
+            self.pos, self.name, self.default,
+            self.type, self.typemod, self.kind,
+        ))
+
     def persistent_hash(self):
         return ph.persistent_hash((
             self.pos, self.name, self.default,
@@ -121,19 +128,16 @@ class PgParams(typing.NamedTuple):
     has_param_wo_default: bool
 
 
-class FuncParameterList(typed.TypedList, type=Parameter):
+class FuncParameterList(typed.FrozenTypedList, type=Parameter):
 
+    @functools.lru_cache(200)
     def get_by_name(self, name) -> Parameter:
         for param in self:
             if param.name == name:
                 return param
 
+    @functools.lru_cache(200)
     def as_pg_params(self):
-        try:
-            return self.__pg_params
-        except AttributeError:
-            pass
-
         params = []
         named = []
         variadic = None
@@ -161,21 +165,17 @@ class FuncParameterList(typed.TypedList, type=Parameter):
             params=params,
             has_param_wo_default=has_param_wo_default)
 
-        self.__pg_params = params
         return params
 
     @property
+    @functools.lru_cache(200)
     def variadic(self):
-        try:
-            return self.__variadic
-        except AttributeError:
-            pass
-
-        self.__variadic = None
         for param in self:
             if param.kind is ft.ParameterKind.VARIADIC:
-                self.__variadic = param
                 return param
+
+    def persistent_hash(self):
+        return ph.persistent_hash(tuple(self))
 
     @classmethod
     def from_ast(cls, astnode, modaliases, schema, *, allow_named=True):

@@ -228,29 +228,29 @@ CREATE ABSTRACT CONSTRAINT std::expression
 CREATE ABSTRACT CONSTRAINT std::max(max: std::any)
         EXTENDING std::constraint
 {
-    SET errmessage := 'Maximum allowed value for {__subject__} is {$max}.';
-    SET expr := __subject__ <= $max;
+    SET errmessage := 'Maximum allowed value for {__subject__} is {max}.';
+    SET expr := __subject__ <= max;
 };
 
 CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC vals: std::any)
         EXTENDING std::constraint
 {
-    SET errmessage := '{__subject__} must be one of: {$vals}.';
-    SET expr := array_contains($vals, __subject__);
+    SET errmessage := '{__subject__} must be one of: {vals}.';
+    SET expr := array_contains(vals, __subject__);
 };
 
 CREATE ABSTRACT CONSTRAINT std::min(min: std::any)
         EXTENDING std::constraint
 {
-    SET errmessage := 'Minimum allowed value for {__subject__} is {$min}.';
-    SET expr := __subject__ >= $min;
+    SET errmessage := 'Minimum allowed value for {__subject__} is {min}.';
+    SET expr := __subject__ >= min;
 };
 
 CREATE ABSTRACT CONSTRAINT std::minexclusive(min: std::any)
         EXTENDING std::min
 {
-    SET errmessage := '{__subject__} must be greater than {$min}.';
-    SET expr := __subject__ > $min;
+    SET errmessage := '{__subject__} must be greater than {min}.';
+    SET expr := __subject__ > min;
 };
 
 CREATE ABSTRACT CONSTRAINT std::length ON (len(<std::str>__subject__))
@@ -262,26 +262,26 @@ CREATE ABSTRACT CONSTRAINT std::length ON (len(<std::str>__subject__))
 CREATE ABSTRACT CONSTRAINT std::minlength(min: std::int64)
         EXTENDING (std::min, std::length)
 {
-    SET errmessage := '{__subject__} must be no shorter than {$min} characters.';
+    SET errmessage := '{__subject__} must be no shorter than {min} characters.';
 };
 
 CREATE ABSTRACT CONSTRAINT std::regexp(pattern: std::any)
         EXTENDING std::constraint
 {
     SET errmessage := 'invalid {__subject__}';
-    SET expr := re_test(__subject__, $pattern);
+    SET expr := re_test(__subject__, pattern);
 };
 
 CREATE ABSTRACT CONSTRAINT std::maxlength(max: std::int64)
         EXTENDING (std::max, std::length)
 {
-    SET errmessage := '{__subject__} must be no longer than {$max} characters.';
+    SET errmessage := '{__subject__} must be no longer than {max} characters.';
 };
 
 CREATE ABSTRACT CONSTRAINT std::maxexclusive(max: std::any)
         EXTENDING std::max
 {
-    SET errmessage := '{__subject__} must be less than {$max}.';
+    SET errmessage := '{__subject__} must be less than {max}.';
 };
 
 CREATE ABSTRACT CONSTRAINT std::unique

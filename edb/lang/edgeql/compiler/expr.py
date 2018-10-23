@@ -52,6 +52,17 @@ from . import func  # NOQA
 @dispatch.compile.register(qlast.Path)
 def compile_Path(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
+
+    if (len(expr.steps) == 1 and
+            ctx.func is not None and
+            isinstance(expr.steps[0], qlast.ObjectRef)):
+        param_name = expr.steps[0].name
+        param = ctx.func.params.get_by_name(param_name)
+        if param is not None:
+            return setgen.ensure_set(
+                irast.Parameter(type=param.type, name=param_name),
+                ctx=ctx)
+
     return setgen.compile_path(expr, ctx=ctx)
 
 
@@ -96,11 +107,14 @@ def compile_IsOp(
 @dispatch.compile.register(qlast.Parameter)
 def compile_Parameter(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
-    pt = ctx.arguments.get(expr.name)
-    if pt is not None and not isinstance(pt, s_types.Type):
-        pt = s_basetypes.normalize_type(pt, ctx.schema)
 
-    return setgen.ensure_set(irast.Parameter(type=pt, name=expr.name), ctx=ctx)
+    if ctx.func is not None:
+        raise errors.EdgeQLError(
+            f'"$parameters" cannot not be used in functions',
+            context=expr.context)
+
+    return setgen.ensure_set(
+        irast.Parameter(type=None, name=expr.name), ctx=ctx)
 
 
 @dispatch.compile.register(qlast.DetachedExpr)
