@@ -17,7 +17,9 @@
 #
 
 
+import ast as pyast
 import collections
+import re
 
 from edb.lang.common import ast
 from edb.lang.common import parsing, context
@@ -814,6 +816,7 @@ class Constant(Nonterm):
     # | BaseNumberConstant
     # | BaseStringConstant
     # | BaseBooleanConstant
+    # | BaseBytesConstant
 
     def reduce_ArgConstant(self, *kids):
         self.val = kids[0].val
@@ -825,6 +828,9 @@ class Constant(Nonterm):
         self.val = kids[0].val
 
     def reduce_BaseBooleanConstant(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_BaseBytesConstant(self, *kids):
         self.val = kids[0].val
 
 
@@ -847,6 +853,69 @@ class BaseNumberConstant(Nonterm):
 class BaseStringConstant(Nonterm):
     def reduce_SCONST(self, *kids):
         self.val = qlast.Constant(value=str(kids[0].string))
+
+
+class BaseBytesConstant(Nonterm):
+
+    valid_bytes_re = re.compile(r'''
+        ^
+        (?:
+            b
+        )
+        (?P<BQ>
+            (
+                ' | "
+            )
+        )
+        (?P<body>
+            (
+                \n |                    # new line
+                \\\\ |                  # \\
+                \\['"] |                # \' or \"
+                \\x[0-9a-fA-F]{2} |     # \x00 -- hex code
+                \\ (t | n | r) |        # \t, \n, or \r
+                [\x20-\x5b\x5d-\x7e] |  # match any printable ASCII, except '\'
+
+                (?P<err_esc>            # capture any invalid \escape
+                    \\x.{2} |
+                    \\.
+                ) |
+                (?P<err>                # capture any unexpected character
+                    .
+                )
+            )*
+        )
+        (?P=BQ)
+        $
+    ''', re.X)
+
+    def reduce_BCONST(self, bytes_tok):
+        val = bytes_tok.val
+        match = self.valid_bytes_re.match(val)
+
+        if not match:
+            raise EdgeQLSyntaxError(
+                f"invalid bytes literal", context=bytes_tok.context)
+        if match.group('err_esc'):
+            raise EdgeQLSyntaxError(
+                f"invalid bytes literal: invalid escape sequence "
+                f"'{match.group('err_esc')}'",
+                context=bytes_tok.context)
+        if match.group('err'):
+            raise EdgeQLSyntaxError(
+                f"invalid bytes literal: character '{match.group('err')}' "
+                f"is outside of the ASCII range",
+                context=bytes_tok.context)
+
+        val = match.group('body')
+        val = f'b"""{val}"""'
+        try:
+            parsed_val = pyast.literal_eval(val)
+        except SyntaxError:
+            raise EdgeQLSyntaxError(
+                f"invalid bytes literal", context=bytes_tok.context)
+
+        self.val = qlast.Constant(value=parsed_val)
 
 
 class BaseBooleanConstant(Nonterm):

@@ -193,7 +193,7 @@ class RaiseExceptionOnEmptyStringFunction(dbops.Function):
     """Return the passed string or raise an exception if it's empty."""
     text = '''
         SELECT
-            CASE WHEN char_length(val) = 0 THEN
+            CASE WHEN edgedb._length(val) = 0 THEN
                 edgedb._raise_specific_exception(exc, msg, det, val)
             ELSE
                 val
@@ -1082,7 +1082,7 @@ class ArrayIndexWithBoundsFunction(dbops.Function):
 
     def __init__(self):
         super().__init__(
-            name=('edgedb', '_array_index'),
+            name=('edgedb', '_index'),
             args=[('val', ('anyarray',)), ('index', ('int',)),
                   ('det', ('text',))],
             returns=('anyelement',),
@@ -1112,7 +1112,7 @@ class ArraySliceFunction(dbops.Function):
 
     def __init__(self):
         super().__init__(
-            name=('edgedb', '_array_slice'),
+            name=('edgedb', '_slice'),
             args=[('val', ('anyarray',)), ('start', ('int',)),
                   ('stop', ('int',))],
             returns=('anyarray',),
@@ -1129,17 +1129,42 @@ class StringIndexWithBoundsFunction(dbops.Function):
                 edgedb._normalize_array_index(index, char_length(val)),
                 1),
             'invalid_parameter_value',
-            'string index ' || index::text || ' is out of bounds',
+            'str index ' || index::text || ' is out of bounds',
             det
         )
     '''
 
     def __init__(self):
         super().__init__(
-            name=('edgedb', '_string_index'),
+            name=('edgedb', '_index'),
             args=[('val', ('text',)), ('index', ('int',)),
                   ('det', ('text',))],
             returns=('text',),
+            volatility='immutable',
+            strict=True,
+            text=self.text)
+
+
+class BytesIndexWithBoundsFunction(dbops.Function):
+    """Get a bytes character or raise an out-of-bounds exception."""
+    text = '''
+        SELECT edgedb._raise_exception_on_empty(
+            substr(
+                val,
+                edgedb._normalize_array_index(index, length(val)),
+                1),
+            'invalid_parameter_value',
+            'bytes index ' || index::text || ' is out of bounds',
+            det
+        )
+    '''
+
+    def __init__(self):
+        super().__init__(
+            name=('edgedb', '_index'),
+            args=[('val', ('bytea',)), ('index', ('int',)),
+                  ('det', ('text',))],
+            returns=('bytea',),
             volatility='immutable',
             strict=True,
             text=self.text)
@@ -1158,15 +1183,47 @@ class SubstrProxyFunction(dbops.Function):
     def __init__(self):
         super().__init__(
             name=('edgedb', '_substr'),
-            args=[('val', ('text',)), ('start', ('int',)),
+            args=[('val', ('anyelement',)), ('start', ('int',)),
                   ('length', ('int',))],
-            returns=('text',),
+            returns=('anyelement',),
             volatility='immutable',
             strict=True,
             text=self.text)
 
 
-class StringSliceFunction(dbops.Function):
+class LengthStringProxyFunction(dbops.Function):
+    """Same as substr, but interpret negative length as 0 instead."""
+    text = r'''
+        SELECT char_length(val)
+    '''
+
+    def __init__(self):
+        super().__init__(
+            name=('edgedb', '_length'),
+            args=[('val', ('text',))],
+            returns=('int',),
+            volatility='immutable',
+            strict=True,
+            text=self.text)
+
+
+class LengthBytesProxyFunction(dbops.Function):
+    """Same as substr, but interpret negative length as 0 instead."""
+    text = r'''
+        SELECT length(val)
+    '''
+
+    def __init__(self):
+        super().__init__(
+            name=('edgedb', '_length'),
+            args=[('val', ('bytea',))],
+            returns=('int',),
+            volatility='immutable',
+            strict=True,
+            text=self.text)
+
+
+class StringSliceImplFunction(dbops.Function):
     """Get a string slice."""
     text = r'''
         SELECT
@@ -1176,28 +1233,71 @@ class StringSliceFunction(dbops.Function):
                         val,
                         1,
                         edgedb._normalize_array_index(
-                            stop, char_length(val)) - 1
+                            stop, edgedb._length(val)) - 1
                     )
                 WHEN stop IS NULL THEN
                     substr(
                         val,
-                        edgedb._normalize_array_index(start, char_length(val))
+                        edgedb._normalize_array_index(
+                            start, edgedb._length(val))
                     )
                 ELSE
                     edgedb._substr(
                         val,
-                        edgedb._normalize_array_index(start, char_length(val)),
-                        edgedb._normalize_array_index(stop, char_length(val)) -
-                        edgedb._normalize_array_index(start, char_length(val))
+                        edgedb._normalize_array_index(
+                            start, edgedb._length(val)),
+                        edgedb._normalize_array_index(
+                            stop, edgedb._length(val)) -
+                        edgedb._normalize_array_index(
+                            start, edgedb._length(val))
                     )
             END
     '''
 
     def __init__(self):
         super().__init__(
-            name=('edgedb', '_string_slice'),
-            args=[('val', ('text',)), ('start', ('int',)), ('stop', ('int',))],
+            name=('edgedb', '_str_slice'),
+            args=[
+                ('val', ('anyelement',)),
+                ('start', ('int',)), ('stop', ('int',))
+            ],
+            returns=('anyelement',),
+            volatility='immutable',
+            text=self.text)
+
+
+class StringSliceFunction(dbops.Function):
+    """Get a string slice."""
+    text = r'''
+        SELECT edgedb._str_slice(val, start, stop)
+    '''
+
+    def __init__(self):
+        super().__init__(
+            name=('edgedb', '_slice'),
+            args=[
+                ('val', ('text',)),
+                ('start', ('int',)), ('stop', ('int',))
+            ],
             returns=('text',),
+            volatility='immutable',
+            text=self.text)
+
+
+class BytesSliceFunction(dbops.Function):
+    """Get a string slice."""
+    text = r'''
+        SELECT edgedb._str_slice(val, start, stop)
+    '''
+
+    def __init__(self):
+        super().__init__(
+            name=('edgedb', '_slice'),
+            args=[
+                ('val', ('bytea',)),
+                ('start', ('int',)), ('stop', ('int',))
+            ],
+            returns=('bytea',),
             volatility='immutable',
             text=self.text)
 
@@ -1237,7 +1337,7 @@ class JSONIndexByTextFunction(dbops.Function):
 
     def __init__(self):
         super().__init__(
-            name=('edgedb', '_json_index'),
+            name=('edgedb', '_index'),
             args=[('val', ('jsonb',)), ('index', ('text',)),
                   ('det', ('text',))],
             returns=('jsonb',),
@@ -1280,7 +1380,7 @@ class JSONIndexByIntFunction(dbops.Function):
 
     def __init__(self):
         super().__init__(
-            name=('edgedb', '_json_index'),
+            name=('edgedb', '_index'),
             args=[('val', ('jsonb',)), ('index', ('int',)),
                   ('det', ('text',))],
             returns=('jsonb',),
@@ -1292,7 +1392,7 @@ class JSONIndexByIntFunction(dbops.Function):
 class JSONSliceFunction(dbops.Function):
     """Get a JSON array slice."""
     text = r'''
-        SELECT to_jsonb(_array_slice(
+        SELECT to_jsonb(_slice(
             (
                 SELECT array_agg(value)
                 FROM jsonb_array_elements(
@@ -1304,7 +1404,7 @@ class JSONSliceFunction(dbops.Function):
 
     def __init__(self):
         super().__init__(
-            name=('edgedb', '_json_slice'),
+            name=('edgedb', '_slice'),
             args=[('val', ('jsonb',)), ('start', ('int',)),
                   ('stop', ('int',))],
             returns=('jsonb',),
@@ -1480,11 +1580,16 @@ async def bootstrap(conn):
         dbops.CreateFunction(ArrayIndexWithBoundsFunction()),
         dbops.CreateFunction(ArraySliceFunction()),
         dbops.CreateFunction(StringIndexWithBoundsFunction()),
+        dbops.CreateFunction(LengthStringProxyFunction()),
+        dbops.CreateFunction(LengthBytesProxyFunction()),
         dbops.CreateFunction(SubstrProxyFunction()),
+        dbops.CreateFunction(StringSliceImplFunction()),
         dbops.CreateFunction(StringSliceFunction()),
+        dbops.CreateFunction(BytesSliceFunction()),
         dbops.CreateFunction(JSONIndexByTextFunction()),
         dbops.CreateFunction(JSONIndexByIntFunction()),
         dbops.CreateFunction(JSONSliceFunction()),
+        dbops.CreateFunction(BytesIndexWithBoundsFunction()),
     ])
 
     block = dbops.PLTopBlock(disable_ddl_triggers=True)

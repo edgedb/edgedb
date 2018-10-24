@@ -356,11 +356,14 @@ def __infer_slice(ir, schema):
     str_t = schema.get('std::str')
     int_t = schema.get('std::int64')
     json_t = schema.get('std::json')
+    bytes_t = schema.get('std::bytes')
 
     if node_type.issubclass(str_t):
         base_name = 'string'
     elif node_type.issubclass(json_t):
         base_name = 'json array'
+    elif node_type.issubclass(bytes_t):
+        base_name = 'bytes'
     elif isinstance(node_type, s_types.Array):
         base_name = 'array'
     else:
@@ -387,6 +390,7 @@ def __infer_index(ir, schema):
     index_type = infer_type(ir.index, schema)
 
     str_t = schema.get('std::str')
+    bytes_t = schema.get('std::bytes')
     int_t = schema.get('std::int64')
     json_t = schema.get('std::json')
 
@@ -401,6 +405,16 @@ def __infer_index(ir, schema):
                 context=ir.index.context)
 
         result = str_t
+
+    elif node_type.issubclass(bytes_t):
+
+        if not index_type.implicitly_castable_to(int_t, schema):
+            raise ql_errors.EdgeQLError(
+                f'cannot index bytes by {index_type.name}, '
+                f'{int_t.name} was expected',
+                context=ir.index.context)
+
+        result = bytes_t
 
     elif node_type.issubclass(json_t):
 

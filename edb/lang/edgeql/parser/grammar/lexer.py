@@ -43,7 +43,7 @@ class EdgeQLLexer(lexer.Lexer):
     MERGE_TOKENS = {('NAMED', 'ONLY')}
 
     NL = 'NL'
-    MULTILINE_TOKENS = frozenset(('SCONST',))
+    MULTILINE_TOKENS = frozenset(('SCONST', 'BCONST'))
     RE_FLAGS = re.X | re.M | re.I
 
     # Basic keywords
@@ -114,6 +114,26 @@ class EdgeQLLexer(lexer.Lexer):
         Rule(token='ICONST',
              next_state=STATE_KEEP,
              regexp=r'([1-9]\d* | 0)(?![0-9])'),
+
+        Rule(token='BCONST',
+             next_state=STATE_KEEP,
+             regexp=rf'''
+                (?:
+                    b
+                )
+                (?P<BQ>
+                    (
+                        ' | "
+                    )
+                )
+                (?:
+                    (
+                        (\\\\ | \\['"] | \n | .)*?
+                        # we'll validate escapes codes in the parser
+                    )*?
+                )
+                (?P=BQ)
+             '''),
 
         Rule(token='SCONST',
              next_state=STATE_KEEP,

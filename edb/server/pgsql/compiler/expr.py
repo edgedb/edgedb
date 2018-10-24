@@ -171,8 +171,7 @@ def compile_IndexIndirection(
     # `->` accessor. Additionally, in all of the above cases a
     # boundary-check is performed on the index and an exception is
     # potentially raised.
-    base_name = None
-    arg_type = _infer_type(expr.expr, ctx=ctx)
+
     # line, column and filename are captured here to be used with the
     # error message
     srcctx = pgast.Constant(val=irutils.get_source_context_as_json(expr.index))
@@ -194,26 +193,10 @@ def compile_IndexIndirection(
             )
         )
 
-    if isinstance(arg_type, s_scalars.ScalarType):
-        base_name = arg_type.get_topmost_concrete_base().name
-
-    if base_name == 'std::json':
-        result = pgast.FuncCall(
-            name=('edgedb', '_json_index'),
-            args=[subj, index, srcctx]
-        )
-
-    elif base_name == 'std::str':
-        result = pgast.FuncCall(
-            name=('edgedb', '_string_index'),
-            args=[subj, index, srcctx]
-        )
-
-    else:
-        result = pgast.FuncCall(
-            name=('edgedb', '_array_index'),
-            args=[subj, index, srcctx]
-        )
+    result = pgast.FuncCall(
+        name=('edgedb', '_index'),
+        args=[subj, index, srcctx]
+    )
 
     return result
 
@@ -231,13 +214,6 @@ def compile_SliceIndirection(
         start = dispatch.compile(expr.start, ctx=subctx)
         stop = dispatch.compile(expr.stop, ctx=subctx)
 
-    base_name = None
-
-    arg_type = _infer_type(expr.expr, ctx=ctx)
-
-    if isinstance(arg_type, s_scalars.ScalarType):
-        base_name = arg_type.get_topmost_concrete_base().name
-
     # any integer indexes must be upcast into int to fit the helper
     # function signature
     start = pgast.TypeCast(
@@ -253,21 +229,10 @@ def compile_SliceIndirection(
         )
     )
 
-    if base_name == 'std::json':
-        result = pgast.FuncCall(
-            name=('edgedb', '_json_slice'),
-            args=[subj, start, stop]
-        )
-    elif base_name == 'std::str':
-        result = pgast.FuncCall(
-            name=('edgedb', '_string_slice'),
-            args=[subj, start, stop]
-        )
-    else:
-        result = pgast.FuncCall(
-            name=('edgedb', '_array_slice'),
-            args=[subj, start, stop]
-        )
+    result = pgast.FuncCall(
+        name=('edgedb', '_slice'),
+        args=[subj, start, stop]
+    )
 
     return result
 

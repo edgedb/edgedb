@@ -174,6 +174,8 @@ def compile_Constant(
                 std_type = 'std::decimal'
             else:
                 std_type = 'std::int64'
+        elif isinstance(expr.value, bytes):
+            std_type = 'std::bytes'
         else:
             raise NotImplementedError(
                 f'unexpected value type in Constant AST: {type(expr.value)}')

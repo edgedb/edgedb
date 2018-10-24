@@ -42,7 +42,10 @@ class TestConstraintsSchema(tb.QueryTestCase):
             expr = qry.format(value=str(val))
 
             if expected == 'good':
-                await self.con.execute(expr)
+                try:
+                    await self.con.execute(expr)
+                except Exception as ex:
+                    raise AssertionError(f'{expr!r} failed') from ex
             else:
                 with self.assertRaisesRegex(
                         exceptions.ConstraintViolationError, expected):

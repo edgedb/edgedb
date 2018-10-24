@@ -231,7 +231,7 @@ class FunctionCall(Expr):
 
 
 class Constant(Expr):
-    value: typing.Union[int, str, float, bool]
+    value: typing.Union[int, str, float, bool, bytes]
 
 
 class Parameter(Expr):

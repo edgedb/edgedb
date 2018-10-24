@@ -174,6 +174,45 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT .1;
         """
 
+    def test_edgeql_syntax_constants_10(self):
+        r"""
+        SELECT b'1\t\n1' + b"2\x00";
+% OK %
+        SELECT (b'1\t\n1' + b'2\x00');
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"invalid bytes literal: invalid escape sequence '\\c'",
+                  line=2, col=16)
+    def test_edgeql_syntax_constants_11(self):
+        """
+        SELECT b'aaa\cbbb';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"invalid bytes literal: invalid escape sequence '\\x0z'",
+                  line=2, col=16)
+    def test_edgeql_syntax_constants_12(self):
+        r"""
+        SELECT b'aaa\x0zaa';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"invalid bytes literal: character 'Ł'",
+                  line=2, col=16)
+    def test_edgeql_syntax_constants_13(self):
+        r"""
+        SELECT b'Łukasz Langa';
+        """
+
+    def test_edgeql_syntax_constants_14(self):
+        r"""
+        SELECT b'aa
+aa';
+% OK %
+        SELECT b'aa\naa';
+        """
+
     @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=12)
     def test_edgeql_syntax_ops_01(self):
         """SELECT 40 >> 2;"""

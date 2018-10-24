@@ -52,6 +52,7 @@ def cast(
     datetime_t = schema.get('std::datetime')
     bool_t = schema.get('std::bool')
     real_t = schema.get('std::anyreal')
+    bytes_t = schema.get('std::bytes')
 
     if isinstance(target_type, s_types.Collection):
         if target_type.schema_name == 'array':
@@ -215,6 +216,8 @@ def cast(
             )
 
         elif target_type.issubclass(json_t):
+            if source_type.issubclass(bytes_t):
+                raise TypeError('cannot cast bytes to json')
             return pgast.FuncCall(
                 name=('to_jsonb',), args=[node])
         else:

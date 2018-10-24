@@ -169,6 +169,10 @@ class T_FCONST(Token):
     pass
 
 
+class T_BCONST(Token):
+    pass
+
+
 class T_SCONST(Token):
     def __init__(self, parser, val, context=None):
         super().__init__(parser, val, context)

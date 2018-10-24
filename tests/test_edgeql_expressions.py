@@ -1077,7 +1077,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 # FIXME: possibly a different error should be used here
                 exc.UnknownEdgeDBError,
-                r'string index 10 is out of bounds'):
+                r'str index 10 is out of bounds'):
             await self.con.execute("""
                 SELECT '123'[10];
             """)
@@ -1086,7 +1086,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 # FIXME: possibly a different error should be used here
                 exc.UnknownEdgeDBError,
-                r'string index -10 is out of bounds'):
+                r'str index -10 is out of bounds'):
             await self.con.execute("""
                 SELECT '123'[-10];
             """)

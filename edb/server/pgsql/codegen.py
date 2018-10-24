@@ -17,6 +17,7 @@
 #
 
 
+import binascii
 import numbers
 
 from edb.server.pgsql import common
@@ -513,6 +514,11 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write('NULL')
         elif isinstance(node.val, (bool, numbers.Number)):
             self.write(str(node.val))
+        elif isinstance(node.val, bytes):
+            b = binascii.b2a_hex(node.val).decode('ascii')
+            self.write(f"'\\x{b}'::bytea")
+        elif isinstance(node.val, str):
+            self.write(common.quote_e_literal(node.val))
         else:
             self.write(common.quote_literal(str(node.val)))
 
