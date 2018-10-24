@@ -18,6 +18,7 @@
 
 
 import pathlib
+import unittest  # NOQA
 
 from edb.client import exceptions
 
@@ -137,36 +138,271 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                             FILTER .name = 'Target1Child.1');
                 """)
 
-    async def test_link_on_target_delete_deferred_restrict_01(self):
-            exception_is_deferred = False
+    async def test_link_on_target_delete_restrict_03(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                INSERT test::Target1 {
+                    name := 'Target1.1'
+                };
+
+                INSERT test::Source3 {
+                    name := 'Source3.1',
+                    tgt1_restrict := (
+                        SELECT test::Target1
+                        FILTER .name = 'Target1.1'
+                    )
+                };
+            """)
 
             with self.assertRaisesRegex(
                     exceptions.ConstraintViolationError,
                     'deletion of test::Target1 .* is prohibited by link'):
+                await self.con.execute("""
+                    DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
+                """)
 
-                async with self.con.transaction():
-                    await self.con.execute("""
-                        INSERT test::Target1 {
-                            name := 'Target1.1'
-                        };
+    async def test_link_on_target_delete_restrict_04(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                INSERT test::Target1Child {
+                    name := 'Target1Child.1'
+                };
 
-                        INSERT test::Source1 {
-                            name := 'Source1.1',
-                            tgt1_deferred_restrict := (
-                                SELECT test::Target1
-                                FILTER .name = 'Target1.1'
-                            )
-                        };
-                    """)
+                INSERT test::Source3 {
+                    name := 'Source3.1',
+                    tgt1_restrict := (
+                        SELECT test::Target1
+                        FILTER .name = 'Target1Child.1'
+                    )
+                };
+            """)
 
-                    await self.con.execute("""
-                        DELETE (SELECT test::Target1
-                                FILTER .name = 'Target1.1');
-                    """)
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'deletion of test::Target1 .* is prohibited by link'):
+                await self.con.execute("""
+                    DELETE (SELECT test::Target1Child
+                            FILTER .name = 'Target1Child.1');
+                """)
 
-                    exception_is_deferred = True
+    async def test_link_on_target_delete_restrict_05(self):
+        success = False
 
-            self.assertTrue(exception_is_deferred)
+        async with self._run_and_rollback():
+            await self.con.execute(r"""
+                SET MODULE test;
+
+                INSERT Target1 {
+                    name := 'Target1.1'
+                };
+
+                # no source, so the deletion should not be a problem
+                DELETE Target1;
+            """)
+
+            success = True
+
+        self.assertTrue(success)
+
+    @unittest.expectedFailure
+    async def test_link_on_target_delete_restrict_06(self):
+        success = False
+
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                SET MODULE test;
+
+                INSERT Target1 {
+                    name := 'Target1.1'
+                };
+
+                INSERT Source1 {
+                    name := 'Source1.1',
+                    tgt1_restrict := (
+                        SELECT Target1
+                        FILTER .name = 'Target1.1'
+                    )
+                };
+
+                DELETE Source1;
+                DELETE Target1;
+            """)
+
+            success = True
+
+        self.assertTrue(success)
+
+    @unittest.expectedFailure
+    async def test_link_on_target_delete_restrict_07(self):
+        success = False
+
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                SET MODULE test;
+
+                FOR name IN {'Target1.1', 'Target1.2', 'Target1.3'}
+                UNION (
+                    INSERT Target1 {
+                        name := name
+                    });
+
+                INSERT Source1 {
+                    name := 'Source1.1',
+                    tgt1_m2m_restrict := (
+                        SELECT Target1
+                        FILTER
+                            .name IN {'Target1.1', 'Target1.2', 'Target1.3'}
+                    )
+                };
+
+                DELETE Source1;
+                DELETE Target1;
+            """)
+            success = True
+
+        self.assertTrue(success)
+
+    async def test_link_on_target_delete_deferred_restrict_01(self):
+        exception_is_deferred = False
+
+        with self.assertRaisesRegex(
+                exceptions.ConstraintViolationError,
+                'deletion of test::Target1 .* is prohibited by link'):
+
+            async with self.con.transaction():
+                await self.con.execute("""
+                    INSERT test::Target1 {
+                        name := 'Target1.1'
+                    };
+
+                    INSERT test::Source1 {
+                        name := 'Source1.1',
+                        tgt1_deferred_restrict := (
+                            SELECT test::Target1
+                            FILTER .name = 'Target1.1'
+                        )
+                    };
+                """)
+
+                await self.con.execute("""
+                    DELETE (SELECT test::Target1
+                            FILTER .name = 'Target1.1');
+                """)
+
+                exception_is_deferred = True
+
+        self.assertTrue(exception_is_deferred)
+
+    async def test_link_on_target_delete_deferred_restrict_02(self):
+        exception_is_deferred = False
+
+        with self.assertRaisesRegex(
+                exceptions.ConstraintViolationError,
+                'deletion of test::Target1 .* is prohibited by link'):
+
+            async with self.con.transaction():
+                await self.con.execute("""
+                    INSERT test::Target1 {
+                        name := 'Target1.1'
+                    };
+
+                    INSERT test::Source3 {
+                        name := 'Source3.1',
+                        tgt1_deferred_restrict := (
+                            SELECT test::Target1
+                            FILTER .name = 'Target1.1'
+                        )
+                    };
+                """)
+
+                await self.con.execute("""
+                    DELETE (SELECT test::Target1
+                            FILTER .name = 'Target1.1');
+                """)
+
+                exception_is_deferred = True
+
+        self.assertTrue(exception_is_deferred)
+
+    async def test_link_on_target_delete_deferred_restrict_03(self):
+        success = False
+
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                SET MODULE test;
+
+                INSERT Target1 {
+                    name := 'Target1.1'
+                };
+
+                INSERT Source1 {
+                    name := 'Source1.1',
+                    tgt1_deferred_restrict := (
+                        SELECT Target1
+                        FILTER .name = 'Target1.1'
+                    )
+                };
+
+                DELETE Named;
+            """)
+
+            success = True
+
+        self.assertTrue(success)
+
+    # XXX: the failure happens during clean-up and should disappear
+    # once the tests "delete_restrict" 06-08 pass
+    @unittest.expectedFailure
+    async def test_link_on_target_delete_deferred_restrict_04(self):
+        async with self.con.transaction():
+            await self.con.execute(r"""
+                SET MODULE test;
+
+                INSERT Target1 {
+                    name := 'Target1.1'
+                };
+
+                INSERT Source1 {
+                    name := 'Source1.1',
+                    tgt1_deferred_restrict := (
+                        SELECT Target1
+                        FILTER .name = 'Target1.1'
+                    )
+                };
+
+                # delete the target with deferred trigger
+                DELETE (SELECT Target1
+                        FILTER .name = 'Target1.1');
+
+                # assign a new target to the `tgt1_deferred_restrict`
+                INSERT Target1 {
+                    name := 'Target1.2'
+                };
+
+                UPDATE Source1
+                FILTER Source1.name = 'Source1.1'
+                SET {
+                    tgt1_deferred_restrict := (
+                        SELECT Target1
+                        FILTER .name = 'Target1.2'
+                    )
+                };
+            """)
+
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT Target1.name;
+        ''', [
+            {'Target1.2'}
+        ])
+
+        # cleanup
+        await self.con.execute("""
+            DELETE (SELECT test::Source1
+                    FILTER .name = 'Source1.1');
+            DELETE (SELECT test::Target1
+                    FILTER .name = 'Target1.2');
+        """)
 
     async def test_link_on_target_delete_set_empty_01(self):
         async with self._run_and_rollback():
@@ -206,6 +442,54 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 WITH MODULE test
                 SELECT
                     Source1 {
+                        tgt1_set_empty: {
+                            name
+                        }
+                    };
+            ''', [
+                [{
+                    'tgt1_set_empty': None,
+                }]
+            ])
+
+    async def test_link_on_target_delete_set_empty_02(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                INSERT test::Target1 {
+                    name := 'Target1.1'
+                };
+
+                INSERT test::Source3 {
+                    name := 'Source3.1',
+                    tgt1_set_empty := (
+                        SELECT test::Target1
+                        FILTER .name = 'Target1.1'
+                    )
+                };
+            """)
+
+            await self.assert_query_result(r'''
+                WITH MODULE test
+                SELECT
+                    Source3 {
+                        tgt1_set_empty: {
+                            name
+                        }
+                    };
+            ''', [
+                [{
+                    'tgt1_set_empty': {'name': 'Target1.1'},
+                }]
+            ])
+
+            await self.con.execute("""
+                DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
+            """)
+
+            await self.assert_query_result(r'''
+                WITH MODULE test
+                SELECT
+                    Source3 {
                         tgt1_set_empty: {
                             name
                         }
@@ -272,6 +556,177 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                     Source2
                 FILTER
                     .name = 'Source2.1';
+
+                WITH MODULE test
+                SELECT
+                    Source1
+                FILTER
+                    .name = 'Source1.1';
             ''', [
-                []
+                [],
+                [],
+            ])
+
+    async def test_link_on_target_delete_delete_source_02(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                SET MODULE test;
+
+                INSERT Target1 {
+                    name := 'Target1.1'
+                };
+
+                INSERT Source1 {
+                    name := 'Source1.1',
+                    tgt1_del_source := (
+                        SELECT Target1
+                        FILTER .name = 'Target1.1'
+                    )
+                };
+
+                INSERT Source1 {
+                    name := 'Source1.2',
+                    tgt1_del_source := (
+                        SELECT Target1
+                        FILTER .name = 'Target1.1'
+                    )
+                };
+
+                INSERT Source2 {
+                    name := 'Source2.1',
+                    src1_del_source := (
+                        SELECT Source1
+                        FILTER .name = 'Source1.1'
+                    )
+                };
+            """)
+
+            await self.assert_query_result(r'''
+                WITH MODULE test
+                SELECT
+                    Source2 {
+                        src1_del_source: {
+                            name,
+                            tgt1_del_source: {
+                                name
+                            }
+                        }
+                    }
+                FILTER
+                    .name = 'Source2.1';
+
+                WITH MODULE test
+                SELECT
+                    Source1 {
+                        name,
+                        tgt1_del_source: {
+                            name
+                        }
+                    };
+            ''', [
+                [{
+                    'src1_del_source': {
+                        'name': 'Source1.1',
+                        'tgt1_del_source': {'name': 'Target1.1'},
+                    }
+                }],
+                [{
+                    'name': 'Source1.1',
+                    'tgt1_del_source': {'name': 'Target1.1'},
+                }, {
+                    'name': 'Source1.2',
+                    'tgt1_del_source': {'name': 'Target1.1'},
+                }]
+            ])
+
+            await self.con.execute("""
+                DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
+            """)
+
+            await self.assert_query_result(r'''
+                WITH MODULE test
+                SELECT
+                    Source2
+                FILTER
+                    .name = 'Source2.1';
+
+                WITH MODULE test
+                SELECT
+                    Source1;
+            ''', [
+                [],
+                [],
+            ])
+
+    async def test_link_on_target_delete_delete_source_03(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                SET MODULE test;
+
+                FOR name IN {'Target1.1', 'Target1.2', 'Target1.3'}
+                UNION (
+                    INSERT Target1 {
+                        name := name
+                    });
+
+                INSERT Source1 {
+                    name := 'Source1.1',
+                    tgt1_m2m_del_source := (
+                        SELECT Target1
+                        FILTER
+                            .name IN {'Target1.1', 'Target1.2', 'Target1.3'}
+                    )
+                };
+            """)
+
+            await self.assert_query_result(r'''
+                WITH MODULE test
+                SELECT
+                    Source1 {
+                        name,
+                        tgt1_m2m_del_source: {
+                            name
+                        } ORDER BY .name
+                    }
+                FILTER
+                    .name = 'Source1.1';
+            ''', [
+                [{
+                    'name': 'Source1.1',
+                    'tgt1_m2m_del_source': [
+                        {'name': 'Target1.1'},
+                        {'name': 'Target1.2'},
+                        {'name': 'Target1.3'},
+                    ],
+                }]
+            ])
+
+            await self.con.execute("""
+                DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
+            """)
+
+            await self.assert_query_result(r'''
+                WITH MODULE test
+                SELECT
+                    Source1 {
+                        name,
+                        tgt1_m2m_del_source: {
+                            name
+                        } ORDER BY .name
+                    }
+                FILTER
+                    .name = 'Source1.1';
+
+                WITH MODULE test
+                SELECT
+                    Target1 {
+                        name
+                    }
+                ORDER BY .name;
+            ''', [
+                [],
+                [
+                    {'name': 'Target1.2'},
+                    {'name': 'Target1.3'},
+                ]
             ])

@@ -38,7 +38,18 @@ type Source1 extending Named:
     link tgt1_deferred_restrict -> Target1:
         on target delete deferred restrict
 
+    link tgt1_m2m_restrict -> Target1:
+        on target delete restrict
+        cardinality := '**'
+
+    link tgt1_m2m_del_source -> Target1:
+        on target delete delete source
+        cardinality := '**'
+
 
 type Source2 extending Named:
     link src1_del_source -> Source1:
         on target delete delete source
+
+
+type Source3 extending Source1
