@@ -213,6 +213,124 @@ aa';
         SELECT b'aa\naa';
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"invalid str literal: invalid escape sequence '\\c'",
+                  line=2, col=16)
+    def test_edgeql_syntax_constants_15(self):
+        """
+        SELECT 'aaa\cbbb';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"invalid str literal: invalid escape sequence '\\x0z'",
+                  line=2, col=16)
+    def test_edgeql_syntax_constants_16(self):
+        r"""
+        SELECT 'aaa\x0zaa';
+        """
+
+    def test_edgeql_syntax_constants_17(self):
+        r"""
+        SELECT 'Łukasz Langa';
+        """
+
+    def test_edgeql_syntax_constants_18(self):
+        r"""
+        SELECT 'aa
+        aa';
+% OK %
+        SELECT 'aa
+        aa';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"invalid str literal: invalid escape sequence '\\u0zaa'",
+                  line=2, col=16)
+    def test_edgeql_syntax_constants_19(self):
+        r"""
+        SELECT 'aaa\u0zaazz';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"invalid escape sequence '\\U0zaazzzz'",
+                  line=2, col=16)
+    def test_edgeql_syntax_constants_20(self):
+        r"""
+        SELECT 'aaa\U0zaazzzzzzzzzzz';
+        """
+
+    def test_edgeql_syntax_constants_21(self):
+        r"""
+        select '\'"\\\'\""\\x\\u';
+        """
+
+    def test_edgeql_syntax_constants_22(self):
+        r"""
+        SELECT str_to_json('{"defaultValue": "\\"SMALLEST\\""}');
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected '''",
+                  line=2, col=20)
+    def test_edgeql_syntax_constants_23(self):
+        r"""
+        SELECT '\\'';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected '\"'",
+                  line=2, col=20)
+    def test_edgeql_syntax_constants_24(self):
+        r"""
+        SELECT "\\"";
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected '''",
+                  line=2, col=21)
+    def test_edgeql_syntax_constants_25(self):
+        r"""
+        SELECT b'\\'';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected", line=2, col=21)
+    def test_edgeql_syntax_constants_26(self):
+        r"""
+        SELECT b"\\"☎️";
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  line=2, col=21)
+    def test_edgeql_syntax_constants_27(self):
+        r"""
+        SELECT b"\\"";
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"invalid escape sequence '\\U0zaa'",
+                  line=2, col=16)
+    def test_edgeql_syntax_constants_28(self):
+        r"""
+        SELECT 'aaa\U0zaa';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"invalid escape sequence '\\u0z'",
+                  line=2, col=16)
+    def test_edgeql_syntax_constants_29(self):
+        r"""
+        SELECT 'aaa\u0z';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"invalid escape sequence '\\x0'",
+                  line=2, col=16)
+    def test_edgeql_syntax_constants_30(self):
+        r"""
+        SELECT 'aaa\x0';
+        """
+
     @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=12)
     def test_edgeql_syntax_ops_01(self):
         """SELECT 40 >> 2;"""

@@ -129,7 +129,7 @@ class EdgeQLLexer(lexer.Lexer):
                 (?:
                     (
                         (\\\\ | \\['"] | \n | .)*?
-                        # we'll validate escapes codes in the parser
+                        # we'll validate escape codes in the parser
                     )*?
                 )
                 (?P=BQ)
@@ -139,16 +139,16 @@ class EdgeQLLexer(lexer.Lexer):
              next_state=STATE_KEEP,
              regexp=rf'''
                 (?P<Q>
-                    # capture the opening quote in group Q
                     (
                         ' | " |
                         {re_dquote}
                     )
                 )
                 (?:
-                    (\\['"] | \n | .)*?
+                    (\\\\ | \\['"] | \n | .)*?
+                    # we'll validate escapes codes in the parser
                 )
-                (?P=Q)      # match closing quote type with whatever is in Q
+                (?P=Q)
              '''),
 
         Rule(token='BADIDENT',

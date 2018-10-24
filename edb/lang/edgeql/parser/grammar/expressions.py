@@ -252,13 +252,14 @@ class WithDecl(Nonterm):
     def reduce_AliasDecl(self, *kids):
         self.val = kids[0].val
 
-    def reduce_CARDINALITY_SCONST(self, *kids):
-        if kids[1].string == qlast.Cardinality.MANY:
+    def reduce_CARDINALITY_BaseStringConstant(self, *kids):
+        if kids[1].val.value == qlast.Cardinality.MANY:
             self.val = CardinalityData(
-                cardinality=qlast.Cardinality(kids[1].string), tok=kids[0])
+                cardinality=qlast.Cardinality(kids[1].val.value),
+                tok=kids[0])
         else:
             raise EdgeQLSyntaxError(
-                f'Unexpected string {kids[1].val}',
+                f'Unexpected string {kids[1].val.value!r}',
                 context=kids[1].context)
 
 
@@ -851,8 +852,55 @@ class BaseNumberConstant(Nonterm):
 
 
 class BaseStringConstant(Nonterm):
-    def reduce_SCONST(self, *kids):
-        self.val = qlast.Constant(value=str(kids[0].string))
+
+    valid_str_re = re.compile(r'''
+        ^
+        (?P<Q>
+            (
+                ' | " | \$([A-Za-z\200-\377_][0-9]*)*\$
+            )
+        )
+        (?P<body>
+            (?:
+                \n |                    # new line
+                \\\\ |                  # \\
+                \\['"] |                # \' or \"
+                \\x[0-9a-fA-F]{2} |     # \x00 -- hex code
+                \\u[0-9a-fA-F]{4} |     # \u0000
+                \\U[0-9a-fA-F]{8} |     # \U00000000
+                \\ (t | n | r) |        # \t, \n, or \r
+                [^\\] |                 # anything except \
+
+                (?P<err_esc>            # capture any invalid \escape
+                    \\x.{1,2} |
+                    \\u.{1,4} |
+                    \\U.{1,8} |
+                    \\.
+                )
+            )*
+        )
+        (?P=Q)
+        $
+    ''', re.X)
+
+    @classmethod
+    def parse_body(cls, str_tok: tokens.T_SCONST):
+        match = cls.valid_str_re.match(str_tok.val)
+
+        if not match:
+            raise EdgeQLSyntaxError(
+                f"invalid str literal", context=str_tok.context)
+        if match.group('err_esc'):
+            raise EdgeQLSyntaxError(
+                f"invalid str literal: invalid escape sequence "
+                f"'{match.group('err_esc')}'",
+                context=str_tok.context)
+
+        return match.group('body')
+
+    def reduce_SCONST(self, str_tok):
+        val = self.parse_body(str_tok)
+        self.val = qlast.Constant(value=val)
 
 
 class BaseBytesConstant(Nonterm):
@@ -877,7 +925,7 @@ class BaseBytesConstant(Nonterm):
                 [\x20-\x5b\x5d-\x7e] |  # match any printable ASCII, except '\'
 
                 (?P<err_esc>            # capture any invalid \escape
-                    \\x.{2} |
+                    \\x.{1,2} |
                     \\.
                 ) |
                 (?P<err>                # capture any unexpected character

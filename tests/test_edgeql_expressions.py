@@ -1077,7 +1077,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 # FIXME: possibly a different error should be used here
                 exc.UnknownEdgeDBError,
-                r'str index 10 is out of bounds'):
+                r'string index 10 is out of bounds'):
             await self.con.execute("""
                 SELECT '123'[10];
             """)
@@ -1086,7 +1086,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 # FIXME: possibly a different error should be used here
                 exc.UnknownEdgeDBError,
-                r'str index -10 is out of bounds'):
+                r'string index -10 is out of bounds'):
             await self.con.execute("""
                 SELECT '123'[-10];
             """)
@@ -1114,6 +1114,17 @@ class TestExpressions(tb.QueryTestCase):
             await self.con.execute("""
                 SELECT '123'[:'1'];
             """)
+
+    async def test_edgeql_expr_string_08(self):
+        await self.assert_query_result(r"""
+            SELECT ':\x62:\u2665:\U000025C6:☎️:';
+            SELECT '\'"\\\'\""\\x\\u';
+            SELECT "'\"\\\'\"\\x\\u";
+        """, [
+            [':b:♥:◆:☎️:'],
+            ['\'"\\\'\""\\x\\u'],
+            ['\'"\\\'"\\x\\u'],
+        ])
 
     async def test_edgeql_expr_tuple_01(self):
         await self.assert_query_result(r"""

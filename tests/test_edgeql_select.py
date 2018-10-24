@@ -529,7 +529,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT
                 Text {body}
             FILTER
-                re_test(Text.body, 'ed([S\s]|$)')
+                re_test(Text.body, 'ed([S\\s]|$)')
             ORDER BY Text.body;
         """, [
             [{'body': 'EdgeDB needs to happen soon.'},
@@ -561,7 +561,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT
                 Text {body}
             FILTER
-                re_test(Text.body, '(?i)ed([S\s]|$)')
+                re_test(Text.body, '(?i)ed([S\\s]|$)')
             ORDER BY Text.body;
         """, [
             [{'body': 'EdgeDB needs to happen soon.'},

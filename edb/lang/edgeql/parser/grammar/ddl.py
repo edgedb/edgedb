@@ -29,7 +29,7 @@ from edb.lang.common.parsing import ListNonterm
 
 from ...errors import EdgeQLSyntaxError
 
-from .expressions import Nonterm
+from .expressions import Nonterm, BaseStringConstant
 from . import tokens
 
 from .precedence import *  # NOQA
@@ -412,14 +412,14 @@ class OptDeltaTarget(Nonterm):
 # CREATE MIGRATION
 #
 class CreateDeltaStmt(Nonterm):
-    def _parse_schema_decl(self, tok):
+    def _parse_schema_decl(self, tok: tokens.T_SCONST):
         from edb.lang.common.exceptions import get_context
         from edb.lang.schema import parser
 
         ctx = tok.context
 
         try:
-            node = parser.parse(tok.string)
+            node = parser.parse(BaseStringConstant.parse_body(tok))
         except parsing.ParserError as err:
             context.rebase_context(
                 ctx, get_context(err, parsing.ParserContext))
@@ -1640,16 +1640,21 @@ def _parse_language(node):
 class FromFunction(Nonterm):
     def reduce_FROM_Identifier_SCONST(self, *kids):
         lang = _parse_language(kids[1])
-        self.val = qlast.FunctionCode(language=lang, code=kids[2].string)
 
-    def reduce_FROM_Identifier_FUNCTION_SCONST(self, *kids):
+        # we need literal value of the string
+        code = BaseStringConstant.parse_body(kids[2])
+
+        self.val = qlast.FunctionCode(language=lang, code=code)
+
+    def reduce_FROM_Identifier_FUNCTION_BaseStringConstant(self, *kids):
         lang = _parse_language(kids[1])
         if lang != qlast.Language.SQL:
             raise EdgeQLSyntaxError(
                 f'{lang} language is not supported in FROM FUNCTION clause',
                 context=kids[1].context) from None
 
-        self.val = qlast.FunctionCode(language=lang, from_name=kids[3].string)
+        self.val = qlast.FunctionCode(language=lang,
+                                      from_name=kids[3].val.value)
 
 
 class InitialValue(Nonterm):

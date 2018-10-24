@@ -18,13 +18,13 @@
 
 
 import collections
+import difflib
 import os
 import re
 import textwrap
 import unittest  # NOQA
 
 from edb.lang import _testbase as tb
-from edb.lang.common import markup
 from edb.lang import graphql as edge_graphql
 from edb.lang import edgeql as edge_edgeql
 from edb.lang.graphql.errors import GraphQLCoreError
@@ -92,7 +92,7 @@ class TranslatorTest(tb.BaseSyntaxTest, metaclass=BaseSchemaTestMeta):
         debug = bool(os.environ.get('DEBUG_GRAPHQL'))
         if debug:
             print('\n--- GRAPHQL ---')
-            markup.dump_code(textwrap.dedent(source).strip(), lexer='graphql')
+            print(textwrap.dedent(source).strip())
 
         translation = edge_graphql.translate(
             self.schema, source,
@@ -102,17 +102,36 @@ class TranslatorTest(tb.BaseSyntaxTest, metaclass=BaseSchemaTestMeta):
 
         if debug:
             print('\n--- EDGEQL ---')
-            markup.dump_code(translation, lexer='edgeql')
+            print(translation)
+
+            print('\n\n--- EXPECTED EDGEQL ---')
+            print(expected)
 
         # some tests don't compare the output
         if not spec.get('translate_only'):
-            self.assert_equal(expected, translation)
+            try:
+                self.assert_equal(expected, translation)
+            except AssertionError:
+                raise AssertionError(
+                    ''.join(difflib.unified_diff(
+                        expected.splitlines(keepends=True),
+                        translation.splitlines(keepends=True)
+                    ))) from None
+        else:
 
-        # make sure that resulting EdgeQL is valid and can be parsed
-        eqlast = edge_edgeql.parse_block(translation)
-        eqlgen = edge_edgeql.generate_source(eqlast)
+            # make sure that resulting EdgeQL is valid and can be parsed
+            eqlast = edge_edgeql.parse_block(translation)
+            eqlgen = edge_edgeql.generate_source(eqlast)
 
-        self.assert_equal(translation, eqlgen, re_filter=self.re_eql_filter)
+            try:
+                self.assert_equal(translation, eqlgen,
+                                  re_filter=self.re_eql_filter)
+            except AssertionError:
+                raise AssertionError(
+                    ''.join(difflib.unified_diff(
+                        translation.splitlines(keepends=True),
+                        eqlgen.splitlines(keepends=True)
+                    ))) from None
 
 
 class TestGraphQLTranslation(TranslatorTest):

@@ -37,11 +37,11 @@ scalar type constraint_minmax extending str:
 scalar type constraint_strvalue extending str:
     constraint expression on (__subject__[-1:] = '9')
 
-    constraint regexp("^\d+$")
+    constraint regexp("^\\d+$")
 
     constraint expression on (__subject__[0] = '9')
 
-    constraint regexp("^\d+9{3,}.*$")
+    constraint regexp("^\\d+9{3,}.*$")
 
 
 scalar type constraint_enum extending str:

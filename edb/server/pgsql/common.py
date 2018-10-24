@@ -19,6 +19,7 @@
 
 import hashlib
 import base64
+import re
 
 from edb.lang.common import persistent_hash
 
@@ -27,6 +28,19 @@ from edb.lang.schema import links as s_links
 from edb.lang.schema import lproperties as s_props
 
 from edb.server.pgsql.parser import keywords as pg_keywords
+
+
+def quote_e_literal(string):
+    def escape_sq(s):
+        split = re.split(r"(\n|\\\\|\\')", s)
+
+        if len(split) == 1:
+            return s.replace(r"'", r"\'")
+
+        return ''.join((r if i % 2 else r.replace(r"'", r"\'"))
+                       for i, r in enumerate(split))
+
+    return "E'" + escape_sq(string) + "'"
 
 
 def quote_literal(string):

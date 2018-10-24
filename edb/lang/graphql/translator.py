@@ -120,7 +120,7 @@ class GraphQLTranslator(ast.NodeVisitor):
                     el.compexpr.func == 'str_to_json'):
                 name = el.expr.steps[0].ptr.name
                 el.compexpr.args[0].arg.value = json.dumps(
-                    gqlresult.data[name], indent=4)
+                    gqlresult.data[name], indent=4).replace('\\', '\\\\')
 
         return translated
 

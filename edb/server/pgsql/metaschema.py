@@ -1129,7 +1129,7 @@ class StringIndexWithBoundsFunction(dbops.Function):
                 edgedb._normalize_array_index(index, char_length(val)),
                 1),
             'invalid_parameter_value',
-            'str index ' || index::text || ' is out of bounds',
+            'string index ' || index::text || ' is out of bounds',
             det
         )
     '''
@@ -1154,7 +1154,7 @@ class BytesIndexWithBoundsFunction(dbops.Function):
                 edgedb._normalize_array_index(index, length(val)),
                 1),
             'invalid_parameter_value',
-            'bytes index ' || index::text || ' is out of bounds',
+            'byte string index ' || index::text || ' is out of bounds',
             det
         )
     '''

@@ -512,7 +512,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_re_match_02(self):
         await self.assert_query_result(r'''
             WITH MODULE schema
-            SELECT x := re_match(ObjectType.name, '(\w+)::(Link|Property)')
+            SELECT x := re_match(ObjectType.name, '(\\w+)::(Link|Property)')
             ORDER BY x;
         ''', [
             [['schema', 'Link'], ['schema', 'Property']],
@@ -556,7 +556,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 MODULE schema,
                 C2 := ObjectType
             SELECT
-                count(re_match_all(ObjectType.name, '(\w+)')) =
+                count(re_match_all(ObjectType.name, '(\\w+)')) =
                 2 * count(C2);
         ''', [
             [True],
@@ -594,7 +594,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE schema
             SELECT count(
-                ObjectType FILTER re_test(ObjectType.name, '(\W\w)bject$')
+                ObjectType FILTER re_test(ObjectType.name, '(\\W\\w)bject$')
             ) = 2;
         ''', [
             [True],

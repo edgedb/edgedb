@@ -29,8 +29,17 @@ _re_ident = re.compile(r'''(?x)
 ''')
 
 
-def quote_literal(text):
-    return "'" + text.replace(R'\"', R'\\"').replace("'", R"\'") + "'"
+def quote_literal(string):
+    def escape_sq(s):
+        split = re.split(r"(\n|\\\\|\\')", s)
+
+        if len(split) == 1:
+            return s.replace(r"'", r"\'")
+
+        return ''.join((r if i % 2 else r.replace(r"'", r"\'"))
+                       for i, r in enumerate(split))
+
+    return "'" + escape_sq(string) + "'"
 
 
 def dollar_quote_literal(text):

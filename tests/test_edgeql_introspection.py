@@ -523,7 +523,7 @@ class TestIntrospection(tb.QueryTestCase):
             SELECT Object {
                 name
             }
-            FILTER re_test(Object.name, '^test::\w+$')
+            FILTER re_test(Object.name, '^test::\\w+$')
             ORDER BY Object.name;
         """, [
             [

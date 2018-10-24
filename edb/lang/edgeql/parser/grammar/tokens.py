@@ -174,22 +174,7 @@ class T_BCONST(Token):
 
 
 class T_SCONST(Token):
-    def __init__(self, parser, val, context=None):
-        super().__init__(parser, val, context)
-        # the process of string normalization is slightly different for
-        # regular '-quoted strings and $$-quoted ones
-        if val[0] in ("'", '"'):
-            self.string = clean_string.sub('', val[1:-1].replace(
-                R"\'", "'").replace(R'\"', '"'))
-        else:
-            # Because of implicit string concatenation there may
-            # be more than one pair of dollar quotes in the val.
-            # We want to grab every other chunk from splitting the
-            # val with the quote.
-            quote = string_quote.match(val).group(0)
-            self.string = ''.join((
-                part for n, part in enumerate(val.split(quote))
-                if n % 2 == 1))
+    pass
 
 
 class T_IDENT(Token):
