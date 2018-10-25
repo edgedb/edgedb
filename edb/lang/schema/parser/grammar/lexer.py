@@ -370,104 +370,154 @@ class EdgeSchemaLexer(lexer.Lexer):
                            end=getattr(token, pos),
                            filename=self.filename)
 
+    def process_indent(self, last_indent, cur_indent, token, *,
+                       skip_indent=False, allow_indent=True,
+                       allow_dedent=True, pos='start'):
+        # first and foremost, the indentation cannot have tabs after a space
+        if ' \t' in cur_indent:
+            raise EdgeIndentationError(
+                'Tabs used after spaces on line {line}',
+                line=token.start.line,
+                col=token.start.column,
+                filename=self.filename)
+
+        if cur_indent == last_indent:
+            # indentation matches
+            pass
+
+        elif allow_indent and cur_indent.startswith(last_indent):
+            if not skip_indent:
+                # increase indentation level
+                self.indent.append(cur_indent)
+                yield self.insert_token('INDENT', token, pos)
+
+        elif allow_dedent and last_indent.startswith(cur_indent):
+            # decrease indentation level
+            self.indent.pop()
+
+            while self.indent:
+                yield self.insert_token('DEDENT', token, pos)
+                prev_indent = self.indent[-1]
+
+                if cur_indent == prev_indent:
+                    # indentation matches
+                    return
+
+                elif prev_indent.startswith(cur_indent):
+                    # keep popping
+                    self.indent.pop()
+
+                else:
+                    # it's not a match and current indent is no longer
+                    # a proper prefix
+                    raise EdgeIndentationError(
+                        'Unexpected indentation level decrease on line {line}',
+                        line=token.start.line,
+                        col=token.start.column,
+                        filename=self.filename)
+
+            raise EdgeIndentationError(
+                'Unexpected indentation level decrease on line {line}',
+                line=token.start.line,
+                col=token.start.column,
+                filename=self.filename)
+
+        else:
+            # neither indentation is the prefix of the the other,
+            # which is an error
+            raise EdgeIndentationError(
+                'Inconsistent indentation on line {line}',
+                line=token.start.line,
+                col=token.start.column,
+                filename=self.filename)
+
     def token_generator(self, token):
         """Given the current lexer token, yield one or more tokens."""
 
         tok_type = token.type
 
+        # update current possible indent
+        if tok_type == 'RAWLEADWS' or (
+                not self.logical_line_started and
+                self._state == STATE_WS_SENSITIVE and
+                tok_type == 'WS'):
+            self.cur_indent = token.value
+
         # initialize the indentation if it's still empty
         if not self.indent:
-            if tok_type == 'WS':
-                self.indent.append(token.end.column - 1)
-            else:
-                self.indent.append(0)
+            if tok_type not in {'NEWLINE', 'WS', 'COMMENT', 'LINECONT'}:
+                self.indent.append(self.cur_indent or '')
+
+        last_indent = self.indent[-1] if self.indent else None
+        cur_indent = self.cur_indent
 
         # handle indentation
         if (self._state == STATE_WS_SENSITIVE and
                 not self.logical_line_started and
                 tok_type not in {'NEWLINE', 'WS', 'COMMENT', 'LINECONT'}):
 
+            self.cur_indent = None
+
             # we have potential indentation change
-            last_indent = self.indent[-1]
-            cur_indent = token.start.column - 1
-
-            if cur_indent > last_indent:
-                # increase indentation level
-                self.indent.append(cur_indent)
-                yield self.insert_token('INDENT', token)
-
-            elif cur_indent < last_indent:
-                # decrease indentation level
-                while self.indent[-1] > cur_indent:
-                    self.indent.pop()
-                    if self.indent[-1] < cur_indent:
-                        # indentation level mismatch
-                        raise EdgeIndentationError(
-                            'Incorrect unindent at {position}',
-                            line=token.start.line,
-                            col=token.start.column,
-                            filename=self.filename)
-
-                    yield self.insert_token('DEDENT', token)
+            for t in self.process_indent(last_indent, cur_indent, token):
+                yield t
 
         # indentation of raw strings
         elif self._state == STATE_RAW_STRING:
-            last_indent = self.indent[-1]
-            # only valid for RAWLEADWS
-            cur_indent = len(token.value)
-
             if not self.logical_line_started and tok_type != 'NEWLINE':
                 # we MUST indent here
-                if (tok_type == 'RAWLEADWS' and
-                        cur_indent > last_indent):
-                    # increase indentation level
-                    self.indent.append(cur_indent)
-                    yield self.insert_token('INDENT', token, 'end')
 
-                elif token.value.strip():
-                    # indentation level mismatch
-                    raise EdgeIndentationError(
-                        'Incorrect indentation at {position}',
-                        line=token.end.line,
-                        col=token.end.column,
-                        filename=self.filename)
+                # we have potential indentation change
+                if tok_type == 'RAWLEADWS':
+                    for t in self.process_indent(
+                            last_indent, cur_indent, token,
+                            allow_dedent=False, pos='end'):
+                        yield t
 
-            elif (tok_type == 'RAWLEADWS' and
-                    cur_indent < last_indent):
-                # check indentation level of each RAWLEADWS,
-                # exiting the current state and issuing a NL and DEDENT
-                # tokens if indentation falls below starting value
-                yield self.insert_token('NL', token)
+            elif tok_type == 'RAWLEADWS':
+                dedented = False
+                for t in self.process_indent(
+                        last_indent, cur_indent, token,
+                        skip_indent=True, pos='end'):
 
-                while self.indent[-1] > cur_indent:
-                    self.indent.pop()
-                    if self.indent[-1] < cur_indent:
-                        # indentation level mismatch
-                        raise EdgeIndentationError(
-                            'Incorrect unindent at {position}',
-                            line=token.end.line,
-                            col=token.end.column,
-                            filename=self.filename)
+                    if not dedented:
+                        yield self.insert_token('NL', token)
+                        dedented = True
 
-                    yield self.insert_token('DEDENT', token, 'end')
+                    yield t
 
-                self._next_state = STATE_WS_SENSITIVE
-                # alter the token type & adjust logical newline
-                token = token._replace(type='WS')
-                tok_type = 'WS'
-                self.logical_line_started = False
+                if dedented:
+                    self._next_state = STATE_WS_SENSITIVE
+                    # alter the token type & adjust logical newline
+                    token = token._replace(type='WS')
+                    tok_type = 'WS'
+                    self.logical_line_started = False
 
         # handle logical newline
-        if (self.logical_line_started and
-                self._state in {STATE_WS_SENSITIVE, STATE_RAW_STRING} and
-                tok_type == 'NEWLINE'):
-            yield self.insert_token('NL', token)
-            self.logical_line_started = False
-
-        elif tok_type not in {'NEWLINE', 'WS', 'COMMENT', 'LINECONT'}:
+        if tok_type not in {'NEWLINE', 'WS', 'COMMENT', 'LINECONT'}:
             self.logical_line_started = True
 
+        elif (self._state in {STATE_WS_SENSITIVE, STATE_RAW_STRING} and
+              tok_type == 'NEWLINE'):
+
+            # after any newline reset the indent
+            self.cur_indent = ''
+            # if there was a logical line, emit a special token
+            if self.logical_line_started:
+                yield self.insert_token('NL', token)
+                self.logical_line_started = False
+
         if tok_type == 'LINECONT':
+            # it is always an error to use line continuation mixed
+            # into indentation
+            if self.cur_indent is not None:
+                # indentation level mismatch
+                raise EdgeIndentationError(
+                    'Illegal line continuation on line {line}',
+                    line=token.start.line,
+                    col=token.start.column,
+                    filename=self.filename)
+
             if self._state in {STATE_WS_SENSITIVE, STATE_RAW_STRING}:
                 token = token._replace(type='WS')
             else:
@@ -481,7 +531,8 @@ class EdgeSchemaLexer(lexer.Lexer):
         self.indent = []
         self.state_stack = []
         self.logical_line_started = True
-        self.prev_nw_tok = None  # previous NON-WHITEPASE token
+        self.prev_nw_tok = None  # previous NON-WHITESPACE token
+        self.cur_indent = None
         self._next_state = None
 
         for tok in self._lex():

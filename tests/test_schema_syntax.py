@@ -55,6 +55,99 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
 
         """
 
+    def test_eschema_syntax_tabs_01(self):
+        """
+\tabstract type Foo:
+\t\trequired property foo -> str
+
+\tabstract type Bar:
+\t\trequired property bar -> str
+        """
+
+    def test_eschema_syntax_tabs_02(self):
+        """
+\t  abstract type Foo:
+\t      required property foo -> str
+
+\t  abstract type Bar:
+\t      required property bar -> str
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  "Tabs used after spaces", line=2)
+    def test_eschema_syntax_tabs_03(self):
+        """
+        \tabstract type Foo:
+        \t\trequired property foo -> str
+
+        \tabstract type Bar:
+        \t\trequired property bar -> str
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  "Inconsistent indentation", line=3)
+    def test_eschema_syntax_tabs_04(self):
+        """
+\t\t    abstract type Foo:
+\t\t\t    required property foo -> str
+
+\t\t    abstract type Bar:
+\t\t\t    required property bar -> str
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  "Inconsistent indentation", line=5)
+    def test_eschema_syntax_tabs_05(self):
+        """
+\t\t  abstract type Foo:
+\t\t      required property foo -> str
+
+\t      abstract type Bar:
+\t          required property bar -> str
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  "Unexpected indentation level decrease", line=6)
+    def test_eschema_syntax_tabs_06(self):
+        """
+\t\tabstract type Foo:
+\t\t\t\trequired property foo -> str
+
+\t\tabstract type Bar:
+\trequired property foo -> str
+        """
+
+    def test_eschema_syntax_tabs_07(self):
+        """
+type LogEntry extending OwnedObject, Text:
+\tproperty start_date -> datetime:
+\t\tdefault :=
+\t\t\tSELECT datetime::current_datetime()
+\t\ttitle := 'Start Date'
+        """
+
+    def test_eschema_syntax_tabs_08(self):
+        """
+type LogEntry extending OwnedObject, Text:
+\tproperty start_date -> datetime:
+\t\tdefault :=
+\t\t\tSELECT
+\t\t\t      datetime::current_datetime()
+\t\ttitle := 'Start Date'
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  "Inconsistent indentation", line=6)
+    def test_eschema_syntax_tabs_09(self):
+        """
+type LogEntry extending OwnedObject, Text:
+\tproperty start_date -> datetime:
+\t\tdefault :=
+\t\t\tSELECT
+\t\t         datetime::current_datetime()
+\t\ttitle := 'Start Date'
+        """
+
     def test_eschema_syntax_type_01(self):
         """type User extending builtins::NamedObject"""
 
@@ -125,8 +218,7 @@ type Issue extending `foo.bar`::NamedObject, OwnedObject, Text:
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  "illegal definition",
-                  line=4, col=9)
+                  "illegal definition", line=4, col=9)
     def test_eschema_syntax_type_08(self):
         """
 type Foo:
@@ -377,6 +469,29 @@ type LogEntry extending    OwnedObject,    Text:
             property first_name -> str
             property last_name -> str
             property email -> str
+        """
+
+    def test_eschema_syntax_ws_10(self):
+        """
+                # this comment must not affect indentation
+
+abstract link friends:
+    property nickname -> str
+    # this comment must not affect indentation
+
+type Foo:
+    required property foo -> str
+    # this comment must not affect indentation
+type Bar:
+    required property bar -> str
+  # this comment must not affect indentation
+
+type Baz:
+    required property baz -> str
+        # this comment must not affect indentation
+
+type Boo:
+    required property boo -> str
         """
 
     def test_eschema_syntax_scalar_01(self):
@@ -1317,4 +1432,13 @@ attribute foo std::int64;
         """
         abstract attribute \\   \
         foobar std::str
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  "Illegal line continuation", line=3)
+    def test_eschema_syntax_eol_12(self):
+        r"""
+        abstract type Foo:
+        \
+        required link owner -> User
         """

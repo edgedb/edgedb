@@ -382,7 +382,7 @@ class Parser:
         except ParserError as e:
             raise self.get_exception(e, context=e.context) from e
 
-        except lexer.UnknownTokenError as e:
+        except lexer.LexError as e:
             raise self.get_exception(e, context=self.context(None)) from e
 
         return self.parser.start[0].val
