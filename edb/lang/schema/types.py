@@ -53,6 +53,9 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
     # rptr will contain the inbound pointer class.
     rptr = so.Field(so.Object, default=None, compcoef=0.909)
 
+    def is_polymorphic_type(self):
+        return self.name == 'std::any'
+
     def is_view(self):
         return self.view_type is not None
 
@@ -98,6 +101,9 @@ class Collection(Type):
                 module='std', name=f'{self.schema_name}<{subtypes}>')
         else:
             super().__init__(name=name, **kwargs)
+
+    def is_polymorphic_type(self):
+        return any(st.is_polymorphic_type() for st in self.get_subtypes())
 
     @property
     def is_virtual(self):

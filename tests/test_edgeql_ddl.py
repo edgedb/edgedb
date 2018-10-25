@@ -71,7 +71,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_05(self):
         with self.assertRaisesRegex(client_errors.EdgeQLError,
-                                    'cannot create a function'):
+                                    r'cannot create test::my_lower.*func'):
 
             await self.con.execute("""
                 CREATE FUNCTION test::my_lower(s: std::str) -> std::str
@@ -89,7 +89,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         """)
 
         with self.assertRaisesRegex(client_errors.EdgeQLError,
-                                    'cannot create a function'):
+                                    r'cannot create test::my_lower.*func'):
 
             await self.con.execute("""
                 CREATE FUNCTION test::my_lower(s: SET OF std::any)
@@ -520,7 +520,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_20(self):
         with self.assertRaisesRegex(
                 client_errors.EdgeQLError,
-                r'cannot create a function.+any.+cannot '
+                r'cannot create test::my_agg.*function:.+any.+cannot '
                 r'have a non-empty default'):
             await self.con.execute(r"""
                 CREATE FUNCTION test::my_agg(s: any = [1]) -> array<any>
@@ -719,3 +719,101 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 DROP FUNCTION test::ddlf_5_2();
                 DROP FUNCTION test::ddlf_5_3();
             """)
+
+    async def test_edgeql_ddl_33(self):
+        with self.assertRaisesRegex(
+                client_errors.EdgeQLError,
+                r'cannot create test::ddlf_6\(a: std::int64\) func.*'
+                r'function with the same signature is already defined'):
+
+            await self.con.execute(r'''
+                CREATE FUNCTION test::ddlf_6(a: int64) -> int64
+                    FROM EdgeQL $$ SELECT 11 $$;
+
+                CREATE FUNCTION test::ddlf_6(a: int64) -> float64
+                    FROM EdgeQL $$ SELECT 11 $$;
+            ''')
+
+        await self.con.execute("""
+            DROP FUNCTION test::ddlf_6(a: int64);
+        """)
+
+    async def test_edgeql_ddl_34(self):
+        with self.assertRaisesRegex(
+                client_errors.EdgeQLError,
+                r'cannot create test::ddlf_7\(a: SET OF std::int64\) func.*'
+                r'SET OF parameters in user-defined EdgeQL functions are '
+                r'not yet supported'):
+
+            await self.con.execute(r'''
+                CREATE FUNCTION test::ddlf_7(a: SET OF int64) -> int64
+                    FROM EdgeQL $$ SELECT 11 $$;
+            ''')
+
+        with self.assertRaises(client_errors.SchemaError):
+            await self.con.execute("""
+                DROP FUNCTION test::ddlf_7(a: SET OF int64);
+            """)
+
+    async def test_edgeql_ddl_35(self):
+        await self.con.execute(r'''
+            CREATE FUNCTION test::ddlf_8(
+                    a: int64, NAMED ONLY f: int64) -> int64
+                FROM EdgeQL $$ SELECT 11 $$;
+
+            CREATE FUNCTION test::ddlf_8(
+                    a: int32, NAMED ONLY f: str) -> int64
+                FROM EdgeQL $$ SELECT 12 $$;
+        ''')
+
+        try:
+            await self.assert_query_result(r'''
+                SELECT test::ddlf_8(<int64>10, f := 11);
+                SELECT test::ddlf_8(<int32>10, f := '11');
+            ''', [
+                [11],
+                [12],
+            ])
+        finally:
+            await self.con.execute("""
+                DROP FUNCTION test::ddlf_8(a: int64, NAMED ONLY f: int64);
+                DROP FUNCTION test::ddlf_8(a: int32, NAMED ONLY f: str);
+            """)
+
+    async def test_edgeql_ddl_36(self):
+        with self.assertRaisesRegex(
+                client_errors.EdgeQLError,
+                r'cannot create test::ddlf_9.*NAMED ONLY h:.*'
+                r'different named only parameters'):
+
+            await self.con.execute(r'''
+                CREATE FUNCTION test::ddlf_9(
+                        a: int64, NAMED ONLY f: int64) -> int64
+                    FROM EdgeQL $$ SELECT 11 $$;
+
+                CREATE FUNCTION test::ddlf_9(
+                        a: int32, NAMED ONLY h: str) -> int64
+                    FROM EdgeQL $$ SELECT 12 $$;
+            ''')
+
+        await self.con.execute("""
+            DROP FUNCTION test::ddlf_9(a: int64, NAMED ONLY f: int64);
+        """)
+
+    async def test_edgeql_ddl_37(self):
+        with self.assertRaisesRegex(
+                client_errors.EdgeQLError,
+                r'cannot create polymorphic test::ddlf_10.*'
+                r'function with different return type'):
+
+            await self.con.execute(r'''
+                CREATE FUNCTION test::ddlf_10(a: any, b: int64) -> int64
+                    FROM EdgeQL $$ SELECT 11 $$;
+
+                CREATE FUNCTION test::ddlf_10(a: any, b: float64) -> str
+                    FROM EdgeQL $$ SELECT '12' $$;
+            ''')
+
+        await self.con.execute("""
+            DROP FUNCTION test::ddlf_10(a: any, b: int64);
+        """)

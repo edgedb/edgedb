@@ -36,13 +36,6 @@ from edb.lang.edgeql import errors as ql_errors
 from edb.lang.ir import ast as irast
 
 
-def is_polymorphic_type(t):
-    if isinstance(t, s_types.Collection):
-        return any(is_polymorphic_type(st) for st in t.get_subtypes())
-    else:
-        return t.name == 'std::any'
-
-
 def amend_empty_set_type(es: irast.EmptySet, t: s_obj.Object, schema) -> None:
     alias = es.path_id.target.name.name
     scls_name = s_name.Name(module='__expr__', name=alias)
@@ -138,17 +131,17 @@ def __infer_set(ir, schema):
 def __infer_func_call(ir, schema):
     rtype = ir.func.return_type
 
-    if is_polymorphic_type(rtype):
+    if rtype.is_polymorphic_type():
         # Polymorphic function, determine the result type from
         # the argument type.
         if isinstance(rtype, s_types.Tuple):
             for i, arg in enumerate(ir.args):
-                if is_polymorphic_type(ir.func.params[i].type):
+                if ir.func.params[i].type.is_polymorphic_type():
                     arg_type = infer_type(arg, schema)
 
                     stypes = collections.OrderedDict(rtype.element_types)
                     for sn, st in stypes.items():
-                        if is_polymorphic_type(st):
+                        if st.is_polymorphic_type():
                             stypes[sn] = arg_type
                             break
 
@@ -156,12 +149,12 @@ def __infer_func_call(ir, schema):
 
         elif isinstance(rtype, s_types.Collection):
             for i, arg in enumerate(ir.args):
-                if is_polymorphic_type(ir.func.params[i].type):
+                if ir.func.params[i].type.is_polymorphic_type():
                     arg_type = infer_type(arg, schema)
 
                     stypes = list(rtype.get_subtypes())
                     for si, st in enumerate(stypes):
-                        if is_polymorphic_type(st):
+                        if st.is_polymorphic_type():
                             stypes[si] = arg_type
                             break
 
@@ -169,7 +162,7 @@ def __infer_func_call(ir, schema):
 
         else:
             for i, arg in enumerate(ir.args):
-                if is_polymorphic_type(ir.func.params[i].type):
+                if ir.func.params[i].type.is_polymorphic_type():
                     arg_type = infer_type(arg, schema)
                     if isinstance(arg_type, s_types.Collection):
                         stypes = list(arg_type.get_subtypes())

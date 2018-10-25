@@ -1420,9 +1420,8 @@ def process_set_as_agg_expr(
             # check if the aggregate accepts a single argument
             # of std::any to determine serialized input safety.
             serialization_safe = (
-                any(irutils.is_polymorphic_type(p.type)
-                    for p in funcobj.params) and
-                irutils.is_polymorphic_type(funcobj.return_type)
+                any(p.type.is_polymorphic_type() for p in funcobj.params) and
+                funcobj.return_type.is_polymorphic_type()
             )
 
             if not serialization_safe:

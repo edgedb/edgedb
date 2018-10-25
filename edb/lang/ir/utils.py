@@ -33,7 +33,6 @@ from edb.lang.schema import types as s_types  # NOQA
 from . import ast as irast
 from .inference import amend_empty_set_type  # NOQA
 from .inference import infer_type  # NOQA
-from .inference import is_polymorphic_type  # NOQA
 
 
 def get_source_references(ir):

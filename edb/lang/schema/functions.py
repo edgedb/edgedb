@@ -19,6 +19,7 @@
 
 import copy
 import functools
+import types
 import typing
 
 from edb.lang.common import persistent_hash as ph
@@ -76,7 +77,7 @@ class Parameter(struct.Struct):
 
         ir = ql_compiler.compile_ast_fragment_to_ir(
             ql_default, schema,
-            location=f'default of ${self.name} parameter')
+            location=f'default of the {self.name} parameter')
 
         if not irutils.is_const(ir):
             raise ValueError('expression not constant')
@@ -94,6 +95,24 @@ class Parameter(struct.Struct):
             self.pos, self.name, self.default,
             self.type, self.typemod, self.kind,
         ))
+
+    def as_str(self):
+        ret = []
+        if self.kind is not ft.ParameterKind.POSITIONAL:
+            ret.append(self.kind.to_edgeql())
+            ret.append(' ')
+
+        ret.append(f'{self.name}: ')
+
+        if self.typemod is not ft.TypeModifier.SINGLETON:
+            ret.append(self.typemod.to_edgeql())
+            ret.append(' ')
+        ret.append(self.type.name)
+
+        if self.default is not None:
+            ret.append(f'={self.default}')
+
+        return ''.join(ret)
 
     def _resolve_type_refs(self, schema):
         if isinstance(self.type, so.ObjectRef):
@@ -166,6 +185,25 @@ class FuncParameterList(typed.FrozenTypedList, type=Parameter):
             has_param_wo_default=has_param_wo_default)
 
         return params
+
+    def as_str(self):
+        ret = []
+        for param in self:
+            ret.append(param.as_str())
+        return '(' + ', '.join(ret) + ')'
+
+    @functools.lru_cache(200)
+    def is_polymorphic(self):
+        return any(p.type.is_polymorphic_type() for p in self)
+
+    @property
+    @functools.lru_cache(200)
+    def named_only(self):
+        named = {}
+        for param in self:
+            if param.kind is ft.ParameterKind.NAMED_ONLY:
+                named[param.name] = param
+        return types.MappingProxyType(named)
 
     @property
     @functools.lru_cache(200)
@@ -256,7 +294,7 @@ class FunctionCommandMixin:
 
             pk = param.kind
             if pk is ft.ParameterKind.NAMED_ONLY:
-                quals.append(f'$NO-{pt.name}$')
+                quals.append(f'$NO-{param.name}-{pt.name}$')
             elif pk is ft.ParameterKind.VARIADIC:
                 quals.append(f'$V$')
 
@@ -285,17 +323,52 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
         from edb.lang.ir import utils as irutils
 
         props = super().get_struct_properties(schema)
-        params = props['params']
 
+        params = props['params']
         name = props['name']
+        language = props['language']
+        return_type = props['return_type']
+        return_typemod = props['return_typemod']
+        is_polymorphic = params.is_polymorphic()
+
         fullname = self._get_function_fullname(name, params)
+        get_signature = lambda: f'{self.classname}{params.as_str()}'
 
         func = schema.get(fullname, None)
         if func:
             raise ql_errors.EdgeQLError(
-                f'cannot create a function {self.classname}: '
+                f'cannot create {get_signature()} function: '
                 f'a function with the same signature '
-                f'is already defined', context=self.source_context)
+                f'is already defined',
+                context=self.source_context)
+
+        for func in schema.get_functions(name, ()):
+            if func.params.named_only.keys() != params.named_only.keys():
+                raise ql_errors.EdgeQLError(
+                    f'cannot create {get_signature()} function: '
+                    f'overloading another function with different '
+                    f'named only parameters: '
+                    f'"{func.shortname}{func.params.as_str()}"',
+                    context=self.source_context)
+
+            if ((is_polymorphic or func.params.is_polymorphic()) and (
+                    func.return_type != return_type or
+                    func.return_typemod != return_typemod)):
+                raise ql_errors.EdgeQLError(
+                    f'cannot create polymorphic {get_signature()} -> '
+                    f'{return_typemod.to_edgeql()}{return_type.name} '
+                    f'function: overloading another function with different '
+                    f'return type {func.return_typemod.to_edgeql()}'
+                    f'{func.return_type.name}',
+                    context=self.source_context)
+
+        if (language == qlast.Language.EdgeQL and
+                any(p.typemod is ft.TypeModifier.SET_OF for p in params)):
+            raise ql_errors.EdgeQLError(
+                f'cannot create {get_signature()} function: '
+                f'SET OF parameters in user-defined EdgeQL functions are '
+                f'not yet supported',
+                context=self.source_context)
 
         # check that params of type 'any' don't have defaults
         for p in params:
@@ -306,8 +379,9 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
                 default = p.get_ir_default(schema=schema)
             except Exception as ex:
                 raise ql_errors.EdgeQLError(
+                    f'cannot create {get_signature()} function: '
                     f'invalid default value {p.default} of parameter '
-                    f'${p.name} of "{name}()" function: {ex}',
+                    f'${p.name}: {ex}',
                     context=self.source_context)
 
             check_default_type = True
@@ -316,7 +390,7 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
                     check_default_type = False
                 else:
                     raise ql_errors.EdgeQLError(
-                        f'cannot create a function {self.classname}: '
+                        f'cannot create {get_signature()} function: '
                         f'polymorphic parameter of type {p.type.name} cannot '
                         f'have a non-empty default value',
                         context=self.source_context)
@@ -328,9 +402,10 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
                 default_type = irutils.infer_type(default, schema)
                 if not default_type.assignment_castable_to(p.type, schema):
                     raise ql_errors.EdgeQLError(
-                        f'invalid declaration of parameter ${p.name} of '
-                        f'function "{name}()": unexpected type of the default '
-                        f'expression: {default_type.displayname}, expected '
+                        f'cannot create {get_signature()} function: '
+                        f'invalid declaration of parameter ${p.name}: '
+                        f'unexpected type of the default expression: '
+                        f'{default_type.displayname}, expected '
                         f'{p.type.displayname}',
                         context=self.source_context)
 

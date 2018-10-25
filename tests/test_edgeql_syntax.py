@@ -154,6 +154,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT $1;
         SELECT $123;
         SELECT $somevar;
+        SELECT $select;
+        SELECT (($SELECT + $TRUE) + $WITH);
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected '0'", line=2, col=16)
@@ -405,6 +407,11 @@ aa';
     def test_edgeql_syntax_constants_41(self):
         """
         SELECT 'aaa \(aaa) bbb';
+        """
+
+    def test_edgeql_syntax_constants_42(self):
+        """
+        SELECT $ select;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=12)
