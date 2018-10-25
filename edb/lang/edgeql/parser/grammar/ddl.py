@@ -29,7 +29,7 @@ from edb.lang.common.parsing import ListNonterm
 
 from ...errors import EdgeQLSyntaxError
 
-from .expressions import Nonterm, BaseStringConstant
+from .expressions import Nonterm
 from . import tokens
 
 from .precedence import *  # NOQA
@@ -400,9 +400,11 @@ class OptDeltaTarget(Nonterm):
     def reduce_empty(self):
         self.val = None
 
-    def reduce_TO_AnyIdentifier_SCONST(self, *kids):
+    def reduce_TO_AnyIdentifier_BaseStringConstant(self, *kids):
         self.val = [kids[1], kids[2]]
 
+    def reduce_TO_AnyIdentifier_BaseRawStringConstant(self, *kids):
+        self.val = [kids[1], kids[2]]
 
 #
 # DELTAS
@@ -411,15 +413,17 @@ class OptDeltaTarget(Nonterm):
 #
 # CREATE MIGRATION
 #
+
+
 class CreateDeltaStmt(Nonterm):
-    def _parse_schema_decl(self, tok: tokens.T_SCONST):
+    def _parse_schema_decl(self, tok):
         from edb.lang.common.exceptions import get_context
         from edb.lang.schema import parser
 
         ctx = tok.context
 
         try:
-            node = parser.parse(BaseStringConstant.parse_body(tok))
+            node = parser.parse(tok.val.value)
         except parsing.ParserError as err:
             context.rebase_context(
                 ctx, get_context(err, parsing.ParserContext))
@@ -1638,13 +1642,25 @@ def _parse_language(node):
 
 
 class FromFunction(Nonterm):
-    def reduce_FROM_Identifier_SCONST(self, *kids):
+    def reduce_FROM_Identifier_BaseStringConstant(self, *kids):
         lang = _parse_language(kids[1])
-
-        # we need literal value of the string
-        code = BaseStringConstant.parse_body(kids[2])
-
+        code = kids[2].val.value
         self.val = qlast.FunctionCode(language=lang, code=code)
+
+    def reduce_FROM_Identifier_BaseRawStringConstant(self, *kids):
+        lang = _parse_language(kids[1])
+        code = kids[2].val.value
+        self.val = qlast.FunctionCode(language=lang, code=code)
+
+    def reduce_FROM_Identifier_FUNCTION_BaseRawStringConstant(self, *kids):
+        lang = _parse_language(kids[1])
+        if lang != qlast.Language.SQL:
+            raise EdgeQLSyntaxError(
+                f'{lang} language is not supported in FROM FUNCTION clause',
+                context=kids[1].context) from None
+
+        self.val = qlast.FunctionCode(language=lang,
+                                      from_name=kids[3].val.value)
 
     def reduce_FROM_Identifier_FUNCTION_BaseStringConstant(self, *kids):
         lang = _parse_language(kids[1])

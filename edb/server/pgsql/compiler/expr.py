@@ -131,7 +131,12 @@ def compile_Parameter(
 @dispatch.compile.register(irast.Constant)
 def compile_Constant(
         expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
-    result = pgast.Constant(val=expr.value)
+
+    if isinstance(expr, irast.StringConstant):
+        result = pgast.EscapedStringConstant(val=expr.value)
+    else:
+        result = pgast.Constant(val=expr.value)
+
     result = typecomp.cast(
         result, source_type=expr.type, target_type=expr.type,
         ir_expr=expr, force=True, env=ctx.env)

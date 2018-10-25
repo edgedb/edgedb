@@ -24,6 +24,7 @@ from edb.lang.common import enum as s_enum
 from edb.lang.common import ast, parsing
 
 from . import functypes as ft
+from . import quote
 
 
 # Operators
@@ -233,6 +234,25 @@ class FunctionCall(Expr):
 
 class Constant(Expr):
     value: typing.Union[int, str, float, bool, bytes, decimal.Decimal]
+
+
+class StringConstant(Constant):
+    quote: str
+
+    @classmethod
+    def from_pystr(cls, s: str):
+        s = s.replace('\\', '\\\\')
+        value = quote.quote_literal(s)
+        return cls(value=value[1:-1], quote="'")
+
+
+class RawStringConstant(Constant):
+    quote: str
+
+    @classmethod
+    def from_pystr(cls, s: str):
+        value = quote.quote_literal(s)
+        return cls(value=value[1:-1], quote="'")
 
 
 class Parameter(Expr):

@@ -30,7 +30,7 @@ from edb.lang.edgeql import ast as qlast
 
 from ...errors import EdgeQLSyntaxError
 
-from . import keywords, precedence, tokens
+from . import keywords, precedence, tokens, lexer
 
 from .precedence import *  # NOQA
 from .tokens import *  # NOQA
@@ -823,6 +823,7 @@ class Constant(Nonterm):
     # ArgConstant
     # | BaseNumberConstant
     # | BaseStringConstant
+    # | BaseRawStringConstant
     # | BaseBooleanConstant
     # | BaseBytesConstant
 
@@ -830,6 +831,9 @@ class Constant(Nonterm):
         self.val = kids[0].val
 
     def reduce_BaseNumberConstant(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_BaseRawStringConstant(self, *kids):
         self.val = kids[0].val
 
     def reduce_BaseStringConstant(self, *kids):
@@ -863,22 +867,27 @@ class BaseStringConstant(Nonterm):
     valid_str_re = re.compile(r'''
         ^
         (?P<Q>
-            (
-                ' | " | \$([A-Za-z\200-\377_][0-9]*)*\$
-            )
+            ' | "
         )
         (?P<body>
             (?:
+                \\\n |                  # line continuation
                 \n |                    # new line
                 \\\\ |                  # \\
                 \\['"] |                # \' or \"
-                \\x[0-9a-fA-F]{2} |     # \x00 -- hex code
-                \\u[0-9a-fA-F]{4} |     # \u0000
-                \\U[0-9a-fA-F]{8} |     # \U00000000
-                \\ (t | n | r) |        # \t, \n, or \r
+                                        #
+                \\x[0-7][0-9a-fA-F] |   # \xhh -- hex code, up to 0x7F
+                                        # (higher values are not permitted
+                                        # because it is ambiguous whether
+                                        # they mean Unicode code points or
+                                        # byte values.)
+                                        #
+                \\u[0-9a-fA-F]{4} |     # \uhhhh
+                \\U[0-9a-fA-F]{8} |     # \Uhhhhhhhh
+                \\ (?: t | n | r) |     # \t, \n, or \r
                 [^\\] |                 # anything except \
 
-                (?P<err_esc>            # capture any invalid \escape
+                (?P<err_esc>            # capture any invalid \escape sequence
                     \\x.{1,2} |
                     \\u.{1,4} |
                     \\U.{1,8} |
@@ -890,24 +899,60 @@ class BaseStringConstant(Nonterm):
         $
     ''', re.X)
 
-    @classmethod
-    def parse_body(cls, str_tok: tokens.T_SCONST):
-        match = cls.valid_str_re.match(str_tok.val)
+    def reduce_SCONST(self, str_tok):
+        match = self.valid_str_re.match(str_tok.val)
 
         if not match:
             raise EdgeQLSyntaxError(
-                f"invalid str literal", context=str_tok.context)
+                f"invalid string literal", context=str_tok.context)
         if match.group('err_esc'):
             raise EdgeQLSyntaxError(
-                f"invalid str literal: invalid escape sequence "
+                f"invalid string literal: invalid escape sequence "
                 f"'{match.group('err_esc')}'",
                 context=str_tok.context)
 
-        return match.group('body')
+        quote = match.group('Q')
+        val = match.group('body')
 
-    def reduce_SCONST(self, str_tok):
-        val = self.parse_body(str_tok)
-        self.val = qlast.Constant(value=val)
+        # handle line continuations
+        val = re.sub(r'\\\n', '', val)
+
+        self.val = qlast.StringConstant(value=val, quote=quote)
+
+
+class BaseRawStringConstant(Nonterm):
+
+    valid_rstr_re = re.compile(rf'''
+        ^
+        (?:
+            r
+        )?
+        (?P<Q>
+            (?:
+                (?<=r) (?: ' | ")
+            ) | (?:
+                (?<!r) (?: {lexer.re_dquote})
+            )
+        )
+        (?P<body>
+            (?:
+                \n | .
+            )*?
+        )
+        (?P=Q)
+        $
+    ''', re.X)
+
+    def reduce_RSCONST(self, str_tok):
+        match = self.valid_rstr_re.match(str_tok.val)
+        if not match:
+            raise EdgeQLSyntaxError(
+                f"invalid raw string literal", context=str_tok.context)
+
+        quote = match.group('Q')
+        val = match.group('body')
+
+        self.val = qlast.RawStringConstant(value=val, quote=quote)
 
 
 class BaseBytesConstant(Nonterm):
@@ -918,20 +963,18 @@ class BaseBytesConstant(Nonterm):
             b
         )
         (?P<BQ>
-            (
-                ' | "
-            )
+            ' | "
         )
         (?P<body>
             (
                 \n |                    # new line
                 \\\\ |                  # \\
                 \\['"] |                # \' or \"
-                \\x[0-9a-fA-F]{2} |     # \x00 -- hex code
-                \\ (t | n | r) |        # \t, \n, or \r
+                \\x[0-9a-fA-F]{2} |     # \xhh -- hex code
+                \\ (?: t | n | r) |     # \t, \n, or \r
                 [\x20-\x5b\x5d-\x7e] |  # match any printable ASCII, except '\'
 
-                (?P<err_esc>            # capture any invalid \escape
+                (?P<err_esc>            # capture any invalid \escape sequence
                     \\x.{1,2} |
                     \\.
                 ) |

@@ -119,8 +119,8 @@ class GraphQLTranslator(ast.NodeVisitor):
             if (isinstance(el.compexpr, qlast.FunctionCall) and
                     el.compexpr.func == 'str_to_json'):
                 name = el.expr.steps[0].ptr.name
-                el.compexpr.args[0].arg.value = json.dumps(
-                    gqlresult.data[name], indent=4).replace('\\', '\\\\')
+                el.compexpr.args[0].arg = qlast.StringConstant.from_pystr(
+                    json.dumps(gqlresult.data[name], indent=4))
 
         return translated
 

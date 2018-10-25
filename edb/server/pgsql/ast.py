@@ -440,6 +440,12 @@ class Constant(BaseExpr):
     val: object
 
 
+class EscapedStringConstant(Constant):
+    """An "E"-prefixed string."""
+
+    val: str
+
+
 class LiteralExpr(BaseExpr):
     """A literal expression."""
 

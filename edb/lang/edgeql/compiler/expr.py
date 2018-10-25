@@ -161,11 +161,20 @@ def compile_Set(
 def compile_Constant(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
 
+    node_cls = irast.Constant
+
     if expr.value is None:
         ct = None
     else:
-        if isinstance(expr.value, str):
+        if isinstance(expr, qlast.StringConstant):
             std_type = 'std::str'
+            node_cls = irast.StringConstant
+        elif isinstance(expr, qlast.RawStringConstant):
+            std_type = 'std::str'
+            node_cls = irast.RawStringConstant
+        elif isinstance(expr.value, str):
+            std_type = 'std::str'
+            node_cls = irast.StringConstant
         elif isinstance(expr.value, decimal.Decimal):
             std_type = 'std::decimal'
         elif isinstance(expr.value, float):
@@ -187,7 +196,7 @@ def compile_Constant(
         ct = ctx.schema.get(std_type)
 
     return setgen.generated_set(
-        irast.Constant(value=expr.value, type=ct), ctx=ctx)
+        node_cls(value=expr.value, type=ct), ctx=ctx)
 
 
 @dispatch.compile.register(qlast.EmptyCollection)

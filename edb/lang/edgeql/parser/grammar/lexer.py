@@ -43,7 +43,7 @@ class EdgeQLLexer(lexer.Lexer):
     MERGE_TOKENS = {('NAMED', 'ONLY')}
 
     NL = 'NL'
-    MULTILINE_TOKENS = frozenset(('SCONST', 'BCONST'))
+    MULTILINE_TOKENS = frozenset(('SCONST', 'BCONST', 'RSCONST'))
     RE_FLAGS = re.X | re.M | re.I
 
     # Basic keywords
@@ -122,31 +122,50 @@ class EdgeQLLexer(lexer.Lexer):
                     b
                 )
                 (?P<BQ>
-                    (
-                        ' | "
-                    )
+                    ' | "
                 )
                 (?:
                     (
-                        (\\\\ | \\['"] | \n | .)*?
+                        \\\\ | \\['"] | \n | .
                         # we'll validate escape codes in the parser
                     )*?
                 )
                 (?P=BQ)
              '''),
 
+        Rule(token='RSCONST',
+             next_state=STATE_KEEP,
+             regexp=rf'''
+                (?:
+                    r
+                )?
+                (?P<RQ>
+                    (?:
+                        (?<=r) (?: ' | ")
+                    ) | (?:
+                        (?<!r) (?: {re_dquote})
+                    )
+                )
+                (?:
+                    (
+                        \n | .
+                        # we'll validate escape codes in the parser
+                    )*?
+                )
+                (?P=RQ)
+             '''),
+
         Rule(token='SCONST',
              next_state=STATE_KEEP,
              regexp=rf'''
                 (?P<Q>
-                    (
-                        ' | " |
-                        {re_dquote}
-                    )
+                    ' | "
                 )
                 (?:
-                    (\\\\ | \\['"] | \n | .)*?
-                    # we'll validate escapes codes in the parser
+                    (
+                        \\\\ | \\['"] | \n | .
+                        # we'll validate escape codes in the parser
+                    )*?
                 )
                 (?P=Q)
              '''),

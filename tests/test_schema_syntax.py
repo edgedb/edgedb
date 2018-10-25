@@ -715,7 +715,7 @@ event self_deleted:
 
         abstract link time_estimate:
            property unit -> str:
-               constraint my_constraint(')', `)`(')'))
+               constraint my_constraint(')', `)`($$)$$))
         """
 
     def test_eschema_syntax_link_10(self):
@@ -825,7 +825,7 @@ type Foo:
 
         function some_func(foo: std::int64 = 42) -> std::str:
             from sql :=
-                'SELECT \'life\';'
+                "SELECT 'life';"
         """
 
     def test_eschema_syntax_function_03(self):
@@ -904,7 +904,7 @@ type Foo:
 
 % OK %
 
-        function some_func(foo: str = ')') -> std::str:
+        function some_func(foo: str = $$)$$) -> std::str:
             from edgeql function: some_other_func
         """
 
@@ -915,7 +915,7 @@ type Foo:
 
 % OK %
 
-        function some_func(foo: str = ')') -> std::str:
+        function some_func(foo: str = $a1$)$a1$) -> std::str:
             from edgeql function: some_other_func
         """
 

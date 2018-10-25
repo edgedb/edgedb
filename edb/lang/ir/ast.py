@@ -146,6 +146,14 @@ class Constant(Expr):
         super().__init__(*args, type=type, **kwargs)
 
 
+class StringConstant(Constant):
+    pass
+
+
+class RawStringConstant(Constant):
+    pass
+
+
 class Parameter(Base):
 
     name: str

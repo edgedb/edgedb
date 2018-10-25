@@ -517,10 +517,14 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         elif isinstance(node.val, bytes):
             b = binascii.b2a_hex(node.val).decode('ascii')
             self.write(f"'\\x{b}'::bytea")
-        elif isinstance(node.val, str):
-            self.write(common.quote_e_literal(node.val))
         else:
             self.write(common.quote_literal(str(node.val)))
+
+    def visit_EscapedStringConstant(self, node):
+        if node.val is None:
+            self.write('NULL')
+        else:
+            self.write(common.quote_e_literal(node.val))
 
     def visit_ParamRef(self, node):
         self.write('$', str(node.number))

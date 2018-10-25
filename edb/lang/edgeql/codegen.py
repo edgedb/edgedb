@@ -505,6 +505,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_Parameter(self, node):
         self.write(param_to_str(node.name))
 
+    def visit_StringConstant(self, node):
+        self.write(node.quote, node.value, node.quote)
+
+    def visit_RawStringConstant(self, node):
+        if node.quote.startswith('$'):
+            self.write(node.quote, node.value, node.quote)
+        else:
+            self.write('r', node.quote, node.value, node.quote)
+
     def visit_Constant(self, node):
         if isinstance(node.value, str):
             self.write(edgeql_quote.quote_literal(node.value))

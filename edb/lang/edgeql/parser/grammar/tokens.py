@@ -177,6 +177,10 @@ class T_SCONST(Token):
     pass
 
 
+class T_RSCONST(Token):
+    pass
+
+
 class T_IDENT(Token):
     pass
 

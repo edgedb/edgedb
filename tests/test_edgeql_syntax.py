@@ -100,15 +100,19 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         """
         SELECT 'a1';
         SELECT "a1";
+        SELECT r'a1';
+        SELECT r"a1";
         SELECT $$a1$$;
         SELECT $qwe$a1$qwe$;
 
 % OK %
 
         SELECT 'a1';
-        SELECT 'a1';
-        SELECT 'a1';
-        SELECT 'a1';
+        SELECT "a1";
+        SELECT r'a1';
+        SELECT r"a1";
+        SELECT $$a1$$;
+        SELECT $qwe$a1$qwe$;
         """
 
     def test_edgeql_syntax_constants_03(self):
@@ -214,7 +218,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"invalid str literal: invalid escape sequence '\\c'",
+                  r"invalid string literal: invalid escape sequence '\\c'",
                   line=2, col=16)
     def test_edgeql_syntax_constants_15(self):
         """
@@ -222,7 +226,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"invalid str literal: invalid escape sequence '\\x0z'",
+                  r"invalid string literal: invalid escape sequence '\\x0z'",
                   line=2, col=16)
     def test_edgeql_syntax_constants_16(self):
         r"""
@@ -244,7 +248,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"invalid str literal: invalid escape sequence '\\u0zaa'",
+                  r"invalid string literal: invalid escape sequence '\\u0zaa'",
                   line=2, col=16)
     def test_edgeql_syntax_constants_19(self):
         r"""
@@ -261,7 +265,7 @@ aa';
 
     def test_edgeql_syntax_constants_21(self):
         r"""
-        select '\'"\\\'\""\\x\\u';
+        SELECT '\'"\\\'\""\\x\\u';
         """
 
     def test_edgeql_syntax_constants_22(self):
@@ -329,6 +333,78 @@ aa';
     def test_edgeql_syntax_constants_30(self):
         r"""
         SELECT 'aaa\x0';
+        """
+
+    def test_edgeql_syntax_constants_31(self):
+        r"""
+        SELECT 'aa\
+        bb \
+        aa';
+% OK %
+        SELECT 'aa bb aa';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"invalid string literal",
+                  line=2, col=16)
+    def test_edgeql_syntax_constants_32(self):
+        r"""
+        SELECT 'aa\
+        bb \
+        aa\';
+% OK %
+        SELECT 'aabb aa';
+        """
+
+    def test_edgeql_syntax_constants_33(self):
+        r"""
+        SELECT r'aaa\x0';
+        """
+
+    def test_edgeql_syntax_constants_34(self):
+        r"""
+        SELECT r'\';
+        """
+
+    def test_edgeql_syntax_constants_35(self):
+        r"""
+        SELECT r"\n\w\d";
+        """
+
+    def test_edgeql_syntax_constants_36(self):
+        r"""
+        SELECT $aa$\n\w\d$aa$;
+        """
+
+    def test_edgeql_syntax_constants_37(self):
+        r"""
+        SELECT "'''";
+        """
+
+    def test_edgeql_syntax_constants_38(self):
+        r"""
+        SELECT "\n";
+        """
+
+    def test_edgeql_syntax_constants_39(self):
+        r"""
+        SELECT "\x1F\x01\x00\x6e";
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"invalid escape sequence '\\x8F'",
+                  line=2, col=16)
+    def test_edgeql_syntax_constants_40(self):
+        r"""
+        SELECT "\x1F\x01\x8F\x6e";
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"invalid string literal: invalid escape sequence '\\\('",
+                  line=2, col=16)
+    def test_edgeql_syntax_constants_41(self):
+        """
+        SELECT 'aaa \(aaa) bbb';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=12)

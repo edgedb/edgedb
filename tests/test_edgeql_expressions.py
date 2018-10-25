@@ -1141,10 +1141,26 @@ class TestExpressions(tb.QueryTestCase):
             SELECT ':\x62:\u2665:\U000025C6:☎️:';
             SELECT '\'"\\\'\""\\x\\u';
             SELECT "'\"\\\'\"\\x\\u";
+
+            SELECT 'aa\
+            bb \
+            aa';
+
+            SELECT r'\n';
+
+            SELECT r'aa\
+            bb \
+            aa';
         """, [
             [':b:♥:◆:☎️:'],
             ['\'"\\\'\""\\x\\u'],
             ['\'"\\\'"\\x\\u'],
+
+            ['aa            bb             aa'],
+
+            ['\\n'],
+
+            ['aa\\\n            bb \\\n            aa'],
         ])
 
     async def test_edgeql_expr_tuple_01(self):
