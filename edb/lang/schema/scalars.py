@@ -261,11 +261,18 @@ _operator_map = {
     ],
 
     ast.ops.DIV: [
-        ('std::int64', 'std::int64', 'std::int64'),
+        ('std::int64', 'std::int64', 'std::float64'),
         ('std::float32', 'std::float32', 'std::float32'),
         ('std::float64', 'std::float64', 'std::float64'),
         ('std::decimal', 'std::decimal', 'std::decimal'),
         ('std::decimal', 'std::int64', 'std::decimal'),
+    ],
+
+    ast.ops.FLOORDIV: [
+        ('std::int64', 'std::int64', 'std::int64'),
+        ('std::float32', 'std::float32', 'std::float32'),
+        ('std::float64', 'std::float64', 'std::float64'),
+        ('std::decimal', 'std::decimal', 'std::decimal'),
     ],
 
     ast.ops.MOD: [

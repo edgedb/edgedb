@@ -81,7 +81,8 @@ class P_ADD_OP(Precedence, assoc='left', tokens=('PLUS', 'MINUS')):
     pass
 
 
-class P_MUL_OP(Precedence, assoc='left', tokens=('STAR', 'SLASH', 'PERCENT')):
+class P_MUL_OP(Precedence, assoc='left',
+               tokens=('STAR', 'SLASH', 'DOUBLESLASH', 'PERCENT')):
     pass
 
 

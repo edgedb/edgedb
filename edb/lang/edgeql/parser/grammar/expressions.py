@@ -641,6 +641,10 @@ class Expr(Nonterm):
         self.val = qlast.BinOp(left=kids[0].val, op=ast.ops.DIV,
                                right=kids[2].val)
 
+    def reduce_Expr_DOUBLESLASH_Expr(self, *kids):
+        self.val = qlast.BinOp(left=kids[0].val, op=ast.ops.FLOORDIV,
+                               right=kids[2].val)
+
     def reduce_Expr_PERCENT_Expr(self, *kids):
         self.val = qlast.BinOp(left=kids[0].val, op=ast.ops.MOD,
                                right=kids[2].val)

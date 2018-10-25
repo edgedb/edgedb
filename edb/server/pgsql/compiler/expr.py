@@ -351,6 +351,9 @@ def compile_BinOp(
         # always False.
         result = pgast.BooleanConstant(val='FALSE')
     else:
+        anyint_t = ctx.env.schema.get('std::anyint')
+        decimal_t = ctx.env.schema.get('std::decimal')
+
         if is_bool_op:
             # Transform logical operators to force
             # the correct behaviour with respect to NULLs.
@@ -394,6 +397,31 @@ def compile_BinOp(
                     )
                 )
                 result = bitcond
+
+        elif (expr.op == ast.ops.DIV and
+                right_type.issubclass(anyint_t) and
+                not left_type.issubclass(decimal_t)):
+            right = pgast.TypeCast(
+                arg=right,
+                type_name=pgast.TypeName(
+                    name=('float8',),
+                )
+            )
+
+            result = astutils.new_binop(left, right, op=op)
+
+        elif expr.op == ast.ops.FLOORDIV:
+            result = astutils.new_binop(left, right, op=ast.ops.DIV)
+
+            # PostgreSQL does floor division on ints, so only
+            # call "floor()" if either of the operands is not an int.
+            if not (left_type.issubclass(anyint_t) and
+                    right_type.issubclass(anyint_t)):
+                result = pgast.FuncCall(
+                    name=('floor',),
+                    args=[result],
+                )
+
         else:
             result = astutils.new_binop(left, right, op=op)
 

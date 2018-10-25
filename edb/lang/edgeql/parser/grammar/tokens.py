@@ -113,6 +113,10 @@ class T_SLASH(Token, lextoken='/'):
     pass
 
 
+class T_DOUBLESLASH(Token, lextoken='//'):
+    pass
+
+
 class T_PERCENT(Token, lextoken='%'):
     pass
 

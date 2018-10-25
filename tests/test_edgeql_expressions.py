@@ -171,6 +171,11 @@ class TestExpressions(tb.QueryTestCase):
             SELECT -1 - 0.2;
             SELECT -1 / 0.2;
             SELECT 0.2 / -1;
+            SELECT 5 // 2;
+            SELECT 5.5 // 1.2;
+            SELECT (5.5 // 1.2).__type__.name;
+            SELECT -9.6 // 2;
+            SELECT (<float32>-9.6 // 2).__type__.name;
         """, [
             [-3],
             [False],
@@ -185,6 +190,11 @@ class TestExpressions(tb.QueryTestCase):
             [-1.2],
             [-5],
             [-0.2],
+            [2],
+            [4.0],
+            ['std::float64'],
+            [-5.0],
+            ['std::float64'],
         ])
 
     async def test_edgeql_expr_op_05(self):
@@ -663,17 +673,15 @@ class TestExpressions(tb.QueryTestCase):
         # upcast to the right one even if the right one is never
         # technically evaluated (function not called, etc.)
         await self.assert_query_result(r"""
-            SELECT 3 / 2;
-            SELECT (3 / 2) ?? <float64>{};
-            SELECT 3 / 2 ?? <float64>{};
-            SELECT 3 / 2 ?? random();
-            SELECT 3 / 2 ?? sum({1, 2.0});
+            SELECT (3 // 2).__type__.name;
+            SELECT ((3 // 2) ?? <float64>{}).__type__.name;
+            SELECT (3 / 2 ?? <decimal>{}).__type__.name;
+            SELECT (3 // 2 ?? sum({1, 2.0})).__type__.name;
         """, [
-            [1],
-            [1],
-            [1.5],
-            [1.5],
-            [1.5],
+            ['std::int64'],
+            ['std::float64'],
+            ['std::decimal'],
+            ['std::float64'],
         ])
 
     async def test_edgeql_expr_implicit_cast_04(self):
@@ -743,7 +751,7 @@ class TestExpressions(tb.QueryTestCase):
                     })
             SELECT (3 / (A.a + A.b), 3 / (A.a + A.c)) LIMIT 1;
         """, [
-            [[1.5, 1]],
+            [[1.5, 1.5]],
         ])
 
     async def test_edgeql_expr_implicit_cast_08(self):

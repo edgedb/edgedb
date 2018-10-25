@@ -190,10 +190,9 @@ def evaluate_arithmetic_binop(
     elif op == ast.ops.MUL:
         value = left_val * right_val
     elif op == ast.ops.DIV:
-        if left_type.issubclass(int_t) and right_type.issubclass(int_t):
-            value = left_val // right_val
-        else:
-            value = left_val / right_val
+        value = left_val / right_val
+    elif op == ast.ops.FLOORDIV:
+        value = left_val // right_val
     elif op == ast.ops.POW:
         value = left_val ** right_val
     elif op == ast.ops.MOD:

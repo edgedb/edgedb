@@ -122,7 +122,7 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
 
     def test_edgeql_utils_normalize_08(self):
         self._assert_normalize_expr(
-            """SELECT 40 + 2 - 20 * +2 + (-10 / 2)""",
+            """SELECT 40 + 2 - 20 * +2 + (-10 // 2)""",
             """SELECT -3""",
             'std::int64',
         )
@@ -165,4 +165,10 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
             """SELECT 1 < (1 + 1)""",
             """SELECT true""",
             'std::bool',
+        )
+
+    def test_edgeql_utils_normalize_11(self):
+        self._assert_normalize_expr(
+            """SELECT 5 // 2""",
+            """SELECT 2""",
         )

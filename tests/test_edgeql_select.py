@@ -711,7 +711,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT
                 Issue {number}
             ORDER BY Issue.number
-            LIMIT 6 / 2;
+            LIMIT 6 // 2;
 
             WITH MODULE test
             SELECT
