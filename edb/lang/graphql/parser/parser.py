@@ -157,6 +157,10 @@ class GraphQLParser(parsing.Parser):
     def get_exception(self, native_err, context, token=None):
         if isinstance(native_err, GraphQLParserError):
             return native_err
+        elif isinstance(native_err, lexer.UnterminatedStringError):
+            # update the context
+            context.start.line = native_err.line
+            context.start.column = native_err.col
         return GraphQLParserError(native_err.args[0], context=context)
 
     def process_lex_token(self, mod, tok):

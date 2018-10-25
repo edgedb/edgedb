@@ -24,7 +24,6 @@ from edb.lang.graphql import generate_source as gql_to_source
 from edb.lang.graphql.parser import parser as gql_parser
 from edb.lang.graphql.parser.errors import (GraphQLParserError,
                                             GraphQLUniquenessError,
-                                            UnterminatedStringError,
                                             InvalidStringTokenError)
 
 
@@ -58,11 +57,11 @@ class TestGraphQLParser(GraphQLSyntaxTest):
     def test_graphql_syntax_empty05(self):
         """\r\n;"""
 
-    @tb.must_fail(UnterminatedStringError, line=1, col=2)
+    @tb.must_fail(GraphQLParserError, line=1, col=2)
     def test_graphql_syntax_empty06(self):
         '''"'''
 
-    @tb.must_fail(UnterminatedStringError, line=2, col=10)
+    @tb.must_fail(GraphQLParserError, line=2, col=10)
     def test_graphql_syntax_empty07(self):
         """
         "
@@ -121,13 +120,13 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         { field(arg:"\uFEFF\n") };
         """
 
-    @tb.must_fail(UnterminatedStringError, line=2, col=29)
+    @tb.must_fail(GraphQLParserError, line=2, col=29)
     def test_graphql_syntax_string09(self):
         """
         { field(arg:"foo') }
         """
 
-    @tb.must_fail(UnterminatedStringError, line=3, col=23)
+    @tb.must_fail(GraphQLParserError, line=3, col=23)
     def test_graphql_syntax_string10(self):
         r"""
         { field(

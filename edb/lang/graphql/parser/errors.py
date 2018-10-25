@@ -17,7 +17,6 @@
 #
 
 
-from edb.lang.common.lexer import LexError
 from edb.lang.common.parsing import ParserError
 from edb.lang.graphql.errors import GraphQLError
 
@@ -40,8 +39,4 @@ class GraphQLUniquenessError(GraphQLParserError):
 
 
 class InvalidStringTokenError(GraphQLParserError):
-    pass
-
-
-class UnterminatedStringError(LexError):
     pass

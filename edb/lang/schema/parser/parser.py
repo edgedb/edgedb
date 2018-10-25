@@ -18,6 +18,7 @@
 
 
 from edb.lang.common import parsing
+from edb.lang.common.lexer import LexError
 from edb.lang.schema.error import SchemaSyntaxError
 from .grammar import lexer
 
@@ -26,6 +27,12 @@ class EdgeSchemaParser(parsing.Parser):
     def get_exception(self, native_err, context, token=None):
         if isinstance(native_err, SchemaSyntaxError):
             return native_err
+
+        elif isinstance(native_err, LexError):
+            # trust the line and column info from the LexError over
+            # the parser context, which may be a token or so out of sync
+            context.start.line = native_err.line
+            context.start.column = native_err.col
 
         msg = native_err.args[0]
         if token and token.type == 'BADLINECONT':
@@ -49,9 +56,11 @@ class EdgeSchemaParser(parsing.Parser):
                 elif token.type == 'NL':
                     msg = 'Unexpected end of line'
                 elif token.type == 'INDENT':
-                    msg = 'Unexpected indentation level increase'
+                    msg = (f'Unexpected indentation level increase '
+                           f'on line {token.start.line}')
                 elif token.type == 'DEDENT':
-                    msg = 'Unexpected indentation level decrease'
+                    msg = (f'Unexpected indentation level decrease '
+                           f'on line {token.start.line}')
                 else:
                     msg = f'Unexpected {token.text!r}'
 

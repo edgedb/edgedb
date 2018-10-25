@@ -20,11 +20,14 @@
 import re
 
 from edb.lang.common import lexer
-from edb.lang.graphql.parser.errors import UnterminatedStringError
 from .keywords import graphql_keywords
 
 
-__all__ = ('GraphQLLexer')
+__all__ = ('GraphQLLexer', 'UnterminatedStringError')
+
+
+class UnterminatedStringError(lexer.LexError):
+    pass
 
 
 STATE_KEEP = 0
