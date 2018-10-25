@@ -684,3 +684,38 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                         SELECT <int64>sum(sum)
                     $$;
             ''')
+
+    async def test_edgeql_ddl_32(self):
+        await self.con.execute(r'''
+            CREATE FUNCTION test::ddlf_5_1() -> str
+                FROM EdgeQL $$
+                    SELECT '\u0062'
+                $$;
+
+            CREATE FUNCTION test::ddlf_5_2() -> str
+                FROM EdgeQL $$
+                    SELECT r'\u0062'
+                $$;
+
+            CREATE FUNCTION test::ddlf_5_3() -> str
+                FROM EdgeQL $$
+                    SELECT $a$\u0062$a$
+                $$;
+        ''')
+
+        try:
+            await self.assert_query_result(r'''
+                SELECT test::ddlf_5_1();
+                SELECT test::ddlf_5_2();
+                SELECT test::ddlf_5_3();
+            ''', [
+                ['b'],
+                [r'\u0062'],
+                [r'\u0062'],
+            ])
+        finally:
+            await self.con.execute("""
+                DROP FUNCTION test::ddlf_5_1();
+                DROP FUNCTION test::ddlf_5_2();
+                DROP FUNCTION test::ddlf_5_3();
+            """)
