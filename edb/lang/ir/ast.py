@@ -227,6 +227,9 @@ class IfElseExpr(Expr):
     if_expr: Set  # noqa (pyflakes bug)
     else_expr: Set  # noqa (pyflakes bug)
 
+    if_expr_card: Cardinality  # noqa
+    else_expr_card: Cardinality  # noqa
+
 
 class Coalesce(Base):
     left: Set

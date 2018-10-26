@@ -44,6 +44,7 @@ from . import dispatch
 from . import pathctx
 from . import setgen
 from . import schemactx
+from . import stmtctx
 from . import typegen
 from . import viewgen
 
@@ -288,9 +289,18 @@ def compile_IfElse(
                 if_expr_type.name, else_expr_type.name),
             context=expr.context)
 
+    ifelse = irast.IfElseExpr(
+        if_expr=if_expr,
+        else_expr=else_expr,
+        condition=condition)
+
+    stmtctx.get_expr_cardinality_later(
+        target=ifelse, field='if_expr_card', irexpr=if_expr, ctx=ctx)
+    stmtctx.get_expr_cardinality_later(
+        target=ifelse, field='else_expr_card', irexpr=else_expr, ctx=ctx)
+
     return setgen.generated_set(
-        irast.IfElseExpr(
-            if_expr=if_expr, else_expr=else_expr, condition=condition),
+        ifelse,
         ctx=ctx
     )
 

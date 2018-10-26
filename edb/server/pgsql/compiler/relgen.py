@@ -940,41 +940,56 @@ def process_set_as_ifelse(
     # SELECT A WHERE Cond UNION ALL SELECT B WHERE NOT Cond
     expr = ir_set.expr
 
-    with ctx.new() as newctx:
-        newctx.expr_exposed = False
-        dispatch.visit(expr.condition, ctx=newctx)
-        condref = relctx.get_path_var(
-            stmt, path_id=expr.condition.path_id, aspect='value', ctx=newctx)
+    if expr.if_expr_card == expr.else_expr_card == irast.Cardinality.ONE:
+        set_expr = pgast.CaseExpr(
+            args=[
+                pgast.CaseWhen(
+                    expr=dispatch.compile(expr.condition, ctx=ctx),
+                    result=dispatch.compile(expr.if_expr, ctx=ctx))
+            ],
+            defresult=dispatch.compile(expr.else_expr, ctx=ctx))
 
-    with ctx.subrel() as _, _.newscope() as subctx:
-        larg = subctx.rel
-        larg.view_path_id_map[ir_set.path_id] = expr.if_expr.path_id
-        dispatch.visit(expr.if_expr, ctx=subctx)
+        pathctx.put_path_value_var_if_not_exists(
+            stmt, ir_set.path_id, set_expr, env=ctx.env)
 
-        larg.where_clause = astutils.extend_binop(
-            larg.where_clause,
-            condref
-        )
+    else:
+        with ctx.new() as newctx:
+            newctx.expr_exposed = False
+            dispatch.visit(expr.condition, ctx=newctx)
+            condref = relctx.get_path_var(
+                stmt, path_id=expr.condition.path_id,
+                aspect='value', ctx=newctx)
 
-    with ctx.subrel() as _, _.newscope() as subctx:
-        rarg = subctx.rel
-        rarg.view_path_id_map[ir_set.path_id] = expr.else_expr.path_id
-        dispatch.visit(expr.else_expr, ctx=subctx)
+        with ctx.subrel() as _, _.newscope() as subctx:
+            larg = subctx.rel
+            larg.view_path_id_map[ir_set.path_id] = expr.if_expr.path_id
+            dispatch.visit(expr.if_expr, ctx=subctx)
 
-        rarg.where_clause = astutils.extend_binop(
-            rarg.where_clause,
-            astutils.new_unop(ast.ops.NOT, condref)
-        )
+            larg.where_clause = astutils.extend_binop(
+                larg.where_clause,
+                condref
+            )
 
-    with ctx.subrel() as subctx:
-        subqry = subctx.rel
-        subqry.op = pgast.UNION
-        subqry.all = True
-        subqry.larg = larg
-        subqry.rarg = rarg
+        with ctx.subrel() as _, _.newscope() as subctx:
+            rarg = subctx.rel
+            rarg.view_path_id_map[ir_set.path_id] = expr.else_expr.path_id
+            dispatch.visit(expr.else_expr, ctx=subctx)
 
-        union_rvar = dbobj.rvar_for_rel(subqry, lateral=True, env=subctx.env)
-        relctx.include_rvar(stmt, union_rvar, ir_set.path_id, ctx=subctx)
+            rarg.where_clause = astutils.extend_binop(
+                rarg.where_clause,
+                astutils.new_unop(ast.ops.NOT, condref)
+            )
+
+        with ctx.subrel() as subctx:
+            subqry = subctx.rel
+            subqry.op = pgast.UNION
+            subqry.all = True
+            subqry.larg = larg
+            subqry.rarg = rarg
+
+            union_rvar = dbobj.rvar_for_rel(
+                subqry, lateral=True, env=subctx.env)
+            relctx.include_rvar(stmt, union_rvar, ir_set.path_id, ctx=subctx)
 
     rvar = dbobj.rvar_for_rel(stmt, lateral=True, env=ctx.env)
     return new_simple_set_rvar(ir_set, rvar)

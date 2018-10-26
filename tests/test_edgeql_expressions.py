@@ -1450,6 +1450,37 @@ class TestExpressions(tb.QueryTestCase):
             ['s2'],
         ])
 
+    async def test_edgeql_expr_if_else_02(self):
+        await self.assert_query_result(r"""
+            SELECT 'yes' IF True ELSE {'no', 'or', 'maybe'};
+            SELECT 'yes' IF False ELSE {'no', 'or', 'maybe'};
+
+            SELECT {'maybe', 'yes'} IF True ELSE {'no', 'or'};
+            SELECT {'maybe', 'yes'} IF False ELSE {'no', 'or'};
+
+            SELECT {'maybe', 'yes'} IF True ELSE 'no';
+            SELECT {'maybe', 'yes'} IF False ELSE 'no';
+
+            SELECT 'yes' IF {True, False} ELSE 'no';
+            SELECT 'yes' IF {True, False} ELSE {'no', 'or', 'maybe'};
+            SELECT {'maybe', 'yes'} IF {True, False} ELSE {'no', 'or'};
+            SELECT {'maybe', 'yes'} IF {True, False} ELSE 'no';
+        """, [
+            ['yes'],
+            ['no', 'or', 'maybe'],
+
+            ['maybe', 'yes'],
+            ['no', 'or'],
+
+            ['maybe', 'yes'],
+            ['no'],
+
+            ['yes', 'no'],
+            ['yes', 'no', 'or', 'maybe'],
+            ['maybe', 'yes', 'no', 'or'],
+            ['maybe', 'yes', 'no'],
+        ])
+
     async def test_edgeql_expr_setop_01(self):
         await self.assert_query_result(r"""
             SELECT EXISTS {};

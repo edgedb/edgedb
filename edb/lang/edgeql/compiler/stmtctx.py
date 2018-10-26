@@ -272,17 +272,25 @@ def declare_view_from_schema(
     return vc
 
 
-def infer_pointer_cardinality(
+def infer_expr_cardinality(
         *,
-        ptrcls: s_pointers.Pointer,
         irexpr: irast.Expr,
         ctx: context.ContextLevel) -> None:
 
     scope = pathctx.get_set_scope(ir_set=irexpr, ctx=ctx)
     if scope is None:
         scope = ctx.path_scope
-    inferred_cardinality = irinference.infer_cardinality(
+    return irinference.infer_cardinality(
         irexpr, scope_tree=scope, schema=ctx.schema)
+
+
+def infer_pointer_cardinality(
+        *,
+        ptrcls: s_pointers.Pointer,
+        irexpr: irast.Expr,
+        ctx: context.ContextLevel) -> None:
+
+    inferred_cardinality = infer_expr_cardinality(irexpr=irexpr, ctx=ctx)
 
     if inferred_cardinality == irast.Cardinality.MANY:
         ptrcls.cardinality = s_pointers.PointerCardinality.ManyToMany
@@ -313,6 +321,22 @@ def get_pointer_cardinality_later(
         functools.partial(
             infer_pointer_cardinality,
             ptrcls=ptrcls, irexpr=irexpr),
+        ctx=ctx)
+
+
+def get_expr_cardinality_later(
+        *,
+        target: irast.Expr,
+        field: str,
+        irexpr: irast.Expr,
+        ctx: context.ContextLevel) -> None:
+
+    def cb(irexpr, ctx):
+        card = infer_expr_cardinality(irexpr=irexpr, ctx=ctx)
+        setattr(target, field, card)
+
+    at_stmt_fini(
+        functools.partial(cb, irexpr=irexpr),
         ctx=ctx)
 
 
