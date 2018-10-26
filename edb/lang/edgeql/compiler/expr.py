@@ -20,18 +20,17 @@
 """EdgeQL non-statement expression compilation functions."""
 
 
-import decimal
 import typing
 
 from edb.lang.common import ast
 from edb.lang.common import parsing
 
 from edb.lang.ir import ast as irast
+from edb.lang.ir import staeval as ireval
 from edb.lang.ir import utils as irutils
 
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import pointers as s_pointers
-from edb.lang.schema import scalars as s_scalars
 from edb.lang.schema import types as s_types
 from edb.lang.schema import utils as s_utils
 
@@ -158,46 +157,100 @@ def compile_Set(
         return irutils.new_empty_set(ctx.schema, alias=ctx.aliases.get('e'))
 
 
-@dispatch.compile.register(qlast.Constant)
-def compile_Constant(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
+@dispatch.compile.register(qlast.BaseConstant)
+def compile_BaseConstant(
+        expr: qlast.BaseConstant, *, ctx: context.ContextLevel) -> irast.Base:
+    value = expr.value
 
-    node_cls = irast.Constant
-
-    if expr.value is None:
-        ct = None
-    else:
-        if isinstance(expr, qlast.StringConstant):
-            std_type = 'std::str'
-            node_cls = irast.StringConstant
-        elif isinstance(expr, qlast.RawStringConstant):
-            std_type = 'std::str'
-            node_cls = irast.RawStringConstant
-        elif isinstance(expr.value, str):
-            std_type = 'std::str'
-            node_cls = irast.StringConstant
-        elif isinstance(expr.value, decimal.Decimal):
-            std_type = 'std::decimal'
-        elif isinstance(expr.value, float):
-            std_type = 'std::float64'
-        elif isinstance(expr.value, bool):
-            std_type = 'std::bool'
-        elif isinstance(expr.value, bytes):
-            std_type = 'std::bytes'
-        elif isinstance(expr.value, int):
-            # If integer value is out of int64 bounds, use decimal
-            if -2 ** 63 <= expr.value < 2 ** 63:
-                std_type = 'std::int64'
-            else:
-                std_type = 'std::decimal'
+    if isinstance(expr, qlast.StringConstant):
+        std_type = 'std::str'
+        node_cls = irast.StringConstant
+    elif isinstance(expr, qlast.RawStringConstant):
+        std_type = 'std::str'
+        node_cls = irast.RawStringConstant
+    elif isinstance(expr, qlast.IntegerConstant):
+        int_value = int(expr.value)
+        if expr.is_negative:
+            int_value = -int_value
+            value = f'-{value}'
+        # If integer value is out of int64 bounds, use decimal
+        if -2 ** 63 <= int_value < 2 ** 63:
+            std_type = 'std::int64'
         else:
-            raise NotImplementedError(
-                f'unexpected value type in Constant AST: {type(expr.value)}')
+            std_type = 'std::decimal'
+        node_cls = irast.IntegerConstant
+    elif isinstance(expr, qlast.FloatConstant):
+        if expr.is_negative:
+            value = f'-{value}'
+        std_type = 'std::decimal'
+        node_cls = irast.FloatConstant
+    elif isinstance(expr, qlast.BooleanConstant):
+        std_type = 'std::bool'
+        node_cls = irast.BooleanConstant
+    elif isinstance(expr, qlast.BytesConstant):
+        std_type = 'std::bytes'
+        node_cls = irast.BytesConstant
+    else:
+        raise RuntimeError(f'unexpected constant type: {type(expr)}')
 
-        ct = ctx.schema.get(std_type)
+    ct = ctx.schema.get(std_type)
+    return setgen.generated_set(node_cls(value=value, type=ct), ctx=ctx)
 
-    return setgen.generated_set(
-        node_cls(value=expr.value, type=ct), ctx=ctx)
+
+def try_fold_binop(
+        binop: irast.BinOp, *,
+        ctx: context.ContextLevel) -> typing.Optional[irast.Set]:
+    try:
+        const = ireval.evaluate(binop, schema=ctx.schema)
+    except ireval.UnsupportedExpressionError:
+        if binop.op in {ast.ops.ADD, ast.ops.MUL}:
+            return try_fold_associative_binop(binop, ctx=ctx)
+    else:
+        return setgen.ensure_set(const, ctx=ctx)
+
+
+def try_fold_associative_binop(
+        binop: irast.BinOp, *,
+        ctx: context.ContextLevel) -> typing.Optional[irast.Set]:
+
+    # Let's check if we have (CONST + (OTHER_CONST + X))
+    # tree, which can be optimized to ((CONST + OTHER_CONST) + X)
+
+    op = binop.op
+    my_const = binop.left
+    other_binop = binop.right
+    folded = None
+
+    if isinstance(other_binop.expr, irast.BaseConstant):
+        my_const, other_binop = other_binop, my_const
+
+    if (isinstance(my_const.expr, irast.BaseConstant) and
+            isinstance(other_binop.expr, irast.BinOp) and
+            other_binop.expr.op == op):
+
+        other_const = other_binop.expr.left
+        other_binop_node = other_binop.expr.right
+        if isinstance(other_binop_node.expr, irast.BaseConstant):
+            other_binop_node, other_const = \
+                other_const, other_binop_node
+
+        if isinstance(other_const.expr, irast.BaseConstant):
+            try:
+                new_const = ireval.evaluate(
+                    irast.BinOp(op=op, left=other_const, right=my_const),
+                    schema=ctx.schema,
+                )
+            except ireval.UnsupportedExpressionError:
+                pass
+            else:
+                folded_binop = irast.BinOp(
+                    left=setgen.ensure_set(new_const, ctx=ctx),
+                    right=other_binop_node,
+                    op=op)
+
+                folded = setgen.ensure_set(folded_binop, ctx=ctx)
+
+    return folded
 
 
 @dispatch.compile.register(qlast.EmptyCollection)
@@ -311,27 +364,25 @@ def compile_UnaryOp(
     if expr.op == qlast.DISTINCT:
         return compile_distinct_op(expr, ctx=ctx)
 
-    operand = dispatch.compile(expr.operand, ctx=ctx)
-    if astutils.is_exists_expr_set(operand):
-        operand.expr.negated = not operand.expr.negated
-        return operand
-
-    unop = irast.UnaryOp(expr=operand, op=expr.op)
-    result_type = irutils.infer_type(unop, ctx.schema)
-
-    real_t = ctx.schema.get('std::anyreal')
-
-    if (isinstance(operand.expr, irast.Constant) and
-            result_type.issubclass(real_t)):
-        # Fold the operation to constant if possible
-        if expr.op == ast.ops.UMINUS:
-            return setgen.ensure_set(
-                irast.Constant(value=-operand.expr.value, type=result_type),
-                ctx=ctx)
-        elif expr.op == ast.ops.UPLUS:
+    if (expr.op == ast.ops.UMINUS and
+            isinstance(expr.operand, qlast.BaseRealConstant)):
+        # Special case for -<real_const> so that type inference based
+        # on literal size works correctly in the case of INT_MIN and friends.
+        const = type(expr.operand)(value=expr.operand.value, is_negative=True)
+        result = dispatch.compile(const, ctx=ctx)
+    else:
+        operand = dispatch.compile(expr.operand, ctx=ctx)
+        if astutils.is_exists_expr_set(operand):
+            operand.expr.negated = not operand.expr.negated
             return operand
 
-    return setgen.generated_set(unop, ctx=ctx)
+        result = irast.UnaryOp(expr=operand, op=expr.op, context=expr.context)
+        try:
+            result = ireval.evaluate(result, schema=ctx.schema)
+        except ireval.UnsupportedExpressionError:
+            pass
+
+    return setgen.generated_set(result, ctx=ctx)
 
 
 @dispatch.compile.register(qlast.ExistsPredicate)
@@ -555,7 +606,6 @@ def compile_TypeFilter(
 def compile_Indirection(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     node = dispatch.compile(expr.arg, ctx=ctx)
-    int_type = schemactx.get_schema_type('std::int64', ctx=ctx)
     for indirection_el in expr.indirection:
         if isinstance(indirection_el, qlast.Index):
             idx = dispatch.compile(indirection_el.index, ctx=ctx)
@@ -567,12 +617,12 @@ def compile_Indirection(
             if indirection_el.start:
                 start = dispatch.compile(indirection_el.start, ctx=ctx)
             else:
-                start = irast.Constant(value=None, type=int_type)
+                start = None
 
             if indirection_el.stop:
                 stop = dispatch.compile(indirection_el.stop, ctx=ctx)
             else:
-                stop = irast.Constant(value=None, type=int_type)
+                stop = None
 
             node = irast.SliceIndirection(
                 expr=node, start=start, stop=stop)
@@ -581,134 +631,6 @@ def compile_Indirection(
                              '{!r}'.format(indirection_el))
 
     return setgen.ensure_set(node, ctx=ctx)
-
-
-def try_fold_arithmetic_binop(
-        op: ast.ops.Operator, left: irast.Set, right: irast.Set, *,
-        ctx: context.ContextLevel) -> typing.Optional[irast.Set]:
-    """Try folding an arithmetic expr into a constant."""
-    schema = ctx.schema
-
-    real_t = schema.get('std::anyreal')
-    int_t = schema.get('std::anyint')
-
-    left_type = irutils.infer_type(left, schema)
-    right_type = irutils.infer_type(right, schema)
-
-    if not left_type.issubclass(real_t) or not right_type.issubclass(real_t):
-        return
-
-    result_type = s_scalars.get_op_type(
-        op, left_type, right_type, schema=schema)
-
-    left = left.expr
-    right = right.expr
-
-    if op == ast.ops.ADD:
-        value = left.value + right.value
-    elif op == ast.ops.SUB:
-        value = left.value - right.value
-    elif op == ast.ops.MUL:
-        value = left.value * right.value
-    elif op == ast.ops.DIV:
-        if left_type.issubclass(int_t) and right_type.issubclass(int_t):
-            value = left.value // right.value
-        else:
-            value = left.value / right.value
-    elif op == ast.ops.POW:
-        value = left.value ** right.value
-    elif op == ast.ops.MOD:
-        value = left.value % right.value
-    else:
-        value = None
-
-    if value is not None:
-        return setgen.ensure_set(
-            irast.Constant(value=value, type=result_type), ctx=ctx)
-
-
-def try_fold_comparison_binop(
-        op: ast.ops.Operator, left: irast.Set, right: irast.Set, *,
-        ctx: context.ContextLevel) -> typing.Optional[irast.Set]:
-    """Try folding a comparison expr into a constant."""
-    left = left.expr
-    right = right.expr
-
-    if op == ast.ops.EQ:
-        value = left.value == right.value
-    elif op == ast.ops.NE:
-        value = left.value != right.value
-    elif op == ast.ops.GT:
-        value = left.value > right.value
-    elif op == ast.ops.GE:
-        value = left.value >= right.value
-    elif op == ast.ops.LT:
-        value = left.value < right.value
-    elif op == ast.ops.LE:
-        value = left.value <= right.value
-    else:
-        value = None
-
-    if value is not None:
-        return setgen.ensure_set(
-            irast.Constant(value=value, type=ctx.schema.get('std::bool')),
-            ctx=ctx)
-
-
-def try_fold_binop(
-        binop: irast.BinOp, *,
-        ctx: context.ContextLevel) -> typing.Optional[irast.Set]:
-    """Try folding a binary operator expression."""
-    schema = ctx.schema
-    real_t = schema.get('std::anyreal')
-
-    result_type = irutils.infer_type(binop, schema)
-    folded = None
-
-    left = binop.left
-    right = binop.right
-    op = binop.op
-
-    if (isinstance(left.expr, irast.Constant) and
-            isinstance(right.expr, irast.Constant)):
-        # Left and right nodes are constants.
-        if isinstance(op, ast.ops.ComparisonOperator):
-            folded = try_fold_comparison_binop(op, left, right, ctx=ctx)
-
-        elif result_type.issubclass(real_t):
-            folded = try_fold_arithmetic_binop(op, left, right, ctx=ctx)
-
-    elif op in {ast.ops.ADD, ast.ops.MUL}:
-        # Let's check if we have (CONST + (OTHER_CONST + X))
-        # tree, which can be optimized to ((CONST + OTHER_CONST) + X)
-
-        my_const = left
-        other_binop = right
-        if isinstance(right.expr, irast.Constant):
-            my_const, other_binop = other_binop, my_const
-
-        if (isinstance(my_const.expr, irast.Constant) and
-                isinstance(other_binop.expr, irast.BinOp) and
-                other_binop.expr.op == op):
-
-            other_const = other_binop.expr.left
-            other_binop_node = other_binop.expr.right
-            if isinstance(other_binop_node.expr, irast.Constant):
-                other_binop_node, other_const = \
-                    other_const, other_binop_node
-
-            if isinstance(other_const.expr, irast.Constant):
-                new_const = try_fold_arithmetic_binop(
-                    op, other_const, my_const, ctx=ctx)
-
-                if new_const is not None:
-                    folded_binop = irast.BinOp(
-                        left=new_const,
-                        right=other_binop_node,
-                        op=op)
-                    folded = setgen.ensure_set(folded_binop, ctx=ctx)
-
-    return folded
 
 
 def compile_type_check_op(

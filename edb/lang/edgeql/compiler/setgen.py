@@ -663,7 +663,7 @@ def computable_ptr_set(
         if isinstance(ptrcls.default, s_expr.ExpressionText):
             qlexpr = astutils.ensure_qlstmt(qlparser.parse(ptrcls.default))
         else:
-            qlexpr = qlast.Constant(value=ptrcls.default)
+            qlexpr = qlast.BaseConstant.from_python(ptrcls.default)
 
         qlctx = None
         inner_source_path_id = None

@@ -597,7 +597,7 @@ def _get_rel_path_output(
         else:
             name = env.aliases.get('v')
 
-        val = typecomp.cast(pgast.Constant(val=None, nullable=True),
+        val = typecomp.cast(pgast.NullConstant(nullable=True),
                             source_type=target,
                             target_type=target,
                             force=True, env=env)
@@ -805,7 +805,7 @@ def get_path_output_or_null(
     alias = env.aliases.get('null')
     restarget = pgast.ResTarget(
         name=alias,
-        val=pgast.Constant(val=None))
+        val=pgast.NullConstant())
 
     if hasattr(rel, 'returning_list'):
         rel.returning_list.append(restarget)

@@ -172,14 +172,23 @@ class IRDecompiler(ast.visitor.NodeVisitor):
     def visit_Parameter(self, node):
         return qlast.Parameter(name=node.name)
 
-    def visit_Constant(self, node):
-        return qlast.Constant(value=node.value)
-
     def visit_StringConstant(self, node):
-        return qlast.StringConstant.from_pystr(node.value)
+        return qlast.StringConstant.from_python(node.value)
 
     def visit_RawStringConstant(self, node):
-        return qlast.RawStringConstant.from_pystr(node.value)
+        return qlast.RawStringConstant.from_python(node.value)
+
+    def visit_BytesConstant(self, node):
+        return qlast.BytesConstant(value=node.value)
+
+    def visit_BooleanConstant(self, node):
+        return qlast.BooleanConstant(value=node.value)
+
+    def visit_FloatConstant(self, node):
+        return qlast.FloatConstant(value=node.value)
+
+    def visit_IntegerConstant(self, node):
+        return qlast.IntegerConstant(value=node.value)
 
     def visit_Array(self, node):
         return qlast.Array(elements=[
@@ -306,7 +315,7 @@ class IRDecompiler(ast.visitor.NodeVisitor):
     def _is_none(self, expr):
         return (
             expr is None or (
-                isinstance(expr, (irast.Constant, qlast.Constant)) and
+                isinstance(expr, (irast.BaseConstant, qlast.BaseConstant)) and
                 expr.value is None
             )
         )

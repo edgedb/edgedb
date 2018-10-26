@@ -69,7 +69,7 @@ def parse_edgeql(expr: str, ctx, *, offset_column=0, indent=0):
 def parse_edgeql_constant(expr: str, ctx, *, indent=0):
     node = parse_edgeql(expr, ctx, indent=indent)
     if (isinstance(node, qlast.SelectQuery) and
-            isinstance(node.result, qlast.Constant)):
+            isinstance(node.result, qlast.BaseConstant)):
         node = node.result
     return node
 
@@ -1073,7 +1073,7 @@ class Value(Nonterm):
     def reduce_COLONGT_NL_INDENT_RawString_NL_DEDENT(self, *kids):
         text = kids[3].val.value
         text = textwrap.dedent(text).strip()
-        self.val = qlast.Constant(value=text)
+        self.val = qlast.BaseConstant.from_python(text)
 
     def reduce_AssignmentBlob(self, *kids):
         self.val = kids[0].val

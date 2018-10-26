@@ -85,7 +85,7 @@ def _compile_set_impl(
 
     is_toplevel = ctx.toplevel_stmt is None
 
-    if isinstance(ir_set.expr, irast.Constant):
+    if isinstance(ir_set.expr, irast.BaseConstant):
         # Avoid creating needlessly complicated constructs for
         # constant expressions.  Besides being an optimization,
         # this helps in GROUP BY queries.
@@ -128,19 +128,67 @@ def compile_Parameter(
         ir_expr=expr, force=True, env=ctx.env)
 
 
-@dispatch.compile.register(irast.Constant)
-def compile_Constant(
-        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
+@dispatch.compile.register(irast.RawStringConstant)
+def compile_RawStringConstant(
+        expr: irast.RawStringConstant, *,
+        ctx: context.CompilerContextLevel) -> pgast.Base:
 
-    if isinstance(expr, irast.StringConstant):
-        result = pgast.EscapedStringConstant(val=expr.value)
-    else:
-        result = pgast.Constant(val=expr.value)
-
-    result = typecomp.cast(
-        result, source_type=expr.type, target_type=expr.type,
+    return typecomp.cast(
+        pgast.StringConstant(val=expr.value),
+        source_type=expr.type, target_type=expr.type,
         ir_expr=expr, force=True, env=ctx.env)
-    return result
+
+
+@dispatch.compile.register(irast.StringConstant)
+def compile_StringConstant(
+        expr: irast.StringConstant, *,
+        ctx: context.CompilerContextLevel) -> pgast.Base:
+
+    return typecomp.cast(
+        pgast.EscapedStringConstant(val=expr.value),
+        source_type=expr.type, target_type=expr.type,
+        ir_expr=expr, force=True, env=ctx.env)
+
+
+@dispatch.compile.register(irast.BytesConstant)
+def compile_BytesConstant(
+        expr: irast.StringConstant, *,
+        ctx: context.CompilerContextLevel) -> pgast.Base:
+
+    return pgast.ByteaConstant(val=expr.value)
+
+
+@dispatch.compile.register(irast.IntegerConstant)
+def compile_IntegerConstant(
+        expr: irast.IntegerConstant, *,
+        ctx: context.CompilerContextLevel) -> pgast.Base:
+
+    return typecomp.cast(
+        pgast.NumericConstant(val=expr.value),
+        source_type=expr.type, target_type=expr.type,
+        ir_expr=expr, force=True, env=ctx.env)
+
+
+@dispatch.compile.register(irast.FloatConstant)
+def compile_FloatConstant(
+        expr: irast.FloatConstant, *,
+        ctx: context.CompilerContextLevel) -> pgast.Base:
+
+    return typecomp.cast(
+        pgast.NumericConstant(val=expr.value),
+        source_type=expr.type, target_type=expr.type,
+        ir_expr=expr, force=True, env=ctx.env)
+
+
+@dispatch.compile.register(irast.BooleanConstant)
+def compile_BooleanConstant(
+        expr: irast.BooleanConstant, *,
+        ctx: context.CompilerContextLevel) -> pgast.Base:
+
+    return typecomp.cast(
+        pgast.BooleanConstant(val=expr.value),
+        source_type=expr.type, target_type=expr.type,
+        ir_expr=expr, force=True, env=ctx.env)
 
 
 @dispatch.compile.register(irast.TypeCast)
@@ -179,7 +227,8 @@ def compile_IndexIndirection(
 
     # line, column and filename are captured here to be used with the
     # error message
-    srcctx = pgast.Constant(val=irutils.get_source_context_as_json(expr.index))
+    srcctx = pgast.StringConstant(
+        val=irutils.get_source_context_as_json(expr.index))
 
     with ctx.new() as subctx:
         subctx.expr_exposed = False
@@ -216,8 +265,14 @@ def compile_SliceIndirection(
     with ctx.new() as subctx:
         subctx.expr_exposed = False
         subj = dispatch.compile(expr.expr, ctx=subctx)
-        start = dispatch.compile(expr.start, ctx=subctx)
-        stop = dispatch.compile(expr.stop, ctx=subctx)
+        if expr.start is None:
+            start = pgast.NullConstant()
+        else:
+            start = dispatch.compile(expr.start, ctx=subctx)
+        if expr.stop is None:
+            stop = pgast.NullConstant()
+        else:
+            stop = dispatch.compile(expr.stop, ctx=subctx)
 
     # any integer indexes must be upcast into int to fit the helper
     # function signature
@@ -294,7 +349,7 @@ def compile_BinOp(
         # unequal number of entries, but we want to allow
         # this.  Fortunately, we know that such comparison is
         # always False.
-        result = pgast.Constant(val=False)
+        result = pgast.BooleanConstant(val='FALSE')
     else:
         if is_bool_op:
             # Transform logical operators to force
@@ -435,7 +490,7 @@ def compile_TypeRef(
     else:
         result = pgast.FuncCall(
             name=('edgedb', '_resolve_type_id'),
-            args=[pgast.Constant(val=expr.maintype)],
+            args=[pgast.StringConstant(val=expr.maintype)],
         )
 
     return result
@@ -534,7 +589,7 @@ def _compile_shape(
 def _compile_set_in_singleton_mode(
         node: irast.Set, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     if isinstance(node, irast.EmptySet):
-        return pgast.Constant(value=None)
+        return pgast.NullConstant()
     elif node.expr is not None:
         return dispatch.compile(node.expr, ctx=ctx)
     else:

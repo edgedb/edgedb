@@ -313,7 +313,8 @@ def process_insert_body(
                 where_clause=astutils.new_binop(
                     op=ast.ops.EQ,
                     lexpr=pgast.ColumnRef(name=['name']),
-                    rexpr=pgast.Constant(val=ir_stmt.subject.scls.shortname)
+                    rexpr=pgast.StringConstant(
+                        val=ir_stmt.subject.scls.shortname)
                 )
             )
         )
@@ -630,7 +631,7 @@ def process_link_update(
             ],
             where_clause=astutils.new_binop(
                 lexpr=pgast.ColumnRef(name=[ltab_alias, 'name']),
-                rexpr=pgast.Constant(val=mptrcls.name),
+                rexpr=pgast.StringConstant(val=mptrcls.name),
                 op=ast.ops.EQ
             )
         ),

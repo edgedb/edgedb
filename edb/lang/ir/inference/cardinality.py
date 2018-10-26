@@ -122,7 +122,7 @@ def __infer_func_call(ir, scope_tree, schema):
         return ONE
 
 
-@_infer_cardinality.register(irast.Constant)
+@_infer_cardinality.register(irast.BaseConstant)
 @_infer_cardinality.register(irast.Parameter)
 def __infer_const_or_param(ir, scope_tree, schema):
     return ONE
@@ -284,8 +284,8 @@ def __infer_select_stmt(ir, scope_tree, schema):
         return ir.cardinality
     else:
         if (ir.limit is not None and
-                isinstance(ir.limit.expr, irast.Constant) and
-                ir.limit.expr.value == 1):
+                isinstance(ir.limit.expr, irast.IntegerConstant) and
+                ir.limit.expr.value == '1'):
             # Explicit LIMIT 1 clause.
             stmt_card = ONE
         else:

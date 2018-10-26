@@ -20,7 +20,7 @@
 import re
 
 from edb.lang.common.exceptions import EdgeDBError
-from edb.lang.common.ast import codegen, AST, base
+from edb.lang.common.ast import codegen, base
 
 from . import ast as edgeql_ast
 from . import quote as edgeql_quote
@@ -514,13 +514,17 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         else:
             self.write('r', node.quote, node.value, node.quote)
 
-    def visit_Constant(self, node):
-        if isinstance(node.value, str):
-            self.write(edgeql_quote.quote_literal(node.value))
-        elif isinstance(node.value, AST):
-            self.visit(node.value)
-        else:
-            self.write(str(node.value))
+    def visit_IntegerConstant(self, node):
+        self.write(node.value)
+
+    def visit_FloatConstant(self, node):
+        self.write(node.value)
+
+    def visit_BooleanConstant(self, node):
+        self.write(node.value)
+
+    def visit_BytesConstant(self, node):
+        self.write('b', node.quote, node.value, node.quote)
 
     def visit_FunctionCall(self, node):
         if isinstance(node.func, tuple):

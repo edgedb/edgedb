@@ -433,15 +433,42 @@ class Expr(BaseExpr):
     rexpr: Base
 
 
-class Constant(BaseExpr):
-    """A literal constant."""
+class BaseConstant(BaseExpr):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if not isinstance(self, NullConstant) and self.val is None:
+            raise ValueError('cannot create a pgast.Constant without a value')
+
+
+class StringConstant(BaseConstant):
+    """A literal string constant."""
 
     # Constant value
-    val: object
+    val: str
 
 
-class EscapedStringConstant(Constant):
+class NullConstant(BaseConstant):
+    """A NULL constant."""
+
+
+class EscapedStringConstant(BaseConstant):
     """An "E"-prefixed string."""
+
+    val: str
+
+
+class ByteaConstant(BaseConstant):
+    """An bytea string."""
+
+    val: str
+
+
+class NumericConstant(BaseConstant):
+
+    val: str
+
+
+class BooleanConstant(BaseConstant):
 
     val: str
 

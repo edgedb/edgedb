@@ -127,7 +127,7 @@ def cast(
                                 node
                             ]),
                         type_name=pgast.TypeName(name=('text',))),
-                    pgast.Constant(val='"')
+                    pgast.StringConstant(val='"')
                 ])
 
         elif source_type.issubclass(bool_t) and target_type.issubclass(int_t):
@@ -154,7 +154,7 @@ def cast(
             # to SQL: (INT != 0)
             return astutils.new_binop(
                 node,
-                pgast.Constant(val=0),
+                pgast.NumericConstant(val='0'),
                 op=ast.ops.NE)
 
         elif source_type.issubclass(json_t):
@@ -183,20 +183,22 @@ def cast(
             if expected_json_type is not None:
                 if ir_expr is not None:
                     srcctx = irutils.get_source_context_as_json(ir_expr)
+                    details = pgast.StringConstant(val=srcctx)
                 else:
                     srcctx = None
+                    details = pgast.NullConstant()
 
                 node = pgast.FuncCall(
                     name=('edgedb', 'jsonb_assert_type'),
                     args=[
                         node,
                         pgast.ArrayExpr(elements=[
-                            pgast.Constant(val=expected_json_type),
-                            pgast.Constant(val='null'),
+                            pgast.StringConstant(val=expected_json_type),
+                            pgast.StringConstant(val='null'),
                         ]),
                         pgast.NamedFuncArg(
                             name='det',
-                            val=pgast.Constant(val=srcctx)
+                            val=details,
                         )
                     ]
                 )
@@ -207,7 +209,7 @@ def cast(
                         name=('array_to_json',),
                         args=[pgast.ArrayExpr(elements=[node])]
                     ),
-                    rexpr=pgast.Constant(val=0),
+                    rexpr=pgast.NumericConstant(val='0'),
                     op='->>'
                 ),
                 type_name=pgast.TypeName(

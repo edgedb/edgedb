@@ -916,6 +916,8 @@ class AlterObjectProperty(Command):
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
+        from edb.lang.edgeql import compiler as qlcompiler
+
         propname = astnode.name.name
         if astnode.name.module:
             propname = astnode.name.module + '::' + propname
@@ -939,10 +941,17 @@ class AlterObjectProperty(Command):
             new_value = s_expr.ExpressionText(
                 edgeql.generate_source(astnode.value, pretty=False))
         else:
-            if isinstance(astnode.value, qlast.Constant):
-                new_value = astnode.value.value
+            if isinstance(astnode.value, qlast.BaseConstant):
+                new_value = qlcompiler.evaluate_ast_to_python_val(
+                    astnode.value, schema=schema)
+
             elif isinstance(astnode.value, qlast.Tuple):
-                new_value = tuple(el.value for el in astnode.value.elements)
+                new_value = tuple(
+                    qlcompiler.evaluate_ast_to_python_val(
+                        el.value, schema=schema)
+                    for el in astnode.value.elements
+                )
+
             else:
                 raise ValueError(
                     f'unexpected value in attribute: {astnode.value!r}')
@@ -973,7 +982,7 @@ class AlterObjectProperty(Command):
             value = edgeql.parse(str(value))
         elif utils.is_nontrivial_container(value):
             value = qlast.Tuple(elements=[
-                qlast.Constant(value=el) for el in value
+                qlast.BaseConstant.from_python(el) for el in value
             ])
         elif isinstance(value, nlang.WordCombination):
             forms = value.as_dict()
@@ -981,16 +990,16 @@ class AlterObjectProperty(Command):
                 items = []
                 for k, v in forms.items():
                     items.append((
-                        qlast.Constant(value=k),
-                        qlast.Constant(value=v)
+                        qlast.BaseConstant.from_python(k),
+                        qlast.BaseConstant.from_python(v)
                     ))
                 value = qlast.Array(elements=[
                     qlast.Tuple(elements=[k, v]) for k, v in items
                 ])
             else:
-                value = qlast.Constant(value=str(value))
+                value = qlast.BaseConstant.from_python(str(value))
         else:
-            value = qlast.Constant(value=value)
+            value = qlast.BaseConstant.from_python(value)
 
         as_expr = isinstance(value, qlast.ExpressionText)
         op = qlast.CreateAttributeValue(

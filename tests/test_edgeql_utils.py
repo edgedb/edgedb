@@ -19,6 +19,7 @@
 
 import textwrap
 
+from edb.lang.edgeql import parser as eql_parser
 from edb.lang.edgeql import utils as eql_utils
 from edb.lang.schema import declarative as s_decl
 from edb.lang.schema import std as s_std
@@ -58,10 +59,12 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
         s_decl.parse_module_declarations(
             cls.schema, [('test', cls.SCHEMA)])
 
-    def _assert_normalize_expr(self, text, expected, *,
+    def _assert_normalize_expr(self, text, expected,
+                               expected_const_type=None, *,
                                anchors=None, inline_anchors=False):
-        normalized = eql_utils.normalize_expr(
-            text, self.__class__.schema,
+        edgeql_tree = eql_parser.parse(text)
+        ir, _, normalized = eql_utils.normalize_tree(
+            edgeql_tree, self.__class__.schema,
             anchors=anchors, inline_anchors=inline_anchors)
 
         self.assertEqual(
@@ -69,16 +72,21 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
             textwrap.dedent(expected).strip()
         )
 
+        if expected_const_type is not None:
+            self.assertEqual(ir.expr.scls.displayname, expected_const_type)
+
     def test_edgeql_utils_normalize_01(self):
         self._assert_normalize_expr(
             """SELECT 40 + 2""",
             """SELECT 42""",
+            'std::int64',
         )
 
     def test_edgeql_utils_normalize_02(self):
         self._assert_normalize_expr(
             """SELECT -10""",
             """SELECT -10""",
+            'std::int64',
         )
 
     def test_edgeql_utils_normalize_03(self):
@@ -97,6 +105,7 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
         self._assert_normalize_expr(
             """SELECT <int64>'1'""",
             """SELECT <std::int64>'1'""",
+            'std::int64',
         )
 
     def test_edgeql_utils_normalize_06(self):
@@ -115,6 +124,7 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
         self._assert_normalize_expr(
             """SELECT 40 + 2 - 20 * +2 + (-10 / 2)""",
             """SELECT -3""",
+            'std::int64',
         )
 
     def test_edgeql_utils_normalize_09(self):
@@ -141,15 +151,18 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
     def test_edgeql_utils_normalize_10(self):
         self._assert_normalize_expr(
             """SELECT 1 > 2""",
-            """SELECT False""",
+            """SELECT false""",
+            'std::bool',
         )
 
         self._assert_normalize_expr(
             """SELECT 1 = 1""",
-            """SELECT True""",
+            """SELECT true""",
+            'std::bool',
         )
 
         self._assert_normalize_expr(
             """SELECT 1 < (1 + 1)""",
-            """SELECT True""",
+            """SELECT true""",
+            'std::bool',
         )

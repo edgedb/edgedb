@@ -232,27 +232,72 @@ class FunctionCall(Expr):
     agg_set_modifier: typing.Optional[SetModifier]
 
 
-class Constant(Expr):
-    value: typing.Union[int, str, float, bool, bytes, decimal.Decimal]
+class BaseConstant(Expr):
+    value: str
+
+    @classmethod
+    def from_python(cls, val: object) -> 'BaseConstant':
+        if isinstance(val, str):
+            return StringConstant.from_python(val)
+        elif isinstance(val, bool):
+            return BooleanConstant(value='true' if val else 'false')
+        elif isinstance(val, int):
+            return IntegerConstant(value=str(val))
+        elif isinstance(val, decimal.Decimal):
+            if val.to_integral_value() == val:
+                return IntegerConstant(value=str(val))
+            else:
+                return FloatConstant(value=str(val))
+        elif isinstance(val, float):
+            return FloatConstant(value=str(val))
+        elif isinstance(val, bytes):
+            return BytesConstant.from_python(value=val)
+        else:
+            raise ValueError(f'unexpected constant type: {type(val)!r}')
 
 
-class StringConstant(Constant):
+class StringConstant(BaseConstant):
     quote: str
 
     @classmethod
-    def from_pystr(cls, s: str):
+    def from_python(cls, s: str):
         s = s.replace('\\', '\\\\')
         value = quote.quote_literal(s)
         return cls(value=value[1:-1], quote="'")
 
 
-class RawStringConstant(Constant):
+class RawStringConstant(BaseConstant):
     quote: str
 
     @classmethod
-    def from_pystr(cls, s: str):
+    def from_python(cls, s: str):
         value = quote.quote_literal(s)
         return cls(value=value[1:-1], quote="'")
+
+
+class BaseRealConstant(BaseConstant):
+    is_negative: bool = False
+
+
+class IntegerConstant(BaseRealConstant):
+    pass
+
+
+class FloatConstant(BaseRealConstant):
+    pass
+
+
+class BooleanConstant(BaseConstant):
+    pass
+
+
+class BytesConstant(BaseConstant):
+    quote: str
+
+    @classmethod
+    def from_python(cls, s: bytes):
+        rs = repr(s)
+        return cls(value=rs[2:-1], quote=rs[-1])
 
 
 class Parameter(Expr):
@@ -453,7 +498,7 @@ class ShapeElement(Expr):
     limit: Expr
     compexpr: Expr
     recurse: bool = False
-    recurse_limit: typing.Union[Constant, Parameter]
+    recurse_limit: typing.Union[BaseConstant, Parameter]
 
 
 class Shape(Expr):

@@ -507,7 +507,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
             pass
         elif op.property == 'search':
             if op.new_value:
-                v = qlast.Constant(value=str(op.new_value.weight))
+                v = qlast.BaseConstant.from_python(str(op.new_value.weight))
                 self._set_attribute_ast(context, node, 'search_weight', v)
         elif op.property == 'target' and objtype:
             if not node.target:
@@ -669,7 +669,7 @@ class AlterLink(LinkCommand, named.AlterNamedObject):
             pass
         elif op.property == 'search':
             if op.new_value:
-                v = qlast.Constant(value=str(op.new_value.weight))
+                v = qlast.BaseConstant.from_python(str(op.new_value.weight))
                 self._set_attribute_ast(context, node, 'search_weight', v)
             else:
                 self._drop_attribute_ast(context, node, 'search_weight')

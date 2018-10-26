@@ -237,6 +237,8 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedObject):
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
+        from edb.lang.edgeql import compiler as qlcompiler
+
         propname = astnode.name.name
         if astnode.name.module:
             propname = astnode.name.module + '::' + propname
@@ -249,10 +251,17 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedObject):
         propname = AttributeValue.get_shortname(cmd.classname)
 
         val = astnode.value
-        if isinstance(val, qlast.Constant):
-            value = val.value
-        elif isinstance(val, qlast.Tuple):
-            value = tuple(v.value for v in val.elements)
+        if isinstance(val, qlast.BaseConstant):
+            value = qlcompiler.evaluate_ast_to_python_val(
+                val, schema=schema)
+
+        elif isinstance(astnode.value, qlast.Tuple):
+            value = tuple(
+                qlcompiler.evaluate_ast_to_python_val(
+                    el.value, schema=schema)
+                for el in astnode.value.elements
+            )
+
         else:
             msg = 'unexpected value type in AttributeValue: {!r}'
             raise ValueError(msg.format(val))
@@ -279,7 +288,7 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedObject):
 
     def _apply_field_ast(self, context, node, op):
         if op.property == 'value':
-            node.value = qlast.Constant(value=op.new_value)
+            node.value = qlast.BaseConstant.from_python(op.new_value)
         elif op.property == 'is_derived':
             pass
         elif op.property == 'attribute':
@@ -338,7 +347,7 @@ class AlterAttributeValue(AttributeValueCommand, named.AlterNamedObject):
         super()._apply_fields_ast(context, node)
         for op in self(sd.AlterObjectProperty):
             if op.property == 'value':
-                node.value = qlast.Constant(value=op.new_value)
+                node.value = qlast.BaseConstant.from_python(op.new_value)
 
     def _apply_field_ast(self, context, node, op):
         if op.property == 'is_derived':

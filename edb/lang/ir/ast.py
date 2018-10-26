@@ -135,22 +135,40 @@ class EmptySet(Set):
     pass
 
 
-class Constant(Expr):
+class BaseConstant(Expr):
 
-    value: object
+    value: str
     type: s_types.Type
 
     def __init__(self, *args, type, **kwargs):
-        if type is None:
-            raise ValueError('type argument must not be None')
         super().__init__(*args, type=type, **kwargs)
+        if self.type is None:
+            raise ValueError('cannot create irast.Constant without a type')
+        if self.value is None:
+            raise ValueError('cannot create irast.Constant without a value')
 
 
-class StringConstant(Constant):
+class StringConstant(BaseConstant):
     pass
 
 
-class RawStringConstant(Constant):
+class RawStringConstant(BaseConstant):
+    pass
+
+
+class IntegerConstant(BaseConstant):
+    pass
+
+
+class FloatConstant(BaseConstant):
+    pass
+
+
+class BooleanConstant(BaseConstant):
+    pass
+
+
+class BytesConstant(BaseConstant):
     pass
 
 

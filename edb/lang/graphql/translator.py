@@ -119,7 +119,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             if (isinstance(el.compexpr, qlast.FunctionCall) and
                     el.compexpr.func == 'str_to_json'):
                 name = el.expr.steps[0].ptr.name
-                el.compexpr.args[0].arg = qlast.StringConstant.from_pystr(
+                el.compexpr.args[0].arg = qlast.StringConstant.from_python(
                     json.dumps(gqlresult.data[name], indent=4))
 
         return translated
@@ -531,9 +531,9 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         # convert integers into qlast literals
         if offset is not None and not isinstance(offset, qlast.Base):
-            offset = qlast.Constant(value=max(0, offset))
+            offset = qlast.BaseConstant.from_python(max(0, offset))
         if limit is not None:
-            limit = qlast.Constant(value=max(0, limit))
+            limit = qlast.BaseConstant.from_python(max(0, limit))
 
         return where, orderby, offset, limit
 
@@ -673,7 +673,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         return qlast.Parameter(name=node.value[1:])
 
     def visit_Literal(self, node):
-        return qlast.Constant(value=node.value)
+        return qlast.BaseConstant.from_python(node.value)
 
     def _visit_list_of_inputs(self, inputs, op):
         result = [self.visit(node) for node in inputs]

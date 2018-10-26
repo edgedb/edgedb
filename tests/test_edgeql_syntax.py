@@ -137,10 +137,10 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT 354.32;
         SELECT 35400000000000.32;
         SELECT 35400000000000000000.32;
-        SELECT 3.5432e+20;
+        SELECT 3.5432e20;
         SELECT 3.5432e+20;
         SELECT 3.5432e-20;
-        SELECT 3.5432e-18;
+        SELECT 354.32e-20;
         """
 
     def test_edgeql_syntax_constants_05(self):
@@ -184,7 +184,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         r"""
         SELECT b'1\t\n1' + b"2\x00";
 % OK %
-        SELECT (b'1\t\n1' + b'2\x00');
+        SELECT (b'1\t\n1' + b"2\x00");
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -216,7 +216,8 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SELECT b'aa
 aa';
 % OK %
-        SELECT b'aa\naa';
+        SELECT b'aa
+aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,

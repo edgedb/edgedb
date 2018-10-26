@@ -282,7 +282,7 @@ class DeclarationLoader:
         return typ
 
     def _get_literal_value(self, node):
-        if not isinstance(node, edgeql.ast.Constant):
+        if not isinstance(node, edgeql.ast.BaseConstant):
             raise TypeError('Literal expected '
                             '(got type {!r})'.format(type(node).__name__))
 
@@ -473,9 +473,6 @@ class DeclarationLoader:
 
     def _parse_ptr_default(self, expr, source, ptr):
         """Set the default value for a pointer."""
-        if not isinstance(expr, edgeql.ast.SelectQuery):
-            expr = edgeql.ast.Constant(value=self._get_literal_value(expr))
-
         ptr.default = s_expr.ExpressionText(qlcodegen.generate_source(expr))
 
     def _parse_attribute_values(self, subject, subjdecl):
@@ -743,8 +740,7 @@ class DeclarationLoader:
                         self._normalize_ptr_default(
                             attr.value, objtype, spec_link, ptrdecl)
                     else:
-                        expr = edgeql.ast.Constant(
-                            value=self._get_literal_value(attr.value))
+                        expr = attr.value
                         _, _, spec_link.default = edgeql.utils.normalize_tree(
                             expr, self._schema)
 

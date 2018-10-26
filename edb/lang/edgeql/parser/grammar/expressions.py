@@ -17,10 +17,7 @@
 #
 
 
-import ast as pyast
 import collections
-import decimal
-import numbers
 import re
 
 from edb.lang.common import ast
@@ -623,12 +620,7 @@ class Expr(Nonterm):
 
     @parsing.precedence(precedence.P_UMINUS)
     def reduce_MINUS_Expr(self, *kids):
-        operand = kids[1].val
-        if (isinstance(operand, qlast.Constant) and
-                isinstance(operand.value, numbers.Number)):
-            self.val = qlast.Constant(value=-operand.value)
-        else:
-            self.val = qlast.UnaryOp(op=ast.ops.UMINUS, operand=kids[1].val)
+        self.val = qlast.UnaryOp(op=ast.ops.UMINUS, operand=kids[1].val)
 
     def reduce_Expr_PLUS_Expr(self, *kids):
         self.val = qlast.BinOp(left=kids[0].val, op=ast.ops.ADD,
@@ -856,10 +848,10 @@ class ArgConstant(Nonterm):
 
 class BaseNumberConstant(Nonterm):
     def reduce_ICONST(self, *kids):
-        self.val = qlast.Constant(value=int(kids[0].val))
+        self.val = qlast.IntegerConstant(value=kids[0].val)
 
     def reduce_FCONST(self, *kids):
-        self.val = qlast.Constant(value=decimal.Decimal(kids[0].val))
+        self.val = qlast.FloatConstant(value=kids[0].val)
 
 
 class BaseStringConstant(Nonterm):
@@ -1005,23 +997,17 @@ class BaseBytesConstant(Nonterm):
                 f"is outside of the ASCII range",
                 context=bytes_tok.context)
 
-        val = match.group('body')
-        val = f'b"""{val}"""'
-        try:
-            parsed_val = pyast.literal_eval(val)
-        except SyntaxError:
-            raise EdgeQLSyntaxError(
-                f"invalid bytes literal", context=bytes_tok.context)
-
-        self.val = qlast.Constant(value=parsed_val)
+        self.val = qlast.BytesConstant(
+            value=match.group('body'),
+            quote=match.group('BQ'))
 
 
 class BaseBooleanConstant(Nonterm):
     def reduce_TRUE(self, *kids):
-        self.val = qlast.Constant(value=True)
+        self.val = qlast.BooleanConstant(value='true')
 
     def reduce_FALSE(self, *kids):
-        self.val = qlast.Constant(value=False)
+        self.val = qlast.BooleanConstant(value='false')
 
 
 class Path(Nonterm):

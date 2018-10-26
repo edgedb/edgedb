@@ -172,7 +172,7 @@ def __infer_func_call(ir, schema):
         return rtype
 
 
-@_infer_type.register(irast.Constant)
+@_infer_type.register(irast.BaseConstant)
 @_infer_type.register(irast.Parameter)
 def __infer_const_or_param(ir, schema):
     return ir.type
@@ -366,13 +366,14 @@ def __infer_slice(ir, schema):
             context=ir.start.context)
 
     for index in [ir.start, ir.stop]:
-        index_type = infer_type(index, schema)
+        if index is not None:
+            index_type = infer_type(index, schema)
 
-        if not index_type.implicitly_castable_to(int_t, schema):
-            raise ql_errors.EdgeQLError(
-                f'cannot index {base_name} by {index_type.name}, '
-                f'{int_t.name} was expected',
-                context=index.context)
+            if not index_type.implicitly_castable_to(int_t, schema):
+                raise ql_errors.EdgeQLError(
+                    f'cannot index {base_name} by {index_type.name}, '
+                    f'{int_t.name} was expected',
+                    context=index.context)
 
     return node_type
 

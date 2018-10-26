@@ -18,7 +18,6 @@
 
 
 import binascii
-import numbers
 
 from edb.server.pgsql import common
 from edb.server.pgsql import ast as pgast
@@ -509,22 +508,28 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.char_indentation -= 1
         self.write(')')
 
-    def visit_Constant(self, node):
-        if node.val is None:
-            self.write('NULL')
-        elif isinstance(node.val, (bool, numbers.Number)):
-            self.write(str(node.val))
-        elif isinstance(node.val, bytes):
-            b = binascii.b2a_hex(node.val).decode('ascii')
-            self.write(f"'\\x{b}'::bytea")
-        else:
-            self.write(common.quote_literal(str(node.val)))
+    def visit_NullConstant(self, node):
+        self.write('NULL')
+
+    def visit_NumericConstant(self, node):
+        self.write(node.val)
+
+    def visit_BooleanConstant(self, node):
+        self.write(node.val)
+
+    def visit_StringConstant(self, node):
+        self.write(common.quote_literal(node.val))
 
     def visit_EscapedStringConstant(self, node):
-        if node.val is None:
-            self.write('NULL')
+        self.write(common.quote_e_literal(node.val))
+
+    def visit_ByteaConstant(self, node):
+        pybytes = binascii.a2b_qp(node.val)
+        if pybytes:
+            b = binascii.b2a_hex(pybytes).decode('ascii')
+            self.write(f"'\\x{b}'::bytea")
         else:
-            self.write(common.quote_e_literal(node.val))
+            self.write("''::bytea")
 
     def visit_ParamRef(self, node):
         self.write('$', str(node.number))

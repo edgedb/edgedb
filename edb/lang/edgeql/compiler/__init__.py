@@ -24,6 +24,8 @@ from edb.lang.edgeql import parser
 from edb.lang.common import debug
 from edb.lang.common import markup  # NOQA
 
+from edb.lang.ir import staeval as ireval
+
 from .decompiler import decompile_ir  # NOQA
 from . import dispatch
 from . import stmtctx
@@ -116,3 +118,8 @@ def compile_ast_to_ir(tree,
         debug.dump(ir_expr)
 
     return ir_expr
+
+
+def evaluate_ast_to_python_val(tree, schema, *, modaliases=None) -> object:
+    ir = compile_ast_fragment_to_ir(tree, schema, modaliases=modaliases)
+    return ireval.evaluate_to_python_val(ir, schema=schema)

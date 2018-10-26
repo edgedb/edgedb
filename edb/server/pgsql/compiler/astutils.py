@@ -50,7 +50,7 @@ def tuple_element_for_shape_el(shape_el, value):
 def is_null_const(expr):
     if isinstance(expr, pgast.TypeCast):
         expr = expr.arg
-    return isinstance(expr, pgast.Constant) and expr.val is None
+    return isinstance(expr, pgast.NullConstant)
 
 
 def is_set_op_query(query):

@@ -709,7 +709,7 @@ class BitWithoutLength(Nonterm):
             self.val = pgast.TypeName(name=('varbit',))
         else:
             self.val = pgast.TypeName(name=('bit',))
-            self.val.typmods = [pgast.Constant(val=1)]
+            self.val.typmods = [pgast.NumericConstant(val='1')]
 
 
 class Character(Nonterm):
@@ -1268,7 +1268,7 @@ class a_expr(Nonterm):
 
     def reduce_a_expr_IS_TRUE_P(self, *kids):
         "%reduce a_expr IS TRUE_P"
-        right = pgast.Constant(val=True)
+        right = pgast.BooleanConstant(val='TRUE')
         self.val = pgast.Expr(
             name=ast.ops.IS,
             lexpr=kids[0].val,
@@ -1277,7 +1277,7 @@ class a_expr(Nonterm):
 
     def reduce_a_expr_IS_NOT_TRUE_P(self, *kids):
         "%reduce a_expr IS NOT TRUE_P"
-        right = pgast.Constant(val=True)
+        right = pgast.BooleanConstant(val='TRUE')
         self.val = pgast.Expr(
             name=ast.ops.IS_NOT,
             lexpr=kids[0].val,
@@ -1286,7 +1286,7 @@ class a_expr(Nonterm):
 
     def reduce_a_expr_IS_FALSE_P(self, *kids):
         "%reduce a_expr IS FALSE_P"
-        right = pgast.Constant(val=False)
+        right = pgast.BooleanConstant(val='FALSE')
         self.val = pgast.Expr(
             name=ast.ops.IS,
             lexpr=kids[0].val,
@@ -1295,7 +1295,7 @@ class a_expr(Nonterm):
 
     def reduce_a_expr_IS_NOT_FALSE_P(self, *kids):
         "%reduce a_expr IS NOT FALSE_P"
-        right = pgast.Constant(val=False)
+        right = pgast.BooleanConstant(val='FALSE')
         self.val = pgast.Expr(
             name=ast.ops.IS_NOT,
             lexpr=kids[0].val,
@@ -1683,41 +1683,41 @@ class AexprConst(Nonterm):
 
     def reduce_ICONST(self, *kids):
         "%reduce ICONST"
-        self.val = pgast.Constant(val=kids[0].val)
+        self.val = pgast.NumericConstant(val=kids[0].val)
 
     def reduce_FCONST(self, *kids):
         "%reduce FCONST"
-        self.val = pgast.Constant(val=kids[0].val)
+        self.val = pgast.NumericConstant(val=kids[0].val)
 
     def reduce_SCONST(self, *kids):
         "%reduce SCONST"
-        self.val = pgast.Constant(val=kids[0].val)
+        self.val = pgast.StringConstant(val=kids[0].val)
 
     def reduce_BCONST(self, *kids):
         "%reduce BCONST"
-        self.val = pgast.Constant(val=kids[0].val)
+        self.val = pgast.StringConstant(val=kids[0].val)
 
     def reduce_XCONST(self, *kids):
         "%reduce XCONST"
-        self.val = pgast.Constant(val=kids[0].val)
+        self.val = pgast.StringConstant(val=kids[0].val)
 
     def reduce_type_const(self, *kids):
         "%reduce func_name SCONST"
         self.val = pgast.TypeCast(
-            arg=pgast.Constant(val=kids[1].val),
+            arg=pgast.StringConstant(val=kids[1].val),
             type_name=pgast.TypeName(name=(kids[0].val,)))
 
     def reduce_type_mods_const(self, *kids):
         "%reduce func_name LPAREN func_arg_list RPAREN SCONST"
         self.val = pgast.TypeCast(
-            art=pgast.Constant(val=kids[4].val),
+            art=pgast.StringConstant(val=kids[4].val),
             type_name=pgast.TypeName(
                 name=(kids[0].val,), typmods=kids[2].val))
 
     def reduce_ConstTypename_const(self, *kids):
         "%reduce ConstTypename SCONST"
         self.val = pgast.TypeCast(
-            arg=pgast.Constant(val=kids[1].val),
+            arg=pgast.StringConstant(val=kids[1].val),
             type_name=kids[0].val)
 
     def reduce_ConstInterval_SCONST_opt_interval(self, *kids):
@@ -1725,7 +1725,7 @@ class AexprConst(Nonterm):
         typ = kids[0].val
         typ.typmods = kids[2].val
         self.val = pgast.TypeCast(
-            argr=pgast.Constant(val=kids[1].val),
+            argr=pgast.StringConstant(val=kids[1].val),
             type_name=typ)
 
     def reduce_ConstInterval_ICONST_SCONST_opt_interval(self, *kids):
@@ -1743,20 +1743,20 @@ class AexprConst(Nonterm):
             typ.typmods = [{'precision': kids[2].val}]
 
         self.val = pgast.TypeCast(
-            expr=pgast.Constant(val=kids[4].val),
+            expr=pgast.StringConstant(val=kids[4].val),
             type_name=typ)
 
     def reduce_TRUE_P(self, *kids):
         "%reduce TRUE_P"
-        self.val = pgast.Constant(val=True)
+        self.val = pgast.BooleanConstant(val='TRUE')
 
     def reduce_FALSE_P(self, *kids):
         "%reduce FALSE_P"
-        self.val = pgast.Constant(val=False)
+        self.val = pgast.BooleanConstant(val='FALSE')
 
     def reduce_NULL_P(self, *kids):
         "%reduce NULL_P"
-        self.val = pgast.Constant(val=None)
+        self.val = pgast.NullConstant()
 
 
 class ColId(Nonterm):

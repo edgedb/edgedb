@@ -168,7 +168,7 @@ def get_set_rvar(
                                           rvars=rvars, ctx=subctx)
         elif not is_optional and is_empty_set:
             null_query = rvars.main.rvar.query
-            null_query.where_clause = pgast.Constant(val=False)
+            null_query.where_clause = pgast.BooleanConstant(val='FALSE')
 
         for set_rvar in rvars.new:
             # overwrite_path_rvar is needed because we want
@@ -429,11 +429,11 @@ def prepare_optional_rel(
 
                 scope_rel.target_list.insert(
                     0,
-                    pgast.ResTarget(val=pgast.Constant(val=1),
+                    pgast.ResTarget(val=pgast.NumericConstant(val='1'),
                                     name=marker))
                 emptyrel.target_list.insert(
                     0,
-                    pgast.ResTarget(val=pgast.Constant(val=2),
+                    pgast.ResTarget(val=pgast.NumericConstant(val='2'),
                                     name=marker))
 
                 unionqry = unionctx.rel
@@ -860,10 +860,10 @@ def process_set_as_membership_expr(
             pathctx.get_path_value_output(
                 wrapper, ir_set.path_id, env=ctx.env)
 
-            coalesce_val = expr.op == ast.ops.NOT_IN
+            coalesce_val = 'TRUE' if expr.op == ast.ops.NOT_IN else 'FALSE'
             with subctx.subrel() as subsubctx:
                 coalesce = pgast.CoalesceExpr(
-                    args=[wrapper, pgast.Constant(val=coalesce_val)])
+                    args=[wrapper, pgast.BooleanConstant(val=coalesce_val)])
 
                 wrapper = subsubctx.rel
                 pathctx.put_path_value_var(
@@ -1072,11 +1072,11 @@ def process_set_as_coalesce(
 
                     larg.target_list.insert(
                         0,
-                        pgast.ResTarget(val=pgast.Constant(val=1),
+                        pgast.ResTarget(val=pgast.NumericConstant(val='1'),
                                         name=marker))
                     rarg.target_list.insert(
                         0,
-                        pgast.ResTarget(val=pgast.Constant(val=2),
+                        pgast.ResTarget(val=pgast.NumericConstant(val='2'),
                                         name=marker))
 
                     unionqry = sub2ctx.rel
@@ -1214,13 +1214,13 @@ def process_set_as_tuple_indirection(
                 stmt, path_id=tuple_set.path_id, env=subctx.env)
 
             type_sentinel = typecomp.cast(
-                pgast.Constant(val=None),
+                pgast.NullConstant(),
                 source_type=ir_set.scls, target_type=ir_set.scls, force=True,
                 env=subctx.env)
 
             tuple_atts = list(tuple_set.scls.element_types.keys())
-            att_idx = pgast.Constant(
-                val=tuple_atts.index(ir_set.expr.name) + 1
+            att_idx = pgast.NumericConstant(
+                val=str(tuple_atts.index(ir_set.expr.name) + 1)
             )
 
             set_expr = pgast.FuncCall(
@@ -1387,7 +1387,7 @@ def process_set_as_func_expr(
                     kind=pgast.ExprKind.OP,
                     name='-',
                     lexpr=set_expr.elements[1].val,
-                    rexpr=pgast.Constant(val=1))
+                    rexpr=pgast.NumericConstant(val='1'))
 
             for element in set_expr.elements:
                 pathctx.put_path_value_var(

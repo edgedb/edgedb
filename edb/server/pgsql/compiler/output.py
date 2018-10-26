@@ -51,7 +51,7 @@ def tuple_var_as_json_object(tvar, *, path_id, env):
                 name = rptr.shortname.name
                 if rptr.is_link_property():
                     name = '@' + name
-            keyvals.append(pgast.Constant(val=name))
+            keyvals.append(pgast.StringConstant(val=name))
             if isinstance(element.val, pgast.TupleVar):
                 val = serialize_expr(
                     element.val, path_id=element.path_id, env=env)
@@ -212,7 +212,7 @@ def top_output_as_value(
         new_val = pgast.CoalesceExpr(
             args=[
                 new_val,
-                pgast.Constant(val='[]')
+                pgast.StringConstant(val='[]')
             ]
         )
 

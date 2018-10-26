@@ -286,52 +286,52 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
             result[1],
             '''\
 CREATE ABSTRACT PROPERTY test::lang {
-    SET is_virtual := False;
-    SET readonly := False;
+    SET is_virtual := false;
+    SET readonly := false;
 };
 CREATE ABSTRACT PROPERTY test::name {
-    SET is_virtual := False;
-    SET readonly := False;
+    SET is_virtual := false;
+    SET readonly := false;
 };
 CREATE ABSTRACT LINK test::related EXTENDING std::link {
-    SET is_virtual := False;
-    SET readonly := False;
+    SET is_virtual := false;
+    SET readonly := false;
 };
 ALTER ABSTRACT LINK test::related CREATE PROPERTY test::lang -> std::str {
     SET cardinality := '11';
-    SET is_virtual := False;
-    SET readonly := False;
+    SET is_virtual := false;
+    SET readonly := false;
 };
 CREATE TYPE test::NamedObject EXTENDING std::Object {
-    SET is_virtual := False;
+    SET is_virtual := false;
 };
 ALTER TYPE test::NamedObject {
     CREATE REQUIRED PROPERTY test::name -> std::str {
         SET cardinality := '11';
-        SET is_virtual := False;
-        SET readonly := False;
+        SET is_virtual := false;
+        SET readonly := false;
     };
     CREATE REQUIRED LINK test::related -> test::NamedObject {
         SET cardinality := '*1';
-        SET is_virtual := False;
+        SET is_virtual := false;
         SET on_target_delete := 'RESTRICT';
-        SET readonly := False;
+        SET readonly := false;
     };
     ALTER LINK test::related {
         CREATE PROPERTY std::source -> test::NamedObject {
             SET cardinality := '11';
-            SET is_virtual := False;
-            SET readonly := False;
+            SET is_virtual := false;
+            SET readonly := false;
         };
         CREATE PROPERTY std::target -> test::NamedObject {
             SET cardinality := '11';
-            SET is_virtual := False;
-            SET readonly := False;
+            SET is_virtual := false;
+            SET readonly := false;
         };
         CREATE PROPERTY test::lang -> std::str {
             SET cardinality := '11';
-            SET is_virtual := False;
-            SET readonly := False;
+            SET is_virtual := false;
+            SET readonly := false;
         };
     };
 };
@@ -354,17 +354,17 @@ ALTER TYPE test::NamedObject {
             result[1],
             '''\
 CREATE ABSTRACT PROPERTY test::a {
-    SET is_virtual := False;
-    SET readonly := False;
+    SET is_virtual := false;
+    SET readonly := false;
 };
 CREATE TYPE test::NamedObject EXTENDING std::Object {
-    SET is_virtual := False;
+    SET is_virtual := false;
 };
 ALTER TYPE test::NamedObject CREATE REQUIRED PROPERTY \
 test::a -> array<std::int64> {
     SET cardinality := '11';
-    SET is_virtual := False;
-    SET readonly := False;
+    SET is_virtual := false;
+    SET readonly := false;
 };
             '''
         )
@@ -385,30 +385,30 @@ test::a -> array<std::int64> {
             result[1],
             '''\
             CREATE ABSTRACT PROPERTY test::bar {
-                SET is_virtual := False;
-                SET readonly := False;
+                SET is_virtual := false;
+                SET readonly := false;
             };
             CREATE ABSTRACT PROPERTY test::__typename {
-                SET is_virtual := False;
-                SET readonly := False;
+                SET is_virtual := false;
+                SET readonly := false;
             };
             CREATE ABSTRACT TYPE test::Foo EXTENDING std::Object {
-                SET is_virtual := False;
+                SET is_virtual := false;
             };
             ALTER TYPE test::Foo {
                 CREATE PROPERTY test::bar -> std::str {
                     SET cardinality := '11';
-                    SET is_virtual := False;
-                    SET readonly := False;
+                    SET is_virtual := false;
+                    SET readonly := false;
                 };
                 CREATE PROPERTY test::__typename -> std::str {
                     SET cardinality := '*1';
-                    SET computable := True;
+                    SET computable := true;
                     SET default := SELECT
                         'foo'
                     ;
-                    SET is_virtual := False;
-                    SET readonly := False;
+                    SET is_virtual := false;
+                    SET readonly := false;
                 };
             };
             '''
@@ -430,30 +430,30 @@ test::a -> array<std::int64> {
             result[1],
             '''\
             CREATE ABSTRACT PROPERTY test::bar {
-                SET is_virtual := False;
-                SET readonly := False;
+                SET is_virtual := false;
+                SET readonly := false;
             };
             CREATE ABSTRACT PROPERTY test::__typename {
-                SET is_virtual := False;
-                SET readonly := False;
+                SET is_virtual := false;
+                SET readonly := false;
             };
             CREATE ABSTRACT TYPE test::Foo EXTENDING std::Object {
-                SET is_virtual := False;
+                SET is_virtual := false;
             };
             ALTER TYPE test::Foo {
                 CREATE PROPERTY test::bar -> std::str {
                     SET cardinality := '11';
-                    SET is_virtual := False;
-                    SET readonly := False;
+                    SET is_virtual := false;
+                    SET readonly := false;
                 };
                 CREATE PROPERTY test::__typename -> std::str {
                     SET cardinality := '*1';
-                    SET computable := True;
+                    SET computable := true;
                     SET default := SELECT
                         __source__.__type__[IS schema::Type].name
                     ;
-                    SET is_virtual := False;
-                    SET readonly := False;
+                    SET is_virtual := false;
+                    SET readonly := false;
                 };
             };
             '''

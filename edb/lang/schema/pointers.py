@@ -372,38 +372,13 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
     @classmethod
     def _parse_default(cls, cmd):
         return
-        for sub in cmd(sd.AlterObjectProperty):
-            if sub.property == 'default':
-                if isinstance(sub.new_value, sexpr.ExpressionText):
-                    expr = edgeql.parse(sub.new_value)
-
-                    if expr.op == qlast.UNION:
-                        candidates = []
-                        cls._extract_union_operands(expr, candidates)
-                        deflt = []
-
-                        for candidate in candidates:
-                            cexpr = candidate.result
-                            if isinstance(cexpr, qlast.Constant):
-                                deflt.append(cexpr.value)
-                            else:
-                                text = edgeql.generate_source(candidate,
-                                                              pretty=False)
-                                deflt.append(sexpr.ExpressionText(text))
-                    else:
-                        deflt = [sub.new_value]
-
-                else:
-                    deflt = [sub.new_value]
-
-                sub.new_value = deflt
 
     def _encode_default(self, context, node, op):
         if op.new_value:
             expr = op.new_value
             if not isinstance(expr, sexpr.ExpressionText):
                 expr_t = qlast.SelectQuery(
-                    result=qlast.Constant(value=expr)
+                    result=qlast.BaseConstant.from_python(expr)
                 )
                 expr = edgeql.generate_source(expr_t, pretty=False)
 

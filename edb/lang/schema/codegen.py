@@ -154,7 +154,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
     def _visit_assignment(self, node):
         self.write(' := ')
 
-        if (isinstance(node, eqlast.Constant) and
+        if (isinstance(node, eqlast.BaseConstant) and
                 (not isinstance(node.value, str) or
                  '\n' not in node.value)):
             self._visit_edgeql(node, ident=False)
