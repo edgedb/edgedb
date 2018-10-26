@@ -84,6 +84,7 @@ future_reserved_keywords = frozenset([
     "declare",
     "discard",
     "do",
+    "end",
     "execute",
     "explain",
     "fetch",
@@ -106,6 +107,7 @@ future_reserved_keywords = frozenset([
     "revoke",
     "over",
     "typeof",
+    "when",
 ])
 
 
