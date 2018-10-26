@@ -27,7 +27,10 @@ from edb.lang.edgeql import ast as qlast
 
 from ...errors import EdgeQLSyntaxError
 
-from . import keywords, precedence, tokens, lexer
+from . import keywords
+from . import lexutils
+from . import precedence
+from . import tokens
 
 from .precedence import *  # NOQA
 from .tokens import *  # NOQA
@@ -856,43 +859,8 @@ class BaseNumberConstant(Nonterm):
 
 class BaseStringConstant(Nonterm):
 
-    valid_str_re = re.compile(r'''
-        ^
-        (?P<Q>
-            ' | "
-        )
-        (?P<body>
-            (?:
-                \\\n |                  # line continuation
-                \n |                    # new line
-                \\\\ |                  # \\
-                \\['"] |                # \' or \"
-                                        #
-                \\x[0-7][0-9a-fA-F] |   # \xhh -- hex code, up to 0x7F
-                                        # (higher values are not permitted
-                                        # because it is ambiguous whether
-                                        # they mean Unicode code points or
-                                        # byte values.)
-                                        #
-                \\u[0-9a-fA-F]{4} |     # \uhhhh
-                \\U[0-9a-fA-F]{8} |     # \Uhhhhhhhh
-                \\ (?: t | n | r) |     # \t, \n, or \r
-                [^\\] |                 # anything except \
-
-                (?P<err_esc>            # capture any invalid \escape sequence
-                    \\x.{1,2} |
-                    \\u.{1,4} |
-                    \\U.{1,8} |
-                    \\.
-                )
-            )*
-        )
-        (?P=Q)
-        $
-    ''', re.X)
-
     def reduce_SCONST(self, str_tok):
-        match = self.valid_str_re.match(str_tok.val)
+        match = lexutils.VALID_STRING_RE.match(str_tok.val)
 
         if not match:
             raise EdgeQLSyntaxError(
@@ -914,29 +882,8 @@ class BaseStringConstant(Nonterm):
 
 class BaseRawStringConstant(Nonterm):
 
-    valid_rstr_re = re.compile(rf'''
-        ^
-        (?:
-            r
-        )?
-        (?P<Q>
-            (?:
-                (?<=r) (?: ' | ")
-            ) | (?:
-                (?<!r) (?: {lexer.re_dquote})
-            )
-        )
-        (?P<body>
-            (?:
-                \n | .
-            )*?
-        )
-        (?P=Q)
-        $
-    ''', re.X)
-
     def reduce_RSCONST(self, str_tok):
-        match = self.valid_rstr_re.match(str_tok.val)
+        match = lexutils.VALID_RAW_STRING_RE.match(str_tok.val)
         if not match:
             raise EdgeQLSyntaxError(
                 f"invalid raw string literal", context=str_tok.context)
@@ -949,39 +896,9 @@ class BaseRawStringConstant(Nonterm):
 
 class BaseBytesConstant(Nonterm):
 
-    valid_bytes_re = re.compile(r'''
-        ^
-        (?:
-            b
-        )
-        (?P<BQ>
-            ' | "
-        )
-        (?P<body>
-            (
-                \n |                    # new line
-                \\\\ |                  # \\
-                \\['"] |                # \' or \"
-                \\x[0-9a-fA-F]{2} |     # \xhh -- hex code
-                \\ (?: t | n | r) |     # \t, \n, or \r
-                [\x20-\x5b\x5d-\x7e] |  # match any printable ASCII, except '\'
-
-                (?P<err_esc>            # capture any invalid \escape sequence
-                    \\x.{1,2} |
-                    \\.
-                ) |
-                (?P<err>                # capture any unexpected character
-                    .
-                )
-            )*
-        )
-        (?P=BQ)
-        $
-    ''', re.X)
-
     def reduce_BCONST(self, bytes_tok):
         val = bytes_tok.val
-        match = self.valid_bytes_re.match(val)
+        match = lexutils.VALID_BYTES_RE.match(val)
 
         if not match:
             raise EdgeQLSyntaxError(
