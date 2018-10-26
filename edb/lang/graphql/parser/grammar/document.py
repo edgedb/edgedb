@@ -17,10 +17,13 @@
 #
 
 
+import re
+
 from edb.lang.common import parsing
 from edb.lang.graphql import ast as gqlast
 from edb.lang.graphql.parser.errors import (GraphQLParserError,
-                                            GraphQLUniquenessError)
+                                            GraphQLUniquenessError,
+                                            InvalidStringTokenError)
 
 from .tokens import *  # NOQA
 from . import keywords
@@ -89,24 +92,55 @@ class NameNotDunderTok(NameTokNonTerm,
     pass
 
 
+INVALID_STRING_RE = re.compile(r'''
+    (?<!\\)(?:\\{2})*(\\u(?![0-9A-Fa-f]{4})) |
+    ([\n\f\v\b]) |
+    (?<!\\)(?:\\{2})*(\\[^"/bfnrtu\\])
+''', re.X)
+
+
+FORWARD_SLASH_ESCAPE_RE = re.compile(r'(?<!\\)((?:\\{2})*)(\\/)')
+
+
+class StringLiteral(Nonterm):
+
+    def reduce_STRING(self, *kids):
+        val = kids[0].val
+        context = kids[0].context
+        invalid = INVALID_STRING_RE.search(val, 1, len(val) - 1)
+        if invalid:
+            # pick whichever group actually matched
+            inv = next(filter(None, invalid.groups()))
+            context.start.column += invalid.end() - len(inv)
+            context.end.line = context.start.line
+            context.end.column = context.start.column + len(inv)
+            raise InvalidStringTokenError(
+                f"invalid {invalid.group()!r} within string token",
+                context=context)
+
+        val = FORWARD_SLASH_ESCAPE_RE.sub(r'\1/', val)
+
+        self.val = gqlast.StringLiteral(value=val[1:-1])
+
+
 class BaseValue(Nonterm):
     def reduce_INTEGER(self, *kids):
-        self.val = gqlast.IntegerLiteral(value=kids[0].normalized_value)
+        self.val = gqlast.IntegerLiteral(value=kids[0].val)
 
     def reduce_FLOAT(self, *kids):
-        self.val = gqlast.FloatLiteral(value=kids[0].normalized_value)
+        self.val = gqlast.FloatLiteral(value=kids[0].val)
 
     def reduce_TRUE(self, *kids):
-        self.val = gqlast.BooleanLiteral(value=True)
+        self.val = gqlast.BooleanLiteral(value='true')
 
     def reduce_FALSE(self, *kids):
-        self.val = gqlast.BooleanLiteral(value=False)
+        self.val = gqlast.BooleanLiteral(value='false')
 
     def reduce_NULL(self, *kids):
         self.val = gqlast.NullLiteral()
 
-    def reduce_STRING(self, *kids):
-        self.val = gqlast.StringLiteral(value=kids[0].normalized_value)
+    def reduce_StringLiteral(self, *kids):
+        self.val = kids[0].val
 
     def reduce_NameNotBoolTok(self, *kids):
         self.val = gqlast.EnumLiteral(value=kids[0].val)

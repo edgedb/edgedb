@@ -17,13 +17,10 @@
 #
 
 
-import ast
-import re
 import sys
 import types
 
 from edb.lang.common import parsing
-from edb.lang.graphql.parser.errors import InvalidStringTokenError
 
 from . import keywords
 from . import precedence
@@ -112,48 +109,15 @@ class T_BANG(Token):
 
 
 class T_FLOAT(Token):
-    @property
-    def normalized_value(self):
-        return float(self.val)
+    pass
 
 
 class T_INTEGER(Token):
-    @property
-    def normalized_value(self):
-        return int(self.val)
-
-
-invalid_str = re.compile(r'''(?x)
-    (?<!\\)(?:\\{2})*(\\u(?![0-9A-Fa-f]{4})) |
-    ([\n\f\v\b]) |
-    (?<!\\)(?:\\{2})*(\\[^"/bfnrtu\\])
-    ''')
-
-unescape_fw_slash = re.compile(r'(?<!\\)((?:\\{2})*)(\\/)')
+    pass
 
 
 class T_STRING(Token):
-    def __init__(self, parser, val, context=None):
-        # validate the string value before proceeding
-        #
-        invalid = invalid_str.search(val, 1, len(val) - 1)
-        if invalid:
-            # pick whichever group actually matched
-            inv = next(filter(None, invalid.groups()))
-            context.start.column += invalid.end() - len(inv)
-            context.end.line = context.start.line
-            context.end.column = context.start.column + len(inv)
-            raise InvalidStringTokenError(
-                f"invalid {invalid.group()!r} within string token",
-                context=context)
-        super().__init__(parser, val, context)
-
-    @property
-    def normalized_value(self):
-        # unescape possible '\/' graphql escape sequence before
-        # processing all the escape sequences that are supported by
-        # Python
-        return ast.literal_eval(unescape_fw_slash.sub(r'\1/', self.val))
+    pass
 
 
 class T_IDENT(Token):

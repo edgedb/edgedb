@@ -248,8 +248,6 @@ class BaseConstant(Expr):
                 return IntegerConstant(value=str(val))
             else:
                 return FloatConstant(value=str(val))
-        elif isinstance(val, float):
-            return FloatConstant(value=str(val))
         elif isinstance(val, bytes):
             return BytesConstant.from_python(value=val)
         else:

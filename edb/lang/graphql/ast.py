@@ -17,10 +17,10 @@
 #
 
 
-import re
 import typing
 
 from edb.lang.common import ast, parsing
+from edb.lang.edgeql import quote as eql_quote
 
 
 class Base(ast.AST):
@@ -38,60 +38,67 @@ class Base(ast.AST):
                f'{id(self):#x}{ar}>'
 
 
-class Literal(Base):
+class BaseLiteral(Base):
     value: object
 
-    def topython(self):
-        return self.value
+    @classmethod
+    def from_python(cls, val: object) -> 'BaseLiteral':
+        if isinstance(val, str):
+            return StringLiteral.from_python(val)
+        elif isinstance(val, bool):
+            return BooleanLiteral(value='true' if val else 'false')
+        elif isinstance(val, int):
+            return IntegerLiteral(value=str(val))
+        elif isinstance(val, float):
+            return FloatLiteral(value=str(val))
+        elif isinstance(val, list):
+            return ListLiteral(value=[BaseLiteral.from_python(v) for v in val])
+        elif isinstance(val, dict):
+            return InputObjectLiteral(
+                value=[ObjectField(name=n, value=BaseLiteral.from_python(v))
+                       for n, v in val.items()])
+        else:
+            raise ValueError(f'unexpected constant type: {type(val)!r}')
 
 
-class StringLiteral(Literal):
-    def tosource(self):
-        value = self.value
-        # generic substitutions for '\b' and '\f'
-        value = value.replace('\b', '\\b').replace('\f', '\\f')
-        value = repr(value)
-        # escape \b \f \u1234 and \/ correctly
-        value = re.sub(r'\\\\([fb])', r'\\\1', value)
-        value = re.sub(r'\\\\(u[0-9a-fA-F]{4})', r'\\\1', value)
-        # no need to escape '/' as '\/' since it's legal unescaped
-
-        # need to change quotation style
-        if value[0] == "'":
-            value = value[1:-1].replace(R"\'", "'").replace('"', R'\"')
-            value = '"' + value + '"'
-
-        return value
+class ScalarLiteral(BaseLiteral):
+    value: str
 
 
-class IntegerLiteral(Literal):
+class StringLiteral(ScalarLiteral):
+    @classmethod
+    def from_python(cls, s: str):
+        s = s.replace('\\', '\\\\')
+        value = eql_quote.quote_literal(s)
+        return cls(value=value[1:-1])
+
+
+class IntegerLiteral(ScalarLiteral):
     pass
 
 
-class FloatLiteral(Literal):
+class FloatLiteral(ScalarLiteral):
     pass
 
 
-class BooleanLiteral(Literal):
+class BooleanLiteral(ScalarLiteral):
     pass
 
 
-class EnumLiteral(Literal):
+class EnumLiteral(ScalarLiteral):
     pass
 
 
-class NullLiteral(Literal):
+class NullLiteral(ScalarLiteral):
     value: None
 
 
-class ListLiteral(Literal):
-    def topython(self):
-        return [val.topython() for val in self.value]
+class ListLiteral(BaseLiteral):
+    pass
 
 
-class InputObjectLiteral(Literal):
-    def topython(self):
-        return {field.name: field.value.topython() for field in self.value}
+class InputObjectLiteral(BaseLiteral):
+    pass
 
 
 class Variable(Base):

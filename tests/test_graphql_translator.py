@@ -883,7 +883,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     }
                 }
             FILTER
-                (test::User.name = 'John'))
+                (test::User.name = "John"))
         };
         """
 
@@ -912,7 +912,7 @@ class TestGraphQLTranslation(TranslatorTest):
                 }
             FILTER
                 (
-                    (test::User.name = 'John') AND
+                    (test::User.name = "John") AND
                     (test::User.active = True)
                 ))
         };
@@ -939,7 +939,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     groups: {
                         id,
                         name
-                    } FILTER (test::User.groups.name = 'admin')
+                    } FILTER (test::User.groups.name = "admin")
                 })
         };
         """
@@ -960,7 +960,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     name
                 } FILTER (
                     <str>test::User.id =
-                        '8598d268-4efa-11e8-9955-8f9c15d57680'
+                        "8598d268-4efa-11e8-9955-8f9c15d57680"
                 )
             )
         };
@@ -991,10 +991,10 @@ class TestGraphQLTranslation(TranslatorTest):
                     groups: {
                         id,
                         name
-                    } FILTER (test::User.groups.name = 'admin')
+                    } FILTER (test::User.groups.name = "admin")
                 } FILTER (
                     (
-                        (test::User.name = 'Bob')
+                        (test::User.name = "Bob")
                         AND
                         (test::User.active = True)
                     )
@@ -1026,7 +1026,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     score
                 } FILTER (
                     (
-                        (test::User.name = 'Bob')
+                        (test::User.name = "Bob")
                         AND
                         (test::User.active = True)
                     )
@@ -1058,7 +1058,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     score
                 } FILTER
                     (
-                        NOT (test::User.name = 'Bob')
+                        NOT (test::User.name = "Bob")
                         AND
                         (test::User.age = 21)
                     )
@@ -1089,7 +1089,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     score
                 } FILTER
                     (
-                        NOT (test::User.name = 'Bob')
+                        NOT (test::User.name = "Bob")
                         OR
                         (test::User.age = 20)
                     )
@@ -1120,7 +1120,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     score
                 } FILTER
                     (
-                        (test::User.name != 'Bob')
+                        (test::User.name != "Bob")
                         OR
                         (test::User.age = 20)
                     )
@@ -1149,7 +1149,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     age
                 } FILTER
                     (
-                        (test::User.name LIKE '%o%')
+                        (test::User.name LIKE "%o%")
                         AND
                         (test::User.age > 22)
                     )
@@ -1181,7 +1181,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     score
                 } FILTER
                     (
-                        (test::User.name LIKE 'J%')
+                        (test::User.name LIKE "J%")
                         AND
                         (
                             (test::User.score >= 3)
@@ -1214,7 +1214,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     age
                 } FILTER
                     (
-                        (test::User.name ILIKE '%e')
+                        (test::User.name ILIKE "%e")
                         AND
                         (test::User.age <= 25)
                     )
@@ -1792,7 +1792,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     name,
                 }
             FILTER
-                (test::UserGroup.name = 'admin'))
+                (test::UserGroup.name = "admin"))
         };
         """
 
@@ -1812,7 +1812,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     id,
                 }
             FILTER
-                (test::User.name = 'John'))
+                (test::User.name = "John"))
         };
         """
 
@@ -2479,7 +2479,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     after
                 }
             FILTER
-                (test::Foo.`select` = 'bar'))
+                (test::Foo.`select` = "bar"))
         };
         """
 

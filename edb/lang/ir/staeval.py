@@ -25,7 +25,7 @@ import functools
 
 from edb.lang.common import ast
 from edb.lang.edgeql import errors
-from edb.lang.edgeql import lexutils as ql_lexutils
+from edb.lang.edgeql.parser.grammar import lexutils as ql_lexutils
 
 from edb.lang.ir import ast as irast
 from edb.lang.ir import utils as irutils

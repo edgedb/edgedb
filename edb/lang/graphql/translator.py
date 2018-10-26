@@ -97,7 +97,8 @@ class GraphQLTranslator(ast.NodeVisitor):
             self._context.gqlcore._gql_schema,
             self._context.query,
             variable_values={
-                name[1:]: val for name, val in self._context.variables.items()
+                name[1:]: val.value
+                for name, val in self._context.variables.items()
             },
             operation_name=self._context.operation_name,
         )
@@ -194,22 +195,21 @@ class GraphQLTranslator(ast.NodeVisitor):
             if directive.name in ('include', 'skip'):
                 cond = [a.value for a in directive.arguments
                         if a.name == 'if'][0]
+
                 if isinstance(cond, gqlast.Variable):
                     var = self._context.vars[cond.value]
                     cond = var[0]
                     var[1] = True  # mark the variable as critical
-                else:
-                    cond = cond.value
 
-                if not isinstance(cond, bool):
+                if not isinstance(cond, gqlast.BooleanLiteral):
                     raise g_errors.GraphQLValidationError(
                         f"'if' argument of {directive.name} " +
                         "directive must be a Boolean",
                         context=directive.context)
 
-                if directive.name == 'include' and cond is False:
+                if directive.name == 'include' and cond.value == 'false':
                     return False
-                elif directive.name == 'skip' and cond is True:
+                elif directive.name == 'skip' and cond.value == 'true':
                     return False
 
         return True
@@ -220,7 +220,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             if node.value is None:
                 variables[node.name] = [None, False]
             else:
-                variables[node.name] = [node.value.topython(), False]
+                variables[node.name] = [node.value, False]
 
     def visit_SelectionSet(self, node):
         elements = []
@@ -285,7 +285,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             # introspection can never have an InputObjectLiteral
             return {}
         else:
-            return arg.value.topython()
+            return arg.value
 
     def _get_parent_and_current_type(self):
         path = self._context.path[-1]
@@ -477,11 +477,11 @@ class GraphQLTranslator(ast.NodeVisitor):
                 elif arg.name == 'order':
                     orderby = self.visit_order(arg.value)
                 elif arg.name == 'first':
-                    first = arg.value.value
+                    first = int(arg.value.value)
                     if first < 0:
                         raise ValueError(f"{arg.name!r} cannot be negative")
                 elif arg.name == 'last':
-                    last = arg.value.value
+                    last = int(arg.value.value)
                     last_context = arg.context
                     if last < 0:
                         raise ValueError(f"{arg.name!r} cannot be negative")
@@ -672,8 +672,17 @@ class GraphQLTranslator(ast.NodeVisitor):
     def visit_Variable(self, node):
         return qlast.Parameter(name=node.value[1:])
 
-    def visit_Literal(self, node):
-        return qlast.BaseConstant.from_python(node.value)
+    def visit_StringLiteral(self, node):
+        return qlast.StringConstant(value=node.value, quote='"')
+
+    def visit_IntegerLiteral(self, node):
+        return qlast.IntegerConstant(value=node.value)
+
+    def visit_FloatLiteral(self, node):
+        return qlast.FloatConstant(value=node.value)
+
+    def visit_BooleanLiteral(self, node):
+        return qlast.BooleanConstant(value=node.value)
 
     def _visit_list_of_inputs(self, inputs, op):
         result = [self.visit(node) for node in inputs]
@@ -718,6 +727,10 @@ def translate(schema, graphql, *, variables=None, operation_name=None):
     if variables is None:
         variables = {}
 
+    gql_vars = {}
+    for n, v in variables.items():
+        gql_vars[n] = gqlast.BaseLiteral.from_python(v)
+
     # HACK
     query = re.sub(r'@edgedb\(.*?\)', '', graphql)
     schema2 = gt.GQLCoreSchema(schema)
@@ -726,14 +739,14 @@ def translate(schema, graphql, *, variables=None, operation_name=None):
     gqltree = parser.parse(graphql)
     context = GraphQLTranslatorContext(
         schema=schema, gqlcore=schema2, query=query,
-        variables=variables, operation_name=operation_name)
+        variables=gql_vars, operation_name=operation_name)
     edge_forest_map = GraphQLTranslator(context=context).visit(gqltree)
     code = []
     for name, (tree, critvars) in sorted(edge_forest_map.items()):
         if name:
             code.append(f'# {name}')
         if critvars:
-            crit = [f'{vname}={val!r}' for vname, val in critvars]
+            crit = [f'{vname}={val.value}' for vname, val in critvars]
             code.append(f'# critical variables: {", ".join(crit)}')
         code += [edgeql.generate_source(tree), ';']
 
