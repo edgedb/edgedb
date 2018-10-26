@@ -275,6 +275,7 @@ class FunctionCall(Expr):
     partition: typing.List[Base]
     window: bool
     initial_value: Base
+    type: s_types.Type
 
 
 class TupleIndirection(Expr):

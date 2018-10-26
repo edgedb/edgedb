@@ -182,6 +182,9 @@ def compile_anchor(
     elif isinstance(anchor, qlast.Base):
         step = setgen.ensure_set(dispatch.compile(anchor, ctx=ctx), ctx=ctx)
 
+    elif isinstance(anchor, irast.Parameter):
+        step = setgen.ensure_set(anchor, ctx=ctx)
+
     else:
         raise RuntimeError(f'unexpected anchor value: {anchor!r}')
 

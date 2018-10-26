@@ -50,6 +50,8 @@ _SET_OF = ft.TypeModifier.SET_OF
 _OPTIONAL = ft.TypeModifier.OPTIONAL
 _SINGLETON = ft.TypeModifier.SINGLETON
 
+_NO_MATCH = (None, None, False)
+
 
 @dispatch.compile.register(qlast.FunctionCall)
 def compile_FunctionCall(
@@ -77,12 +79,13 @@ def compile_FunctionCall(
         args, kwargs = compile_call_args(expr, funcname, ctx=fctx)
 
         fatal_array_check = len(funcs) == 1
+        return_type = None
         matched_func = None
         matched_args = None
         matched_args_implicit_cast = False
 
         for func in funcs:
-            _bound_args, _used_impl_cast = try_bind_func_args(
+            _bound_args, _return_type, _used_impl_cast = try_bind_func_args(
                 args, kwargs, funcname, func,
                 fatal_array_check=fatal_array_check,
                 ctx=ctx)
@@ -90,11 +93,13 @@ def compile_FunctionCall(
             if _bound_args is not None:
                 if matched_args is None:
                     matched_func = func
+                    return_type = _return_type
                     matched_args = _bound_args
                     matched_args_implicit_cast = _used_impl_cast
                 else:
                     if matched_args_implicit_cast and not _used_impl_cast:
                         matched_func = func
+                        return_type = _return_type
                         matched_args = _bound_args
                         matched_args_implicit_cast = False
 
@@ -110,7 +115,8 @@ def compile_FunctionCall(
 
         node = irast.FunctionCall(func=matched_func,
                                   args=matched_args,
-                                  context=expr.context)
+                                  context=expr.context,
+                                  type=return_type)
 
         if matched_func.initial_value is not None:
             rtype = irutils.infer_type(node, fctx.schema)
@@ -120,8 +126,7 @@ def compile_FunctionCall(
             )
             node.initial_value = dispatch.compile(iv_ql, ctx=fctx)
 
-    ir_set = setgen.ensure_set(node, ctx=ctx)
-    return ir_set
+    return setgen.ensure_set(node, typehint=return_type, ctx=ctx)
 
 
 def try_bind_func_args(
@@ -135,6 +140,11 @@ def try_bind_func_args(
     def _check_type(arg_type, param_type):
         nonlocal used_implicit_cast
 
+        if (arg_type.is_polymorphic() and
+                in_polymorphic_func and
+                arg_type.resolve_polymorphic(param_type) is not None):
+            return True
+
         if arg_type.issubclass(param_type):
             return True
 
@@ -145,53 +155,57 @@ def try_bind_func_args(
         return False
 
     def _check_any(param, arg, arg_type) -> bool:
-        nonlocal any_concrete_type
+        nonlocal resolved_poly_base_type
 
-        if param.type.name == 'std::any':
-            return_type = func.return_type
-            if (isinstance(return_type, s_types.Array) and
-                    return_type.get_subtypes()[0].name == 'std::any' and
-                    isinstance(arg_type, s_types.Array)):
+        if not param.type.is_polymorphic():
+            return True
 
-                if fatal_array_check:
-                    raise errors.EdgeQLError(
-                        f'function {funcname!r} returning '
-                        f'{return_type.name} cannot '
-                        f'take {arg_type.name} as a polymorphic argument',
-                        context=arg.context)
-                else:
-                    return False
+        resolved = param.type.resolve_polymorphic(arg_type)
+        if resolved is None:
+            return False
 
-            if any_concrete_type is None:
-                any_concrete_type = arg_type
+        if resolved_poly_base_type is None:
+            resolved_poly_base_type = resolved
+            return True
 
-        if (isinstance(param.type, s_types.Array) and
-                param.type.element_type.name == 'std::any' and
-                any_concrete_type is None):
-            any_concrete_type = arg_type.element_type
+        return resolved_poly_base_type == resolved
 
-        return True
+    in_polymorphic_func = (
+        ctx.func is not None and
+        ctx.func.params.is_polymorphic()
+    )
 
+    edgeql_func = func.language is qlast.Language.EdgeQL
+    bytes_t = ctx.schema.get('std::bytes')
     used_implicit_cast = False
-    any_concrete_type = None
+    resolved_poly_base_type = None
     no_args_call = not args and not kwargs
 
     if not func.params:
         if no_args_call:
             # Match: `func` is a function without parameters
             # being called with no arguments.
-            return [], False
+            if edgeql_func:
+                args = [
+                    setgen.ensure_set(
+                        irast.BytesConstant(value=r"\x00", type=bytes_t),
+                        typehint=bytes_t,
+                        ctx=ctx)
+                ]
+                return args, func.return_type, False
+            else:
+                return [], func.return_type, False
         else:
             # No match: `func` is a function without parameters
             # being called with some arguments.
-            return None, False
+            return _NO_MATCH
 
     pg_params = func.params.as_pg_params()
 
     if no_args_call and pg_params.has_param_wo_default:
         # A call without arguments and there is at least
         # one parameter without default.
-        return None, False
+        return _NO_MATCH
 
     bound_param_args = []
 
@@ -202,7 +216,44 @@ def try_bind_func_args(
 
     ai = 0
     pi = 0
+    matched_kwargs = 0
 
+    # Step 1: bind NAMED ONLY args (they are compiled as first params)
+    while True:
+        if pi >= nparams:
+            break
+
+        param = params[pi]
+        if param.kind is not _NAMED_ONLY:
+            break
+
+        pi += 1
+
+        if param.name in kwargs:
+            matched_kwargs += 1
+
+            arg_type, arg_val = kwargs[param.name]
+            if not _check_type(arg_type, param.type):
+                return _NO_MATCH
+            if not _check_any(param, arg_val, arg_type):
+                return _NO_MATCH
+
+            bound_param_args.append((param, arg_val))
+
+        else:
+            if param.default is None:
+                # required named parameter without default and
+                # without a matching argument
+                return _NO_MATCH
+
+            populate_defaults = True
+            bound_param_args.append((param, None))
+
+    if matched_kwargs != len(kwargs):
+        # extra kwargs?
+        return _NO_MATCH
+
+    # Step 2: bind POSITIONAL args (they are compiled as first params)
     while True:
         if ai < nargs:
             arg_type, arg_val = args[ai]
@@ -210,22 +261,22 @@ def try_bind_func_args(
 
             if pi >= nparams:
                 # too many positional arguments
-                return None, False
+                return _NO_MATCH
             param = params[pi]
             pi += 1
 
             if param.kind is _NAMED_ONLY:
-                # too many positional arguments
-                return None, False
+                # impossible condition
+                raise RuntimeError('unprocessed NAMED ONLY parameter')
 
             if param.kind is _VARIADIC:
                 var_type = param.type.get_subtypes()[0]
                 if not _check_type(arg_type, var_type):
-                    return None, False
+                    return _NO_MATCH
                 vals = [arg_val]
                 for arg_type, arg_val in args[ai:]:
                     if not _check_type(arg_type, var_type):
-                        return None, False
+                        return _NO_MATCH
                     vals.append(arg_val)
 
                 bound_param_args.append((
@@ -238,16 +289,16 @@ def try_bind_func_args(
                 break
 
             if not _check_type(arg_type, param.type):
-                return None, False
+                return _NO_MATCH
             if not _check_any(param, arg_val, arg_type):
-                return None, False
+                return _NO_MATCH
 
             bound_param_args.append((param, arg_val))
 
         else:
             break
 
-    matched_kwargs = 0
+    # Step 3: handle yet unprocessed POSITIONAL & VARIADIC args
     for pi in range(pi, nparams):
         param = params[pi]
 
@@ -255,7 +306,7 @@ def try_bind_func_args(
             if param.default is None:
                 # required positional parameter that we don't have a
                 # positional argument for.
-                return None, False
+                return _NO_MATCH
 
             populate_defaults = True
             bound_param_args.append((param, None))
@@ -270,61 +321,55 @@ def try_bind_func_args(
             ))
 
         elif param.kind is _NAMED_ONLY:
-            if param.name in kwargs:
-                matched_kwargs += 1
+            # impossible condition
+            raise RuntimeError('unprocessed NAMED ONLY parameter')
 
-                arg_type, arg_val = kwargs[param.name]
-                if not _check_type(arg_type, param.type):
-                    return None, False
-                if not _check_any(param, arg_val, arg_type):
-                    return None, False
-
-                bound_param_args.append((param, arg_val))
-
-            else:
-                if param.default is None:
-                    # required named parameter without default and
-                    # without a matching argument
-                    return None, False
-
-                populate_defaults = True
-                bound_param_args.append((param, None))
-
-    if matched_kwargs != len(kwargs):
-        # extra kwargs?
-        return None, False
-
+    defaults_mask = 0
+    null_args = set()
     if populate_defaults:
         for i in range(len(bound_param_args)):
             param, val = bound_param_args[i]
             if val is not None:
                 continue
 
-            default = param.get_ir_default(schema=ctx.schema)
+            null_args.add(param.name)
 
-            if irutils.is_empty(default):
+            defaults_mask |= 1 << i
+
+            empty_default = (
+                edgeql_func or
+                irutils.is_empty(param.get_ir_default(schema=ctx.schema))
+            )
+
+            if empty_default:
                 default_type = None
 
                 if param.type.name == 'std::any':
-                    if any_concrete_type is None:
+                    if resolved_poly_base_type is None:
                         raise errors.EdgeQLError(
                             f'could not resolve std::any type for the '
                             f'${param.name} parameter')
                     else:
-                        default_type = any_concrete_type
+                        default_type = resolved_poly_base_type
                 else:
                     default_type = param.type
 
-                default = setgen.ensure_set(
-                    default,
-                    typehint=default_type,
-                    ctx=ctx)
+            else:
+                default_type = param.type
+
+            if edgeql_func:
+                default = irutils.new_empty_set(
+                    ctx.schema,
+                    scls=default_type,
+                    alias=param.name)
 
             else:
-                default = setgen.ensure_set(
-                    default,
-                    typehint=param.type,
-                    ctx=ctx)
+                default = param.get_ir_default(schema=ctx.schema)
+
+            default = setgen.ensure_set(
+                default,
+                typehint=default_type,
+                ctx=ctx)
 
             bound_param_args[i] = (
                 param,
@@ -332,6 +377,14 @@ def try_bind_func_args(
             )
 
     bound_args = []
+
+    if edgeql_func:
+        bm = defaults_mask.to_bytes(nparams // 8 + 1, 'little')
+        bound_args.append(
+            setgen.ensure_set(
+                irast.BytesConstant(value=bm.decode('ascii'), type=bytes_t),
+                ctx=ctx))
+
     for param, arg in bound_param_args:
         param_mod = param.typemod
         if param_mod is not _SET_OF:
@@ -339,12 +392,18 @@ def try_bind_func_args(
             if arg_scope is not None:
                 arg_scope.collapse()
                 pathctx.assign_set_scope(arg, None, ctx=ctx)
-            if param_mod is _OPTIONAL:
+            if param_mod is _OPTIONAL or param.name in null_args:
                 pathctx.register_set_in_scope(arg, ctx=ctx)
                 pathctx.mark_path_as_optional(arg.path_id, ctx=ctx)
         bound_args.append(arg)
 
-    return bound_args, used_implicit_cast
+    return_type = func.return_type
+    if return_type.is_polymorphic():
+        if resolved_poly_base_type is None:
+            return _NO_MATCH
+        return_type = return_type.to_nonpolymorphic(resolved_poly_base_type)
+
+    return bound_args, return_type, used_implicit_cast
 
 
 def compile_call_arg(arg: qlast.FuncArg, *,

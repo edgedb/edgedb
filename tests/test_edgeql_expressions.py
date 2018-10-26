@@ -942,16 +942,16 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_array_12(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
-                r"'array_agg'.+?cannot take.+?array"):
+                exc.SchemaError,
+                r"nested arrays are not supported"):
             await self.con.execute(r'''
                 SELECT array_agg([1, 2, 3]);
             ''')
 
     async def test_edgeql_expr_array_13(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
-                r"'array_agg'.+?cannot take.+?array"):
+                exc.SchemaError,
+                r"nested arrays are not supported"):
             await self.con.execute(r'''
                 SELECT array_agg(array_agg({1, 2 ,3}));
             ''')

@@ -65,6 +65,7 @@ OR = ast.ops.OR
 NOT = ast.ops.NOT
 IN = ast.ops.IN
 NOT_IN = ast.ops.NOT_IN
+EQ = ast.ops.EQ
 
 LIKE = EdgeQLMatchOperator('LIKE')
 NOT_LIKE = EdgeQLMatchOperator('NOT LIKE')
@@ -872,6 +873,10 @@ class DropFunction(DropObject):
 
 class SessionStateDecl(Expr):
     items: typing.List[BaseAlias]
+
+
+class _Optional(Expr):
+    expr: Expr
 
 
 #

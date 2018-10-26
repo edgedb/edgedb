@@ -518,7 +518,7 @@ def compile_FunctionCall(
             common.edgedb_module_name_to_schema_name(
                 funcobj.shortname.module),
             common.edgedb_name_to_pg_name(
-                funcobj.name)
+                funcobj.shortname.name)
         )
 
     result = pgast.FuncCall(name=name, args=args)

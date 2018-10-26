@@ -132,14 +132,23 @@ CREATE FUNCTION std::array_get(array: array<std::any>,
     $$;
 
 CREATE FUNCTION std::len(str: std::str) -> std::int64
-    FROM SQL FUNCTION 'char_length';
+    FROM SQL $$
+        SELECT char_length("str")::bigint
+    $$;
 
 CREATE FUNCTION std::len(bytes: std::bytes) -> std::int64
-    FROM SQL FUNCTION 'length';
+    FROM SQL $$
+        SELECT length("bytes")::bigint
+    $$;
 
 CREATE FUNCTION std::len(array: array<std::any>) -> std::int64
     FROM SQL $$
         SELECT array_length("array", 1)::bigint
+    $$;
+
+CREATE FUNCTION std::bytes_get_bit(bytes: std::bytes, num: int64) -> std::int64
+    FROM SQL $$
+        SELECT get_bit("bytes", "num"::int)::bigint
     $$;
 
 CREATE FUNCTION std::random() -> std::float64

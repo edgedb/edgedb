@@ -807,7 +807,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r'function with different return type'):
 
             await self.con.execute(r'''
-                CREATE FUNCTION test::ddlf_10(a: any, b: int64) -> int64
+                CREATE FUNCTION test::ddlf_10(
+                        a: any, b: int64) -> OPTIONAL int64
                     FROM EdgeQL $$ SELECT 11 $$;
 
                 CREATE FUNCTION test::ddlf_10(a: any, b: float64) -> str
@@ -816,4 +817,22 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.con.execute("""
             DROP FUNCTION test::ddlf_10(a: any, b: int64);
+        """)
+
+    async def test_edgeql_ddl_38(self):
+        with self.assertRaisesRegex(
+                client_errors.EdgeQLError,
+                r'cannot create test::ddlf_11.*'
+                r'overloading "FROM SQL FUNCTION"'):
+
+            await self.con.execute(r'''
+                CREATE FUNCTION test::ddlf_11(str: std::str) -> int64
+                    FROM SQL FUNCTION 'whatever';
+
+                CREATE FUNCTION test::ddlf_11(str: std::int64) -> int64
+                    FROM SQL FUNCTION 'whatever2';
+            ''')
+
+        await self.con.execute("""
+            DROP FUNCTION test::ddlf_11(str: std::str);
         """)

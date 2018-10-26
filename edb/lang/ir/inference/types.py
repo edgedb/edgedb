@@ -17,7 +17,6 @@
 #
 
 
-import collections
 import functools
 import typing
 
@@ -129,47 +128,7 @@ def __infer_set(ir, schema):
 
 @_infer_type.register(irast.FunctionCall)
 def __infer_func_call(ir, schema):
-    rtype = ir.func.return_type
-
-    if rtype.is_polymorphic_type():
-        # Polymorphic function, determine the result type from
-        # the argument type.
-        if isinstance(rtype, s_types.Tuple):
-            for i, arg in enumerate(ir.args):
-                if ir.func.params[i].type.is_polymorphic_type():
-                    arg_type = infer_type(arg, schema)
-
-                    stypes = collections.OrderedDict(rtype.element_types)
-                    for sn, st in stypes.items():
-                        if st.is_polymorphic_type():
-                            stypes[sn] = arg_type
-                            break
-
-                    return rtype.from_subtypes(stypes, rtype.get_typemods())
-
-        elif isinstance(rtype, s_types.Collection):
-            for i, arg in enumerate(ir.args):
-                if ir.func.params[i].type.is_polymorphic_type():
-                    arg_type = infer_type(arg, schema)
-
-                    stypes = list(rtype.get_subtypes())
-                    for si, st in enumerate(stypes):
-                        if st.is_polymorphic_type():
-                            stypes[si] = arg_type
-                            break
-
-                    return rtype.from_subtypes(stypes, rtype.get_typemods())
-
-        else:
-            for i, arg in enumerate(ir.args):
-                if ir.func.params[i].type.is_polymorphic_type():
-                    arg_type = infer_type(arg, schema)
-                    if isinstance(arg_type, s_types.Collection):
-                        stypes = list(arg_type.get_subtypes())
-                        return stypes[-1]
-
-    else:
-        return rtype
+    return ir.type
 
 
 @_infer_type.register(irast.BaseConstant)
@@ -487,7 +446,7 @@ def infer_type(ir, schema):
             f'infer_type({ir!r}) retured {result!r} instead of a Object',
             context=ir.context)
 
-    if result is None or result.name == 'std::any':
+    if result is None:
         raise ql_errors.EdgeQLError('could not determine expression type',
                                     context=ir.context)
 

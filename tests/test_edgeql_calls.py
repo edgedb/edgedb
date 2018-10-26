@@ -473,3 +473,169 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                     a: int64
                 );
             ''')
+
+    async def test_edgeql_calls_13(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::call13(
+                a: any
+            ) -> int64
+                FROM EdgeQL $$
+                    SELECT len(a)
+                $$;
+        ''')
+
+        try:
+            await self.assert_query_result(r'''
+                SELECT test::call13('aaa');
+                SELECT test::call13(b'aaaa');
+                SELECT test::call13([1, 2, 3, 4, 5]);
+                SELECT test::call13(['a', 'b']);
+            ''', [
+                [3],
+                [4],
+                [5],
+                [2],
+            ])
+
+        finally:
+            await self.con.execute('''
+                DROP FUNCTION test::call13(
+                    a: any
+                );
+            ''')
+
+    async def test_edgeql_calls_14(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::call14(
+                a: any
+            ) -> array<any>
+                FROM EdgeQL $$
+                    SELECT [a]
+                $$;
+        ''')
+
+        try:
+            await self.assert_query_result(r'''
+                SELECT test::call14('aaa');
+                SELECT test::call14(b'aaaa');
+                SELECT test::call14(1);
+            ''', [
+                [['aaa']],
+                [[r'\x61616161']],
+                [[1]],
+            ])
+
+        finally:
+            await self.con.execute('''
+                DROP FUNCTION test::call14(
+                    a: any
+                );
+            ''')
+
+    async def test_edgeql_calls_15(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::call15(
+                a: any
+            ) -> array<any>
+                FROM EdgeQL $$
+                    SELECT [a, a, a]
+                $$;
+        ''')
+
+        try:
+            await self.assert_query_result(r'''
+                SELECT test::call15('aaa');
+                SELECT test::call15(1);
+            ''', [
+                [['aaa', 'aaa', 'aaa']],
+                [[1, 1, 1]],
+            ])
+
+        finally:
+            await self.con.execute('''
+                DROP FUNCTION test::call15(
+                    a: any
+                );
+            ''')
+
+    async def test_edgeql_calls_16(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::call16(
+                a: array<any>,
+                idx: int64
+            ) -> any
+                FROM EdgeQL $$
+                    SELECT a[idx]
+                $$;
+
+            CREATE FUNCTION test::call16(
+                a: array<any>,
+                idx: str
+            ) -> any
+                FROM EdgeQL $$
+                    SELECT a[<int64>idx + 1]
+                $$;
+        ''')
+
+        try:
+            await self.assert_query_result(r'''
+                SELECT test::call16([1, 2, 3], 1);
+                SELECT test::call16(['a', 'b', 'c'], 1);
+
+                SELECT test::call16([1, 2, 3], '1');
+                SELECT test::call16(['a', 'b', 'c'], '1');
+            ''', [
+                [2],
+                ['b'],
+
+                [3],
+                ['c'],
+            ])
+
+        finally:
+            await self.con.execute('''
+                DROP FUNCTION test::call16(
+                    a: array<any>,
+                    idx: int64
+                );
+                DROP FUNCTION test::call16(
+                    a: array<any>,
+                    idx: str
+                );
+            ''')
+
+    async def test_edgeql_calls_17(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::call17(
+                a: any
+            ) -> array<any>
+                FROM EdgeQL $$
+                    SELECT [a, a, a]
+                $$;
+
+            CREATE FUNCTION test::call17(
+                a: str
+            ) -> array<str>
+                FROM EdgeQL $$
+                    SELECT ['!!!!', a, '!!!!']
+                $$;
+        ''')
+
+        try:
+            await self.assert_query_result(r'''
+                SELECT test::call17(2);
+                SELECT test::call17('aaa');
+            ''', [
+                [[2, 2, 2]],
+                [['!!!!', 'aaa', '!!!!']],
+            ])
+
+        finally:
+            await self.con.execute('''
+                DROP FUNCTION test::call17(
+                    a: any
+                );
+                DROP FUNCTION test::call17(
+                    a: str
+                );
+            ''')

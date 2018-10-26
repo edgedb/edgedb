@@ -940,7 +940,7 @@ def process_set_as_ifelse(
     # SELECT A WHERE Cond UNION ALL SELECT B WHERE NOT Cond
     expr = ir_set.expr
 
-    if expr.if_expr_card == expr.else_expr_card == irast.Cardinality.ONE:
+    if 0 and expr.if_expr_card == expr.else_expr_card == irast.Cardinality.ONE:
         set_expr = pgast.CaseExpr(
             args=[
                 pgast.CaseWhen(
@@ -1338,7 +1338,7 @@ def process_set_as_func_expr(
                 common.edgedb_module_name_to_schema_name(
                     funcobj.shortname.module),
                 common.edgedb_name_to_pg_name(
-                    funcobj.name)
+                    funcobj.shortname.name)
             )
 
         set_expr = pgast.FuncCall(
@@ -1435,8 +1435,8 @@ def process_set_as_agg_expr(
             # check if the aggregate accepts a single argument
             # of std::any to determine serialized input safety.
             serialization_safe = (
-                any(p.type.is_polymorphic_type() for p in funcobj.params) and
-                funcobj.return_type.is_polymorphic_type()
+                any(p.type.is_polymorphic() for p in funcobj.params) and
+                funcobj.return_type.is_polymorphic()
             )
 
             if not serialization_safe:
@@ -1560,7 +1560,7 @@ def process_set_as_agg_expr(
                 common.edgedb_module_name_to_schema_name(
                     funcobj.shortname.module),
                 common.edgedb_name_to_pg_name(
-                    funcobj.name)
+                    funcobj.shortname.name)
             )
 
         set_expr = pgast.FuncCall(

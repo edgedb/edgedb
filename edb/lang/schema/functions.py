@@ -54,7 +54,7 @@ class Parameter(struct.Struct):
     # Private field for caching default value AST.
     _ql_default = struct.Field(object, default=None)
 
-    def _get_ql_default(self):
+    def get_ql_default(self):
         if self._ql_default is None:
             # Defaults are simple constants, so copying shouldn't
             # be too slow (certainly faster that parsing).
@@ -73,7 +73,7 @@ class Parameter(struct.Struct):
         from edb.lang.edgeql import compiler as ql_compiler
         from edb.lang.ir import utils as irutils
 
-        ql_default = self._get_ql_default()
+        ql_default = self.get_ql_default()
 
         ir = ql_compiler.compile_ast_fragment_to_ir(
             ql_default, schema,
@@ -178,7 +178,8 @@ class FuncParameterList(typed.FrozenTypedList, type=Parameter):
 
         if named:
             named.sort(key=lambda p: p.name)
-            params.extend(named)
+            named.extend(params)
+            params = named
 
         params = PgParams(
             params=params,
@@ -194,7 +195,7 @@ class FuncParameterList(typed.FrozenTypedList, type=Parameter):
 
     @functools.lru_cache(200)
     def is_polymorphic(self):
-        return any(p.type.is_polymorphic_type() for p in self)
+        return any(p.type.is_polymorphic() for p in self)
 
     @property
     @functools.lru_cache(200)
@@ -329,6 +330,7 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
         language = props['language']
         return_type = props['return_type']
         return_typemod = props['return_typemod']
+        from_function = props.get('from_function')
         is_polymorphic = params.is_polymorphic()
 
         fullname = self._get_function_fullname(name, params)
@@ -342,7 +344,10 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
                 f'is already defined',
                 context=self.source_context)
 
-        for func in schema.get_functions(name, ()):
+        overloaded_funcs = schema.get_functions(name, ())
+        has_from_function = from_function
+
+        for func in overloaded_funcs:
             if func.params.named_only.keys() != params.named_only.keys():
                 raise ql_errors.EdgeQLError(
                     f'cannot create {get_signature()} function: '
@@ -352,14 +357,28 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
                     context=self.source_context)
 
             if ((is_polymorphic or func.params.is_polymorphic()) and (
-                    func.return_type != return_type or
                     func.return_typemod != return_typemod)):
+
                 raise ql_errors.EdgeQLError(
                     f'cannot create polymorphic {get_signature()} -> '
-                    f'{return_typemod.to_edgeql()}{return_type.name} '
+                    f'{return_typemod.to_edgeql()} {return_type.name} '
                     f'function: overloading another function with different '
-                    f'return type {func.return_typemod.to_edgeql()}'
+                    f'return type {func.return_typemod.to_edgeql()} '
                     f'{func.return_type.name}',
+                    context=self.source_context)
+
+            if func.from_function:
+                has_from_function = func.from_function
+
+        if has_from_function:
+            if (from_function != has_from_function or
+                    any(f.from_function != has_from_function
+                        for f in overloaded_funcs)):
+                raise ql_errors.EdgeQLError(
+                    f'cannot create {get_signature()}: '
+                    f'overloading "FROM SQL FUNCTION" functions is '
+                    f'allowed only when all functions point to the same '
+                    f'SQL function',
                     context=self.source_context)
 
         if (language == qlast.Language.EdgeQL and

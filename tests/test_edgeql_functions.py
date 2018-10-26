@@ -250,8 +250,8 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_array_agg_10(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
-                r"'array_agg'.+?cannot take.+?array"):
+                exc.SchemaError,
+                r"nested arrays are not supported"):
             await self.con.execute(r"""
                 WITH MODULE test
                 SELECT array_agg(
@@ -303,8 +303,8 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_array_agg_14(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
-                r"'array_agg'.+?cannot take.+?array"):
+                exc.SchemaError,
+                r"nested arrays are not supported"):
             await self.con.execute(r'''
                 WITH MODULE test
                 SELECT array_agg(array_agg(User.name));

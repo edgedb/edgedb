@@ -95,6 +95,7 @@ def cast(
                             )
                         )
                     ])
+
             else:
                 # EdgeQL: <array<int64>>['1', '2']
                 # to SQL: ARRAY['1', '2']::int[]
@@ -102,11 +103,18 @@ def cast(
                 elem_pgtype = pg_types.pg_type_from_object(
                     schema, target_type.element_type, topbase=True)
 
-                return pgast.TypeCast(
-                    arg=node,
-                    type_name=pgast.TypeName(
-                        name=elem_pgtype,
-                        array_bounds=[-1]))
+                if elem_pgtype == ('anyelement',):
+                    return pgast.TypeCast(
+                        arg=node,
+                        type_name=pgast.TypeName(
+                            name=('anyarray',)))
+
+                else:
+                    return pgast.TypeCast(
+                        arg=node,
+                        type_name=pgast.TypeName(
+                            name=elem_pgtype,
+                            array_bounds=[-1]))
 
     else:
         # `target_type` is not a collection.

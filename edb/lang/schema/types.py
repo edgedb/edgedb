@@ -53,8 +53,39 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
     # rptr will contain the inbound pointer class.
     rptr = so.Field(so.Object, default=None, compcoef=0.909)
 
-    def is_polymorphic_type(self):
+    def is_polymorphic(self):
         return self.name == 'std::any'
+
+    def resolve_polymorphic(self, other: 'Type') -> 'Type':
+        """Resolve the polymorphic type component.
+
+        Examples:
+
+            - `array<any>`.resolve_polymorphic(`array<int>`) -> `int`
+            - `array<any>`.resolve_polymorphic(`tuple<int>`) -> None
+        """
+        if not self.is_polymorphic() or other.is_polymorphic():
+            return None
+
+        return self._resolve_polymorphic(other)
+
+    def to_nonpolymorphic(self, concrete_type: 'Type') -> 'Type':
+        """Produce an non-polymorphic version of self.
+
+        Example:
+            `array<any>`.resolve_polymorphic(`int`) -> `array<int>`
+            `tuple<int, any>`.resolve_polymorphic(`str`) -> `tuple<int, str>`
+        """
+        if not self.is_polymorphic():
+            raise TypeError('non-polymorphic type')
+
+        return self._to_nonpolymorphic(concrete_type)
+
+    def _resolve_polymorphic(self, concrete_type: 'Type'):
+        raise NotImplementedError
+
+    def _to_nonpolymorphic(self, concrete_type: 'Type'):
+        raise NotImplementedError
 
     def is_view(self):
         return self.view_type is not None
@@ -102,8 +133,8 @@ class Collection(Type):
         else:
             super().__init__(name=name, **kwargs)
 
-    def is_polymorphic_type(self):
-        return any(st.is_polymorphic_type() for st in self.get_subtypes())
+    def is_polymorphic(self):
+        return any(st.is_polymorphic() for st in self.get_subtypes())
 
     @property
     def is_virtual(self):
@@ -273,6 +304,15 @@ class Array(Collection):
         if subtype is not None:
             return Array.from_subtypes([subtype])
 
+    def _resolve_polymorphic(self, concrete_type: 'Type'):
+        if not isinstance(concrete_type, Array):
+            return None
+        return self.element_type.resolve_polymorphic(
+            concrete_type.element_type)
+
+    def _to_nonpolymorphic(self, concrete_type: 'Type'):
+        return Array.from_subtypes((concrete_type,))
+
     @classmethod
     def from_subtypes(cls, subtypes, typemods=None):
         if len(subtypes) != 1:
@@ -353,10 +393,13 @@ class Tuple(Collection):
         if not isinstance(other, Tuple):
             return False
 
-        if len(self.element_types) != len(other.element_types):
+        self_subtypes = self.get_subtypes()
+        other_subtypes = other.get_subtypes()
+
+        if len(self_subtypes) != len(other_subtypes):
             return False
 
-        for st, ot in zip(self.element_types, other.element_types):
+        for st, ot in zip(self_subtypes, other_subtypes):
             if not st.implicitly_castable_to(ot, schema):
                 return False
 
@@ -366,10 +409,13 @@ class Tuple(Collection):
         if not isinstance(other, Tuple):
             return False
 
-        if len(self.element_types) != len(other.element_types):
+        self_subtypes = self.get_subtypes()
+        other_subtypes = other.get_subtypes()
+
+        if len(self_subtypes) != len(other_subtypes):
             return False
 
-        for st, ot in zip(self.element_types, other.element_types):
+        for st, ot in zip(self_subtypes, other_subtypes):
             if not st.assignment_castable_to(ot, schema):
                 return False
 
@@ -409,6 +455,39 @@ class Tuple(Collection):
 
     def get_typemods(self):
         return {'named': self.named}
+
+    def _resolve_polymorphic(self, concrete_type: 'Type'):
+        if not isinstance(concrete_type, Tuple):
+            return None
+
+        self_subtypes = self.get_subtypes()
+        other_subtypes = concrete_type.get_subtypes()
+
+        if len(self_subtypes) != len(other_subtypes):
+            raise None
+
+        for source, target in zip(self_subtypes, other_subtypes):
+            if source.is_polymorphic():
+                return source.resolve_polymorphic(target)
+
+        return None
+
+    def _to_nonpolymorphic(self, concrete_type: 'Type'):
+        new_types = []
+        for st in self.get_subtypes():
+            if st.is_polymorphic():
+                nst = st.to_nonpolymorphic(concrete_type)
+            else:
+                nst = st
+            new_types.append(nst)
+
+        if self.named:
+            new_types = dict(zip(self.element_types.keys(), new_types))
+            typemods = {"named": True}
+        else:
+            typemods = None
+
+        return Tuple.from_subtypes(new_types, typemods)
 
     def __hash__(self):
         return hash((

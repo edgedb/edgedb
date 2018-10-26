@@ -24,6 +24,8 @@ from edb.lang.edgeql import parser
 from edb.lang.common import debug
 from edb.lang.common import markup  # NOQA
 
+from edb.lang.edgeql import ast as qlast
+from edb.lang.ir import ast as irast
 from edb.lang.ir import staeval as ireval
 
 from .decompiler import decompile_ir  # NOQA
@@ -64,7 +66,6 @@ def compile_to_ir(expr,
                   schema,
                   *,
                   anchors=None,
-                  func=None,
                   security_context=None,
                   modaliases=None,
                   implicit_id_in_shapes=False):
@@ -77,7 +78,7 @@ def compile_to_ir(expr,
     tree = parser.parse(expr, modaliases)
 
     return compile_ast_to_ir(
-        tree, schema, anchors=anchors, func=func,
+        tree, schema, anchors=anchors,
         security_context=security_context, modaliases=modaliases,
         implicit_id_in_shapes=implicit_id_in_shapes)
 
@@ -123,3 +124,56 @@ def compile_ast_to_ir(tree,
 def evaluate_ast_to_python_val(tree, schema, *, modaliases=None) -> object:
     ir = compile_ast_fragment_to_ir(tree, schema, modaliases=modaliases)
     return ireval.evaluate_to_python_val(ir, schema=schema)
+
+
+def compile_func_to_ir(func, schema, *,
+                       anchors=None,
+                       security_context=None,
+                       modaliases=None,
+                       implicit_id_in_shapes=False):
+    """Compile an EdgeQL function into EdgeDB IR."""
+
+    if debug.flags.edgeql_compile:
+        debug.header('EdgeQL Function')
+        debug.print(func.code)
+
+    tree = parser.parse(func.code, modaliases)
+    if anchors is None:
+        anchors = {}
+
+    anchors['__defaults_mask__'] = irast.Parameter(
+        name='__defaults_mask__', type=schema.get('std::bytes'))
+
+    for pi, p in enumerate(func.params.as_pg_params().params):
+        anchors[p.name] = irast.Parameter(name=p.name, type=p.type)
+
+        if p.default is None:
+            continue
+
+        tree.aliases.append(
+            qlast.AliasedExpr(
+                alias=p.name,
+                expr=qlast.IfElse(
+                    condition=qlast.BinOp(
+                        left=qlast.FunctionCall(
+                            func=('std', 'bytes_get_bit'),
+                            args=[
+                                qlast.FuncArg(
+                                    arg=qlast.Path(steps=[
+                                        qlast.ObjectRef(
+                                            name='__defaults_mask__')
+                                    ])),
+                                qlast.FuncArg(
+                                    arg=qlast.IntegerConstant(value=str(pi)))
+                            ]),
+                        right=qlast.IntegerConstant(value='0'),
+                        op=qlast.EQ),
+                    if_expr=qlast.Path(steps=[qlast.ObjectRef(name=p.name)]),
+                    else_expr=qlast._Optional(expr=p.get_ql_default()))))
+
+    ir = compile_ast_to_ir(
+        tree, schema, anchors=anchors, func=func,
+        security_context=security_context, modaliases=modaliases,
+        implicit_id_in_shapes=implicit_id_in_shapes)
+
+    return ir

@@ -126,7 +126,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
             refnode = None
 
-            if not step.module:
+            if not step.module and step.name not in ctx.aliased_views:
                 # Check if the starting path label is a known anchor
                 refnode = anchors.get(step.name)
 

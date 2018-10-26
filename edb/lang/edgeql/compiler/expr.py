@@ -50,20 +50,23 @@ from . import viewgen
 from . import func  # NOQA
 
 
+@dispatch.compile.register(qlast._Optional)
+def compile__Optional(
+        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
+
+    result = setgen.ensure_set(
+        dispatch.compile(expr.expr, ctx=ctx),
+        ctx=ctx)
+
+    pathctx.register_set_in_scope(result, ctx=ctx)
+    pathctx.mark_path_as_optional(result.path_id, ctx=ctx)
+
+    return result
+
+
 @dispatch.compile.register(qlast.Path)
 def compile_Path(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
-
-    if (len(expr.steps) == 1 and
-            ctx.func is not None and
-            isinstance(expr.steps[0], qlast.ObjectRef)):
-        param_name = expr.steps[0].name
-        param = ctx.func.params.get_by_name(param_name)
-        if param is not None:
-            return setgen.ensure_set(
-                irast.Parameter(type=param.type, name=param_name),
-                ctx=ctx)
-
     return setgen.compile_path(expr, ctx=ctx)
 
 
@@ -325,10 +328,14 @@ def compile_IfElse(
     ql_else_expr = expr.else_expr
 
     with ctx.newscope(fenced=True) as scopectx:
-        if_expr = dispatch.compile(ql_if_expr, ctx=scopectx)
+        if_expr = setgen.scoped_set(
+            dispatch.compile(ql_if_expr, ctx=scopectx),
+            ctx=scopectx)
 
     with ctx.newscope(fenced=True) as scopectx:
-        else_expr = dispatch.compile(ql_else_expr, ctx=scopectx)
+        else_expr = setgen.scoped_set(
+            dispatch.compile(ql_else_expr, ctx=scopectx),
+            ctx=scopectx)
 
     if_expr_type = irutils.infer_type(if_expr, ctx.schema)
     else_expr_type = irutils.infer_type(else_expr, ctx.schema)

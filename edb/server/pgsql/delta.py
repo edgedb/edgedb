@@ -359,7 +359,7 @@ class FunctionCommand:
     def get_pgname(self, func: s_funcs.Function):
         return (
             common.edgedb_module_name_to_schema_name(func.shortname.module),
-            common.edgedb_name_to_pg_name(func.name)
+            common.edgedb_name_to_pg_name(func.shortname.name)
         )
 
     def get_pgtype(self, func: s_funcs.Function, obj, schema):
@@ -396,6 +396,9 @@ class FunctionCommand:
         pg_params = func.params.as_pg_params()
 
         args = []
+        if func.language is ql_ast.Language.EdgeQL:
+            args.append(('__defaults_mask__', ('bytea',), None))
+
         for param in pg_params.params:
             pg_at = self.get_pgtype(func, param.type, schema)
             args.append((param.name, pg_at, None))
@@ -418,16 +421,7 @@ class CreateFunction(FunctionCommand, CreateNamedObject,
         return self.make_function(func, func.code, schema)
 
     def compile_edgeql_function(self, func: s_funcs.Function, schema):
-        arg_types = None
-        params = func.params.as_pg_params().params
-        if params:
-            arg_types = {}
-
-            for param in params:
-                arg_types[param.name] = param.type
-
-        body_ir = ql_compiler.compile_to_ir(
-            func.code, schema, func=func)
+        body_ir = ql_compiler.compile_func_to_ir(func, schema)
 
         sql_text, _ = compiler.compile_ir_to_sql(
             body_ir,

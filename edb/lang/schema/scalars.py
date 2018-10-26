@@ -80,6 +80,15 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
 
         return deps
 
+    def _resolve_polymorphic(self, concrete_type: 'Type'):
+        # self must be "std::any"
+        if isinstance(concrete_type, ScalarType):
+            return concrete_type.get_topmost_concrete_base()
+        return concrete_type
+
+    def _to_nonpolymorphic(self, concrete_type: 'Type'):
+        return concrete_type
+
     def copy(self):
         result = super().copy()
         result.default = self.default
@@ -107,6 +116,10 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
 
         if not isinstance(other, ScalarType):
             return
+
+        if self.is_polymorphic() and other.is_polymorphic():
+            # self is `std::any` and other is `std::any`
+            return self
 
         left = str(self.get_topmost_concrete_base().name)
         right = str(other.get_topmost_concrete_base().name)
