@@ -182,6 +182,9 @@ class SetOp(Expr):
     op: ast.ops.Operator
     exclusive: bool = False
 
+    left_card: Cardinality
+    right_card: Cardinality
+
 
 class BaseBinOp(Expr):
 

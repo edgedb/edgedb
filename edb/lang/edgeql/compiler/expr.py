@@ -727,7 +727,7 @@ def compile_type_check_op(
     return irast.TypeCheckOp(left=left, right=right, op=expr.op)
 
 
-def _compile_set_op(
+def compile_set_op(
         expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
 
     with ctx.newscope(fenced=True) as scopectx:
@@ -766,14 +766,14 @@ def _compile_set_op(
                 ctx=ctx
             )
 
-    return setgen.ensure_set(
-        irast.SetOp(left=left, right=right, op=expr.op), ctx=ctx)
+    setop = irast.SetOp(left=left, right=right, op=expr.op)
 
+    stmtctx.get_expr_cardinality_later(
+        target=setop, field='left_card', irexpr=left, ctx=ctx)
+    stmtctx.get_expr_cardinality_later(
+        target=setop, field='right_card', irexpr=right, ctx=ctx)
 
-def compile_set_op(
-        expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
-    # UNION
-    return _compile_set_op(expr, ctx=ctx)
+    return setgen.ensure_set(setop, ctx=ctx)
 
 
 def compile_distinct_op(
