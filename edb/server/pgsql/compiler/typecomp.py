@@ -55,7 +55,7 @@ def cast(
     bytes_t = schema.get('std::bytes')
 
     if isinstance(target_type, s_types.Collection):
-        if target_type.schema_name == 'array':
+        if isinstance(target_type, s_types.Array):
 
             if source_type.issubclass(json_t):
                 # If we are casting a jsonb array to array, we do the

@@ -194,7 +194,7 @@ class FuncParameterList(typed.FrozenTypedList, type=Parameter):
         return '(' + ', '.join(ret) + ')'
 
     @functools.lru_cache(200)
-    def is_polymorphic(self):
+    def has_polymorphic(self):
         return any(p.type.is_polymorphic() for p in self)
 
     @property
@@ -325,13 +325,13 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
 
         props = super().get_struct_properties(schema)
 
-        params = props['params']
+        params: FuncParameterList = props['params']
         name = props['name']
         language = props['language']
         return_type = props['return_type']
         return_typemod = props['return_typemod']
         from_function = props.get('from_function')
-        is_polymorphic = params.is_polymorphic()
+        has_polymorphic = params.has_polymorphic()
 
         fullname = self._get_function_fullname(name, params)
         get_signature = lambda: f'{self.classname}{params.as_str()}'
@@ -342,6 +342,13 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
                 f'cannot create {get_signature()} function: '
                 f'a function with the same signature '
                 f'is already defined',
+                context=self.source_context)
+
+        if return_type.is_polymorphic() and not has_polymorphic:
+            raise ql_errors.EdgeQLError(
+                f'cannot create {get_signature()} function: '
+                f'function returns a polymorphic type but has no '
+                f'polymorphic parameters',
                 context=self.source_context)
 
         overloaded_funcs = schema.get_functions(name, ())
@@ -356,7 +363,7 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
                     f'"{func.shortname}{func.params.as_str()}"',
                     context=self.source_context)
 
-            if ((is_polymorphic or func.params.is_polymorphic()) and (
+            if ((has_polymorphic or func.params.has_polymorphic()) and (
                     func.return_typemod != return_typemod)):
 
                 raise ql_errors.EdgeQLError(
@@ -404,7 +411,7 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
                     context=self.source_context)
 
             check_default_type = True
-            if p.type.name == 'std::any':
+            if p.type.is_polymorphic():
                 if irutils.is_empty(default):
                     check_default_type = False
                 else:

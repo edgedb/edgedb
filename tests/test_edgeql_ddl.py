@@ -836,3 +836,15 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute("""
             DROP FUNCTION test::ddlf_11(str: std::str);
         """)
+
+    async def test_edgeql_ddl_39(self):
+        with self.assertRaisesRegex(
+                client_errors.EdgeQLError,
+                r'cannot create test::ddlf_12.*'
+                r'function returns a polymorphic type but has no '
+                r'polymorphic parameters'):
+
+            await self.con.execute(r'''
+                CREATE FUNCTION test::ddlf_12(str: std::str) -> any
+                    FROM EdgeQL $$ SELECT 1 $$;
+            ''')

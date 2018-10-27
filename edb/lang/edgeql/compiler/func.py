@@ -143,13 +143,37 @@ def try_bind_func_args(
         fatal_array_check: bool = False, *,
         ctx: context.ContextLevel) -> BoundCall:
 
-    def _check_type(arg_type, param_type):
+    def _check_type(arg, arg_type, param_type):
         nonlocal used_implicit_cast
+        nonlocal resolved_poly_base_type
 
-        if (arg_type.is_polymorphic() and
-                in_polymorphic_func and
-                arg_type.resolve_polymorphic(param_type) is not None):
-            return True
+        if in_polymorphic_func:
+            # Compiling a body of a polymorphic function.
+
+            if arg_type.is_polymorphic():
+                if param_type.is_polymorphic():
+                    # We want to guard against cases like
+                    # arg_type being an `any`, and param_type being an
+                    # `array<any>`.
+                    return arg_type == param_type
+
+                return arg_type.resolve_polymorphic(param_type) is not None
+
+        else:
+            if arg_type.is_polymorphic():
+                raise errors.EdgeQLError(
+                    f'a polymorphic argument in a non-polymorphic function',
+                    context=arg.context)
+
+        if param_type.is_polymorphic():
+            resolved = param_type.resolve_polymorphic(arg_type)
+            if resolved is None:
+                return False
+
+            if resolved_poly_base_type is None:
+                resolved_poly_base_type = resolved
+
+            return resolved_poly_base_type == resolved
 
         if arg_type.issubclass(param_type):
             return True
@@ -160,30 +184,9 @@ def try_bind_func_args(
 
         return False
 
-    def _check_any(arg_type, param_type) -> bool:
-        nonlocal resolved_poly_base_type
-
-        if (in_polymorphic_func and
-                arg_type.is_polymorphic() and
-                param_type == arg_type):
-            return True
-
-        if not param_type.is_polymorphic():
-            return True
-
-        resolved = param_type.resolve_polymorphic(arg_type)
-        if resolved is None:
-            return False
-
-        if resolved_poly_base_type is None:
-            resolved_poly_base_type = resolved
-            return True
-
-        return resolved_poly_base_type == resolved
-
     in_polymorphic_func = (
         ctx.func is not None and
-        ctx.func.params.is_polymorphic()
+        ctx.func.params.has_polymorphic()
     )
 
     has_empty_variadic = False
@@ -230,8 +233,7 @@ def try_bind_func_args(
     pi = 0
     matched_kwargs = 0
 
-    # Step 1: bind NAMED ONLY arguments
-    # (they are compiled as first set of arguments)
+    # Bind NAMED ONLY arguments (they are compiled as first set of arguments).
     while True:
         if pi >= nparams:
             break
@@ -246,9 +248,7 @@ def try_bind_func_args(
             matched_kwargs += 1
 
             arg_type, arg_val = kwargs[param.name]
-            if not _check_type(arg_type, param.type):
-                return _NO_MATCH
-            if not _check_any(arg_type, param.type):
+            if not _check_type(arg_val, arg_type, param.type):
                 return _NO_MATCH
 
             bound_param_args.append((param, arg_val))
@@ -266,8 +266,7 @@ def try_bind_func_args(
         # extra kwargs?
         return _NO_MATCH
 
-    # Step 2: bind POSITIONAL arguments
-    # (compiled to go after NAMED ONLY arguments)
+    # Bind POSITIONAL arguments (compiled to go after NAMED ONLY arguments).
     while True:
         if ai < nargs:
             arg_type, arg_val = args[ai]
@@ -285,25 +284,20 @@ def try_bind_func_args(
 
             if param.kind is _VARIADIC:
                 var_type = param.type.get_subtypes()[0]
-                if not _check_type(arg_type, var_type):
-                    return _NO_MATCH
-                if not _check_any(arg_type, var_type):
+                if not _check_type(arg_val, arg_type, var_type):
                     return _NO_MATCH
 
                 bound_param_args.append((param, arg_val))
 
                 for arg_type, arg_val in args[ai:]:
-                    if not _check_type(arg_type, var_type):
+                    if not _check_type(arg_val, arg_type, var_type):
                         return _NO_MATCH
-                    if not _check_any(arg_type, var_type):
-                        return _NO_MATCH
+
                     bound_param_args.append((param, arg_val))
 
                 break
 
-            if not _check_type(arg_type, param.type):
-                return _NO_MATCH
-            if not _check_any(arg_type, param.type):
+            if not _check_type(arg_val, arg_type, param.type):
                 return _NO_MATCH
 
             bound_param_args.append((param, arg_val))
@@ -311,7 +305,7 @@ def try_bind_func_args(
         else:
             break
 
-    # Step 3: handle yet unprocessed POSITIONAL & VARIADIC args
+    # Handle yet unprocessed POSITIONAL & VARIADIC arguments.
     for pi in range(pi, nparams):
         param = params[pi]
 
@@ -331,6 +325,7 @@ def try_bind_func_args(
             # impossible condition
             raise RuntimeError('unprocessed NAMED ONLY parameter')
 
+    # Populate defaults.
     defaults_mask = 0
     null_args = set()
     if populate_defaults:
@@ -386,6 +381,8 @@ def try_bind_func_args(
     bound_args = []
 
     if edgeql_func:
+        # If we are compiling an EdgeQL function, inject the defaults
+        # bit-mask as a first argument.
         bytes_t = ctx.schema.get('std::bytes')
         bm = defaults_mask.to_bytes(nparams // 8 + 1, 'little')
         bound_args.append(

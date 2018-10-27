@@ -213,6 +213,10 @@ def __infer_binop(ir, schema):
     else:
         if (isinstance(left_type, s_scalars.ScalarType) and
                 isinstance(right_type, s_scalars.ScalarType)):
+
+            if left_type == right_type and left_type.is_polymorphic():
+                return left_type
+
             result = s_scalars.get_op_type(
                 ir.op, left_type, right_type, schema=schema)
 
@@ -318,10 +322,13 @@ def __infer_slice(ir, schema):
         base_name = 'bytes'
     elif isinstance(node_type, s_types.Array):
         base_name = 'array'
+    elif (isinstance(node_type, s_scalars.ScalarType) and
+            node_type.is_polymorphic()):
+        base_name = 'any'
     else:
         # the base type is not valid
         raise ql_errors.EdgeQLError(
-            f'cannot index {base_name}',
+            f'cannot index {node_type.name}',
             context=ir.start.context)
 
     for index in [ir.start, ir.stop]:
@@ -390,6 +397,12 @@ def __infer_index(ir, schema):
                 context=ir.index.context)
 
         result = node_type.element_type
+
+    elif (isinstance(node_type, s_scalars.ScalarType) and
+            node_type.is_polymorphic() and
+            (index_type.implicitly_castable_to(int_t, schema) or
+                index_type.implicitly_castable_to(str_t, schema))):
+        result = schema.get('std::any')
 
     else:
         raise ql_errors.EdgeQLError(

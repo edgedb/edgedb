@@ -81,7 +81,6 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                     NAMED ONLY prefix: str);
             ''')
 
-    @unittest.expectedFailure
     async def test_edgeql_calls_02(self):
         await self.con.execute('''
             CREATE FUNCTION test::call2(
@@ -94,10 +93,9 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
 
         try:
             await self.assert_query_result(r'''
-                SELECT test::call1('a', 'b');
-                SELECT test::call1(4, 2, 0);
+                SELECT test::call2('a', 'b');
+                SELECT test::call2(4, 2, 0);
             ''', [
-                ['=0='],
                 ['=2='],
                 ['=3='],
             ])
@@ -671,5 +669,171 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             await self.con.execute('''
                 DROP FUNCTION test::call18(
                     VARIADIC a: any
+                );
+            ''')
+
+    @unittest.expectedFailure
+    async def test_edgeql_calls_19(self):
+        # XXX: Postgres raises the following error for this:
+        #    return type record[] is not supported for SQL functions
+
+        await self.con.execute('''
+            CREATE FUNCTION test::call19(
+                a: any
+            ) -> array<any>
+                FROM EdgeQL $$
+                    SELECT [a]
+                $$;
+        ''')
+
+        try:
+            await self.con.execute('SELECT test::call19((1,2));')
+
+        finally:
+            await self.con.execute('''
+                DROP FUNCTION test::call19(
+                    a: any
+                );
+            ''')
+
+    async def test_edgeql_calls_20(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::call20_1(
+                a: any, b: any
+            ) -> any
+                FROM EdgeQL $$
+                    SELECT a + b
+                $$;
+
+            CREATE FUNCTION test::call20_2(
+                a: any, b: any
+            ) -> bool
+                FROM EdgeQL $$
+                    SELECT a < b
+                $$;
+        ''')
+
+        try:
+            await self.assert_query_result(r'''
+                SELECT test::call20_1(10, 20);
+
+                SELECT test::call20_2(1, 2);
+                SELECT test::call20_2('b', 'a');
+            ''', [
+                [30],
+
+                [True],
+                [False],
+            ])
+
+            with self.assertRaisesRegex(
+                    exc.EdgeQLError,
+                    r'could not find a function variant'):
+
+                await self.con.execute('SELECT test::call20_1(1, "1");')
+
+        finally:
+            await self.con.execute('''
+                DROP FUNCTION test::call20_1(
+                    a: any, b: any
+                );
+                DROP FUNCTION test::call20_2(
+                    a: any, b: any
+                );
+            ''')
+
+    async def test_edgeql_calls_21(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::call21(
+                a: array<any>
+            ) -> int64
+                FROM EdgeQL $$
+                    SELECT len(a)
+                $$;
+        ''')
+
+        try:
+            await self.assert_query_result(r'''
+                SELECT test::call21([1,2]);
+                SELECT test::call21(['a', 'b', 'c']);
+                SELECT test::call21([(1, 2), (2, 3), (3, 4), (4, 5)]);
+            ''', [
+                [2],
+                [3],
+                [4],
+            ])
+        finally:
+            await self.con.execute('''
+                DROP FUNCTION test::call21(
+                    a: array<any>
+                );
+            ''')
+
+    @unittest.expectedFailure
+    async def test_edgeql_calls_22(self):
+        # XXX Requires a polymorphic "+" operator
+
+        await self.con.execute('''
+            CREATE FUNCTION test::call22(
+                a: any, b: any
+            ) -> any
+                FROM EdgeQL $$
+                    SELECT a + b
+                $$;
+        ''')
+
+        try:
+            await self.assert_query_result(r'''
+                SELECT test::call22('a', 'b');
+            ''', [
+                ['ab'],
+            ])
+
+        finally:
+            await self.con.execute('''
+                DROP FUNCTION test::call22(
+                    a: any, b: any
+                );
+            ''')
+
+    async def test_edgeql_calls_23(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::call23(
+                a: any,
+                idx: int64
+            ) -> any
+                FROM EdgeQL $$
+                    SELECT a[idx]
+                $$;
+
+            CREATE FUNCTION test::call23(
+                a: any,
+                idx: int32
+            ) -> any
+                FROM EdgeQL $$
+                    SELECT a[-idx:]
+                $$;
+        ''')
+
+        try:
+            await self.assert_query_result(r'''
+                SELECT test::call23('abcde', 2);
+                SELECT test::call23(str_to_json('[{"a":"b"}]'), 0);
+                SELECT test::call23('abcde', <int32>2);
+            ''', [
+                ['c'],
+                [{"a": "b"}],
+                ['de'],
+            ])
+
+        finally:
+            await self.con.execute('''
+                DROP FUNCTION test::call23(
+                    a: any,
+                    idx: int64
+                );
+                DROP FUNCTION test::call23(
+                    a: any,
+                    idx: int32
                 );
             ''')
