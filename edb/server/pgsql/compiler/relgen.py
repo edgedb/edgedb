@@ -1341,6 +1341,18 @@ def process_set_as_func_expr(
                     funcobj.shortname.name)
             )
 
+        if expr.has_empty_variadic:
+            variadic_param = funcobj.params.variadic
+
+            args.append(
+                pgast.VariadicArgument(
+                    expr=typecomp.cast(
+                        pgast.ArrayExpr(elements=[]),
+                        source_type=variadic_param.type,
+                        target_type=variadic_param.type,
+                        force=True,
+                        env=ctx.env)))
+
         set_expr = pgast.FuncCall(
             name=name, args=args, with_ordinality=with_ordinality)
 

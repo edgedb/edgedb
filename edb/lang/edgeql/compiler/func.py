@@ -42,6 +42,15 @@ from . import setgen
 from . import typegen
 
 
+class BoundCall(typing.NamedTuple):
+
+    func: s_func.Function
+    args: typing.List[irast.Base]
+    return_type: s_types.Type
+    used_implicit_casts: bool
+    has_empty_variadic: bool
+
+
 _VARIADIC = ft.ParameterKind.VARIADIC
 _NAMED_ONLY = ft.ParameterKind.NAMED_ONLY
 _POSITIONAL = ft.ParameterKind.POSITIONAL
@@ -50,7 +59,7 @@ _SET_OF = ft.TypeModifier.SET_OF
 _OPTIONAL = ft.TypeModifier.OPTIONAL
 _SINGLETON = ft.TypeModifier.SINGLETON
 
-_NO_MATCH = (None, None, False)
+_NO_MATCH = BoundCall(None, None, None, False, False)
 
 
 @dispatch.compile.register(qlast.FunctionCall)
@@ -79,54 +88,51 @@ def compile_FunctionCall(
         args, kwargs = compile_call_args(expr, funcname, ctx=fctx)
 
         fatal_array_check = len(funcs) == 1
-        return_type = None
-        matched_func = None
-        matched_args = None
-        matched_args_implicit_cast = False
+        matched_call = _NO_MATCH
 
         for func in funcs:
-            _bound_args, _return_type, _used_impl_cast = try_bind_func_args(
+            call = try_bind_func_args(
                 args, kwargs, funcname, func,
                 fatal_array_check=fatal_array_check,
                 ctx=ctx)
 
-            if _bound_args is not None:
-                if matched_args is None:
-                    matched_func = func
-                    return_type = _return_type
-                    matched_args = _bound_args
-                    matched_args_implicit_cast = _used_impl_cast
-                else:
-                    if matched_args_implicit_cast and not _used_impl_cast:
-                        matched_func = func
-                        return_type = _return_type
-                        matched_args = _bound_args
-                        matched_args_implicit_cast = False
+            if call.args is None:
+                continue
 
-                    if not args and not kwargs:
-                        raise errors.EdgeQLError(
-                            f'function {funcname} is not unique',
-                            context=expr.context)
+            if matched_call.args is None:
+                matched_call = call
+            else:
+                if (matched_call.used_implicit_casts and
+                        not call.used_implicit_casts):
+                    matched_call = call
 
-        if matched_func is None:
+                if not args and not kwargs:
+                    raise errors.EdgeQLError(
+                        f'function {funcname} is not unique',
+                        context=expr.context)
+
+        if matched_call.func is None:
             raise errors.EdgeQLError(
                 f'could not find a function variant {funcname}',
                 context=expr.context)
 
-        node = irast.FunctionCall(func=matched_func,
-                                  args=matched_args,
-                                  context=expr.context,
-                                  type=return_type)
+        node = irast.FunctionCall(
+            func=matched_call.func,
+            args=matched_call.args,
+            context=expr.context,
+            type=matched_call.return_type,
+            has_empty_variadic=matched_call.has_empty_variadic,
+        )
 
-        if matched_func.initial_value is not None:
+        if matched_call.func.initial_value is not None:
             rtype = irutils.infer_type(node, fctx.schema)
             iv_ql = qlast.TypeCast(
-                expr=qlparser.parse_fragment(matched_func.initial_value),
+                expr=qlparser.parse_fragment(matched_call.func.initial_value),
                 type=typegen.type_to_ql_typeref(rtype)
             )
             node.initial_value = dispatch.compile(iv_ql, ctx=fctx)
 
-    return setgen.ensure_set(node, typehint=return_type, ctx=ctx)
+    return setgen.ensure_set(node, typehint=matched_call.return_type, ctx=ctx)
 
 
 def try_bind_func_args(
@@ -135,7 +141,7 @@ def try_bind_func_args(
         funcname: sn.Name,
         func: s_func.Function,
         fatal_array_check: bool = False, *,
-        ctx: context.ContextLevel) -> typing.List[irast.Base]:
+        ctx: context.ContextLevel) -> BoundCall:
 
     def _check_type(arg_type, param_type):
         nonlocal used_implicit_cast
@@ -154,13 +160,18 @@ def try_bind_func_args(
 
         return False
 
-    def _check_any(param, arg, arg_type) -> bool:
+    def _check_any(arg_type, param_type) -> bool:
         nonlocal resolved_poly_base_type
 
-        if not param.type.is_polymorphic():
+        if (in_polymorphic_func and
+                arg_type.is_polymorphic() and
+                param_type == arg_type):
             return True
 
-        resolved = param.type.resolve_polymorphic(arg_type)
+        if not param_type.is_polymorphic():
+            return True
+
+        resolved = param_type.resolve_polymorphic(arg_type)
         if resolved is None:
             return False
 
@@ -175,8 +186,8 @@ def try_bind_func_args(
         ctx.func.params.is_polymorphic()
     )
 
+    has_empty_variadic = False
     edgeql_func = func.language is qlast.Language.EdgeQL
-    bytes_t = ctx.schema.get('std::bytes')
     used_implicit_cast = False
     resolved_poly_base_type = None
     no_args_call = not args and not kwargs
@@ -186,15 +197,16 @@ def try_bind_func_args(
             # Match: `func` is a function without parameters
             # being called with no arguments.
             if edgeql_func:
+                bytes_t = ctx.schema.get('std::bytes')
                 args = [
                     setgen.ensure_set(
                         irast.BytesConstant(value=r"\x00", type=bytes_t),
                         typehint=bytes_t,
                         ctx=ctx)
                 ]
-                return args, func.return_type, False
+                return BoundCall(func, args, func.return_type, False, False)
             else:
-                return [], func.return_type, False
+                return BoundCall(func, [], func.return_type, False, False)
         else:
             # No match: `func` is a function without parameters
             # being called with some arguments.
@@ -218,7 +230,8 @@ def try_bind_func_args(
     pi = 0
     matched_kwargs = 0
 
-    # Step 1: bind NAMED ONLY args (they are compiled as first params)
+    # Step 1: bind NAMED ONLY arguments
+    # (they are compiled as first set of arguments)
     while True:
         if pi >= nparams:
             break
@@ -235,7 +248,7 @@ def try_bind_func_args(
             arg_type, arg_val = kwargs[param.name]
             if not _check_type(arg_type, param.type):
                 return _NO_MATCH
-            if not _check_any(param, arg_val, arg_type):
+            if not _check_any(arg_type, param.type):
                 return _NO_MATCH
 
             bound_param_args.append((param, arg_val))
@@ -253,7 +266,8 @@ def try_bind_func_args(
         # extra kwargs?
         return _NO_MATCH
 
-    # Step 2: bind POSITIONAL args (they are compiled as first params)
+    # Step 2: bind POSITIONAL arguments
+    # (compiled to go after NAMED ONLY arguments)
     while True:
         if ai < nargs:
             arg_type, arg_val = args[ai]
@@ -273,24 +287,23 @@ def try_bind_func_args(
                 var_type = param.type.get_subtypes()[0]
                 if not _check_type(arg_type, var_type):
                     return _NO_MATCH
-                vals = [arg_val]
+                if not _check_any(arg_type, var_type):
+                    return _NO_MATCH
+
+                bound_param_args.append((param, arg_val))
+
                 for arg_type, arg_val in args[ai:]:
                     if not _check_type(arg_type, var_type):
                         return _NO_MATCH
-                    vals.append(arg_val)
+                    if not _check_any(arg_type, var_type):
+                        return _NO_MATCH
+                    bound_param_args.append((param, arg_val))
 
-                bound_param_args.append((
-                    param,
-                    setgen.ensure_set(
-                        irast.Array(elements=vals),
-                        typehint=param.type,
-                        ctx=ctx)
-                ))
                 break
 
             if not _check_type(arg_type, param.type):
                 return _NO_MATCH
-            if not _check_any(param, arg_val, arg_type):
+            if not _check_any(arg_type, param.type):
                 return _NO_MATCH
 
             bound_param_args.append((param, arg_val))
@@ -312,13 +325,7 @@ def try_bind_func_args(
             bound_param_args.append((param, None))
 
         elif param.kind is _VARIADIC:
-            bound_param_args.append((
-                param,
-                setgen.ensure_set(
-                    irast.Array(elements=[]),
-                    typehint=param.type,
-                    ctx=ctx)
-            ))
+            has_empty_variadic = True
 
         elif param.kind is _NAMED_ONLY:
             # impossible condition
@@ -379,11 +386,12 @@ def try_bind_func_args(
     bound_args = []
 
     if edgeql_func:
+        bytes_t = ctx.schema.get('std::bytes')
         bm = defaults_mask.to_bytes(nparams // 8 + 1, 'little')
         bound_args.append(
             setgen.ensure_set(
                 irast.BytesConstant(value=bm.decode('ascii'), type=bytes_t),
-                ctx=ctx))
+                typehint=bytes_t, ctx=ctx))
 
     for param, arg in bound_param_args:
         param_mod = param.typemod
@@ -403,7 +411,9 @@ def try_bind_func_args(
             return _NO_MATCH
         return_type = return_type.to_nonpolymorphic(resolved_poly_base_type)
 
-    return bound_args, return_type, used_implicit_cast
+    return BoundCall(
+        func, bound_args, return_type,
+        used_implicit_cast, has_empty_variadic)
 
 
 def compile_call_arg(arg: qlast.FuncArg, *,

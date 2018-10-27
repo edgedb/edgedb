@@ -413,6 +413,7 @@ class CreateFunction(FunctionCommand, CreateNamedObject,
         return dbops.Function(
             name=self.get_pgname(func),
             args=self.compile_args(func, schema),
+            has_variadic=func.params.variadic is not None,
             set_returning=func.return_typemod is ql_ft.TypeModifier.SET_OF,
             returns=self.get_pgtype(func, func.return_type, schema),
             text=code)
@@ -469,12 +470,14 @@ class DeleteFunction(
         func: s_funcs.Function = super().apply(schema, context)
 
         if func.code:
-            # EdgeQL function (not an alias to an SQL function).
+            # An EdgeQL or a SQL function
+            # (not just an alias to a SQL function).
 
             self.pgops.add(
                 dbops.DropFunction(
                     name=self.get_pgname(func),
                     args=self.compile_args(func, schema),
+                    has_variadic=func.params.variadic is not None,
                 )
             )
 

@@ -276,6 +276,7 @@ class FunctionCall(Expr):
     window: bool
     initial_value: Base
     type: s_types.Type
+    has_empty_variadic: bool = False
 
 
 class TupleIndirection(Expr):

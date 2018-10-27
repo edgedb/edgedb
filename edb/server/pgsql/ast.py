@@ -498,6 +498,12 @@ class CollateClause(BaseExpr):
     collname: str
 
 
+class VariadicArgument(Base):
+
+    expr: Base
+    nullable: bool = False
+
+
 class FuncCall(BaseExpr):
 
     # Function name

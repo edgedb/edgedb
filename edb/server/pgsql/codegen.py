@@ -552,6 +552,10 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit_list(node.elements, newlines=False)
         self.write(']')
 
+    def visit_VariadicArgument(self, node):
+        self.write('VARIADIC ')
+        self.visit(node.expr)
+
     def visit_FuncCall(self, node):
         self.write(common.qname(*node.name))
 

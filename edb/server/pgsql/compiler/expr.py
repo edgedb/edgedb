@@ -511,6 +511,18 @@ def compile_FunctionCall(
 
     args = [dispatch.compile(a, ctx=ctx) for a in expr.args]
 
+    if expr.has_empty_variadic:
+        variadic_param = funcobj.params.variadic
+
+        args.append(
+            pgast.VariadicArgument(
+                expr=typecomp.cast(
+                    pgast.ArrayExpr(elements=[]),
+                    source_type=variadic_param.type,
+                    target_type=variadic_param.type,
+                    force=True,
+                    env=ctx.env)))
+
     if funcobj.from_function:
         name = (funcobj.from_function,)
     else:

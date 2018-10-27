@@ -1780,7 +1780,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
         with self.assertRaisesRegex(exc.EdgeQLError,
-                                    'could not determine array type'):
+                                    'could not find a function variant'):
             await self.con.execute("SELECT test::concat1('aaa', 'bbb', 2);")
 
         await self.con.execute(r'''

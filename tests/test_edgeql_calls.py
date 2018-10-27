@@ -639,3 +639,37 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                     a: str
                 );
             ''')
+
+    async def test_edgeql_calls_18(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::call18(
+                VARIADIC a: any
+            ) -> int64
+                FROM EdgeQL $$
+                    SELECT len(a)
+                $$;
+        ''')
+
+        try:
+            await self.assert_query_result(r'''
+                SELECT test::call18(2);
+                SELECT test::call18(1, 2, 3);
+                SELECT test::call18('a', 'b');
+            ''', [
+                [1],
+                [3],
+                [2],
+            ])
+
+            with self.assertRaisesRegex(
+                    exc.EdgeQLError,
+                    r'could not find a function variant'):
+
+                await self.con.execute('SELECT test::call18(1, 2, "a");')
+
+        finally:
+            await self.con.execute('''
+                DROP FUNCTION test::call18(
+                    VARIADIC a: any
+                );
+            ''')

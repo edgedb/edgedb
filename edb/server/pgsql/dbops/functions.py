@@ -31,7 +31,7 @@ from . import ddl
 class Function(base.DBObject):
     def __init__(self, name, *, args=None, returns, text,
                  volatility='volatile', language='sql',
-                 variadic_arg=None, strict=False,
+                 has_variadic=None, strict=False,
                  set_returning=False):
         self.name = name
         self.args = args
@@ -39,7 +39,7 @@ class Function(base.DBObject):
         self.text = text
         self.volatility = volatility
         self.language = language
-        self.variadic_arg = variadic_arg
+        self.has_variadic = has_variadic
         self.strict = strict
         self.set_returning = set_returning
 
@@ -75,13 +75,13 @@ class FunctionExists(base.Condition):
 
 
 class FunctionOperation:
-    def format_args(self, args, variadic_arg, *, include_defaults=True):
+    def format_args(self, args, has_variadic, *, include_defaults=True):
         if not args:
             return ''
 
         args_buf = []
         for argi, arg in enumerate(args, 1):
-            vararg = variadic_arg == argi
+            vararg = has_variadic and (len(args) == argi)
             arg_expr = 'VARIADIC ' if vararg else ''
 
             if isinstance(arg, tuple):
@@ -107,7 +107,7 @@ class CreateFunction(ddl.DDLOperation, FunctionOperation):
         self.function = function
 
     def code(self, block: base.PLBlock) -> str:
-        args = self.format_args(self.function.args, self.function.variadic_arg)
+        args = self.format_args(self.function.args, self.function.has_variadic)
 
         code = textwrap.dedent('''
             CREATE FUNCTION {name}({args})
@@ -135,7 +135,7 @@ class CreateOrReplaceFunction(ddl.DDLOperation, FunctionOperation):
         self.function = function
 
     def code(self, block: base.PLBlock) -> str:
-        args = self.format_args(self.function.args, self.function.variadic_arg)
+        args = self.format_args(self.function.args, self.function.has_variadic)
         ret = self.function.returns
         if isinstance(ret, tuple):
             returns = f'{qi(ret[0])}.{qt(ret[1])}'
@@ -217,7 +217,7 @@ class AlterFunctionRenameTo(ddl.DDLOperation):
 class DropFunction(ddl.DDLOperation, FunctionOperation):
     def __init__(
             self, name, args, *,
-            variadic_arg=-1, conditions=None, neg_conditions=None,
+            has_variadic=False, conditions=None, neg_conditions=None,
             priority=0):
         self.conditional = False
         if conditions:
@@ -234,10 +234,10 @@ class DropFunction(ddl.DDLOperation, FunctionOperation):
             priority=priority)
         self.name = name
         self.args = args
-        self.variadic_arg = variadic_arg
+        self.has_variadic = has_variadic
 
     def code(self, block: base.PLBlock) -> str:
         ifexists = ' IF EXISTS' if self.conditional else ''
-        args = self.format_args(self.args, self.variadic_arg,
+        args = self.format_args(self.args, self.has_variadic,
                                 include_defaults=False)
         return f'DROP FUNCTION{ifexists} {qn(*self.name)}({args})'
