@@ -23,6 +23,7 @@
 import typing
 
 from edb.lang.ir import ast as irast
+from edb.lang.ir import staeval as ireval
 from edb.lang.ir import utils as irutils
 
 from edb.lang.schema import links as s_links
@@ -357,6 +358,7 @@ def compile_SessionStateDecl(
         ctx: context.ContextLevel) -> irast.SessionStateCmd:
 
     aliases = {}
+    testmode = False
 
     for item in decl.items:
         if isinstance(item, qlast.ModuleAliasDecl):
@@ -370,6 +372,20 @@ def compile_SessionStateDecl(
 
             aliases[item.alias] = module
 
+        elif item.alias == '__internal_testmode':
+            try:
+                testmode_ir = dispatch.compile(item.expr, ctx=ctx)
+                testmode = ireval.evaluate_to_python_val(
+                    testmode_ir, schema=ctx.schema)
+            except ireval.StaticEvaluationError as e:
+                raise errors.EdgeQLError('invalid SET expression',
+                                         context=item.context)
+            else:
+                if not isinstance(testmode, bool):
+                    raise errors.EdgeQLError(
+                        f'expected a boolean value, '
+                        f'got {testmode_ir.scls.displayname!r}',
+                        context=item.context)
         else:
             raise errors.EdgeQLError(
                 f'expression aliases in SET are not supported yet',
@@ -377,7 +393,8 @@ def compile_SessionStateDecl(
             )
 
     return irast.SessionStateCmd(
-        modaliases=aliases
+        modaliases=aliases,
+        testmode=testmode,
     )
 
 

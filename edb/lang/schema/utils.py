@@ -30,6 +30,33 @@ from . import objects as so
 from . import types as s_types
 
 
+def ast_objref_to_objref(
+        node: ql_ast.ObjectRef, *,
+        modaliases: typing.Dict[typing.Optional[str], str],
+        schema) -> so.ObjectRef:
+
+    nqname = node.name
+    module = node.module
+    if schema is not None:
+        if module is not None:
+            lname = sn.Name(module=module, name=nqname)
+        else:
+            lname = nqname
+        obj = schema.get(lname, module_aliases=modaliases, default=None)
+        if obj is not None:
+            module = obj.name.module
+    elif modaliases:
+        module = modaliases.get(module)
+
+    if module is None:
+        raise s_err.ItemNotFoundError(
+            f'unqualified name and no default module set',
+            context=node.context
+        )
+
+    return so.ObjectRef(classname=sn.Name(module=module, name=nqname))
+
+
 def ast_to_typeref(
         node: ql_ast.TypeName, *,
         modaliases: typing.Dict[typing.Optional[str], str],
@@ -84,26 +111,8 @@ def ast_to_typeref(
         from . import pseudo as s_pseudo
         return s_pseudo.AnyObjectRef()
 
-    nqname = node.maintype.name
-    module = node.maintype.module
-    if schema is not None:
-        if module is not None:
-            lname = sn.Name(module=module, name=nqname)
-        else:
-            lname = nqname
-        obj = schema.get(lname, module_aliases=modaliases, default=None)
-        if obj is not None:
-            module = obj.name.module
-    elif modaliases:
-        module = modaliases.get(module)
-
-    if module is None:
-        raise s_err.ItemNotFoundError(
-            f'unqualified name and no default module set',
-            context=node.context
-        )
-
-    return so.ObjectRef(classname=sn.Name(module=module, name=nqname))
+    return ast_objref_to_objref(
+        node.maintype, modaliases=modaliases, schema=schema)
 
 
 def typeref_to_ast(t: so.Object) -> ql_ast.TypeName:

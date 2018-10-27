@@ -208,6 +208,24 @@ class Schema(TypeContainer):
         raise s_err.ItemNotFoundError(
             f'reference to a non-existent function: {name}')
 
+    def get_operators(self, name, default=_void, *, module_aliases=None):
+        def getter(modules, name):
+            for module in modules:
+                result = module.get_operators(name)
+                if result:
+                    return result
+
+        funcs = self._get(name,
+                          getter=getter,
+                          module_aliases=module_aliases,
+                          default=default)
+
+        if funcs is not _void:
+            return funcs
+
+        raise s_err.ItemNotFoundError(
+            f'reference to a non-existent operator: {name}')
+
     def get(self, name, default=_void, *, module_aliases=None, type=None):
         def getter(modules, name):
             for module in modules:

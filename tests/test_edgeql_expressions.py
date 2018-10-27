@@ -815,7 +815,8 @@ class TestExpressions(tb.QueryTestCase):
                 'schema::DerivedLink',
                 'schema::DerivedObjectType',
                 'schema::Object',
-                'schema::ObjectType'
+                'schema::ObjectType',
+                'schema::Operator',
             ],
         ])
 

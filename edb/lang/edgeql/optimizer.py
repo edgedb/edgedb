@@ -276,6 +276,13 @@ class EdgeQLOptimizer:
             elif isinstance(expr, qlast.CreateConcreteProperty):
                 self._process_expr(context, expr.target)
 
+            elif isinstance(expr, qlast.OperatorCommand):
+                for arg in expr.args:
+                    self._process_expr(context, arg)
+
+                if isinstance(expr, qlast.CreateOperator):
+                    self._process_expr(context, expr.returning)
+
         elif isinstance(expr, (qlast.CreateLocalPolicy,
                                qlast.AlterLocalPolicy)):
             expr.event.module = self._process_module_ref(
@@ -317,6 +324,8 @@ class EdgeQLOptimizer:
                     self._process_shape(context, spec)
 
     def _process_module_ref(self, context, module):
+        # We cannot unabiguosly qualify naked names, as these
+        # may refer either to `std::` or to the default module.
         if not module:
             return module
 

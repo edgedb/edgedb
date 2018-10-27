@@ -133,6 +133,11 @@ class LinkTargetDeleteAction(s_enum.StrEnum):
     DEFERRED_RESTRICT = 'DEFERRED RESTRICT'
 
 
+class SchemaItemClass(s_enum.StrEnum):
+
+    OPERATOR = 'OPERATOR'
+
+
 class Base(ast.AST):
     __ast_hidden__ = {'context'}
     context: parsing.ParserContext
@@ -183,6 +188,7 @@ class BaseObjectRef(Expr):
 class ObjectRef(BaseObjectRef):
     name: str
     module: str
+    itemclass: SchemaItemClass
 
 
 class AnyType(BaseObjectRef):
@@ -870,6 +876,30 @@ class AlterFunction(AlterObject):
 
 class DropFunction(DropObject):
     args: typing.List[FuncParam]
+
+
+class OperatorCode(Clause):
+    language: Language
+    from_name: str
+
+
+class OperatorCommand(ObjectDDL):
+    kind: ft.OperatorKind
+    args: typing.List[FuncParam]
+
+
+class CreateOperator(CreateObject, OperatorCommand):
+    returning: TypeExpr
+    returning_typemod: ft.TypeModifier = ft.TypeModifier.SINGLETON
+    code: OperatorCode
+
+
+class AlterOperator(AlterObject, OperatorCommand):
+    pass
+
+
+class DropOperator(DropObject, OperatorCommand):
+    pass
 
 
 class SessionStateDecl(Expr):

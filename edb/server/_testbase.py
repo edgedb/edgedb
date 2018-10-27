@@ -227,6 +227,9 @@ class DatabaseTestCase(ConnectedTestCase):
     ISOLATED_METHODS = True
 
     def setUp(self):
+        self.loop.run_until_complete(
+            self.con.execute('SET __internal_testmode := true;'))
+
         if self.ISOLATED_METHODS:
             self.loop.run_until_complete(
                 self.con.execute('START TRANSACTION;'))

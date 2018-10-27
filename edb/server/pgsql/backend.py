@@ -79,6 +79,7 @@ class Backend(s_deltarepo.DeltaProvider):
     def __init__(self, connection):
         self.schema = None
         self.modaliases = {None: 'default'}
+        self.testmode = False
 
         self._intro_mech = intromech.IntrospectionMech(connection)
 
@@ -251,6 +252,8 @@ class Backend(s_deltarepo.DeltaProvider):
     async def exec_session_state_cmd(self, cmd):
         for alias, module in cmd.modaliases.items():
             self.modaliases[alias] = module.name
+
+        self.testmode = cmd.testmode
 
     def get_type_id(self, objtype):
         return self._intro_mech.get_type_id(objtype)

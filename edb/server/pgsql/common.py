@@ -78,11 +78,19 @@ def quote_type(type_):
         first = ''
         last = type_
 
+    is_rowtype = last.endswith('%ROWTYPE')
+    if is_rowtype:
+        last = last[:-8]
+
     is_array = last.endswith('[]')
     if is_array:
         last = last[:-2]
 
     last = quote_ident(last)
+
+    if is_rowtype:
+        last += '%ROWTYPE'
+
     if is_array:
         last += '[]'
 
@@ -114,14 +122,19 @@ def edgedb_name_to_pg_name(name, prefix_length=0):
     return name
 
 
-def convert_name(name, suffix, catenate=True, prefix='edgedb_'):
+def convert_name(name, suffix='', catenate=True, prefix='edgedb_'):
     schema = edgedb_module_name_to_schema_name(name.module, prefix=prefix)
-    name = edgedb_name_to_pg_name('%s_%s' % (name.name, suffix))
+    if suffix:
+        sname = f'{name.name}_{suffix}'
+    else:
+        sname = name.name
+
+    dbname = edgedb_name_to_pg_name(sname)
 
     if catenate:
-        return qname(schema, name)
+        return qname(schema, dbname)
     else:
-        return schema, name
+        return schema, dbname
 
 
 def scalar_name_to_domain_name(name, catenate=True, prefix='edgedb_'):
@@ -149,6 +162,15 @@ def schema_name_to_pg_name(name: s_name.Name):
         edgedb_module_name_to_schema_name(name.module),
         edgedb_name_to_pg_name(name.name)
     )
+
+
+def get_backend_operator_name(name, catenate=False):
+    schema, oper_name = convert_name(name, catenate=False)
+    oper_name = f'`{oper_name}`'
+    if catenate:
+        return qname(schema, oper_name)
+    else:
+        return schema, oper_name
 
 
 def get_table_name(obj, catenate=True):

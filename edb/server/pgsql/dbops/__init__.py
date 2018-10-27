@@ -27,6 +27,7 @@ from .domains import *  # NOQA
 from .extensions import *  # NOQA
 from .functions import *  # NOQA
 from .indexes import *  # NOQA
+from .operators import *  # NOQA
 from .schemas import *  # NOQA
 from .sequences import *  # NOQA
 from .tables import *  # NOQA

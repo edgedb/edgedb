@@ -38,7 +38,8 @@ def load_std_schema():
 
     for statement in statements:
         cmd = s_ddl.delta_from_ddl(
-            statement, schema=schema, modaliases={None: 'std'})
+            statement, schema=schema, modaliases={None: 'std'},
+            stdmode=True)
         cmd.apply(schema)
 
     return schema

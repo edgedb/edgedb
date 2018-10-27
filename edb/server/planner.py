@@ -44,18 +44,22 @@ class TransactionStatement:
 def plan_statement(stmt, backend, flags={}, *, timer):
     schema = backend.schema
     modaliases = backend.modaliases
+    testmode = backend.testmode
 
     if isinstance(stmt, qlast.Database):
         # CREATE/ALTER/DROP DATABASE
-        return s_ddl.cmd_from_ddl(stmt, schema=schema, modaliases=modaliases)
+        return s_ddl.cmd_from_ddl(
+            stmt, schema=schema, modaliases=modaliases, testmode=testmode)
 
     elif isinstance(stmt, qlast.Delta):
         # CREATE/APPLY MIGRATION
-        return s_ddl.cmd_from_ddl(stmt, schema=schema, modaliases=modaliases)
+        return s_ddl.cmd_from_ddl(
+            stmt, schema=schema, modaliases=modaliases, testmode=testmode)
 
     elif isinstance(stmt, qlast.DDL):
         # CREATE/DELETE/ALTER (FUNCTION, TYPE, etc)
-        return s_ddl.delta_from_ddl(stmt, schema=schema, modaliases=modaliases)
+        return s_ddl.delta_from_ddl(
+            stmt, schema=schema, modaliases=modaliases, testmode=testmode)
 
     elif isinstance(stmt, qlast.Transaction):
         # BEGIN/COMMIT

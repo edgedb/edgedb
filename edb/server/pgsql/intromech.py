@@ -41,6 +41,7 @@ from edb.lang.schema import links as s_links
 from edb.lang.schema import lproperties as s_props
 from edb.lang.schema import modules as s_mod
 from edb.lang.schema import name as sn
+from edb.lang.schema import operators as s_opers
 from edb.lang.schema import pointers as s_pointers
 from edb.lang.schema import policy as s_policy
 from edb.lang.schema import pseudo as s_pseudo
@@ -81,6 +82,8 @@ class IntrospectionMech:
         self.search_idx_expr = astexpr.TextSearchExpr()
         self.type_expr = astexpr.TypeExpr()
         self.constant_expr = None
+
+        self._operator_commutators = {}
 
         self.connection = connection
 
@@ -172,6 +175,7 @@ class IntrospectionMech:
         await self.read_link_properties(schema)
         await self.read_policies(schema)
         await self.read_attribute_values(schema)
+        await self.read_operators(schema)
         await self.read_functions(schema)
         await self.read_constraints(schema)
         await self.read_indexes(schema)
@@ -180,6 +184,7 @@ class IntrospectionMech:
         await self.order_actions(schema)
         await self.order_events(schema)
         await self.order_scalars(schema)
+        await self.order_operators(schema)
         await self.order_functions(schema)
         await self.order_link_properties(schema)
         await self.order_links(schema)
@@ -334,6 +339,38 @@ class IntrospectionMech:
             ]
         else:
             return []
+
+    async def read_operators(self, schema):
+        self._operator_commutators.clear()
+
+        func_list = await datasources.schema.operators.fetch(self.connection)
+
+        for row in func_list:
+            name = sn.Name(row['name'])
+
+            oper_data = {
+                'name': name,
+                'operator_kind': row['operator_kind'],
+                'title': self.json_to_word_combination(row['title']),
+                'description': row['description'],
+                'language': row['language'],
+                'params': self._decode_func_params(row, schema),
+                'return_typemod': row['return_typemod'],
+                'from_operator': row['from_operator'],
+                'return_type': self.unpack_typeref(row['return_type'], schema)
+            }
+
+            oper = s_opers.Operator(**oper_data)
+            schema.add(oper)
+
+            if row['commutator']:
+                self._operator_commutators[oper] = row['commutator']
+
+    async def order_operators(self, schema):
+        for oper, commutator in self._operator_commutators.items():
+            oper.commutator = schema.get(commutator)
+
+        self._operator_commutators.clear()
 
     async def read_functions(self, schema):
         func_list = await datasources.schema.functions.fetch(self.connection)

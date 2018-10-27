@@ -281,7 +281,8 @@ class FunctionCommandContext(sd.ObjectCommandContext):
 
 class FunctionCommandMixin:
     @classmethod
-    def _get_function_fullname(cls, name, params: FuncParameterList):
+    def _get_function_name_quals(
+            cls, name, params: FuncParameterList) -> typing.List[str]:
         pgp = params.as_pg_params()
 
         quals = []
@@ -305,6 +306,12 @@ class FunctionCommandMixin:
             elif pk is ft.ParameterKind.VARIADIC:
                 quals.append(f'$V$')
 
+        return quals
+
+    @classmethod
+    def _get_function_fullname(
+            cls, name, params: FuncParameterList) -> sn.Name:
+        quals = cls._get_function_name_quals(name, params)
         return sn.Name(
             module=name.module,
             name=named.NamedObject.get_specialized_name(name, *quals))

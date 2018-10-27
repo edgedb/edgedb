@@ -383,3 +383,4 @@ class DeleteStmt(MutatingStmt):
 class SessionStateCmd(Command):
 
     modaliases: typing.Dict[typing.Optional[str], s_modules.Module]
+    testmode: bool

@@ -35,6 +35,7 @@ from edb.lang.schema import inheriting as s_inheriting
 from edb.lang.schema import name as sn
 from edb.lang.schema import named as s_named
 from edb.lang.schema import objects as s_obj
+from edb.lang.schema import operators as s_opers
 from edb.lang.schema import pseudo as s_pseudo
 from edb.lang.schema import referencing as s_ref
 from edb.lang.schema import types as s_types
@@ -1803,9 +1804,9 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
             # so we just need to unnest the array here.
             refattr = 'UNNEST(' + q(pn.name) + ')'
 
-        elif pn.name == 'params' and mcls is s_funcs.Function:
-            # Func params need special handling as they are defined
-            # in sevaral separate fields.
+        elif (pn.name == 'params' and
+                (mcls is s_funcs.Function or mcls is s_opers.Operator)):
+            # Function and operator params need special handling.
             link_query = f'''
                 SELECT
                     q.id            AS {dbname('std::source')},
@@ -1830,8 +1831,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
             '''
 
         elif pn.name == 'params' and mcls is s_constraints.Constraint:
-            # Constraint params need special handling as they are defined
-            # in several separate fields.
+            # Constraint params need special handling.
             link_query = f'''
                 SELECT
                     q.id            AS {dbname('std::source')},
@@ -1958,6 +1958,10 @@ def _generate_param_view(schema):
                  SELECT
                     id, params
                  FROM edgedb.Constraint
+                 UNION ALL
+                 SELECT
+                    id, params
+                 FROM edgedb.Operator
                 ) AS f,
                 LATERAL UNNEST(f.params) AS p
 
@@ -2160,7 +2164,8 @@ async def generate_views(conn, schema):
                     continue
                 elif pn.name == 'params' and (
                         mcls is s_funcs.Function or
-                        mcls is s_constraints.Constraint):
+                        mcls is s_constraints.Constraint or
+                        mcls is s_opers.Operator):
                     # Function params need special handling as
                     # they are defined as three separate fields.
                     pass
@@ -2187,7 +2192,8 @@ async def generate_views(conn, schema):
             if ptrstor.table_type == 'ObjectType':
                 if (pn.name == 'name' and
                         issubclass(mcls, (s_inheriting.InheritingObject,
-                                          s_funcs.Function))):
+                                          s_funcs.Function,
+                                          s_opers.Operator))):
                     col_expr = 'edgedb.get_shortname(t.{})'.format(q(pn.name))
                 else:
                     col_expr = f't.{q(pn.name)}'

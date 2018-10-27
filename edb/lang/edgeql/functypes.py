@@ -46,3 +46,9 @@ class TypeModifier(s_enum.StrEnum):
             return 'OPTIONAL'
         else:
             return ''
+
+
+class OperatorKind(s_enum.StrEnum):
+    INFIX = 'INFIX'
+    POSTFIX = 'POSTFIX'
+    PREFIX = 'PREFIX'

@@ -46,6 +46,7 @@ from edb.lang.schema import modules as s_mod
 from edb.lang.schema import name as sn
 from edb.lang.schema import named as s_named
 from edb.lang.schema import objects as s_obj
+from edb.lang.schema import operators as s_opers
 from edb.lang.schema import pointers as s_pointers
 from edb.lang.schema import policy as s_policy
 from edb.lang.schema import referencing as s_referencing
@@ -491,6 +492,75 @@ class DeleteFunction(
             )
 
         return func
+
+
+class OperatorCommand:
+    table = metaschema.get_metaclass_table(s_opers.Operator)
+
+    def get_pg_name(self, oper: s_opers.Operator) -> typing.Tuple[str, str]:
+        return common.get_backend_operator_name(oper.shortname)
+
+    def get_pg_operands(self, schema, oper: s_opers.Operator):
+        left_type = None
+        right_type = None
+
+        if oper.operator_kind is ql_ft.OperatorKind.INFIX:
+            left_type = types.pg_type_from_object(schema, oper.params[0].type)
+            right_type = types.pg_type_from_object(schema, oper.params[1].type)
+
+        elif oper.operator_kind is ql_ft.OperatorKind.PREFIX:
+            right_type = types.pg_type_from_object(schema, oper.params[0].type)
+
+        elif oper.operator_kind is ql_ft.OperatorKind.POSTFIX:
+            left_type = types.pg_type_from_object(schema, oper.params[0].type)
+
+        else:
+            raise RuntimeError(f'unexpected operator type: {oper.type!r}')
+
+        return left_type, right_type
+
+
+class CreateOperator(OperatorCommand, CreateNamedObject,
+                     adapts=s_opers.CreateOperator):
+
+    def apply(self, schema, context):
+        oper: s_opers.Operator = super().apply(schema, context)
+
+        if oper.language is ql_ast.Language.SQL and oper.from_operator:
+            args = self.get_pg_operands(schema, oper)
+            self.pgops.add(dbops.CreateOperatorAlias(
+                name=self.get_pg_name(oper),
+                args=args,
+                operator=('pg_catalog', oper.from_operator)
+            ))
+        else:
+            raise ql_errors.EdgeQLError(
+                f'cannot create operator {oper.shortname}: '
+                f'only "FROM SQL OPERATOR" operators are currently supported',
+                context=self.source_context)
+
+        return oper
+
+
+class RenameOperator(
+        OperatorCommand, RenameNamedObject, adapts=s_opers.RenameOperator):
+    pass
+
+
+class AlterOperator(
+        OperatorCommand, AlterNamedObject, adapts=s_opers.AlterOperator):
+    pass
+
+
+class DeleteOperator(
+        OperatorCommand, DeleteNamedObject, adapts=s_opers.DeleteOperator):
+
+    def apply(self, schema, context):
+        oper: s_opers.Operator = super().apply(schema, context)
+        name = self.get_pg_name(oper)
+        args = self.get_pg_operands(schema, oper)
+        self.pgops.add(dbops.DropOperator(name=name, args=args))
+        return oper
 
 
 class AttributeCommand:

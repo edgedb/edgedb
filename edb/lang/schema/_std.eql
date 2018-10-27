@@ -365,6 +365,13 @@ CREATE SCALAR TYPE schema::target_delete_action_t EXTENDING std::str {
 CREATE ABSTRACT ATTRIBUTE stdattrs::on_target_delete
     schema::target_delete_action_t;
 
+CREATE SCALAR TYPE schema::operator_kind_t EXTENDING std::str {
+    CREATE CONSTRAINT std::enum ('INFIX', 'POSTFIX', 'PREFIX');
+};
+
+CREATE ABSTRACT ATTRIBUTE stdattrs::operator_kind
+    schema::operator_kind_t;
+
 
 # Base type for all schema entities.
 CREATE ABSTRACT TYPE schema::Object {
@@ -586,4 +593,15 @@ CREATE TYPE schema::Function EXTENDING schema::Object {
     };
     CREATE LINK schema::return_type -> schema::Type;
     CREATE PROPERTY schema::return_typemod -> std::str;
+};
+
+
+CREATE TYPE schema::Operator EXTENDING schema::Object {
+    CREATE LINK schema::params -> schema::Parameter {
+        SET cardinality := '**';
+    };
+    CREATE LINK schema::return_type -> schema::Type;
+    CREATE LINK schema::commutator -> schema::Operator;
+    CREATE PROPERTY schema::return_typemod -> std::str;
+    CREATE PROPERTY schema::operator_kind -> schema::operator_kind_t;
 };

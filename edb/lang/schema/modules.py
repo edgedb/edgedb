@@ -31,6 +31,7 @@ from . import error as s_err
 from . import name as sn
 from . import named
 from . import objects as so
+from . import operators as s_opers
 
 
 class Module(named.NamedObject):
@@ -43,7 +44,8 @@ class Module(named.NamedObject):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        self.funcs_by_name = {}
+        self.funcs_by_name = collections.defaultdict(list)
+        self.opers_by_name = collections.defaultdict(list)
         self.index_by_name = collections.OrderedDict()
         self.index_by_type = {}
         self.index_derived = set()
@@ -60,9 +62,9 @@ class Module(named.NamedObject):
             raise s_err.SchemaError(err)
 
         if isinstance(obj, fu.Function):
-            if obj.shortname.name not in self.funcs_by_name:
-                self.funcs_by_name[obj.shortname.name] = []
             self.funcs_by_name[obj.shortname.name].append(obj)
+        elif isinstance(obj, s_opers.Operator):
+            self.opers_by_name[obj.shortname.name].append(obj)
 
         self.index_by_name[obj.name] = obj
 
@@ -102,6 +104,9 @@ class Module(named.NamedObject):
 
     def get_functions(self, name):
         return self.funcs_by_name.get(name)
+
+    def get_operators(self, name):
+        return self.opers_by_name.get(name)
 
     def get(self, name, default=s_err.ItemNotFoundError, *,
             module_aliases=None, type=None,

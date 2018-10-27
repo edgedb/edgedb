@@ -880,3 +880,135 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE MODULE spam;
                 CREATE MODULE spam;
             ''')
+
+    async def test_edgeql_ddl_operator_01(self):
+        await self.query('''
+            CREATE INFIX OPERATOR test::`+`
+                (left: int64, right: int64) -> int64
+                FROM SQL OPERATOR r'+';
+        ''')
+
+        await self.assert_query_result('''
+            WITH MODULE schema
+            SELECT Operator {
+                name,
+                params: {
+                    name,
+                    type: {
+                        name
+                    },
+                    typemod
+                },
+                operator_kind,
+                return_typemod
+            }
+            FILTER
+                .name = 'test::+';
+        ''', [
+            [{
+                'name': 'test::+',
+                'params': [
+                    {
+                        'name': 'left',
+                        'type': {
+                            'name': 'std::int64'
+                        },
+                        'typemod': 'SINGLETON'
+                    },
+                    {
+                        'name': 'right',
+                        'type': {
+                            'name': 'std::int64'
+                        },
+                        'typemod': 'SINGLETON'}
+                ],
+                'operator_kind': 'INFIX',
+                'return_typemod': 'SINGLETON'
+            }]
+        ])
+
+        await self.query('''
+            ALTER INFIX OPERATOR test::`+`
+                (left: int64, right: int64)
+                SET description := 'my plus';
+        ''')
+
+        await self.assert_query_result('''
+            WITH MODULE schema
+            SELECT Operator {
+                name,
+                description,
+            }
+            FILTER
+                .name = 'test::+';
+        ''', [
+            [{
+                'name': 'test::+',
+                'description': 'my plus',
+            }]
+        ])
+
+        await self.query("""
+            DROP INFIX OPERATOR test::`+` (left: int64, right: int64);
+        """)
+
+        await self.assert_query_result('''
+            WITH MODULE schema
+            SELECT Operator {
+                name,
+                params: {
+                    name,
+                    type: {
+                        name
+                    },
+                    typemod
+                },
+                operator_kind,
+                return_typemod
+            }
+            FILTER
+                .name = 'test::+';
+        ''', [
+            []
+        ])
+
+    async def test_edgeql_ddl_operator_02(self):
+        try:
+            await self.query('''
+                CREATE POSTFIX OPERATOR test::`!`
+                    (operand: int64) -> int64
+                    FROM SQL OPERATOR r'!';
+
+                CREATE PREFIX OPERATOR test::`!`
+                    (operand: int64) -> int64
+                    FROM SQL OPERATOR r'!!';
+            ''')
+
+            await self.assert_query_result('''
+                WITH MODULE schema
+                SELECT Operator {
+                    name,
+                    operator_kind,
+                }
+                FILTER
+                    .name = 'test::!'
+                ORDER BY
+                    .operator_kind;
+            ''', [
+                [{
+                    'name': 'test::!',
+                    'operator_kind': 'POSTFIX',
+                }, {
+                    'name': 'test::!',
+                    'operator_kind': 'PREFIX',
+                }]
+            ])
+
+        finally:
+            await self.query('''
+                DROP POSTFIX OPERATOR test::`!`
+                    (operand: int64);
+
+                DROP PREFIX OPERATOR test::`!`
+                    (operand: int64);
+            ''')

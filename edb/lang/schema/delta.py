@@ -720,6 +720,8 @@ class CommandContext:
         self.declarative = declarative
         self.schema = None
         self.modaliases = {}
+        self.stdmode = False
+        self.testmode = False
 
     def push(self, token):
         self.stack.append(token)
@@ -951,6 +953,12 @@ class AlterObjectProperty(Command):
                         el.value, schema=schema)
                     for el in astnode.value.elements
                 )
+
+            elif isinstance(astnode.value, qlast.ObjectRef):
+
+                new_value = utils.ast_objref_to_objref(
+                    astnode.value, modaliases=context.modaliases,
+                    schema=schema)
 
             else:
                 raise ValueError(

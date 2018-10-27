@@ -18,8 +18,9 @@
 
 
 import collections
-import types
 import sys
+import types
+import typing
 
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import functypes as ft
@@ -185,6 +186,15 @@ class InnerDDLStmt(Nonterm):
     def reduce_DropFunctionStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_CreateOperatorStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_AlterOperatorStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DropOperatorStmt(self, *kids):
+        self.val = kids[0].val
+
     def reduce_CreateIndexStmt(self, *kids):
         self.val = kids[0].val
 
@@ -290,6 +300,18 @@ def commands_block(parent, *commands, opt=True):
         _new_nonterm('Opt' + parent + 'CommandsBlock', clsdict=clsdict)
 
 
+class SchemaItemClassValue(typing.NamedTuple):
+
+    itemclass: qlast.SchemaItemClass
+
+
+class SchemaItemClass(Nonterm):
+
+    def reduce_OPERATOR(self, *kids):
+        self.val = SchemaItemClassValue(
+            itemclass=qlast.SchemaItemClass.OPERATOR)
+
+
 class SetFieldStmt(Nonterm):
     # field := <expr>
     def reduce_SET_NodeName_ASSIGN_Expr(self, *kids):
@@ -301,6 +323,14 @@ class SetFieldStmt(Nonterm):
             name=kids[1].val,
             value=kids[3].val,
             as_expr=not eager
+        )
+
+    def reduce_SET_NodeName_TO_SchemaItemClass_NodeName(self, *kids):
+        ref = kids[4].val
+        ref.itemclass = kids[3].val.itemclass
+        self.val = qlast.CreateAttributeValue(
+            name=kids[1].val,
+            value=ref
         )
 
 
@@ -1752,3 +1782,127 @@ class DropFunctionStmt(Nonterm):
 class FunctionType(Nonterm):
     def reduce_FullTypeExpr(self, *kids):
         self.val = kids[0].val
+
+
+#
+# CREATE OPERATOR
+#
+
+class OperatorKind(Nonterm):
+
+    def reduce_INFIX(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_POSTFIX(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_PREFIX(self, *kids):
+        self.val = kids[0].val
+
+
+class FromOperator(Nonterm):
+
+    def reduce_FROM_Identifier_OPERATOR_BaseRawStringConstant(self, *kids):
+        lang = _parse_language(kids[1])
+        if lang != qlast.Language.SQL:
+            raise EdgeQLSyntaxError(
+                f'{lang} language is not supported in FROM OPERATOR clause',
+                context=kids[1].context) from None
+
+        self.val = qlast.OperatorCode(language=lang,
+                                      from_name=kids[3].val.value)
+
+
+commands_block(
+    'CreateOperator',
+    SetFieldStmt,
+    FromOperator,
+    opt=False
+)
+
+
+class CreateOperatorStmt(Nonterm):
+
+    def reduce_CreateOperatorStmt(self, *kids):
+        r"""%reduce
+            CREATE OperatorKind OPERATOR NodeName CreateFunctionArgs
+            ARROW OptTypeQualifier FunctionType
+            CreateOperatorCommandsBlock
+        """
+        self.val = qlast.CreateOperator(
+            kind=ft.OperatorKind(kids[1].val),
+            name=kids[3].val,
+            args=kids[4].val,
+            returning_typemod=kids[6].val,
+            returning=kids[7].val,
+            **self._process_operator_body(kids[8])
+        )
+
+    def _process_operator_body(self, block):
+        props = {}
+
+        commands = []
+        code = None
+        for node in block.val:
+            if isinstance(node, qlast.OperatorCode):
+                if code is not None:
+                    raise EdgeQLSyntaxError('more than one FROM clause',
+                                            context=node.context)
+                else:
+                    code = node
+            else:
+                commands.append(node)
+
+        if code is None:
+            raise EdgeQLSyntaxError('FROM clause is missing',
+                                    context=block.context)
+
+        else:
+            props['code'] = code
+
+        if commands:
+            props['commands'] = commands
+
+        return props
+
+
+#
+# ALTER OPERATOR
+#
+
+commands_block(
+    'AlterOperator',
+    SetFieldStmt,
+    DropFieldStmt,
+    opt=False
+)
+
+
+class AlterOperatorStmt(Nonterm):
+    def reduce_AlterOperatorStmt(self, *kids):
+        """%reduce
+           ALTER OperatorKind OPERATOR NodeName CreateFunctionArgs
+           AlterOperatorCommandsBlock
+        """
+        self.val = qlast.AlterOperator(
+            kind=ft.OperatorKind(kids[1].val),
+            name=kids[3].val,
+            args=kids[4].val,
+            commands=kids[5].val
+        )
+
+
+#
+# DROP OPERATOR
+#
+
+class DropOperatorStmt(Nonterm):
+    def reduce_DropOperator(self, *kids):
+        """%reduce
+           DROP OperatorKind OPERATOR NodeName CreateFunctionArgs
+        """
+        self.val = qlast.DropOperator(
+            kind=ft.OperatorKind(kids[1].val),
+            name=kids[3].val,
+            args=kids[4].val,
+        )
