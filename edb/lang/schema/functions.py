@@ -268,6 +268,13 @@ class Function(so.NamedObject):
 
     return_typemod = so.Field(ft.TypeModifier, compcoef=0.4, coerce=True)
 
+    @property
+    def inlined_defaults(self):
+        # This can be relaxed to just `language is EdgeQL` when we
+        # support non-constant defaults.
+        return bool(self.language is qlast.Language.EdgeQL and
+                    self.params.named_only)
+
 
 class FunctionCommandContext(sd.ObjectCommandContext):
     pass

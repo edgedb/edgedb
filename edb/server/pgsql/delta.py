@@ -396,12 +396,21 @@ class FunctionCommand:
         pg_params = func.params.as_pg_params()
 
         args = []
-        if func.language is ql_ast.Language.EdgeQL:
+        if func.inlined_defaults:
             args.append(('__defaults_mask__', ('bytea',), None))
+
+        compile_defaults = not (
+            func.inlined_defaults or func.params.named_only
+        )
 
         for param in pg_params.params:
             pg_at = self.get_pgtype(func, param.type, schema)
-            args.append((param.name, pg_at, None))
+
+            default = None
+            if compile_defaults and param.default is not None:
+                default = self.compile_default(func, param.default, schema)
+
+            args.append((param.name, pg_at, default))
 
         return args
 

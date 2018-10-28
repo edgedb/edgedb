@@ -837,3 +837,33 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                     idx: int32
                 );
             ''')
+
+    async def test_edgeql_calls_24(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::call24() -> str
+                FROM EdgeQL $$
+                    SELECT 'ab' + 'cd'
+                $$;
+
+            CREATE FUNCTION test::call24(
+                a: str
+            ) -> str
+                FROM EdgeQL $$
+                    SELECT a + '!'
+                $$;
+        ''')
+
+        try:
+            await self.assert_query_result(r'''
+                select test::call24();
+                select test::call24('aaa');
+            ''', [
+                ['abcd'],
+                ['aaa!'],
+            ])
+
+        finally:
+            await self.con.execute('''
+                DROP FUNCTION test::call24();
+                DROP FUNCTION test::call24(a: str);
+            ''')

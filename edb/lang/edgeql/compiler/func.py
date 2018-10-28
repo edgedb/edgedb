@@ -190,7 +190,6 @@ def try_bind_func_args(
     )
 
     has_empty_variadic = False
-    edgeql_func = func.language is qlast.Language.EdgeQL
     used_implicit_cast = False
     resolved_poly_base_type = None
     no_args_call = not args and not kwargs
@@ -199,11 +198,11 @@ def try_bind_func_args(
         if no_args_call:
             # Match: `func` is a function without parameters
             # being called with no arguments.
-            if edgeql_func:
+            if func.inlined_defaults:
                 bytes_t = ctx.schema.get('std::bytes')
                 args = [
                     setgen.ensure_set(
-                        irast.BytesConstant(value=r"\x00", type=bytes_t),
+                        irast.BytesConstant(value='\x00', type=bytes_t),
                         typehint=bytes_t,
                         ctx=ctx)
                 ]
@@ -227,7 +226,7 @@ def try_bind_func_args(
     params = pg_params.params
     nparams = len(params)
     nargs = len(args)
-    populate_defaults = False
+    has_missing_args = False
 
     ai = 0
     pi = 0
@@ -259,7 +258,7 @@ def try_bind_func_args(
                 # without a matching argument
                 return _NO_MATCH
 
-            populate_defaults = True
+            has_missing_args = True
             bound_param_args.append((param, None))
 
     if matched_kwargs != len(kwargs):
@@ -315,7 +314,7 @@ def try_bind_func_args(
                 # positional argument for.
                 return _NO_MATCH
 
-            populate_defaults = True
+            has_missing_args = True
             bound_param_args.append((param, None))
 
         elif param.kind is _VARIADIC:
@@ -328,59 +327,66 @@ def try_bind_func_args(
     # Populate defaults.
     defaults_mask = 0
     null_args = set()
-    if populate_defaults:
-        for i in range(len(bound_param_args)):
-            param, val = bound_param_args[i]
-            if val is not None:
-                continue
+    if has_missing_args:
+        if func.inlined_defaults or func.params.named_only:
+            for i in range(len(bound_param_args)):
+                param, val = bound_param_args[i]
+                if val is not None:
+                    continue
 
-            null_args.add(param.name)
+                null_args.add(param.name)
 
-            defaults_mask |= 1 << i
+                defaults_mask |= 1 << i
 
-            empty_default = (
-                edgeql_func or
-                irutils.is_empty(param.get_ir_default(schema=ctx.schema))
-            )
+                empty_default = (
+                    func.inlined_defaults or
+                    irutils.is_empty(param.get_ir_default(schema=ctx.schema))
+                )
 
-            if empty_default:
-                default_type = None
+                if empty_default:
+                    default_type = None
 
-                if param.type.name == 'std::any':
-                    if resolved_poly_base_type is None:
-                        raise errors.EdgeQLError(
-                            f'could not resolve std::any type for the '
-                            f'${param.name} parameter')
+                    if param.type.name == 'std::any':
+                        if resolved_poly_base_type is None:
+                            raise errors.EdgeQLError(
+                                f'could not resolve std::any type for the '
+                                f'${param.name} parameter')
+                        else:
+                            default_type = resolved_poly_base_type
                     else:
-                        default_type = resolved_poly_base_type
+                        default_type = param.type
+
                 else:
                     default_type = param.type
 
-            else:
-                default_type = param.type
+                if func.inlined_defaults:
+                    default = irutils.new_empty_set(
+                        ctx.schema,
+                        scls=default_type,
+                        alias=param.name)
+                else:
+                    default = param.get_ir_default(schema=ctx.schema)
 
-            if edgeql_func:
-                default = irutils.new_empty_set(
-                    ctx.schema,
-                    scls=default_type,
-                    alias=param.name)
+                default = setgen.ensure_set(
+                    default,
+                    typehint=default_type,
+                    ctx=ctx)
 
-            else:
-                default = param.get_ir_default(schema=ctx.schema)
+                bound_param_args[i] = (
+                    param,
+                    default
+                )
 
-            default = setgen.ensure_set(
-                default,
-                typehint=default_type,
-                ctx=ctx)
-
-            bound_param_args[i] = (
-                param,
-                default
-            )
+        else:
+            bound_param_args = [
+                (param, val)
+                for (param, val) in bound_param_args
+                if val is not None
+            ]
 
     bound_args = []
 
-    if edgeql_func:
+    if func.inlined_defaults:
         # If we are compiling an EdgeQL function, inject the defaults
         # bit-mask as a first argument.
         bytes_t = ctx.schema.get('std::bytes')
