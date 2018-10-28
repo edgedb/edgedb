@@ -342,17 +342,3 @@ def enrich_schema_lookup_error(
             hint = f'did you mean {names[0]!r}?'
 
         error.set_hint_and_details(hint=hint)
-
-
-def is_legal_function_arg(
-        argt: s_types.Type, paramt: s_types.Type,
-        returnt: s_types.Type) -> bool:
-    # If the parameter type is 'any', the return type is
-    # 'array<any>', and the argument is also an 'array', then
-    # this is an invalid function invocation.
-    return not (
-        paramt.name == 'std::any' and
-        isinstance(returnt, s_types.Array) and
-        returnt.get_subtypes()[0].name == 'std::any' and
-        isinstance(argt, s_types.Array)
-    )
