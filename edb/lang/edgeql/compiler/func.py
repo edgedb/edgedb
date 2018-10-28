@@ -45,7 +45,8 @@ from . import typegen
 class BoundCall(typing.NamedTuple):
 
     func: s_func.Function
-    args: typing.List[irast.Base]
+    args: typing.Iterable[typing.Tuple[s_func.Parameter, irast.Base]]
+    null_args: typing.Set[str]
     return_type: s_types.Type
     used_implicit_casts: bool
     has_empty_variadic: bool
@@ -59,7 +60,7 @@ _SET_OF = ft.TypeModifier.SET_OF
 _OPTIONAL = ft.TypeModifier.OPTIONAL
 _SINGLETON = ft.TypeModifier.SINGLETON
 
-_NO_MATCH = BoundCall(None, None, None, False, False)
+_NO_MATCH = BoundCall(None, (), frozenset(), None, False, False)
 
 
 @dispatch.compile.register(qlast.FunctionCall)
@@ -96,10 +97,10 @@ def compile_FunctionCall(
                 fatal_array_check=fatal_array_check,
                 ctx=ctx)
 
-            if call.args is None:
+            if call is _NO_MATCH:
                 continue
 
-            if matched_call.args is None:
+            if matched_call is _NO_MATCH:
                 matched_call = call
             else:
                 if (matched_call.used_implicit_casts and
@@ -111,14 +112,14 @@ def compile_FunctionCall(
                         f'function {funcname} is not unique',
                         context=expr.context)
 
-        if matched_call.func is None:
+        if matched_call is _NO_MATCH:
             raise errors.EdgeQLError(
                 f'could not find a function variant {funcname}',
                 context=expr.context)
 
         node = irast.FunctionCall(
             func=matched_call.func,
-            args=matched_call.args,
+            args=finalize_args(matched_call, ctx=ctx),
             context=expr.context,
             type=matched_call.return_type,
             has_empty_variadic=matched_call.has_empty_variadic,
@@ -198,6 +199,7 @@ def try_bind_func_args(
         if no_args_call:
             # Match: `func` is a function without parameters
             # being called with no arguments.
+            args = []
             if func.inlined_defaults:
                 bytes_t = ctx.schema.get('std::bytes')
                 args = [
@@ -206,9 +208,7 @@ def try_bind_func_args(
                         typehint=bytes_t,
                         ctx=ctx)
                 ]
-                return BoundCall(func, args, func.return_type, False, False)
-            else:
-                return BoundCall(func, [], func.return_type, False, False)
+            return BoundCall(func, args, set(), func.return_type, False, False)
         else:
             # No match: `func` is a function without parameters
             # being called with some arguments.
@@ -384,29 +384,16 @@ def try_bind_func_args(
                 if val is not None
             ]
 
-    bound_args = []
-
     if func.inlined_defaults:
         # If we are compiling an EdgeQL function, inject the defaults
         # bit-mask as a first argument.
         bytes_t = ctx.schema.get('std::bytes')
         bm = defaults_mask.to_bytes(nparams // 8 + 1, 'little')
-        bound_args.append(
-            setgen.ensure_set(
+        bound_param_args.insert(
+            0,
+            (None, setgen.ensure_set(
                 irast.BytesConstant(value=bm.decode('ascii'), type=bytes_t),
-                typehint=bytes_t, ctx=ctx))
-
-    for param, arg in bound_param_args:
-        param_mod = param.typemod
-        if param_mod is not _SET_OF:
-            arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
-            if arg_scope is not None:
-                arg_scope.collapse()
-                pathctx.assign_set_scope(arg, None, ctx=ctx)
-            if param_mod is _OPTIONAL or param.name in null_args:
-                pathctx.register_set_in_scope(arg, ctx=ctx)
-                pathctx.mark_path_as_optional(arg.path_id, ctx=ctx)
-        bound_args.append(arg)
+                typehint=bytes_t, ctx=ctx)))
 
     return_type = func.return_type
     if return_type.is_polymorphic():
@@ -415,7 +402,7 @@ def try_bind_func_args(
         return_type = return_type.to_nonpolymorphic(resolved_poly_base_type)
 
     return BoundCall(
-        func, bound_args, return_type,
+        func, bound_param_args, null_args, return_type,
         used_implicit_cast, has_empty_variadic)
 
 
@@ -434,7 +421,7 @@ def compile_call_arg(arg: qlast.FuncArg, *,
     with ctx.newscope(fenced=True) as fencectx:
         # We put on a SET OF fence preemptively in case this is
         # a SET OF arg, which we don't know yet due to polymorphic
-        # matching.
+        # matching.  We will remove it if necessary in `finalize_args()`.
         return setgen.scoped_set(
             dispatch.compile(arg_ql, ctx=fencectx),
             ctx=fencectx)
@@ -475,3 +462,30 @@ def compile_call_args(
         kwargs[aname] = (arg_type, arg_ir)
 
     return args, kwargs
+
+
+def finalize_args(bound_call: BoundCall, *,
+                  ctx: context.ContextLevel) -> typing.List[irast.Base]:
+
+    bound_args = []
+
+    for param, arg in bound_call.args:
+        if param is None:
+            # defaults bitmask
+            bound_args.append(arg)
+            continue
+
+        param_mod = param.typemod
+        if param_mod is not _SET_OF:
+            arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
+            if arg_scope is not None:
+                arg_scope.collapse()
+                pathctx.assign_set_scope(arg, None, ctx=ctx)
+            if (param_mod is _OPTIONAL or
+                    param.name in bound_call.null_args):
+                pathctx.register_set_in_scope(arg, ctx=ctx)
+                pathctx.mark_path_as_optional(arg.path_id, ctx=ctx)
+
+        bound_args.append(arg)
+
+    return bound_args
