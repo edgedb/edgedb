@@ -19,25 +19,27 @@
 
 CREATE MODULE std;
 
-CREATE ABSTRACT SCALAR TYPE std::any;
+CREATE ABSTRACT SCALAR TYPE std::anyscalar;
 
-CREATE SCALAR TYPE std::bytes;
+CREATE SCALAR TYPE std::bool EXTENDING std::anyscalar;
 
-CREATE SCALAR TYPE std::datetime;
+CREATE SCALAR TYPE std::bytes EXTENDING std::anyscalar;
 
-CREATE SCALAR TYPE std::uuid;
+CREATE SCALAR TYPE std::datetime EXTENDING std::anyscalar;
 
-CREATE SCALAR TYPE std::str;
+CREATE SCALAR TYPE std::uuid EXTENDING std::anyscalar;
 
-CREATE SCALAR TYPE std::json;
+CREATE SCALAR TYPE std::str EXTENDING std::anyscalar;
 
-CREATE SCALAR TYPE std::timedelta;
+CREATE SCALAR TYPE std::json EXTENDING std::anyscalar;
 
-CREATE SCALAR TYPE std::date;
+CREATE SCALAR TYPE std::timedelta EXTENDING std::anyscalar;
 
-CREATE SCALAR TYPE std::time;
+CREATE SCALAR TYPE std::date EXTENDING std::anyscalar;
 
-CREATE ABSTRACT SCALAR TYPE std::anyreal;
+CREATE SCALAR TYPE std::time EXTENDING std::anyscalar;
+
+CREATE ABSTRACT SCALAR TYPE std::anyreal EXTENDING std::anyscalar;
 
 CREATE ABSTRACT SCALAR TYPE std::anyint EXTENDING std::anyreal;
 
@@ -55,7 +57,6 @@ CREATE SCALAR TYPE std::float64 EXTENDING std::anyfloat;
 
 CREATE SCALAR TYPE std::decimal EXTENDING std::anyreal;
 
-CREATE SCALAR TYPE std::bool;
 
 CREATE ABSTRACT ATTRIBUTE std::pattern std::str;
 
@@ -85,26 +86,26 @@ CREATE FUNCTION std::sum(s: SET OF std::float64) -> std::float64 {
     FROM SQL FUNCTION 'sum';
 };
 
-CREATE FUNCTION std::count(s: SET OF std::any) -> std::int64 {
+CREATE FUNCTION std::count(s: SET OF any) -> std::int64 {
     INITIAL VALUE 0;
     FROM SQL FUNCTION 'count';
 };
 
-CREATE FUNCTION std::array_agg(s: SET OF std::any) -> array<std::any> {
+CREATE FUNCTION std::array_agg(s: SET OF any) -> array<any> {
     INITIAL VALUE [];
     FROM SQL FUNCTION 'array_agg';
 };
 
-CREATE FUNCTION std::is_distinct(s: SET OF std::any) -> std::bool {
+CREATE FUNCTION std::is_distinct(s: SET OF any) -> std::bool {
     INITIAL VALUE True;
     FROM SQL FUNCTION '--system--';
 };
 
-CREATE FUNCTION std::array_unpack(array: array<std::any>) -> SET OF std::any
+CREATE FUNCTION std::array_unpack(array: array<any>) -> SET OF any
     FROM SQL FUNCTION '--system--';
 
-CREATE FUNCTION std::array_contains(array: array<std::any>,
-                                    what: std::any) -> std::bool
+CREATE FUNCTION std::array_contains(array: array<any>,
+                                    what: any) -> std::bool
     FROM SQL $$
         SELECT
             CASE
@@ -113,14 +114,14 @@ CREATE FUNCTION std::array_contains(array: array<std::any>,
             END;
     $$;
 
-CREATE FUNCTION std::array_enumerate(array: array<std::any>) ->
-        SET OF tuple<std::any, std::int64>
+CREATE FUNCTION std::array_enumerate(array: array<any>) ->
+        SET OF tuple<any, std::int64>
     FROM SQL FUNCTION '--system--';
 
-CREATE FUNCTION std::array_get(array: array<std::any>,
+CREATE FUNCTION std::array_get(array: array<any>,
                                idx: std::int64,
-                               NAMED ONLY default: OPTIONAL std::any={})
-        -> OPTIONAL std::any
+                               NAMED ONLY default: OPTIONAL any={})
+        -> OPTIONAL any
     FROM SQL $$
         SELECT COALESCE(
             "array"[
@@ -141,9 +142,9 @@ CREATE FUNCTION std::len(bytes: std::bytes) -> std::int64
         SELECT length("bytes")::bigint
     $$;
 
-CREATE FUNCTION std::len(array: array<std::any>) -> std::int64
+CREATE FUNCTION std::len(array: array<any>) -> std::int64
     FROM SQL $$
-        SELECT array_length("array", 1)::bigint
+        SELECT COALESCE(array_length("array", 1), 0)::bigint
     $$;
 
 CREATE FUNCTION std::bytes_get_bit(bytes: std::bytes, num: int64) -> std::int64
@@ -234,28 +235,28 @@ CREATE ABSTRACT CONSTRAINT std::expression
     SET expr := __subject__;
 };
 
-CREATE ABSTRACT CONSTRAINT std::max(max: std::any)
+CREATE ABSTRACT CONSTRAINT std::max(max: any)
         EXTENDING std::constraint
 {
     SET errmessage := 'Maximum allowed value for {__subject__} is {max}.';
     SET expr := __subject__ <= max;
 };
 
-CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC vals: std::any)
+CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC vals: any)
         EXTENDING std::constraint
 {
     SET errmessage := '{__subject__} must be one of: {vals}.';
     SET expr := array_contains(vals, __subject__);
 };
 
-CREATE ABSTRACT CONSTRAINT std::min(min: std::any)
+CREATE ABSTRACT CONSTRAINT std::min(min: any)
         EXTENDING std::constraint
 {
     SET errmessage := 'Minimum allowed value for {__subject__} is {min}.';
     SET expr := __subject__ >= min;
 };
 
-CREATE ABSTRACT CONSTRAINT std::minexclusive(min: std::any)
+CREATE ABSTRACT CONSTRAINT std::minexclusive(min: any)
         EXTENDING std::min
 {
     SET errmessage := '{__subject__} must be greater than {min}.';
@@ -274,7 +275,7 @@ CREATE ABSTRACT CONSTRAINT std::minlength(min: std::int64)
     SET errmessage := '{__subject__} must be no shorter than {min} characters.';
 };
 
-CREATE ABSTRACT CONSTRAINT std::regexp(pattern: std::any)
+CREATE ABSTRACT CONSTRAINT std::regexp(pattern: any)
         EXTENDING std::constraint
 {
     SET errmessage := 'invalid {__subject__}';
@@ -287,7 +288,7 @@ CREATE ABSTRACT CONSTRAINT std::maxlength(max: std::int64)
     SET errmessage := '{__subject__} must be no longer than {max} characters.';
 };
 
-CREATE ABSTRACT CONSTRAINT std::maxexclusive(max: std::any)
+CREATE ABSTRACT CONSTRAINT std::maxexclusive(max: any)
         EXTENDING std::max
 {
     SET errmessage := '{__subject__} must be less than {max}.';
@@ -378,6 +379,7 @@ CREATE TYPE schema::Database EXTENDING schema::Object;
 
 # Base type for all *types*.
 CREATE ABSTRACT TYPE schema::Type EXTENDING schema::Object;
+CREATE TYPE schema::PseudoType EXTENDING schema::Type;
 
 
 CREATE TYPE schema::Attribute EXTENDING schema::Object {

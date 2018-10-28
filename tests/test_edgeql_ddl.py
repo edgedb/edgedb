@@ -92,18 +92,18 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                                     r'cannot create test::my_lower.*func'):
 
             await self.con.execute("""
-                CREATE FUNCTION test::my_lower(s: SET OF std::any)
+                CREATE FUNCTION test::my_lower(s: SET OF any)
                     -> std::str {
                     INITIAL VALUE '';
                     FROM SQL FUNCTION 'count';
                 };
 
-                CREATE FUNCTION test::my_lower(s: std::any) -> std::str
+                CREATE FUNCTION test::my_lower(s: any) -> std::str
                     FROM SQL FUNCTION 'lower';
             """)
 
         await self.con.execute("""
-            DROP FUNCTION test::my_lower(s: std::any);
+            DROP FUNCTION test::my_lower(s: any);
         """)
 
     async def test_edgeql_ddl_06(self):
@@ -846,5 +846,15 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute(r'''
                 CREATE FUNCTION test::ddlf_12(str: std::str) -> any
+                    FROM EdgeQL $$ SELECT 1 $$;
+            ''')
+
+    async def test_edgeql_ddl_40(self):
+        with self.assertRaisesRegex(
+                client_errors.SchemaError,
+                r'reference to a non-existent schema item: std::any'):
+
+            await self.con.execute(r'''
+                CREATE FUNCTION test::ddlf_13(f: std::any) -> int64
                     FROM EdgeQL $$ SELECT 1 $$;
             ''')

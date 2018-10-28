@@ -103,7 +103,9 @@ def cast(
                 elem_pgtype = pg_types.pg_type_from_object(
                     schema, target_type.element_type, topbase=True)
 
-                if elem_pgtype == ('anyelement',):
+                if elem_pgtype in {('anyelement',), ('anynonarray',)}:
+                    # We don't want to append '[]' suffix to
+                    # `anyelement` and `anynonarray`.
                     return pgast.TypeCast(
                         arg=node,
                         type_name=pgast.TypeName(

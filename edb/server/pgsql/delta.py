@@ -363,7 +363,7 @@ class FunctionCommand:
         )
 
     def get_pgtype(self, func: s_funcs.Function, obj, schema):
-        if obj.name == 'std::any':
+        if obj.is_any():
             return ('anyelement',)
 
         try:

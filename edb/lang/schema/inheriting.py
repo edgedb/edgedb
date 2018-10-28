@@ -437,7 +437,7 @@ class InheritingObject(derivable.DerivableObject):
         if isinstance(parent, tuple):
             return any(self.issubclass(p) for p in parent)
         else:
-            if parent.name == 'std::any':
+            if parent.is_type() and parent.is_any():
                 return True
             else:
                 return self._issubclass(parent)

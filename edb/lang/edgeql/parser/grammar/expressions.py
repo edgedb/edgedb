@@ -1186,6 +1186,9 @@ class SimpleTypeName(Nonterm):
     def reduce_NodeName(self, *kids):
         self.val = qlast.TypeName(maintype=kids[0].val)
 
+    def reduce_ANY(self, *kids):
+        self.val = qlast.TypeName(maintype=qlast.Any())
+
 
 class SimpleTypeNameList(ListNonterm, element=SimpleTypeName,
                          separator=tokens.T_COMMA):

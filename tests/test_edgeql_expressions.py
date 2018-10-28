@@ -993,7 +993,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_array_18(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot index array by.*decimal'):
+                exc.EdgeQLError, r'cannot slice array by.*decimal'):
 
             await self.con.execute("""
                 SELECT [1, 2][1.0:3];
@@ -1001,7 +1001,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_array_19(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot index array by.*str'):
+                exc.EdgeQLError, r'cannot slice array by.*str'):
 
             await self.con.execute("""
                 SELECT [1, 2][1:'3'];
@@ -1122,7 +1122,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_string_06(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot index string by.*decimal'):
+                exc.EdgeQLError, r'cannot slice string by.*decimal'):
 
             await self.con.execute("""
                 SELECT '123'[1.0:];
@@ -1130,7 +1130,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_string_07(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot index string by.*str'):
+                exc.EdgeQLError, r'cannot slice string by.*str'):
 
             await self.con.execute("""
                 SELECT '123'[:'1'];

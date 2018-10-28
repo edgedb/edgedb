@@ -404,7 +404,7 @@ class TestIntrospection(tb.QueryTestCase):
                         'type': {
                             'name': 'array',
                             'element_type': {
-                                'name': 'std::any'
+                                'name': 'any'
                             }
                         }
                     }
@@ -437,7 +437,7 @@ class TestIntrospection(tb.QueryTestCase):
                         'type': {
                             'name': 'array',
                             'element_type': {
-                                'name': 'std::any'
+                                'name': 'any'
                             }
                         }
                     }
@@ -472,7 +472,7 @@ class TestIntrospection(tb.QueryTestCase):
                         'type': {
                             'name': 'array',
                             'element_type': {
-                                'name': 'std::any'
+                                'name': 'any'
                             }
                         }
                     }

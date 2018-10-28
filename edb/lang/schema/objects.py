@@ -205,6 +205,9 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
         self._attr_source_contexts = {}
         super().__init__(**kwargs)
 
+    def is_type(self):
+        return False
+
     def hash_criteria_fields(self):
         for fn, f in self.__class__.get_fields(sorted=True).items():
             if f.hashable:

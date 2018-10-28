@@ -1011,7 +1011,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_slice_03(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot index json array by.*str'):
+                exc.EdgeQLError, r'cannot slice json array by.*str'):
 
             await self.con.execute(r"""
                 SELECT str_to_json('[1, "a", 3, null]')[:'1'];

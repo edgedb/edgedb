@@ -17,7 +17,6 @@
 #
 
 
-import os.path
 import unittest
 
 from edb.server import _testbase as tb
@@ -25,11 +24,6 @@ from edb.client import exceptions as exc
 
 
 class TestEdgeQLFuncCalls(tb.QueryTestCase):
-    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'issues.eschema')
-
-    SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'issues_setup.eql')
 
     async def test_edgeql_calls_01(self):
         await self.con.execute('''
@@ -573,6 +567,14 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 FROM EdgeQL $$
                     SELECT a[<int64>idx + 1]
                 $$;
+
+            CREATE FUNCTION test::call16(
+                a: anyscalar,
+                idx: int64
+            ) -> any
+                FROM EdgeQL $$
+                    SELECT a[idx]
+                $$;
         ''')
 
         try:
@@ -582,12 +584,16 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
 
                 SELECT test::call16([1, 2, 3], '1');
                 SELECT test::call16(['a', 'b', 'c'], '1');
+
+                SELECT test::call16('xyz', 1);
             ''', [
                 [2],
                 ['b'],
 
                 [3],
                 ['c'],
+
+                ['y'],
             ])
 
         finally:
@@ -599,6 +605,10 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 DROP FUNCTION test::call16(
                     a: array<any>,
                     idx: str
+                );
+                DROP FUNCTION test::call16(
+                    a: anyscalar,
+                    idx: int64
                 );
             ''')
 
@@ -754,10 +764,12 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
 
         try:
             await self.assert_query_result(r'''
+                SELECT test::call21(<array<str>>[]);
                 SELECT test::call21([1,2]);
                 SELECT test::call21(['a', 'b', 'c']);
                 SELECT test::call21([(1, 2), (2, 3), (3, 4), (4, 5)]);
             ''', [
+                [0],
                 [2],
                 [3],
                 [4],
@@ -866,4 +878,205 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             await self.con.execute('''
                 DROP FUNCTION test::call24();
                 DROP FUNCTION test::call24(a: str);
+            ''')
+
+    async def test_edgeql_calls_25(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::call25(
+                a: anyscalar
+            ) -> int64
+                FROM EdgeQL $$
+                    SELECT len(a)
+                $$;
+        ''')
+
+        try:
+            await self.assert_query_result(r'''
+                SELECT test::call25('aaa');
+                SELECT test::call25(b'');
+            ''', [
+                [3],
+                [0],
+            ])
+
+            with self.assertRaisesRegex(
+                    exc.EdgeQLError,
+                    r'could not find a function variant'):
+
+                await self.con.execute('SELECT test::call25([1]);')
+
+            with self.assertRaisesRegex(
+                    exc.EdgeQLError,
+                    r'could not find a function variant'):
+
+                await self.con.execute('SELECT test::call25([(1, 2)]);')
+
+        finally:
+            await self.con.execute('''
+                DROP FUNCTION test::call25(
+                    a: anyscalar
+                );
+            ''')
+
+    async def test_edgeql_calls_26(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::call26(
+                a: array<anyscalar>
+            ) -> int64
+                FROM EdgeQL $$
+                    SELECT len(a)
+                $$;
+        ''')
+
+        try:
+            await self.assert_query_result(r'''
+                SELECT test::call26(['aaa']);
+                SELECT test::call26([b'', b'aa']);
+            ''', [
+                [1],
+                [2],
+            ])
+
+            with self.assertRaisesRegex(
+                    exc.EdgeQLError,
+                    r'could not find a function variant'):
+
+                await self.con.execute('SELECT test::call26([(1, 2)]);')
+
+        finally:
+            await self.con.execute('''
+                DROP FUNCTION test::call26(
+                    a: array<anyscalar>
+                );
+            ''')
+
+    async def test_edgeql_calls_27(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::call27(
+                a: array<anyint>
+            ) -> int64
+                FROM EdgeQL $$
+                    SELECT len(a)
+                $$;
+        ''')
+
+        try:
+            await self.assert_query_result(r'''
+                SELECT test::call27([<int32>1, <int32>2]);
+                SELECT test::call27([1, 2, 3]);
+            ''', [
+                [2],
+                [3],
+            ])
+
+            cases = [
+                "SELECT test::call27(['aaa']);",
+                "SELECT test::call27([b'', b'aa']);",
+                "SELECT test::call27([1.0, 2.1]);",
+                "SELECT test::call27([('a',), ('b',)]);",
+            ]
+
+            for c in cases:
+                with self.assertRaisesRegex(
+                        exc.EdgeQLError,
+                        r'could not find a function variant'):
+
+                    await self.con.execute(c)
+
+        finally:
+            await self.con.execute('''
+                DROP FUNCTION test::call27(
+                    a: array<anyint>
+                );
+            ''')
+
+    @unittest.expectedFailure
+    async def test_edgeql_calls_28(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::call28(
+                a: array<anyint>
+            ) -> int64
+                FROM EdgeQL $$
+                    SELECT len(a)
+                $$;
+
+            CREATE FUNCTION test::call28(
+                a: array<anyscalar>
+            ) -> int64
+                FROM EdgeQL $$
+                    SELECT len(a) + 1000
+                $$;
+        ''')
+
+        try:
+            await self.assert_query_result(r'''
+                SELECT test::call28([<int32>1, <int32>2]);
+                SELECT test::call28([1, 2, 3]);
+
+                SELECT test::call28(['a', 'b']);
+            ''', [
+                [2],
+                [3],
+
+                [1002],
+            ])
+
+        finally:
+            await self.con.execute('''
+                DROP FUNCTION test::call28(
+                    a: array<anyint>
+                );
+                DROP FUNCTION test::call28(
+                    a: array<anyscalar>
+                );
+            ''')
+
+    async def test_edgeql_calls_29(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::call29(
+                a: anyint
+            ) -> anyint
+                FROM EdgeQL $$
+                    SELECT a + <anyint>1
+                $$;
+        ''')
+
+        try:
+            await self.assert_query_result(r'''
+                SELECT test::call29(10);
+            ''', [
+                [11],
+            ])
+
+        finally:
+            await self.con.execute('''
+                DROP FUNCTION test::call29(
+                    a: anyint
+                );
+            ''')
+
+    async def test_edgeql_calls_30(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::call30(
+                a: anyint
+            ) -> int64
+                FROM EdgeQL $$
+                    SELECT <int64>a + 100
+                $$;
+        ''')
+
+        try:
+            await self.assert_query_result(r'''
+                SELECT test::call30(10);
+                SELECT test::call30(<int32>20);
+            ''', [
+                [110],
+                [120],
+            ])
+
+        finally:
+            await self.con.execute('''
+                DROP FUNCTION test::call30(
+                    a: anyint
+                );
             ''')

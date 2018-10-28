@@ -25,6 +25,7 @@ from edb.lang.common import ast
 from edb.lang.schema import inheriting as s_inh
 from edb.lang.schema import name as s_name
 from edb.lang.schema import objects as s_obj
+from edb.lang.schema import pseudo as s_pseudo
 from edb.lang.schema import scalars as s_scalars
 from edb.lang.schema import types as s_types
 from edb.lang.schema import utils as s_utils
@@ -214,11 +215,16 @@ def __infer_binop(ir, schema):
         if (isinstance(left_type, s_scalars.ScalarType) and
                 isinstance(right_type, s_scalars.ScalarType)):
 
-            if left_type == right_type and left_type.is_polymorphic():
+            if left_type == right_type:
                 return left_type
 
             result = s_scalars.get_op_type(
                 ir.op, left_type, right_type, schema=schema)
+
+        elif (left_type.is_polymorphic() and
+                right_type.is_polymorphic() and
+                left_type == right_type):
+            return left_type
 
     if result is None:
         raise ql_errors.EdgeQLError(
@@ -322,13 +328,12 @@ def __infer_slice(ir, schema):
         base_name = 'bytes'
     elif isinstance(node_type, s_types.Array):
         base_name = 'array'
-    elif (isinstance(node_type, s_scalars.ScalarType) and
-            node_type.is_polymorphic()):
+    elif node_type.is_any():
         base_name = 'any'
     else:
         # the base type is not valid
         raise ql_errors.EdgeQLError(
-            f'cannot index {node_type.name}',
+            f'cannot slice {node_type.name}',
             context=ir.start.context)
 
     for index in [ir.start, ir.stop]:
@@ -337,7 +342,7 @@ def __infer_slice(ir, schema):
 
             if not index_type.implicitly_castable_to(int_t, schema):
                 raise ql_errors.EdgeQLError(
-                    f'cannot index {base_name} by {index_type.name}, '
+                    f'cannot slice {base_name} by {index_type.name}, '
                     f'{int_t.name} was expected',
                     context=index.context)
 
@@ -398,11 +403,11 @@ def __infer_index(ir, schema):
 
         result = node_type.element_type
 
-    elif (isinstance(node_type, s_scalars.ScalarType) and
-            node_type.is_polymorphic() and
+    elif (node_type.is_any() or
+            (node_type.is_scalar() and node_type.name == 'std::anyscalar') and
             (index_type.implicitly_castable_to(int_t, schema) or
                 index_type.implicitly_castable_to(str_t, schema))):
-        result = schema.get('std::any')
+        result = s_pseudo.Any()
 
     else:
         raise ql_errors.EdgeQLError(

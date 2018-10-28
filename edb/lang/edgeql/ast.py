@@ -176,9 +176,17 @@ class ModuleAliasDecl(BaseAlias):
     alias: str
 
 
-class ObjectRef(Expr):
+class BaseObjectRef(Expr):
+    pass
+
+
+class ObjectRef(BaseObjectRef):
     name: str
     module: str
+
+
+class Any(BaseObjectRef):
+    pass
 
 
 class Source(Expr):
@@ -318,7 +326,7 @@ class TypeOf(TypeExpr):
 
 class TypeName(TypeExpr):
     name: str  # name is used for types in named tuples
-    maintype: ObjectRef
+    maintype: BaseObjectRef
     subtypes: typing.Optional[typing.List[TypeExpr]]
     dimensions: typing.Optional[typing.List[int]]
 

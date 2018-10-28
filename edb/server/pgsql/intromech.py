@@ -43,6 +43,7 @@ from edb.lang.schema import modules as s_mod
 from edb.lang.schema import name as sn
 from edb.lang.schema import pointers as s_pointers
 from edb.lang.schema import policy as s_policy
+from edb.lang.schema import pseudo as s_pseudo
 from edb.lang.schema import types as s_types
 
 from edb.server.pgsql import common
@@ -435,6 +436,9 @@ class IntrospectionMech:
                 st = [st[1] for st in subtypes]
 
             scls = coll_type.from_subtypes(st, typemods=typemods)
+
+        elif t['maintype'] == 'any':
+            scls = s_pseudo.Any()
 
         else:
             scls = schema.get(t['maintype'])

@@ -578,6 +578,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(' ORDER BY ')
             self.visit_list(node.sort, separator=' THEN')
 
+    def visit_Any(self, node):
+        self.write('any')
+
     def visit_TypeCast(self, node):
         self.write('<')
         self.visit(node.type)
@@ -615,7 +618,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if node.module:
             self.write(ident_to_str(node.module))
             self.write('::')
-
         self.write(ident_to_str(node.name))
 
     def visit_Source(self, node):

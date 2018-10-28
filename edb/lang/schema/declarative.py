@@ -52,6 +52,7 @@ from . import modules as s_mod
 from . import name as s_name
 from . import objects as s_obj
 from . import pointers as s_pointers
+from . import pseudo as s_pseudo
 from . import scalars as s_scalars
 from . import schema as s_schema
 from . import types as s_types
@@ -249,8 +250,8 @@ class DeclarationLoader:
         item = next(iter(g.values()))['item']
         modname = item.name.module
         objs = topological.sort(g)
-        return ordered.OrderedSet(
-            filter(lambda obj: obj.name.module == modname, objs))
+        return ordered.OrderedSet(filter(
+            lambda obj: getattr(obj.name, 'module', None) == modname, objs))
 
     def _get_ref_name(self, ref):
         if isinstance(ref, edgeql.ast.ObjectRef):
@@ -634,7 +635,7 @@ class DeclarationLoader:
                     # This is a computable, but we cannot interpret
                     # the expression yet, so set the target to `any`
                     # temporarily.
-                    _targets = [self._schema.get('std::any')]
+                    _targets = [s_pseudo.Any()]
 
                 else:
                     _targets = [self._get_ref_type(t) for t in linkdecl.target]
@@ -652,7 +653,7 @@ class DeclarationLoader:
                     if not self._schema.get(target.name, default=None):
                         self._schema.add(target)
 
-                if (target.name != 'std::any' and
+                if (not target.is_any() and
                         not isinstance(target, s_objtypes.ObjectType)):
                     raise s_err.SchemaDefinitionError(
                         f'invalid link target, expected object type, got '

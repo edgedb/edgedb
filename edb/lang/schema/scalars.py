@@ -36,6 +36,11 @@ from . import schema as s_schema
 from . import types as s_types
 
 
+_POLY_SCALARS = frozenset({
+    'std::anyscalar', 'std::anyint', 'std::anyreal', 'std::anyfloat'
+})
+
+
 class ScalarType(nodes.Node, constraints.ConsistencySubject,
                  attributes.AttributeSubject):
     _type = 'ScalarType'
@@ -80,14 +85,30 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
 
         return deps
 
+    def is_scalar(self):
+        return True
+
+    def is_polymorphic(self):
+        return self.name in _POLY_SCALARS
+
     def _resolve_polymorphic(self, concrete_type: 'Type'):
-        # self must be "std::any"
-        if isinstance(concrete_type, ScalarType):
-            return concrete_type.get_topmost_concrete_base()
-        return concrete_type
+        if (self.is_polymorphic() and
+                concrete_type.is_scalar() and
+                not concrete_type.is_polymorphic()):
+            return concrete_type
 
     def _to_nonpolymorphic(self, concrete_type: 'Type'):
-        return concrete_type
+        if (not concrete_type.is_polymorphic() and
+                concrete_type.issubclass(self)):
+            return concrete_type
+        raise TypeError(
+            f'cannot interpret {concrete_type.name} as {self.name}')
+
+    def _test_polymorphic(self, other: 'Type'):
+        if other.is_any():
+            return True
+        else:
+            return self.issubclass(other)
 
     def copy(self):
         result = super().copy()
@@ -118,7 +139,6 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
             return
 
         if self.is_polymorphic() and other.is_polymorphic():
-            # self is `std::any` and other is `std::any`
             return self
 
         left = str(self.get_topmost_concrete_base().name)

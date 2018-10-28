@@ -153,10 +153,7 @@ def try_bind_func_args(
 
             if arg_type.is_polymorphic():
                 if param_type.is_polymorphic():
-                    # We want to guard against cases like
-                    # arg_type being an `any`, and param_type being an
-                    # `array<any>`.
-                    return arg_type == param_type
+                    return arg_type.test_polymorphic(param_type)
 
                 return arg_type.resolve_polymorphic(param_type) is not None
 
@@ -167,6 +164,9 @@ def try_bind_func_args(
                     context=arg.context)
 
         if param_type.is_polymorphic():
+            if not arg_type.test_polymorphic(param_type):
+                return False
+
             resolved = param_type.resolve_polymorphic(arg_type)
             if resolved is None:
                 return False
@@ -346,10 +346,10 @@ def try_bind_func_args(
                 if empty_default:
                     default_type = None
 
-                    if param.type.name == 'std::any':
+                    if param.type.is_any():
                         if resolved_poly_base_type is None:
                             raise errors.EdgeQLError(
-                                f'could not resolve std::any type for the '
+                                f'could not resolve "any" type for the '
                                 f'${param.name} parameter')
                         else:
                             default_type = resolved_poly_base_type

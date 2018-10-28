@@ -35,6 +35,7 @@ from edb.lang.schema import inheriting as s_inheriting
 from edb.lang.schema import name as sn
 from edb.lang.schema import named as s_named
 from edb.lang.schema import objects as s_obj
+from edb.lang.schema import pseudo as s_pseudo
 from edb.lang.schema import referencing as s_ref
 from edb.lang.schema import types as s_types
 
@@ -1521,6 +1522,17 @@ def get_metaclass_table(mcls):
     return metaclass_tables[mcls]
 
 
+def make_register_any_command():
+    pseudo_type_table = get_metaclass_table(s_pseudo.PseudoType)
+
+    rec = pseudo_type_table.record
+    rec.mro = None
+    rec.id = s_obj.get_known_type_id('any')
+    rec.name = 'any'
+
+    return dbops.Insert(table=pseudo_type_table, records=[rec])
+
+
 async def bootstrap(conn):
     commands = dbops.CommandGroup()
     commands.add_commands([
@@ -1591,6 +1603,9 @@ async def bootstrap(conn):
         dbops.CreateFunction(JSONSliceFunction()),
         dbops.CreateFunction(BytesIndexWithBoundsFunction()),
     ])
+
+    # Register "any" pseudo-type.
+    commands.add_command(make_register_any_command())
 
     block = dbops.PLTopBlock(disable_ddl_triggers=True)
     commands.generate(block)

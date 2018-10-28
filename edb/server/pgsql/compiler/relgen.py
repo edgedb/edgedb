@@ -1445,7 +1445,7 @@ def process_set_as_agg_expr(
             # thing with respect to output format, so, barring
             # the (unacceptable) hardcoding of function names,
             # check if the aggregate accepts a single argument
-            # of std::any to determine serialized input safety.
+            # of "any" to determine serialized input safety.
             serialization_safe = (
                 any(p.type.is_polymorphic() for p in funcobj.params) and
                 funcobj.return_type.is_polymorphic()

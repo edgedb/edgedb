@@ -109,7 +109,7 @@ def pg_type_from_scalar(
         topbase: bool=False) -> typing.Tuple[str, ...]:
 
     if scalar.is_polymorphic():
-        return ('anyelement',)
+        return ('anynonarray',)
 
     if topbase:
         base = scalar.get_topmost_concrete_base()
@@ -158,6 +158,9 @@ def pg_type_from_object(
 
     elif isinstance(obj, s_objtypes.ObjectType):
         return ('uuid',)
+
+    elif obj.is_type() and obj.is_any():
+        return ('anyelement',)
 
     else:
         raise ValueError(f'could not determine PG type for {obj!r}')
@@ -308,6 +311,8 @@ class TypeDescNode(_TypeDescNode):
     def _get_id(cls, data):
         if data['collection'] == 'tuple' and not data['subtypes']:
             return s_obj.get_known_type_id('empty-tuple')
+        if data['name'] == 'any':
+            return s_obj.get_known_type_id('any')
 
         s = (
             f"{data['maintype']!r}\x00{data['name']!r}\x00"
@@ -387,6 +392,10 @@ class TypeDesc:
                 desc = TypeDescNode(
                     maintype=None, name=tn, collection=t.schema_name,
                     subtypes=subtypes, dimensions=dimensions, is_root=is_root)
+            elif t.is_type() and t.is_any():
+                desc = TypeDescNode(
+                    maintype='any', name=tn, collection=None,
+                    subtypes=[], dimensions=[], is_root=is_root)
             else:
                 desc = TypeDescNode(
                     maintype=cls._get_name(t), name=tn, collection=None,

@@ -53,8 +53,43 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
     # rptr will contain the inbound pointer class.
     rptr = so.Field(so.Object, default=None, compcoef=0.909)
 
+    def is_type(self):
+        return True
+
     def is_polymorphic(self):
-        return self.name == 'std::any'
+        return False
+
+    def is_any(self):
+        return False
+
+    def is_scalar(self):
+        return False
+
+    def is_array(self):
+        return False
+
+    def is_tuple(self):
+        return False
+
+    def test_polymorphic(self, poly: 'Type') -> bool:
+        """Check if this type can be matched by a polymorphic type.
+
+        Examples:
+
+            - `array<anyscalar>`.test_polymorphic(`array<any>`) -> True
+            - `array<str>`.test_polymorphic(`array<any>`) -> True
+            - `array<int64>`.test_polymorphic(`anyscalar`) -> False
+            - `float32`.test_polymorphic(`anyint`) -> False
+            - `int32`.test_polymorphic(`anyint`) -> True
+        """
+
+        if not poly.is_polymorphic():
+            raise TypeError('expected a polymorphic type as a second argument')
+
+        if poly.is_any():
+            return True
+
+        return self._test_polymorphic(poly)
 
     def resolve_polymorphic(self, other: 'Type') -> 'Type':
         """Resolve the polymorphic type component.
@@ -73,19 +108,24 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
         """Produce an non-polymorphic version of self.
 
         Example:
-            `array<any>`.resolve_polymorphic(`int`) -> `array<int>`
-            `tuple<int, any>`.resolve_polymorphic(`str`) -> `tuple<int, str>`
+            `array<any>`.to_nonpolymorphic(`int`) -> `array<int>`
+            `tuple<int, any>`.to_nonpolymorphic(`str`) -> `tuple<int, str>`
         """
         if not self.is_polymorphic():
             raise TypeError('non-polymorphic type')
 
         return self._to_nonpolymorphic(concrete_type)
 
+    def _test_polymorphic(self, other: 'Type'):
+        return False
+
     def _resolve_polymorphic(self, concrete_type: 'Type'):
-        raise NotImplementedError
+        raise NotImplementedError(
+            f'{type(self)} does not support resolve_polymorphic()')
 
     def _to_nonpolymorphic(self, concrete_type: 'Type'):
-        raise NotImplementedError
+        raise NotImplementedError(
+            f'{type(self)} does not support to_nonpolymorphic()')
 
     def is_view(self):
         return self.view_type is not None
@@ -142,7 +182,7 @@ class Collection(Type):
         return False
 
     def _issubclass(self, parent):
-        if not isinstance(parent, Collection) and parent.name == 'std::any':
+        if not isinstance(parent, Collection) and parent.is_any():
             return True
 
         if parent.__class__ is not self.__class__:
@@ -152,7 +192,7 @@ class Collection(Type):
         my_types = self.get_subtypes()
 
         for pt, my in zip(parent_types, my_types):
-            if pt.name != 'std::any' and not pt.issubclass(my):
+            if not pt.is_any() and not pt.issubclass(my):
                 return False
 
         return True
@@ -161,7 +201,7 @@ class Collection(Type):
         if isinstance(parent, tuple):
             return any(self.issubclass(p) for p in parent)
         else:
-            if parent.name == 'std::any':
+            if parent.is_any():
                 return True
             else:
                 return self._issubclass(parent)
@@ -252,6 +292,9 @@ class Array(Collection):
     element_type = so.Field(so.Object)
     dimensions = so.Field(typed.IntList, [], coerce=True)
 
+    def is_array(self):
+        return True
+
     def get_container(self):
         return tuple
 
@@ -276,14 +319,14 @@ class Array(Collection):
         return container(elements)
 
     def implicitly_castable_to(self, other: Type, schema) -> bool:
-        if not isinstance(other, Array):
+        if not other.is_array():
             return False
 
         return self.element_type.implicitly_castable_to(
             other.element_type, schema)
 
     def assignment_castable_to(self, other: Type, schema) -> bool:
-        if not isinstance(other, Array):
+        if not other.is_array():
             return False
 
         return self.element_type.assignment_castable_to(
@@ -292,7 +335,7 @@ class Array(Collection):
     def find_common_implicitly_castable_type(
             self, other: Type, schema) -> typing.Optional[Type]:
 
-        if not isinstance(other, Array):
+        if not other.is_array():
             return
 
         if self == other:
@@ -305,13 +348,21 @@ class Array(Collection):
             return Array.from_subtypes([subtype])
 
     def _resolve_polymorphic(self, concrete_type: 'Type'):
-        if not isinstance(concrete_type, Array):
+        if not concrete_type.is_array():
             return None
         return self.element_type.resolve_polymorphic(
             concrete_type.element_type)
 
     def _to_nonpolymorphic(self, concrete_type: 'Type'):
         return Array.from_subtypes((concrete_type,))
+
+    def _test_polymorphic(self, other: 'Type'):
+        if other.is_any():
+            return True
+        if not other.is_array():
+            return False
+
+        return self.element_type.test_polymorphic(other.element_type)
 
     @classmethod
     def from_subtypes(cls, subtypes, typemods=None):
@@ -365,6 +416,9 @@ class Tuple(Collection):
     named = so.Field(bool, False)
     element_types = so.Field(so.ObjectDict, coerce=True)
 
+    def is_tuple(self):
+        return True
+
     def get_container(self):
         return dict
 
@@ -390,7 +444,7 @@ class Tuple(Collection):
         return cls(element_types=types, named=named)
 
     def implicitly_castable_to(self, other: Type, schema) -> bool:
-        if not isinstance(other, Tuple):
+        if not other.is_tuple():
             return False
 
         self_subtypes = self.get_subtypes()
@@ -406,7 +460,7 @@ class Tuple(Collection):
         return True
 
     def assignment_castable_to(self, other: Type, schema) -> bool:
-        if not isinstance(other, Tuple):
+        if not other.is_tuple():
             return False
 
         self_subtypes = self.get_subtypes()
@@ -424,7 +478,7 @@ class Tuple(Collection):
     def find_common_implicitly_castable_type(
             self, other: Type, schema) -> typing.Optional[Type]:
 
-        if not isinstance(other, Tuple):
+        if not other.is_tuple():
             return
 
         if self == other:
@@ -457,14 +511,14 @@ class Tuple(Collection):
         return {'named': self.named}
 
     def _resolve_polymorphic(self, concrete_type: 'Type'):
-        if not isinstance(concrete_type, Tuple):
+        if not concrete_type.is_tuple():
             return None
 
         self_subtypes = self.get_subtypes()
         other_subtypes = concrete_type.get_subtypes()
 
         if len(self_subtypes) != len(other_subtypes):
-            raise None
+            return None
 
         for source, target in zip(self_subtypes, other_subtypes):
             if source.is_polymorphic():
@@ -488,6 +542,21 @@ class Tuple(Collection):
             typemods = None
 
         return Tuple.from_subtypes(new_types, typemods)
+
+    def _test_polymorphic(self, other: 'Type'):
+        if other.is_any():
+            return True
+        if not other.is_tuple():
+            return False
+
+        self_subtypes = self.get_subtypes()
+        other_subtypes = other.get_subtypes()
+
+        if len(self_subtypes) != len(other_subtypes):
+            return False
+
+        return all(st.test_polymorphic(ot)
+                   for st, ot in zip(self_subtypes, other_subtypes))
 
     def __hash__(self):
         return hash((

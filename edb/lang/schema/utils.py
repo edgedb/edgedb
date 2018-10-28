@@ -80,6 +80,10 @@ def ast_to_typeref(
                 e.set_source_context(node.context)
                 raise e
 
+    elif isinstance(node.maintype, ql_ast.Any):
+        from . import pseudo as s_pseudo
+        return s_pseudo.AnyObjectRef()
+
     nqname = node.maintype.name
     module = node.maintype.module
     if schema is not None:
@@ -138,7 +142,7 @@ def resolve_typeref(ref: so.Object, schema) -> so.Object:
         if any(isinstance(st, so.ObjectRef) for st in ref.get_subtypes()):
             subtypes = collections.OrderedDict()
             for st_name, st in ref.element_types.items():
-                subtypes[st_name] = schema.get(st.classname)
+                subtypes[st_name] = st._resolve_ref(schema.get)
 
             obj = ref.__class__.from_subtypes(
                 subtypes, typemods=ref.get_typemods())
@@ -149,7 +153,7 @@ def resolve_typeref(ref: so.Object, schema) -> so.Object:
         if any(isinstance(st, so.ObjectRef) for st in ref.get_subtypes()):
             subtypes = []
             for st in ref.get_subtypes():
-                subtypes.append(schema.get(st.classname))
+                subtypes.append(st._resolve_ref(schema.get))
 
             obj = ref.__class__.from_subtypes(
                 subtypes, typemods=ref.get_typemods())
@@ -157,7 +161,7 @@ def resolve_typeref(ref: so.Object, schema) -> so.Object:
             obj = ref
 
     else:
-        obj = schema.get(ref.classname)
+        obj = ref._resolve_ref(schema.get)
 
     return obj
 
