@@ -719,7 +719,10 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                     Target1 {
                         name
                     }
-                ORDER BY .name;
+                FILTER
+                    .name LIKE 'Target1%'
+                ORDER BY
+                    .name;
             ''', [
                 [],
                 [
