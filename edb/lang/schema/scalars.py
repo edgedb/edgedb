@@ -36,11 +36,6 @@ from . import schema as s_schema
 from . import types as s_types
 
 
-_POLY_SCALARS = frozenset({
-    'std::anyscalar', 'std::anyint', 'std::anyreal', 'std::anyfloat'
-})
-
-
 class ScalarType(nodes.Node, constraints.ConsistencySubject,
                  attributes.AttributeSubject):
     _type = 'ScalarType'
@@ -89,7 +84,7 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
         return True
 
     def is_polymorphic(self):
-        return self.name in _POLY_SCALARS
+        return bool(self.is_abstract and self.name.module == 'std')
 
     def _resolve_polymorphic(self, concrete_type: 'Type'):
         if (self.is_polymorphic() and
