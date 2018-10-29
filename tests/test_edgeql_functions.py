@@ -477,19 +477,19 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_re_match_01(self):
         await self.assert_query_result(r'''
-            SELECT re_match('AbabaB', 'ab');
-            SELECT re_match('AbabaB', 'AB');
-            SELECT re_match('AbabaB', '(?i)AB');
-            SELECT re_match('AbabaB', 'ac');
+            SELECT re_match('ab', 'AbabaB');
+            SELECT re_match('AB', 'AbabaB');
+            SELECT re_match('(?i)AB', 'AbabaB');
+            SELECT re_match('ac', 'AbabaB');
 
-            SELECT EXISTS re_match('AbabaB', 'ac');
-            SELECT NOT EXISTS re_match('AbabaB', 'ac');
+            SELECT EXISTS re_match('ac', 'AbabaB');
+            SELECT NOT EXISTS re_match('ac', 'AbabaB');
 
-            SELECT EXISTS re_match('AbabaB', 'ab');
-            SELECT NOT EXISTS re_match('AbabaB', 'ab');
+            SELECT EXISTS re_match('ab', 'AbabaB');
+            SELECT NOT EXISTS re_match('ab', 'AbabaB');
 
-            SELECT x := re_match('AbabaB', {'(?i)ab', 'a'}) ORDER BY x;
-            SELECT x := re_match({'AbabaB', 'qwerty'}, {'(?i)ab', 'a'})
+            SELECT x := re_match({'(?i)ab', 'a'}, 'AbabaB') ORDER BY x;
+            SELECT x := re_match({'(?i)ab', 'a'}, {'AbabaB', 'qwerty'})
                 ORDER BY x;
         ''', [
             [['ab']],
@@ -510,7 +510,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_re_match_02(self):
         await self.assert_query_result(r'''
             WITH MODULE schema
-            SELECT x := re_match(ObjectType.name, '(\\w+)::(Link|Property)')
+            SELECT x := re_match('(\\w+)::(Link|Property)', ObjectType.name)
             ORDER BY x;
         ''', [
             [['schema', 'Link'], ['schema', 'Property']],
@@ -518,19 +518,19 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_re_match_all_01(self):
         await self.assert_query_result(r'''
-            SELECT re_match_all('AbabaB', 'ab');
-            SELECT re_match_all('AbabaB', 'AB');
-            SELECT re_match_all('AbabaB', '(?i)AB');
-            SELECT re_match_all('AbabaB', 'ac');
+            SELECT re_match_all('ab', 'AbabaB');
+            SELECT re_match_all('AB', 'AbabaB');
+            SELECT re_match_all('(?i)AB', 'AbabaB');
+            SELECT re_match_all('ac', 'AbabaB');
 
-            SELECT EXISTS re_match_all('AbabaB', 'ac');
-            SELECT NOT EXISTS re_match_all('AbabaB', 'ac');
+            SELECT EXISTS re_match_all('ac', 'AbabaB');
+            SELECT NOT EXISTS re_match_all('ac', 'AbabaB');
 
-            SELECT EXISTS re_match_all('AbabaB', '(?i)ab');
-            SELECT NOT EXISTS re_match_all('AbabaB', '(?i)ab');
+            SELECT EXISTS re_match_all('(?i)ab', 'AbabaB');
+            SELECT NOT EXISTS re_match_all('(?i)ab', 'AbabaB');
 
-            SELECT x := re_match_all('AbabaB', {'(?i)ab', 'a'}) ORDER BY x;
-            SELECT x := re_match_all({'AbabaB', 'qwerty'}, {'(?i)ab', 'a'})
+            SELECT x := re_match_all({'(?i)ab', 'a'}, 'AbabaB') ORDER BY x;
+            SELECT x := re_match_all({'(?i)ab', 'a'}, {'AbabaB', 'qwerty'})
                 ORDER BY x;
         ''', [
             [['ab']],
@@ -554,7 +554,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 MODULE schema,
                 C2 := ObjectType
             SELECT
-                count(re_match_all(ObjectType.name, '(\\w+)')) =
+                count(re_match_all('(\\w+)', ObjectType.name)) =
                 2 * count(C2);
         ''', [
             [True],
@@ -562,18 +562,18 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_re_test_01(self):
         await self.assert_query_result(r'''
-            SELECT re_test('AbabaB', 'ac');
-            SELECT NOT re_test('AbabaB', 'ac');
+            SELECT re_test('ac', 'AbabaB');
+            SELECT NOT re_test('ac', 'AbabaB');
 
-            SELECT re_test('AbabaB', '(?i)ab');
-            SELECT NOT re_test('AbabaB', '(?i)ab');
+            SELECT re_test(r'(?i)ab', 'AbabaB');
+            SELECT NOT re_test(r'(?i)ab', 'AbabaB');
 
             # the result always exists
-            SELECT EXISTS re_test('AbabaB', '(?i)ac');
-            SELECT NOT EXISTS re_test('AbabaB', '(?i)ac');
+            SELECT EXISTS re_test('(?i)ac', 'AbabaB');
+            SELECT NOT EXISTS re_test('(?i)ac', 'AbabaB');
 
-            SELECT x := re_test('AbabaB', {'ab', 'a'}) ORDER BY x;
-            SELECT x := re_test({'AbabaB', 'qwerty'}, {'ab', 'a'}) ORDER BY x;
+            SELECT x := re_test({'ab', 'a'}, 'AbabaB') ORDER BY x;
+            SELECT x := re_test({'ab', 'a'}, {'AbabaB', 'qwerty'}) ORDER BY x;
         ''', [
             [False],
             [True],
@@ -592,7 +592,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE schema
             SELECT count(
-                ObjectType FILTER re_test(ObjectType.name, '(\\W\\w)bject$')
+                ObjectType FILTER re_test(r'(\W\w)bject$', ObjectType.name)
             ) = 2;
         ''', [
             [True],
@@ -600,10 +600,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_re_replace_01(self):
         await self.assert_query_result(r'''
-            SELECT re_replace('Hello World', 'l', 'L');
-            SELECT re_replace('Hello World', 'l', 'L', 'g');
-            SELECT re_replace('Hello World', '[a-z]', '~', 'i');
-            SELECT re_replace('Hello World', '[a-z]', '~', 'gi');
+            SELECT re_replace('l', 'L', 'Hello World');
+            SELECT re_replace('l', 'L', 'Hello World', flags := 'g');
+            SELECT re_replace('[a-z]', '~', 'Hello World', flags := 'i');
+            SELECT re_replace('[a-z]', '~', 'Hello World', flags := 'gi');
         ''', [
             ['HeLlo World'],
             ['HeLLo WorLd'],
@@ -613,10 +613,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_re_replace_02(self):
         await self.assert_query_result(r'''
-            SELECT re_replace(test::User.name, '[aeiou]', '~');
-            SELECT re_replace(test::User.name, '[aeiou]', '~', 'g');
-            SELECT re_replace(test::User.name, '[aeiou]', '~', 'i');
-            SELECT re_replace(test::User.name, '[aeiou]', '~', 'gi');
+            SELECT re_replace('[aeiou]', '~', test::User.name);
+            SELECT re_replace('[aeiou]', '~', test::User.name, flags := 'g');
+            SELECT re_replace('[aeiou]', '~', test::User.name, flags := 'i');
+            SELECT re_replace('[aeiou]', '~', test::User.name, flags := 'gi');
         ''', [
             {'Elv~s', 'Y~ry'},
             {'Elv~s', 'Y~ry'},

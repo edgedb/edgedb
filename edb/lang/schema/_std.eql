@@ -155,27 +155,27 @@ CREATE FUNCTION std::bytes_get_bit(bytes: std::bytes, num: int64) -> std::int64
 CREATE FUNCTION std::random() -> std::float64
     FROM SQL FUNCTION 'random';
 
-CREATE FUNCTION std::re_match(str: std::str,
-                              pattern: std::str) -> array<std::str>
+CREATE FUNCTION std::re_match(pattern: std::str,
+                              str: std::str) -> array<std::str>
     FROM SQL $$
         SELECT regexp_matches("str", "pattern");
     $$;
 
-CREATE FUNCTION std::re_match_all(str: std::str,
-                                  pattern: std::str) -> SET OF array<std::str>
+CREATE FUNCTION std::re_match_all(pattern: std::str,
+                                  str: std::str) -> SET OF array<std::str>
     FROM SQL $$
         SELECT regexp_matches("str", "pattern", 'g');
     $$;
 
-CREATE FUNCTION std::re_test(str: std::str, pattern: std::str) -> std::bool
+CREATE FUNCTION std::re_test(pattern: std::str, str: std::str) -> std::bool
     FROM SQL $$
         SELECT "str" ~ "pattern";
     $$;
 
-CREATE FUNCTION std::re_replace(str: std::str,
-                                pattern: std::str,
+CREATE FUNCTION std::re_replace(pattern: std::str,
                                 sub: std::str,
-                                flags: std::str = '')
+                                str: std::str,
+                                NAMED ONLY flags: std::str = '')
         -> std::str
     FROM SQL $$
         SELECT regexp_replace("str", "pattern", "sub", "flags");
@@ -279,7 +279,7 @@ CREATE ABSTRACT CONSTRAINT std::regexp(pattern: any)
         EXTENDING std::constraint
 {
     SET errmessage := 'invalid {__subject__}';
-    SET expr := re_test(__subject__, pattern);
+    SET expr := re_test(pattern, __subject__);
 };
 
 CREATE ABSTRACT CONSTRAINT std::maxlength(max: std::int64)
