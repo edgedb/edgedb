@@ -274,6 +274,13 @@ class Markers(enum.Enum):
     upassed = 'U'  # unexpected success
 
 
+class OutputFormat(enum.Enum):
+    auto = 'auto'
+    simple = 'simple'
+    stacked = 'stacked'
+    verbose = 'verbose'
+
+
 class BaseRenderer:
     def __init__(self, *, tests, stream):
         self.stream = stream
@@ -457,7 +464,7 @@ class MultiLineRenderer(BaseRenderer):
 
 class ParallelTextTestResult(unittest.result.TestResult):
     def __init__(self, *, stream, verbosity, warnings, tests,
-                 failfast=False, suite):
+                 output_format=OutputFormat.auto, failfast=False, suite):
         super().__init__(stream, False, verbosity)
         self.verbosity = verbosity
         self.catch_warnings = warnings
@@ -469,11 +476,13 @@ class ParallelTextTestResult(unittest.result.TestResult):
         self._warnings = {}
         self.suite = suite
 
-        if self.verbosity > 1:
+        if (output_format is OutputFormat.verbose or
+                (output_format is OutputFormat.auto and self.verbosity > 1)):
             self.ren = VerboseRenderer(tests=tests, stream=stream)
-        elif (stream.isatty() and
-                click.get_terminal_size()[0] > 60 and
-                os.name != 'nt'):
+        elif (output_format is OutputFormat.stacked or
+                (output_format is OutputFormat.auto and stream.isatty() and
+                 click.get_terminal_size()[0] > 60 and
+                 os.name != 'nt')):
             self.ren = MultiLineRenderer(tests=tests, stream=stream)
         else:
             self.ren = SimpleRenderer(tests=tests, stream=stream)
@@ -532,12 +541,14 @@ class ParallelTextTestResult(unittest.result.TestResult):
 
 class ParallelTextTestRunner:
     def __init__(self, *, stream=None, num_workers=1, verbosity=1,
-                 warnings=True, failfast=False):
+                 output_format=OutputFormat.auto, warnings=True,
+                 failfast=False):
         self.stream = stream if stream is not None else sys.stderr
         self.num_workers = num_workers
         self.verbosity = verbosity
         self.warnings = warnings
         self.failfast = failfast
+        self.output_format = output_format
 
     def run(self, test):
         session_start = time.monotonic()
@@ -592,6 +603,7 @@ class ParallelTextTestRunner:
             result = ParallelTextTestResult(
                 stream=self.stream, verbosity=self.verbosity,
                 warnings=self.warnings, failfast=self.failfast,
+                output_format=self.output_format,
                 tests=all_tests, suite=suite)
             unittest.signals.registerResult(result)
 

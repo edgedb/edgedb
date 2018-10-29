@@ -37,6 +37,10 @@ from . import styles
               help='increase verbosity')
 @click.option('-q', '--quiet', is_flag=True,
               help='decrease verbosity')
+@click.option('--output-format',
+              type=click.Choice(runner.OutputFormat.__members__),
+              help='test progress output style',
+              default=runner.OutputFormat.auto.value)
 @click.option('--warnings/--no-warnings',
               help='enable or disable warnings (enabled by default)',
               default=True)
@@ -49,7 +53,8 @@ from . import styles
               help='do not run tests which match the given regular expression')
 @click.option('-x', '--failfast', is_flag=True,
               help='stop tests after a first failure/error')
-def test(*, files, jobs, include, exclude, verbose, quiet, warnings, failfast):
+def test(*, files, jobs, include, exclude, verbose, quiet, output_format,
+         warnings, failfast):
     """Run EdgeDB test suite.
 
     Discovers and runs tests in the specified files or directories.
@@ -65,6 +70,13 @@ def test(*, files, jobs, include, exclude, verbose, quiet, warnings, failfast):
         verbosity = 2
     else:
         verbosity = 1
+
+    output_format = runner.OutputFormat(output_format)
+    if verbosity > 1 and output_format is runner.OutputFormat.stacked:
+        click.secho(
+            'Error: cannot use stacked output format in verbose mode.',
+            fg='red')
+        sys.exit(1)
 
     # When invoked without arguments, we need to do a bit
     # of a voodoo to make sure the discovered tests are
@@ -132,8 +144,8 @@ def test(*, files, jobs, include, exclude, verbose, quiet, warnings, failfast):
             f'Using up to {jobs} processes to run tests.'))
 
     test_runner = runner.ParallelTextTestRunner(
-        verbosity=verbosity, warnings=warnings, num_workers=jobs,
-        failfast=failfast)
+        verbosity=verbosity, output_format=output_format,
+        warnings=warnings, num_workers=jobs, failfast=failfast)
     result = test_runner.run(suite)
 
     sys.exit(0 if result.wasSuccessful() else 1)
