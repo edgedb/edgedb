@@ -311,6 +311,11 @@ class VerboseRenderer(BaseRenderer):
 
 
 class MultiLineRenderer(BaseRenderer):
+
+    FT_LABEL = 'First few failed: '
+    FT_LABEL_LEN = len(FT_LABEL)
+    FT_MAX_LINES = 3
+
     def __init__(self, *, tests, stream):
         super().__init__(tests=tests, stream=stream)
 
@@ -322,16 +327,24 @@ class MultiLineRenderer(BaseRenderer):
                                    for name in test_modules), default=0)
         self.first_col_width = max_test_module_len + 1  # 1 == len(' ')
 
+        self.failed_tests = []
+
         self.buffer = collections.defaultdict(str)
         self.last_lines = -1
 
     def report(self, test, marker):
+        if marker in {Markers.failed, Markers.errored}:
+            self.failed_tests.append(test._testMethodName)
+
         self.buffer[test.__class__.__module__] += marker.value
         self.completed_tests += 1
         self._render()
 
     def _render_modname(self, name):
         return name.replace('.', '/') + '.py'
+
+    def _color_second_column(self, line, style):
+        return line[:self.first_col_width] + style(line[self.first_col_width:])
 
     def _render(self):
         cols, rows = click.get_terminal_size()
@@ -362,6 +375,53 @@ class MultiLineRenderer(BaseRenderer):
 
                 if line[0] != ' ':
                     line = ' ' * self.first_col_width
+
+        if (self.completed_tests != self.total_tests and
+                self.failed_tests and
+                self.FT_LABEL_LEN <= self.first_col_width and
+                cols - self.first_col_width > 40):
+            lines.append(' ' * cols)
+
+            line = (
+                self.FT_LABEL +
+                ' ' * (self.first_col_width - self.FT_LABEL_LEN)
+            )
+
+            failed_tests_lines = 1
+            for testi, test in enumerate(self.failed_tests, 1):
+                last = testi == len(self.failed_tests)
+
+                if not last:
+                    test += ', '
+
+                test_name_len = len(test)
+
+                if len(line) + test_name_len < cols:
+                    line += test
+
+                else:
+                    if failed_tests_lines == self.FT_MAX_LINES:
+                        if len(line) + 3 < cols:
+                            line += '...'
+                        break
+
+                    else:
+                        line += (cols - len(line)) * ' '
+                        line = self._color_second_column(
+                            line, styles.marker_errored)
+                        lines.append(line)
+
+                        failed_tests_lines += 1
+                        line = self.first_col_width * ' '
+
+                        if len(line) + test_name_len > cols:
+                            continue
+
+                        line += test
+
+            line += (cols - len(line)) * ' '
+            line = self._color_second_column(line, styles.marker_errored)
+            lines.append(line)
 
         lines.append(' ' * cols)
         lines.append(
