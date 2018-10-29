@@ -204,7 +204,6 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
 
         self.assertTrue(success)
 
-    @unittest.expectedFailure
     async def test_link_on_target_delete_restrict_06(self):
         success = False
 
@@ -232,7 +231,6 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
 
         self.assertTrue(success)
 
-    @unittest.expectedFailure
     async def test_link_on_target_delete_restrict_07(self):
         success = False
 
@@ -350,9 +348,6 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
 
         self.assertTrue(success)
 
-    # XXX: the failure happens during clean-up and should disappear
-    # once the tests "delete_restrict" 06-08 pass
-    @unittest.expectedFailure
     async def test_link_on_target_delete_deferred_restrict_04(self):
         async with self.con.transaction():
             await self.con.execute(r"""

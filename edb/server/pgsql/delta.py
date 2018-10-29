@@ -1968,10 +1968,6 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             self.create_table(ptr, schema, context, conditional=True)
 
 
-class ScheduleLinkTargetDeleteActionUpdate(MetaCommand):
-    pass
-
-
 class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
     table = metaschema.get_metaclass_table(s_links.Link)
 
@@ -2087,14 +2083,10 @@ class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
         mapping_indexes.links.pop(link.name, None)
         self.pgops.add(CancelPointerCardinalityUpdate())
 
-    def schedule_target_delete_action_update(self, link, schema, context):
-        target_delete_actions = context.get(
-            s_db.DatabaseCommandContext).op.update_target_delete_actions
-        ops = target_delete_actions.targets.get(link.target.name)
-        if not ops:
-            target_delete_actions.targets[link.target.name] = ops = []
-        ops.append((self, link))
-        self.pgops.add(ScheduleLinkTargetDeleteActionUpdate())
+    def schedule_endpoint_delete_action_update(self, link, schema, context):
+        endpoint_delete_actions = context.get(
+            s_db.DatabaseCommandContext).op.update_endpoint_delete_actions
+        endpoint_delete_actions.link_ops.append((self, link))
 
 
 class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
@@ -2163,7 +2155,7 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
             if link.cardinality != s_pointers.PointerCardinality.ManyToMany:
                 self.schedule_mapping_update(link, schema, context)
 
-            self.schedule_target_delete_action_update(link, schema, context)
+            self.schedule_endpoint_delete_action_update(link, schema, context)
 
         return link
 
@@ -2812,10 +2804,10 @@ class UpdateMappingIndexes(MetaCommand):
                                 idx_names, table_name, cardinality, altlinks))
 
 
-class UpdateTargetDeleteActions(MetaCommand):
+class UpdateEndpointDeleteActions(MetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.targets = {}
+        self.link_ops = []
 
     def _get_link_table_union(self, links) -> str:
         selects = []
@@ -2831,19 +2823,33 @@ class UpdateTargetDeleteActions(MetaCommand):
 
         return '(' + '\nUNION ALL\n    '.join(selects) + ') as q'
 
-    def get_trigger_name(self, target, deferred=False):
-        name = 'deltde' if deferred else 'deltim'
-        return common.edgedb_name_to_pg_name(f'{target.name.name}_{name}')
+    def get_trigger_name(self, target, disposition, deferred=False):
+        if disposition == 'target':
+            name = 'deltde' if deferred else 'deltim'
+        else:
+            name = 'delsde' if deferred else 'delsim'
 
-    def get_trigger_proc_name(self, target, deferred=False):
-        name = 'deltdef' if deferred else 'deltimf'
+        return common.edgedb_name_to_pg_name(f'{target.name}_{name}')
+
+    def get_trigger_proc_name(self, target, disposition, deferred=False):
+        if disposition == 'target':
+            name = 'deltdef' if deferred else 'deltimf'
+        else:
+            name = 'delsdef' if deferred else 'delsimf'
+
         return common.convert_name(target.name, name, catenate=False)
 
-    def get_trigger_proc_text(self, target, links):
+    def get_trigger_proc_text(self, target, links, disposition):
         chunks = []
 
-        groups = itertools.groupby(links, lambda l: l.on_target_delete)
         DA = s_links.LinkTargetDeleteAction
+
+        if disposition == 'target':
+            groups = itertools.groupby(links, lambda l: l.on_target_delete)
+            near_endpoint, far_endpoint = 'target', 'source'
+        else:
+            groups = [(DA.SET_EMPTY, links)]
+            near_endpoint, far_endpoint = 'source', 'target'
 
         for action, links in groups:
             if action is DA.RESTRICT or action is DA.DEFERRED_RESTRICT:
@@ -2856,14 +2862,14 @@ class UpdateTargetDeleteActions(MetaCommand):
                     FROM
                         {tables}
                     WHERE
-                        q.target = OLD.{id}
+                        q.{near_endpoint} = OLD.{id}
                     LIMIT 1;
 
                     IF FOUND THEN
                         SELECT
                             edgedb.get_shortname(link.name),
-                            edgedb._resolve_type_name(link.source)
-                            INTO linkname, srcname
+                            edgedb._resolve_type_name(link.{far_endpoint})
+                            INTO linkname, endname
                         FROM
                             edgedb.Link AS link
                         WHERE
@@ -2875,13 +2881,15 @@ class UpdateTargetDeleteActions(MetaCommand):
                                 MESSAGE = 'deletion of {tgtname} (' || tgtid
                                     || ') is prohibited by link target policy',
                                 DETAIL = 'Object is still referenced in link '
-                                    || linkname || ' of ' || srcname || ' ('
+                                    || linkname || ' of ' || endname || ' ('
                                     || srcid || ').';
                     END IF;
                 ''').format(
                     tables=tables,
                     id=common.quote_ident('std::id'),
                     tgtname=target.displayname,
+                    near_endpoint=near_endpoint,
+                    far_endpoint=far_endpoint,
                 )
 
                 chunks.append(text)
@@ -2894,10 +2902,10 @@ class UpdateTargetDeleteActions(MetaCommand):
                         DELETE FROM
                             {link_table}
                         WHERE
-                            {tgt} = OLD.{id};
+                            {endpoint} = OLD.{id};
                     ''').format(
                         link_table=link_table,
-                        tgt=common.quote_ident('std::target'),
+                        endpoint=common.quote_ident(f'std::{near_endpoint}'),
                         id=common.quote_ident('std::id')
                     )
 
@@ -2934,7 +2942,7 @@ class UpdateTargetDeleteActions(MetaCommand):
                 srcid uuid;
                 tgtid uuid;
                 linkname text;
-                srcname text;
+                endname text;
             BEGIN
                 {chunks}
                 RETURN OLD;
@@ -2944,50 +2952,70 @@ class UpdateTargetDeleteActions(MetaCommand):
         return text
 
     def apply(self, schema, context):
-        if not self.targets:
+        if not self.link_ops:
             return
 
         DA = s_links.LinkTargetDeleteAction
 
+        source_map = collections.defaultdict(list)
         target_map = collections.defaultdict(list)
         deferred_target_map = collections.defaultdict(list)
 
-        for link in schema.get_objects(type='link'):
-            if not link.generic() and link.target.name in self.targets:
-                if link.on_target_delete is DA.DEFERRED_RESTRICT:
-                    deferred_target_map[link.target.name].append(link)
-                else:
-                    target_map[link.target.name].append(link)
+        for link_op, link in self.link_ops:
+            if link.generic() or link.source.is_view():
+                continue
+
+            ptr_stor_info = types.get_pointer_storage_info(link, schema=schema)
+            if ptr_stor_info.table_type != 'link':
+                continue
+
+            source_map[link.source.name].append(link)
+
+            if link.on_target_delete is DA.DEFERRED_RESTRICT:
+                deferred_target_map[link.target.name].append(link)
+            else:
+                target_map[link.target.name].append(link)
+
+        for source_name, links in source_map.items():
+            self._create_action_triggers(
+                schema, source_name, links, disposition='source')
 
         for links in target_map.values():
             links.sort(key=lambda l: (l.on_target_delete, l.name))
 
         for target_name, links in target_map.items():
-            self._create_action_triggers(schema, target_name, links)
+            self._create_action_triggers(
+                schema, target_name, links, disposition='target')
 
         for target_name, links in deferred_target_map.items():
-            self._create_action_triggers(schema, target_name, links,
-                                         deferred=True)
+            self._create_action_triggers(
+                schema, target_name, links,
+                disposition='target', deferred=True)
 
     def _create_action_triggers(
             self,
             schema,
-            target_name: str,
+            objtype_name: str,
             links: typing.List[s_links.Link], *,
+            disposition: str,
             deferred: bool=False) -> None:
-        target = schema.get(target_name)
+        objtype = schema.get(objtype_name)
 
-        if target.is_virtual:
-            targets = tuple(target.children(schema))
+        if objtype.is_virtual:
+            objtypes = tuple(objtype.children(schema))
         else:
-            targets = (target,)
+            objtypes = (objtype,)
 
-        for target in targets:
+        for objtype in objtypes:
             table_name = common.objtype_name_to_table_name(
-                target.name, catenate=False)
-            trigger_name = self.get_trigger_name(target, deferred=deferred)
-            proc_name = self.get_trigger_proc_name(target, deferred=deferred)
-            proc_text = self.get_trigger_proc_text(target, links)
+                objtype.name, catenate=False)
+
+            trigger_name = self.get_trigger_name(
+                objtype, disposition=disposition, deferred=deferred)
+            proc_name = self.get_trigger_proc_name(
+                objtype, disposition=disposition, deferred=deferred)
+            proc_text = self.get_trigger_proc_text(
+                objtype, links, disposition=disposition)
 
             trig_func = dbops.Function(
                 name=proc_name, text=proc_text, volatility='volatile',
@@ -3106,16 +3134,16 @@ class AlterDatabase(ObjectMetaCommand, adapts=s_db.AlterDatabase):
 
     def apply(self, schema, context):
         self.update_mapping_indexes = UpdateMappingIndexes()
-        self.update_target_delete_actions = UpdateTargetDeleteActions()
+        self.update_endpoint_delete_actions = UpdateEndpointDeleteActions()
 
         s_db.AlterDatabase.apply(self, schema, context)
         MetaCommand.apply(self, schema)
 
         # self.update_mapping_indexes.apply(schema, context)
-        self.update_target_delete_actions.apply(schema, context)
+        self.update_endpoint_delete_actions.apply(schema, context)
 
         self.pgops.add(self.update_mapping_indexes)
-        self.pgops.add(self.update_target_delete_actions)
+        self.pgops.add(self.update_endpoint_delete_actions)
 
     def is_material(self):
         return True
