@@ -349,55 +349,57 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
         self.assertTrue(success)
 
     async def test_link_on_target_delete_deferred_restrict_04(self):
-        async with self.con.transaction():
-            await self.con.execute(r"""
-                SET MODULE test;
+        try:
+            async with self.con.transaction():
+                await self.con.execute(r"""
+                    SET MODULE test;
 
-                INSERT Target1 {
-                    name := 'Target1.1'
-                };
+                    INSERT Target1 {
+                        name := 'Target4.1'
+                    };
 
-                INSERT Source1 {
-                    name := 'Source1.1',
-                    tgt1_deferred_restrict := (
-                        SELECT Target1
-                        FILTER .name = 'Target1.1'
-                    )
-                };
+                    INSERT Source1 {
+                        name := 'Source4.1',
+                        tgt1_deferred_restrict := (
+                            SELECT Target1
+                            FILTER .name = 'Target4.1'
+                        )
+                    };
 
-                # delete the target with deferred trigger
-                DELETE (SELECT Target1
-                        FILTER .name = 'Target1.1');
+                    # delete the target with deferred trigger
+                    DELETE (SELECT Target1
+                            FILTER .name = 'Target4.1');
 
-                # assign a new target to the `tgt1_deferred_restrict`
-                INSERT Target1 {
-                    name := 'Target1.2'
-                };
+                    # assign a new target to the `tgt1_deferred_restrict`
+                    INSERT Target1 {
+                        name := 'Target4.2'
+                    };
 
-                UPDATE Source1
-                FILTER Source1.name = 'Source1.1'
-                SET {
-                    tgt1_deferred_restrict := (
-                        SELECT Target1
-                        FILTER .name = 'Target1.2'
-                    )
-                };
+                    UPDATE Source1
+                    FILTER Source1.name = 'Source4.1'
+                    SET {
+                        tgt1_deferred_restrict := (
+                            SELECT Target1
+                            FILTER .name = 'Target4.2'
+                        )
+                    };
+                """)
+
+            await self.assert_query_result(r'''
+                WITH MODULE test
+                SELECT Target1.name;
+            ''', [
+                {'Target4.2'}
+            ])
+
+        finally:
+            # cleanup
+            await self.con.execute("""
+                DELETE (SELECT test::Source1
+                        FILTER .name = 'Source4.1');
+                DELETE (SELECT test::Target1
+                        FILTER .name = 'Target4.2');
             """)
-
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            SELECT Target1.name;
-        ''', [
-            {'Target1.2'}
-        ])
-
-        # cleanup
-        await self.con.execute("""
-            DELETE (SELECT test::Source1
-                    FILTER .name = 'Source1.1');
-            DELETE (SELECT test::Target1
-                    FILTER .name = 'Target1.2');
-        """)
 
     async def test_link_on_target_delete_set_empty_01(self):
         async with self._run_and_rollback():
