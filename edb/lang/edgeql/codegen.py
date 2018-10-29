@@ -1071,12 +1071,16 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'FUNCTION')
 
     def visit_FuncParam(self, node):
-        self.write(node.kind.to_edgeql(), ' ')
+        kind = node.kind.to_edgeql()
+        if kind:
+            self.write(kind, ' ')
 
         if node.name is not None:
             self.write(ident_to_str(node.name), ': ')
 
-        self.write(node.typemod.to_edgeql(), ' ')
+        typemod = node.typemod.to_edgeql()
+        if typemod:
+            self.write(typemod, ' ')
 
         self.visit(node.type)
 
