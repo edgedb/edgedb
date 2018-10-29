@@ -124,6 +124,8 @@ def test(*, files, jobs, include, exclude, verbose, quiet, warnings, failfast):
 
         suite.addTest(tests)
 
+    jobs = max(min(total, jobs), 1)
+
     if verbosity > 0:
         click.echo()
         click.echo(styles.status(
