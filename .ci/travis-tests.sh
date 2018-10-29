@@ -2,4 +2,4 @@
 
 set -e -x
 
-edb test -j8
+edb test -j8 --output-format=simple
