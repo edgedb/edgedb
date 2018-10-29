@@ -3,10 +3,10 @@ language: generic
 matrix:
     include:
         - os: linux
-          dist: trusty
-          sudo: false
+          dist: xenial
+          sudo: yes
           language: python
-          python: "3.6"
+          python: "3.7"
 
 branches:
     # Avoid building PR branches.
