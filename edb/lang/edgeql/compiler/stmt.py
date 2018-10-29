@@ -256,6 +256,15 @@ def compile_InsertQuery(
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
+        if subject.scls.is_abstract:
+            raise errors.EdgeQLError(
+                f'cannot insert: {subject.scls.displayname} is abstract',
+                context=expr.subject.context)
+
+        if subject.scls.is_view():
+            raise errors.EdgeQLError(
+                f'cannot insert: {subject.scls.displayname} is a view',
+                context=expr.subject.context)
 
         stmt.subject = compile_query_subject(
             subject,

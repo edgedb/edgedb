@@ -945,3 +945,25 @@ class TestInsert(tb.QueryTestCase):
                     subordinates := <Object>{}
                 };
                 """)
+
+    async def test_edgeql_insert_abstract(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r"cannot insert: std::Object is abstract",
+                position=7):
+            await self.query("""\
+                INSERT Object;
+            """)
+
+    async def test_edgeql_insert_view(self):
+        await self.con.execute('''
+            CREATE VIEW test::Foo := (SELECT test::InsertTest);
+        ''')
+
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r"cannot insert: test::Foo is a view",
+                position=7):
+            await self.query("""\
+                INSERT test::Foo;
+            """)
