@@ -337,7 +337,6 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             SELECT sum({<float32>1, 2, 3});
 
             SELECT sum({<float32>1, <int32>2, 3});
-            SELECT sum({<float32>1, <int32>2, <decimal>3});
             SELECT sum({<int16>1, <int32>2, <decimal>3});
 
             SELECT sum({1.1, 2.2, 3});
@@ -346,7 +345,6 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             {6},
             {6},
 
-            {6},
             {6},
             {6},
 
@@ -360,7 +358,6 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             SELECT sum({<float32>1, 2, 3}).__type__.name;
 
             SELECT sum({<float32>1, <int32>2, 3}).__type__.name;
-            SELECT sum({<float32>1, <int32>2, <decimal>3}).__type__.name;
             SELECT sum({<int16>1, <int32>2, <decimal>3}).__type__.name;
 
             SELECT sum({<int16>1, 2, <decimal>3}).__type__.name;
@@ -376,16 +373,15 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             {'std::float64'},
 
             {'std::float64'},
-            {'std::float64'},
             {'std::decimal'},
 
             {'std::decimal'},
             {'std::float64'},
-            {'std::decimal'},
+            {'std::float64'},
 
             {'std::float64'},
             {'std::float32'},
-            {'std::decimal'},
+            {'std::float64'},
         ])
 
     async def test_edgeql_calls_11(self):

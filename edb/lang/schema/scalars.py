@@ -151,10 +151,10 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
 _implicit_numeric_cast_map = {
     'std::int16': 'std::int32',
     'std::int32': 'std::int64',
-    'std::int64': 'std::float64',
+    'std::int64': {'std::float64', 'std::decimal'},
     'std::float32': 'std::float64',
-    'std::float64': 'std::decimal',
-    'std::decimal': 'std::float64',
+    'std::float64': None,
+    'std::decimal': None,
 }
 
 
@@ -162,14 +162,14 @@ def _is_reachable(graph, source: str, target: str) -> bool:
     if source == target:
         return True
 
-    seen = set()
     while True:
         source = graph.get(source)
-        if source is None or source in seen:
+        if source is None:
             return False
         elif source == target:
             return True
-        seen.add(source)
+        elif isinstance(source, set):
+            return any(_is_reachable(graph, s, target) for s in source)
 
 
 @functools.lru_cache()
@@ -188,14 +188,19 @@ def _find_common_castable_type_impl(
 
     # Elevate target in the castability ladder, and check if
     # source is castable to it on each step.
-    seen = set()
     while True:
         target = _implicit_numeric_cast_map.get(target)
-        if target is None or target in seen:
+        if target is None:
             return None
+        elif isinstance(target, set):
+            for t in target:
+                candidate = _find_common_castable_type_impl(source, t)
+                if candidate is not None:
+                    return candidate
+            else:
+                return None
         elif _is_implicitly_castable_impl(source, target):
             return target
-        seen.add(target)
 
 
 # target -> source   (source can be casted into target in assignment)

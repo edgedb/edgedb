@@ -117,7 +117,7 @@ class TestExpressions(tb.QueryTestCase):
             SELECT (-9223372036854775809).__type__.name;
         """, [
             {'std::int64'},
-            {'std::decimal'},
+            {'std::float64'},
             {'std::int64'},
             {'std::int64'},
             {'std::decimal'},
@@ -631,6 +631,7 @@ class TestExpressions(tb.QueryTestCase):
             SELECT {1, <float32>2.1}.__type__.name;
             SELECT {1, 2.1}.__type__.name;
             SELECT (-2.1).__type__.name;
+            SELECT {1, <decimal>2.1}.__type__.name;
         """, [
             ['std::int64'],
             ['std::int64'],
@@ -641,7 +642,8 @@ class TestExpressions(tb.QueryTestCase):
             ['std::float64'],
             ['std::float64'],
             ['std::float64'],
-            ['std::decimal'],
+            ['std::float64'],
+            ['std::float64'],
             ['std::decimal'],
         ])
 
@@ -744,6 +746,13 @@ class TestExpressions(tb.QueryTestCase):
             [[1.5, 1]],
         ])
 
+    async def test_edgeql_expr_implicit_cast_08(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError, 'could not determine expression type'):
+            await self.query(r'''
+                SELECT {1.0, <decimal>2.0};
+            ''')
+
     async def test_edgeql_expr_type_01(self):
         await self.assert_query_result(r"""
             SELECT 'foo'.__type__.name;
@@ -755,7 +764,7 @@ class TestExpressions(tb.QueryTestCase):
         await self.assert_query_result(r"""
             SELECT (1.0 + 2).__type__.name;
         """, [
-            ['std::decimal'],
+            ['std::float64'],
         ])
 
     async def test_edgeql_expr_set_01(self):
@@ -985,7 +994,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_array_17(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot index array by.*decimal'):
+                exc.EdgeQLError, r'cannot index array by.*float'):
 
             await self.con.execute("""
                 SELECT [1, 2][1.0];
@@ -993,7 +1002,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_array_18(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot slice array by.*decimal'):
+                exc.EdgeQLError, r'cannot slice array by.*float'):
 
             await self.con.execute("""
                 SELECT [1, 2][1.0:3];
@@ -1114,7 +1123,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_string_05(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot index string by.*decimal'):
+                exc.EdgeQLError, r'cannot index string by.*float'):
 
             await self.con.execute("""
                 SELECT '123'[-1.0];
@@ -1122,7 +1131,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_string_06(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot slice string by.*decimal'):
+                exc.EdgeQLError, r'cannot slice string by.*float'):
 
             await self.con.execute("""
                 SELECT '123'[1.0:];

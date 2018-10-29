@@ -185,7 +185,7 @@ def compile_BaseConstant(
     elif isinstance(expr, qlast.FloatConstant):
         if expr.is_negative:
             value = f'-{value}'
-        std_type = 'std::decimal'
+        std_type = 'std::float64'
         node_cls = irast.FloatConstant
     elif isinstance(expr, qlast.BooleanConstant):
         std_type = 'std::bool'
