@@ -1552,6 +1552,115 @@ class TestExpressions(tb.QueryTestCase):
             ['maybe', 'yes', 'no'],
         ])
 
+    async def test_edgeql_expr_if_else_03(self):
+        await self.assert_sorted_query_result(r"""
+            SELECT 1 IF {1, 2, 3} < {2, 3, 4} ELSE 100;
+            SELECT {1, 10} IF {1, 2, 3} < {2, 3, 4} ELSE 100;
+
+            SELECT sum(1 IF {1, 2, 3} < {2, 3, 4} ELSE 100);
+            SELECT sum({1, 10} IF {1, 2, 3} < {2, 3, 4} ELSE 100);
+        """, lambda x: x, [
+            sorted([1, 1, 1, 100, 1, 1, 100, 100, 1]),
+            sorted([1, 10, 1, 10, 1, 10, 100, 1, 10, 1, 10, 100, 100, 1, 10]),
+            [306],
+            [366],
+        ])
+
+    async def test_edgeql_expr_if_else_04(self):
+        await self.assert_sorted_query_result(r"""
+            WITH x := <str>{}
+            SELECT
+                1   IF x = 'a' ELSE
+                10  IF x = 'b' ELSE
+                100 IF x = 'c' ELSE
+                0;
+
+            WITH x := {'c', 'a', 't'}
+            SELECT
+                1   IF x = 'a' ELSE
+                10  IF x = 'b' ELSE
+                100 IF x = 'c' ELSE
+                0;
+
+            WITH x := {'b', 'a', 't'}
+            SELECT
+                1   IF x = 'a' ELSE
+                10  IF x = 'b' ELSE
+                100 IF x = 'c' ELSE
+                0;
+
+            FOR w IN {<array<str>>[], ['c', 'a', 't'], ['b', 'a', 't']}
+            UNION (
+                WITH x := array_unpack(w)
+                SELECT sum(
+                    1   IF x = 'a' ELSE
+                    10  IF x = 'b' ELSE
+                    100 IF x = 'c' ELSE
+                    0
+                )
+            );
+        """, lambda x: x, [
+            [],
+            sorted([100, 1, 0]),
+            sorted([10, 1, 0]),
+            sorted([0, 101, 11]),
+        ])
+
+    async def test_edgeql_expr_if_else_05(self):
+        await self.assert_sorted_query_result(r"""
+            # this creates a 3 x 3 x 3 cross product
+            SELECT
+                1   IF {'c', 'a', 't'} = 'a' ELSE
+                10  IF {'c', 'a', 't'} = 'b' ELSE
+                100 IF {'c', 'a', 't'} = 'c' ELSE
+                0;
+        """, lambda x: x, [
+            sorted([
+                100,    # ccc
+                0,      # cca
+                0,      # cct
+                100,    # cac
+                0,      # caa
+                0,      # cat
+                100,    # ctc
+                0,      # cta
+                0,      # ctt
+                1,      # a--
+                        #       The other clauses don't get evaluated,
+                        #       when 'a' is in the first test.  More
+                        #       accurately, they get evaluated and
+                        #       their results are not included in the
+                        #       return value.
+
+                100,    # tcc
+                0,      # tca
+                0,      # tct
+                100,    # tac
+                0,      # taa
+                0,      # tat
+                100,    # ttc
+                0,      # tta
+                0,      # ttt
+            ]),
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_if_else_06(self):
+        await self.assert_query_result(r"""
+            WITH a := {'c', 'a', 't'}
+            SELECT
+                (a, 'hit' IF a = 'c' ELSE 'miss')
+            ORDER BY .0;
+
+            WITH a := {'c', 'a', 't'}
+            SELECT
+                (a, 'hit') IF a = 'c' ELSE (a, 'miss')
+            ORDER BY .0;
+        """, [
+            [['a', 'miss'], ['c', 'hit'], ['t', 'miss']],
+            [['a', 'miss'], ['c', 'hit'], ['t', 'miss']],
+        ])
+
     async def test_edgeql_expr_setop_01(self):
         await self.assert_query_result(r"""
             SELECT EXISTS {};
