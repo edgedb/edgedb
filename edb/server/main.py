@@ -40,6 +40,7 @@ from . import logsetup
 
 
 logger = logging.getLogger('edb.server')
+_server_initialized = False
 
 
 def abort(msg, *args):
@@ -64,6 +65,9 @@ def _init_cluster(cluster, args):
 
     loop.run_until_complete(backend.bootstrap(
         cluster, bootstrap_args, loop=loop))
+
+    global _server_initialized
+    _server_initialized = True
 
 
 def _sd_notify(message):
@@ -190,7 +194,7 @@ def run_server(args):
             _run_server(cluster, args)
 
     except BaseException as e:
-        if pg_cluster_init_by_us:
+        if pg_cluster_init_by_us and not _server_initialized:
             logger.warning('server bootstrap did not complete successfully, '
                            'removing the data directory')
             if cluster.get_status() == 'running':
