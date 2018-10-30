@@ -356,12 +356,16 @@ def set_to_array(
 
     pg_type = output.get_pg_type(ir_set.scls, ctx=ctx)
 
+    array_agg = pgast.FuncCall(
+        name=('array_agg',),
+        args=[val],
+        agg_filter=(pgast.NullTest(arg=val, negated=True)
+                    if val.nullable else None)
+    )
+
     agg_expr = pgast.CoalesceExpr(
         args=[
-            pgast.FuncCall(
-                name=('array_agg',),
-                args=[val],
-            ),
+            array_agg,
             pgast.TypeCast(
                 arg=pgast.ArrayExpr(elements=[]),
                 type_name=pgast.TypeName(name=pg_type, array_bounds=[-1])

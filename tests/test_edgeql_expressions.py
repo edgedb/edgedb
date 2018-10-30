@@ -245,7 +245,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_op_10(self):
         await self.assert_query_result(r"""
-            # the types are put in to satisfy type infering
+            # the types are put in to satisfy type inference
             SELECT +<int64>{};
             SELECT -<int64>{};
             SELECT NOT <bool>{};
@@ -1031,6 +1031,16 @@ class TestExpressions(tb.QueryTestCase):
 
             await self.con.execute("""
                 SELECT [1, 2][2^40];
+            """)
+
+    async def test_edgeql_expr_array_21(self):
+        # it should be technically possible to infer the type of the array
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'could not determine type of empty array'):
+
+            await self.con.execute("""
+                SELECT {[1, 2], []};
             """)
 
     async def test_edgeql_expr_coalesce_01(self):

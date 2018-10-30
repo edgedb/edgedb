@@ -65,7 +65,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
             [True],
             [False],
-            [None],
+            [None],  # JSON null
 
             [[2, 'a', 3.456]],
             [[2, 'a', 3.456, [['b', 1]]]],
@@ -80,7 +80,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                         'd3': True
                     }
                 },
-                'e': None,
+                'e': None,  # JSON null
                 'f': False
             }],
         ])
@@ -478,7 +478,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         await self.assert_query_result("""
             SELECT json_array_unpack(str_to_json('[1, "a", null]'));
         """, [
-            [1, 'a', None],
+            [1, 'a', None],  # None is legitimate JSON null
         ])
 
     async def test_edgeql_json_array_unpack_02(self):
@@ -571,6 +571,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 "e": null
             }'));
         ''', lambda x: x[0], [[
+            # Nones in the output are legitimate JSON nulls
             ['e', None],
             ['q', 1],
             ['w', [2, None, 3]],
@@ -765,6 +766,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             ['oups'],
             ['hello', 'hello', 'hello'],
             ['', '', ''],
+            # Nones are legitimate JSON nulls used as defaults
             [None, None, None],
             ['oups'],
             ['', '', '42!'],
@@ -1005,7 +1007,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             [[2, "q", [3], {}]],
             [["q", [3], {}]],
             [[]],
-            [[2, "q", [3], {}, None]],
+            [[2, "q", [3], {}, None]],  # None is a legitimate JSON null
             [[]],
         ])
 
@@ -1024,3 +1026,142 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             await self.con.execute(r"""
                 SELECT <json>b'foo';
             """)
+
+    async def test_edgeql_json_view_01(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT _ := json_get(JSONTest.j_array, '0')
+            ORDER BY _;
+
+            WITH MODULE test
+            SELECT _ := json_get(JSONTest.j_array, '10')
+            ORDER BY _;
+
+            WITH MODULE test
+            SELECT _ := json_get(JSONTest.j_array, {'-1', '4'})
+            ORDER BY _;
+
+            WITH MODULE test
+            SELECT _ := json_get(
+                JSONTest.data,
+                # Each of the variadic "steps" is a set, so we should
+                # get a cross-product of all the possibilities. It so
+                # happens that the only 2 valid paths are:
+                # - '4', 'b', 'bar', '1' -> null
+                # - '4', 'b', 'bar', '2' -> {"bingo": "42!"}
+                {'2', '4', '4'}, {'0', 'b'}, {'bar', 'foo'}, {'1', '2'}
+            )
+            ORDER BY _;
+        ''', [
+            [1, 2],
+            [],
+            # Nones in the output are legitimate JSON nulls
+            [None, None, 1],
+            [None, None, {'bingo': '42!'}, {'bingo': '42!'}],
+        ])
+
+    async def test_edgeql_json_view_02(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT _ := json_get(
+                JSONTest.data,
+                # Each of the variadic "steps" is a set, so we should
+                # get a cross-product of all the possibilities. It so
+                # happens that the only 2 valid paths are:
+                # - '4', 'b', 'bar', '1' -> null
+                # - '4', 'b', 'bar', '2' -> {"bingo": "42!"}
+                {'2', '4', '4'}, {'0', 'b'}, {'bar', 'foo'}, {'1', '2'},
+                default := <json>'N/A'
+            )
+            ORDER BY _;
+        ''', [
+            # We expect 3 * 2 * 2 * 2 = 24 results per JSONTest.data.
+            # There are 3 non-empty data properties. Out of them all
+            # only 4 will have a valid path. So we expect 24 * 3 - 4 =
+            # 68 default 'N/A' results, 2 JSON `nulls` represented as
+            # `None` and 2 JSON objects.
+            [None, None] + ['N/A'] * 68 + [{'bingo': '42!'}, {'bingo': '42!'}],
+        ])
+
+    async def test_edgeql_json_view_03(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                JT := JSONTest
+            SELECT JSONTest {
+                a0 := (
+                    SELECT _ := json_get(JT.j_array, '0')
+                    ORDER BY _
+                ),
+                a1 := (
+                    SELECT _ := json_get(JT.j_array, '10')
+                    ORDER BY _
+                ),
+                a2 := (
+                    SELECT _ := json_get(JT.j_array, {'-1', '4'})
+                    ORDER BY _
+                ),
+                a3 := (
+                    SELECT _ := json_get(
+                        JT.data,
+                        # Each of the variadic "steps" is a set, so we should
+                        # get a cross-product of all the possibilities. It so
+                        # happens that the only 2 valid paths are:
+                        # - '4', 'b', 'bar', '1' -> null
+                        # - '4', 'b', 'bar', '2' -> {"bingo": "42!"}
+                        {'2', '4', '4'}, {'0', 'b'}, {'bar', 'foo'}, {'1', '2'}
+                    )
+                    ORDER BY _
+                )
+            }
+            FILTER .number = 0;
+        ''', [
+            [{
+                'a0': [1, 2],
+                'a1': [],
+                # Nones in the output are legitimate JSON nulls
+                'a2': [None, None, 1],
+                'a3': [None, None, {'bingo': '42!'}, {'bingo': '42!'}],
+            }],
+        ])
+
+    async def test_edgeql_json_view_04(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT _ := json_get(
+                JSONTest.data,
+                '0', '1', '2',
+                default := <json>{'N/A', 'nope', '-'}
+            )
+            ORDER BY _;
+        ''', [
+            # None of the 3 data objects have the path 0, 1, 2, so we
+            # expect default values in the result in triplicate.
+            ['-', '-', '-', 'N/A', 'N/A', 'N/A', 'nope', 'nope', 'nope'],
+        ])
+
+    async def test_edgeql_json_view_05(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                JT := JSONTest
+            SELECT JSONTest {
+                a4 := (
+                    SELECT _ := json_get(
+                        JT.data,
+                        '0', '1', '2',
+                        default := <json>{'N/A', 'nope', '-'}
+                    )
+                    ORDER BY _
+                ),
+            }
+            FILTER .number = 0;
+        ''', [
+            [{
+                'a4': [
+                    '-', '-', '-',
+                    'N/A', 'N/A', 'N/A',
+                    'nope', 'nope', 'nope'
+                ],
+            }],
+        ])
