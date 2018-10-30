@@ -29,6 +29,7 @@ from edb.lang.schema import pointers as s_pointers
 from edb.lang.schema import types as s_types
 
 from edb.lang.edgeql import ast as qlast
+from edb.lang.edgeql import functypes as ft
 
 from .pathid import PathId, WeakNamespace  # noqa
 from .scopetree import InvalidScopeConfiguration, ScopeTreeNode  # noqa
@@ -266,17 +267,44 @@ class SortExpr(Base):
 
 class FunctionCall(Expr):
 
-    func: so.Object
+    # Bound function has polymorphic parameters and
+    # a polymorphic return type.
+    func_polymorphic: bool
+
+    # Bound function's name.
+    func_shortname: sn.Name
+
+    # If the bound function is a "FROM SQL" function, this
+    # attribute will be set to the name of the SQL function.
+    func_sql_function: typing.Optional[str]
+
+    # Bound arguments.
     args: typing.List[Base]
-    kwargs: dict
+
+    # Typemods of parameters.  This list corresponds to ".args"
+    # (so `zip(args, params_typemods)` is valid.)
+    params_typemods: typing.List[ft.TypeModifier]
+
+    # True if the bound function has a variadic parameter and
+    # there are no arguments that are bound to it.
+    has_empty_variadic: bool = False
+    # Set to the type of the variadic parameter of the bound function
+    # (or None, if the function has no variadic parameters.)
+    variadic_param_type: typing.Optional[s_types.Type]
+
+    # Return type and typemod.  In bodies of polymorphic functions
+    # the return type can be polymorphic; in queries the return
+    # type will be a concrete schema type.
+    type: s_types.Type
+    typemod: ft.TypeModifier
+
     agg_sort: typing.List[SortExpr]
     agg_filter: Base
     agg_set_modifier: qlast.SetModifier
+
     partition: typing.List[Base]
     window: bool
     initial_value: Base
-    type: s_types.Type
-    has_empty_variadic: bool = False
 
 
 class TupleIndirection(Expr):

@@ -658,14 +658,8 @@ def _compile_view_shapes_in_fcall(
         rptr: typing.Optional[irast.Pointer]=None,
         parent_view_type: typing.Optional[s_types.ViewType]=None,
         ctx: context.ContextLevel) -> None:
-    funcobj = expr.func
 
-    preserves_type = (
-        any(p.type.is_polymorphic() for p in funcobj.params) and
-        funcobj.return_type.is_polymorphic()
-    )
-
-    if preserves_type:
+    if expr.func_polymorphic:
         for arg in expr.args:
             arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
             if arg_scope is not None:

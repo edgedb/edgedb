@@ -29,7 +29,6 @@ async def fetch(
                 f.name AS name,
                 f.title AS title,
                 f.description AS description,
-                f.aggregate,
                 f.return_typemod,
                 f.language,
                 f.code,

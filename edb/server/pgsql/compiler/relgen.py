@@ -253,8 +253,8 @@ def _get_set_rvar(
         rvars = process_set_as_tuple_indirection(ir_set, stmt, ctx=ctx)
 
     elif isinstance(ir_set.expr, irast.FunctionCall):
-        if any(p.typemod is ql_ft.TypeModifier.SET_OF
-               for p in ir_set.expr.func.params):
+        if any(pm is ql_ft.TypeModifier.SET_OF
+               for pm in ir_set.expr.params_typemods):
             # Call to an aggregate function.
             rvars = process_set_as_agg_expr(ir_set, stmt, ctx=ctx)
         else:
@@ -1316,7 +1316,6 @@ def process_set_as_func_expr(
         newctx.expr_exposed = False
 
         expr = ir_set.expr
-        funcobj = expr.func
 
         args = []
 
@@ -1326,40 +1325,33 @@ def process_set_as_func_expr(
 
         with_ordinality = False
 
-        if funcobj.shortname == 'std::array_unpack':
+        if expr.func_shortname == 'std::array_unpack':
             name = ('unnest',)
-        elif funcobj.shortname == 'std::array_enumerate':
+        elif expr.func_shortname == 'std::array_enumerate':
             name = ('unnest',)
             with_ordinality = True
-        elif funcobj.from_function:
-            name = (funcobj.from_function,)
+        elif expr.func_sql_function:
+            name = (expr.func_sql_function,)
         else:
-            name = (
-                common.edgedb_module_name_to_schema_name(
-                    funcobj.shortname.module),
-                common.edgedb_name_to_pg_name(
-                    funcobj.shortname.name)
-            )
+            name = common.schema_name_to_pg_name(expr.func_shortname)
 
         if expr.has_empty_variadic:
-            variadic_param = funcobj.params.variadic
-
             args.append(
                 pgast.VariadicArgument(
                     expr=typecomp.cast(
                         pgast.ArrayExpr(elements=[]),
-                        source_type=variadic_param.type,
-                        target_type=variadic_param.type,
+                        source_type=expr.variadic_param_type,
+                        target_type=expr.variadic_param_type,
                         force=True,
                         env=ctx.env)))
 
         set_expr = pgast.FuncCall(
             name=name, args=args, with_ordinality=with_ordinality)
 
-    if funcobj.return_typemod is ql_ft.TypeModifier.SET_OF:
-        rtype = funcobj.return_type
+    if expr.typemod is ql_ft.TypeModifier.SET_OF:
+        rtype = expr.type
 
-        if isinstance(funcobj.return_type, s_types.Tuple):
+        if isinstance(rtype, s_types.Tuple):
             colnames = [name for name in rtype.element_types]
         else:
             colnames = [ctx.env.aliases.get('v')]
@@ -1392,7 +1384,7 @@ def process_set_as_func_expr(
                 named=rtype.named
             )
 
-            if funcobj.shortname == 'std::array_enumerate':
+            if expr.func_shortname == 'std::array_enumerate':
                 # Patch index colref to (colref - 1) to make
                 # enumerate indexes start from 0.
                 set_expr.elements[1].val = pgast.Expr(
@@ -1428,7 +1420,6 @@ def process_set_as_agg_expr(
         ctx: context.CompilerContextLevel) -> None:
     with ctx.newscope() as newctx:
         expr = ir_set.expr
-        funcobj = expr.func
         agg_filter = None
         agg_sort = []
 
@@ -1446,10 +1437,7 @@ def process_set_as_agg_expr(
             # the (unacceptable) hardcoding of function names,
             # check if the aggregate accepts a single argument
             # of "any" to determine serialized input safety.
-            serialization_safe = (
-                any(p.type.is_polymorphic() for p in funcobj.params) and
-                funcobj.return_type.is_polymorphic()
-            )
+            serialization_safe = expr.func_polymorphic
 
             if not serialization_safe:
                 argctx.expr_exposed = False
@@ -1565,15 +1553,10 @@ def process_set_as_agg_expr(
                             node=_sortexpr, dir=sortexpr.direction,
                             nulls=sortexpr.nones_order))
 
-        if funcobj.from_function:
-            name = (funcobj.from_function,)
+        if expr.func_sql_function:
+            name = (expr.func_sql_function,)
         else:
-            name = (
-                common.edgedb_module_name_to_schema_name(
-                    funcobj.shortname.module),
-                common.edgedb_name_to_pg_name(
-                    funcobj.shortname.name)
-            )
+            name = common.schema_name_to_pg_name(expr.func_shortname)
 
         set_expr = pgast.FuncCall(
             name=name, args=args,

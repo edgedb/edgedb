@@ -1048,7 +1048,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     self.write(';')
 
             if node.code.from_name:
-                self.write(f' FROM {node.code.language} {typ} ')
+                self.write(f' FROM {node.code.language} FUNCTION ')
                 self.write(f'{node.code.from_name!r}')
             else:
                 self.write(f' FROM {node.code.language} ')
@@ -1060,7 +1060,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self._block_ws(-1)
                 self.write('}')
 
-        typ = 'AGGREGATE' if node.aggregate else 'FUNCTION'
         self._visit_CreateObject(node, 'FUNCTION', after_name=after_name,
                                  render_commands=False)
 

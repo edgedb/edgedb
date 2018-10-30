@@ -527,39 +527,27 @@ def compile_TypeRef(
 @dispatch.compile.register(irast.FunctionCall)
 def compile_FunctionCall(
         expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
-    funcobj = expr.func
 
-    if funcobj.aggregate:
-        raise RuntimeError(
-            'aggregate functions are not supported in simple expressions')
-
-    if funcobj.return_typemod is ql_ft.TypeModifier.SET_OF:
+    if expr.typemod is ql_ft.TypeModifier.SET_OF:
         raise RuntimeError(
             'set returning functions are not supported in simple expressions')
 
     args = [dispatch.compile(a, ctx=ctx) for a in expr.args]
 
     if expr.has_empty_variadic:
-        variadic_param = funcobj.params.variadic
-
         args.append(
             pgast.VariadicArgument(
                 expr=typecomp.cast(
                     pgast.ArrayExpr(elements=[]),
-                    source_type=variadic_param.type,
-                    target_type=variadic_param.type,
+                    source_type=expr.variadic_param_type,
+                    target_type=expr.variadic_param_type,
                     force=True,
                     env=ctx.env)))
 
-    if funcobj.from_function:
-        name = (funcobj.from_function,)
+    if expr.func_sql_function:
+        name = (expr.func_sql_function,)
     else:
-        name = (
-            common.edgedb_module_name_to_schema_name(
-                funcobj.shortname.module),
-            common.edgedb_name_to_pg_name(
-                funcobj.shortname.name)
-        )
+        name = common.schema_name_to_pg_name(expr.func_shortname)
 
     result = pgast.FuncCall(name=name, args=args)
 

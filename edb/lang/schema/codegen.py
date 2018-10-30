@@ -220,10 +220,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self._visit_Declaration(node)
 
     def visit_FunctionDeclaration(self, node):
-        if node.aggregate:
-            self.write('aggregate ')
-        else:
-            self.write('function ')
+        self.write('function ')
 
         self.write(node.name)
         self.write('(')

@@ -345,7 +345,6 @@ class IntrospectionMech:
                 'name': name,
                 'title': self.json_to_word_combination(row['title']),
                 'description': row['description'],
-                'aggregate': row['aggregate'],
                 'language': row['language'],
                 'params': self._decode_func_params(row, schema),
                 'return_typemod': row['return_typemod'],

@@ -30,7 +30,6 @@ unreserved_keywords = frozenset([
     "abstract",
     "action",
     "after",
-    "aggregate",
     "as",
     "asc",
     "attribute",

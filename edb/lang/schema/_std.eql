@@ -351,7 +351,6 @@ CREATE ABSTRACT ATTRIBUTE stdattrs::computable std::bool;
 CREATE ABSTRACT ATTRIBUTE stdattrs::default std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::expression std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::cardinality std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::aggregate std::bool;
 CREATE ABSTRACT ATTRIBUTE stdattrs::language std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::code std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::from_function std::str;
@@ -587,5 +586,4 @@ CREATE TYPE schema::Function EXTENDING schema::Object {
     };
     CREATE LINK schema::return_type -> schema::Type;
     CREATE PROPERTY schema::return_typemod -> std::str;
-    CREATE PROPERTY schema::aggregate -> std::bool;
 };

@@ -26,6 +26,7 @@ from edb.lang.common import persistent_hash
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import links as s_links
 from edb.lang.schema import lproperties as s_props
+from edb.lang.schema import name as s_name
 
 from edb.server.pgsql.parser import keywords as pg_keywords
 
@@ -141,6 +142,13 @@ def link_name_to_table_name(name, catenate=True):
 
 def prop_name_to_table_name(name, catenate=True):
     return convert_name(name, 'prop', catenate)
+
+
+def schema_name_to_pg_name(name: s_name.Name):
+    return (
+        edgedb_module_name_to_schema_name(name.module),
+        edgedb_name_to_pg_name(name.name)
+    )
 
 
 def get_table_name(obj, catenate=True):

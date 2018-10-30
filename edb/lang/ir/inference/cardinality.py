@@ -116,7 +116,7 @@ def __infer_set(ir, scope_tree, schema):
 
 @_infer_cardinality.register(irast.FunctionCall)
 def __infer_func_call(ir, scope_tree, schema):
-    if ir.func.return_typemod is ql_ft.TypeModifier.SET_OF:
+    if ir.typemod is ql_ft.TypeModifier.SET_OF:
         return MANY
     else:
         return ONE

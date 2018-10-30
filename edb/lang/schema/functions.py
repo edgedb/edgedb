@@ -256,7 +256,6 @@ class Function(so.NamedObject):
                       coerce=True, compcoef=0.4)
 
     return_type = so.Field(so.Object, compcoef=0.2)
-    aggregate = so.Field(bool, default=False, compcoef=0.4)
 
     code = so.Field(str, default=None, compcoef=0.4)
     language = so.Field(qlast.Language, default=None, compcoef=0.4,
@@ -461,11 +460,6 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
             property='return_type',
             new_value=utils.ast_to_typeref(
                 astnode.returning, modaliases=modaliases, schema=schema)
-        ))
-
-        cmd.add(sd.AlterObjectProperty(
-            property='aggregate',
-            new_value=astnode.aggregate
         ))
 
         cmd.add(sd.AlterObjectProperty(

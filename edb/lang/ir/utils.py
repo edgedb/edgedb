@@ -81,17 +81,6 @@ def is_set_membership_expr(ir):
     )
 
 
-def is_aggregated_expr(ir):
-    def flt(n):
-        if isinstance(n, irast.FunctionCall):
-            return n.func.aggregate
-        elif isinstance(n, irast.Stmt):
-            # Make sure we don't dip into subqueries
-            raise ast.SkipNode()
-
-    return bool(set(ast.find_children(ir, flt)))
-
-
 def get_id_path_id(
         path_id: irast.PathId, *,
         schema: s_schema.Schema) -> irast.PathId:

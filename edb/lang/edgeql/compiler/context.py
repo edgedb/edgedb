@@ -174,9 +174,6 @@ class ContextLevel(compiler.ContextLevel):
     scope_id_ctr: compiler.Counter
     """Path scope id counter."""
 
-    in_aggregate: bool
-    """True if the current location is inside an aggregate function call."""
-
     view_rptr: ViewRPtr
     """Pointer information for the top-level view of the substatement."""
 
@@ -233,7 +230,6 @@ class ContextLevel(compiler.ContextLevel):
             self.path_scope_is_temp = False
             self.path_scope_map = {}
             self.scope_id_ctr = compiler.Counter()
-            self.in_aggregate = False
             self.view_scls = None
             self.expr_exposed = False
 
@@ -294,7 +290,6 @@ class ContextLevel(compiler.ContextLevel):
                 self.view_scls = None
                 self.clause = None
                 self.stmt = None
-                self.in_aggregate = False
 
                 self.partial_path_prefix = None
 
@@ -319,7 +314,6 @@ class ContextLevel(compiler.ContextLevel):
                 self.view_scls = None
                 self.clause = None
                 self.stmt = None
-                self.in_aggregate = False
 
                 self.partial_path_prefix = None
 
@@ -333,8 +327,6 @@ class ContextLevel(compiler.ContextLevel):
 
                 self.clause = prevlevel.clause
                 self.stmt = prevlevel.stmt
-
-                self.in_aggregate = prevlevel.in_aggregate
 
                 self.partial_path_prefix = prevlevel.partial_path_prefix
 

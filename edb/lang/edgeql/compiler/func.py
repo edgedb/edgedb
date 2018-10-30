@@ -117,12 +117,28 @@ def compile_FunctionCall(
                 f'could not find a function variant {funcname}',
                 context=expr.context)
 
+        args, params_typemods = finalize_args(matched_call, ctx=ctx)
+
+        variadic_param_type = None
+        if matched_call.func.params.variadic is not None:
+            variadic_param_type = matched_call.func.params.variadic.type
+
+        is_polymorphic = (
+            any(p.type.is_polymorphic() for p in matched_call.func.params) and
+            matched_call.func.return_type.is_polymorphic()
+        )
+
         node = irast.FunctionCall(
-            func=matched_call.func,
-            args=finalize_args(matched_call, ctx=ctx),
+            args=args,
+            func_shortname=func.shortname,
+            func_polymorphic=is_polymorphic,
+            func_sql_function=func.from_function,
+            params_typemods=params_typemods,
             context=expr.context,
             type=matched_call.return_type,
+            typemod=matched_call.func.return_typemod,
             has_empty_variadic=matched_call.has_empty_variadic,
+            variadic_param_type=variadic_param_type,
         )
 
         if matched_call.func.initial_value is not None:
@@ -467,15 +483,19 @@ def compile_call_args(
 def finalize_args(bound_call: BoundCall, *,
                   ctx: context.ContextLevel) -> typing.List[irast.Base]:
 
-    bound_args = []
+    args = []
+    typemods = []
 
     for param, arg in bound_call.args:
         if param is None:
             # defaults bitmask
-            bound_args.append(arg)
+            args.append(arg)
+            typemods.append(_SINGLETON)
             continue
 
         param_mod = param.typemod
+        typemods.append(param_mod)
+
         if param_mod is not _SET_OF:
             arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
             if arg_scope is not None:
@@ -486,6 +506,6 @@ def finalize_args(bound_call: BoundCall, *,
                 pathctx.register_set_in_scope(arg, ctx=ctx)
                 pathctx.mark_path_as_optional(arg.path_id, ctx=ctx)
 
-        bound_args.append(arg)
+        args.append(arg)
 
-    return bound_args
+    return args, typemods

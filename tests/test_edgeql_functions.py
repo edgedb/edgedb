@@ -399,9 +399,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [100, 101],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_functions_array_enumerate_02(self):
-        # Fix type inference for functions.
         await self.assert_query_result(r'''
             SELECT array_enumerate([10,20]).0 + 100;
         ''', [

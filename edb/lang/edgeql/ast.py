@@ -864,7 +864,6 @@ class FunctionCode(Clause):
 class CreateFunction(CreateObject):
     args: typing.List[FuncParam]
     returning: TypeExpr
-    aggregate: bool = False
     initial_value: Expr
     code: FunctionCode
     returning_typemod: ft.TypeModifier = ft.TypeModifier.SINGLETON
@@ -876,7 +875,6 @@ class AlterFunction(AlterObject):
 
 class DropFunction(DropObject):
     args: typing.List[FuncParam]
-    aggregate: bool = False
 
 
 class SessionStateDecl(Expr):
