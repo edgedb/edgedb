@@ -116,10 +116,24 @@ def __infer_set(ir, scope_tree, schema):
 
 @_infer_cardinality.register(irast.FunctionCall)
 def __infer_func_call(ir, scope_tree, schema):
+    # the cardinality of the function call depends on the cardinality
+    # of non-SET_OF arguments AND the cardinality of the function
+    # return value
+    SET_OF = ql_ft.TypeModifier.SET_OF
     if ir.typemod is ql_ft.TypeModifier.SET_OF:
         return MANY
     else:
-        return ONE
+        # assume that the call is valid and the signature has been matched
+        args = []
+        # process positional args
+        for arg, typemod in zip(ir.args, ir.params_typemods):
+            if typemod is not SET_OF:
+                args.append(arg)
+
+        if args:
+            return _common_cardinality(args, scope_tree, schema)
+        else:
+            return ONE
 
 
 @_infer_cardinality.register(irast.BaseConstant)
@@ -342,19 +356,40 @@ def __infer_exist(ir, scope_tree, schema):
 
 @_infer_cardinality.register(irast.SliceIndirection)
 def __infer_slice(ir, scope_tree, schema):
-    return infer_cardinality(ir.expr, scope_tree, schema)
+    # slice indirection cardinality depends on the cardinality of
+    # the base expression and the slice index expressions
+    args = [ir.expr]
+    if ir.start is not None:
+        args.append(ir.start)
+    if ir.stop is not None:
+        args.append(ir.stop)
+
+    return _common_cardinality(args, scope_tree, schema)
 
 
 @_infer_cardinality.register(irast.IndexIndirection)
 def __infer_index(ir, scope_tree, schema):
-    return infer_cardinality(ir.expr, scope_tree, schema)
+    # index indirection cardinality depends on both the cardinality of
+    # the base expression and the index expression
+    return _common_cardinality([ir.expr, ir.index], scope_tree, schema)
 
 
 @_infer_cardinality.register(irast.Array)
+def __infer_array(ir, scope_tree, schema):
+    return _common_cardinality(ir.elements, scope_tree, schema)
+
+
 @_infer_cardinality.register(irast.Tuple)
+def __infer_tuple(ir, scope_tree, schema):
+    return _common_cardinality(
+        [el.val for el in ir.elements], scope_tree, schema)
+
+
 @_infer_cardinality.register(irast.TupleIndirection)
-def __infer_map(ir, scope_tree, schema):
-    return ONE
+def __infer_tuple_indirection(ir, scope_tree, schema):
+    # the cardinality of the tuple indirection is the same as the
+    # cardinality of the underlying tuple
+    return infer_cardinality(ir.expr, scope_tree, schema)
 
 
 def infer_cardinality(ir, scope_tree, schema):

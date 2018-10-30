@@ -911,3 +911,355 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                 },
             ],
         ])
+
+    async def test_edgeql_links_derived_tuple_01(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT Item {
+                n1 := (Item.name,),
+                n2 := (Item.name,).0,
+                t1 := (Item.tag_set1,),
+                t2 := (Item.tag_set1, Item.tag_set2),
+                t3 := (Item.tag_set1,).0,
+                t4 := (Item.tag_set1, Item.tag_set2).1,
+            }
+            FILTER .name IN {'chair', 'table'}
+            ORDER BY .name;
+        ''')
+
+        # sort the data
+        for result in res[0]:
+            result['t1'].sort(key=lambda x: x[0])
+            result['t2'].sort(key=lambda x: (x[0], x[1]))
+            result['t3'].sort()
+            result['t4'].sort()
+
+        self.assert_data_shape(res, [
+            [
+                {
+                    'n1': ['chair'],
+                    'n2': 'chair',
+                    't1': [['rectangle'], ['wood']],
+                    't2': [],
+                    't3': ['rectangle', 'wood'],
+                    't4': [],
+                },
+                {
+                    'n1': ['table'],
+                    'n2': 'table',
+                    't1': [['rectangle'], ['wood']],
+                    't2': [['rectangle', 'rectangle'], ['rectangle', 'wood'],
+                           ['wood', 'rectangle'], ['wood', 'wood']],
+                    't3': ['rectangle', 'wood'],
+                    't4': ['rectangle', 'rectangle', 'wood', 'wood'],
+                },
+            ],
+        ])
+
+    async def test_edgeql_links_derived_array_01(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT Item {
+                n1 := [Item.name],
+                n2 := [Item.name][0],
+                t1 := [Item.tag_set1],
+                t2 := [Item.tag_set1, Item.tag_set2],
+                t3 := [Item.tag_set1][0],
+                t4 := [Item.tag_set1, Item.tag_set2][1],
+                a1 := Item.tag_array,
+                a2 := Item.tag_array[0],
+            }
+            FILTER .name IN {'chair', 'table'}
+            ORDER BY .name;
+        ''')
+
+        # sort the data
+        for result in res[0]:
+            result['t1'].sort(key=lambda x: x[0])
+            result['t2'].sort(key=lambda x: (x[0], x[1]))
+            result['t3'].sort()
+            result['t4'].sort()
+
+        self.assert_data_shape(res, [
+            [
+                {
+                    'n1': ['chair'],
+                    'n2': 'chair',
+                    't1': [['rectangle'], ['wood']],
+                    't2': [],
+                    't3': ['rectangle', 'wood'],
+                    't4': [],
+                    'a1': ['wood', 'rectangle'],
+                    'a2': 'wood',
+                },
+                {
+                    'n1': ['table'],
+                    'n2': 'table',
+                    't1': [['rectangle'], ['wood']],
+                    't2': [['rectangle', 'rectangle'], ['rectangle', 'wood'],
+                           ['wood', 'rectangle'], ['wood', 'wood']],
+                    't3': ['rectangle', 'wood'],
+                    't4': ['rectangle', 'rectangle', 'wood', 'wood'],
+                    'a1': ['wood', 'rectangle'],
+                    'a2': 'wood',
+                },
+            ],
+        ])
+
+    async def test_edgeql_links_derived_array_02(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT Item {
+                n1 := [Item.name],
+                n2 := array_get([Item.name], 0),
+                t1 := [Item.tag_set1],
+                t2 := [Item.tag_set1, Item.tag_set2],
+                t3 := array_get([Item.tag_set1], 0),
+                t4 := array_get([Item.tag_set1, Item.tag_set2], 1),
+                a1 := Item.tag_array,
+                a2 := array_get(Item.tag_array, 0),
+            }
+            FILTER .name IN {'chair', 'table'}
+            ORDER BY .name;
+        ''')
+
+        # sort the data
+        for result in res[0]:
+            result['t1'].sort(key=lambda x: x[0])
+            result['t2'].sort(key=lambda x: (x[0], x[1]))
+            result['t3'].sort()
+            result['t4'].sort()
+
+        self.assert_data_shape(res, [
+            [
+                {
+                    'n1': ['chair'],
+                    'n2': 'chair',
+                    't1': [['rectangle'], ['wood']],
+                    't2': [],
+                    't3': ['rectangle', 'wood'],
+                    't4': [],
+                    'a1': ['wood', 'rectangle'],
+                    'a2': 'wood',
+                },
+                {
+                    'n1': ['table'],
+                    'n2': 'table',
+                    't1': [['rectangle'], ['wood']],
+                    't2': [['rectangle', 'rectangle'], ['rectangle', 'wood'],
+                           ['wood', 'rectangle'], ['wood', 'wood']],
+                    't3': ['rectangle', 'wood'],
+                    't4': ['rectangle', 'rectangle', 'wood', 'wood'],
+                    'a1': ['wood', 'rectangle'],
+                    'a2': 'wood',
+                },
+            ],
+        ])
+
+    async def test_edgeql_links_derived_array_03(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT Item {
+                name,
+                a_a1 := Item.tag_array[{0, 1}],
+                a_t2 := [Item.tag_set1, Item.tag_set2][{0, 1}],
+            }
+            FILTER .name IN {'chair', 'table'}
+            ORDER BY .name;
+        ''')
+
+        # sort the data
+        for result in res[0]:
+            result['a_a1'].sort()
+            result['a_t2'].sort()
+
+        self.assert_data_shape(res, [
+            [
+                {
+                    'name': 'chair',
+                    'a_a1': ['rectangle', 'wood'],
+                    'a_t2': [],
+                },
+                {
+                    'name': 'table',
+                    'a_a1': ['rectangle', 'wood'],
+                    'a_t2': ['rectangle', 'rectangle', 'rectangle',
+                             'rectangle', 'wood', 'wood', 'wood', 'wood'],
+                },
+            ],
+        ])
+
+    async def test_edgeql_links_derived_array_04(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT Item {
+                name,
+                a_a1 := array_get(Item.tag_array, {0, 1}),
+                a_t2 := array_get([Item.tag_set1, Item.tag_set2], {0, 1}),
+            }
+            FILTER .name IN {'chair', 'table'}
+            ORDER BY .name;
+        ''')
+
+        # sort the data
+        for result in res[0]:
+            result['a_a1'].sort()
+            result['a_t2'].sort()
+
+        self.assert_data_shape(res, [
+            [
+                {
+                    'name': 'chair',
+                    'a_a1': ['rectangle', 'wood'],
+                    'a_t2': [],
+                },
+                {
+                    'name': 'table',
+                    'a_a1': ['rectangle', 'wood'],
+                    'a_t2': ['rectangle', 'rectangle', 'rectangle',
+                             'rectangle', 'wood', 'wood', 'wood', 'wood'],
+                },
+            ],
+        ])
+
+    async def test_edgeql_links_derived_array_05(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT Item {
+                name,
+                a_a1 := array_get(Item.tag_array, {0, 2}),
+                a_t2 := array_get([Item.tag_set1, Item.tag_set2], {0, 2}),
+            }
+            FILTER .name IN {'ball', 'chair', 'table'}
+            ORDER BY .name;
+        ''')
+
+        # sort the data
+        for result in res[0]:
+            result['a_a1'].sort()
+            result['a_t2'].sort()
+
+        self.assert_data_shape(res, [
+            [
+                {
+                    'name': 'ball',
+                    'a_a1': [],
+                    'a_t2': ['plastic', 'plastic', 'round', 'round'],
+                },
+                {
+                    'name': 'chair',
+                    'a_a1': ['wood'],
+                    'a_t2': [],
+                },
+                {
+                    'name': 'table',
+                    'a_a1': ['wood'],
+                    'a_t2': ['rectangle', 'rectangle', 'wood', 'wood'],
+                },
+            ],
+        ])
+
+    async def test_edgeql_links_derived_array_06(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT Item {
+                name,
+                a_a1 := Item.tag_array[1:20],
+                a_t2 := [Item.tag_set1, Item.tag_set2][1:20],
+            }
+            FILTER .name IN {'ball', 'chair', 'table'}
+            ORDER BY .name;
+        ''')
+
+        # sort the data
+        for result in res[0]:
+            if result['a_a1']:
+                result['a_a1'].sort()
+            result['a_t2'].sort(key=lambda x: x[0] if x else '')
+
+        self.assert_data_shape(res, [
+            [
+                {
+                    'name': 'ball',
+                    'a_a1': None,
+                    'a_t2': [['plastic'], ['plastic'], ['round'], ['round']],
+                },
+                {
+                    'name': 'chair',
+                    'a_a1': ['rectangle'],
+                    'a_t2': [],
+                },
+                {
+                    'name': 'table',
+                    'a_a1': ['rectangle'],
+                    'a_t2': [['rectangle'], ['rectangle'], ['wood'], ['wood']],
+                }
+            ],
+        ])
+
+    async def test_edgeql_links_derived_array_07(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT Item {
+                name,
+                a_a1 := Item.tag_array[{1, 2}:20],
+                a_t2 := [Item.tag_set1, Item.tag_set2][{1, 2}:20],
+            }
+            FILTER .name IN {'ball', 'chair', 'table'}
+            ORDER BY .name;
+        ''')
+
+        # sort the data
+        for result in res[0]:
+            result['a_a1'].sort(key=lambda x: x[0] if x else '')
+            result['a_t2'].sort(key=lambda x: x[0] if x else '')
+
+        self.assert_data_shape(res, [
+            [
+                {
+                    'name': 'ball',
+                    'a_a1': [],  # empty set of arrays
+                    'a_t2': [[], [], [], [],
+                             ['plastic'], ['plastic'], ['round'], ['round']],
+                },
+                {
+                    'name': 'chair',
+                    'a_a1': [[], ['rectangle']],
+                    'a_t2': [],  # empty set of arrays
+                },
+                {
+                    'name': 'table',
+                    'a_a1': [[], ['rectangle']],
+                    'a_t2': [[], [], [], [],
+                             ['rectangle'], ['rectangle'], ['wood'], ['wood']],
+                }
+            ],
+        ])
+
+    async def test_edgeql_links_derived_array_08(self):
+        res = await self.con.execute(r'''
+            WITH MODULE test
+            SELECT Item {
+                name,
+                re := re_match(Item.tag_set1, Item.tag_set2),
+            }
+            FILTER .name IN {'chair', 'table'}
+            ORDER BY .name;
+        ''')
+
+        # sort the data
+        for result in res[0]:
+            result['re'].sort(key=lambda x: x[0] if x else '')
+
+        self.assert_data_shape(res, [
+            [
+                {
+                    'name': 'chair',
+                    're': [],
+                },
+                {
+                    'name': 'table',
+                    're': [['rectangle'], ['wood']],
+                }
+            ],
+        ])
