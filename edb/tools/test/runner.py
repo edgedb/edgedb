@@ -339,6 +339,7 @@ class MultiLineRenderer(BaseRenderer):
 
         self.buffer = collections.defaultdict(str)
         self.last_lines = -1
+        self.max_lines = 0
 
     def report(self, test, marker):
         if marker in {Markers.failed, Markers.errored}:
@@ -355,6 +356,16 @@ class MultiLineRenderer(BaseRenderer):
         return line[:self.first_col_width] + style(line[self.first_col_width:])
 
     def _render(self):
+
+        def print_line(line):
+            if len(line) < cols:
+                line += ' ' * (cols - len(line))
+            lines.append(line)
+
+        def print_empty_line():
+            print_line(' ')
+
+        last_render = self.completed_tests == self.total_tests
         cols, rows = click.get_terminal_size()
         second_col_width = cols - self.first_col_width
 
@@ -384,11 +395,12 @@ class MultiLineRenderer(BaseRenderer):
                 if line[0] != ' ':
                     line = ' ' * self.first_col_width
 
-        if (self.completed_tests != self.total_tests and
+        if (not last_render and
                 self.failed_tests and
                 self.FT_LABEL_LEN <= self.first_col_width and
                 cols - self.first_col_width > 40):
-            lines.append(' ' * cols)
+
+            print_empty_line()
 
             line = (
                 self.FT_LABEL +
@@ -431,11 +443,15 @@ class MultiLineRenderer(BaseRenderer):
             line = self._color_second_column(line, styles.marker_errored)
             lines.append(line)
 
-        lines.append(' ' * cols)
-        lines.append(
+        print_empty_line()
+        print_line(
             f'Progress: {self.completed_tests}/{self.total_tests} tests.')
 
-        if self.completed_tests != self.total_tests:
+        if last_render:
+            if self.max_lines > len(lines):
+                for _ in range(self.max_lines - len(lines)):
+                    lines.insert(0, ' ' * cols)
+        else:
             # If it's not the last test, check if our render buffer
             # requires more rows than currently visible.
             if len(lines) + 1 > rows:
@@ -461,6 +477,7 @@ class MultiLineRenderer(BaseRenderer):
             print('\033[?25h', end='', flush=True, file=self.stream)
 
         self.last_lines = len(lines)
+        self.max_lines = max(self.last_lines, self.max_lines)
 
 
 class ParallelTextTestResult(unittest.result.TestResult):
