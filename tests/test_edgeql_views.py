@@ -349,3 +349,166 @@ class TestEdgeQLViews(tb.QueryTestCase):
                 {'name': 'Imp'},
             ],
         ])
+
+    async def test_edgeql_views_if_else_01(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT
+                _ := 'yes' IF Card.cost > 4 ELSE 'no'
+            ORDER BY _;
+        """, [
+            ['no', 'no', 'no', 'no', 'no', 'no', 'no', 'no', 'yes'],
+        ])
+
+    async def test_edgeql_views_if_else_02(self):
+        await self.assert_query_result(r"""
+            # working with singletons
+            WITH MODULE test
+            SELECT
+                _ := 'ok' IF User.deck_cost < 19 ELSE User.deck.name
+            ORDER BY _;
+
+            # either result is a set, but the condition is a singleton
+            WITH MODULE test
+            SELECT
+                _ := User.deck.element IF User.deck_cost < 19
+                     ELSE User.deck.name
+            ORDER BY _;
+        """, [
+            [
+                'Bog monster',
+                'Djinn',
+                'Dragon',
+                'Giant eagle',
+                'Giant turtle',
+                'Golem',
+                'Sprite',
+                'ok',
+                'ok',
+                'ok',
+            ],
+            [
+                'Air',
+                'Air',
+                'Air',
+                'Bog monster',
+                'Djinn',
+                'Dragon',
+                'Earth',
+                'Earth',
+                'Earth',
+                'Earth',
+                'Fire',
+                'Fire',
+                'Giant eagle',
+                'Giant turtle',
+                'Golem',
+                'Sprite',
+                'Water',
+                'Water',
+                'Water',
+                'Water',
+                'Water',
+                'Water',
+            ],
+        ])
+
+    async def test_edgeql_views_if_else_03(self):
+        res = await self.con.execute(r"""
+            # get the data that this test relies upon in a format
+            # that's easy to analyze
+            WITH MODULE test
+            SELECT _ := User.deck.element
+            ORDER BY _;
+
+            WITH MODULE test
+            SELECT _ := <str>User.deck.cost
+            ORDER BY _;
+
+            WITH MODULE test
+            SELECT _ := {User.name[0] = 'A', EXISTS User.friends}
+            ORDER BY _;
+        """)
+
+        self.assert_data_shape(res, [
+            ['Air', 'Air', 'Air', 'Earth', 'Earth', 'Fire', 'Fire', 'Water',
+             'Water'],
+            ['1', '1', '1', '2', '2', '3', '3', '4', '5'],
+            [False, False, False, True, True],
+        ])
+
+        await self.assert_query_result(r"""
+            # results and conditions are sets
+            WITH MODULE test
+            SELECT _ :=
+                User.deck.element
+                # because the elements of {} are treated as SET OF,
+                # all of the paths in this expression are independent sets
+                IF {User.name[0] = 'A', EXISTS User.friends} ELSE
+                <str>User.deck.cost
+            ORDER BY _;
+        """, [
+            sorted(res[1] + res[1] + res[1] + res[0] + res[0]),
+        ])
+
+    async def test_edgeql_views_if_else_04(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT
+                1   IF User.name[0] = 'A' ELSE
+                10  IF User.name[0] = 'B' ELSE
+                100 IF User.name[0] = 'C' ELSE
+                0;
+
+            WITH MODULE test
+            SELECT (
+                User.name,
+                sum(
+                    1   IF User.friends.name[0] = 'A' ELSE
+                    10  IF User.friends.name[0] = 'B' ELSE
+                    100 IF User.friends.name[0] = 'C' ELSE
+                    0
+                ),
+            ) ORDER BY .0;
+
+        """, [
+            {1, 10, 100, 0},
+            [['Alice', 110], ['Bob', 0], ['Carol', 0], ['Dave', 10]],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_views_if_else_05(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT
+                (Card.name, 'yes' IF Card.cost > 4 ELSE 'no')
+            ORDER BY .0;
+
+            WITH MODULE test
+            SELECT
+                (Card.name, 'yes') IF Card.cost > 4 ELSE (Card.name, 'no')
+            ORDER BY .0;
+        """, [
+            [
+                ['Bog monster', 'no'],
+                ['Djinn', 'no'],
+                ['Dragon', 'yes'],
+                ['Dwarf', 'no'],
+                ['Giant eagle', 'no'],
+                ['Giant turtle', 'no'],
+                ['Golem', 'no'],
+                ['Imp', 'no'],
+                ['Sprite', 'no'],
+            ],
+            [
+                ['Bog monster', 'no'],
+                ['Djinn', 'no'],
+                ['Dragon', 'yes'],
+                ['Dwarf', 'no'],
+                ['Giant eagle', 'no'],
+                ['Giant turtle', 'no'],
+                ['Golem', 'no'],
+                ['Imp', 'no'],
+                ['Sprite', 'no'],
+            ],
+        ])
