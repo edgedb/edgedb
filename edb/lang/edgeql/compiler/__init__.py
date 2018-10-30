@@ -20,7 +20,9 @@
 """EdgeQL to IR compiler."""
 
 
-from edb.lang.edgeql import parser
+from edb.lang.edgeql import errors as ql_errors
+from edb.lang.edgeql import parser as ql_parser
+
 from edb.lang.common import debug
 from edb.lang.common import markup  # NOQA
 
@@ -43,7 +45,7 @@ def compile_fragment_to_ir(expr,
                            location=None,
                            modaliases=None):
     """Compile given EdgeQL expression fragment into EdgeDB IR."""
-    tree = parser.parse_fragment(expr)
+    tree = ql_parser.parse_fragment(expr)
     return compile_ast_fragment_to_ir(
         tree, schema, anchors=anchors,
         location=location, modaliases=modaliases)
@@ -75,7 +77,7 @@ def compile_to_ir(expr,
         debug.header('EdgeQL TEXT')
         debug.print(expr)
 
-    tree = parser.parse(expr, modaliases)
+    tree = ql_parser.parse(expr, modaliases)
 
     return compile_ast_to_ir(
         tree, schema, anchors=anchors,
@@ -137,7 +139,15 @@ def compile_func_to_ir(func, schema, *,
         debug.header('EdgeQL Function')
         debug.print(func.code)
 
-    tree = parser.parse(func.code, modaliases)
+    trees = ql_parser.parse_block(func.code + ';')
+    if len(trees) != 1:
+        raise ql_errors.EdgeQLDefinitionError(
+            'functions can only contain one statement')
+
+    tree = trees[0]
+    if modaliases:
+        ql_parser.append_module_aliases(tree, modaliases)
+
     if anchors is None:
         anchors = {}
 

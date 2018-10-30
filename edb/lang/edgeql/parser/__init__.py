@@ -26,6 +26,20 @@ def parse_fragment(expr):
     return parser.parse(expr)
 
 
+def append_module_aliases(tree, aliases):
+    modaliases = []
+    for alias, module in aliases.items():
+        decl = qlast.ModuleAliasDecl(module=module, alias=alias)
+        modaliases.append(decl)
+
+    if not tree.aliases:
+        tree.aliases = modaliases
+    else:
+        tree.aliases = modaliases + tree.aliases
+
+    return tree
+
+
 def parse(expr, module_aliases=None):
     tree = parse_fragment(expr)
 
@@ -33,15 +47,7 @@ def parse(expr, module_aliases=None):
         tree = qlast.SelectQuery(result=tree)
 
     if module_aliases:
-        modaliases = []
-        for alias, module in module_aliases.items():
-            decl = qlast.ModuleAliasDecl(module=module, alias=alias)
-            modaliases.append(decl)
-
-        if not tree.aliases:
-            tree.aliases = modaliases
-        else:
-            tree.aliases = modaliases + tree.aliases
+        append_module_aliases(tree, module_aliases)
 
     return tree
 

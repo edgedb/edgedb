@@ -34,7 +34,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 NAMED ONLY prefix: str = 'pref-'
             ) -> std::str
                 FROM EdgeQL $$
-                    SELECT prefix + s + <str>sum(array_unpack(a)) + suffix
+                    SELECT prefix + s + <str>sum(array_unpack(a)) + suffix;
                 $$;
         ''')
 
@@ -201,7 +201,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 VARIADIC a: int64
             ) -> int64
                 FROM EdgeQL $$
-                    SELECT <int64>sum(array_unpack(a))
+                    SELECT <int64>sum(array_unpack(a));;
                 $$;
         ''')
 
