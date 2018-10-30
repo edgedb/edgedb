@@ -141,7 +141,7 @@ def compile_func_to_ir(func, schema, *,
 
     trees = ql_parser.parse_block(func.code + ';')
     if len(trees) != 1:
-        raise ql_errors.EdgeQLDefinitionError(
+        raise ql_errors.EdgeQLError(
             'functions can only contain one statement')
 
     tree = trees[0]

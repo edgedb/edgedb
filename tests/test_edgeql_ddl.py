@@ -859,6 +859,16 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     FROM EdgeQL $$ SELECT 1 $$;
             ''')
 
+    async def test_edgeql_ddl_41(self):
+        with self.assertRaisesRegex(
+                client_errors.EdgeQLError,
+                r'functions can only contain one statement'):
+
+            await self.con.execute(r'''
+                CREATE FUNCTION test::ddlf_14(f: int64) -> int64
+                    FROM EdgeQL $$ SELECT 1; SELECT f; $$;
+            ''')
+
     async def test_edgeql_ddl_module_01(self):
         with self.assertRaisesRegex(
                 client_errors.SchemaError,
