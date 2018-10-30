@@ -251,9 +251,10 @@ class SequentialTestSuite(unittest.TestSuite):
         self.stop_requested = False
 
     def run(self, result):
-        server_addr = next(iter(self.server_conns))
-        cluster = edgedb_cluster.RunningCluster(**server_addr)
-        tb._set_default_cluster(cluster)
+        if self.server_conns:
+            server_addr = next(iter(self.server_conns))
+            cluster = edgedb_cluster.RunningCluster(**server_addr)
+            tb._set_default_cluster(cluster)
 
         suite = StreamingTestSuite()
 
