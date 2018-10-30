@@ -296,7 +296,7 @@ class DatabaseTestCase(ConnectedTestCase):
                 with open(val, 'r') as sf:
                     schema = sf.read()
 
-                if module_name != 'test':
+                if module_name != 'test' and module_name != 'default':
                     script += f'\nCREATE MODULE {module_name};'
 
                 script += f'\nCREATE MIGRATION {module_name}::d1'

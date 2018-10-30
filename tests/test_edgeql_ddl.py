@@ -858,3 +858,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE FUNCTION test::ddlf_13(f: std::any) -> int64
                     FROM EdgeQL $$ SELECT 1 $$;
             ''')
+
+    async def test_edgeql_ddl_module_01(self):
+        with self.assertRaisesRegex(
+                client_errors.SchemaError,
+                r"module 'spam' already exists",
+                position=20):
+
+            await self.query('''\
+                CREATE MODULE spam;
+                CREATE MODULE spam;
+            ''')

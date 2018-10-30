@@ -67,7 +67,7 @@ class Schema(TypeContainer):
         self._policy_schema = None
 
     def get_module(self, module):
-        return self.modules[module]
+        return self.modules.get(module)
 
     def get_modules(self):
         return self.modules.values()

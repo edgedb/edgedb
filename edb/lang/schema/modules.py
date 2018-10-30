@@ -265,6 +265,10 @@ class CreateModule(named.CreateNamedObject, ModuleCommand):
         props = self.get_struct_properties(schema)
         metaclass = self.get_schema_metaclass()
         self.module = metaclass(**props)
+        if schema.get_module(self.module.name) is not None:
+            raise s_err.SchemaError(
+                f'module {self.module.name!r} already exists',
+                context=self.source_context)
         schema.add_module(self.module)
         return self.module
 
