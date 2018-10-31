@@ -35,6 +35,11 @@ class Node(inheriting.InheritingObject, s_types.Type):
             t = t.bases[0]
         return t
 
+    def derive_subtype(self, schema, *, name: str) -> s_types.Type:
+        st = type(self)(name=name, bases=[self])
+        st.acquire_ancestor_inheritance(schema)
+        return st
+
     def peel_view(self):
         if self.is_view():
             return self.bases[0]

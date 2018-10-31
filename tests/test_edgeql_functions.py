@@ -393,17 +393,41 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT [10, 20];
             SELECT array_enumerate([10,20]);
             SELECT array_enumerate([10,20]).1 + 100;
+            SELECT array_enumerate([10,20]).index + 100;
         ''', [
             [[10, 20]],
-            [[10, 0], [20, 1]],
+            [{"element": 10, "index": 0}, {"element": 20, "index": 1}],
+            [100, 101],
             [100, 101],
         ])
 
     async def test_edgeql_functions_array_enumerate_02(self):
         await self.assert_query_result(r'''
             SELECT array_enumerate([10,20]).0 + 100;
+            SELECT array_enumerate([10,20]).element + 1000;
         ''', [
             [110, 120],
+            [1010, 1020],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_functions_array_enumerate_03(self):
+        await self.assert_query_result(r'''
+            SELECT array_enumerate([(x:=1)]).0;
+            SELECT array_enumerate([(x:=1)]).0.x;
+
+            SELECT array_enumerate([(x:=(a:=2))]).0;
+            SELECT array_enumerate([(x:=(a:=2))]).0.x;
+
+            SELECT array_enumerate([(x:=(a:=2))]).0.x.a;
+        ''', [
+            [{"x": 1}],
+            [1],
+
+            [{"x": {"a": 2}}],
+            [{"a": 2}],
+
+            [2],
         ])
 
     async def test_edgeql_functions_array_get_01(self):
@@ -471,6 +495,27 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [2],
             [4200],
             [4200],
+        ])
+
+    async def test_edgeql_functions_array_get_06(self):
+        await self.assert_query_result(r'''
+            SELECT array_get([(20,), (30,)], 0);
+            SELECT array_get([(a:=20), (a:=30)], 1);
+
+            SELECT array_get([(20,), (30,)], 0).0;
+            SELECT array_get([(a:=20), (a:=30)], 1).0;
+
+            SELECT array_get([(a:=20, b:=1), (a:=30, b:=2)], 0).a;
+            SELECT array_get([(a:=20, b:=1), (a:=30, b:=2)], 1).b;
+        ''', [
+            [[20]],
+            [{'a': 30}],  # XXX
+
+            [20],
+            [30],
+
+            [20],
+            [2],
         ])
 
     async def test_edgeql_functions_re_match_01(self):

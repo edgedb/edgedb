@@ -22,6 +22,7 @@
 import typing
 
 from edb.lang.ir import ast as irast
+
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import types as s_types
 
@@ -29,6 +30,34 @@ from edb.server.pgsql import ast as pgast
 from edb.server.pgsql import types as pgtypes
 
 from . import context
+from . import typecomp
+
+
+def named_tuple_as_json_object(expr, *, stype, env):
+    assert stype.is_tuple() and stype.named
+
+    keyvals = []
+    for el_idx, (el_name, el_type) in enumerate(stype.iter_subtypes()):
+        keyvals.append(pgast.StringConstant(val=el_name))
+
+        type_sentinel = typecomp.cast(
+            pgast.NullConstant(),
+            source_type=el_type, target_type=el_type, force=True,
+            env=env)
+
+        val = pgast.FuncCall(
+            name=('edgedb', 'row_getattr_by_num'),
+            args=[
+                expr,
+                pgast.NumericConstant(val=str(el_idx + 1)),
+                type_sentinel
+            ])
+
+        keyvals.append(val)
+
+    return pgast.FuncCall(
+        name=('jsonb_build_object',),
+        args=keyvals, null_safe=True, nullable=expr.nullable)
 
 
 def tuple_var_as_json_object(tvar, *, path_id, env):
@@ -113,10 +142,14 @@ def serialize_expr_to_json(
             name=('jsonb_build_array',), args=expr.args,
             null_safe=True)
 
-    elif isinstance(path_id.target, s_types.Tuple):
-        val = pgast.FuncCall(
-            name=('edgedb', 'row_to_jsonb_array',), args=[expr],
-            null_safe=True)
+    elif path_id.target.is_tuple():
+        if path_id.target.named:
+            val = named_tuple_as_json_object(
+                expr, stype=path_id.target, env=env)
+        else:
+            val = pgast.FuncCall(
+                name=('edgedb', 'row_to_jsonb_array',), args=[expr],
+                null_safe=True)
 
     elif not nested:
         val = pgast.FuncCall(

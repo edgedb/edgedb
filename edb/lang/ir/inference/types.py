@@ -39,8 +39,7 @@ from edb.lang.ir import ast as irast
 def amend_empty_set_type(es: irast.EmptySet, t: s_obj.Object, schema) -> None:
     alias = es.path_id.target.name.name
     scls_name = s_name.Name(module='__expr__', name=alias)
-    scls = t.__class__(name=scls_name, bases=[t])
-    scls.acquire_ancestor_inheritance(schema)
+    scls = t.derive_subtype(schema, name=scls_name)
     es.path_id = irast.PathId(scls)
     es.scls = t
 
@@ -441,7 +440,7 @@ def __infer_struct(ir, schema):
 @_infer_type.register(irast.TupleIndirection)
 def __infer_struct_indirection(ir, schema):
     struct_type = infer_type(ir.expr, schema)
-    result = struct_type.element_types.get(ir.name)
+    result = struct_type.get_subtype(ir.name)
     if result is None:
         raise ql_errors.EdgeQLError('could not determine struct element type',
                                     context=ir.context)

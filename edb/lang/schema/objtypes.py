@@ -39,6 +39,9 @@ class SourceNode(sources.Source, nodes.Node):
 class ObjectType(SourceNode, constraints.ConsistencySubject):
     _type = 'ObjectType'
 
+    def is_object_type(self):
+        return True
+
     def materialize_policies(self, schema):
         bases = self.bases
 

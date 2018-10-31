@@ -53,8 +53,14 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
     # rptr will contain the inbound pointer class.
     rptr = so.Field(so.Object, default=None, compcoef=0.909)
 
+    def derive_subtype(self, schema, *, name: str) -> 'Type':
+        raise NotImplementedError
+
     def is_type(self):
         return True
+
+    def is_object_type(self):
+        return False
 
     def is_polymorphic(self):
         return False
@@ -298,6 +304,12 @@ class Array(Collection):
     def get_container(self):
         return tuple
 
+    def derive_subtype(self, schema, *, name: str) -> Type:
+        return Array.from_subtypes(
+            self.element_type,
+            self.get_typemods(),
+            name=name)
+
     def get_subtypes(self):
         return (self.element_type,)
 
@@ -365,7 +377,7 @@ class Array(Collection):
         return self.element_type.test_polymorphic(other.element_type)
 
     @classmethod
-    def from_subtypes(cls, subtypes, typemods=None):
+    def from_subtypes(cls, subtypes, typemods=None, *, name=None):
         if len(subtypes) != 1:
             raise s_err.SchemaError(
                 f'unexpected number of subtypes, expecting 1: {subtypes!r}')
@@ -389,7 +401,7 @@ class Array(Collection):
             element_type = stype
             dimensions = []
 
-        return cls(element_type=element_type, dimensions=dimensions)
+        return cls(element_type=element_type, dimensions=dimensions, name=name)
 
     def __hash__(self):
         return hash((
@@ -422,14 +434,61 @@ class Tuple(Collection):
     def get_container(self):
         return dict
 
+    def iter_subtypes(self):
+        yield from self.element_types.items()
+
+    def normalize_index(self, field: str) -> str:
+        if self.named and field.isdecimal():
+            idx = int(field)
+            if idx >= 0 and idx < len(self.element_types):
+                return list(self.element_types.keys())[idx]
+            else:
+                raise s_err.ItemNotFoundError(
+                    f'{field} is not a member of {self.displayname}')
+
+        return field
+
+    def index_of(self, field: str) -> int:
+        if field.isdecimal():
+            idx = int(field)
+            if idx >= 0 and idx < len(self.element_types):
+                if self.named:
+                    return list(self.element_types.keys()).index(field)
+                else:
+                    return idx
+        elif self.named and field in self.element_types:
+            return list(self.element_types.keys()).index(field)
+
+        raise s_err.ItemNotFoundError(
+            f'{field} is not a member of {self.displayname}')
+
+    def get_subtype(self, field: str) -> Type:
+        # index can be a name or a position
+        if field.isdecimal():
+            idx = int(field)
+            if idx >= 0 and idx < len(self.element_types):
+                return list(self.element_types.values())[idx]
+
+        elif self.named and field in self.element_types:
+            return self.element_types[field]
+
+        raise s_err.ItemNotFoundError(
+            f'{field} is not a member of {self.displayname}')
+
     def get_subtypes(self):
         if self.element_types:
             return list(self.element_types.values())
         else:
             return []
 
+    def derive_subtype(self, schema, *, name: str) -> Type:
+        return Tuple.from_subtypes(
+            self.element_types,
+            self.get_typemods(),
+            name=name)
+
     @classmethod
-    def from_subtypes(cls, subtypes, typemods=None):
+    def from_subtypes(cls, subtypes, typemods=None, *, name: str=None):
         named = False
         if typemods is not None:
             named = typemods.get('named', False)
@@ -441,7 +500,7 @@ class Tuple(Collection):
         else:
             types = subtypes
 
-        return cls(element_types=types, named=named)
+        return cls(element_types=types, named=named, name=name)
 
     def implicitly_castable_to(self, other: Type, schema) -> bool:
         if not other.is_tuple():
