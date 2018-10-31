@@ -2675,7 +2675,7 @@ aa';
 
     def test_edgeql_syntax_ddl_aggregate_08(self):
         """
-        CREATE FUNCTION std::count(expression: SET OF any)
+        CREATE FUNCTION std::count(expression: SET OF anytype)
             -> std::int64 {
             INITIAL VALUE 0;
             FROM SQL FUNCTION 'count';
@@ -2690,10 +2690,10 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected 'any'", line=2, col=28)
+                  "Unexpected 'anytype'", line=2, col=28)
     def test_edgeql_syntax_ddl_scalar_02(self):
         """
-        CREATE SCALAR TYPE any EXTENDING int64;
+        CREATE SCALAR TYPE anytype EXTENDING int64;
         """
 
     def test_edgeql_syntax_ddl_attribute_01(self):
@@ -2784,7 +2784,7 @@ aa';
 
     def test_edgeql_syntax_ddl_constraint_01(self):
         """
-        CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC p: any)
+        CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC p: anytype)
             EXTENDING std::constraint
         {
             SET errmessage := '{subject} must be one of: {p}.';
@@ -2794,7 +2794,7 @@ aa';
 
     def test_edgeql_syntax_ddl_constraint_02(self):
         """
-        CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC p: any) {
+        CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC p: anytype) {
             SET errmessage := '{subject} must be one of: {$p}.';
             SET expr := array_contains($p, __subject__);
         };

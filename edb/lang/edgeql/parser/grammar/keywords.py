@@ -117,7 +117,7 @@ reserved_keywords = future_reserved_keywords | frozenset([
     "__type__",
     "alter",
     "and",
-    "any",
+    "anytype",
     "commit",
     "create",
     "delete",

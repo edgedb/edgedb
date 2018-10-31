@@ -402,7 +402,7 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
                 f'not yet supported',
                 context=self.source_context)
 
-        # check that params of type 'any' don't have defaults
+        # check that params of type 'anytype' don't have defaults
         for p in params:
             if p.default is None:
                 continue

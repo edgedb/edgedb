@@ -92,18 +92,18 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                                     r'cannot create test::my_lower.*func'):
 
             await self.con.execute("""
-                CREATE FUNCTION test::my_lower(s: SET OF any)
+                CREATE FUNCTION test::my_lower(s: SET OF anytype)
                     -> std::str {
                     INITIAL VALUE '';
                     FROM SQL FUNCTION 'count';
                 };
 
-                CREATE FUNCTION test::my_lower(s: any) -> std::str
+                CREATE FUNCTION test::my_lower(s: anytype) -> std::str
                     FROM SQL FUNCTION 'lower';
             """)
 
         await self.con.execute("""
-            DROP FUNCTION test::my_lower(s: any);
+            DROP FUNCTION test::my_lower(s: anytype);
         """)
 
     async def test_edgeql_ddl_06(self):
@@ -520,10 +520,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_20(self):
         with self.assertRaisesRegex(
                 client_errors.EdgeQLError,
-                r'cannot create test::my_agg.*function:.+any.+cannot '
+                r'cannot create test::my_agg.*function:.+anytype.+cannot '
                 r'have a non-empty default'):
             await self.con.execute(r"""
-                CREATE FUNCTION test::my_agg(s: any = [1]) -> array<any>
+                CREATE FUNCTION test::my_agg(
+                        s: anytype = [1]) -> array<anytype>
                     FROM SQL FUNCTION "my_agg";
             """)
 
@@ -808,15 +809,15 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute(r'''
                 CREATE FUNCTION test::ddlf_10(
-                        a: any, b: int64) -> OPTIONAL int64
+                        a: anytype, b: int64) -> OPTIONAL int64
                     FROM EdgeQL $$ SELECT 11 $$;
 
-                CREATE FUNCTION test::ddlf_10(a: any, b: float64) -> str
+                CREATE FUNCTION test::ddlf_10(a: anytype, b: float64) -> str
                     FROM EdgeQL $$ SELECT '12' $$;
             ''')
 
         await self.con.execute("""
-            DROP FUNCTION test::ddlf_10(a: any, b: int64);
+            DROP FUNCTION test::ddlf_10(a: anytype, b: int64);
         """)
 
     async def test_edgeql_ddl_38(self):
@@ -845,17 +846,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r'polymorphic parameters'):
 
             await self.con.execute(r'''
-                CREATE FUNCTION test::ddlf_12(str: std::str) -> any
+                CREATE FUNCTION test::ddlf_12(str: std::str) -> anytype
                     FROM EdgeQL $$ SELECT 1 $$;
             ''')
 
     async def test_edgeql_ddl_40(self):
         with self.assertRaisesRegex(
                 client_errors.SchemaError,
-                r'reference to a non-existent schema item: std::any'):
+                r'reference to a non-existent schema item: std::anytype'):
 
             await self.con.execute(r'''
-                CREATE FUNCTION test::ddlf_13(f: std::any) -> int64
+                CREATE FUNCTION test::ddlf_13(f: std::anytype) -> int64
                     FROM EdgeQL $$ SELECT 1 $$;
             ''')
 

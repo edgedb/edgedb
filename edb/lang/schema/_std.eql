@@ -86,26 +86,26 @@ CREATE FUNCTION std::sum(s: SET OF std::float64) -> std::float64 {
     FROM SQL FUNCTION 'sum';
 };
 
-CREATE FUNCTION std::count(s: SET OF any) -> std::int64 {
+CREATE FUNCTION std::count(s: SET OF anytype) -> std::int64 {
     INITIAL VALUE 0;
     FROM SQL FUNCTION 'count';
 };
 
-CREATE FUNCTION std::array_agg(s: SET OF any) -> array<any> {
+CREATE FUNCTION std::array_agg(s: SET OF anytype) -> array<anytype> {
     INITIAL VALUE [];
     FROM SQL FUNCTION 'array_agg';
 };
 
-CREATE FUNCTION std::is_distinct(s: SET OF any) -> std::bool {
+CREATE FUNCTION std::is_distinct(s: SET OF anytype) -> std::bool {
     INITIAL VALUE True;
     FROM SQL FUNCTION '--system--';
 };
 
-CREATE FUNCTION std::array_unpack(array: array<any>) -> SET OF any
+CREATE FUNCTION std::array_unpack(array: array<anytype>) -> SET OF anytype
     FROM SQL FUNCTION '--system--';
 
-CREATE FUNCTION std::array_contains(array: array<any>,
-                                    what: any) -> std::bool
+CREATE FUNCTION std::array_contains(array: array<anytype>,
+                                    what: anytype) -> std::bool
     FROM SQL $$
         SELECT
             CASE
@@ -114,14 +114,14 @@ CREATE FUNCTION std::array_contains(array: array<any>,
             END;
     $$;
 
-CREATE FUNCTION std::array_enumerate(array: array<any>) ->
-        SET OF tuple<element:any, index:std::int64>
+CREATE FUNCTION std::array_enumerate(array: array<anytype>) ->
+        SET OF tuple<element:anytype, index:std::int64>
     FROM SQL FUNCTION '--system--';
 
-CREATE FUNCTION std::array_get(array: array<any>,
+CREATE FUNCTION std::array_get(array: array<anytype>,
                                idx: std::int64,
-                               NAMED ONLY default: OPTIONAL any={})
-        -> OPTIONAL any
+                               NAMED ONLY default: OPTIONAL anytype={})
+        -> OPTIONAL anytype
     FROM SQL $$
         SELECT COALESCE(
             "array"[
@@ -142,7 +142,7 @@ CREATE FUNCTION std::len(bytes: std::bytes) -> std::int64
         SELECT length("bytes")::bigint
     $$;
 
-CREATE FUNCTION std::len(array: array<any>) -> std::int64
+CREATE FUNCTION std::len(array: array<anytype>) -> std::int64
     FROM SQL $$
         SELECT COALESCE(array_length("array", 1), 0)::bigint
     $$;
@@ -235,28 +235,28 @@ CREATE ABSTRACT CONSTRAINT std::expression
     SET expr := __subject__;
 };
 
-CREATE ABSTRACT CONSTRAINT std::max(max: any)
+CREATE ABSTRACT CONSTRAINT std::max(max: anytype)
         EXTENDING std::constraint
 {
     SET errmessage := 'Maximum allowed value for {__subject__} is {max}.';
     SET expr := __subject__ <= max;
 };
 
-CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC vals: any)
+CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC vals: anytype)
         EXTENDING std::constraint
 {
     SET errmessage := '{__subject__} must be one of: {vals}.';
     SET expr := array_contains(vals, __subject__);
 };
 
-CREATE ABSTRACT CONSTRAINT std::min(min: any)
+CREATE ABSTRACT CONSTRAINT std::min(min: anytype)
         EXTENDING std::constraint
 {
     SET errmessage := 'Minimum allowed value for {__subject__} is {min}.';
     SET expr := __subject__ >= min;
 };
 
-CREATE ABSTRACT CONSTRAINT std::minexclusive(min: any)
+CREATE ABSTRACT CONSTRAINT std::minexclusive(min: anytype)
         EXTENDING std::min
 {
     SET errmessage := '{__subject__} must be greater than {min}.';
@@ -275,7 +275,7 @@ CREATE ABSTRACT CONSTRAINT std::minlength(min: std::int64)
     SET errmessage := '{__subject__} must be no shorter than {min} characters.';
 };
 
-CREATE ABSTRACT CONSTRAINT std::regexp(pattern: any)
+CREATE ABSTRACT CONSTRAINT std::regexp(pattern: anytype)
         EXTENDING std::constraint
 {
     SET errmessage := 'invalid {__subject__}';
@@ -288,7 +288,7 @@ CREATE ABSTRACT CONSTRAINT std::maxlength(max: std::int64)
     SET errmessage := '{__subject__} must be no longer than {max} characters.';
 };
 
-CREATE ABSTRACT CONSTRAINT std::maxexclusive(max: any)
+CREATE ABSTRACT CONSTRAINT std::maxexclusive(max: anytype)
         EXTENDING std::max
 {
     SET errmessage := '{__subject__} must be less than {max}.';

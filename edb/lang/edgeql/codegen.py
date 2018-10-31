@@ -578,8 +578,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(' ORDER BY ')
             self.visit_list(node.sort, separator=' THEN')
 
-    def visit_Any(self, node):
-        self.write('any')
+    def visit_AnyType(self, node):
+        self.write('anytype')
 
     def visit_TypeCast(self, node):
         self.write('<')

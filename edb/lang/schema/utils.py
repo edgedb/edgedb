@@ -80,7 +80,7 @@ def ast_to_typeref(
                 e.set_source_context(node.context)
                 raise e
 
-    elif isinstance(node.maintype, ql_ast.Any):
+    elif isinstance(node.maintype, ql_ast.AnyType):
         from . import pseudo as s_pseudo
         return s_pseudo.AnyObjectRef()
 

@@ -31,10 +31,10 @@ class PseudoType(inheriting.InheritingObject, s_types.Type):
 
 class Any(PseudoType):
 
-    name = so.Field(str, default='any', inheritable=False, compcoef=0.670)
-    schema_name = 'any'
+    name = so.Field(str, default='anytype', inheritable=False, compcoef=0.670)
+    schema_name = 'anytype'
 
-    def __init__(self, *, name='any', **kwargs):
+    def __init__(self, *, name='anytype', **kwargs):
         super().__init__(name=name, **kwargs)
 
     def is_any(self):
@@ -62,7 +62,7 @@ class Any(PseudoType):
             return self
 
     def _reduce_to_ref(self):
-        return AnyObjectRef(), 'any'
+        return AnyObjectRef(), 'anytype'
 
     def __hash__(self):
         return hash((
@@ -76,7 +76,7 @@ class Any(PseudoType):
 
 
 class AnyObjectRef(so.ObjectRef):
-    classname = so.Field(str, default='any', coerce=True)
+    classname = so.Field(str, default='anytype', coerce=True)
 
     def _resolve_ref(self, resolve):
         return Any()

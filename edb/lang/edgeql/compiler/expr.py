@@ -707,7 +707,7 @@ def compile_set_op(
 
 def compile_distinct_op(
         expr: qlast.UnaryOp, *, ctx: context.ContextLevel) -> irast.DistinctOp:
-    # DISTINCT(SET OF any A) -> SET OF any
+    # DISTINCT(SET OF anytype A) -> SET OF anytype
     with ctx.newscope(fenced=True) as scopectx:
         operand = setgen.scoped_set(
             dispatch.compile(expr.operand, ctx=scopectx), ctx=scopectx)
@@ -717,14 +717,14 @@ def compile_distinct_op(
 def compile_equivalence_op(
         expr: qlast.BinOp, *,
         ctx: context.ContextLevel) -> irast.EquivalenceOp:
-    # A ?= B ≣ EQUIV(OPTIONAL any A, OPTIONAL any B) -> std::bool
+    # A ?= B ≣ EQUIV(OPTIONAL anytype A, OPTIONAL anytype B) -> std::bool
     # Definition:
     #   | {a = b | ∀ (a, b) ∈ A ⨯ B}, iff A != ∅ ∧ B != ∅
     #   | {True}, iff A = B = ∅
     #   | {False}, iff A != ∅ ∧ B = ∅
     #   | {False}, iff A = ∅ ∧ B != ∅
     #
-    # A ?!= B ≣ NEQUIV(OPTIONAL any A, OPTIONAL any B) -> std::bool
+    # A ?!= B ≣ NEQUIV(OPTIONAL anytype A, OPTIONAL anytype B) -> std::bool
     # Definition:
     #   | {a != b | ∀ (a, b) ∈ A ⨯ B}, iff A != ∅ ∧ B != ∅
     #   | {False}, iff A = B = ∅

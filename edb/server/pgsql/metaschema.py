@@ -1527,8 +1527,8 @@ def make_register_any_command():
 
     rec = pseudo_type_table.record
     rec.mro = None
-    rec.id = s_obj.get_known_type_id('any')
-    rec.name = 'any'
+    rec.id = s_obj.get_known_type_id('anytype')
+    rec.name = 'anytype'
 
     return dbops.Insert(table=pseudo_type_table, records=[rec])
 

@@ -603,7 +603,7 @@ scalar type constraint_length extending str:
     def test_eschema_syntax_constraint_01(self):
         """
 # Test empty tuple as subject expression
-abstract constraint max(param:any) on (()):
+abstract constraint max(param:anytype) on (()):
     expr := __subject__ <= $param
     errmessage := 'Maximum allowed value for {subject} is {$param}.'
 
@@ -620,20 +620,20 @@ delegated constraint length:
 
     def test_eschema_syntax_constraint_03(self):
         """
-abstract constraint maxlength(param:any) extending max, length:
+abstract constraint maxlength(param:anytype) extending max, length:
     errmessage := '{subject} must be no longer than {$param} characters.'
         """
 
     def test_eschema_syntax_constraint_04(self):
         """
-abstract constraint max(param:any):
+abstract constraint max(param:anytype):
     expr := __subject__ <= $param
     errmessage := 'Maximum allowed value for {subject} is {$param}.'
 
 abstract constraint length:
     subject := str::len(<str>__subject__)
 
-abstract constraint maxlength(param:any) extending max, length:
+abstract constraint maxlength(param:anytype) extending max, length:
     errmessage := '{subject} must be no longer than {$param} characters.'
         """
 

@@ -311,8 +311,8 @@ class TypeDescNode(_TypeDescNode):
     def _get_id(cls, data):
         if data['collection'] == 'tuple' and not data['subtypes']:
             return s_obj.get_known_type_id('empty-tuple')
-        if data['name'] == 'any':
-            return s_obj.get_known_type_id('any')
+        if data['name'] == 'anytype':
+            return s_obj.get_known_type_id('anytype')
 
         s = (
             f"{data['maintype']!r}\x00{data['name']!r}\x00"
@@ -394,7 +394,7 @@ class TypeDesc:
                     subtypes=subtypes, dimensions=dimensions, is_root=is_root)
             elif t.is_type() and t.is_any():
                 desc = TypeDescNode(
-                    maintype='any', name=tn, collection=None,
+                    maintype='anytype', name=tn, collection=None,
                     subtypes=[], dimensions=[], is_root=is_root)
             else:
                 desc = TypeDescNode(

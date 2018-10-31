@@ -365,7 +365,7 @@ def try_bind_func_args(
                     if param.type.is_any():
                         if resolved_poly_base_type is None:
                             raise errors.EdgeQLError(
-                                f'could not resolve "any" type for the '
+                                f'could not resolve "anytype" type for the '
                                 f'${param.name} parameter')
                         else:
                             default_type = resolved_poly_base_type

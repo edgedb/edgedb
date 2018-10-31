@@ -82,8 +82,8 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
 
         Examples:
 
-            - `array<anyscalar>`.test_polymorphic(`array<any>`) -> True
-            - `array<str>`.test_polymorphic(`array<any>`) -> True
+            - `array<anyscalar>`.test_polymorphic(`array<anytype>`) -> True
+            - `array<str>`.test_polymorphic(`array<anytype>`) -> True
             - `array<int64>`.test_polymorphic(`anyscalar`) -> False
             - `float32`.test_polymorphic(`anyint`) -> False
             - `int32`.test_polymorphic(`anyint`) -> True
@@ -102,8 +102,8 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
 
         Examples:
 
-            - `array<any>`.resolve_polymorphic(`array<int>`) -> `int`
-            - `array<any>`.resolve_polymorphic(`tuple<int>`) -> None
+            - `array<anytype>`.resolve_polymorphic(`array<int>`) -> `int`
+            - `array<anytype>`.resolve_polymorphic(`tuple<int>`) -> None
         """
         if not self.is_polymorphic() or other.is_polymorphic():
             return None
@@ -114,8 +114,8 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
         """Produce an non-polymorphic version of self.
 
         Example:
-            `array<any>`.to_nonpolymorphic(`int`) -> `array<int>`
-            `tuple<int, any>`.to_nonpolymorphic(`str`) -> `tuple<int, str>`
+            `array<anytype>`.to_nonpolymorphic(`int`) -> `array<int>`
+            `tuple<int, anytype>`.to_nonpolymorphic(`str`) -> `tuple<int, str>`
         """
         if not self.is_polymorphic():
             raise TypeError('non-polymorphic type')

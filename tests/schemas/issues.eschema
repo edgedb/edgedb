@@ -125,5 +125,5 @@ type Publication:
     required property title -> str
 
 
-abstract constraint my_enum(enum: array<any>):
+abstract constraint my_enum(enum: array<anytype>):
     expr := array_contains($enum, __subject__)

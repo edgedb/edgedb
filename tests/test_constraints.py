@@ -977,7 +977,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
     async def test_constraints_ddl_error_03(self):
         # testing various incorrect alter constraint DDL commands
         qry = """
-            CREATE ABSTRACT CONSTRAINT test::foo_alter(a: any) {
+            CREATE ABSTRACT CONSTRAINT test::foo_alter(a: anytype) {
                 SET errmessage := 'foo';
                 SET expr := __subject__ = a;
             };
@@ -1042,7 +1042,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
     async def test_constraints_ddl_error_04(self):
         # testing various incorrect DELETE constraint DDL commands
         qry = """
-            CREATE ABSTRACT CONSTRAINT test::foo_drop(f: any) ON
+            CREATE ABSTRACT CONSTRAINT test::foo_drop(f: anytype) ON
                     (len(__subject__))
             {
                 SET errmessage := 'foo';

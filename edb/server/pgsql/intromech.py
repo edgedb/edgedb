@@ -436,7 +436,7 @@ class IntrospectionMech:
 
             scls = coll_type.from_subtypes(st, typemods=typemods)
 
-        elif t['maintype'] == 'any':
+        elif t['maintype'] == 'anytype':
             scls = s_pseudo.Any()
 
         else:

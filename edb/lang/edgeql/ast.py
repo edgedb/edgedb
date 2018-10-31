@@ -185,7 +185,7 @@ class ObjectRef(BaseObjectRef):
     module: str
 
 
-class Any(BaseObjectRef):
+class AnyType(BaseObjectRef):
     pass
 
 

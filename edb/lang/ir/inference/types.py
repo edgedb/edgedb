@@ -328,7 +328,7 @@ def __infer_slice(ir, schema):
     elif isinstance(node_type, s_types.Array):
         base_name = 'array'
     elif node_type.is_any():
-        base_name = 'any'
+        base_name = 'anytype'
     else:
         # the base type is not valid
         raise ql_errors.EdgeQLError(

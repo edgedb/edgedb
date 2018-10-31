@@ -78,7 +78,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
     async def test_edgeql_calls_02(self):
         await self.con.execute('''
             CREATE FUNCTION test::call2(
-                VARIADIC a: any
+                VARIADIC a: anytype
             ) -> std::str
                 FROM EdgeQL $$
                     SELECT '=' + <str>len(a) + '='
@@ -96,7 +96,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
 
         finally:
             await self.con.execute('''
-                DROP FUNCTION test::call2(VARIADIC a: any);
+                DROP FUNCTION test::call2(VARIADIC a: anytype);
             ''')
 
     async def test_edgeql_calls_03(self):
@@ -137,7 +137,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         await self.con.execute('''
             CREATE FUNCTION test::call4(
                 a: int32,
-                NAMED ONLY b: array<any> = []
+                NAMED ONLY b: array<anytype> = []
             ) -> int32
                 FROM EdgeQL $$
                     SELECT a + len(b)
@@ -160,7 +160,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             await self.con.execute('''
                 DROP FUNCTION test::call4(
                     a: int32,
-                    NAMED ONLY b: array<any>
+                    NAMED ONLY b: array<anytype>
                 );
             ''')
 
@@ -465,7 +465,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
     async def test_edgeql_calls_13(self):
         await self.con.execute('''
             CREATE FUNCTION test::call13(
-                a: any
+                a: anytype
             ) -> int64
                 FROM EdgeQL $$
                     SELECT len(a)
@@ -488,15 +488,15 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         finally:
             await self.con.execute('''
                 DROP FUNCTION test::call13(
-                    a: any
+                    a: anytype
                 );
             ''')
 
     async def test_edgeql_calls_14(self):
         await self.con.execute('''
             CREATE FUNCTION test::call14(
-                a: any
-            ) -> array<any>
+                a: anytype
+            ) -> array<anytype>
                 FROM EdgeQL $$
                     SELECT [a]
                 $$;
@@ -516,15 +516,15 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         finally:
             await self.con.execute('''
                 DROP FUNCTION test::call14(
-                    a: any
+                    a: anytype
                 );
             ''')
 
     async def test_edgeql_calls_15(self):
         await self.con.execute('''
             CREATE FUNCTION test::call15(
-                a: any
-            ) -> array<any>
+                a: anytype
+            ) -> array<anytype>
                 FROM EdgeQL $$
                     SELECT [a, a, a]
                 $$;
@@ -542,24 +542,24 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         finally:
             await self.con.execute('''
                 DROP FUNCTION test::call15(
-                    a: any
+                    a: anytype
                 );
             ''')
 
     async def test_edgeql_calls_16(self):
         await self.con.execute('''
             CREATE FUNCTION test::call16(
-                a: array<any>,
+                a: array<anytype>,
                 idx: int64
-            ) -> any
+            ) -> anytype
                 FROM EdgeQL $$
                     SELECT a[idx]
                 $$;
 
             CREATE FUNCTION test::call16(
-                a: array<any>,
+                a: array<anytype>,
                 idx: str
-            ) -> any
+            ) -> anytype
                 FROM EdgeQL $$
                     SELECT a[<int64>idx + 1]
                 $$;
@@ -567,7 +567,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::call16(
                 a: anyscalar,
                 idx: int64
-            ) -> any
+            ) -> anytype
                 FROM EdgeQL $$
                     SELECT a[idx]
                 $$;
@@ -595,11 +595,11 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         finally:
             await self.con.execute('''
                 DROP FUNCTION test::call16(
-                    a: array<any>,
+                    a: array<anytype>,
                     idx: int64
                 );
                 DROP FUNCTION test::call16(
-                    a: array<any>,
+                    a: array<anytype>,
                     idx: str
                 );
                 DROP FUNCTION test::call16(
@@ -611,8 +611,8 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
     async def test_edgeql_calls_17(self):
         await self.con.execute('''
             CREATE FUNCTION test::call17(
-                a: any
-            ) -> array<any>
+                a: anytype
+            ) -> array<anytype>
                 FROM EdgeQL $$
                     SELECT [a, a, a]
                 $$;
@@ -637,7 +637,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         finally:
             await self.con.execute('''
                 DROP FUNCTION test::call17(
-                    a: any
+                    a: anytype
                 );
                 DROP FUNCTION test::call17(
                     a: str
@@ -647,7 +647,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
     async def test_edgeql_calls_18(self):
         await self.con.execute('''
             CREATE FUNCTION test::call18(
-                VARIADIC a: any
+                VARIADIC a: anytype
             ) -> int64
                 FROM EdgeQL $$
                     SELECT len(a)
@@ -674,7 +674,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         finally:
             await self.con.execute('''
                 DROP FUNCTION test::call18(
-                    VARIADIC a: any
+                    VARIADIC a: anytype
                 );
             ''')
 
@@ -685,8 +685,8 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
 
         await self.con.execute('''
             CREATE FUNCTION test::call19(
-                a: any
-            ) -> array<any>
+                a: anytype
+            ) -> array<anytype>
                 FROM EdgeQL $$
                     SELECT [a]
                 $$;
@@ -698,21 +698,21 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         finally:
             await self.con.execute('''
                 DROP FUNCTION test::call19(
-                    a: any
+                    a: anytype
                 );
             ''')
 
     async def test_edgeql_calls_20(self):
         await self.con.execute('''
             CREATE FUNCTION test::call20_1(
-                a: any, b: any
-            ) -> any
+                a: anytype, b: anytype
+            ) -> anytype
                 FROM EdgeQL $$
                     SELECT a + b
                 $$;
 
             CREATE FUNCTION test::call20_2(
-                a: any, b: any
+                a: anytype, b: anytype
             ) -> bool
                 FROM EdgeQL $$
                     SELECT a < b
@@ -741,17 +741,17 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         finally:
             await self.con.execute('''
                 DROP FUNCTION test::call20_1(
-                    a: any, b: any
+                    a: anytype, b: anytype
                 );
                 DROP FUNCTION test::call20_2(
-                    a: any, b: any
+                    a: anytype, b: anytype
                 );
             ''')
 
     async def test_edgeql_calls_21(self):
         await self.con.execute('''
             CREATE FUNCTION test::call21(
-                a: array<any>
+                a: array<anytype>
             ) -> int64
                 FROM EdgeQL $$
                     SELECT len(a)
@@ -773,7 +773,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         finally:
             await self.con.execute('''
                 DROP FUNCTION test::call21(
-                    a: array<any>
+                    a: array<anytype>
                 );
             ''')
 
@@ -783,8 +783,8 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
 
         await self.con.execute('''
             CREATE FUNCTION test::call22(
-                a: any, b: any
-            ) -> any
+                a: anytype, b: anytype
+            ) -> anytype
                 FROM EdgeQL $$
                     SELECT a + b
                 $$;
@@ -800,24 +800,24 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         finally:
             await self.con.execute('''
                 DROP FUNCTION test::call22(
-                    a: any, b: any
+                    a: anytype, b: anytype
                 );
             ''')
 
     async def test_edgeql_calls_23(self):
         await self.con.execute('''
             CREATE FUNCTION test::call23(
-                a: any,
+                a: anytype,
                 idx: int64
-            ) -> any
+            ) -> anytype
                 FROM EdgeQL $$
                     SELECT a[idx]
                 $$;
 
             CREATE FUNCTION test::call23(
-                a: any,
+                a: anytype,
                 idx: int32
-            ) -> any
+            ) -> anytype
                 FROM EdgeQL $$
                     SELECT a[-idx:]
                 $$;
@@ -837,11 +837,11 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         finally:
             await self.con.execute('''
                 DROP FUNCTION test::call23(
-                    a: any,
+                    a: anytype,
                     idx: int64
                 );
                 DROP FUNCTION test::call23(
-                    a: any,
+                    a: anytype,
                     idx: int32
                 );
             ''')
@@ -1080,8 +1080,8 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
     async def test_edgeql_calls_31(self):
         await self.con.execute('''
             CREATE FUNCTION test::call31(
-                a: any
-            ) -> any
+                a: anytype
+            ) -> anytype
                 FROM EdgeQL $$
                     SELECT a
                 $$;
@@ -1131,6 +1131,6 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         finally:
             await self.con.execute('''
                 DROP FUNCTION test::call31(
-                    a: any
+                    a: anytype
                 );
             ''')

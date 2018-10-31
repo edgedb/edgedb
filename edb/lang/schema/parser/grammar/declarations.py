@@ -713,7 +713,7 @@ class ParenRawString(Nonterm):
         expr = self.val.value
         context = self.context
 
-        prefix, postfix = 'CREATE FUNCTION f(', ') -> any FROM SQL ""'
+        prefix, postfix = 'CREATE FUNCTION f(', ') -> anytype FROM SQL ""'
         eql_query = f'{prefix}{expr}{postfix}'
         eql = parse_edgeql(eql_query, context, offset_column=-len(prefix))
 
