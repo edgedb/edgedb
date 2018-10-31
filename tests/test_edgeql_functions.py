@@ -509,7 +509,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT array_get([(a:=20, b:=1), (a:=30, b:=2)], 1).b;
         ''', [
             [[20]],
-            [{'a': 30}],  # XXX
+            [{'a': 30}],
 
             [20],
             [30],
