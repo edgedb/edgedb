@@ -387,9 +387,10 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
 
             await self.assert_query_result(r'''
                 WITH MODULE test
-                SELECT Target1.name;
+                SELECT Target1 { name }
+                FILTER .name = 'Target4.2';
             ''', [
-                {'Target4.2'}
+                [{'name': 'Target4.2'}]
             ])
 
         finally:
@@ -442,7 +443,9 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                         tgt1_set_empty: {
                             name
                         }
-                    };
+                    }
+                FILTER
+                    .name = 'Source1.1';
             ''', [
                 [{
                     'tgt1_set_empty': None,
@@ -490,7 +493,9 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                         tgt1_set_empty: {
                             name
                         }
-                    };
+                    }
+                FILTER
+                    .name = 'Source3.1';
             ''', [
                 [{
                     'tgt1_set_empty': None,
@@ -619,7 +624,9 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                         tgt1_del_source: {
                             name
                         }
-                    };
+                    }
+                FILTER
+                    .name LIKE 'Source1%';
             ''', [
                 [{
                     'src1_del_source': {
@@ -649,7 +656,9 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
 
                 WITH MODULE test
                 SELECT
-                    Source1;
+                    Source1
+                FILTER
+                    .name LIKE 'Source1%';
             ''', [
                 [],
                 [],
