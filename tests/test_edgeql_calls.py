@@ -1076,3 +1076,61 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                     a: anyint
                 );
             ''')
+
+    async def test_edgeql_calls_31(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::call31(
+                a: any
+            ) -> any
+                FROM EdgeQL $$
+                    SELECT a
+                $$;
+        ''')
+
+        try:
+            await self.assert_query_result(r'''
+                SELECT test::call31(10);
+                SELECT test::call31('aa');
+
+                SELECT test::call31([1, 2]);
+                SELECT test::call31([1, 2])[0];
+
+                SELECT test::call31((a:=1001, b:=1002)).a;
+                SELECT test::call31((a:=1001, b:=1002)).1;
+
+                SELECT test::call31((a:=['a', 'b'], b:=['x', 'y'])).1;
+                SELECT test::call31((a:=['a', 'b'], b:=['x', 'y'])).a[1];
+
+                SELECT test::call31((a:=1001, b:=1002));
+
+                SELECT test::call31((a:=[(x:=1)])).a[0].x;
+                SELECT test::call31((a:=[(x:=1)])).0[0].x;
+                SELECT test::call31((a:=[(x:=1)])).0[0].0;
+                SELECT test::call31((a:=[(x:=1)])).a[0];
+            ''', [
+                [10],
+                ['aa'],
+
+                [[1, 2]],
+                [1],
+
+                [1001],
+                [1002],
+
+                [['x', 'y']],
+                ['b'],
+
+                [{"a": 1001, "b": 1002}],
+
+                [1],
+                [1],
+                [1],
+                [{"x": 1}],
+            ])
+
+        finally:
+            await self.con.execute('''
+                DROP FUNCTION test::call31(
+                    a: any
+                );
+            ''')

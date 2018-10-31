@@ -1436,6 +1436,60 @@ class TestExpressions(tb.QueryTestCase):
             2,
         ]])
 
+    async def test_edgeql_expr_tuple_indirection_12(self):
+        await self.assert_query_result(r"""
+            SELECT (name := 'foo', val := 42).0;
+            SELECT (name := 'foo', val := 42).1;
+            SELECT [(name := 'foo', val := 42)][0].name;
+            SELECT [(name := 'foo', val := 42)][0].1;
+        """, [
+            ['foo'],
+            [42],
+            ['foo'],
+            [42],
+        ])
+
+    async def test_edgeql_expr_tuple_indirection_13(self):
+        await self.assert_query_result(r"""
+            SELECT (a:=(b:=(c:=(e:=1))));
+
+            SELECT (a:=(b:=(c:=(e:=1)))).a;
+            SELECT (a:=(b:=(c:=(e:=1)))).0;
+
+            SELECT (a:=(b:=(c:=(e:=1)))).a.b;
+            SELECT (a:=(b:=(c:=(e:=1)))).0.0;
+
+            SELECT (a:=(b:=(c:=(e:=1)))).a.b.c;
+            SELECT (a:=(b:=(c:=(e:=1)))).0.0.0;
+
+            SELECT (a:=(b:=(c:=(e:=1)))).a.b.c.e;
+            SELECT (a:=(b:=(c:=(e:=1)))).0.b.c.0;
+        """, [
+            [{"a": {"b": {"c": {"e": 1}}}}],
+
+            [{"b": {"c": {"e": 1}}}],
+            [{"b": {"c": {"e": 1}}}],
+
+            [{"c": {"e": 1}}],
+            [{"c": {"e": 1}}],
+
+            [{"e": 1}],
+            [{"e": 1}],
+
+            [1],
+            [1],
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_expr_tuple_indirection_14(self):
+        await self.assert_query_result(r"""
+            SELECT [(a:=(b:=(c:=(e:=1))))][0].a;
+            SELECT [(a:=(b:=(c:=(e:=1))))][0].0;
+        """, [
+            [{"b": {"c": {"e": 1}}}],
+            [{"b": {"c": {"e": 1}}}],
+        ])
+
     async def test_edgeql_expr_cannot_assign_dunder_type_01(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError, r'cannot assign to __type__'):

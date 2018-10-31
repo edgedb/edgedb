@@ -461,17 +461,14 @@ def tuple_indirection_set(
     else:
         el_name = ptr_name[1]
 
-    if el_name in source.element_types:
-        path_id = irutils.tuple_indirection_path_id(
-            path_tip.path_id, el_name,
-            source.element_types[el_name])
-        expr = irast.TupleIndirection(
-            expr=path_tip, name=el_name, path_id=path_id,
-            context=source_context)
-    else:
-        raise errors.EdgeQLReferenceError(
-            f'{el_name} is not a member of a tuple',
-            context=source_context)
+    el_norm_name = source.normalize_index(el_name)
+    el_type = source.get_subtype(el_name)
+
+    path_id = irutils.tuple_indirection_path_id(
+        path_tip.path_id, el_norm_name, el_type)
+    expr = irast.TupleIndirection(
+        expr=path_tip, name=el_norm_name, path_id=path_id,
+        context=source_context)
 
     return generated_set(expr, ctx=ctx)
 

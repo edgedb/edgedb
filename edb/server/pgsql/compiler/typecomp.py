@@ -26,7 +26,6 @@ from edb.lang.ir import utils as irutils
 
 from edb.lang.common import ast
 from edb.lang.schema import objects as s_obj
-from edb.lang.schema import types as s_types
 
 from edb.server.pgsql import ast as pgast
 from edb.server.pgsql import types as pg_types
@@ -54,69 +53,74 @@ def cast(
     real_t = schema.get('std::anyreal')
     bytes_t = schema.get('std::bytes')
 
-    if isinstance(target_type, s_types.Collection):
-        if isinstance(target_type, s_types.Array):
+    if target_type.is_array():
+        if source_type.issubclass(json_t):
+            # If we are casting a jsonb array to array, we do the
+            # following transformation:
+            # EdgeQL: <array<T>>MAP_VALUE
+            # SQL:
+            #      SELECT array_agg(j::T)
+            #      FROM jsonb_array_elements(MAP_VALUE) AS j
 
-            if source_type.issubclass(json_t):
-                # If we are casting a jsonb array to array, we do the
-                # following transformation:
-                # EdgeQL: <array<T>>MAP_VALUE
-                # SQL:
-                #      SELECT array_agg(j::T)
-                #      FROM jsonb_array_elements(MAP_VALUE) AS j
+            inner_cast = cast(
+                pgast.ColumnRef(name=['j']),
+                source_type=source_type,
+                target_type=target_type.element_type,
+                env=env
+            )
 
-                inner_cast = cast(
-                    pgast.ColumnRef(name=['j']),
-                    source_type=source_type,
-                    target_type=target_type.element_type,
-                    env=env
-                )
-
-                return pgast.SelectStmt(
-                    target_list=[
-                        pgast.ResTarget(
-                            val=pgast.FuncCall(
-                                name=('array_agg',),
-                                args=[
-                                    inner_cast
-                                ])
+            return pgast.SelectStmt(
+                target_list=[
+                    pgast.ResTarget(
+                        val=pgast.FuncCall(
+                            name=('array_agg',),
+                            args=[
+                                inner_cast
+                            ])
+                    )
+                ],
+                from_clause=[
+                    pgast.RangeFunction(
+                        functions=[pgast.FuncCall(
+                            name=('jsonb_array_elements',),
+                            args=[
+                                node
+                            ]
+                        )],
+                        alias=pgast.Alias(
+                            aliasname='j'
                         )
-                    ],
-                    from_clause=[
-                        pgast.RangeFunction(
-                            functions=[pgast.FuncCall(
-                                name=('jsonb_array_elements',),
-                                args=[
-                                    node
-                                ]
-                            )],
-                            alias=pgast.Alias(
-                                aliasname='j'
-                            )
-                        )
-                    ])
+                    )
+                ])
+
+        else:
+            # EdgeQL: <array<int64>>['1', '2']
+            # to SQL: ARRAY['1', '2']::int[]
+
+            elem_pgtype = pg_types.pg_type_from_object(
+                schema, target_type.element_type, topbase=True)
+
+            if elem_pgtype in {('anyelement',), ('anynonarray',)}:
+                # We don't want to append '[]' suffix to
+                # `anyelement` and `anynonarray`.
+                return pgast.TypeCast(
+                    arg=node,
+                    type_name=pgast.TypeName(
+                        name=('anyarray',)))
 
             else:
-                # EdgeQL: <array<int64>>['1', '2']
-                # to SQL: ARRAY['1', '2']::int[]
+                return pgast.TypeCast(
+                    arg=node,
+                    type_name=pgast.TypeName(
+                        name=elem_pgtype,
+                        array_bounds=[-1]))
 
-                elem_pgtype = pg_types.pg_type_from_object(
-                    schema, target_type.element_type, topbase=True)
-
-                if elem_pgtype in {('anyelement',), ('anynonarray',)}:
-                    # We don't want to append '[]' suffix to
-                    # `anyelement` and `anynonarray`.
-                    return pgast.TypeCast(
-                        arg=node,
-                        type_name=pgast.TypeName(
-                            name=('anyarray',)))
-
-                else:
-                    return pgast.TypeCast(
-                        arg=node,
-                        type_name=pgast.TypeName(
-                            name=elem_pgtype,
-                            array_bounds=[-1]))
+    elif target_type.is_tuple():
+        if target_type.implicitly_castable_to(source_type, env.schema):
+            return pgast.TypeCast(
+                arg=node,
+                type_name=pgast.TypeName(
+                    name=('record',)))
 
     else:
         # `target_type` is not a collection.

@@ -1163,7 +1163,7 @@ def process_set_as_tuple(
         for element in expr.elements:
             path_id = irutils.tuple_indirection_path_id(
                 ir_set.path_id, element.name,
-                ir_set.scls.element_types[element.name]
+                ir_set.scls.get_subtype(element.name)
             )
             stmt.view_path_id_map[path_id] = element.val.path_id
 
@@ -1218,10 +1218,8 @@ def process_set_as_tuple_indirection(
                 source_type=ir_set.scls, target_type=ir_set.scls, force=True,
                 env=subctx.env)
 
-            tuple_atts = list(tuple_set.scls.element_types.keys())
-            att_idx = pgast.NumericConstant(
-                val=str(tuple_atts.index(ir_set.expr.name) + 1)
-            )
+            index = tuple_set.scls.index_of(ir_set.expr.name)
+            att_idx = pgast.NumericConstant(val=str(index + 1))
 
             set_expr = pgast.FuncCall(
                 name=('edgedb', 'row_getattr_by_num'),
@@ -1373,7 +1371,7 @@ def process_set_as_func_expr(
                 elements=[
                     pgast.TupleElement(
                         path_id=irutils.tuple_indirection_path_id(
-                            ir_set.path_id, n, rtype.element_types[n],
+                            ir_set.path_id, n, rtype.get_subtype(n),
                         ),
                         name=n,
                         val=dbobj.get_column(

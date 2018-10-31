@@ -115,7 +115,7 @@ CREATE FUNCTION std::array_contains(array: array<any>,
     $$;
 
 CREATE FUNCTION std::array_enumerate(array: array<any>) ->
-        SET OF tuple<any, std::int64>
+        SET OF tuple<element:any, index:std::int64>
     FROM SQL FUNCTION '--system--';
 
 CREATE FUNCTION std::array_get(array: array<any>,
