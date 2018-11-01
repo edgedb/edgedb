@@ -410,3 +410,70 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
                 top_ctx.op.after(delta)
 
         super()._create_begin(schema, context)
+
+    def _parse_computable(self, expr, schema, context) -> so.ObjectRef:
+        from edb.lang.edgeql import utils as ql_utils
+        from edb.lang.ir import ast as irast
+        from edb.lang.ir import inference as ir_inference
+        from edb.lang.ir import utils as ir_utils
+        from . import sources as s_sources
+
+        # "source" attribute is set automatically as a refdict back-attr
+        parent_ctx = context.get(s_sources.SourceCommandContext)
+        source_name = parent_ctx.op.classname
+        target_type = None
+
+        source = schema.get(source_name, default=None)
+        if source is None:
+            raise schema_error.SchemaDefinitionError(
+                f'cannot define link/property computables in CREATE TYPE',
+                hint='Perform a CREATE TYPE without the link '
+                     'followed by ALTER TYPE defining the computable',
+                context=expr.context
+            )
+
+        ir, _, target_expr = ql_utils.normalize_tree(
+            expr, schema, anchors={qlast.Source: source})
+
+        try:
+            target_type = ir_utils.infer_type(ir, schema)
+        except edgeql.EdgeQLError as e:
+            raise schema_error.SchemaDefinitionError(
+                'could not determine the result type of '
+                'computable expression',
+                context=target_expr.context) from e
+
+        target = utils.reduce_to_typeref(target_type)
+
+        self.add(
+            sd.AlterObjectProperty(
+                property='default',
+                new_value=target_expr
+            )
+        )
+
+        self.add(
+            sd.AlterObjectProperty(
+                property='computable',
+                new_value=True
+            )
+        )
+
+        scope_tree = irast.new_scope_tree()
+        scope_tree.attach_path(irast.PathId(source))
+        cardinality = ir_inference.infer_cardinality(
+            ir, scope_tree.attach_fence(), schema)
+
+        if cardinality == qlast.Cardinality.ONE:
+            link_card = PointerCardinality.ManyToOne
+        else:
+            link_card = PointerCardinality.ManyToMany
+
+        self.add(
+            sd.AlterObjectProperty(
+                property='cardinality',
+                new_value=link_card
+            )
+        )
+
+        return target

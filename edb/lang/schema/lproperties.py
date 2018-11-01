@@ -181,22 +181,28 @@ class CreateProperty(PropertyCommand,
                 )
             )
 
-            target_ref = utils.ast_to_typeref(
-                target, modaliases=modaliases, schema=schema)
+            if isinstance(target, qlast.TypeName):
+                target_ref = utils.ast_to_typeref(
+                    target, modaliases=modaliases, schema=schema)
+            else:
+                # computable
+                target_ref = cmd._parse_computable(
+                    target, schema, context)
+
             target_type = utils.resolve_typeref(target_ref, schema=schema)
 
             if not isinstance(target_type, (scalars.ScalarType,
                                             types.Collection)):
                 raise s_err.SchemaDefinitionError(
-                    f'invalid property target, expected primitive type, got '
-                    f'{target_type.__class__.__name__}',
-                    context=astnode.targets[0].context
+                    f'invalid property target, expected primitive type, '
+                    f'got {target_type.displayname!r}',
+                    context=target.context
                 )
 
             cmd.add(
                 sd.AlterObjectProperty(
                     property='target',
-                    new_value=target_ref
+                    new_value=target_ref,
                 )
             )
 

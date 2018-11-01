@@ -1012,3 +1012,54 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 DROP PREFIX OPERATOR test::`!`
                     (operand: int64);
             ''')
+
+    async def test_edgeql_ddl_property_computable_01(self):
+        await self.query('''\
+            CREATE TYPE test::CompProp;
+            ALTER TYPE test::CompProp {
+                CREATE PROPERTY test::prop := 'I am a computable';
+            };
+            INSERT test::CompProp;
+        ''')
+
+        await self.assert_query_result('''
+            SELECT test::CompProp {
+                prop
+            };
+
+            WITH MODULE schema
+            SELECT ObjectType {
+                properties: {
+                    name,
+                    target: {
+                        name
+                    }
+                } FILTER .name = 'test::prop'
+            }
+            FILTER
+                .name = 'test::CompProp';
+
+        ''', [
+            [{
+                'prop': 'I am a computable',
+            }],
+            [{
+                'properties': [{
+                    'name': 'test::prop',
+                    'target': {
+                        'name': 'std::str'
+                    }
+                }]
+            }]
+        ])
+
+    async def test_edgeql_ddl_property_computable_bad_01(self):
+        with self.assertRaisesRegex(
+                client_errors.SchemaError,
+                r"invalid property target, expected.*, got 'std::Object'"):
+            await self.query('''\
+                CREATE TYPE test::CompPropBad;
+                ALTER TYPE test::CompPropBad {
+                    CREATE PROPERTY test::prop := (SELECT std::Object LIMIT 1);
+                };
+            ''')

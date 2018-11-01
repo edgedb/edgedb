@@ -19,7 +19,6 @@
 
 import typing
 
-from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
 
 from . import constraints
@@ -222,10 +221,6 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):
-        from edb.lang.edgeql import utils as ql_utils
-        from edb.lang.ir import ast as irast
-        from edb.lang.ir import inference as ir_inference
-        from edb.lang.ir import utils as ir_utils
         from . import objtypes as s_objtypes
 
         cmd = super()._cmd_tree_from_ast(astnode, context, schema)
@@ -307,60 +302,8 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                         schema=schema)
                 else:
                     # computable
-                    source = schema.get(source_name, default=None)
-                    if source is None:
-                        raise s_err.SchemaDefinitionError(
-                            f'cannot define link computables in CREATE TYPE',
-                            hint='Perform a CREATE TYPE without the link '
-                                 'followed by ALTER TYPE defining the '
-                                 'computable',
-                            context=target_expr.context
-                        )
-
-                    ir, _, target_expr = ql_utils.normalize_tree(
-                        target_expr, schema,
-                        anchors={qlast.Source: source})
-
-                    try:
-                        target_type = ir_utils.infer_type(ir, schema)
-                    except edgeql.EdgeQLError as e:
-                        raise s_err.SchemaDefinitionError(
-                            'could not determine the result type of '
-                            'computable expression',
-                            context=target_expr.context) from e
-
-                    target = utils.reduce_to_typeref(target_type)
-
-                    cmd.add(
-                        sd.AlterObjectProperty(
-                            property='default',
-                            new_value=target_expr
-                        )
-                    )
-
-                    cmd.add(
-                        sd.AlterObjectProperty(
-                            property='computable',
-                            new_value=True
-                        )
-                    )
-
-                    scope_tree = irast.new_scope_tree()
-                    scope_tree.attach_path(irast.PathId(source))
-                    cardinality = ir_inference.infer_cardinality(
-                        ir, scope_tree.attach_fence(), schema)
-
-                    if cardinality == qlast.Cardinality.ONE:
-                        link_card = pointers.PointerCardinality.ManyToOne
-                    else:
-                        link_card = pointers.PointerCardinality.ManyToMany
-
-                    cmd.add(
-                        sd.AlterObjectProperty(
-                            property='cardinality',
-                            new_value=link_card
-                        )
-                    )
+                    target = cmd._parse_computable(
+                        target_expr, schema, context)
 
             if (isinstance(target, so.ObjectRef) and
                     target.classname == source_name):
