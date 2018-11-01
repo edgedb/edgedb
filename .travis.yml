@@ -1,5 +1,8 @@
 language: generic
 
+git:
+    submodules: false
+
 matrix:
     include:
         - os: linux
@@ -20,6 +23,9 @@ cache:
     pip: true
     directories:
         - build
+
+before_install:
+    git submodule update --init --depth 1
 
 install:
     - .ci/travis-install.sh
