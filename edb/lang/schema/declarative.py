@@ -30,6 +30,7 @@ from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import codegen as qlcodegen
 from edb.lang.edgeql import compiler as qlcompiler
+from edb.lang.edgeql import utils as qlutils
 
 from edb.lang.ir import ast as ir_ast
 from edb.lang.ir import inference as ir_inference
@@ -588,7 +589,7 @@ class DeclarationLoader:
 
             der_name = s_name.Name(name=local_name, module=subject.name.module)
 
-            _, _, index_expr = edgeql.utils.normalize_tree(
+            _, _, index_expr = qlutils.normalize_tree(
                 indexdecl.expression, self._schema,
                 modaliases=module_aliases,
                 anchors={qlast.Subject: subject},
@@ -742,13 +743,13 @@ class DeclarationLoader:
                             attr.value, objtype, spec_link, ptrdecl)
                     else:
                         expr = attr.value
-                        _, _, spec_link.default = edgeql.utils.normalize_tree(
+                        _, _, spec_link.default = qlutils.normalize_tree(
                             expr, self._schema)
 
     def _normalize_ptr_default(self, expr, source, ptr, ptrdecl):
         module_aliases = {None: source.name.module}
 
-        ir, _, expr_text = edgeql.utils.normalize_tree(
+        ir, _, expr_text = qlutils.normalize_tree(
             expr, self._schema,
             modaliases=module_aliases,
             anchors={qlast.Source: source})

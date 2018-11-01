@@ -1,0 +1,58 @@
+#
+# This source file is part of the EdgeDB open source project.
+#
+# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+
+CREATE ABSTRACT SCALAR TYPE std::anyscalar;
+
+CREATE SCALAR TYPE std::bool EXTENDING std::anyscalar;
+
+CREATE SCALAR TYPE std::bytes EXTENDING std::anyscalar;
+
+CREATE SCALAR TYPE std::datetime EXTENDING std::anyscalar;
+
+CREATE SCALAR TYPE std::uuid EXTENDING std::anyscalar;
+
+CREATE SCALAR TYPE std::str EXTENDING std::anyscalar;
+
+CREATE SCALAR TYPE std::json EXTENDING std::anyscalar;
+
+CREATE SCALAR TYPE std::timedelta EXTENDING std::anyscalar;
+
+CREATE SCALAR TYPE std::date EXTENDING std::anyscalar;
+
+CREATE SCALAR TYPE std::time EXTENDING std::anyscalar;
+
+CREATE ABSTRACT SCALAR TYPE std::anyreal EXTENDING std::anyscalar;
+
+CREATE ABSTRACT SCALAR TYPE std::anyint EXTENDING std::anyreal;
+
+CREATE SCALAR TYPE std::int16 EXTENDING std::anyint;
+
+CREATE SCALAR TYPE std::int32 EXTENDING std::anyint;
+
+CREATE SCALAR TYPE std::int64 EXTENDING std::anyint;
+
+CREATE ABSTRACT SCALAR TYPE std::anyfloat EXTENDING std::anyreal;
+
+CREATE SCALAR TYPE std::float32 EXTENDING std::anyfloat;
+
+CREATE SCALAR TYPE std::float64 EXTENDING std::anyfloat;
+
+CREATE SCALAR TYPE std::decimal EXTENDING std::anyreal;
+
+CREATE ABSTRACT SCALAR TYPE std::sequence EXTENDING std::int64;

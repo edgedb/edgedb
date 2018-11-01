@@ -31,7 +31,7 @@ from . import schema as s_schema
 
 
 LIB_ROOT = pathlib.Path(stdlib.__path__[0])
-STD_MODULES = ['std']
+STD_MODULES = ['std', 'schema']
 
 
 def std_module_to_ddl(
@@ -82,7 +82,10 @@ def load_std_schema(
     if schema is None:
         schema = s_schema.Schema()
 
-    return load_std_module(schema, 'std')
+    for modname in STD_MODULES:
+        load_std_module(schema, modname)
+
+    return schema
 
 
 def load_graphql_schema(
