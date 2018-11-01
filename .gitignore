@@ -5,6 +5,7 @@
 *.so
 *~
 .#*
+.*.swp
 .DS_Store
 \#*#
 /test*.py
