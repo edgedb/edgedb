@@ -48,7 +48,6 @@ unreserved_keywords = frozenset([
     "from",
     "index",
     "inherited",
-    "initial",
     "into",
     "last",
     "link",
@@ -70,7 +69,6 @@ unreserved_keywords = frozenset([
     "transaction",
     "type",
     "using",
-    "value",
     "view",
 ])
 

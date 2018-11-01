@@ -278,6 +278,10 @@ class FunctionCall(Expr):
     # attribute will be set to the name of the SQL function.
     func_sql_function: typing.Optional[str]
 
+    # initial value needed for aggregate function calls to correctly
+    # handle empty set
+    func_initial_value: Base
+
     # Bound arguments.
     args: typing.List[Base]
 
@@ -304,7 +308,6 @@ class FunctionCall(Expr):
 
     partition: typing.List[Base]
     window: bool
-    initial_value: Base
 
 
 class TupleIndirection(Expr):

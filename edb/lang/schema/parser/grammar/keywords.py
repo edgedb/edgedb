@@ -42,7 +42,6 @@ unreserved_keywords = frozenset([
     "from",
     "index",
     "inherited",
-    "initial",
     "link",
     "of",
     "on",
@@ -52,7 +51,6 @@ unreserved_keywords = frozenset([
     "source",
     "target",
     "type",
-    "value",
     "view",
 ])
 

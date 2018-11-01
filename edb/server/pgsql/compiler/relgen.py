@@ -1566,18 +1566,18 @@ def process_set_as_agg_expr(
             agg_distinct=(
                 expr.agg_set_modifier == irast.SetModifier.DISTINCT))
 
-    if expr.initial_value is not None:
+    if expr.func_initial_value is not None:
         if newctx.expr_exposed and serialization_safe:
             # Serialization has changed the output type.
             with newctx.new() as ivctx:
                 ivctx.expr_exposed = True
-                iv = dispatch.compile(expr.initial_value.expr, ctx=ivctx)
+                iv = dispatch.compile(expr.func_initial_value.expr, ctx=ivctx)
                 iv = output.serialize_expr_if_needed(
                     iv, path_id=ir_set.path_id, ctx=ctx)
                 set_expr = output.serialize_expr_if_needed(
                     set_expr, path_id=ir_set.path_id, ctx=ctx)
         else:
-            iv = dispatch.compile(expr.initial_value.expr, ctx=newctx)
+            iv = dispatch.compile(expr.func_initial_value.expr, ctx=newctx)
 
         pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
         pathctx.get_path_value_output(stmt, ir_set.path_id, env=ctx.env)

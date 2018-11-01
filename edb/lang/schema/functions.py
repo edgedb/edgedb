@@ -467,13 +467,6 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
             new_value=astnode.returning_typemod
         ))
 
-        if astnode.initial_value is not None:
-            iv = codegen.generate_source(astnode.initial_value)
-            cmd.add(sd.AlterObjectProperty(
-                property='initial_value',
-                new_value=iv
-            ))
-
         if astnode.code is not None:
             cmd.add(sd.AlterObjectProperty(
                 property='language',
