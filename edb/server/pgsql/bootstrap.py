@@ -18,12 +18,10 @@
 
 
 import logging
-import os.path
 
 from edb.lang.common import debug
-from edb.lang import edgeql
-from edb.lang import schema as edgedb_schema
 from edb.lang.schema import ddl as s_ddl
+from edb.lang.schema import std as s_std
 
 from edb.server import defines as edgedb_defines
 from edb.server import protocol as edgedb_protocol
@@ -163,22 +161,22 @@ async def _ensure_meta_schema(conn):
     await metaschema.bootstrap(conn)
 
 
-async def _init_std_schema(conn):
-    logger.info('Bootstrapping std module...')
-
-    stdschema = os.path.join(
-        os.path.dirname(edgedb_schema.__file__), '_std.eql')
-    with open(stdschema, 'r') as f:
-        stdschema_script = f.read()
-
-    statements = edgeql.parse_block(stdschema_script)
+async def _init_stdlib(conn):
 
     bk = await backend.open_database(conn)
 
-    for statement in statements:
-        cmd = s_ddl.delta_from_ddl(
-            statement, schema=bk.schema, modaliases={None: 'std'})
-        await bk.run_ddl_command(cmd)
+    for modname in s_std.STD_MODULES + ['stdgraphql']:
+        logger.info(f'Bootstrapping {modname} module...')
+
+        modaliases = {}
+        if modname == 'std':
+            modaliases[None] = 'std'
+
+        for statement in s_std.std_module_to_ddl(bk.schema, modname):
+            cmd = s_ddl.delta_from_ddl(
+                statement, schema=bk.schema, modaliases=modaliases,
+                stdmode=True)
+            await bk.run_ddl_command(cmd)
 
     await metaschema.generate_views(conn, bk.schema)
 
@@ -189,28 +187,17 @@ async def _run_script(script, conn, cluster, loop):
     await protocol._run_script(script)
 
 
-async def _init_graphql_schema(conn, cluster, loop):
-    logger.info('Bootstrapping graphql module...')
-
-    with open(os.path.join(os.path.dirname(edgedb_schema.__file__),
-                           '_graphql.eschema'), 'r') as f:
-        schema = f.read()
-
+async def _init_defaults(conn, cluster, loop):
     script = f'''
-        CREATE MODULE graphql;
-        CREATE MIGRATION graphql::d0 TO eschema $${schema}$$;
-        COMMIT MIGRATION graphql::d0;
+        CREATE MODULE default;
     '''
-    with open(os.path.join(os.path.dirname(edgedb_schema.__file__),
-                           '_graphql.eql'), 'r') as f:
-        script += f.read()
 
     await _run_script(script, conn, cluster, loop)
 
 
-async def _init_defaults(conn, cluster, loop):
+async def _populate_data(conn, cluster, loop):
     script = f'''
-        CREATE MODULE default;
+        INSERT graphql::Query;
     '''
 
     await _run_script(script, conn, cluster, loop)
@@ -260,9 +247,9 @@ async def bootstrap(cluster, args, loop=None):
 
             try:
                 await _ensure_meta_schema(conn)
-                await _init_std_schema(conn)
-                await _init_graphql_schema(conn, cluster, loop)
+                await _init_stdlib(conn)
                 await _init_defaults(conn, cluster, loop)
+                await _populate_data(conn, cluster, loop)
             finally:
                 await conn.close()
 

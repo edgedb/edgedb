@@ -17,61 +17,80 @@
 #
 
 
-import os.path
+import pathlib
+import typing
 
+from edb import lib as stdlib
 from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
 
 from . import ddl as s_ddl
-from . import schema as s_schema
 from . import delta as sd
+from . import error as s_err
+from . import schema as s_schema
 
 
-def load_std_schema():
-    schema = s_schema.Schema()
+LIB_ROOT = pathlib.Path(stdlib.__path__[0])
+STD_MODULES = ['std']
 
-    std_eql_f = os.path.join(os.path.dirname(__file__), '_std.eql')
-    with open(std_eql_f) as f:
-        std_eql = f.read()
 
-    statements = edgeql.parse_block(std_eql)
+def std_module_to_ddl(
+        schema: s_schema.Schema,
+        modname: str) -> typing.List[qlast.DDL]:
 
-    for statement in statements:
+    module_eql = ''
+
+    module_path = LIB_ROOT / modname
+    module_files = []
+
+    if module_path.is_dir():
+        for entry in module_path.iterdir():
+            if entry.is_file() and entry.suffix == '.eql':
+                module_files.append(entry)
+    else:
+        module_path = module_path.with_suffix('.eql')
+        if not module_path.exists():
+            raise s_err.SchemaError(f'std module not found: {modname}')
+        module_files.append(module_path)
+
+    module_files.sort(key=lambda p: p.name)
+
+    for module_file in module_files:
+        with open(module_file) as f:
+            module_eql += '\n' + f.read()
+
+    return edgeql.parse_block(module_eql)
+
+
+def load_std_module(
+        schema: s_schema.Schema, modname: str) -> s_schema.Schema:
+
+    modaliases = {}
+    if modname == 'std':
+        modaliases[None] = 'std'
+
+    for statement in std_module_to_ddl(schema, modname):
         cmd = s_ddl.delta_from_ddl(
-            statement, schema=schema, modaliases={None: 'std'},
-            stdmode=True)
+            statement, schema=schema, modaliases=modaliases, stdmode=True)
         cmd.apply(schema)
 
     return schema
 
 
-def load_graphql_schema(schema=None):
+def load_std_schema(
+        schema: typing.Optional[s_schema.Schema]=None) -> s_schema.Schema:
     if schema is None:
         schema = s_schema.Schema()
 
-    with open(os.path.join(os.path.dirname(__file__),
-              '_graphql.eschema'), 'r') as f:
-        eschema = f.read()
+    return load_std_module(schema, 'std')
 
-    script = f'''
-        CREATE MODULE graphql;
-        CREATE MIGRATION graphql::d0 TO eschema $${eschema}$$;
-        COMMIT MIGRATION graphql::d0;
-    '''
-    statements = edgeql.parse_block(script)
-    for stmt in statements:
-        if isinstance(stmt, qlast.Delta):
-            # CREATE/APPLY MIGRATION
-            ddl_plan = s_ddl.cmd_from_ddl(stmt, schema=schema, modaliases={})
 
-        elif isinstance(stmt, qlast.DDL):
-            # CREATE/DELETE/ALTER (FUNCTION, TYPE, etc)
-            ddl_plan = s_ddl.delta_from_ddl(stmt, schema=schema, modaliases={})
+def load_graphql_schema(
+        schema: typing.Optional[s_schema.Schema]=None) -> s_schema.Schema:
+    if schema is None:
+        schema = s_schema.Schema()
 
-        context = sd.CommandContext()
-        ddl_plan.apply(schema, context)
-
-    return schema
+    return load_std_module(schema, 'stdgraphql')
 
 
 def load_default_schema(schema=None):
