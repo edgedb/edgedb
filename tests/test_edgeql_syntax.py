@@ -2630,7 +2630,7 @@ aa';
         """
         CREATE FUNCTION std::sum(v: SET OF std::int64)
             -> std::int64 {
-            INITIAL VALUE 0;
+            SET initial_value := 0;
             FROM SQL FUNCTION 'test';
         };
         """
@@ -2639,7 +2639,7 @@ aa';
         """
         CREATE FUNCTION std::sum(arg: SET OF std::int64)
             -> std::int64 {
-            INITIAL VALUE 0;
+            SET initial_value := 0;
             FROM SQL FUNCTION 'sum';
         };
         """
@@ -2648,7 +2648,7 @@ aa';
         """
         CREATE FUNCTION std::sum(integer: SET OF std::int64)
             -> std::int64 {
-            INITIAL VALUE 0;
+            SET initial_value := 0;
             FROM SQL FUNCTION 'sum';
         };
         """
@@ -2657,7 +2657,7 @@ aa';
         """
         CREATE FUNCTION std::sum(integer: SET OF std::int64)
             -> std::int64 {
-            INITIAL VALUE 0;
+            SET initial_value := 0;
             FROM SQL FUNCTION 'sum';
         };
         """
@@ -2668,7 +2668,7 @@ aa';
         """
         CREATE FUNCTION foo(string: SET OF std::str)
             -> std::int64 {
-            INITIAL VALUE 0;
+            SET initial_value := 0;
             FROM AAA FUNCTION 'foo';
         };
         """
@@ -2677,7 +2677,7 @@ aa';
         """
         CREATE FUNCTION std::count(expression: SET OF anytype)
             -> std::int64 {
-            INITIAL VALUE 0;
+            SET initial_value := 0;
             FROM SQL FUNCTION 'count';
         };
         """

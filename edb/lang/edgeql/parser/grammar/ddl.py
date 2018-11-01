@@ -1673,20 +1673,6 @@ class FromFunction(Nonterm):
                                       from_name=kids[3].val.value)
 
 
-class InitialValue(Nonterm):
-    def reduce_INITIAL_VALUE_Expr(self, *kids):
-        val = kids[2].val
-
-        # make sure that the initial value is a literal for now
-        #
-        if not isinstance(val, (qlast.BaseConstant, qlast.EmptyCollection,
-                                qlast.Array)):
-            raise EdgeQLSyntaxError("initial value must be a literal",
-                                    context=val.context)
-
-        self.val = qlast.FunctionIV(val=val)
-
-
 #
 # CREATE FUNCTION|AGGREGATE
 #
@@ -1705,8 +1691,6 @@ class _ProcessFunctionBlockMixin:
                                             context=node.context)
                 else:
                     code = node
-            elif isinstance(node, qlast.FunctionIV):
-                props['initial_value'] = node.val
             else:
                 commands.append(node)
 
@@ -1727,7 +1711,6 @@ commands_block(
     'CreateFunction',
     FromFunction,
     SetFieldStmt,
-    InitialValue,
     opt=False
 )
 

@@ -1036,16 +1036,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(node.returning_typemod.to_edgeql(), ' ')
             self.visit(node.returning)
 
-            if node.commands or node.initial_value:
+            if node.commands:
                 self.write('{')
                 self._block_ws(1)
                 self.visit_list(node.commands, terminator=';')
                 self.new_lines = 1
-
-                if node.initial_value:
-                    self.write('INITIAL VALUE ')
-                    self.visit(node.initial_value)
-                    self.write(';')
 
             if node.code.from_name:
                 self.write(f' FROM {node.code.language} FUNCTION ')
@@ -1055,7 +1050,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write(edgeql_quote.dollar_quote_literal(
                     node.code.code))
 
-            if node.commands or node.initial_value:
+            if node.commands:
                 self.write(';')
                 self._block_ws(-1)
                 self.write('}')

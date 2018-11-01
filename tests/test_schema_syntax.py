@@ -990,12 +990,12 @@ type Foo:
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  "unexpected 'initial value' in function definition",
-                  line=3, col=27)
+                  "unexpected 'initial_value' in function definition",
+                  line=3, col=13)
     def test_eschema_syntax_function_06(self):
         """
         function some_func(foo: std::int64 = 42) -> std::str:
-            initial value := 'bad'
+            initial_value := 'bad'
             from edgeql :=
                 SELECT 'life'
         """

@@ -155,7 +155,6 @@ class FunctionCode(Base):
 class FunctionDeclaration(Declaration):
     args: list
     returning: qlast.TypeName
-    initial_value: qlast.Base
     code: FunctionCode
     returning_typemod: qlft.TypeModifier
 

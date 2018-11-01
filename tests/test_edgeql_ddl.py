@@ -79,7 +79,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
                 CREATE FUNCTION test::my_lower(s: SET OF std::str)
                     -> std::str {
-                    INITIAL VALUE '';
+                    SET initial_value := '';
                     FROM SQL FUNCTION 'count';
                 };
             """)
@@ -94,8 +94,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute("""
                 CREATE FUNCTION test::my_lower(s: SET OF anytype)
                     -> std::str {
-                    INITIAL VALUE '';
                     FROM SQL FUNCTION 'count';
+                    SET initial_value := '';
                 };
 
                 CREATE FUNCTION test::my_lower(s: anytype) -> std::str

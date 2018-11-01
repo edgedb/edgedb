@@ -598,10 +598,11 @@ class FunctionDeclaration(Nonterm):
     def reduce_FUNCTION_FunctionDeclCore(self, *kids):
         self.val = kids[1].val
 
-        if self.val.initial_value is not None:
-            raise SchemaSyntaxError(
-                "unexpected 'initial value' in function definition",
-                context=self.val.initial_value.context)
+        for attr in self.val.attributes:
+            if attr.name.name == 'initial_value':
+                raise SchemaSyntaxError(
+                    "unexpected 'initial_value' in function definition",
+                    context=attr.context)
 
         if self.val.code is None:
             raise SchemaSyntaxError("missing 'from' in function definition",
@@ -615,15 +616,11 @@ class FunctionDeclCore(Nonterm):
                 ARROW RowRawString FunctionSpecsBlob \
         """
         attributes = []
-        init_val = None
         code = None
 
         for spec in kids[4].val:
             if isinstance(spec, esast.Attribute):
-                if spec.name.name == 'initial value':
-                    init_val = spec.value
-                else:
-                    attributes.append(spec)
+                attributes.append(spec)
             elif code is None and isinstance(spec, esast.FunctionCode):
                 code = spec
             else:
@@ -638,7 +635,6 @@ class FunctionDeclCore(Nonterm):
             returning_typemod=returning_typemod,
             returning=returning,
             attributes=attributes,
-            initial_value=init_val,
             code=code,
         )
 
@@ -659,11 +655,6 @@ class FunctionSpec(Nonterm):
 
     def reduce_DeclarationSpec(self, *kids):
         self.val = kids[0].val
-
-    def reduce_INITIAL_VALUE_Value(self, *kids):
-        self.val = esast.Attribute(
-            name=qlast.ObjectRef(name='initial value'),
-            value=kids[2].val)
 
 
 class FunctionSpecs(ListNonterm, element=FunctionSpec):

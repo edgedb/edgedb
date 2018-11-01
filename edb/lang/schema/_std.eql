@@ -67,37 +67,37 @@ CREATE FUNCTION std::lower(str: std::str) -> std::str
     FROM SQL FUNCTION 'lower';
 
 CREATE FUNCTION std::sum(s: SET OF std::decimal) -> std::decimal {
-    INITIAL VALUE 0;
+    SET initial_value := 0;
     FROM SQL FUNCTION 'sum';
 };
 
 CREATE FUNCTION std::sum(s: SET OF std::int64) -> std::decimal {
-    INITIAL VALUE 0;
+    SET initial_value := 0;
     FROM SQL FUNCTION 'sum';
 };
 
 CREATE FUNCTION std::sum(s: SET OF std::float32) -> std::float32 {
-    INITIAL VALUE 0;
+    SET initial_value := 0;
     FROM SQL FUNCTION 'sum';
 };
 
 CREATE FUNCTION std::sum(s: SET OF std::float64) -> std::float64 {
-    INITIAL VALUE 0;
+    SET initial_value := 0;
     FROM SQL FUNCTION 'sum';
 };
 
 CREATE FUNCTION std::count(s: SET OF anytype) -> std::int64 {
-    INITIAL VALUE 0;
+    SET initial_value := 0;
     FROM SQL FUNCTION 'count';
 };
 
 CREATE FUNCTION std::array_agg(s: SET OF anytype) -> array<anytype> {
-    INITIAL VALUE [];
+    SET initial_value := [];
     FROM SQL FUNCTION 'array_agg';
 };
 
 CREATE FUNCTION std::is_distinct(s: SET OF anytype) -> std::bool {
-    INITIAL VALUE True;
+    SET initial_value := True;
     FROM SQL FUNCTION '--system--';
 };
 

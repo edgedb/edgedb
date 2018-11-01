@@ -147,7 +147,7 @@ def compile_FunctionCall(
                 expr=qlparser.parse_fragment(matched_call.func.initial_value),
                 type=typegen.type_to_ql_typeref(rtype)
             )
-            node.initial_value = dispatch.compile(iv_ql, ctx=fctx)
+            node.func_initial_value = dispatch.compile(iv_ql, ctx=fctx)
 
     return setgen.ensure_set(node, typehint=matched_call.return_type, ctx=ctx)
 

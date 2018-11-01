@@ -851,10 +851,6 @@ class Language(s_enum.StrEnum):
     EdgeQL = 'EDGEQL'
 
 
-class FunctionIV(Clause):
-    val: Expr
-
-
 class FunctionCode(Clause):
     language: Language
     code: str
@@ -864,7 +860,6 @@ class FunctionCode(Clause):
 class CreateFunction(CreateObject):
     args: typing.List[FuncParam]
     returning: TypeExpr
-    initial_value: Expr
     code: FunctionCode
     returning_typemod: ft.TypeModifier = ft.TypeModifier.SINGLETON
 
