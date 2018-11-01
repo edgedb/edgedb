@@ -35,23 +35,6 @@ from edb import client as edgedb_client
 from edb.client import connect_utils
 from edb.server import defines as edgedb_defines
 
-if sys.platform == 'linux':
-
-    def ensure_dead_with_parent():
-        import ctypes
-        import signal
-
-        try:
-            PR_SET_PDEATHSIG = 1
-            libc = ctypes.CDLL(ctypes.util.find_library('c'))
-            libc.prctl(PR_SET_PDEATHSIG, signal.SIGKILL)
-        except Exception as e:
-            print(e)
-else:
-
-    def ensure_dead_with_parent():
-        pass
-
 
 def find_available_port(port_range=(49152, 65535), max_tries=1000):
     low, high = port_range
@@ -259,7 +242,6 @@ class Cluster:
         self._daemon_process = subprocess.Popen(
             self._edgedb_cmd + extra_args,
             stdout=sys.stdout, stderr=sys.stderr,
-            preexec_fn=ensure_dead_with_parent,
             env=env)
 
         self._test_connection()
@@ -284,7 +266,6 @@ class Cluster:
         init = subprocess.run(
             self._edgedb_cmd + ['--bootstrap'],
             stdout=sys.stdout, stderr=sys.stderr,
-            preexec_fn=ensure_dead_with_parent,
             env=env)
 
         if init.returncode != 0:
