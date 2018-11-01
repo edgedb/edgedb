@@ -94,10 +94,6 @@ class T_ASSIGN(Token):
     pass
 
 
-class T_COLONGT(Token):
-    pass
-
-
 class T_ARROW(Token):
     pass
 
@@ -125,10 +121,6 @@ class T_INDENT(Token):
 
 
 class T_DEDENT(Token):
-    pass
-
-
-class T_ANYTHING(Token):
     pass
 
 

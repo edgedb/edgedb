@@ -316,6 +316,61 @@ type Commit:
                 on target delete delete source
         """
 
+    @tb.must_fail(error.SchemaSyntaxError,
+                  "Unexpected end of line", line=4, col=38)
+    def test_eschema_syntax_type_19(self):
+        # testing bugs due to incorrect indentation
+        """
+        type Foo:
+            property foo -> str:
+                default := some_func(
+    1, 2, 3)
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  "Unterminated string '", line=4, col=38)
+    def test_eschema_syntax_type_20(self):
+        # testing bugs due to incorrect indentation
+        """
+        type Foo:
+            property foo -> str:
+                default := some_func('
+                1, 2, 3')
+        """
+
+    @tb.must_fail(error.SchemaSyntaxError,
+                  r"Unterminated string \$\$some_func\(", line=5, col=21)
+    def test_eschema_syntax_type_21(self):
+        # testing bugs due to incorrect indentation
+        """
+        type Foo:
+            property foo -> str:
+                default :=
+                    $$some_func(
+    1, 2, 3)$$
+        """
+
+    def test_eschema_syntax_type_22(self):
+        """
+        type Foo:
+            property foo -> str:
+                # if it's defined on the same line as :=
+                # the definition must be a one-liner
+                default := some_func(1, 2, 3)
+
+            property bar -> str:
+                # multi-line definition with correct indentation
+                default :=
+                    some_func('
+                    1, 2, 3')
+
+            property baz -> str:
+                # multi-line definition with correct indentation
+                default :=
+                    $$some_func(
+                    1, 2, 3)$$
+        """
+
     def test_eschema_syntax_link_target_type_01(self):
         """
 type User:
@@ -946,13 +1001,10 @@ type Foo:
     def test_eschema_syntax_function_03(self):
         r"""
         function some_func(foo: std::int64 = 42) -> std::str:
-            from edgeql :>
+            from edgeql:=
+                $$
                 SELECT 'life';
-
-% OK %
-        function some_func(foo: std::int64 = 42) -> std::str:
-            from edgeql :=
-                'SELECT \'life\';'
+                $$
         """
 
     def test_eschema_syntax_function_04(self):
@@ -962,20 +1014,10 @@ type Foo:
                         variadic arg3: std::int64) -> \
                         set of int:
             volatile := true
-            description :>
-                myfunc sample
-            from sql :>
-                SELECT blarg;
-
-% OK %
-        function myfunc(arg1: str, arg2: str = 'DEFAULT',
-                        variadic arg3: std::int64) -> \
-                        set of int:
-            volatile := true
             description :=
                 'myfunc sample'
             from sql :=
-                'SELECT blarg;'
+                $$SELECT blarg;$$
         """
 
     def test_eschema_syntax_function_05(self):

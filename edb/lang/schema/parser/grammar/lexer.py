@@ -83,6 +83,14 @@ class EdgeSchemaLexer(lexer.Lexer):
     MULTILINE_TOKENS = frozenset(('STRING', 'RAWSTRING', 'LINECONT'))
     RE_FLAGS = re.X | re.M | re.I
 
+    # special placeholder error rule, that's not meant to be
+    # explicitly inserted into the lexical productions
+    error_rule = Rule(
+        token='ERROR',
+        next_state=STATE_KEEP,
+        regexp=None,
+    )
+
     # a few reused rules
     string_rule = Rule(
         token='STRING',
@@ -184,10 +192,6 @@ class EdgeSchemaLexer(lexer.Lexer):
         Rule(token='ASSIGN',
              next_state=STATE_RAW_STRING,
              regexp=r':='),
-
-        Rule(token='COLONGT',
-             next_state=STATE_RAW_STRING,
-             regexp=r':>'),
 
         Rule(token='COLON',
              next_state=STATE_KEEP,
@@ -340,9 +344,6 @@ class EdgeSchemaLexer(lexer.Lexer):
     }
 
     def token_from_text(self, rule_token, txt):
-        if rule_token == 'BADIDENT':
-            self.handle_error(txt)
-
         tok = super().token_from_text(rule_token, txt)
 
         if rule_token == 'QIDENT':
@@ -494,7 +495,8 @@ class EdgeSchemaLexer(lexer.Lexer):
                     self.logical_line_started = False
 
         # handle logical newline
-        if tok_type not in {'NEWLINE', 'WS', 'COMMENT', 'LINECONT'}:
+        if tok_type not in {'NEWLINE', 'WS', 'COMMENT', 'LINECONT', 'ERROR',
+                            'BADIDENT'}:
             self.logical_line_started = True
 
         elif (self._state in {STATE_WS_SENSITIVE, STATE_RAW_STRING} and
@@ -536,6 +538,27 @@ class EdgeSchemaLexer(lexer.Lexer):
         self._next_state = None
 
         for tok in self._lex():
+            # if we have any error token here, handle the error now
+            if tok.type == 'BADIDENT':
+                raise lexer.UnknownTokenError(
+                    f"Illegal identifier '{tok.text}'",
+                    line=tok.start.line, col=tok.start.column,
+                    filename=tok.filename)
+
+            elif tok.type == 'ERROR':
+                if self.prev_nw_tok.type == 'NL':
+                    # if it looks like this happened right after a new
+                    # line, attempt to generate dedents so that the
+                    # parser may have a better error if the previous
+                    # line cannot be parsed
+                    for eoftok in self.get_eof_tokens():
+                        yield eoftok
+
+                raise lexer.UnknownTokenError(
+                    f"Unexpected '{tok.text}'",
+                    line=tok.start.line, col=tok.start.column,
+                    filename=tok.filename)
+
             if tok.type not in {'NEWLINE', 'WS', 'LINECONT'}:
                 self.prev_nw_tok = tok
             yield tok
@@ -560,10 +583,10 @@ class EdgeSchemaLexer(lexer.Lexer):
                 txt = match.group(rule_id)
 
                 if rule_id == 'err':
-                    # Error group -- no rule has been matched
-                    self.handle_error(txt)
+                    rule = self.error_rule
+                else:
+                    rule = Rule._map[rule_id]
 
-                rule = Rule._map[rule_id]
                 rule_token = rule.token
 
                 token = self.token_from_text(rule_token, txt)

@@ -277,24 +277,21 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected '''",
-                  line=2, col=20)
+                  r"Unterminated string ';", line=2, col=20)
     def test_edgeql_syntax_constants_23(self):
         r"""
         SELECT '\\'';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected '\"'",
-                  line=2, col=20)
+                  r'Unterminated string ";', line=2, col=20)
     def test_edgeql_syntax_constants_24(self):
         r"""
         SELECT "\\"";
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected '''",
-                  line=2, col=21)
+                  r"Unterminated string ';", line=2, col=21)
     def test_edgeql_syntax_constants_25(self):
         r"""
         SELECT b'\\'';
