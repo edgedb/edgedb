@@ -17,7 +17,7 @@
 #
 
 
-import collections
+import collections.abc
 import re
 
 from edb.lang.common.exceptions import EdgeDBError
@@ -971,11 +971,11 @@ class AlterObjectProperty(Command):
 
         new_value_empty = \
             (value is None or
-                (isinstance(value, collections.Container) and not value))
+                (isinstance(value, collections.abc.Container) and not value))
 
         old_value_empty = \
             (self.old_value is None or
-                (isinstance(self.old_value, collections.Container) and
+                (isinstance(self.old_value, collections.abc.Container) and
                     not self.old_value))
 
         if new_value_empty and not old_value_empty:

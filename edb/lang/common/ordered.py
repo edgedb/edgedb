@@ -18,9 +18,10 @@
 
 
 import collections
+import collections.abc
 
 
-class OrderedSet(collections.MutableSet):
+class OrderedSet(collections.abc.MutableSet):
     def __init__(self, iterable=None):
         self.map = collections.OrderedDict()
         if iterable is not None:
@@ -44,10 +45,10 @@ class OrderedSet(collections.MutableSet):
         key, value = self.map.popitem(last)
         return key
 
-    update = collections.MutableSet.__ior__
-    difference_update = collections.MutableSet.__isub__
-    symmetric_difference_update = collections.MutableSet.__ixor__
-    intersection_update = collections.MutableSet.__iand__
+    update = collections.abc.MutableSet.__ior__
+    difference_update = collections.abc.MutableSet.__isub__
+    symmetric_difference_update = collections.abc.MutableSet.__ixor__
+    intersection_update = collections.abc.MutableSet.__iand__
 
     def __len__(self):
         return len(self.map)
@@ -82,7 +83,7 @@ class OrderedSet(collections.MutableSet):
         self.map.clear()
 
 
-class OrderedIndex(OrderedSet, collections.MutableMapping):
+class OrderedIndex(OrderedSet, collections.abc.MutableMapping):
     def __init__(self, iterable=None, *, key=None):
         self.key = key or hash
         super().__init__(iterable)

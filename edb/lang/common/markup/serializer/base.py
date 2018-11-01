@@ -18,6 +18,7 @@
 
 
 import collections
+import collections.abc
 import decimal
 import functools
 import types
@@ -305,7 +306,7 @@ def serialize_str(obj, *, ctx):
 @serializer.register(collections.UserList)
 @serializer.register(list)
 @serializer.register(tuple)
-@serializer.register(collections.Set)
+@serializer.register(collections.abc.Set)
 @serializer.register(weakref.WeakSet)
 @serializer.register(set)
 @serializer.register(frozenset)
@@ -323,7 +324,7 @@ def serialize_sequence(obj, *, ctx, trim_at=100):
 
 
 @serializer.register(dict)
-@serializer.register(collections.Mapping)
+@serializer.register(collections.abc.Mapping)
 @no_ref_detect
 def serialize_mapping(obj, *, ctx, trim_at=100):
     map = collections.OrderedDict()

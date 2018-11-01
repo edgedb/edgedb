@@ -20,6 +20,7 @@
 import abc
 import builtins
 import collections
+import collections.abc
 
 __all__ = 'TypedList', 'TypedDict', 'OrderedTypedDict'
 
@@ -317,7 +318,7 @@ class StrList(TypedList, type=str):
     """List that contains only ``str`` values"""
 
 
-class TypedSet(AbstractTypedSet, collections.MutableSet, type=None):
+class TypedSet(AbstractTypedSet, collections.abc.MutableSet, type=None):
     """Set of one-type only elements.  All other properties and interface is
     the same as for the :py:class:`builtins.set`.
 
@@ -364,7 +365,7 @@ class TypedSet(AbstractTypedSet, collections.MutableSet, type=None):
 
         if isinstance(other, TypedSet):
             return self.__class__(other._data & self._data)
-        elif isinstance(other, collections.Set):
+        elif isinstance(other, collections.abc.Set):
             return self.__class__(other & self._data)
         return self.__class__(set(other) & self._data)
 
@@ -375,7 +376,7 @@ class TypedSet(AbstractTypedSet, collections.MutableSet, type=None):
 
         if isinstance(other, TypedSet):
             return self.__class__(other._data | self._data)
-        elif isinstance(other, collections.Set):
+        elif isinstance(other, collections.abc.Set):
             return self.__class__(other | self._data)
         return self.__class__(set(other) | self._data)
 
@@ -386,7 +387,7 @@ class TypedSet(AbstractTypedSet, collections.MutableSet, type=None):
 
         if isinstance(other, TypedSet):
             return self.__class__(self._data - other._data)
-        elif isinstance(other, collections.Set):
+        elif isinstance(other, collections.abc.Set):
             return self.__class__(self._data - other)
         return self.__class__(self._data - set(other))
 
@@ -395,7 +396,7 @@ class TypedSet(AbstractTypedSet, collections.MutableSet, type=None):
 
         if isinstance(other, TypedSet):
             return self.__class__(other._data - self._data)
-        elif isinstance(other, collections.Set):
+        elif isinstance(other, collections.abc.Set):
             return self.__class__(other - self._data)
         return self.__class__(set(other) - self._data)
 
@@ -403,7 +404,7 @@ class TypedSet(AbstractTypedSet, collections.MutableSet, type=None):
         self._check_items(other)
         if isinstance(other, TypedSet):
             return self.__class__(self._data ^ other._data)
-        elif isinstance(other, collections.Set):
+        elif isinstance(other, collections.abc.Set):
             return self.__class__(self._data ^ other)
         return self.__class__(self._data ^ set(other))
 

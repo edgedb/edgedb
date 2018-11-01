@@ -17,7 +17,7 @@
 #
 
 
-import collections
+import collections.abc
 import functools
 
 
