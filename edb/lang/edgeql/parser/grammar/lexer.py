@@ -174,6 +174,16 @@ class EdgeQLLexer(lexer.Lexer):
                 (?P=Q)
              '''),
 
+        # this rule will capture malformed strings and allow us to
+        # provide better error messages
+        Rule(token='BADSCONST',
+             next_state=STATE_KEEP,
+             regexp=rf'''
+                [rb]?
+                (['"] | (?: {re_dquote}))
+                [^\n]*
+             '''),
+
         Rule(token='BADIDENT',
              next_state=STATE_KEEP,
              regexp=r'''
@@ -207,7 +217,11 @@ class EdgeQLLexer(lexer.Lexer):
         self._long_token_match = {x[1]: x[0] for x in self.MERGE_TOKENS}
 
     def token_from_text(self, rule_token, txt):
-        if rule_token == 'BADIDENT':
+        if rule_token == 'BADSCONST':
+            raise lexer.UnknownTokenError(
+                f"Unterminated string {txt}",
+                line=self.lineno, col=self.column, filename=self.filename)
+        elif rule_token == 'BADIDENT':
             self.handle_error(txt)
 
         tok = super().token_from_text(rule_token, txt)

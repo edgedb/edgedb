@@ -1061,11 +1061,6 @@ class Attributes(ListNonterm, element=Attribute):
 
 
 class Value(Nonterm):
-    def reduce_COLONGT_NL_INDENT_RawString_NL_DEDENT(self, *kids):
-        text = kids[3].val.value
-        text = textwrap.dedent(text).strip()
-        self.val = qlast.BaseConstant.from_python(text)
-
     def reduce_AssignmentBlob(self, *kids):
         self.val = kids[0].val
 
