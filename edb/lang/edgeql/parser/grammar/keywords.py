@@ -80,6 +80,7 @@ unreserved_keywords = frozenset([
 future_reserved_keywords = frozenset([
     "all",
     "analyze",
+    "begin",
     "case",
     "deallocate",
     "declare",
@@ -106,6 +107,7 @@ future_reserved_keywords = frozenset([
     "reindex",
     "reset",
     "revoke",
+    "savepoint",
     "over",
     "typeof",
     "when",
