@@ -424,7 +424,7 @@ def _check_type(type_, value, raise_error):
         for t in typing_inspect.get_args(type_, evaluate=True):
             try:
                 _check_type(t, value, raise_error)
-            except TypeError as e:
+            except TypeError:
                 pass
             else:
                 break

@@ -111,18 +111,18 @@ class ContextLevel(compiler.ContextLevel):
     aliased_views: typing.Dict[str, s_nodes.Node]
     """A dictionary of views aliased in a statement body."""
 
-    schema_view_cache: typing.Dict[s_nodes.Node, s_nodes.Node]  # noqa
+    schema_view_cache: typing.Dict[s_nodes.Node, s_nodes.Node]
     """Type cache used by schema-level views."""
 
     expr_view_cache: typing.Dict[typing.Tuple[qlast.Base, str],
-                                 irast.Set]  # noqa
+                                 irast.Set]
     """Type cache used by expression-level views."""
 
     shape_type_cache: typing.Dict[typing.Tuple[qlast.ShapeElement, ...],
                                   s_nodes.Node]
     """Type cache for shape expressions."""
 
-    class_view_overrides: typing.Dict[s_name.SchemaName, s_nodes.Node]  # noqa
+    class_view_overrides: typing.Dict[s_name.SchemaName, s_nodes.Node]
     """Object mapping used by implicit view override in SELECT."""
 
     clause: str
@@ -149,8 +149,8 @@ class ContextLevel(compiler.ContextLevel):
     view_map: typing.Dict[irast.PathId, irast.Set]
     """Set translation map.  Used for views."""
 
-    class_shapes: typing.Dict[s_types.Type,                     # noqa
-                              typing.List[s_pointers.Pointer]]  # noqa
+    class_shapes: typing.Dict[s_types.Type,
+                              typing.List[s_pointers.Pointer]]
     """Object output or modification shapes."""
 
     completion_work: typing.List[typing.Callable]

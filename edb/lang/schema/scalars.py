@@ -86,20 +86,20 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
     def is_polymorphic(self):
         return bool(self.is_abstract and self.name.module == 'std')
 
-    def _resolve_polymorphic(self, concrete_type: 'Type'):
+    def _resolve_polymorphic(self, concrete_type: s_types.Type):
         if (self.is_polymorphic() and
                 concrete_type.is_scalar() and
                 not concrete_type.is_polymorphic()):
             return concrete_type
 
-    def _to_nonpolymorphic(self, concrete_type: 'Type'):
+    def _to_nonpolymorphic(self, concrete_type: s_types.Type):
         if (not concrete_type.is_polymorphic() and
                 concrete_type.issubclass(self)):
             return concrete_type
         raise TypeError(
             f'cannot interpret {concrete_type.name} as {self.name}')
 
-    def _test_polymorphic(self, other: 'Type'):
+    def _test_polymorphic(self, other: s_types.Type):
         if other.is_any():
             return True
         else:

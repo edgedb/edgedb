@@ -1665,7 +1665,7 @@ class CreateFunctionArgs(Nonterm):
 def _parse_language(node):
     try:
         return qlast.Language(node.val.upper())
-    except ValueError as ex:
+    except ValueError:
         raise EdgeQLSyntaxError(
             f'{node.val} is not a valid language',
             context=node.context) from None

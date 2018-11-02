@@ -110,7 +110,7 @@ class InputBuffer(pt_buffer.Buffer):
             lexer.setinputstr(text)
             try:
                 toks = list(lexer.lex())
-            except core_lexer.UnknownTokenError as ex:
+            except core_lexer.UnknownTokenError:
                 return True
 
             if toks[-1].type == ';':
@@ -149,7 +149,7 @@ class Cli:
         pt_token.Token.Timing.Value: '#888',
     })
 
-    exit_commands = {'exit', 'quit', '\q', ':q'}
+    exit_commands = {'exit', 'quit', R'\q', ':q'}
 
     def _command(prefix, title, desc, *, _all_commands={}):
         def wrap(func):
@@ -278,7 +278,7 @@ class Cli:
             print('Could not establish connection', file=sys.stderr)
             exit(1)
 
-    @_command('c', '\c DBNAME', 'connect to database DBNAME')
+    @_command('c', R'\c DBNAME', 'connect to database DBNAME')
     def command_connect(self, args):
         new_db = args.strip()
         new_args = {**self.conn_args,
@@ -288,7 +288,7 @@ class Cli:
         self.ensure_connection(new_args)
         self.conn_args = new_args
 
-    @_command('l', '\l', 'list databases')
+    @_command('l', R'\l', 'list databases')
     def command_list_dbs(self, args):
         result = self.run_coroutine(
             self.connection.list_dbs())
@@ -297,7 +297,7 @@ class Cli:
         for dbn in result:
             print(f'  {dbn}')
 
-    @_command('psql', '\psql', 'open psql to the current postgres process')
+    @_command('psql', R'\psql', 'open psql to the current postgres process')
     def command_psql(self, args):
         result = self.run_coroutine(
             self.connection.get_pgcon())
@@ -344,7 +344,7 @@ class Cli:
                 if command in self.exit_commands:
                     raise EOFError
 
-                if command == '\?':
+                if command == R'\?':
                     for title, desc, _ in self.commands.values():
                         print(f'  {title:<20} {desc}')
                     continue
@@ -357,7 +357,7 @@ class Cli:
                         self.commands[prefix][2](self, args)
                     else:
                         print(f'No command {command} is found.')
-                        print('Try \? to see the list of supported commands.')
+                        print(R'Try \? to see the list of supported commands.')
                     continue
 
                 self.ensure_connection(self.conn_args)

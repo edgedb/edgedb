@@ -191,7 +191,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
                   r"invalid bytes literal: invalid escape sequence '\\c'",
                   line=2, col=16)
     def test_edgeql_syntax_constants_11(self):
-        """
+        R"""
         SELECT b'aaa\cbbb';
         """
 
@@ -224,7 +224,7 @@ aa';
                   r"invalid string literal: invalid escape sequence '\\c'",
                   line=2, col=16)
     def test_edgeql_syntax_constants_15(self):
-        """
+        r"""
         SELECT 'aaa\cbbb';
         """
 
@@ -406,7 +406,7 @@ aa';
                   r"invalid string literal: invalid escape sequence '\\\('",
                   line=2, col=16)
     def test_edgeql_syntax_constants_41(self):
-        """
+        r"""
         SELECT 'aaa \(aaa) bbb';
         """
 
@@ -625,7 +625,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected '\*'", line=2, col=16)
+                  r"Unexpected '\*'", line=2, col=16)
     def test_edgeql_syntax_ops_20(self):
         """
         SELECT *1;
@@ -985,7 +985,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected '\.'", line=3, col=21)
+                  r"Unexpected '\.'", line=3, col=21)
     def test_edgeql_syntax_shape_11(self):
         """
         SELECT Foo {
@@ -1023,14 +1023,14 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected '\('", line=2, col=21)
+                  r"Unexpected '\('", line=2, col=21)
     def test_edgeql_syntax_shape_15(self):
         """
         SELECT Foo {(bar)};
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected '\('", line=2, col=30)
+                  r"Unexpected '\('", line=2, col=30)
     def test_edgeql_syntax_shape_16(self):
         """
         SELECT Foo {[IS Bar].(bar)};
@@ -1114,7 +1114,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected '\*'", line=4, col=24)
+                  r"Unexpected '\*'", line=4, col=24)
     def test_edgeql_syntax_shape_26(self):
         """
         SELECT Issue{
@@ -1124,7 +1124,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected '\*'", line=4, col=24)
+                  r"Unexpected '\*'", line=4, col=24)
     def test_edgeql_syntax_shape_27(self):
         """
         SELECT Issue{
@@ -1134,7 +1134,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected '\*'", line=4, col=24)
+                  r"Unexpected '\*'", line=4, col=24)
     def test_edgeql_syntax_shape_28(self):
         """
         SELECT Issue{
@@ -1144,7 +1144,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected '\*'", line=4, col=24)
+                  r"Unexpected '\*'", line=4, col=24)
     def test_edgeql_syntax_shape_29(self):
         """
         SELECT Issue{
@@ -1348,14 +1348,14 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected '\)'", line=2, col=28)
+                  r"Unexpected '\)'", line=2, col=28)
     def test_edgeql_syntax_struct_12(self):
         """
         SELECT (a := 1, foo);
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected '\.'", line=2, col=28)
+                  r"Unexpected '\.'", line=2, col=28)
     def test_edgeql_syntax_struct_13(self):
         """
         SELECT (a := 1, foo.bar);
@@ -1676,7 +1676,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected '\{'", line=3, col=19)
+                  r"Unexpected '\{'", line=3, col=19)
     def test_edgeql_syntax_cast_03(self):
         """
         SELECT

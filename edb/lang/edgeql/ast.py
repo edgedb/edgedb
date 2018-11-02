@@ -349,7 +349,7 @@ class FuncParam(Base):
     type: TypeExpr
     typemod: ft.TypeModifier = ft.TypeModifier.SINGLETON
     kind: ft.ParameterKind
-    default: Expr  # noqa (pyflakes bug)
+    default: Expr
 
 
 class IsOp(Expr):
@@ -387,8 +387,8 @@ class Introspect(Expr):
 
 class IfElse(Expr):
     condition: Expr
-    if_expr: Expr  # noqa (pyflakes bug)
-    else_expr: Expr  # noqa (pyflakes bug)
+    if_expr: Expr
+    else_expr: Expr
 
 
 class Coalesce(Expr):

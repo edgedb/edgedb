@@ -379,7 +379,7 @@ def compile_SessionStateDecl(
                     testmode_ir, schema=ctx.schema)
             except ireval.StaticEvaluationError as e:
                 raise errors.EdgeQLError('invalid SET expression',
-                                         context=item.context)
+                                         context=item.context) from e
             else:
                 if not isinstance(testmode, bool):
                     raise errors.EdgeQLError(

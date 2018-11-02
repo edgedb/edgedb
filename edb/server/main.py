@@ -193,7 +193,7 @@ def run_server(args):
         else:
             _run_server(cluster, args)
 
-    except BaseException as e:
+    except BaseException:
         if pg_cluster_init_by_us and not _server_initialized:
             logger.warning('server bootstrap did not complete successfully, '
                            'removing the data directory')

@@ -43,8 +43,8 @@ RUNTIME_DEPS = [
 
 EXTRA_DEPS = {
     'test': [
-        'flake8~=3.5.0',
-        'pycodestyle~=2.3.1',
+        'flake8~=3.6.0',
+        'pycodestyle~=2.4.0',
     ]
 }
 

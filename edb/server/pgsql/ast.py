@@ -521,7 +521,7 @@ class FuncCall(BaseExpr):
     # OVER clause, if any
     over: Base
     # WITH ORDINALITY
-    with_ordinality: bool = False  # noqa (pyflakes bug)
+    with_ordinality: bool = False
 
     def __init__(self, *, nullable: typing.Optional[bool]=None,
                  null_safe: bool=False, **kwargs) -> None:
@@ -647,7 +647,7 @@ class ColumnDef(Base):
     # type of column
     typename: TypeName
     # default value, if any
-    default_expr: Base  # noqa (pyflakes bug)
+    default_expr: Base
     # COLLATE clause, if any
     coll_clause: Base
 
@@ -755,7 +755,7 @@ class CaseExpr(BaseExpr):
     # List of WHEN clauses
     args: typing.List[CaseWhen]
     # ELSE clause
-    defresult: Base  # noqa (pyflakes bug)
+    defresult: Base
 
 
 class PgSQLOperator(ast.ops.Operator):

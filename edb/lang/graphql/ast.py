@@ -106,7 +106,7 @@ class Variable(Base):
 
 
 class Document(Base):
-    definitions: list  # noqa (pyflakes bug)
+    definitions: list
 
 
 class Definition(Base):

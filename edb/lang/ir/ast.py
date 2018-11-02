@@ -246,11 +246,11 @@ class TypeCheckOp(Expr):
 class IfElseExpr(Expr):
 
     condition: Set
-    if_expr: Set  # noqa (pyflakes bug)
-    else_expr: Set  # noqa (pyflakes bug)
+    if_expr: Set
+    else_expr: Set
 
-    if_expr_card: Cardinality  # noqa
-    else_expr_card: Cardinality  # noqa
+    if_expr_card: Cardinality
+    else_expr_card: Cardinality
 
 
 class Coalesce(Base):

@@ -116,7 +116,7 @@ class ObjectType(SourceNode, constraints.ConsistencySubject):
                     yield link_name, link_set
                     break
 
-    def implicitly_castable_to(self, other: 'Type', schema) -> bool:
+    def implicitly_castable_to(self, other: s_types.Type, schema) -> bool:
         return self.issubclass(other)
 
     @classmethod

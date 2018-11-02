@@ -403,7 +403,7 @@ class AbstractStyle:
         self.reverse = reverse
 
     def _filter_color(self, color):
-        raise NotImplemented()
+        raise NotImplementedError
 
     def _get_color(self):
         return self._rcolor_table[self._color]

@@ -77,7 +77,7 @@ def parse_edgeql_constant(expr: str, ctx, *, indent=0):
 def _parse_language(node):
     try:
         return esast.Language(node.val.upper())
-    except ValueError as ex:
+    except ValueError:
         raise SchemaSyntaxError(
             f'{node.val} is not a valid language',
             context=node.context) from None

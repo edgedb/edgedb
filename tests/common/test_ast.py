@@ -170,7 +170,7 @@ class ASTBaseTests(unittest.TestCase):
         with self.assertRaisesRegex(
                 RuntimeError, r'unable to resolve type annotations'):
             class Node2(ast.AST):
-                field: 'abc'
+                field: 'abc'  # noqa
 
         with self.assertRaisesRegex(RuntimeError,
                                     r"Mapping.*is not supported"):

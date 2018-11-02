@@ -221,8 +221,8 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
 
         with self.assertRaisesRegex(
                 exceptions.InvalidPointerTargetError,
-                "invalid target for link '\(test::ObjectType01\)\.target': "
-                "'test::Target0' \(expecting 'test::Target1'\)"):
+                r"invalid target for link '\(test::ObjectType01\)\.target': "
+                r"'test::Target0' \(expecting 'test::Target1'\)"):
             # Target0 is not allowed to be targeted by ObjectType01, since
             # ObjectType01 inherits from ObjectType1 which requires more
             # specific Target1.
