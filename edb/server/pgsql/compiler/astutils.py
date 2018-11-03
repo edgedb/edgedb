@@ -19,8 +19,6 @@
 
 import typing
 
-from edb.lang.common import ast
-
 from edb.lang.schema import pointers as s_pointers
 
 from edb.server.pgsql import ast as pgast
@@ -78,7 +76,7 @@ def new_binop(lexpr, rexpr, op):
     )
 
 
-def extend_binop(binop, *exprs, op=ast.ops.AND):
+def extend_binop(binop, *exprs, op='AND'):
     exprs = list(exprs)
     binop = binop or exprs.pop(0)
 
@@ -107,13 +105,11 @@ def join_condition(lref: pgast.ColumnRef, rref: pgast.ColumnRef) -> pgast.Base:
 
     if lref.optional:
         opt_cond = pgast.NullTest(arg=lref)
-        path_cond = extend_binop(
-            path_cond, opt_cond, op=ast.ops.OR)
+        path_cond = extend_binop(path_cond, opt_cond, op='OR')
 
     if rref.optional:
         opt_cond = pgast.NullTest(arg=rref)
-        path_cond = extend_binop(
-            path_cond, opt_cond, op=ast.ops.OR)
+        path_cond = extend_binop(path_cond, opt_cond, op='OR')
 
     return path_cond
 

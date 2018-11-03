@@ -66,7 +66,8 @@ def compile_orderby_clause(
             with subctx.newscope(fenced=True) as exprctx:
                 exprctx.path_scope.unnest_fence = True
                 ir_sortexpr = dispatch.compile(sortexpr.path, ctx=exprctx)
-                ir_sortexpr = setgen.scoped_set(ir_sortexpr, ctx=exprctx)
+                ir_sortexpr = setgen.scoped_set(
+                    ir_sortexpr, force_reassign=True, ctx=exprctx)
                 ir_sortexpr.context = sortexpr.context
                 stmtctx.enforce_singleton(ir_sortexpr, ctx=exprctx)
 
@@ -87,7 +88,8 @@ def compile_limit_offset_clause(
             subctx.clause = 'offsetlimit'
             ir_expr = dispatch.compile(expr, ctx=subctx)
             int_t = ctx.env.schema.get('std::int64')
-            ir_set = setgen.scoped_set(ir_expr, typehint=int_t, ctx=subctx)
+            ir_set = setgen.scoped_set(
+                ir_expr, force_reassign=True, typehint=int_t, ctx=subctx)
             ir_set.context = expr.context
             stmtctx.enforce_singleton(ir_set, ctx=subctx)
     else:

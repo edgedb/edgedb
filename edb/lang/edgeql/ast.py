@@ -27,68 +27,6 @@ from . import functypes as ft
 from . import quote
 
 
-# Operators
-#
-
-class EdgeQLOperator(ast.ops.Operator):
-    pass
-
-
-class EdgeQLComparisonOperator(EdgeQLOperator, ast.ops.ComparisonOperator):
-    pass
-
-
-class EdgeQLMatchOperator(EdgeQLComparisonOperator):
-    def __new__(cls, val, *, strname=None, **kwargs):
-        return super().__new__(cls, val, **kwargs)
-
-    def __init__(self, val, *, strname=None, **kwargs):
-        super().__init__(val, **kwargs)
-        self._strname = strname
-
-    def __str__(self):
-        if self._strname:
-            return self._strname
-        else:
-            return super().__str__()
-
-
-class SetOperator(EdgeQLOperator):
-    pass
-
-
-UNION = SetOperator('UNION')
-DISTINCT = SetOperator('DISTINCT')
-
-AND = ast.ops.AND
-OR = ast.ops.OR
-NOT = ast.ops.NOT
-IN = ast.ops.IN
-NOT_IN = ast.ops.NOT_IN
-EQ = ast.ops.EQ
-
-LIKE = EdgeQLMatchOperator('LIKE')
-NOT_LIKE = EdgeQLMatchOperator('NOT LIKE')
-ILIKE = EdgeQLMatchOperator('ILIKE')
-NOT_ILIKE = EdgeQLMatchOperator('NOT ILIKE')
-
-
-class EquivalenceOperator(EdgeQLOperator):
-    pass
-
-
-EQUIVALENT = EquivalenceOperator('?=')
-NEQUIVALENT = EquivalenceOperator('?!=')
-
-
-class TypeOperator(EdgeQLOperator):
-    pass
-
-
-TYPEOR = TypeOperator('|')
-TYPEAND = TypeOperator('&')
-
-
 class SortOrder(s_enum.StrEnum):
     Asc = 'ASC'
     Desc = 'DESC'
@@ -106,17 +44,6 @@ class NonesOrder(s_enum.StrEnum):
 
 NonesFirst = NonesOrder.First
 NonesLast = NonesOrder.Last
-
-
-class SetModifier(s_enum.StrEnum):
-    ALL = 'ALL'
-    DISTINCT = 'DISTINCT'
-    NONE = ''
-
-
-AggALL = SetModifier.ALL
-AggDISTINCT = SetModifier.DISTINCT
-AggNONE = SetModifier.NONE
 
 
 class Cardinality(s_enum.StrEnum):
@@ -196,7 +123,15 @@ class ObjectRef(BaseObjectRef):
     itemclass: SchemaItemClass
 
 
-class AnyType(BaseObjectRef):
+class PseudoObjectRef(BaseObjectRef):
+    pass
+
+
+class AnyType(PseudoObjectRef):
+    pass
+
+
+class AnyTuple(PseudoObjectRef):
     pass
 
 
@@ -248,8 +183,6 @@ class FunctionCall(Expr):
     args: typing.List[FuncArg]
     kwargs: typing.Dict[str, FuncArg]
     window: WindowSpec
-    # FIXME: drop this completely
-    agg_set_modifier: typing.Optional[SetModifier]
 
 
 class BaseConstant(Expr):
@@ -265,9 +198,11 @@ class BaseConstant(Expr):
             return IntegerConstant(value=str(val))
         elif isinstance(val, decimal.Decimal):
             if val.to_integral_value() == val:
-                return IntegerConstant(value=str(val))
+                return IntegerConstant(value=str(val.to_integral_value()))
             else:
                 return FloatConstant(value=str(val))
+        elif isinstance(val, float):
+            return FloatConstant(value=str(val))
         elif isinstance(val, bytes):
             return BytesConstant.from_python(value=val)
         else:
@@ -398,10 +333,6 @@ class IfElse(Expr):
 
 class Coalesce(Expr):
     args: typing.List[Expr]
-
-
-class ExistsPredicate(Expr):
-    expr: Expr
 
 
 class RequiredExpr(Expr):
@@ -853,7 +784,10 @@ class DropFunction(DropObject, CallableObject):
 
 class OperatorCode(Clause):
     language: Language
-    from_name: str
+    from_operator: str
+    from_function: str
+    from_expr: bool
+    code: str
 
 
 class OperatorCommand(CallableObject):
@@ -905,7 +839,7 @@ def union_targets(names):
     for tname in names[1:]:
         target = TypeOp(
             left=target,
-            op=TYPEOR,
+            op='|',
             right=TypeName(
                 maintype=ObjectRef(name=tname.name,
                                    module=tname.module)

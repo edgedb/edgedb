@@ -22,8 +22,9 @@
 
 import typing
 
-from edb.lang.common import ast
 from edb.lang.common import parsing
+
+from edb.lang.edgeql import functypes as ft
 
 from edb.lang.ir import ast as irast
 from edb.lang.ir import staeval as ireval
@@ -37,7 +38,6 @@ from edb.lang.schema import utils as s_utils
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import errors
 
-from . import astutils
 from . import context
 from . import dispatch
 from . import inference
@@ -71,36 +71,17 @@ def compile_Path(
     return setgen.compile_path(expr, ctx=ctx)
 
 
-def make_binop(
-        left,
-        right,
-        op, *,
-        ctx: context.ContextLevel) -> irast.BinOp:
-    binop = irast.BinOp(left=left, right=right, op=op)
-    binop.stype = inference.infer_type(binop, env=ctx.env)
-    return binop
-
-
 @dispatch.compile.register(qlast.BinOp)
 def compile_BinOp(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
-    try_folding = True
 
-    if isinstance(expr.op, qlast.SetOperator):
+    if expr.op == 'UNION':
         op_node = compile_set_op(expr, ctx=ctx)
-        try_folding = False
-    elif isinstance(expr.op, qlast.EquivalenceOperator):
-        op_node = compile_equivalence_op(expr, ctx=ctx)
-    elif isinstance(expr.op, ast.ops.MembershipOperator):
-        op_node = compile_membership_op(expr, ctx=ctx)
-        try_folding = False
     else:
-        left = dispatch.compile(expr.left, ctx=ctx)
-        right = dispatch.compile(expr.right, ctx=ctx)
-        op_node = make_binop(left=left, right=right, op=expr.op, ctx=ctx)
+        op_node = func.compile_operator(
+            expr, op_name=expr.op, qlargs=[expr.left, expr.right], ctx=ctx)
 
-    if try_folding:
-        folded = try_fold_binop(op_node, ctx=ctx)
+        folded = try_fold_binop(op_node.expr, ctx=ctx)
         if folded is not None:
             return folded
 
@@ -111,10 +92,6 @@ def compile_BinOp(
 def compile_IsOp(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
     op_node = compile_type_check_op(expr, ctx=ctx)
-    folded = try_fold_binop(op_node, ctx=ctx)
-    if folded is not None:
-        return folded
-
     return setgen.ensure_set(op_node, ctx=ctx)
 
 
@@ -152,7 +129,7 @@ def compile_Set(
         else:
             elements = flatten_set(expr)
             # a set literal is just sugar for a UNION
-            op = qlast.UNION
+            op = 'UNION'
 
             bigunion = qlast.BinOp(
                 left=elements[0],
@@ -212,38 +189,45 @@ def compile_BaseConstant(
 
 
 def try_fold_binop(
-        binop: irast.BinOp, *,
+        opcall: irast.OperatorCall, *,
         ctx: context.ContextLevel) -> typing.Optional[irast.Set]:
     try:
-        const = ireval.evaluate(binop, schema=ctx.env.schema)
+        const = ireval.evaluate(opcall, schema=ctx.env.schema)
     except ireval.UnsupportedExpressionError:
-        if binop.op in {ast.ops.ADD, ast.ops.MUL}:
-            return try_fold_associative_binop(binop, ctx=ctx)
+        anyreal = ctx.env.schema.get('std::anyreal')
+
+        if (opcall.func_shortname in ('std::+', 'std::*') and
+                opcall.operator_kind is ft.OperatorKind.INFIX and
+                all(a.stype.issubclass(ctx.env.schema, anyreal)
+                    for a in opcall.args)):
+            return try_fold_associative_binop(opcall, ctx=ctx)
     else:
         return setgen.ensure_set(const, ctx=ctx)
 
 
 def try_fold_associative_binop(
-        binop: irast.BinOp, *,
+        opcall: irast.OperatorCall, *,
         ctx: context.ContextLevel) -> typing.Optional[irast.Set]:
 
     # Let's check if we have (CONST + (OTHER_CONST + X))
     # tree, which can be optimized to ((CONST + OTHER_CONST) + X)
 
-    op = binop.op
-    my_const = binop.left
-    other_binop = binop.right
+    op = opcall.func_shortname
+    my_const = opcall.args[0]
+    other_binop = opcall.args[1]
     folded = None
 
     if isinstance(other_binop.expr, irast.BaseConstant):
         my_const, other_binop = other_binop, my_const
 
     if (isinstance(my_const.expr, irast.BaseConstant) and
-            isinstance(other_binop.expr, irast.BinOp) and
-            other_binop.expr.op == op):
+            isinstance(other_binop.expr, irast.OperatorCall) and
+            other_binop.expr.func_shortname == op and
+            other_binop.expr.operator_kind is ft.OperatorKind.INFIX):
 
-        other_const = other_binop.expr.left
-        other_binop_node = other_binop.expr.right
+        other_const = other_binop.expr.args[0]
+        other_binop_node = other_binop.expr.args[1]
+
         if isinstance(other_binop_node.expr, irast.BaseConstant):
             other_binop_node, other_const = \
                 other_const, other_binop_node
@@ -251,18 +235,38 @@ def try_fold_associative_binop(
         if isinstance(other_const.expr, irast.BaseConstant):
             try:
                 new_const = ireval.evaluate(
-                    make_binop(op=op, left=other_const,
-                               right=my_const, ctx=ctx),
+                    irast.OperatorCall(
+                        args=[other_const, my_const],
+                        func_shortname=op,
+                        func_polymorphic=opcall.func_polymorphic,
+                        func_sql_function=opcall.func_sql_function,
+                        sql_operator=opcall.sql_operator,
+                        operator_kind=opcall.operator_kind,
+                        params_typemods=opcall.params_typemods,
+                        context=opcall.context,
+                        stype=opcall.stype,
+                        typemod=opcall.typemod,
+                    ),
                     schema=ctx.env.schema,
                 )
             except ireval.UnsupportedExpressionError:
                 pass
             else:
-                folded_binop = make_binop(
-                    left=setgen.ensure_set(new_const, ctx=ctx),
-                    right=other_binop_node,
-                    op=op,
-                    ctx=ctx)
+                folded_binop = irast.OperatorCall(
+                    args=[
+                        setgen.ensure_set(new_const, ctx=ctx),
+                        other_binop_node
+                    ],
+                    func_shortname=op,
+                    func_polymorphic=opcall.func_polymorphic,
+                    func_sql_function=opcall.func_sql_function,
+                    sql_operator=opcall.sql_operator,
+                    operator_kind=opcall.operator_kind,
+                    params_typemods=opcall.params_typemods,
+                    context=opcall.context,
+                    stype=opcall.stype,
+                    typemod=opcall.typemod,
+                )
 
                 folded = setgen.ensure_set(folded_binop, ctx=ctx)
 
@@ -393,40 +397,16 @@ def compile_IfElse(
 @dispatch.compile.register(qlast.UnaryOp)
 def compile_UnaryOp(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
-    if expr.op == qlast.DISTINCT:
-        return compile_distinct_op(expr, ctx=ctx)
 
-    if (expr.op == ast.ops.UMINUS and
-            isinstance(expr.operand, qlast.BaseRealConstant)):
-        # Special case for -<real_const> so that type inference based
-        # on literal size works correctly in the case of INT_MIN and friends.
-        const = type(expr.operand)(value=expr.operand.value, is_negative=True)
-        result = dispatch.compile(const, ctx=ctx)
-    else:
-        operand = dispatch.compile(expr.operand, ctx=ctx)
-        if astutils.is_exists_expr_set(operand):
-            operand.expr.negated = not operand.expr.negated
-            return operand
+    result = func.compile_operator(
+        expr, op_name=expr.op, qlargs=[expr.operand], ctx=ctx)
 
-        result = irast.UnaryOp(expr=operand, op=expr.op, context=expr.context)
-        try:
-            result = ireval.evaluate(result, schema=ctx.env.schema)
-        except ireval.UnsupportedExpressionError:
-            pass
+    try:
+        result = ireval.evaluate(result, schema=ctx.env.schema)
+    except ireval.UnsupportedExpressionError:
+        pass
 
     return setgen.generated_set(result, ctx=ctx)
-
-
-@dispatch.compile.register(qlast.ExistsPredicate)
-def compile_ExistsPredicate(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    with ctx.new() as exctx:
-        with exctx.newscope(fenced=True) as opctx:
-            operand = setgen.scoped_set(
-                dispatch.compile(expr.expr, ctx=opctx), ctx=opctx)
-
-        return setgen.generated_set(
-            irast.ExistPred(expr=operand), ctx=exctx)
 
 
 @dispatch.compile.register(qlast.Coalesce)
@@ -741,59 +721,6 @@ def compile_set_op(
         target=setop, field='right_card', irexpr=right, ctx=ctx)
 
     return setgen.ensure_set(setop, ctx=ctx)
-
-
-def compile_distinct_op(
-        expr: qlast.UnaryOp, *, ctx: context.ContextLevel) -> irast.DistinctOp:
-    # DISTINCT(SET OF anytype A) -> SET OF anytype
-    with ctx.newscope(fenced=True) as scopectx:
-        operand = setgen.scoped_set(
-            dispatch.compile(expr.operand, ctx=scopectx), ctx=scopectx)
-    return setgen.generated_set(irast.DistinctOp(expr=operand), ctx=ctx)
-
-
-def compile_equivalence_op(
-        expr: qlast.BinOp, *,
-        ctx: context.ContextLevel) -> irast.EquivalenceOp:
-    # A ?= B ≣ EQUIV(OPTIONAL anytype A, OPTIONAL anytype B) -> std::bool
-    # Definition:
-    #   | {a = b | ∀ (a, b) ∈ A ⨯ B}, iff A != ∅ ∧ B != ∅
-    #   | {True}, iff A = B = ∅
-    #   | {False}, iff A != ∅ ∧ B = ∅
-    #   | {False}, iff A = ∅ ∧ B != ∅
-    #
-    # A ?!= B ≣ NEQUIV(OPTIONAL anytype A, OPTIONAL anytype B) -> std::bool
-    # Definition:
-    #   | {a != b | ∀ (a, b) ∈ A ⨯ B}, iff A != ∅ ∧ B != ∅
-    #   | {False}, iff A = B = ∅
-    #   | {True}, iff A != ∅ ∧ B = ∅
-    #   | {True}, iff A = ∅ ∧ B != ∅
-    left = setgen.ensure_set(dispatch.compile(expr.left, ctx=ctx), ctx=ctx)
-    right = setgen.ensure_set(dispatch.compile(expr.right, ctx=ctx), ctx=ctx)
-    result = irast.EquivalenceOp(left=left, right=right, op=expr.op)
-
-    # Make sure any empty set types are properly resolved
-    # before entering them into the scope tree.
-    inference.infer_type(result, ctx.env)
-
-    pathctx.register_set_in_scope(left, ctx=ctx)
-    pathctx.mark_path_as_optional(left.path_id, ctx=ctx)
-    pathctx.register_set_in_scope(right, ctx=ctx)
-    pathctx.mark_path_as_optional(right.path_id, ctx=ctx)
-
-    return result
-
-
-def compile_membership_op(
-        expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Base:
-    left = dispatch.compile(expr.left, ctx=ctx)
-    with ctx.newscope(fenced=True) as scopectx:
-        # [NOT] IN is an aggregate, so we need to put a scope fence.
-        right = setgen.scoped_set(
-            dispatch.compile(expr.right, ctx=scopectx), ctx=scopectx)
-
-    op_node = make_binop(left=left, right=right, op=expr.op, ctx=ctx)
-    return setgen.generated_set(op_node, ctx=ctx)
 
 
 def flatten_set(expr: qlast.Set) -> typing.List[qlast.Expr]:

@@ -719,34 +719,23 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        try:
-            await self.assert_query_result(r'''
-                SELECT test::call20_1(10, 20);
+        await self.assert_query_result(r'''
+            SELECT test::call20_1(10, 20);
 
-                SELECT test::call20_2(1, 2);
-                SELECT test::call20_2('b', 'a');
-            ''', [
-                [30],
+            SELECT test::call20_2(1, 2);
+            SELECT test::call20_2('b', 'a');
+        ''', [
+            [30],
 
-                [True],
-                [False],
-            ])
+            [True],
+            [False],
+        ])
 
-            with self.assertRaisesRegex(
-                    exc.EdgeQLError,
-                    r'could not find a function variant'):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r'could not find a function variant'):
 
-                await self.con.execute('SELECT test::call20_1(1, "1");')
-
-        finally:
-            await self.con.execute('''
-                DROP FUNCTION test::call20_1(
-                    a: anytype, b: anytype
-                );
-                DROP FUNCTION test::call20_2(
-                    a: anytype, b: anytype
-                );
-            ''')
+            await self.con.execute('SELECT test::call20_1(1, "1");')
 
     async def test_edgeql_calls_21(self):
         await self.con.execute('''
@@ -777,10 +766,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 );
             ''')
 
-    @unittest.expectedFailure
     async def test_edgeql_calls_22(self):
-        # XXX Requires a polymorphic "+" operator
-
         await self.con.execute('''
             CREATE FUNCTION test::call22(
                 a: anytype, b: anytype
@@ -1027,7 +1013,6 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 );
             ''')
 
-    @unittest.expectedFailure
     async def test_edgeql_calls_29(self):
         await self.con.execute('''
             CREATE FUNCTION test::call29(

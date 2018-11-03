@@ -129,7 +129,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue {
                 number,
-                has_estimate := Issue.time_estimate ?!= {}
+                has_estimate := Issue.time_estimate ?!= <int64>{}
             };
         ''', lambda x: x['number'], [
             [
@@ -165,7 +165,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             SELECT Issue.time_estimate ?= 60;
 
             WITH MODULE test
-            SELECT Issue.time_estimate ?= {};
+            SELECT Issue.time_estimate ?= <int64>{};
         ''', lambda x: x, [
             [
                 False, False, True,
@@ -182,7 +182,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             SELECT (
                 SELECT Issue
                 FILTER Issue.status.name = 'Open'
-            ).time_estimate ?= {};
+            ).time_estimate ?= <int64>{};
         ''', [
             [
                 True,
@@ -197,7 +197,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                 MODULE test,
                 I := (SELECT Issue
                       FILTER Issue.status.name = 'Open')
-            SELECT I.time_estimate ?!= {};
+            SELECT I.time_estimate ?!= <int64>{};
 
             WITH
                 MODULE test,

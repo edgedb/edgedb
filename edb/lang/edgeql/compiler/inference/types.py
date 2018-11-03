@@ -20,8 +20,6 @@
 import functools
 import typing
 
-from edb.lang.common import ast
-
 from edb.lang.schema import abc as s_abc
 from edb.lang.schema import inheriting as s_inh
 from edb.lang.schema import name as s_name
@@ -31,7 +29,6 @@ from edb.lang.schema import scalars as s_scalars
 from edb.lang.schema import types as s_types
 from edb.lang.schema import utils as s_utils
 
-from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import errors as ql_errors
 
 from edb.lang.ir import ast as irast
@@ -129,6 +126,7 @@ def __infer_set(ir, env):
     return ir.stype
 
 
+@_infer_type.register(irast.OperatorCall)
 @_infer_type.register(irast.FunctionCall)
 def __infer_func_call(ir, env):
     return ir.stype
@@ -156,7 +154,7 @@ def __infer_setop(ir, env):
     left_type = infer_type(ir.left, env).material_type(env.schema)
     right_type = infer_type(ir.right, env).material_type(env.schema)
 
-    assert ir.op == qlast.UNION
+    assert ir.op == 'UNION'
 
     if isinstance(left_type, (s_scalars.ScalarType, s_abc.Collection)):
         result = left_type.find_common_implicitly_castable_type(
@@ -171,12 +169,6 @@ def __infer_setop(ir, env):
             env.schema, result = s_inh.create_virtual_parent(
                 env.schema, [left_type, right_type])
 
-    return result
-
-
-@_infer_type.register(irast.DistinctOp)
-def __infer_distinctop(ir, env):
-    result = infer_type(ir.expr, env)
     return result
 
 
@@ -205,67 +197,10 @@ def _infer_binop_args(left, right, env):
     return left_type, right_type
 
 
-@_infer_type.register(irast.BinOp)
-def __infer_binop(ir, env):
-    left_type, right_type = _infer_binop_args(ir.left, ir.right, env)
-    result = None
-
-    if isinstance(ir.op, (ast.ops.ComparisonOperator,
-                          ast.ops.MembershipOperator)):
-        result = env.schema.get('std::bool')
-    else:
-        if (isinstance(left_type, s_scalars.ScalarType) and
-                isinstance(right_type, s_scalars.ScalarType)):
-
-            if left_type == right_type:
-                return left_type
-
-            result = s_scalars.get_op_type(
-                ir.op, left_type, right_type, schema=env.schema)
-
-        elif (left_type.is_polymorphic(env.schema) and
-                right_type.is_polymorphic(env.schema) and
-                left_type == right_type):
-            return left_type
-
-    if result is None:
-        raise ql_errors.EdgeQLError(
-            f'binary operator `{ir.op.upper()}` is not defined for types '
-            f'{left_type.get_name(env.schema)} and '
-            f'{right_type.get_name(env.schema)}',
-            context=ir.left.context)
-
-    return result
-
-
-@_infer_type.register(irast.EquivalenceOp)
-def __infer_equivop(ir, env):
-    left_type, right_type = _infer_binop_args(ir.left, ir.right, env)
-    return env.schema.get('std::bool')
-
-
 @_infer_type.register(irast.TypeCheckOp)
 def __infer_typecheckop(ir, env):
     left_type, right_type = _infer_binop_args(ir.left, ir.right, env)
     return env.schema.get('std::bool')
-
-
-@_infer_type.register(irast.UnaryOp)
-def __infer_unaryop(ir, env):
-    result = None
-    operand_type = infer_type(ir.expr, env)
-
-    if isinstance(operand_type, s_scalars.ScalarType):
-        result = s_scalars.get_op_type(
-            ir.op, operand_type, schema=env.schema)
-
-    if result is None:
-        raise ql_errors.EdgeQLError(
-            f'unary operator `{ir.op.upper()}` is not defined '
-            f'for type {operand_type.get_name(env.schema)}',
-            context=ir.context)
-
-    return result
 
 
 @_infer_type.register(irast.IfElseExpr)
@@ -314,14 +249,6 @@ def __infer_typecast(ir, env):
 @_infer_type.register(irast.Stmt)
 def __infer_stmt(ir, env):
     return infer_type(ir.result, env)
-
-
-@_infer_type.register(irast.ExistPred)
-def __infer_exist(ir, env):
-    bool_t = env.schema.get('std::bool')
-    if isinstance(ir.expr, irast.EmptySet) and ir.expr.stype is None:
-        amend_empty_set_type(ir.expr, bool_t, schema=env.schema)
-    return bool_t
 
 
 @_infer_type.register(irast.SliceIndirection)

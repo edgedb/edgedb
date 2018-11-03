@@ -24,7 +24,6 @@ import typing
 from edb.lang.ir import ast as irast
 from edb.lang.ir import utils as irutils
 
-from edb.lang.common import ast
 from edb.lang.schema import objects as s_obj
 
 from edb.server.pgsql import ast as pgast
@@ -191,7 +190,7 @@ def cast(
             return astutils.new_binop(
                 node,
                 pgast.NumericConstant(val='0'),
-                op=ast.ops.NE)
+                op='!=')
 
         elif source_type.issubclass(env.schema, json_t):
             # When casting from json, we want the text representation

@@ -103,3 +103,48 @@ std::random() -> std::float64
 {
     FROM SQL FUNCTION 'random';
 };
+
+
+# Generic comparison operators
+# ----------------------------
+
+CREATE INFIX OPERATOR
+std::`=` (l: anytuple, r: anytuple) -> std::bool
+    FROM SQL OPERATOR '=';
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL anytuple, r: OPTIONAL anytuple) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`!=` (l: anytuple, r: anytuple) -> std::bool
+    FROM SQL OPERATOR '<>';
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL anytuple, r: OPTIONAL anytuple) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`=` (l: array<anytype>, r: array<anytype>) -> std::bool
+    FROM SQL OPERATOR '=';
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL array<anytype>,
+           r: OPTIONAL array<anytype>) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`!=` (l: array<anytype>, r: array<anytype>) -> std::bool
+    FROM SQL OPERATOR '<>';
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL array<anytype>,
+            r: OPTIONAL array<anytype>) -> std::bool
+    FROM SQL EXPRESSION;

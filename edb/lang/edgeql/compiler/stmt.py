@@ -266,7 +266,7 @@ def compile_InsertQuery(
         if subject.stype.is_view(ctx.env.schema):
             raise errors.EdgeQLError(
                 f'cannot insert: '
-                f'{subject.stype.get_displayname(ctx.env.schema)} is a view',
+                f'{subject.stype.get_shortname(ctx.env.schema)} is a view',
                 context=expr.subject.context)
 
         stmt.subject = compile_query_subject(

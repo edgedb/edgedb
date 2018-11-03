@@ -28,10 +28,11 @@ from . import ddl
 
 
 class CreateOperatorAlias(ddl.SchemaObjectOperation):
-    def __init__(self, *, name, args, operator, **kwargs):
+    def __init__(self, *, name, args, operator, procedure=None, **kwargs):
         super().__init__(name=name, **kwargs)
         self.args = args
         self.operator = operator
+        self.procedure = procedure
 
     def code(self, block: base.PLBlock) -> str:
         oper_var = block.declare_var(('pg_catalog', 'pg_operator%ROWTYPE'))
@@ -42,16 +43,18 @@ class CreateOperatorAlias(ddl.SchemaObjectOperation):
             left_type = f"', LEFTARG = {left_type_desc}'"
             oper_cond.append(f'o.oprleft = {ql(qt(self.args[0]))}::regtype')
         else:
-            left_type = "''"
             left_type_desc = 'NONE'
+            left_type = "''"
+            oper_cond.append(f'o.oprleft = 0')
 
         if self.args[1] is not None:
             right_type_desc = qt(self.args[1])
-            right_type = f"', RIGHTARG ={right_type_desc}'"
+            right_type = f"', RIGHTARG = {right_type_desc}'"
             oper_cond.append(f'o.oprright = {ql(qt(self.args[1]))}::regtype')
         else:
-            right_type = "''"
             right_type_desc = 'NONE'
+            right_type = "''"
+            oper_cond.append(f'o.oprright = 0')
 
         oper_desc = (
             f'{qi(self.operator[0])}.{self.operator[1]} ('
@@ -100,7 +103,7 @@ class CreateOperatorAlias(ddl.SchemaObjectOperation):
 
             EXECUTE
                 'CREATE OPERATOR {name} ('
-                || 'PROCEDURE = ' || {oper}.oprcode::text
+                || 'PROCEDURE = ' || {procedure}
                 || {left_type}
                 || {right_type}
                 || {commutator}
@@ -114,6 +117,8 @@ class CreateOperatorAlias(ddl.SchemaObjectOperation):
         ''').format_map({
             'name': f'{qi(self.name[0])}.{self.name[1]}',
             'oper': oper_var,
+            'procedure': (ql(self.procedure) if self.procedure
+                          else f'{oper_var}.oprcode::text'),
             'oper_schema': ql(self.operator[0]),
             'oper_name': ql(self.operator[1]),
             'oper_cond': ' AND '.join(oper_cond),
@@ -144,6 +149,34 @@ class CreateOperatorAlias(ddl.SchemaObjectOperation):
             ),
         })
         return code.strip()
+
+
+class CreateOperator(ddl.SchemaObjectOperation):
+    def __init__(self, *, name, args, procedure, **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.args = args
+        self.procedure = procedure
+
+    def code(self, block: base.PLBlock) -> str:
+        if self.args[0] is not None:
+            left_type_desc = qt(self.args[0])
+            left_type = f", LEFTARG = {left_type_desc}"
+        else:
+            left_type = ""
+
+        if self.args[1] is not None:
+            right_type_desc = qt(self.args[1])
+            right_type = f", RIGHTARG = {right_type_desc}"
+        else:
+            right_type = ""
+
+        return textwrap.dedent(f'''\
+            CREATE OPERATOR {qi(self.name[0])}.{self.name[1]} (
+                PROCEDURE = {self.procedure}
+                {left_type}
+                {right_type}
+            );
+        ''')
 
 
 class DropOperator(ddl.SchemaObjectOperation):

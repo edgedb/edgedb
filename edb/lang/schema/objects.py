@@ -1021,7 +1021,7 @@ class Object(s_abc.Object, metaclass=ObjectMeta):
         )
 
     def __repr__(self):
-        return f'<{type(self).__name__} at 0x{id(self):#x}>'
+        return f'<{type(self).__name__} {self.id} at 0x{id(self):#x}>'
 
 
 class ObjectRef(Object):

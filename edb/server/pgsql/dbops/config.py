@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2008-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,13 +16,19 @@
 # limitations under the License.
 #
 
-MODULE_big = edbsys
-OBJS = module.o recordext.o numop.o $(WIN32RES)
 
-EXTENSION = edbsys
-DATA = edbsys--1.0.sql
-PGFILEDESC = "edbsys - EdgeDB system extensions to core Postgres"
+from ..common import quote_ident as qi
+from ..common import quote_literal as ql
 
-PG_CONFIG ?= pg_config
-PGXS := $(shell $(PG_CONFIG) --pgxs)
-include $(PGXS)
+from . import base
+
+
+class Set(base.Command):
+
+    def __init__(self, key, val, **kwargs):
+        super().__init__(**kwargs)
+        self.key = key
+        self.val = val
+
+    def code(self, block: base.PLBlock) -> str:
+        return f'SET {qi(self.key)} = {ql(self.val)}'

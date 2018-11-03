@@ -22,6 +22,8 @@ import typing
 
 from edb.lang.common import ast
 
+from edb.lang.edgeql import functypes as ft
+
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import name as s_name
 from edb.lang.schema import pointers as s_pointers
@@ -74,8 +76,25 @@ def is_const(ir):
 
 def is_set_membership_expr(ir):
     return (
-        isinstance(ir, irast.BinOp) and
-        isinstance(ir.op, ast.ops.MembershipOperator)
+        isinstance(ir, irast.OperatorCall) and
+        ir.operator_kind is ft.OperatorKind.INFIX and
+        ir.func_shortname in {'std::IN', 'std::NOT IN'}
+    )
+
+
+def is_distinct_expr(ir):
+    return (
+        isinstance(ir, irast.OperatorCall) and
+        ir.operator_kind is ft.OperatorKind.PREFIX and
+        ir.func_shortname == 'std::DISTINCT'
+    )
+
+
+def is_exists_expr(ir):
+    return (
+        isinstance(ir, irast.OperatorCall) and
+        ir.operator_kind is ft.OperatorKind.PREFIX and
+        ir.func_shortname == 'std::EXISTS'
     )
 
 
@@ -155,6 +174,20 @@ def is_simple_path(ir_expr):
     )
 
 
+def is_implicit_wrapper(ir_expr):
+    return (
+        isinstance(ir_expr, irast.SelectStmt) and
+        ir_expr.implicit_wrapper
+    )
+
+
+def unwrap_set(ir_set):
+    if is_implicit_wrapper(ir_set.expr):
+        return ir_set.expr.result
+    else:
+        return ir_set
+
+
 def wrap_stmt_set(ir_set):
     if is_subquery_set(ir_set):
         src_stmt = ir_set.expr
@@ -169,16 +202,6 @@ def wrap_stmt_set(ir_set):
         specific_path_scope=src_stmt.specific_path_scope
     )
     return stmt
-
-
-def is_simple_wrapper(ir_expr):
-    if not isinstance(ir_expr, irast.SelectStmt):
-        return False
-
-    return (
-        isinstance(ir_expr.result, irast.Stmt) or
-        is_subquery_set(ir_expr.result)
-    )
 
 
 def new_empty_set(schema, *, stype=None, alias):

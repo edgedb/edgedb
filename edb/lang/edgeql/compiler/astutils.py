@@ -20,12 +20,11 @@
 """EdgeQL compiler helpers for AST classification and basic transforms."""
 
 
-from edb.lang.common import ast
 from edb.lang.edgeql import ast as qlast
 from edb.lang.ir import ast as irast
 
 
-def extend_qlbinop(binop, *exprs, op=ast.ops.AND):
+def extend_qlbinop(binop, *exprs, op='AND'):
     exprs = list(exprs)
     binop = binop or exprs.pop(0)
 
@@ -51,13 +50,6 @@ def ensure_qlstmt(expr):
 
 def is_ql_empty_set(expr):
     return isinstance(expr, qlast.Set) and len(expr.elements) == 0
-
-
-def is_exists_expr_set(ir_expr):
-    return (
-        isinstance(ir_expr, irast.Set) and
-        isinstance(ir_expr.expr, irast.ExistPred)
-    )
 
 
 def is_set_op_set(ir_expr):

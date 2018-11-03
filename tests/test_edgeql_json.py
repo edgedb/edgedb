@@ -483,10 +483,8 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_array_unpack_02(self):
         with self.assertRaisesRegex(
-                # FIXME: a different error should be used here, this
-                # one leaks postgres types
-                exc.UnknownEdgeDBError,
-                r'operator does not exist: jsonb = bigint'):
+                exc.EdgeQLError,
+                r"operator 'IN' cannot.*'std::json' and 'std::int64'"):
             await self.con.execute(r'''
                 SELECT json_array_unpack(to_json('[2,3,4]')) IN
                     {2, 3, 4};
@@ -494,10 +492,8 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_array_unpack_03(self):
         with self.assertRaisesRegex(
-                # FIXME: a different error should be used here, this
-                # one leaks postgres types
-                exc.UnknownEdgeDBError,
-                r'operator does not exist: jsonb = text'):
+                exc.EdgeQLError,
+                r"operator 'IN' cannot.*'std::json' and 'std::str'"):
             await self.con.execute(r'''
                 SELECT json_array_unpack(to_json('[2,3,4]')) IN
                     {'2', '3', '4'};
@@ -516,10 +512,8 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_array_unpack_05(self):
         with self.assertRaisesRegex(
-                # FIXME: a different error should be used here, this
-                # one leaks postgres types
-                exc.UnknownEdgeDBError,
-                r'operator does not exist: jsonb = bigint'):
+                exc.EdgeQLError,
+                r"operator '=' cannot.*'std::json' and 'std::int64'"):
             await self.con.execute(r'''
                 WITH
                     MODULE test,

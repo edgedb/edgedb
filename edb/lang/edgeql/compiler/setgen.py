@@ -629,7 +629,8 @@ def ensure_set(
 def ensure_stmt(expr: irast.Base, *, ctx: context.ContextLevel) -> irast.Stmt:
     if not isinstance(expr, irast.Stmt):
         expr = irast.SelectStmt(
-            result=ensure_set(expr, ctx=ctx)
+            result=ensure_set(expr, ctx=ctx),
+            implicit_wrapper=True,
         )
     return expr
 

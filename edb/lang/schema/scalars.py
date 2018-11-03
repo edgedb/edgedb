@@ -20,7 +20,6 @@
 import functools
 import typing
 
-from edb.lang.common import ast
 from edb.lang.edgeql import ast as qlast
 
 from . import abc as s_abc
@@ -33,7 +32,6 @@ from . import name as sn
 from . import named
 from . import nodes
 from . import objects as so
-from . import schema as s_schema
 from . import types as s_types
 
 
@@ -119,7 +117,18 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
             return False
         left = str(self.get_topmost_concrete_base(schema).get_name(schema))
         right = str(other.get_topmost_concrete_base(schema).get_name(schema))
-        return _is_implicitly_castable_impl(left, right)
+        return _get_implicit_cast_distance_impl(left, right) != _NOT_REACHABLE
+
+    def get_implicit_cast_distance(self, other: s_types.Type, schema) -> int:
+        if not isinstance(other, ScalarType):
+            return -1
+        left = str(self.get_topmost_concrete_base(schema).get_name(schema))
+        right = str(other.get_topmost_concrete_base(schema).get_name(schema))
+        dist = _get_implicit_cast_distance_impl(left, right)
+        if dist == _NOT_REACHABLE:
+            return -1
+        else:
+            return dist
 
     def find_common_implicitly_castable_type(
             self, other: s_types.Type,
@@ -153,32 +162,39 @@ _implicit_numeric_cast_map = {
 }
 
 
-def _is_reachable(graph, source: str, target: str) -> bool:
+_NOT_REACHABLE = 10000000
+
+
+def _is_reachable(graph, source: str, target: str, distance: int) -> int:
+
     if source == target:
-        return True
+        return distance
 
     while True:
+        distance += 1
         source = graph.get(source)
         if source is None:
-            return False
+            return _NOT_REACHABLE
         elif source == target:
-            return True
+            return distance
         elif isinstance(source, set):
-            return any(_is_reachable(graph, s, target) for s in source)
+            return min(
+                _is_reachable(graph, s, target, distance) for s in source)
 
 
 @functools.lru_cache()
-def _is_implicitly_castable_impl(source: str, target: str) -> bool:
-    return _is_reachable(_implicit_numeric_cast_map, source, target)
+def _get_implicit_cast_distance_impl(source: str, target: str) -> bool:
+    dist = _is_reachable(_implicit_numeric_cast_map, source, target, 0)
+    return dist
 
 
 @functools.lru_cache()
 def _find_common_castable_type_impl(
         source: str, target: str) -> typing.Optional[str]:
 
-    if _is_implicitly_castable_impl(target, source):
+    if _get_implicit_cast_distance_impl(target, source) != _NOT_REACHABLE:
         return source
-    if _is_implicitly_castable_impl(source, target):
+    if _get_implicit_cast_distance_impl(source, target) != _NOT_REACHABLE:
         return target
 
     # Elevate target in the castability ladder, and check if
@@ -194,7 +210,8 @@ def _find_common_castable_type_impl(
                     return candidate
             else:
                 return None
-        elif _is_implicitly_castable_impl(source, target):
+        elif (_get_implicit_cast_distance_impl(source, target) !=
+                _NOT_REACHABLE):
             return target
 
 
@@ -209,169 +226,8 @@ _assignment_numeric_cast_map = {
 
 @functools.lru_cache()
 def _is_assignment_castable_impl(source: str, target: str) -> bool:
-    return _is_reachable(_assignment_numeric_cast_map, target, source)
-
-
-# Operator type rules: {operator -> [(operand_type, ..., result_type)]}
-# The list of operator variants MUST be defined in the order of
-# decreasing specificity in the implicit cast tower, i.e small int
-# variants must be specified before the large int variants.
-_operator_map = {
-    ast.ops.ADD: [
-        ('std::int16', 'std::int16', 'std::int16'),
-        ('std::int32', 'std::int32', 'std::int32'),
-        ('std::int64', 'std::int64', 'std::int64'),
-        ('std::float32', 'std::float32', 'std::float32'),
-        ('std::float64', 'std::float64', 'std::float64'),
-        ('std::decimal', 'std::decimal', 'std::decimal'),
-        ('std::str', 'std::str', 'std::str'),
-        ('std::bytes', 'std::bytes', 'std::bytes'),
-        ('std::datetime', 'std::timedelta', 'std::datetime'),
-        ('std::naive_datetime', 'std::timedelta', 'std::naive_datetime'),
-        ('std::naive_date', 'std::timedelta', 'std::naive_date'),
-        ('std::naive_time', 'std::timedelta', 'std::naive_time'),
-        ('std::timedelta', 'std::timedelta', 'std::timedelta'),
-    ],
-
-    ast.ops.SUB: [
-        ('std::int16', 'std::int16', 'std::int16'),
-        ('std::int32', 'std::int32', 'std::int32'),
-        ('std::int64', 'std::int64', 'std::int64'),
-        ('std::float32', 'std::float32', 'std::float32'),
-        ('std::float64', 'std::float64', 'std::float64'),
-        ('std::decimal', 'std::decimal', 'std::decimal'),
-        ('std::datetime', 'std::datetime', 'std::timedelta'),
-        ('std::naive_datetime', 'std::naive_datetime', 'std::timedelta'),
-        ('std::naive_date', 'std::naive_date', 'std::timedelta'),
-        ('std::naive_time', 'std::naive_time', 'std::timedelta'),
-        ('std::datetime', 'std::timedelta', 'std::datetime'),
-        ('std::naive_datetime', 'std::timedelta', 'std::naive_datetime'),
-        ('std::naive_date', 'std::timedelta', 'std::naive_date'),
-        ('std::naive_time', 'std::timedelta', 'std::naive_time'),
-        ('std::timedelta', 'std::timedelta', 'std::timedelta'),
-    ],
-
-    ast.ops.MUL: [
-        ('std::int16', 'std::int16', 'std::int16'),
-        ('std::int32', 'std::int32', 'std::int32'),
-        ('std::int64', 'std::int64', 'std::int64'),
-        ('std::float32', 'std::float32', 'std::float32'),
-        ('std::float64', 'std::float64', 'std::float64'),
-        ('std::decimal', 'std::decimal', 'std::decimal'),
-    ],
-
-    ast.ops.DIV: [
-        ('std::int64', 'std::int64', 'std::float64'),
-        ('std::float32', 'std::float32', 'std::float32'),
-        ('std::float64', 'std::float64', 'std::float64'),
-        ('std::decimal', 'std::decimal', 'std::decimal'),
-        ('std::decimal', 'std::int64', 'std::decimal'),
-    ],
-
-    ast.ops.FLOORDIV: [
-        ('std::int64', 'std::int64', 'std::int64'),
-        ('std::float32', 'std::float32', 'std::float32'),
-        ('std::float64', 'std::float64', 'std::float64'),
-        ('std::decimal', 'std::decimal', 'std::decimal'),
-    ],
-
-    ast.ops.MOD: [
-        ('std::int16', 'std::int16', 'std::int16'),
-        ('std::int32', 'std::int32', 'std::int32'),
-        ('std::int64', 'std::int64', 'std::int64'),
-        ('std::decimal', 'std::decimal', 'std::decimal'),
-    ],
-
-    ast.ops.POW: [
-        # Non-float numerics use decimal upcast, like std::sum,
-        # floats use float64.
-        ('std::decimal', 'std::decimal', 'std::decimal'),
-        ('std::float64', 'std::float64', 'std::float64'),
-    ],
-
-    ast.ops.OR: [
-        ('std::bool', 'std::bool', 'std::bool'),
-    ],
-
-    ast.ops.AND: [
-        ('std::bool', 'std::bool', 'std::bool'),
-    ],
-
-    ast.ops.NOT: [
-        ('std::bool', 'std::bool'),
-    ],
-
-    ast.ops.UMINUS: [
-        ('std::int16', 'std::int16'),
-        ('std::int32', 'std::int32'),
-        ('std::int64', 'std::int64'),
-        ('std::float32', 'std::float32'),
-        ('std::float64', 'std::float64'),
-        ('std::decimal', 'std::decimal'),
-        ('std::timedelta', 'std::timedelta'),
-    ],
-
-    ast.ops.UPLUS: [
-        ('std::int16', 'std::int16'),
-        ('std::int32', 'std::int32'),
-        ('std::int64', 'std::int64'),
-        ('std::float32', 'std::float32'),
-        ('std::float64', 'std::float64'),
-        ('std::decimal', 'std::decimal'),
-        ('std::timedelta', 'std::timedelta'),
-    ],
-}
-
-
-_commutative_ops = (ast.ops.ADD, ast.ops.MUL, ast.ops.OR, ast.ops.AND)
-
-
-def _get_op_type(op: ast.ops.Operator,
-                 *operands: s_types.Type,
-                 schema: s_schema.Schema) -> typing.Optional[s_types.Type]:
-    candidates = _operator_map.get(op)
-    if not candidates:
-        return None
-
-    operand_count = len(operands)
-    shortlist = []
-
-    for candidate in candidates:
-        if len(candidate) != operand_count + 1:
-            # Skip candidates with non-matching operand count.
-            continue
-
-        cast_count = 0
-
-        for def_opr_name, passed_opr in zip(candidate, operands):
-            def_opr = schema.get(def_opr_name)
-
-            if passed_opr.issubclass(schema, def_opr):
-                pass
-            elif passed_opr.implicitly_castable_to(def_opr, schema):
-                cast_count += 1
-            else:
-                break
-        else:
-            shortlist.append((candidate[-1], cast_count))
-
-    if shortlist:
-        shortlist.sort(key=lambda c: c[1])
-        return schema.get(shortlist[0][0])
-    else:
-        return None
-
-
-@functools.lru_cache()
-def get_op_type(op: ast.ops.Operator,
-                *operands: s_types.Type,
-                schema: s_schema.Schema) -> typing.Optional[s_types.Type]:
-    restype = _get_op_type(op, *operands, schema=schema)
-    if restype is None:
-        if op in _commutative_ops and len(operands) == 2:
-            restype = _get_op_type(op, operands[1], operands[0], schema=schema)
-
-    return restype
+    dist = _is_reachable(_assignment_numeric_cast_map, target, source, 0)
+    return dist != _NOT_REACHABLE
 
 
 class ScalarTypeCommandContext(sd.ObjectCommandContext,

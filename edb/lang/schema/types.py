@@ -158,6 +158,9 @@ class Type(so.Object, derivable.DerivableObjectBase, s_abc.Type):
     def implicitly_castable_to(self, other: 'Type', schema) -> bool:
         return False
 
+    def get_implicit_cast_distance(self, other: 'Type', schema) -> int:
+        return -1
+
     def find_common_implicitly_castable_type(
             self, other: 'Type', schema) -> typing.Optional['Type']:
         return
@@ -193,6 +196,9 @@ class Collection(Type, s_abc.Collection):
         default=None, ephemeral=True)
 
     def get_name(self, schema):
+        return self.name
+
+    def get_shortname(self, schema):
         return self.name
 
     def get_view_type(self, schema):
@@ -366,6 +372,9 @@ class Array(Collection, s_abc.Array):
             schema, id=id, name=name, element_type=element_type,
             dimensions=dimensions, **kwargs)
 
+    def get_displayname(self, schema):
+        return f'array<{self.element_type.get_displayname(schema)}>'
+
     def is_array(self):
         return True
 
@@ -393,6 +402,13 @@ class Array(Collection, s_abc.Array):
             return False
 
         return self.element_type.implicitly_castable_to(
+            other.element_type, schema)
+
+    def get_implicit_cast_distance(self, other: 'Type', schema) -> int:
+        if not other.is_array():
+            return -1
+
+        return self.element_type.get_implicit_cast_distance(
             other.element_type, schema)
 
     def assignment_castable_to(self, other: Type, schema) -> bool:
@@ -513,6 +529,11 @@ class Tuple(Collection, s_abc.Tuple):
             schema, id=id, name=name, named=named,
             element_types=element_types, **kwargs)
 
+    def get_displayname(self, schema):
+        st_names = ', '.join(st.get_displayname(schema)
+                             for st in self.element_types.values())
+        return f'tuple<{st_names}>'
+
     def __getstate__(self):
         state = self.__dict__.copy()
         state['element_types'] = dict(state['element_types'])
@@ -618,6 +639,27 @@ class Tuple(Collection, s_abc.Tuple):
                 return False
 
         return True
+
+    def get_implicit_cast_distance(self, other: Type, schema) -> int:
+        if not other.is_tuple():
+            return -1
+
+        self_subtypes = self.get_subtypes()
+        other_subtypes = other.get_subtypes()
+
+        if len(self_subtypes) != len(other_subtypes):
+            return -1
+
+        total_dist = 0
+
+        for st, ot in zip(self_subtypes, other_subtypes):
+            dist = st.get_implicit_cast_distance(ot, schema)
+            if dist < 0:
+                return -1
+
+            total_dist += dist
+
+        return total_dist
 
     def assignment_castable_to(self, other: Type, schema) -> bool:
         if not other.is_tuple():

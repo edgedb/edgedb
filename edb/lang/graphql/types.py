@@ -39,7 +39,6 @@ from graphql import (
 from graphql.type import GraphQLEnumValue
 import itertools
 
-from edb.lang.common import ast
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import codegen
 from edb.lang.edgeql.parser import parse_fragment
@@ -73,14 +72,14 @@ EDB_TO_GQL_SCALARS_MAP = {
 
 
 GQL_TO_OPS_MAP = {
-    'eq': ast.ops.EQ,
-    'neq': ast.ops.NE,
-    'gt': ast.ops.GT,
-    'gte': ast.ops.GE,
-    'lt': ast.ops.LT,
-    'lte': ast.ops.LE,
-    'like': qlast.LIKE,
-    'ilike': qlast.ILIKE,
+    'eq': '=',
+    'neq': '!=',
+    'gt': '>',
+    'gte': '>=',
+    'lt': '<',
+    'lte': '<=',
+    'like': 'LIKE',
+    'ilike': 'ILIKE',
 }
 
 

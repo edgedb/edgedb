@@ -649,7 +649,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT User.friends {name}
-            FILTER User.friends NOT IN {}
+            FILTER User.friends NOT IN <Object>{}
             ORDER BY User.friends.name;
         ''', [
             [

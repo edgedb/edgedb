@@ -23,14 +23,14 @@
 import decimal
 import functools
 
-from edb.lang.common import ast
+from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import errors
+from edb.lang.edgeql import compiler as ql_compiler
 from edb.lang.edgeql.parser.grammar import lexutils as ql_lexutils
 
 from edb.lang.ir import ast as irast
 
 from edb.lang.schema import schema as s_schema
-from edb.lang.schema import scalars as s_scalars
 
 
 class StaticEvaluationError(errors.EdgeQLError):
@@ -74,139 +74,52 @@ def evaluate_BaseConstant(
     return ir_const
 
 
-@evaluate.register(irast.BinOp)
-def evaluate_BinOp(
-        binop: irast.BinOp,
+op_table = {
+    # Arithmetic
+    ('PREFIX', 'std::+'): lambda a: a,
+    ('PREFIX', 'std::-'): lambda a: -a,
+    ('INFIX', 'std::+'): lambda a, b: a + b,
+    ('INFIX', 'std::-'): lambda a, b: a - b,
+    ('INFIX', 'std::*'): lambda a, b: a * b,
+    ('INFIX', 'std::/'): lambda a, b: a / b,
+    ('INFIX', 'std:://'): lambda a, b: a // b,
+    ('INFIX', 'std::%'): lambda a, b: a % b,
+    ('INFIX', 'std::^'): lambda a, b: (
+        decimal.Decimal(a) ** decimal.Decimal(b)
+        if isinstance(a, int) else a ** b),
+
+    # Comparison
+    ('INFIX', 'std::='): lambda a, b: a == b,
+    ('INFIX', 'std::!='): lambda a, b: a != b,
+    ('INFIX', 'std::>'): lambda a, b: a > b,
+    ('INFIX', 'std::>='): lambda a, b: a >= b,
+    ('INFIX', 'std::<'): lambda a, b: a < b,
+    ('INFIX', 'std::<='): lambda a, b: a <= b,
+}
+
+
+@evaluate.register(irast.OperatorCall)
+def evaluate_OperatorCall(
+        opcall: irast.OperatorCall,
         schema: s_schema.Schema) -> irast.BaseConstant:
 
-    real_t = schema.get('std::anyreal')
-
-    folded = None
-    op = binop.op
-
-    if isinstance(op, ast.ops.ComparisonOperator):
-        folded = evaluate_comparison_binop(binop, schema=schema)
-
-    elif binop.stype.issubclass(schema, real_t):
-        folded = evaluate_arithmetic_binop(binop, schema=schema)
-
-    else:
+    eval_func = op_table.get((opcall.operator_kind, opcall.func_shortname))
+    if eval_func is None:
         raise UnsupportedExpressionError(
-            'expression is not constant', context=binop.context)
+            f'unsupported operator: {opcall.func_shortname}',
+            context=opcall.context)
 
-    return folded
+    args = []
+    for arg in opcall.args:
+        args.append(evaluate_to_python_val(arg, schema=schema))
 
+    value = eval_func(*args)
+    qlconst = qlast.BaseConstant.from_python(value)
 
-@evaluate.register(irast.UnaryOp)
-def evaluate_UnaryOp(
-        unop: irast.UnaryOp,
-        schema: s_schema.Schema) -> irast.BaseConstant:
+    result = ql_compiler.compile_constant_tree_to_ir(
+        qlconst, stype=opcall.stype, schema=schema)
 
-    real_t = schema.get('std::anyreal')
-    int_t = schema.get('std::anyint')
-
-    result_type = unop.expr.stype
-
-    if (result_type.issubclass(schema, real_t) and
-            unop.op in (ast.ops.UMINUS, ast.ops.UPLUS)):
-
-        if unop.op == ast.ops.UMINUS:
-            op_val = -evaluate_to_python_val(unop.expr, schema=schema)
-
-            if result_type.issubclass(schema, int_t):
-                return irast.IntegerConstant(
-                    value=str(op_val), stype=result_type)
-            else:
-                return irast.FloatConstant(
-                    value=str(op_val), stype=result_type)
-        else:
-            return evaluate(unop.expr, schema=schema)
-
-    raise UnsupportedExpressionError(
-        f'unexpected unary operation: {unop.op} '
-        f'{result_type.get_displayname(schema)}',
-        context=unop.context)
-
-
-def evaluate_comparison_binop(
-        binop: irast.BinOp,
-        schema: s_schema.Schema) -> irast.BooleanConstant:
-
-    op = binop.op
-    left = evaluate(binop.left, schema=schema)
-    left_val = const_to_python(left, schema=schema)
-    right = evaluate(binop.right, schema=schema)
-    right_val = const_to_python(right, schema=schema)
-
-    if op == ast.ops.EQ:
-        value = left_val == right_val
-    elif op == ast.ops.NE:
-        value = left_val != right_val
-    elif op == ast.ops.GT:
-        value = left_val > right_val
-    elif op == ast.ops.GE:
-        value = left_val >= right_val
-    elif op == ast.ops.LT:
-        value = left_val < right_val
-    elif op == ast.ops.LE:
-        value = left_val <= right_val
-    else:
-        raise UnsupportedExpressionError(
-            f'unexpected operator: {op}',
-            context=binop.context)
-
-    return irast.BooleanConstant(
-        value='true' if value else 'false',
-        stype=schema.get('std::bool')
-    )
-
-
-def evaluate_arithmetic_binop(
-        binop: irast.BinOp,
-        schema: s_schema.Schema) -> irast.BaseConstant:
-
-    op = binop.op
-    left = evaluate(binop.left, schema=schema)
-    left_val = const_to_python(left, schema=schema)
-    right = evaluate(binop.right, schema=schema)
-    right_val = const_to_python(right, schema=schema)
-
-    real_t = schema.get('std::anyreal')
-    int_t = schema.get('std::anyint')
-
-    left_type = left.stype
-    right_type = right.stype
-
-    if (not left_type.issubclass(schema, real_t) or
-            not right_type.issubclass(schema, real_t)):
-        return
-
-    result_type = s_scalars.get_op_type(
-        op, left_type, right_type, schema=schema)
-
-    if op == ast.ops.ADD:
-        value = left_val + right_val
-    elif op == ast.ops.SUB:
-        value = left_val - right_val
-    elif op == ast.ops.MUL:
-        value = left_val * right_val
-    elif op == ast.ops.DIV:
-        value = left_val / right_val
-    elif op == ast.ops.FLOORDIV:
-        value = left_val // right_val
-    elif op == ast.ops.POW:
-        value = left_val ** right_val
-    elif op == ast.ops.MOD:
-        value = left_val % right_val
-    else:
-        raise UnsupportedExpressionError(
-            f'unexpected operator: {op}',
-            context=binop.context)
-
-    if result_type.issubclass(schema, int_t):
-        return irast.IntegerConstant(value=str(value), stype=result_type)
-    else:
-        return irast.FloatConstant(value=str(value), stype=result_type)
+    return result
 
 
 @functools.singledispatch

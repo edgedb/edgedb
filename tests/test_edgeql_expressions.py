@@ -38,8 +38,8 @@ class TestExpressions(tb.QueryTestCase):
         await self.assert_query_result(r"""
             SELECT <int64>{};
             SELECT <str>{};
-            SELECT {} + 1;
-            SELECT 1 + {};
+            SELECT <int64>{} + 1;
+            SELECT 1 + <int64>{};
         """, [
             [],
             [],
@@ -206,11 +206,9 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_op_06(self):
         await self.assert_query_result(r"""
-            SELECT {} = <int64>{};
-            SELECT {} = 42;
-            SELECT {} = '{}';
+            SELECT <int64>{} = <int64>{};
+            SELECT <int64>{} = 42;
         """, [
-            [],
             [],
             [],
         ])
@@ -218,8 +216,8 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_op_07(self):
         # Test boolean interaction with {}
         await self.assert_query_result(r"""
-            SELECT TRUE OR {};
-            SELECT FALSE AND {};
+            SELECT TRUE OR <bool>{};
+            SELECT FALSE AND <bool>{};
         """, [
             [],
             [],
@@ -228,7 +226,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_op_08(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
-                r'unary operator `-` is not defined .* std::str'):
+                r"operator '-' cannot .* 'std::str'"):
 
             await self.con.execute("""
                 SELECT -'aaa';
@@ -237,7 +235,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_op_09(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
-                r'unary operator `NOT` is not defined .* std::str'):
+                r"operator 'NOT' cannot .* 'std::str'"):
 
             await self.con.execute("""
                 SELECT NOT 'aaa';
@@ -281,9 +279,9 @@ class TestExpressions(tb.QueryTestCase):
             SELECT 2 ?!= 2;
             SELECT 2 ?!= 3;
 
-            SELECT 2 ?= {};
+            SELECT 2 ?= <int64>{};
             SELECT <int64>{} ?= <int64>{};
-            SELECT 2 ?!= {};
+            SELECT 2 ?!= <int64>{};
             SELECT <int64>{} ?!= <int64>{};
         """, [
             [True],
@@ -370,11 +368,11 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_op_19(self):
         await self.assert_query_result(r"""
-            SELECT 1 IN {};
-            SELECT {1, 2, 3} IN {};
+            SELECT 1 IN <int64>{};
+            SELECT {1, 2, 3} IN <int64>{};
 
-            SELECT 1 NOT IN {};
-            SELECT {1, 2, 3} NOT IN {};
+            SELECT 1 NOT IN <int64>{};
+            SELECT {1, 2, 3} NOT IN <int64>{};
         """, [
             [False],
             [False, False, False],
@@ -551,7 +549,7 @@ class TestExpressions(tb.QueryTestCase):
         #
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
-                r'operator `\*` is not defined .* std::str and std::int64'):
+                r"operator '\*' cannot .* 'std::str' and 'std::int64'"):
 
             await self.con.execute("""
                 SELECT <std::str>123 * 2;
@@ -910,7 +908,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_array_05(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
-                r'binary operator `\+` is not defined'):
+                r"operator '\+' cannot.*"):
 
             await self.con.execute('''
                 SELECT [1, 2] + [3, 4];
@@ -1055,22 +1053,22 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_coalesce_01(self):
         await self.assert_query_result(r"""
-            SELECT {} ?? 4 ?? 5;
-            SELECT {} ?? 'foo' ?? 'bar';
-            SELECT 4 ?? {} ?? 5;
+            SELECT <int64>{} ?? 4 ?? 5;
+            SELECT <str>{} ?? 'foo' ?? 'bar';
+            SELECT 4 ?? <int64>{} ?? 5;
 
-            SELECT 'foo' ?? {} ?? 'bar';
-            SELECT {} ?? 'bar' = 'bar';
+            SELECT 'foo' ?? <str>{} ?? 'bar';
+            SELECT <str>{} ?? 'bar' = 'bar';
 
-            SELECT 4^{} ?? 2;
-            SELECT 4+{} ?? 2;
-            SELECT 4*{} ?? 2;
+            SELECT 4^<int64>{} ?? 2;
+            SELECT 4+<int64>{} ?? 2;
+            SELECT 4*<int64>{} ?? 2;
 
             SELECT -<int64>{} ?? 2;
             SELECT -<int64>{} ?? -2 + 1;
 
-            SELECT <int64>({} ?? {});
-            SELECT <int64>({} ?? {} ?? {});
+            SELECT <int64>{} ?? <int64>{};
+            SELECT <int64>{} ?? <int64>{} ?? <int64>{};
         """, [
             [4],
             ['foo'],
@@ -1213,16 +1211,25 @@ class TestExpressions(tb.QueryTestCase):
             SELECT (1, 'foo') = (2, 'foo');
             SELECT (1, 'foo') != (1, 'foo');
             SELECT (1, 'foo') != (2, 'foo');
+
+            SELECT (1, 2) = (1, 2.0);
+            SELECT (1, 2.0) = (1, 2);
+            SELECT (1, 2.1) != (1, 2);
         """, [
             [True],
             [False],
             [False],
             [True],
+
+            [True],
+            [True],
+            [True],
         ])
 
     async def test_edgeql_expr_tuple_03(self):
         with self.assertRaisesRegex(
-                exc._base.UnknownEdgeDBError, r'operator does not exist'):
+                exc.EdgeQLError,
+                r"operator '=' cannot"):
             await self.con.execute(r"""
                 SELECT (1, 'foo') = ('1', 'foo');
             """)
@@ -1262,7 +1269,8 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_tuple_07(self):
         with self.assertRaisesRegex(
-                exc._base.UnknownEdgeDBError, r'operator does not exist'):
+                exc.EdgeQLError,
+                r"operator '!=' cannot"):
             await self.con.execute(r"""
                 SELECT (a := 1, b := 'foo') != (b := 'foo', a := 1);
             """)
@@ -1277,7 +1285,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_tuple_09(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
-                r'operator `\+` is not defined .*tuple<.*> and std::int64'):
+                r"operator '\+'.*cannot.*tuple<.*>' and 'std::int64'"):
 
             await self.con.execute(r'''
                 SELECT (spam := 1, ham := 2) + 1;
@@ -1683,8 +1691,8 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_setop_01(self):
         await self.assert_query_result(r"""
-            SELECT EXISTS {};
-            SELECT NOT EXISTS {};
+            SELECT EXISTS <str>{};
+            SELECT NOT EXISTS <str>{};
         """, [
             [False],
             [True],
@@ -1925,25 +1933,26 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT Object.id[IS uuid];
             ''')
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_comparison_01(self):
-        with self.assertRaisesRegex(exc.UnknownEdgeDBError,
-                                    r'operator does not exist'):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r"operator '=' cannot.*tuple.*and.*array<std::int64>"):
             await self.con.execute(r'''
                 SELECT (1, 2) = [1, 2];
             ''')
 
     async def test_edgeql_expr_comparison_02(self):
-        with self.assertRaisesRegex(exc.UnknownEdgeDBError,
-                                    r'operator does not exist'):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r"operator '=' cannot.* 'std::int64' and.*array<std::int64>"):
             await self.con.execute(r'''
                 SELECT {1, 2} = [1, 2];
             ''')
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_comparison_03(self):
-        with self.assertRaisesRegex(exc.UnknownEdgeDBError,
-                                    r'operator does not exist'):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r"operator '=' cannot.*'std::int64' and.*tuple.*"):
             await self.con.execute(r'''
                 SELECT {1, 2} = (1, 2);
             ''')

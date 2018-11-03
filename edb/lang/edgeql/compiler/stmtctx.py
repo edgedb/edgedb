@@ -63,7 +63,8 @@ def init_context(
         context.ContextLevel:
     stack = context.CompilerContext()
     ctx = stack.current
-    schema, _ = s_mod.Module.create_in_schema(schema, name='__derived__')
+    if not schema.get('__derived__', None):
+        schema, _ = s_mod.Module.create_in_schema(schema, name='__derived__')
     ctx.env = context.Environment(
         schema=schema,
         path_scope=irast.new_scope_tree())

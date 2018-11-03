@@ -404,15 +404,15 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             # the FILTER clause evaluates to empty, so it can never be true
             WITH MODULE test
             SELECT Issue{number}
-            FILTER Issue.number = {};
+            FILTER Issue.number = <str>{};
 
             WITH MODULE test
             SELECT Issue{number}
-            FILTER Issue.priority = {};
+            FILTER Issue.priority = <Object>{};
 
             WITH MODULE test
             SELECT Issue{number}
-            FILTER Issue.priority.name = {};
+            FILTER Issue.priority.name = <str>{};
             """, [
             [],
             [],

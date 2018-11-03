@@ -24,6 +24,7 @@ from edb.lang.schema import objtypes as s_objtypes
 
 from edb.lang.ir import ast as irast
 from edb.lang.edgeql import ast as qlast
+from edb.lang.edgeql import functypes as ft
 
 
 class IRDecompilerContext:
@@ -146,13 +147,6 @@ class IRDecompiler(ast.visitor.NodeVisitor):
 
         return result
 
-    def visit_BinOp(self, node):
-        result = qlast.BinOp()
-        result.left = self.visit(node.left)
-        result.right = self.visit(node.right)
-        result.op = node.op
-        return result
-
     def visit_TypeCheckOp(self, node):
         result = qlast.BinOp()
         result.left = self.visit(node.left)
@@ -160,18 +154,6 @@ class IRDecompiler(ast.visitor.NodeVisitor):
         result.left.steps = result.left.steps[:-1]
         result.right = self.visit(node.right)
         result.op = node.op
-        return result
-
-    def visit_UnaryOp(self, node):
-        result = qlast.UnaryOp()
-        result.operand = self.visit(node.expr)
-        result.op = node.op
-        return result
-
-    def visit_DistinctOp(self, node):
-        result = qlast.UnaryOp()
-        result.operand = self.visit(node.expr)
-        result.op = qlast.DISTINCT
         return result
 
     def visit_Parameter(self, node):
@@ -219,22 +201,34 @@ class IRDecompiler(ast.visitor.NodeVisitor):
         return result
 
     def visit_FunctionCall(self, node):
-        # FIXME: this is a temporary solution to bridge the gap to EdgeQL
-        if node.agg_set_modifier == qlast.AggDISTINCT:
-            args = qlast.UnaryOp(op=qlast.DISTINCT, operand=node.args[0])
-        else:
-            args = node.args
+        args = node.args
 
         args = [qlast.FuncArg(arg=arg) for arg in self.visit(args)]
-        if node.agg_filter or node.agg_sort:
-            args[0].sort = node.agg_sort
-            args[0].filter = (self.visit(node.agg_filter)
-                              if node.agg_filter is not None else None)
 
         result = qlast.FunctionCall(
             func=(node.func_shortname.module, node.func_shortname.name),
             args=args,
         )
+
+        return result
+
+    def visit_OperatorCall(self, node):
+        args = node.args
+
+        if node.operator_kind is ft.OperatorKind.INFIX:
+            result = qlast.BinOp(
+                left=self.visit(args[0]),
+                right=self.visit(args[1]),
+                op=node.func_shortname.name,
+            )
+        elif node.operator_kind is ft.OperatorKind.PREFIX:
+            result = qlast.UnaryOp(
+                operand=self.visit(args[0]),
+                op=node.func_shortname.name,
+            )
+        else:
+            raise RuntimeError(
+                f'unexpected operator kind: {node.operator_kind}')
 
         return result
 
@@ -292,10 +286,6 @@ class IRDecompiler(ast.visitor.NodeVisitor):
             ]
         )
 
-        return result
-
-    def visit_ExistPred(self, node):
-        result = qlast.ExistsPredicate(expr=self.visit(node.expr))
         return result
 
     def visit_TypeRef(self, node):

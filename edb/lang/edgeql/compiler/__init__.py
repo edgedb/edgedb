@@ -131,7 +131,7 @@ def compile_ast_to_ir(tree,
         else:
             print('N/A')
         debug.header('EdgeDB IR')
-        debug.dump(ir_expr, schema=ir_expr.schema)
+        debug.dump(ir_expr, schema=getattr(ir_expr, 'schema', None))
 
     return ir_expr
 
@@ -194,7 +194,7 @@ def compile_func_to_ir(func, schema, *,
                                     arg=qlast.IntegerConstant(value=str(pi)))
                             ]),
                         right=qlast.IntegerConstant(value='0'),
-                        op=qlast.EQ),
+                        op='='),
                     if_expr=qlast.Path(
                         steps=[qlast.ObjectRef(name=p_shortname)]),
                     else_expr=qlast._Optional(expr=p.get_ql_default(schema)))))
@@ -205,3 +205,22 @@ def compile_func_to_ir(func, schema, *,
         implicit_id_in_shapes=implicit_id_in_shapes)
 
     return ir
+
+
+def compile_constant_tree_to_ir(const, schema, *, stype=None, modaliases=None):
+
+    ctx = stmtctx.init_context(
+        schema=schema,
+        modaliases=modaliases,
+    )
+
+    if not isinstance(const, qlast.BaseConstant):
+        raise ValueError(f'unexpected input: {const!r} is not a constant')
+
+    ir_set = dispatch.compile(const, ctx=ctx)
+    result = ir_set.expr
+    if stype is not None:
+        result.stype = stype
+        result._inferred_type_ = stype
+
+    return result

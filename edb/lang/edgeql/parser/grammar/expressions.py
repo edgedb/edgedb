@@ -21,7 +21,6 @@ import collections
 import re
 import typing
 
-from edb.lang.common import ast
 from edb.lang.common import parsing, context
 
 from edb.lang.edgeql import ast as qlast
@@ -654,56 +653,63 @@ class Expr(Nonterm):
         self.val = kids[0].val
 
     def reduce_EXISTS_Expr(self, *kids):
-        self.val = qlast.ExistsPredicate(expr=kids[1].val)
+        self.val = qlast.UnaryOp(op='EXISTS', operand=kids[1].val)
 
     def reduce_DISTINCT_Expr(self, *kids):
-        self.val = qlast.UnaryOp(op=qlast.DISTINCT, operand=kids[1].val)
+        self.val = qlast.UnaryOp(op='DISTINCT', operand=kids[1].val)
 
     def reduce_DETACHED_Expr(self, *kids):
         self.val = qlast.DetachedExpr(expr=kids[1].val)
 
     @parsing.precedence(precedence.P_UMINUS)
     def reduce_PLUS_Expr(self, *kids):
-        self.val = qlast.UnaryOp(op=ast.ops.UPLUS, operand=kids[1].val)
+        self.val = qlast.UnaryOp(op=kids[0].val, operand=kids[1].val)
 
     @parsing.precedence(precedence.P_UMINUS)
     def reduce_MINUS_Expr(self, *kids):
-        self.val = qlast.UnaryOp(op=ast.ops.UMINUS, operand=kids[1].val)
+        arg = kids[1].val
+        if isinstance(arg, qlast.BaseRealConstant):
+            # Special case for -<real_const> so that type inference based
+            # on literal size works correctly in the case of INT_MIN and
+            # friends.
+            self.val = type(arg)(value=arg.value, is_negative=True)
+        else:
+            self.val = qlast.UnaryOp(op=kids[0].val, operand=arg)
 
     def reduce_Expr_PLUS_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=ast.ops.ADD,
+        self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
                                right=kids[2].val)
 
     def reduce_Expr_MINUS_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=ast.ops.SUB,
+        self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
                                right=kids[2].val)
 
     def reduce_Expr_STAR_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=ast.ops.MUL,
+        self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
                                right=kids[2].val)
 
     def reduce_Expr_SLASH_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=ast.ops.DIV,
+        self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
                                right=kids[2].val)
 
     def reduce_Expr_DOUBLESLASH_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=ast.ops.FLOORDIV,
+        self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
                                right=kids[2].val)
 
     def reduce_Expr_PERCENT_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=ast.ops.MOD,
+        self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
                                right=kids[2].val)
 
     def reduce_Expr_CIRCUMFLEX_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=ast.ops.POW,
+        self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
                                right=kids[2].val)
 
     def reduce_Expr_LANGBRACKET_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=ast.ops.LT,
+        self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
                                right=kids[2].val)
 
     def reduce_Expr_RANGBRACKET_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=ast.ops.GT,
+        self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
                                right=kids[2].val)
 
     @parsing.precedence(precedence.P_DOUBLEQMARK_OP)
@@ -720,61 +726,48 @@ class Expr(Nonterm):
         self.val = qlast.Coalesce(args=args)
 
     def reduce_Expr_EQUALS_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=ast.ops.EQ,
+        self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
                                right=kids[2].val)
 
     @parsing.precedence(precedence.P_OP)
     def reduce_Expr_OP_Expr(self, *kids):
-        op = kids[1].val
-        if op == '!=':
-            op = ast.ops.NE
-        elif op == '=':
-            op = ast.ops.EQ
-        elif op == '>=':
-            op = ast.ops.GE
-        elif op == '<=':
-            op = ast.ops.LE
-        elif op == '?=':
-            op = qlast.EQUIVALENT
-        elif op == '?!=':
-            op = qlast.NEQUIVALENT
-
-        self.val = qlast.BinOp(left=kids[0].val, op=op, right=kids[2].val)
+        self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
+                               right=kids[2].val)
 
     def reduce_Expr_AND_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=ast.ops.AND,
+        self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val.upper(),
                                right=kids[2].val)
 
     def reduce_Expr_OR_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=ast.ops.OR,
+        self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val.upper(),
                                right=kids[2].val)
 
     def reduce_NOT_Expr(self, *kids):
-        self.val = qlast.UnaryOp(op=ast.ops.NOT, operand=kids[1].val)
+        self.val = qlast.UnaryOp(op=kids[0].val.upper(), operand=kids[1].val)
 
     def reduce_Expr_LIKE_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=qlast.LIKE,
+        self.val = qlast.BinOp(left=kids[0].val, op='LIKE',
                                right=kids[2].val)
 
     def reduce_Expr_NOT_LIKE_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=qlast.NOT_LIKE,
+        self.val = qlast.BinOp(left=kids[0].val, op='NOT LIKE',
                                right=kids[3].val)
 
     def reduce_Expr_ILIKE_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=qlast.ILIKE,
+        self.val = qlast.BinOp(left=kids[0].val, op='ILIKE',
                                right=kids[2].val)
 
     def reduce_Expr_NOT_ILIKE_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=qlast.NOT_ILIKE,
+        self.val = qlast.BinOp(left=kids[0].val, op='NOT ILIKE',
                                right=kids[3].val)
 
     def reduce_Expr_IS_TypeExpr(self, *kids):
-        self.val = qlast.IsOp(left=kids[0].val, op=ast.ops.IS,
+        self.val = qlast.IsOp(left=kids[0].val, op='IS',
                               right=kids[2].val)
 
     @parsing.precedence(precedence.P_IS)
     def reduce_Expr_IS_NOT_TypeExpr(self, *kids):
-        self.val = qlast.IsOp(left=kids[0].val, op=ast.ops.IS_NOT,
+        self.val = qlast.IsOp(left=kids[0].val, op='IS NOT',
                               right=kids[3].val)
 
     def reduce_INTROSPECT_TypeExpr(self, *kids):
@@ -782,13 +775,13 @@ class Expr(Nonterm):
 
     def reduce_Expr_IN_Expr(self, *kids):
         inexpr = kids[2].val
-        self.val = qlast.BinOp(left=kids[0].val, op=ast.ops.IN,
+        self.val = qlast.BinOp(left=kids[0].val, op='IN',
                                right=inexpr)
 
     @parsing.precedence(precedence.P_IN)
     def reduce_Expr_NOT_IN_Expr(self, *kids):
         inexpr = kids[3].val
-        self.val = qlast.BinOp(left=kids[0].val, op=ast.ops.NOT_IN,
+        self.val = qlast.BinOp(left=kids[0].val, op='NOT IN',
                                right=inexpr)
 
     @parsing.precedence(precedence.P_TYPECAST)
@@ -801,7 +794,7 @@ class Expr(Nonterm):
             if_expr=kids[0].val, condition=kids[2].val, else_expr=kids[4].val)
 
     def reduce_Expr_UNION_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=qlast.UNION,
+        self.val = qlast.BinOp(left=kids[0].val, op='UNION',
                                right=kids[2].val)
 
 
@@ -867,7 +860,6 @@ class Constant(Nonterm):
     # ArgConstant
     # | BaseNumberConstant
     # | BaseStringConstant
-    # | BaseRawStringConstant
     # | BaseBooleanConstant
     # | BaseBytesConstant
 
@@ -875,9 +867,6 @@ class Constant(Nonterm):
         self.val = kids[0].val
 
     def reduce_BaseNumberConstant(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_BaseRawStringConstant(self, *kids):
         self.val = kids[0].val
 
     def reduce_BaseStringConstant(self, *kids):
@@ -906,7 +895,21 @@ class BaseNumberConstant(Nonterm):
         self.val = qlast.FloatConstant(value=kids[0].val)
 
 
-class BaseStringConstant(Nonterm):
+class RawStringConstant(Nonterm):
+
+    def reduce_RSCONST(self, str_tok):
+        match = lexutils.VALID_RAW_STRING_RE.match(str_tok.val)
+        if not match:
+            raise EdgeQLSyntaxError(
+                f"invalid raw string literal", context=str_tok.context)
+
+        quote = match.group('Q')
+        val = match.group('body')
+
+        self.val = qlast.RawStringConstant(value=val, quote=quote)
+
+
+class EscapedStringConstant(Nonterm):
 
     def reduce_SCONST(self, str_tok):
         match = lexutils.VALID_STRING_RE.match(str_tok.val)
@@ -929,18 +932,13 @@ class BaseStringConstant(Nonterm):
         self.val = qlast.StringConstant(value=val, quote=quote)
 
 
-class BaseRawStringConstant(Nonterm):
+class BaseStringConstant(Nonterm):
 
-    def reduce_RSCONST(self, str_tok):
-        match = lexutils.VALID_RAW_STRING_RE.match(str_tok.val)
-        if not match:
-            raise EdgeQLSyntaxError(
-                f"invalid raw string literal", context=str_tok.context)
+    def reduce_EscapedStringConstant(self, *kids):
+        self.val = kids[0].val
 
-        quote = match.group('Q')
-        val = match.group('body')
-
-        self.val = qlast.RawStringConstant(value=val, quote=quote)
+    def reduce_RawStringConstant(self, *kids):
+        self.val = kids[0].val
 
 
 class BaseBytesConstant(Nonterm):
@@ -1238,6 +1236,9 @@ class SimpleTypeName(Nonterm):
     def reduce_ANYTYPE(self, *kids):
         self.val = qlast.TypeName(maintype=qlast.AnyType())
 
+    def reduce_ANYTUPLE(self, *kids):
+        self.val = qlast.TypeName(maintype=qlast.AnyTuple())
+
 
 class SimpleTypeNameList(ListNonterm, element=SimpleTypeName,
                          separator=tokens.T_COMMA):
@@ -1270,11 +1271,11 @@ class TypeExpr(Nonterm):
         self.val = kids[1].val
 
     def reduce_TypeExpr_PIPE_TypeExpr(self, *kids):
-        self.val = qlast.TypeOp(left=kids[0].val, op=qlast.TYPEOR,
+        self.val = qlast.TypeOp(left=kids[0].val, op='|',
                                 right=kids[2].val)
 
     def reduce_TypeExpr_AMPER_TypeExpr(self, *kids):
-        self.val = qlast.TypeOp(left=kids[0].val, op=qlast.TYPEAND,
+        self.val = qlast.TypeOp(left=kids[0].val, op='&',
                                 right=kids[2].val)
 
 
@@ -1288,11 +1289,11 @@ class FullTypeExpr(Nonterm):
         self.val = kids[0].val
 
     def reduce_FullTypeExpr_PIPE_FullTypeExpr(self, *kids):
-        self.val = qlast.TypeOp(left=kids[0].val, op=qlast.TYPEOR,
+        self.val = qlast.TypeOp(left=kids[0].val, op='|',
                                 right=kids[2].val)
 
     def reduce_FullTypeExpr_AMPER_FullTypeExpr(self, *kids):
-        self.val = qlast.TypeOp(left=kids[0].val, op=qlast.TYPEAND,
+        self.val = qlast.TypeOp(left=kids[0].val, op='&',
                                 right=kids[2].val)
 
 

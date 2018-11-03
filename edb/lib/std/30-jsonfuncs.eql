@@ -54,3 +54,23 @@ std::json_get(
     )
     $$;
 };
+
+
+CREATE INFIX OPERATOR
+std::`=` (l: std::json, r: std::json) -> std::bool
+    FROM SQL OPERATOR r'=';
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL std::json, r: OPTIONAL std::json) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`!=` (l: std::json, r: std::json) -> std::bool
+    FROM SQL OPERATOR r'<>';
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL std::json, r: OPTIONAL std::json) -> std::bool
+    FROM SQL EXPRESSION;

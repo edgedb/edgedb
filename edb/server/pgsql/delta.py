@@ -513,7 +513,7 @@ class DeleteFunction(
         return schema, func
 
 
-class OperatorCommand:
+class OperatorCommand(FunctionCommand):
     _table = metaschema.get_metaclass_table(s_opers.Operator)
 
     def get_table(self, schema):
@@ -550,6 +550,26 @@ class OperatorCommand:
 
         return left_type, right_type
 
+    def compile_args(self, oper: s_opers.Operator, schema):
+        args = []
+        oper_params = oper.get_params(schema)
+        pg_params = s_funcs.PgParams.from_params(schema, oper_params)
+
+        for param in pg_params.params:
+            pg_at = self.get_pgtype(oper, param.get_type(schema), schema)
+            args.append((param.get_shortname(schema), pg_at))
+
+        return args
+
+    def make_operator_function(self, oper: s_opers.Operator, schema):
+        return dbops.Function(
+            name=common.get_backend_name(
+                schema, oper, catenate=False, aspect='function'),
+            args=self.compile_args(oper, schema),
+            returns=self.get_pgtype(
+                oper, oper.get_return_type(schema), schema),
+            text=oper.get_code(schema))
+
 
 class CreateOperator(OperatorCommand, CreateNamedObject,
                      adapts=s_opers.CreateOperator):
@@ -558,18 +578,53 @@ class CreateOperator(OperatorCommand, CreateNamedObject,
         schema, oper = super().apply(schema, context)
         oper_language = oper.get_language(schema)
         oper_fromop = oper.get_from_operator(schema)
+        oper_fromfunc = oper.get_from_function(schema)
+        oper_code = oper.get_code(schema)
 
         if oper_language is ql_ast.Language.SQL and oper_fromop:
             args = self.get_pg_operands(schema, oper)
-            self.pgops.add(dbops.CreateOperatorAlias(
+
+            if oper_code:
+                oper_func = self.make_operator_function(oper, schema)
+                self.pgops.add(dbops.CreateFunction(oper_func))
+                oper_func_name = common.qname(*oper_func.name)
+
+            elif oper_fromfunc:
+                oper_func_name = oper_fromfunc
+
+            else:
+                oper_func_name = None
+
+            if not oper.get_params(schema).has_polymorphic(schema):
+                self.pgops.add(dbops.CreateOperatorAlias(
+                    name=self.get_pg_name(schema, oper),
+                    args=args,
+                    procedure=oper_func_name,
+                    operator=('pg_catalog', oper_fromop)
+                ))
+
+        elif oper_language is ql_ast.Language.SQL and oper_code:
+            args = self.get_pg_operands(schema, oper)
+            oper_func = self.make_operator_function(oper, schema)
+            self.pgops.add(dbops.CreateFunction(oper_func))
+            oper_func_name = common.qname(*oper_func.name)
+
+            self.pgops.add(dbops.CreateOperator(
                 name=self.get_pg_name(schema, oper),
                 args=args,
-                operator=('pg_catalog', oper_fromop)
+                procedure=oper_func_name,
             ))
+
+        elif oper.get_from_expr(schema):
+            # This operator is handled by the compiler and does not
+            # need explicit representation in the backend.
+            pass
+
         else:
             raise ql_errors.EdgeQLError(
                 f'cannot create operator {oper.get_shortname(schema)}: '
-                f'only "FROM SQL OPERATOR" operators are currently supported',
+                f'only "FROM SQL" and "FROM SQL OPERATOR" operators '
+                f'are currently supported',
                 context=self.source_context)
 
         return schema, oper
@@ -589,12 +644,14 @@ class DeleteOperator(
         OperatorCommand, DeleteNamedObject, adapts=s_opers.DeleteOperator):
 
     def apply(self, schema, context):
+        orig_schema = schema
         oper = schema.get(self.classname)
         name = self.get_pg_name(schema, oper)
         args = self.get_pg_operands(schema, oper)
 
         schema, oper = super().apply(schema, context)
-        self.pgops.add(dbops.DropOperator(name=name, args=args))
+        if not oper.get_from_expr(orig_schema):
+            self.pgops.add(dbops.DropOperator(name=name, args=args))
         return schema, oper
 
 
@@ -2850,6 +2907,11 @@ class CreateModule(ModuleMetaCommand, adapts=s_mod.CreateModule):
         cmd = dbops.CommandGroup(neg_conditions={condition})
         cmd.add_command(dbops.CreateSchema(name=schema_name))
         self.pgops.add(cmd)
+
+        if module.get_name(schema) == 'std':
+            search_path = dbops.Set(
+                'search_path', common.get_backend_name(schema, module))
+            self.pgops.add(search_path)
 
         self.create_object(schema, module)
 

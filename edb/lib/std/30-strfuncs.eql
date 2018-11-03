@@ -16,14 +16,77 @@
 # limitations under the License.
 #
 
+
 ## String functions
 
 
-# std::lower
-# ----------
-
 CREATE FUNCTION
 std::lower(str: std::str) -> std::str
-{
     FROM SQL FUNCTION 'lower';
-};
+
+
+## String operators
+
+CREATE INFIX OPERATOR
+std::`=` (l: std::str, r: std::str) -> std::bool
+    FROM SQL OPERATOR r'=';
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL std::str, r: OPTIONAL std::str) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`!=` (l: std::str, r: std::str) -> std::bool
+    FROM SQL OPERATOR r'<>';
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL std::str, r: OPTIONAL std::str) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`+` (l: std::str, r: std::str) -> std::str
+    FROM SQL OPERATOR '||';
+
+
+CREATE INFIX OPERATOR
+std::`LIKE` (string: std::str, pattern: std::str) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`ILIKE` (string: std::str, pattern: std::str) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`NOT LIKE` (string: std::str, pattern: std::str) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`NOT ILIKE` (string: std::str, pattern: std::str) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::str, r: std::str) -> std::bool
+    FROM SQL OPERATOR r'<';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::str, r: std::str) -> std::bool
+    FROM SQL OPERATOR r'<=';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::str, r: std::str) -> std::bool
+    FROM SQL OPERATOR r'>';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::str, r: std::str) -> std::bool
+    FROM SQL OPERATOR r'>=';

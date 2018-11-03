@@ -32,6 +32,7 @@ from . import delta as sd
 from . import objtypes  # NOQA
 from . import constraints  # NOQA
 from . import functions  # NOQA
+from . import operators  # NOQA
 from . import indexes  # NOQA
 from . import links  # NOQA
 from . import lproperties  # NOQA

@@ -40,6 +40,7 @@ class Schema:
         self._id_to_type = immu.Map()
         self._shortname_to_id = immu.Map()
         self._name_to_id = immu.Map()
+        self._generation = 0
 
     def _replace(self, *, id_to_data=None, id_to_type=None,
                  name_to_id=None, shortname_to_id=None,
@@ -70,6 +71,8 @@ class Schema:
             new._shortname_to_id = self._shortname_to_id
         else:
             new._shortname_to_id = shortname_to_id
+
+        new._generation = self._generation + 1
 
         return new
 
@@ -388,6 +391,10 @@ class Schema:
 
     def get_objects(self, *, modules=None, type=None):
         return SchemaIterator(self, modules=modules, type=type)
+
+    def __repr__(self):
+        return (
+            f'<{type(self).__name__} gen:{self._generation} at {id(self):#x}>')
 
 
 class SchemaIterator:

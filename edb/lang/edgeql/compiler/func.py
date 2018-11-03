@@ -45,11 +45,11 @@ from . import typegen
 
 class BoundCall(typing.NamedTuple):
 
-    func: s_func.Function
+    func: s_func.CallableObject
     args: typing.Iterable[typing.Tuple[s_func.Parameter, irast.Base]]
     null_args: typing.Set[str]
     return_type: s_types.Type
-    used_implicit_casts: bool
+    implicit_cast_distance: int
     has_empty_variadic: bool
 
 
@@ -68,109 +68,212 @@ _NO_MATCH = BoundCall(None, (), frozenset(), None, False, False)
 def compile_FunctionCall(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
 
-    schema = ctx.env.schema
-    with ctx.new() as fctx:
-        if isinstance(expr.func, str):
-            if ctx.func is not None:
-                ctx_func_params = ctx.func.get_params(schema)
-                if ctx_func_params.get_by_name(schema, expr.func):
-                    raise errors.EdgeQLError(
-                        f'parameter `{expr.func}` is not callable',
-                        context=expr.context)
+    env = ctx.env
 
-            funcname = expr.func
-        else:
-            funcname = sn.Name(expr.func[1], expr.func[0])
+    if isinstance(expr.func, str):
+        if ctx.func is not None:
+            ctx_func_params = ctx.func.get_params(env.schema)
+            if ctx_func_params.get_by_name(env.schema, expr.func):
+                raise errors.EdgeQLError(
+                    f'parameter `{expr.func}` is not callable',
+                    context=expr.context)
 
-        funcs = schema.get_functions(
-            funcname, module_aliases=fctx.modaliases)
+        funcname = expr.func
+    else:
+        funcname = sn.Name(expr.func[1], expr.func[0])
 
-        if funcs is None:
-            raise errors.EdgeQLError(
-                f'could not resolve function name {funcname}',
-                context=expr.context)
+    funcs = env.schema.get_functions(funcname, module_aliases=ctx.modaliases)
 
-        fctx.in_func_call = True
-        args, kwargs = compile_call_args(expr, funcname, ctx=fctx)
+    if funcs is None:
+        raise errors.EdgeQLError(
+            f'could not resolve function name {funcname}',
+            context=expr.context)
 
-        matched_call = _NO_MATCH
+    args, kwargs = compile_call_args(expr, funcname, ctx=ctx)
 
-        for func in sorted(funcs, key=lambda f: f.get_name(schema)):
-            call = try_bind_func_args(
-                args, kwargs, funcname, func,
-                ctx=ctx)
+    matched_call = _NO_MATCH
 
-            if call is _NO_MATCH:
-                continue
-
-            if matched_call is _NO_MATCH:
-                matched_call = call
-            else:
-                if (matched_call.used_implicit_casts and
-                        not call.used_implicit_casts):
-                    matched_call = call
-
-                if not args and not kwargs:
-                    raise errors.EdgeQLError(
-                        f'function {funcname} is not unique',
-                        context=expr.context)
+    for func in funcs:
+        call = try_bind_call_args(args, kwargs, funcname, func, ctx=ctx)
+        if call is _NO_MATCH:
+            continue
 
         if matched_call is _NO_MATCH:
-            raise errors.EdgeQLError(
-                f'could not find a function variant {funcname}',
-                context=expr.context)
+            matched_call = call
+        else:
+            if (call.implicit_cast_distance <
+                    matched_call.implicit_cast_distance):
+                matched_call = call
 
-        args, params_typemods = finalize_args(matched_call, ctx=ctx)
+            if not args and not kwargs:
+                raise errors.EdgeQLError(
+                    f'function {funcname} is not unique',
+                    context=expr.context)
 
-        matched_func_params = matched_call.func.get_params(schema)
-        variadic_param = matched_func_params.find_variadic(schema)
-        variadic_param_type = None
-        if variadic_param is not None:
-            variadic_param_type = variadic_param.get_type(schema)
+    if matched_call is _NO_MATCH:
+        raise errors.EdgeQLError(
+            f'could not find a function variant {funcname}',
+            context=expr.context)
 
-        matched_func_ret_type = matched_call.func.get_return_type(schema)
-        is_polymorphic = (
-            any(p.get_type(schema).is_polymorphic(schema)
-                for p in matched_func_params.objects(schema)) and
-            matched_func_ret_type.is_polymorphic(schema)
+    args, params_typemods = finalize_args(matched_call, ctx=ctx)
+
+    matched_func_params = matched_call.func.get_params(env.schema)
+    variadic_param = matched_func_params.find_variadic(env.schema)
+    variadic_param_type = None
+    if variadic_param is not None:
+        variadic_param_type = variadic_param.get_type(env.schema)
+
+    matched_func_ret_type = matched_call.func.get_return_type(env.schema)
+    is_polymorphic = (
+        any(p.get_type(env.schema).is_polymorphic(env.schema)
+            for p in matched_func_params.objects(env.schema)) and
+        matched_func_ret_type.is_polymorphic(env.schema)
+    )
+
+    matched_func_initial_value = matched_call.func.get_initial_value(
+        env.schema)
+
+    node = irast.FunctionCall(
+        args=args,
+        func_shortname=func.get_shortname(env.schema),
+        func_polymorphic=is_polymorphic,
+        func_sql_function=func.get_from_function(env.schema),
+        params_typemods=params_typemods,
+        context=expr.context,
+        stype=matched_call.return_type,
+        typemod=matched_call.func.get_return_typemod(env.schema),
+        has_empty_variadic=matched_call.has_empty_variadic,
+        variadic_param_type=variadic_param_type,
+    )
+
+    if matched_func_initial_value is not None:
+        rtype = inference.infer_type(node, env=ctx.env)
+        iv_ql = qlast.TypeCast(
+            expr=qlparser.parse_fragment(matched_func_initial_value),
+            type=typegen.type_to_ql_typeref(rtype, ctx=ctx)
         )
-
-        matched_func_initial_value = matched_call.func.get_initial_value(
-            schema)
-
-        node = irast.FunctionCall(
-            args=args,
-            func_shortname=func.get_shortname(schema),
-            func_polymorphic=is_polymorphic,
-            func_sql_function=func.get_from_function(schema),
-            params_typemods=params_typemods,
-            context=expr.context,
-            stype=matched_call.return_type,
-            typemod=matched_call.func.get_return_typemod(schema),
-            has_empty_variadic=matched_call.has_empty_variadic,
-            variadic_param_type=variadic_param_type,
-        )
-
-        if matched_func_initial_value is not None:
-            rtype = inference.infer_type(node, env=fctx.env)
-            iv_ql = qlast.TypeCast(
-                expr=qlparser.parse_fragment(matched_func_initial_value),
-                type=typegen.type_to_ql_typeref(rtype, ctx=ctx)
-            )
-            node.func_initial_value = dispatch.compile(iv_ql, ctx=fctx)
+        node.func_initial_value = dispatch.compile(iv_ql, ctx=ctx)
 
     return setgen.ensure_set(node, typehint=matched_call.return_type, ctx=ctx)
 
 
-def try_bind_func_args(
+def compile_operator(
+        qlexpr: qlast.Base, op_name: str, qlargs: typing.List[qlast.Base], *,
+        ctx: context.ContextLevel) -> irast.OperatorCall:
+
+    env = ctx.env
+    opers = env.schema.get_operators(op_name, module_aliases=ctx.modaliases)
+
+    if opers is None:
+        raise errors.EdgeQLError(
+            f'no operator matches the given name and argument types',
+            context=qlexpr.context)
+
+    args = []
+    for ai, qlarg in enumerate(qlargs):
+        with ctx.newscope(fenced=True) as fencectx:
+            # We put on a SET OF fence preemptively in case this is
+            # a SET OF arg, which we don't know yet due to polymorphic
+            # matching.  We will remove it if necessary in `finalize_args()`.
+            arg_ir = setgen.ensure_set(
+                dispatch.compile(qlarg, ctx=fencectx),
+                ctx=fencectx)
+
+            arg_ir = setgen.scoped_set(
+                setgen.ensure_stmt(arg_ir, ctx=fencectx),
+                ctx=fencectx)
+
+        arg_type = inference.infer_type(arg_ir, ctx.env)
+        if arg_type is None:
+            raise errors.EdgeQLError(
+                f'could not resolve the type of operand '
+                f'#{ai} of {op_name}',
+                context=qlarg.context)
+
+        args.append((arg_type, arg_ir))
+
+    matched_call = _NO_MATCH
+
+    for oper in opers:
+        call = try_bind_call_args(args, {}, op_name, oper, ctx=ctx)
+        if call is _NO_MATCH:
+            continue
+
+        if matched_call is _NO_MATCH:
+            matched_call = call
+        else:
+            if (call.implicit_cast_distance <
+                    matched_call.implicit_cast_distance):
+                # Found a closer candidate.
+                matched_call = call
+
+    if matched_call is _NO_MATCH:
+        if len(args) == 2:
+            larg, rarg = args
+            types = (
+                f'{larg[0].get_displayname(env.schema)!r} and '
+                f'{rarg[0].get_displayname(env.schema)!r}')
+        elif len(args) == 1:
+            types = repr(args[0][0].get_displayname(env.schema))
+        else:
+            types = ', '.join(
+                repr(a[0].get_displayname(env.schema)) for a in args)
+
+        raise errors.EdgeQLError(
+            f'operator {str(op_name)!r} cannot be applied to '
+            f'operands of type {types}',
+            context=qlexpr.context)
+
+    args, params_typemods = finalize_args(matched_call, ctx=ctx)
+
+    oper = matched_call.func
+
+    matched_params = oper.get_params(env.schema)
+    matched_ret_type = oper.get_return_type(env.schema)
+    is_polymorphic = (
+        any(p.get_type(env.schema).is_polymorphic(env.schema)
+            for p in matched_params.objects(env.schema)) and
+        matched_ret_type.is_polymorphic(env.schema)
+    )
+
+    in_polymorphic_func = (
+        ctx.func is not None and
+        ctx.func.get_params(env.schema).has_polymorphic(env.schema)
+    )
+
+    from_op = oper.get_from_operator(env.schema)
+    if (from_op is not None and oper.get_code(env.schema) is None and
+            oper.get_from_function(env.schema) is None and
+            not in_polymorphic_func):
+        sql_operator = from_op
+    else:
+        sql_operator = None
+
+    node = irast.OperatorCall(
+        args=args,
+        func_shortname=oper.get_shortname(env.schema),
+        func_polymorphic=is_polymorphic,
+        func_sql_function=oper.get_from_function(env.schema),
+        sql_operator=sql_operator,
+        operator_kind=oper.get_operator_kind(env.schema),
+        params_typemods=params_typemods,
+        context=qlexpr.context,
+        stype=matched_call.return_type,
+        typemod=oper.get_return_typemod(env.schema),
+    )
+
+    return setgen.ensure_set(node, typehint=matched_call.return_type, ctx=ctx)
+
+
+def try_bind_call_args(
         args: typing.List[typing.Tuple[s_types.Type, irast.Base]],
         kwargs: typing.Dict[str, typing.Tuple[s_types.Type, irast.Base]],
         funcname: sn.Name,
-        func: s_func.Function, *,
+        func: s_func.CallableObject, *,
         ctx: context.ContextLevel) -> BoundCall:
 
     def _check_type(arg, arg_type, param_type):
-        nonlocal used_implicit_cast
+        nonlocal implicit_cast_distance
         nonlocal resolved_poly_base_type
 
         if in_polymorphic_func:
@@ -200,13 +303,20 @@ def try_bind_func_args(
             if resolved_poly_base_type is None:
                 resolved_poly_base_type = resolved
 
-            return resolved_poly_base_type == resolved
+            if resolved_poly_base_type == resolved:
+                return True
+
+            ct = resolved_poly_base_type.find_common_implicitly_castable_type(
+                resolved, ctx.env.schema)
+
+            return ct is not None
 
         if arg_type.issubclass(schema, param_type):
             return True
 
-        if arg_type.implicitly_castable_to(param_type, schema):
-            used_implicit_cast = True
+        cast_distance = arg_type.get_implicit_cast_distance(param_type, schema)
+        if cast_distance > 0:
+            implicit_cast_distance += cast_distance
             return True
 
         return False
@@ -219,7 +329,7 @@ def try_bind_func_args(
     )
 
     has_empty_variadic = False
-    used_implicit_cast = False
+    implicit_cast_distance = 0
     resolved_poly_base_type = None
     no_args_call = not args and not kwargs
     has_inlined_defaults = func.has_inlined_defaults(schema)
@@ -447,7 +557,7 @@ def try_bind_func_args(
 
     return BoundCall(
         func, bound_param_args, null_args, return_type,
-        used_implicit_cast, has_empty_variadic)
+        implicit_cast_distance, has_empty_variadic)
 
 
 def compile_call_arg(arg: qlast.FuncArg, *,
@@ -466,8 +576,12 @@ def compile_call_arg(arg: qlast.FuncArg, *,
         # We put on a SET OF fence preemptively in case this is
         # a SET OF arg, which we don't know yet due to polymorphic
         # matching.  We will remove it if necessary in `finalize_args()`.
-        return setgen.scoped_set(
+        arg_ir = setgen.ensure_set(
             dispatch.compile(arg_ql, ctx=fencectx),
+            ctx=fencectx)
+
+        return setgen.scoped_set(
+            setgen.ensure_stmt(arg_ir, ctx=fencectx),
             ctx=fencectx)
 
 
@@ -530,8 +644,14 @@ def finalize_args(bound_call: BoundCall, *,
             if arg_scope is not None:
                 arg_scope.collapse()
                 pathctx.assign_set_scope(arg, None, ctx=ctx)
+
+            # Arg was wrapped for scope fencing purposes,
+            # but that fence has been removed above, so unwrap it.
+            arg = irutils.unwrap_set(arg)
+
             if (param_mod is _OPTIONAL or
                     param_shortname in bound_call.null_args):
+
                 pathctx.register_set_in_scope(arg, ctx=ctx)
                 pathctx.mark_path_as_optional(arg.path_id, ctx=ctx)
 

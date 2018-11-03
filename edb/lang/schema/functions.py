@@ -414,6 +414,9 @@ class CallableObject(so.Object):
 
         return delta
 
+    def has_inlined_defaults(self, schema):
+        return False
+
 
 class CallableCommand(named.NamedObjectCommand):
 

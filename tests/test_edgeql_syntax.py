@@ -498,7 +498,7 @@ aa';
         """
         SELECT (Foo.foo AND Foo.bar);
         SELECT (Foo.foo OR Foo.bar);
-        SELECT NOT Foo.foo;
+        SELECT NOT (Foo.foo);
         """
 
     def test_edgeql_syntax_ops_10(self):
@@ -1988,7 +1988,7 @@ aa';
         BY _
         INTO U
         UNION _3 := (
-            num_tasks := count(DISTINCT _2.tasks)
+            num_tasks := count(DISTINCT (_2.tasks))
         )
         ORDER BY _3.num_tasks ASC;
         """
@@ -2072,7 +2072,7 @@ aa';
 
     def test_edgeql_syntax_set_06(self):
         """
-        SELECT DISTINCT {1, 2, 2, 3};
+        SELECT DISTINCT ({1, 2, 2, 3});
         """
 
     def test_edgeql_syntax_insert_01(self):

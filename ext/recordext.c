@@ -29,7 +29,6 @@
 #include "utils/syscache.h"
 #include "utils/typcache.h"
 
-PG_MODULE_MAGIC;
 
 static const char *_get_type_name(Oid typeoid);
 

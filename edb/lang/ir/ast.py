@@ -40,16 +40,7 @@ def new_scope_tree():
     return ScopeTreeNode(fenced=True)
 
 
-EdgeDBMatchOperator = qlast.EdgeQLMatchOperator
-EquivalenceOperator = qlast.EquivalenceOperator
-SetOperator = qlast.SetOperator
-SetModifier = qlast.SetModifier
 Cardinality = qlast.Cardinality
-
-UNION = qlast.UNION
-
-EQUIVALENT = qlast.EQUIVALENT
-NEQUIVALENT = qlast.NEQUIVALENT
 
 
 class ASTError(EdgeDBError):
@@ -203,49 +194,18 @@ class Array(Expr):
 class SetOp(Expr):
     left: Set
     right: Set
-    op: ast.ops.Operator
+    op: str
     exclusive: bool = False
 
     left_card: Cardinality
     right_card: Cardinality
 
 
-class BaseBinOp(Expr):
-
-    left: Base
-    right: Base
-    op: ast.ops.Operator
-
-
-class BinOp(BaseBinOp):
-    pass
-
-
-class UnaryOp(Expr):
-
-    expr: Base
-    op: ast.ops.Operator
-
-
-class ExistPred(Expr):
-
-    expr: Set
-    negated: bool = False
-
-
-class DistinctOp(Expr):
-    expr: Base
-
-
-class EquivalenceOp(BaseBinOp):
-    pass
-
-
 class TypeCheckOp(Expr):
 
     left: Set
     right: typing.Union[TypeRef, Array]
-    op: ast.ops.Operator
+    op: str
 
 
 class IfElseExpr(Expr):
@@ -272,22 +232,19 @@ class SortExpr(Base):
     nones_order: qlast.NonesOrder
 
 
-class FunctionCall(Expr):
+class Call(Expr):
+    """Operator or a function call."""
 
-    # Bound function has polymorphic parameters and
+    # Bound callable has polymorphic parameters and
     # a polymorphic return type.
     func_polymorphic: bool
 
-    # Bound function's name.
+    # Bound callable's name.
     func_shortname: sn.Name
 
-    # If the bound function is a "FROM SQL" function, this
+    # If the bound callable is a "FROM SQL" callable, this
     # attribute will be set to the name of the SQL function.
     func_sql_function: typing.Optional[str]
-
-    # initial value needed for aggregate function calls to correctly
-    # handle empty set
-    func_initial_value: Base
 
     # Bound arguments.
     args: typing.List[Base]
@@ -296,25 +253,36 @@ class FunctionCall(Expr):
     # (so `zip(args, params_typemods)` is valid.)
     params_typemods: typing.List[ft.TypeModifier]
 
-    # True if the bound function has a variadic parameter and
-    # there are no arguments that are bound to it.
-    has_empty_variadic: bool = False
-    # Set to the type of the variadic parameter of the bound function
-    # (or None, if the function has no variadic parameters.)
-    variadic_param_type: typing.Optional[s_types.Type]
-
     # Return type and typemod.  In bodies of polymorphic functions
     # the return type can be polymorphic; in queries the return
     # type will be a concrete schema type.
     stype: s_types.Type
     typemod: ft.TypeModifier
 
-    agg_sort: typing.List[SortExpr]
-    agg_filter: Base
-    agg_set_modifier: qlast.SetModifier
 
-    partition: typing.List[Base]
-    window: bool
+class FunctionCall(Call):
+
+    # initial value needed for aggregate function calls to correctly
+    # handle empty set
+    func_initial_value: Base
+
+    # True if the bound function has a variadic parameter and
+    # there are no arguments that are bound to it.
+    has_empty_variadic: bool = False
+
+    # Set to the type of the variadic parameter of the bound function
+    # (or None, if the function has no variadic parameters.)
+    variadic_param_type: typing.Optional[s_types.Type]
+
+
+class OperatorCall(Call):
+
+    # The kind of the bound operator (INFIX, PREFIX, etc.).
+    operator_kind: ft.OperatorKind
+
+    # If this operator maps directly onto an SQL operator, this
+    # will contain the operator name.
+    sql_operator: str = None
 
 
 class TupleIndirection(Expr):
@@ -360,6 +328,7 @@ class SelectStmt(Stmt):
     orderby: typing.List[SortExpr]
     offset: Base
     limit: Base
+    implicit_wrapper: bool = False
 
 
 class GroupStmt(Stmt):

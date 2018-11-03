@@ -92,7 +92,7 @@ def _ql_typeexpr_to_ir_typeref(
 
     # FIXME: currently this only handles type union
     if isinstance(ql_t, qlast.TypeOp):
-        if ql_t.op == qlast.TYPEOR:
+        if ql_t.op == '|':
             return (_ql_typeexpr_to_ir_typeref(ql_t.left, ctx=ctx) +
                     _ql_typeexpr_to_ir_typeref(ql_t.right, ctx=ctx))
 

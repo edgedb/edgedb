@@ -174,9 +174,45 @@ def schema_name_to_pg_name(name: s_name.Name):
     )
 
 
-def _get_backend_operator_name(name, catenate=False):
-    schema, oper_name = convert_name(name, catenate=False)
-    oper_name = f'`{oper_name}`'
+_operator_map = {
+    'std::AND': 'AND',
+    'std::NOT': 'NOT',
+    'std::?=': 'IS NOT DISTINCT FROM',
+    'std::?!=': 'IS DISTINCT FROM',
+    'std::LIKE': 'LIKE',
+    'std::ILIKE': 'ILIKE',
+    'std::NOT LIKE': 'NOT LIKE',
+    'std::NOT ILIKE': 'NOT ILIKE',
+}
+
+
+def get_backend_operator_name(name, catenate=False, *, aspect=None):
+    if aspect is None:
+        aspect = 'operator'
+
+    if aspect == 'function':
+        return convert_name(name, 'f', catenate=catenate)
+    elif aspect != 'operator':
+        raise ValueError(
+            f'unexpected aspect for operator backend name: {aspect!r}')
+
+    oper_name = _operator_map.get(name)
+    if oper_name is not None:
+        schema = ''
+    else:
+        schema, oper_name = convert_name(name, catenate=False)
+        if re.search(r'[a-zA-Z]', oper_name):
+            # Alphanumeric operator, cannot be expressed in Postgres as-is
+            # Since this is a rare occasion, we hard-code the translation
+            # table.
+            if oper_name == 'OR':
+                oper_name = '||'
+            else:
+                raise ValueError(
+                    f'cannot represent operator {oper_name} in Postgres')
+
+        oper_name = f'`{oper_name}`'
+
     if catenate:
         return qname(schema, oper_name)
     else:
@@ -218,7 +254,8 @@ def get_backend_name(schema, obj, catenate=True, *, aspect=None):
             obj.get_name(schema), catenate, aspect=aspect)
 
     elif isinstance(obj, s_opers.Operator):
-        return _get_backend_operator_name(obj.get_shortname(schema), catenate)
+        return get_backend_operator_name(
+            obj.get_shortname(schema), catenate, aspect=aspect)
 
     elif isinstance(obj, s_func.Function):
         return _get_backend_function_name(obj.get_shortname(schema), catenate)

@@ -110,6 +110,10 @@ def ast_to_typeref(
         from . import pseudo as s_pseudo
         return s_pseudo.AnyObjectRef()
 
+    elif isinstance(node.maintype, ql_ast.AnyTuple):
+        from . import pseudo as s_pseudo
+        return s_pseudo.AnyTupleRef()
+
     return ast_objref_to_objref(
         node.maintype, modaliases=modaliases, schema=schema)
 

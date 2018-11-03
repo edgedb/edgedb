@@ -277,6 +277,9 @@ class IntrospectionMech:
                 'params': params,
                 'return_typemod': row['return_typemod'],
                 'from_operator': row['from_operator'],
+                'from_function': row['from_function'],
+                'from_expr': row['from_expr'],
+                'code': row['code'],
                 'return_type': self.unpack_typeref(row['return_type'], schema)
             }
 

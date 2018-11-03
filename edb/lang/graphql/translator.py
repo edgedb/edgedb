@@ -580,12 +580,11 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         # handle boolean ops
         if fname == 'and':
-            return self._visit_list_of_inputs(node.value.value, ast.ops.AND)
+            return self._visit_list_of_inputs(node.value.value, 'AND')
         elif fname == 'or':
-            return self._visit_list_of_inputs(node.value.value, ast.ops.OR)
+            return self._visit_list_of_inputs(node.value.value, 'OR')
         elif fname == 'not':
-            return qlast.UnaryOp(op=ast.ops.NOT,
-                                 operand=self.visit(node.value))
+            return qlast.UnaryOp(op='NOT', operand=self.visit(node.value))
 
         # handle various scalar ops
         op = gt.GQL_TO_OPS_MAP.get(fname)
@@ -692,7 +691,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         result = [self.visit(node) for node in inputs]
         return self._join_expressions(result, op)
 
-    def _join_expressions(self, exprs, op=ast.ops.AND):
+    def _join_expressions(self, exprs, op='AND'):
         if not exprs:
             return None
         elif len(exprs) == 1:

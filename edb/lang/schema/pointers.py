@@ -424,7 +424,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
 
     @classmethod
     def _extract_union_operands(cls, expr, operands):
-        if expr.op == qlast.UNION:
+        if expr.op == 'UNION':
             cls._extract_union_operands(expr.op_larg, operands)
             cls._extract_union_operands(expr.op_rarg, operands)
         else:

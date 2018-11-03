@@ -17,6 +17,8 @@
 #
 
 
+import typing
+
 from edb.lang.edgeql import ast as qlast
 
 from . import abc as s_abc
@@ -31,6 +33,7 @@ from . import nodes
 from . import referencing
 from . import sources
 from . import types as s_types
+from . import utils
 
 
 class BaseObjectType(sources.Source, nodes.Node):
@@ -42,6 +45,12 @@ class ObjectType(BaseObjectType, constraints.ConsistencySubject,
 
     def is_object_type(self):
         return True
+
+    def get_displayname(self, schema):
+        if self.is_view(schema):
+            return self.material_type(schema).get_displayname(schema)
+        else:
+            return super().get_displayname(schema)
 
     class ReversePointerResolver:
         @classmethod
@@ -98,6 +107,11 @@ class ObjectType(BaseObjectType, constraints.ConsistencySubject,
 
     def implicitly_castable_to(self, other: s_types.Type, schema) -> bool:
         return self.issubclass(schema, other)
+
+    def find_common_implicitly_castable_type(
+            self, other: s_types.Type,
+            schema) -> typing.Optional[s_types.Type]:
+        return utils.get_class_nearest_common_ancestor(schema, [self, other])
 
     @classmethod
     def get_root_classes(cls):

@@ -20,9 +20,6 @@
 import functools
 import typing
 
-from edb.lang.common import ast
-
-from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import errors as ql_errors
 from edb.lang.edgeql import functypes as ql_ft
 
@@ -114,6 +111,7 @@ def __infer_set(ir, scope_tree, schema):
         return MANY
 
 
+@_infer_cardinality.register(irast.OperatorCall)
 @_infer_cardinality.register(irast.FunctionCall)
 def __infer_func_call(ir, scope_tree, schema):
     # the cardinality of the function call depends on the cardinality
@@ -149,7 +147,7 @@ def __infer_coalesce(ir, scope_tree, schema):
 
 @_infer_cardinality.register(irast.SetOp)
 def __infer_setop(ir, scope_tree, schema):
-    if ir.op == qlast.UNION:
+    if ir.op == 'UNION':
         if not ir.exclusive:
             # Exclusive UNIONs are generated from IF ELSE expressions.
             result = MANY
@@ -162,29 +160,9 @@ def __infer_setop(ir, scope_tree, schema):
     return result
 
 
-@_infer_cardinality.register(irast.DistinctOp)
-def __infer_distinctop(ir, scope_tree, schema):
-    return infer_cardinality(ir.expr, scope_tree, schema)
-
-
-@_infer_cardinality.register(irast.BinOp)
-def __infer_binop(ir, scope_tree, schema):
-    return _common_cardinality([ir.left, ir.right], scope_tree, schema)
-
-
-@_infer_cardinality.register(irast.EquivalenceOp)
-def __infer_equivop(ir, scope_tree, schema):
-    return _common_cardinality([ir.left, ir.right], scope_tree, schema)
-
-
 @_infer_cardinality.register(irast.TypeCheckOp)
 def __infer_typecheckop(ir, scope_tree, schema):
     return infer_cardinality(ir.left, scope_tree, schema)
-
-
-@_infer_cardinality.register(irast.UnaryOp)
-def __infer_unaryop(ir, scope_tree, schema):
-    return infer_cardinality(ir.expr, scope_tree, schema)
 
 
 @_infer_cardinality.register(irast.IfElseExpr)
@@ -228,33 +206,37 @@ def _extract_filters(
 
     ptr_filters = []
     expr = ir_set.expr
-    if isinstance(expr, irast.BinOp):
-        if expr.op == ast.ops.EQ:
+    if isinstance(expr, irast.OperatorCall):
+        if expr.func_shortname == 'std::=':
+            left, right = expr.args
+
             op_card = _common_cardinality(
-                [expr.left, expr.right], scope_tree, schema)
+                [left, right], scope_tree, schema)
 
             if op_card == MANY:
                 pass
-            elif _is_ptr_or_self_ref(expr.left, result_set.stype, schema):
-                if infer_cardinality(expr.right, scope_tree, schema) == ONE:
-                    if expr.left.stype == result_set.stype:
+            elif _is_ptr_or_self_ref(left, result_set.stype, schema):
+                if infer_cardinality(right, scope_tree, schema) == ONE:
+                    if left.stype == result_set.stype:
                         ptr_filters.append(
-                            expr.left.stype.getptr(schema, 'std::id'))
+                            left.stype.getptr(schema, 'std::id'))
                     else:
-                        ptr_filters.append(expr.left.rptr.ptrcls)
-            elif _is_ptr_or_self_ref(expr.right, result_set.stype, schema):
-                if infer_cardinality(expr.left, scope_tree, schema) == ONE:
-                    if expr.right.stype == result_set.stype:
+                        ptr_filters.append(left.rptr.ptrcls)
+            elif _is_ptr_or_self_ref(right, result_set.stype, schema):
+                if infer_cardinality(left, scope_tree, schema) == ONE:
+                    if right.stype == result_set.stype:
                         ptr_filters.append(
-                            expr.right.stype.getptr(schema, 'std::id'))
+                            right.stype.getptr(schema, 'std::id'))
                     else:
-                        ptr_filters.append(expr.right.rptr.ptrcls)
+                        ptr_filters.append(right.rptr.ptrcls)
 
-        elif expr.op == ast.ops.AND:
+        elif expr.func_shortname == 'std::AND':
+            left, right = expr.args
+
             ptr_filters.extend(
-                _extract_filters(result_set, expr.left, scope_tree, schema))
+                _extract_filters(result_set, left, scope_tree, schema))
             ptr_filters.extend(
-                _extract_filters(result_set, expr.right, scope_tree, schema))
+                _extract_filters(result_set, right, scope_tree, schema))
 
     return ptr_filters
 
@@ -351,11 +333,6 @@ def __infer_stmt(ir, scope_tree, schema):
         return ir.cardinality
     else:
         return infer_cardinality(ir.result, scope_tree, schema)
-
-
-@_infer_cardinality.register(irast.ExistPred)
-def __infer_exist(ir, scope_tree, schema):
-    return ONE
 
 
 @_infer_cardinality.register(irast.SliceIndirection)

@@ -25,21 +25,8 @@ from . import types as s_types
 
 
 class PseudoType(inheriting.InheritingObject, s_types.Type):
-    pass
-
-
-class Any(PseudoType):
 
     name = so.Field(str)
-
-    schema_name = 'anytype'
-    _instance = None
-
-    @classmethod
-    def create(cls):
-        if cls._instance is None:
-            cls._instance = cls._create(None, name='anytype')
-        return cls._instance
 
     def get_name(self, schema):
         return self.name
@@ -65,6 +52,28 @@ class Any(PseudoType):
     def is_polymorphic(self, schema):
         return True
 
+    def __hash__(self):
+        return hash((
+            type(self),
+            self.name,
+        ))
+
+    def __eq__(self, other):
+        return (type(self) is type(other) and
+                self.name == other.name)
+
+
+class Any(PseudoType):
+
+    schema_name = 'anytype'
+    _instance = None
+
+    @classmethod
+    def create(cls):
+        if cls._instance is None:
+            cls._instance = cls._create(None, name='anytype')
+        return cls._instance
+
     def _resolve_polymorphic(self, schema, concrete_type: s_types.Type):
         if concrete_type.is_scalar():
             return concrete_type.get_topmost_concrete_base(schema)
@@ -86,16 +95,6 @@ class Any(PseudoType):
     def _reduce_to_ref(self, schema):
         return AnyObjectRef(), 'anytype'
 
-    def __hash__(self):
-        return hash((
-            type(self),
-            self.name,
-        ))
-
-    def __eq__(self, other):
-        return (type(self) is type(other) and
-                self.name == other.name)
-
 
 class AnyObjectRef(so.ObjectRef):
 
@@ -104,3 +103,34 @@ class AnyObjectRef(so.ObjectRef):
 
     def _resolve_ref(self, schema):
         return Any.create()
+
+
+class AnyTuple(PseudoType):
+
+    schema_name = 'anytuple'
+    _instance = None
+
+    @classmethod
+    def create(cls):
+        if cls._instance is None:
+            cls._instance = cls._create(None, name='anytuple')
+        return cls._instance
+
+    def _reduce_to_ref(self, schema):
+        return AnyTupleRef(), 'anytuple'
+
+    def _resolve_polymorphic(self, schema, concrete_type: s_types.Type):
+        if (not concrete_type.is_tuple() or
+                concrete_type.is_polymorphic(schema)):
+            return None
+        else:
+            return concrete_type
+
+
+class AnyTupleRef(so.ObjectRef):
+
+    def __init__(self, *, name='anytuple'):
+        super().__init__(name=name)
+
+    def _resolve_ref(self, schema):
+        return AnyTuple.create()

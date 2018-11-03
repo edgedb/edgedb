@@ -19,7 +19,7 @@
 
 import sys
 
-from edb.lang.common import ast, parsing
+from edb.lang.common import parsing
 from .. import ast as pgast
 
 from . import keywords
@@ -1010,20 +1010,20 @@ class a_expr(Nonterm):
     def reduce_unary_plus(self, *kids):
         "%reduce PLUS a_expr [P_UMINUS]"
         self.val = pgast.Expr(
-            name=ast.ops.UPLUS, rexpr=kids[1].val,
+            name='+', rexpr=kids[1].val,
             kind=pgast.OP)
 
     def reduce_unary_minus(self, *kids):
         "%reduce MINUS a_expr [P_UMINUS]"
         self.val = pgast.Expr(
-            name=ast.ops.UMINUS,
+            name='-',
             rexpr=kids[1].val,
             kind=pgast.OP)
 
     def reduce_add(self, *kids):
         "%reduce a_expr PLUS a_expr"
         self.val = pgast.Expr(
-            name=ast.ops.ADD,
+            name='+',
             lexpr=kids[0].val,
             rexpr=kids[2].val,
             kind=pgast.OP)
@@ -1031,7 +1031,7 @@ class a_expr(Nonterm):
     def reduce_sub(self, *kids):
         "%reduce a_expr MINUS a_expr"
         self.val = pgast.Expr(
-            name=ast.ops.SUB,
+            name='-',
             lexpr=kids[0].val,
             rexpr=kids[2].val,
             kind=pgast.OP)
@@ -1039,7 +1039,7 @@ class a_expr(Nonterm):
     def reduce_mul(self, *kids):
         "%reduce a_expr STAR a_expr"
         self.val = pgast.Expr(
-            name=ast.ops.MUL,
+            name='*',
             lexpr=kids[0].val,
             rexpr=kids[2].val,
             kind=pgast.OP)
@@ -1047,7 +1047,7 @@ class a_expr(Nonterm):
     def reduce_div(self, *kids):
         "%reduce a_expr SLASH a_expr"
         self.val = pgast.Expr(
-            name=ast.ops.DIV,
+            name='/',
             lexpr=kids[0].val,
             rexpr=kids[2].val,
             kind=pgast.OP)
@@ -1055,7 +1055,7 @@ class a_expr(Nonterm):
     def reduce_mod(self, *kids):
         "%reduce a_expr PERCENT a_expr"
         self.val = pgast.Expr(
-            name=ast.ops.MOD,
+            name='%',
             lexpr=kids[0].val,
             rexpr=kids[2].val,
             kind=pgast.OP)
@@ -1063,7 +1063,7 @@ class a_expr(Nonterm):
     def reduce_pow(self, *kids):
         "%reduce a_expr CIRCUM a_expr"
         self.val = pgast.Expr(
-            name=ast.ops.POW,
+            name='^',
             lexpr=kids[0].val,
             rexpr=kids[2].val,
             kind=pgast.OP)
@@ -1071,7 +1071,7 @@ class a_expr(Nonterm):
     def reduce_lt(self, *kids):
         "%reduce a_expr LANGBRACKET a_expr"
         self.val = pgast.Expr(
-            name=ast.ops.LT,
+            name='<',
             lexpr=kids[0].val,
             rexpr=kids[2].val,
             kind=pgast.OP)
@@ -1079,7 +1079,7 @@ class a_expr(Nonterm):
     def reduce_gt(self, *kids):
         "%reduce a_expr RANGBRACKET a_expr"
         self.val = pgast.Expr(
-            name=ast.ops.GT,
+            name='>',
             lexpr=kids[0].val,
             rexpr=kids[2].val,
             kind=pgast.OP)
@@ -1087,7 +1087,7 @@ class a_expr(Nonterm):
     def reduce_equals(self, *kids):
         "%reduce a_expr EQUALS a_expr"
         self.val = pgast.Expr(
-            name=ast.ops.EQ,
+            name='=',
             lexpr=kids[0].val,
             rexpr=kids[2].val,
             kind=pgast.OP)
@@ -1117,7 +1117,7 @@ class a_expr(Nonterm):
     def reduce_a_expr_AND_a_expr(self, *kids):
         "%reduce a_expr AND a_expr"
         self.val = pgast.Expr(
-            name=ast.ops.AND,
+            name='AND',
             lexpr=kids[0].val,
             rexpr=kids[2].val,
             kind=pgast.OP)
@@ -1125,7 +1125,7 @@ class a_expr(Nonterm):
     def reduce_a_expr_OR_a_expr(self, *kids):
         "%reduce a_expr OR a_expr"
         self.val = pgast.Expr(
-            name=ast.ops.OR,
+            name='OR',
             lexpr=kids[0].val,
             rexpr=kids[2].val,
             kind=pgast.OP)
@@ -1133,14 +1133,14 @@ class a_expr(Nonterm):
     def reduce_NOT_a_expr(self, *kids):
         "%reduce NOT a_expr"
         self.val = pgast.Expr(
-            name=ast.ops.NOT,
+            name='NOT',
             rexpr=kids[1].val,
             kind=pgast.OP)
 
     def reduce_a_expr_LIKE_a_expr(self, *kids):
         "%reduce a_expr LIKE a_expr"
         self.val = pgast.Expr(
-            name=pgast.LIKE,
+            name='LIKE',
             lexpr=kids[0].val,
             rexpr=kids[2].val,
             kind=pgast.OP)
@@ -1150,7 +1150,7 @@ class a_expr(Nonterm):
         right = pgast.FuncCall(
             name=('like_escape',), args=[kids[2].val, kids[4].val])
         self.val = pgast.Expr(
-            name=pgast.LIKE,
+            name='LIKE',
             lexpr=kids[0].val,
             rexpr=right,
             kind=pgast.OP)
@@ -1158,7 +1158,7 @@ class a_expr(Nonterm):
     def reduce_a_expr_NOT_LIKE_a_expr(self, *kids):
         "%reduce a_expr NOT LIKE a_expr"
         self.val = pgast.Expr(
-            name=pgast.NOT_LIKE,
+            name='NOT LIKE',
             lexpr=kids[0].val,
             rexpr=kids[3].val,
             kind=pgast.OP)
@@ -1168,7 +1168,7 @@ class a_expr(Nonterm):
         right = pgast.FuncCall(
             name=('like_escape',), args=[kids[3].val, kids[5].val])
         self.val = pgast.Expr(
-            name=pgast.NOT_LIKE,
+            name='NOT LIKE',
             lexpr=kids[0].val,
             rexpr=right,
             kind=pgast.OP)
@@ -1176,7 +1176,7 @@ class a_expr(Nonterm):
     def reduce_a_expr_ILIKE_a_expr(self, *kids):
         "%reduce a_expr ILIKE a_expr"
         self.val = pgast.Expr(
-            name=pgast.ILIKE,
+            name='ILIKE',
             lexpr=kids[0].val,
             rexpr=kids[2].val,
             kind=pgast.OP)
@@ -1186,7 +1186,7 @@ class a_expr(Nonterm):
         right = pgast.FuncCall(
             name=('like_escape',), args=[kids[2].val, kids[4].val])
         self.val = pgast.Expr(
-            name=pgast.ILIKE,
+            name='ILIKE',
             lexpr=kids[0].val,
             rexpr=right,
             kind=pgast.OP)
@@ -1194,7 +1194,7 @@ class a_expr(Nonterm):
     def reduce_a_expr_NOT_ILIKE_a_expr(self, *kids):
         "%reduce a_expr NOT ILIKE a_expr"
         self.val = pgast.Expr(
-            name=pgast.NOT_ILIKE,
+            name='NOT ILIKE',
             lexpr=kids[0].val,
             rexpr=kids[3].val,
             kind=pgast.OP)
@@ -1204,7 +1204,7 @@ class a_expr(Nonterm):
         right = pgast.FuncCall(
             name=('like_escape',), args=[kids[3].val, kids[5].val])
         self.val = pgast.Expr(
-            name=pgast.NOT_ILIKE,
+            name='NOT ILIKE',
             lexpr=kids[0].val,
             rexpr=right,
             kind=pgast.OP)
@@ -1212,7 +1212,7 @@ class a_expr(Nonterm):
     def reduce_a_expr_SIMILAR_TO_a_expr(self, *kids):
         "%reduce a_expr SIMILAR TO a_expr [P_LIKE_ILIKE_SIMILAR]"
         self.val = pgast.Expr(
-            name=pgast.SIMILAR_TO,
+            name='SIMILAR TO',
             lexpr=kids[0].val,
             rexpr=kids[3].val,
             kind=pgast.OP)
@@ -1222,7 +1222,7 @@ class a_expr(Nonterm):
         right = pgast.FuncCall(
             name=('similar_escape',), args=[kids[3].val, kids[5].val])
         self.val = pgast.Expr(
-            name=pgast.SIMILAR_TO,
+            name='SIMILAR TO',
             lexpr=kids[0].val,
             rexpr=right,
             kind=pgast.OP)
@@ -1230,7 +1230,7 @@ class a_expr(Nonterm):
     def reduce_a_expr_NOT_SIMILAR_TO_a_expr(self, *kids):
         "%reduce a_expr NOT SIMILAR TO a_expr [P_LIKE_ILIKE_SIMILAR]"
         self.val = pgast.Expr(
-            name=pgast.NOT_SIMILAR_TO,
+            name='NOT SIMILAR TO',
             lexpr=kids[0].val,
             rexpr=kids[4].val,
             kind=pgast.OP)
@@ -1240,7 +1240,7 @@ class a_expr(Nonterm):
         right = pgast.FuncCall(
             name=('like_escape',), args=[kids[4].val, kids[6].val])
         self.val = pgast.Expr(
-            name=pgast.NOT_SIMILAR_TO,
+            name='NOT SIMILAR TO',
             lexpr=kids[0].val,
             rexpr=right,
             kind=pgast.OP)
@@ -1270,7 +1270,7 @@ class a_expr(Nonterm):
         "%reduce a_expr IS TRUE_P"
         right = pgast.BooleanConstant(val='TRUE')
         self.val = pgast.Expr(
-            name=ast.ops.IS,
+            name='IS',
             lexpr=kids[0].val,
             rexpr=right,
             kind=pgast.OP)
@@ -1279,7 +1279,7 @@ class a_expr(Nonterm):
         "%reduce a_expr IS NOT TRUE_P"
         right = pgast.BooleanConstant(val='TRUE')
         self.val = pgast.Expr(
-            name=ast.ops.IS_NOT,
+            name='IS NOT',
             lexpr=kids[0].val,
             rexpr=right,
             kind=pgast.OP)
@@ -1288,7 +1288,7 @@ class a_expr(Nonterm):
         "%reduce a_expr IS FALSE_P"
         right = pgast.BooleanConstant(val='FALSE')
         self.val = pgast.Expr(
-            name=ast.ops.IS,
+            name='IS',
             lexpr=kids[0].val,
             rexpr=right,
             kind=pgast.OP)
@@ -1297,7 +1297,7 @@ class a_expr(Nonterm):
         "%reduce a_expr IS NOT FALSE_P"
         right = pgast.BooleanConstant(val='FALSE')
         self.val = pgast.Expr(
-            name=ast.ops.IS_NOT,
+            name='IS NOT',
             lexpr=kids[0].val,
             rexpr=right,
             kind=pgast.OP)
@@ -1313,7 +1313,7 @@ class a_expr(Nonterm):
     def reduce_a_expr_IS_DISTINCT_FROM_a_expr(self, *kids):
         "%reduce a_expr IS DISTINCT FROM a_expr [P_IS]"
         self.val = pgast.Expr(
-            name=pgast.IS_DISTINCT,
+            name='IS DISTINCT FROM',
             lexpr=kids[0].val,
             rexpr=kids[4].val,
             kind=pgast.OP)
@@ -1321,7 +1321,7 @@ class a_expr(Nonterm):
     def reduce_a_expr_IS_NOT_DISTINCT_FROM_a_expr(self, *kids):
         "%reduce a_expr IS NOT DISTINCT FROM a_expr [P_IS]"
         self.val = pgast.Expr(
-            name=pgast.IS_NOT_DISTINCT,
+            name='IS NOT DISTINCT FROM',
             lexpr=kids[0].val,
             rexpr=kids[5].val,
             kind=pgast.OP)
@@ -1329,7 +1329,7 @@ class a_expr(Nonterm):
     def reduce_a_expr_IS_OF_type_list(self, *kids):
         "%reduce a_expr IS OF LPAREN type_list RPAREN [P_IS]"
         self.val = pgast.Expr(
-            name=pgast.IS_OF,
+            name='IS OF',
             lexpr=kids[0].val,
             rexpr=kids[4].val,
             kind=pgast.OP)
@@ -1337,7 +1337,7 @@ class a_expr(Nonterm):
     def reduce_a_expr_IS_NOT_OF_type_list(self, *kids):
         "%reduce a_expr IS NOT OF LPAREN type_list RPAREN [P_IS]"
         self.val = pgast.Expr(
-            name=pgast.IS_NOT_OF,
+            name='IS NOT OF',
             lexpr=kids[0].val,
             rexpr=kids[5].val,
             kind=pgast.OP)
@@ -1345,7 +1345,7 @@ class a_expr(Nonterm):
     def reduce_a_expr_IN_P_in_expr(self, *kids):
         "%reduce a_expr IN_P in_expr"
         self.val = pgast.Expr(
-            name=ast.ops.IN,
+            name='IN',
             lexpr=kids[0].val,
             rexpr=kids[2].val,
             kind=pgast.OP)
@@ -1353,7 +1353,7 @@ class a_expr(Nonterm):
     def reduce_a_expr_NOT_IN_P_in_expr(self, *kids):
         "%reduce a_expr NOT IN_P in_expr"
         self.val = pgast.Expr(
-            name=pgast.NOT_IN,
+            name='NOT IN',
             lexpr=kids[0].val,
             rexpr=kids[3].val,
             kind=pgast.OP)
@@ -1505,39 +1505,39 @@ class MathOp(Nonterm):
 
     def reduce_PLUS(self, *kids):
         "%reduce PLUS"
-        self.val = ast.ops.ADD
+        self.val = '+'
 
     def reduce_MINUS(self, *kids):
         "%reduce MINUS"
-        self.val = ast.ops.SUB
+        self.val = '-'
 
     def reduce_STAR(self, *kids):
         "%reduce STAR"
-        self.val = ast.ops.MUL
+        self.val = '*'
 
     def reduce_SLASH(self, *kids):
         "%reduce SLASH"
-        self.val = ast.ops.DIV
+        self.val = '/'
 
     def reduce_PERCENT(self, *kids):
         "%reduce PERCENT"
-        self.val = ast.ops.MOD
+        self.val = '%'
 
     def reduce_CIRCUM(self, *kids):
         "%reduce CIRCUM"
-        self.val = ast.ops.POW
+        self.val = '^'
 
     def reduce_LANGBRACKET(self, *kids):
         "%reduce LANGBRACKET"
-        self.val = ast.ops.LT
+        self.val = '<'
 
     def reduce_RANGBRACKET(self, *kids):
         "%reduce RANGBRACKET"
-        self.val = ast.ops.GT
+        self.val = '>'
 
     def reduce_EQUALS(self, *kids):
         "%reduce EQUALS"
-        self.val = ast.ops.EQ
+        self.val = '='
 
 
 class qual_Op(Nonterm):

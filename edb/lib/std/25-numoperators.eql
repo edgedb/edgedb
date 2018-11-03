@@ -1,0 +1,916 @@
+#
+# This source file is part of the EdgeDB open source project.
+#
+# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+
+## Standard numeric operators
+## --------------------------
+
+# NOTE: we follow PostgreSQL in creating an explicit operator
+# for each permutation of common integer and floating-point
+# operand types to avoid casting overhead, as these operations
+# are very common.
+
+# EQUALITY
+
+CREATE INFIX OPERATOR
+std::`=` (l: std::int16, r: std::int16) -> std::bool
+    FROM SQL OPERATOR r'=';
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL std::int16, r: OPTIONAL std::int16) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`=` (l: std::int16, r: std::int32) -> std::bool
+    FROM SQL OPERATOR r'=';
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL std::int16, r: OPTIONAL std::int32) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`=` (l: std::int16, r: std::int64) -> std::bool
+    FROM SQL OPERATOR r'=';
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL std::int16, r: OPTIONAL std::int64) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`=` (l: std::int32, r: std::int16) -> std::bool
+    FROM SQL OPERATOR r'=';
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL std::int32, r: OPTIONAL std::int16) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`=` (l: std::int32, r: std::int32) -> std::bool
+    FROM SQL OPERATOR r'=';
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL std::int32, r: OPTIONAL std::int32) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`=` (l: std::int32, r: std::int64) -> std::bool
+    FROM SQL OPERATOR r'=';
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL std::int32, r: OPTIONAL std::int64) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`=` (l: std::int64, r: std::int16) -> std::bool
+    FROM SQL OPERATOR r'=';
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL std::int64, r: OPTIONAL std::int16) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`=` (l: std::int64, r: std::int32) -> std::bool
+    FROM SQL OPERATOR r'=';
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL std::int64, r: OPTIONAL std::int32) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`=` (l: std::int64, r: std::int64) -> std::bool
+    FROM SQL OPERATOR r'=';
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL std::int64, r: OPTIONAL std::int64) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`=` (l: std::float32, r: std::float32) -> std::bool
+    FROM SQL OPERATOR r'=';
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL std::float32, r: OPTIONAL std::float32) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`=` (l: std::float32, r: std::float64) -> std::bool
+    FROM SQL OPERATOR r'=';
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL std::float32, r: OPTIONAL std::float64) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`=` (l: std::float64, r: std::float32) -> std::bool
+    FROM SQL OPERATOR r'=';
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL std::float64, r: OPTIONAL std::float32) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`=` (l: std::float64, r: std::float64) -> std::bool
+    FROM SQL OPERATOR r'=';
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL std::float64, r: OPTIONAL std::float64) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`=` (l: std::decimal, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR r'=';
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL std::decimal, r: OPTIONAL std::decimal) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+# INEQUALITY
+
+CREATE INFIX OPERATOR
+std::`!=` (l: std::int16, r: std::int16) -> std::bool
+    FROM SQL OPERATOR r'<>';
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL std::int16, r: OPTIONAL std::int16) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`!=` (l: std::int16, r: std::int32) -> std::bool
+    FROM SQL OPERATOR r'<>';
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL std::int16, r: OPTIONAL std::int32) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`!=` (l: std::int16, r: std::int64) -> std::bool
+    FROM SQL OPERATOR r'<>';
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL std::int16, r: OPTIONAL std::int64) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`!=` (l: std::int32, r: std::int16) -> std::bool
+    FROM SQL OPERATOR r'<>';
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL std::int32, r: OPTIONAL std::int16) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`!=` (l: std::int32, r: std::int32) -> std::bool
+    FROM SQL OPERATOR r'<>';
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL std::int32, r: OPTIONAL std::int32) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`!=` (l: std::int32, r: std::int64) -> std::bool
+    FROM SQL OPERATOR r'<>';
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL std::int32, r: OPTIONAL std::int64) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`!=` (l: std::int64, r: std::int16) -> std::bool
+    FROM SQL OPERATOR r'<>';
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL std::int64, r: OPTIONAL std::int16) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`!=` (l: std::int64, r: std::int32) -> std::bool
+    FROM SQL OPERATOR r'<>';
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL std::int64, r: OPTIONAL std::int32) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`!=` (l: std::int64, r: std::int64) -> std::bool
+    FROM SQL OPERATOR r'<>';
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL std::int64, r: OPTIONAL std::int64) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`!=` (l: std::float32, r: std::float32) -> std::bool
+    FROM SQL OPERATOR r'<>';
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL std::float32, r: OPTIONAL std::float32) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`!=` (l: std::float32, r: std::float64) -> std::bool
+    FROM SQL OPERATOR r'<>';
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL std::float32, r: OPTIONAL std::float64) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`!=` (l: std::float64, r: std::float32) -> std::bool
+    FROM SQL OPERATOR r'<>';
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL std::float64, r: OPTIONAL std::float32) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`!=` (l: std::float64, r: std::float64) -> std::bool
+    FROM SQL OPERATOR r'<>';
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL std::float64, r: OPTIONAL std::float64) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`!=` (l: std::decimal, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR r'<>';
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL std::decimal, r: OPTIONAL std::decimal) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+
+# GREATER THAN
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::int16, r: std::int16) -> std::bool
+    FROM SQL OPERATOR r'>';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::int16, r: std::int32) -> std::bool
+    FROM SQL OPERATOR r'>';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::int16, r: std::int64) -> std::bool
+    FROM SQL OPERATOR r'>';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::int32, r: std::int16) -> std::bool
+    FROM SQL OPERATOR r'>';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::int32, r: std::int32) -> std::bool
+    FROM SQL OPERATOR r'>';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::int32, r: std::int64) -> std::bool
+    FROM SQL OPERATOR r'>';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::int64, r: std::int16) -> std::bool
+    FROM SQL OPERATOR r'>';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::int64, r: std::int32) -> std::bool
+    FROM SQL OPERATOR r'>';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::int64, r: std::int64) -> std::bool
+    FROM SQL OPERATOR r'>';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::float32, r: std::float32) -> std::bool
+    FROM SQL OPERATOR r'>';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::float32, r: std::float64) -> std::bool
+    FROM SQL OPERATOR r'>';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::float64, r: std::float32) -> std::bool
+    FROM SQL OPERATOR r'>';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::float64, r: std::float64) -> std::bool
+    FROM SQL OPERATOR r'>';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::decimal, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR r'>';
+
+
+# GREATER OR EQUAL
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::int16, r: std::int16) -> std::bool
+    FROM SQL OPERATOR r'>=';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::int16, r: std::int32) -> std::bool
+    FROM SQL OPERATOR r'>=';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::int16, r: std::int64) -> std::bool
+    FROM SQL OPERATOR r'>=';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::int32, r: std::int16) -> std::bool
+    FROM SQL OPERATOR r'>=';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::int32, r: std::int32) -> std::bool
+    FROM SQL OPERATOR r'>=';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::int32, r: std::int64) -> std::bool
+    FROM SQL OPERATOR r'>=';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::int64, r: std::int16) -> std::bool
+    FROM SQL OPERATOR r'>=';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::int64, r: std::int32) -> std::bool
+    FROM SQL OPERATOR r'>=';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::int64, r: std::int64) -> std::bool
+    FROM SQL OPERATOR r'>=';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::float32, r: std::float32) -> std::bool
+    FROM SQL OPERATOR r'>=';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::float32, r: std::float64) -> std::bool
+    FROM SQL OPERATOR r'>=';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::float64, r: std::float32) -> std::bool
+    FROM SQL OPERATOR r'>=';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::float64, r: std::float64) -> std::bool
+    FROM SQL OPERATOR r'>=';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::decimal, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR r'>=';
+
+
+# LESS THAN
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::int16, r: std::int16) -> std::bool
+    FROM SQL OPERATOR r'<';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::int16, r: std::int32) -> std::bool
+    FROM SQL OPERATOR r'<';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::int16, r: std::int64) -> std::bool
+    FROM SQL OPERATOR r'<';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::int32, r: std::int16) -> std::bool
+    FROM SQL OPERATOR r'<';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::int32, r: std::int32) -> std::bool
+    FROM SQL OPERATOR r'<';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::int32, r: std::int64) -> std::bool
+    FROM SQL OPERATOR r'<';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::int64, r: std::int16) -> std::bool
+    FROM SQL OPERATOR r'<';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::int64, r: std::int32) -> std::bool
+    FROM SQL OPERATOR r'<';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::int64, r: std::int64) -> std::bool
+    FROM SQL OPERATOR r'<';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::float32, r: std::float32) -> std::bool
+    FROM SQL OPERATOR r'<';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::float32, r: std::float64) -> std::bool
+    FROM SQL OPERATOR r'<';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::float64, r: std::float32) -> std::bool
+    FROM SQL OPERATOR r'<';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::float64, r: std::float64) -> std::bool
+    FROM SQL OPERATOR r'<';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::decimal, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR r'<';
+
+
+# LESS THAN OR EQUAL
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::int16, r: std::int16) -> std::bool
+    FROM SQL OPERATOR r'<=';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::int16, r: std::int32) -> std::bool
+    FROM SQL OPERATOR r'<=';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::int16, r: std::int64) -> std::bool
+    FROM SQL OPERATOR r'<=';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::int32, r: std::int16) -> std::bool
+    FROM SQL OPERATOR r'<=';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::int32, r: std::int32) -> std::bool
+    FROM SQL OPERATOR r'<=';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::int32, r: std::int64) -> std::bool
+    FROM SQL OPERATOR r'<=';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::int64, r: std::int16) -> std::bool
+    FROM SQL OPERATOR r'<=';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::int64, r: std::int32) -> std::bool
+    FROM SQL OPERATOR r'<=';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::int64, r: std::int64) -> std::bool
+    FROM SQL OPERATOR r'<=';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::float32, r: std::float32) -> std::bool
+    FROM SQL OPERATOR r'<=';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::float32, r: std::float64) -> std::bool
+    FROM SQL OPERATOR r'<=';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::float64, r: std::float32) -> std::bool
+    FROM SQL OPERATOR r'<=';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::float64, r: std::float64) -> std::bool
+    FROM SQL OPERATOR r'<=';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::decimal, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR r'<=';
+
+
+# INFIX PLUS
+
+CREATE INFIX OPERATOR
+std::`+` (l: std::int16, r: std::int16) -> std::int16
+    FROM SQL OPERATOR r'+';
+
+
+CREATE INFIX OPERATOR
+std::`+` (l: std::int32, r: std::int32) -> std::int32
+    FROM SQL OPERATOR r'+';
+
+
+CREATE INFIX OPERATOR
+std::`+` (l: std::int64, r: std::int64) -> std::int64
+    FROM SQL OPERATOR r'+';
+
+
+CREATE INFIX OPERATOR
+std::`+` (l: std::float32, r: std::float32) -> std::float32
+    FROM SQL OPERATOR r'+';
+
+
+CREATE INFIX OPERATOR
+std::`+` (l: std::float64, r: std::float64) -> std::float64
+    FROM SQL OPERATOR r'+';
+
+
+CREATE INFIX OPERATOR
+std::`+` (l: std::decimal, r: std::decimal) -> std::decimal
+    FROM SQL OPERATOR r'+';
+
+
+# PREFIX PLUS
+
+CREATE PREFIX OPERATOR
+std::`+` (l: std::int16) -> std::int16
+    FROM SQL OPERATOR r'+';
+
+
+CREATE PREFIX OPERATOR
+std::`+` (l: std::int32) -> std::int32
+    FROM SQL OPERATOR r'+';
+
+
+CREATE PREFIX OPERATOR
+std::`+` (l: std::int64) -> std::int64
+    FROM SQL OPERATOR r'+';
+
+
+CREATE PREFIX OPERATOR
+std::`+` (l: std::float32) -> std::float32
+    FROM SQL OPERATOR r'+';
+
+
+CREATE PREFIX OPERATOR
+std::`+` (l: std::float64) -> std::float64
+    FROM SQL OPERATOR r'+';
+
+
+CREATE PREFIX OPERATOR
+std::`+` (l: std::decimal) -> std::decimal
+    FROM SQL OPERATOR r'+';
+
+
+
+# INFIX MINUS
+
+CREATE INFIX OPERATOR
+std::`-` (l: std::int16, r: std::int16) -> std::int16
+    FROM SQL OPERATOR r'-';
+
+
+CREATE INFIX OPERATOR
+std::`-` (l: std::int32, r: std::int32) -> std::int32
+    FROM SQL OPERATOR r'-';
+
+
+CREATE INFIX OPERATOR
+std::`-` (l: std::int64, r: std::int64) -> std::int64
+    FROM SQL OPERATOR r'-';
+
+
+CREATE INFIX OPERATOR
+std::`-` (l: std::float32, r: std::float32) -> std::float32
+    FROM SQL OPERATOR r'-';
+
+
+CREATE INFIX OPERATOR
+std::`-` (l: std::float64, r: std::float64) -> std::float64
+    FROM SQL OPERATOR r'-';
+
+
+CREATE INFIX OPERATOR
+std::`-` (l: std::decimal, r: std::decimal) -> std::decimal
+    FROM SQL OPERATOR r'-';
+
+
+# PREFIX MINUS
+
+CREATE PREFIX OPERATOR
+std::`-` (l: std::int16) -> std::int16
+    FROM SQL OPERATOR r'-';
+
+
+CREATE PREFIX OPERATOR
+std::`-` (l: std::int32) -> std::int32
+    FROM SQL OPERATOR r'-';
+
+
+CREATE PREFIX OPERATOR
+std::`-` (l: std::int64) -> std::int64
+    FROM SQL OPERATOR r'-';
+
+
+CREATE PREFIX OPERATOR
+std::`-` (l: std::float32) -> std::float32
+    FROM SQL OPERATOR r'-';
+
+
+CREATE PREFIX OPERATOR
+std::`-` (l: std::float64) -> std::float64
+    FROM SQL OPERATOR r'-';
+
+
+CREATE PREFIX OPERATOR
+std::`-` (l: std::decimal) -> std::decimal
+    FROM SQL OPERATOR r'-';
+
+
+# MUL
+
+CREATE INFIX OPERATOR
+std::`*` (l: std::int16, r: std::int16) -> std::int16
+    FROM SQL OPERATOR r'*';
+
+
+CREATE INFIX OPERATOR
+std::`*` (l: std::int32, r: std::int32) -> std::int32
+    FROM SQL OPERATOR r'*';
+
+
+CREATE INFIX OPERATOR
+std::`*` (l: std::int64, r: std::int64) -> std::int64
+    FROM SQL OPERATOR r'*';
+
+
+CREATE INFIX OPERATOR
+std::`*` (l: std::float32, r: std::float32) -> std::float32
+    FROM SQL OPERATOR r'*';
+
+
+CREATE INFIX OPERATOR
+std::`*` (l: std::float64, r: std::float64) -> std::float64
+    FROM SQL OPERATOR r'*';
+
+
+CREATE INFIX OPERATOR
+std::`*` (l: std::decimal, r: std::decimal) -> std::decimal
+    FROM SQL OPERATOR r'*';
+
+
+# DIV
+
+CREATE INFIX OPERATOR
+std::`/` (l: std::int64, r: std::int64) -> std::float64
+{
+    # We need both FROM SQL OPERATOR and FROM SQL to copy
+    # the common attributes of the SQL division operator while
+    # overriding the main operator function.
+    FROM SQL OPERATOR r'/';
+    FROM SQL 'SELECT l / (r::float8)';
+};
+
+
+CREATE INFIX OPERATOR
+std::`/` (l: std::float32, r: std::float32) -> std::float32
+    FROM SQL OPERATOR r'/';
+
+
+CREATE INFIX OPERATOR
+std::`/` (l: std::float64, r: std::float64) -> std::float64
+    FROM SQL OPERATOR r'/';
+
+
+CREATE INFIX OPERATOR
+std::`/` (l: std::decimal, r: std::decimal) -> std::decimal
+    FROM SQL OPERATOR r'/';
+
+
+# FLOORDIV
+
+# PostgreSQL uses truncation division, so the -12 % 5 is -2, because
+# -12 // 5 is -2, but EdgeQL uses floor division, so -12 // 5 is -3,
+# and so -12 % 5 must be 3.  The correct divmod behavior is implemented
+# in the C extension functions, with the exception of std::decimal,
+# which is implemented using simple formulae instead.
+
+CREATE INFIX OPERATOR
+std::`//` (n: std::int16, d: std::int16) -> std::int16
+{
+    # We need both FROM SQL OPERATOR and FROM SQL FUNCTION to copy
+    # the common attributes of the SQL division operator while
+    # overriding the main operator function.
+    FROM SQL OPERATOR r'/';
+    FROM SQL FUNCTION 'edgedb.int2floordiv';
+};
+
+
+CREATE INFIX OPERATOR
+std::`//` (n: std::int32, d: std::int32) -> std::int32
+{
+    FROM SQL OPERATOR r'/';
+    FROM SQL FUNCTION 'edgedb.int4floordiv';
+};
+
+
+CREATE INFIX OPERATOR
+std::`//` (n: std::int64, d: std::int64) -> std::int64
+{
+    FROM SQL OPERATOR r'/';
+    FROM SQL FUNCTION 'edgedb.int8floordiv';
+};
+
+
+CREATE INFIX OPERATOR
+std::`//` (n: std::float32, d: std::float32) -> std::float32
+{
+    FROM SQL OPERATOR r'/';
+    FROM SQL FUNCTION 'edgedb.float4floordiv';
+};
+
+
+CREATE INFIX OPERATOR
+std::`//` (n: std::float64, d: std::float64) -> std::float64
+{
+    FROM SQL OPERATOR r'/';
+    FROM SQL FUNCTION 'edgedb.float8floordiv';
+};
+
+
+CREATE INFIX OPERATOR
+std::`//` (n: std::decimal, d: std::decimal) -> std::decimal
+{
+    FROM SQL OPERATOR r'/';
+    FROM SQL 'SELECT floor(n / d)';
+};
+
+
+# MODULO
+
+CREATE INFIX OPERATOR
+std::`%` (n: std::int16, d: std::int16) -> std::int16
+{
+    FROM SQL OPERATOR r'%';
+    FROM SQL FUNCTION 'edgedb.int2floormod';
+};
+
+
+CREATE INFIX OPERATOR
+std::`%` (n: std::int32, d: std::int32) -> std::int32
+{
+    FROM SQL OPERATOR r'%';
+    FROM SQL FUNCTION 'edgedb.int4floormod';
+};
+
+
+CREATE INFIX OPERATOR
+std::`%` (n: std::int64, d: std::int64) -> std::int64
+{
+    FROM SQL OPERATOR r'%';
+    FROM SQL FUNCTION 'edgedb.int8floormod';
+};
+
+
+CREATE INFIX OPERATOR
+std::`%` (n: std::float32, d: std::float32) -> std::float32
+{
+    # We cheat here a bit by copying the `/` operator,
+    # since there is no float % in Postgres.
+    FROM SQL OPERATOR r'/';
+    FROM SQL FUNCTION 'edgedb.float4floormod';
+};
+
+
+CREATE INFIX OPERATOR
+std::`%` (n: std::float64, d: std::float64) -> std::float64
+{
+    FROM SQL OPERATOR r'/';
+    FROM SQL FUNCTION 'edgedb.float8floormod';
+};
+
+
+CREATE INFIX OPERATOR
+std::`%` (n: std::decimal, d: std::decimal) -> std::decimal
+{
+    FROM SQL OPERATOR r'%';
+    FROM SQL 'SELECT n - floor(n / d) * d';
+};
+
+
+CREATE INFIX OPERATOR
+std::`^` (n: std::float64, p: std::float64) -> std::float64
+    FROM SQL OPERATOR '^';
+
+
+CREATE INFIX OPERATOR
+std::`^` (n: std::int64, p: std::int64) -> std::decimal
+{
+    FROM SQL OPERATOR '*';
+    FROM SQL 'SELECT n::numeric ^ p::numeric';
+};
+
+
+CREATE INFIX OPERATOR
+std::`^` (n: std::decimal, p: std::decimal) -> std::decimal
+    FROM SQL OPERATOR '^';

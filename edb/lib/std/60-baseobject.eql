@@ -37,3 +37,23 @@ CREATE ABSTRACT TYPE std::Object {
         CREATE CONSTRAINT std::exclusive;
     };
 };
+
+
+CREATE INFIX OPERATOR
+std::`=` (l: std::Object, r: std::Object) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL std::Object, r: OPTIONAL std::Object) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`!=` (l: std::Object, r: std::Object) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL std::Object, r: OPTIONAL std::Object) -> std::bool
+    FROM SQL EXPRESSION;

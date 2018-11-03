@@ -41,6 +41,7 @@ unreserved_keywords = frozenset([
     "deferred",
     "delegated",
     "desc",
+    "expression",
     "final",
     "first",
     "from",
@@ -80,6 +81,7 @@ unreserved_keywords = frozenset([
 future_reserved_keywords = frozenset([
     "all",
     "analyze",
+    "anyarray",
     "begin",
     "case",
     "deallocate",
@@ -121,6 +123,7 @@ reserved_keywords = future_reserved_keywords | frozenset([
     "__type__",
     "alter",
     "and",
+    "anytuple",
     "anytype",
     "commit",
     "create",

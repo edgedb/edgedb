@@ -42,3 +42,69 @@ CREATE FUNCTION row_to_jsonb_array(record)
 RETURNS jsonb
 AS '$libdir/edbsys'
 LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
+
+
+--
+-- Perform floor division of two integers.
+--
+CREATE FUNCTION int2floordiv(int2, int2)
+RETURNS int2
+AS '$libdir/edbsys', 'edb_int2floordiv'
+LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
+
+CREATE FUNCTION int4floordiv(int4, int4)
+RETURNS int4
+AS '$libdir/edbsys', 'edb_int4floordiv'
+LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
+
+CREATE FUNCTION int8floordiv(int8, int8)
+RETURNS int8
+AS '$libdir/edbsys', 'edb_int8floordiv'
+LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
+
+
+--
+-- Perform floor modulo operation of two integers.
+--
+CREATE FUNCTION int2floormod(int2, int2)
+RETURNS int2
+AS '$libdir/edbsys', 'edb_int2floormod'
+LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
+
+CREATE FUNCTION int4floormod(int4, int4)
+RETURNS int4
+AS '$libdir/edbsys', 'edb_int4floormod'
+LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
+
+CREATE FUNCTION int8floormod(int8, int8)
+RETURNS int8
+AS '$libdir/edbsys', 'edb_int8floormod'
+LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
+
+
+--
+-- Perform floor division of two floats.
+--
+CREATE FUNCTION float4floordiv(float4, float4)
+RETURNS float4
+AS '$libdir/edbsys', 'edb_float4floordiv'
+LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
+
+CREATE FUNCTION float8floordiv(float8, float8)
+RETURNS float8
+AS '$libdir/edbsys', 'edb_float8floordiv'
+LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
+
+
+--
+-- Perform floor modulo of two floats.
+--
+CREATE FUNCTION float4floormod(float4, float4)
+RETURNS float4
+AS '$libdir/edbsys', 'edb_float4floormod'
+LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
+
+CREATE FUNCTION float8floormod(float8, float8)
+RETURNS float8
+AS '$libdir/edbsys', 'edb_float8floormod'
+LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;

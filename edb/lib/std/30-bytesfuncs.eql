@@ -17,8 +17,8 @@
 #
 
 
-## Byte string functions.
-
+## Byte string functions
+## ---------------------
 
 CREATE FUNCTION
 std::bytes_get_bit(bytes: std::bytes, num: int64) -> std::int64
@@ -27,3 +27,32 @@ std::bytes_get_bit(bytes: std::bytes, num: int64) -> std::int64
     SELECT get_bit("bytes", "num"::int)::bigint
     $$;
 };
+
+
+
+## Byte string operators
+## ---------------------
+
+CREATE INFIX OPERATOR
+std::`=` (l: std::bytes, r: std::bytes) -> std::bool
+    FROM SQL OPERATOR r'=';
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL std::bytes, r: OPTIONAL std::bytes) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`!=` (l: std::bytes, r: std::bytes) -> std::bool
+    FROM SQL OPERATOR r'<>';
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL std::bytes, r: OPTIONAL std::bytes) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`+` (l: std::bytes, r: std::bytes) -> std::bytes
+    FROM SQL OPERATOR r'||';

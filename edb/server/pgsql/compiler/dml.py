@@ -32,8 +32,6 @@
 
 import typing
 
-from edb.lang.common import ast
-
 from edb.lang.ir import ast as irast
 
 from edb.lang.schema import scalars as s_scalars
@@ -116,7 +114,7 @@ def init_dml_stmt(
                 dml_stmt.relation.alias.aliasname,
                 id_col
             ]),
-            op=ast.ops.EQ,
+            op='=',
             rexpr=pathctx.get_rvar_path_identity_var(
                 range_rvar, target_ir_set.path_id, env=ctx.env)
         )
@@ -311,7 +309,7 @@ def process_insert_body(
                         name='objecttype', schemaname='edgedb'))
                 ],
                 where_clause=astutils.new_binop(
-                    op=ast.ops.EQ,
+                    op='=',
                     lexpr=pgast.ColumnRef(name=['name']),
                     rexpr=pgast.StringConstant(
                         val=ir_stmt.subject.stype.get_shortname(
@@ -642,7 +640,7 @@ def process_link_update(
                 lexpr=pgast.ColumnRef(name=[ltab_alias, 'name']),
                 rexpr=pgast.StringConstant(
                     val=mptrcls.get_name(ctx.env.schema)),
-                op=ast.ops.EQ
+                op='='
             )
         ),
         name=ctx.env.aliases.get(hint='lid')
@@ -684,7 +682,7 @@ def process_link_update(
             relation=target_rvar,
             where_clause=astutils.new_binop(
                 lexpr=col_data['std::source'],
-                op=ast.ops.EQ,
+                op='=',
                 rexpr=pgast.ColumnRef(
                     name=[target_alias, 'std::source'])
             ),
@@ -836,7 +834,7 @@ def process_linkprop_update(
         pathctx.get_rvar_path_identity_var(
             dml_cte_rvar, ir_stmt.subject.path_id, env=ctx.env),
         dbobj.get_column(target_tab, 'std::source', nullable=False),
-        ast.ops.EQ
+        op='=',
     )
 
     targets = []

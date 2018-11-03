@@ -43,6 +43,15 @@ class Operator(s_func.CallableObject, s_abc.Operator):
     from_operator = so.SchemaField(
         str, default=None, compcoef=0.4, introspectable=False)
 
+    from_function = so.SchemaField(
+        str, default=None, compcoef=0.4, introspectable=False)
+
+    from_expr = so.SchemaField(
+        bool, default=False, compcoef=0.4, introspectable=False)
+
+    code = so.SchemaField(
+        str, default=None, compcoef=0.4, introspectable=False)
+
     commutator = so.SchemaField(
         so.Object, default=None, compcoef=0.99)
 
@@ -190,10 +199,25 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
                 property='language',
                 new_value=astnode.code.language
             ))
-            if astnode.code.from_name is not None:
+            if astnode.code.from_operator is not None:
                 cmd.add(sd.AlterObjectProperty(
                     property='from_operator',
-                    new_value=astnode.code.from_name
+                    new_value=astnode.code.from_operator
+                ))
+            if astnode.code.from_function is not None:
+                cmd.add(sd.AlterObjectProperty(
+                    property='from_function',
+                    new_value=astnode.code.from_function
+                ))
+            if astnode.code.code is not None:
+                cmd.add(sd.AlterObjectProperty(
+                    property='code',
+                    new_value=astnode.code.code
+                ))
+            if astnode.code.from_expr is not None:
+                cmd.add(sd.AlterObjectProperty(
+                    property='from_expr',
+                    new_value=astnode.code.from_expr
                 ))
 
         cmd._qualify_operator_refs(schema, astnode.kind, params, context)

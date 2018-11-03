@@ -758,34 +758,6 @@ class CaseExpr(BaseExpr):
     defresult: Base
 
 
-class PgSQLOperator(ast.ops.Operator):
-    pass
-
-
-class PgSQLComparisonOperator(PgSQLOperator, ast.ops.ComparisonOperator):
-    pass
-
-
-LIKE = PgSQLComparisonOperator('~~')
-NOT_LIKE = PgSQLComparisonOperator('!~~')
-ILIKE = PgSQLComparisonOperator('~~*')
-NOT_ILIKE = PgSQLComparisonOperator('!~~*')
-SIMILAR_TO = PgSQLComparisonOperator('~')
-NOT_SIMILAR_TO = PgSQLComparisonOperator('!~')
-IS_DISTINCT = PgSQLComparisonOperator('IS DISTINCT')
-IS_NOT_DISTINCT = PgSQLComparisonOperator('IS NOT DISTINCT')
-IS_OF = PgSQLComparisonOperator('IS OF')
-IS_NOT_OF = PgSQLComparisonOperator('IS NOT OF')
-
-
-class PgSQLSetOperator(PgSQLOperator):
-    pass
-
-
-UNION = PgSQLSetOperator('UNION')
-INTERSECT = PgSQLSetOperator('INTERSECT')
-EXCEPT = PgSQLSetOperator('EXCEPT')
-
 SortAsc = qlast.SortAsc
 SortDesc = qlast.SortDesc
 SortDefault = qlast.SortDefault

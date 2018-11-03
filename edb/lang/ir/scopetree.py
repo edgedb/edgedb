@@ -365,16 +365,28 @@ class ScopeTreeNode:
                         parent_fence.attach_child(existing)
 
                     # Discard the node from the subtree being attached.
-                    descendant.remove()
+                    existing.fuse_subtree(descendant)
 
         for descendant in tuple(node.children):
             # Attach whatever is remaining in the subtree.
             for pd in descendant.path_descendants:
                 if pd.path_id.namespace:
-                    to_strip = set(pd.path_id.namespace) & dns
+                    to_strip = set(pd.path_id.namespace) & node.namespaces
                     pd.path_id = pd.path_id.strip_namespace(to_strip)
 
             self.attach_child(descendant)
+
+    def fuse_subtree(self, node):
+        node.remove()
+
+        if node.path_id is not None:
+            subtree = ScopeTreeNode(fenced=True)
+            for child in tuple(node.children):
+                subtree.attach_child(child)
+        else:
+            subtree = node
+
+        self.attach_subtree(subtree)
 
     def remove_subtree(self, node):
         """Remove the given subtree from this node."""

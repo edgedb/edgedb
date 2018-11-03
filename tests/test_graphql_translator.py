@@ -1024,9 +1024,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     score
                 } FILTER
                     (
-                        NOT (test::User.name = "Bob")
-                        AND
-                        (test::User.age = 21)
+                        NOT ((test::User.name = "Bob"))
+                        AND (test::User.age = 21)
                     )
                 )
         };
@@ -1055,9 +1054,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     score
                 } FILTER
                     (
-                        NOT (test::User.name = "Bob")
-                        OR
-                        (test::User.age = 20)
+                        NOT ((test::User.name = "Bob"))
+                        OR (test::User.age = 20)
                     )
                 )
         };

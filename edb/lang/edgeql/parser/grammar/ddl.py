@@ -309,7 +309,7 @@ class SetFieldStmt(Nonterm):
             as_expr=not eager
         )
 
-    def reduce_SET_NodeName_TO_SchemaItemClass_NodeName(self, *kids):
+    def reduce_SET_NodeName_AS_SchemaItemClass_NodeName(self, *kids):
         ref = kids[4].val
         ref.itemclass = kids[3].val.itemclass
         self.val = qlast.CreateAttributeValue(
@@ -415,9 +415,6 @@ class OptDeltaTarget(Nonterm):
         self.val = None
 
     def reduce_TO_AnyIdentifier_BaseStringConstant(self, *kids):
-        self.val = [kids[1], kids[2]]
-
-    def reduce_TO_AnyIdentifier_BaseRawStringConstant(self, *kids):
         self.val = [kids[1], kids[2]]
 
 #
@@ -1585,21 +1582,6 @@ class FromFunction(Nonterm):
         code = kids[2].val.value
         self.val = qlast.FunctionCode(language=lang, code=code)
 
-    def reduce_FROM_Identifier_BaseRawStringConstant(self, *kids):
-        lang = _parse_language(kids[1])
-        code = kids[2].val.value
-        self.val = qlast.FunctionCode(language=lang, code=code)
-
-    def reduce_FROM_Identifier_FUNCTION_BaseRawStringConstant(self, *kids):
-        lang = _parse_language(kids[1])
-        if lang != qlast.Language.SQL:
-            raise EdgeQLSyntaxError(
-                f'{lang} language is not supported in FROM FUNCTION clause',
-                context=kids[1].context) from None
-
-        self.val = qlast.FunctionCode(language=lang,
-                                      from_name=kids[3].val.value)
-
     def reduce_FROM_Identifier_FUNCTION_BaseStringConstant(self, *kids):
         lang = _parse_language(kids[1])
         if lang != qlast.Language.SQL:
@@ -1612,7 +1594,7 @@ class FromFunction(Nonterm):
 
 
 #
-# CREATE FUNCTION|AGGREGATE
+# CREATE FUNCTION
 #
 
 
@@ -1708,9 +1690,9 @@ class OperatorKind(Nonterm):
         self.val = kids[0].val
 
 
-class FromOperator(Nonterm):
+class OperatorCode(Nonterm):
 
-    def reduce_FROM_Identifier_OPERATOR_BaseRawStringConstant(self, *kids):
+    def reduce_FROM_Identifier_OPERATOR_BaseStringConstant(self, *kids):
         lang = _parse_language(kids[1])
         if lang != qlast.Language.SQL:
             raise EdgeQLSyntaxError(
@@ -1718,13 +1700,42 @@ class FromOperator(Nonterm):
                 context=kids[1].context) from None
 
         self.val = qlast.OperatorCode(language=lang,
-                                      from_name=kids[3].val.value)
+                                      from_operator=kids[3].val.value)
+
+    def reduce_FROM_Identifier_FUNCTION_BaseStringConstant(self, *kids):
+        lang = _parse_language(kids[1])
+        if lang != qlast.Language.SQL:
+            raise EdgeQLSyntaxError(
+                f'{lang} language is not supported in FROM FUNCTION clause',
+                context=kids[1].context) from None
+
+        self.val = qlast.OperatorCode(language=lang,
+                                      from_function=kids[3].val.value)
+
+    def reduce_FROM_Identifier_BaseStringConstant(self, *kids):
+        lang = _parse_language(kids[1])
+        if lang != qlast.Language.SQL:
+            raise EdgeQLSyntaxError(
+                f'{lang} language is not supported in FROM clause',
+                context=kids[1].context) from None
+
+        self.val = qlast.OperatorCode(language=lang,
+                                      code=kids[2].val.value)
+
+    def reduce_FROM_Identifier_EXPRESSION(self, *kids):
+        lang = _parse_language(kids[1])
+        if lang != qlast.Language.SQL:
+            raise EdgeQLSyntaxError(
+                f'{lang} language is not supported in FROM clause',
+                context=kids[1].context) from None
+
+        self.val = qlast.OperatorCode(language=lang)
 
 
 commands_block(
     'CreateOperator',
     SetFieldStmt,
-    FromOperator,
+    OperatorCode,
     opt=False
 )
 
@@ -1750,23 +1761,60 @@ class CreateOperatorStmt(Nonterm):
         props = {}
 
         commands = []
+        from_operator = None
+        from_function = None
+        from_expr = False
         code = None
+
         for node in block.val:
             if isinstance(node, qlast.OperatorCode):
-                if code is not None:
-                    raise EdgeQLSyntaxError('more than one FROM clause',
-                                            context=node.context)
+                if node.from_function:
+                    if from_function is not None:
+                        raise EdgeQLSyntaxError(
+                            'more than one FROM FUNCTION clause',
+                            context=node.context)
+                    from_function = node.from_function
+
+                elif node.from_operator:
+                    if from_operator is not None:
+                        raise EdgeQLSyntaxError(
+                            'more than one FROM OPERATOR clause',
+                            context=node.context)
+                    from_operator = node.from_operator
+
+                elif node.code:
+                    if code is not None:
+                        raise EdgeQLSyntaxError(
+                            'more than one FROM <code> clause',
+                            context=node.context)
+                    code = node.code
+
                 else:
-                    code = node
+                    # FROM SQL EXPRESSION
+                    from_expr = True
             else:
                 commands.append(node)
 
-        if code is None:
-            raise EdgeQLSyntaxError('FROM clause is missing',
-                                    context=block.context)
+        if (code is None and from_operator is None and from_function is None
+                and not from_expr):
+            raise EdgeQLSyntaxError(
+                'CREATE OPERATOR requires at least one FROM clause',
+                context=block.context)
 
         else:
-            props['code'] = code
+            if from_expr and (from_operator or from_function or code):
+                raise EdgeQLSyntaxError(
+                    'FROM SQL EXPRESSION is mutually exclusive with other '
+                    'FROM variants',
+                    context=block.context)
+
+            props['code'] = qlast.OperatorCode(
+                language=qlast.Language.SQL,
+                from_function=from_function,
+                from_operator=from_operator,
+                from_expr=from_expr,
+                code=code,
+            )
 
         if commands:
             props['commands'] = commands

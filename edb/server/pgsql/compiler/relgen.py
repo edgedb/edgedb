@@ -23,8 +23,6 @@
 import contextlib
 import typing
 
-from edb.lang.common import ast
-
 from edb.lang.edgeql import functypes as ql_ft
 
 from edb.lang.ir import ast as irast
@@ -227,7 +225,7 @@ def _get_set_rvar(
         # Set operation: UNION
         rvars = process_set_as_setop(ir_set, stmt, ctx=ctx)
 
-    elif isinstance(ir_set.expr, irast.DistinctOp):
+    elif irutils.is_distinct_expr(ir_set.expr):
         # DISTINCT Expr
         rvars = process_set_as_distinct(ir_set, stmt, ctx=ctx)
 
@@ -238,10 +236,6 @@ def _get_set_rvar(
     elif isinstance(ir_set.expr, irast.Coalesce):
         # Expr ?? Expr
         rvars = process_set_as_coalesce(ir_set, stmt, ctx=ctx)
-
-    elif isinstance(ir_set.expr, irast.EquivalenceOp):
-        # Expr ?= Expr
-        rvars = process_set_as_equivalence(ir_set, stmt, ctx=ctx)
 
     elif isinstance(ir_set.expr, irast.Tuple):
         # Named tuple
@@ -260,7 +254,7 @@ def _get_set_rvar(
             # Regular function call.
             rvars = process_set_as_func_expr(ir_set, stmt, ctx=ctx)
 
-    elif isinstance(ir_set.expr, irast.ExistPred):
+    elif irutils.is_exists_expr(ir_set.expr):
         # EXISTS(), which is a special kind of an aggregate.
         rvars = process_set_as_exists_expr(ir_set, stmt, ctx=ctx)
 
@@ -442,7 +436,7 @@ def prepare_optional_rel(
                                     name=marker))
 
                 unionqry = unionctx.rel
-                unionqry.op = pgast.UNION
+                unionqry.op = 'UNION'
                 unionqry.all = True
                 unionqry.larg = scope_rel
                 unionqry.rarg = emptyrel
@@ -456,7 +450,7 @@ def prepare_optional_rel(
             marker_ok = astutils.new_binop(
                 pgast.ColumnRef(name=[marker]),
                 lagged_marker,
-                op=ast.ops.EQ,
+                op='=',
             )
 
             wrapper.target_list.append(
@@ -846,27 +840,29 @@ def process_set_as_membership_expr(
     expr = ir_set.expr
 
     with ctx.new() as newctx:
+        left_arg, right_arg = expr.args
+
         newctx.expr_exposed = False
-        left_expr = dispatch.compile(expr.left, ctx=newctx)
+        left_expr = dispatch.compile(left_arg, ctx=newctx)
 
         with newctx.subrel() as _, _.newscope() as subctx:
-            right_rvar = get_set_rvar(expr.right, ctx=subctx)
+            right_rvar = get_set_rvar(right_arg, ctx=subctx)
             right_expr = pathctx.get_rvar_path_var(
-                right_rvar, expr.right.path_id,
+                right_rvar, right_arg.path_id,
                 aspect='value', env=subctx.env)
 
             if right_expr.nullable:
                 op = 'IS NOT DISTINCT FROM'
             else:
-                op = ast.ops.EQ
+                op = '='
 
             check_expr = astutils.new_binop(left_expr, right_expr, op=op)
             check_expr = pgast.FuncCall(
                 name=('bool_or',), args=[check_expr])
 
-            if expr.op == ast.ops.NOT_IN:
-                check_expr = astutils.new_unop(
-                    ast.ops.NOT, check_expr)
+            negated = expr.func_shortname == 'std::NOT IN'
+            if negated:
+                check_expr = astutils.new_unop('NOT', check_expr)
 
             wrapper = subctx.rel
             pathctx.put_path_value_var(
@@ -874,7 +870,7 @@ def process_set_as_membership_expr(
             pathctx.get_path_value_output(
                 wrapper, ir_set.path_id, env=ctx.env)
 
-            coalesce_val = 'TRUE' if expr.op == ast.ops.NOT_IN else 'FALSE'
+            coalesce_val = 'TRUE' if negated else 'FALSE'
             with subctx.subrel() as subsubctx:
                 coalesce = pgast.CoalesceExpr(
                     args=[wrapper, pgast.BooleanConstant(val=coalesce_val)])
@@ -912,7 +908,7 @@ def process_set_as_setop(
         subqry = subctx.rel
         # There is only one binary set operators possible coming from IR:
         # UNION
-        subqry.op = pgast.UNION
+        subqry.op = 'UNION'
         subqry.all = True
         subqry.larg = larg
         subqry.rarg = rarg
@@ -931,8 +927,9 @@ def process_set_as_distinct(
 
     with ctx.subrel() as subctx:
         subqry = subctx.rel
-        subqry.view_path_id_map[ir_set.path_id] = expr.expr.path_id
-        dispatch.visit(expr.expr, ctx=subctx)
+        arg = expr.args[0]
+        subqry.view_path_id_map[ir_set.path_id] = arg.path_id
+        dispatch.visit(arg, ctx=subctx)
         subrvar = dbobj.rvar_for_rel(subqry, lateral=True, env=subctx.env)
 
     relctx.include_rvar(stmt, subrvar, ir_set.path_id, ctx=ctx)
@@ -991,12 +988,12 @@ def process_set_as_ifelse(
 
             rarg.where_clause = astutils.extend_binop(
                 rarg.where_clause,
-                astutils.new_unop(ast.ops.NOT, condref)
+                astutils.new_unop('NOT', condref)
             )
 
         with ctx.subrel() as subctx:
             subqry = subctx.rel
-            subqry.op = pgast.UNION
+            subqry.op = 'UNION'
             subqry.all = True
             subqry.larg = larg
             subqry.rarg = rarg
@@ -1092,7 +1089,7 @@ def process_set_as_coalesce(
                                         name=marker))
 
                     unionqry = sub2ctx.rel
-                    unionqry.op = pgast.UNION
+                    unionqry.op = 'UNION'
                     unionqry.all = True
                     unionqry.larg = larg
                     unionqry.rarg = rarg
@@ -1112,7 +1109,7 @@ def process_set_as_coalesce(
                 marker_ok = astutils.new_binop(
                     pgast.ColumnRef(name=[marker]),
                     lagged_marker,
-                    op=ast.ops.EQ,
+                    op='=',
                 )
 
                 subqry.target_list.append(
@@ -1131,34 +1128,6 @@ def process_set_as_coalesce(
             stmt.where_clause = astutils.extend_binop(
                 stmt.where_clause,
                 dbobj.get_column(subrvar, marker, nullable=False))
-
-    rvar = dbobj.rvar_for_rel(stmt, lateral=True, env=ctx.env)
-    return new_simple_set_rvar(ir_set, rvar)
-
-
-def process_set_as_equivalence(
-        ir_set: irast.Set, stmt: pgast.Query, *,
-        ctx: context.CompilerContextLevel) -> SetRVars:
-    expr = ir_set.expr
-
-    dispatch.visit(expr.left, ctx=ctx)
-    dispatch.visit(expr.right, ctx=ctx)
-
-    if expr.op == irast.NEQUIVALENT:
-        op = 'IS DISTINCT FROM'
-    else:
-        op = 'IS NOT DISTINCT FROM'
-
-    set_expr = astutils.new_binop(
-        lexpr=pathctx.get_path_value_var(
-            stmt, expr.left.path_id, env=ctx.env),
-        rexpr=pathctx.get_path_value_var(
-            stmt, expr.right.path_id, env=ctx.env),
-        op=op
-    )
-
-    pathctx.put_path_value_var_if_not_exists(
-        stmt, ir_set.path_id, set_expr, env=ctx.env)
 
     rvar = dbobj.rvar_for_rel(stmt, lateral=True, env=ctx.env)
     return new_simple_set_rvar(ir_set, rvar)
@@ -1310,7 +1279,9 @@ def process_set_as_type_cast(
 def process_set_as_expr(
         ir_set: irast.Set, stmt: pgast.Query, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
-    set_expr = dispatch.compile(ir_set.expr, ctx=ctx)
+    with ctx.new() as newctx:
+        newctx.expr_exposed = False
+        set_expr = dispatch.compile(ir_set.expr, ctx=newctx)
 
     pathctx.put_path_value_var_if_not_exists(
         stmt, ir_set.path_id, set_expr, env=ctx.env)
@@ -1498,8 +1469,7 @@ def process_set_as_agg_expr(
                                         path_id=ir_arg.path_id, ctx=argctx)
                     arg_ref = dbobj.get_column(wrapper_rvar, colname)
 
-                if (not expr.agg_sort and i == 0 and
-                        irutils.is_subquery_set(ir_arg)):
+                if i == 0 and irutils.is_subquery_set(ir_arg):
                     # If the first argument of the aggregate
                     # is a SELECT or GROUP with an ORDER BY clause,
                     # we move the ordering conditions to the aggregate
@@ -1550,33 +1520,13 @@ def process_set_as_agg_expr(
 
                 args.append(arg_ref)
 
-        if expr.agg_filter:
-            agg_filter = dispatch.compile(expr.agg_filter, ctx=newctx)
-
-        for arg in args:
-            if arg.nullable:
-                agg_filter = astutils.extend_binop(
-                    agg_filter, pgast.NullTest(arg=arg, negated=True))
-
-        if expr.agg_sort:
-            with newctx.new() as sortctx:
-                for sortexpr in expr.agg_sort:
-                    _sortexpr = dispatch.compile(sortexpr.expr, ctx=sortctx)
-                    agg_sort.append(
-                        pgast.SortBy(
-                            node=_sortexpr, dir=sortexpr.direction,
-                            nulls=sortexpr.nones_order))
-
         if expr.func_sql_function:
             name = (expr.func_sql_function,)
         else:
             name = common.schema_name_to_pg_name(expr.func_shortname)
 
         set_expr = pgast.FuncCall(
-            name=name, args=args,
-            agg_order=agg_sort, agg_filter=agg_filter,
-            agg_distinct=(
-                expr.agg_set_modifier == irast.SetModifier.DISTINCT))
+            name=name, args=args, agg_order=agg_sort, agg_filter=agg_filter)
 
     if expr.func_initial_value is not None:
         if newctx.expr_exposed and serialization_safe:
@@ -1615,7 +1565,7 @@ def process_set_as_exists_expr(
     with ctx.subrel() as subctx:
         wrapper = subctx.rel
         subctx.expr_exposed = False
-        ir_expr = ir_set.expr.expr
+        ir_expr = ir_set.expr.args[0]
         set_ref = dispatch.compile(ir_expr, ctx=subctx)
 
         pathctx.put_path_value_var(
@@ -1630,9 +1580,6 @@ def process_set_as_exists_expr(
             type=pgast.SubLinkType.EXISTS,
             expr=wrapper
         )
-
-        if ir_set.expr.negated:
-            set_expr = astutils.new_unop(ast.ops.NOT, set_expr)
 
     pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
     rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)

@@ -188,9 +188,6 @@ class EdgeQLOptimizer:
             if expr.result is not None:
                 self._process_expr(context, expr.result)
 
-        elif isinstance(expr, qlast.ExistsPredicate):
-            self._process_expr(context, expr.expr)
-
         elif isinstance(expr, qlast.BinOp):
             self._process_expr(context, expr.left)
             self._process_expr(context, expr.right)
@@ -198,13 +195,6 @@ class EdgeQLOptimizer:
         elif isinstance(expr, qlast.FunctionCall):
             for arg in expr.args:
                 self._process_expr(context, arg)
-
-            if expr.agg_sort:
-                for sort in expr.agg_sort:
-                    self._process_expr(context, sort.path)
-
-            if expr.window:
-                self._process_expr(context, expr.window)
 
         elif isinstance(expr, qlast.WindowSpec):
             if expr.orderby:
@@ -226,8 +216,8 @@ class EdgeQLOptimizer:
             self._process_expr(context, expr.expr)
             self._process_expr(context, expr.type)
 
-        elif (isinstance(expr, qlast.TypeName) and
-                not isinstance(expr.maintype, qlast.AnyType)):
+        elif (isinstance(expr, qlast.TypeName)
+                and not isinstance(expr.maintype, qlast.PseudoObjectRef)):
             expr.maintype.module = self._process_module_ref(
                 context, expr.maintype.module)
 

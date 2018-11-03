@@ -317,16 +317,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(' EMPTY ')
             self.write(node.nones_order.upper())
 
-    def visit_ExistsPredicate(self, node):
-        self.write('EXISTS (')
-        self.visit(node.expr)
-        self.write(')')
-
-    def visit_RequiredExpr(self, node):
-        self.write('REQUIRED (')
-        self.visit(node.expr)
-        self.write(')')
-
     def visit_DetachedExpr(self, node):
         self.write('DETACHED ')
         self.visit(node.expr)
@@ -335,8 +325,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         op = str(node.op).upper()
         self.write(op)
         if op.isalnum():
-            self.write(' ')
+            self.write(' (')
         self.visit(node.operand)
+        if op.isalnum():
+            self.write(')')
 
     def visit_BinOp(self, node):
         self.write('(')
@@ -521,9 +513,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('r', node.quote, node.value, node.quote)
 
     def visit_IntegerConstant(self, node):
+        if node.is_negative:
+            self.write('-')
         self.write(node.value)
 
     def visit_FloatConstant(self, node):
+        if node.is_negative:
+            self.write('-')
         self.write(node.value)
 
     def visit_BooleanConstant(self, node):
@@ -586,6 +582,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_AnyType(self, node):
         self.write('anytype')
+
+    def visit_AnyTuple(self, node):
+        self.write('anytuple')
 
     def visit_TypeCast(self, node):
         self.write('<')

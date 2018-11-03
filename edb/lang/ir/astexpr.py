@@ -17,7 +17,6 @@
 #
 
 
-from edb.lang.common import ast
 from edb.lang.common.ast import match as astmatch
 
 from . import astmatch as irastmatch
@@ -44,7 +43,7 @@ class DistinctConjunctionExpr:
             )
 
             # A logical conjunction of unique constraint expressions
-            binop = irastmatch.BinOp(op=ast.ops.AND)
+            binop = irastmatch.OperatorCall(func_shortname='std::AND')
 
             # Set expression with the above binop
             set_expr = irastmatch.Set(
@@ -61,7 +60,7 @@ class DistinctConjunctionExpr:
 
             # Populate expression alternatives to complete recursive
             # pattern definition.
-            binop.left = binop.right = constr_expr
+            binop.args = [constr_expr, constr_expr]
 
             self.pattern = constr_expr
 

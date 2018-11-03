@@ -3918,23 +3918,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     =
                 (user := (SELECT U2{name} FILTER U2.name = 'Elvis'));
 
-            WITH
-                MODULE test,
-                U1 := User,
-                U2 := User
-            SELECT
-                (
-                    user := (SELECT U1{name} FILTER U1.name = 'Yury'),
-                    spam := 'ham',
-                )
-                    =
-                (
-                    user := (SELECT U2{name} FILTER U2.name = 'Yury'),
-                );
-
             """, [
             [True],
-            [False],
             [False],
         ])
 

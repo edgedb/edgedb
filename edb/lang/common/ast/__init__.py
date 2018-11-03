@@ -17,7 +17,6 @@
 #
 
 
-from . import ops  # NOQA
 from .base import *  # NOQA
 from .visitor import *  # NOQA
 from .transformer import *  # NOQA

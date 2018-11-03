@@ -44,9 +44,13 @@ from edb.server import query as backend_query
 from edb.server.pgsql import dbops
 from edb.server.pgsql import delta as delta_cmds
 
+from . import common
 from . import compiler
 from . import intromech
 from . import types
+
+from .common import quote_ident as qi
+
 
 CACHE_SRC_DIRS = s_std.CACHE_SRC_DIRS + (
     (pathlib.Path(__file__).parent, '.py'),
@@ -288,10 +292,6 @@ class Backend:
         else:
             cache_hit = True
 
-        if debug.flags.delta_execute:
-            debug.header('Delta Script')
-            debug.dump_code(sql_text, lexer='sql')
-
         await self._execute_ddl(sql_text)
         self.schema = schema
 
@@ -485,7 +485,10 @@ async def open_database(pgconn, data_dir, *, bootstrap=False):
     bk = Backend(pgconn, data_dir)
     pgconn.add_log_listener(pg_log_listener)
     if not bootstrap:
-        await bk.getschema()
+        schema = await bk.getschema()
+        stdschema = common.get_backend_name(schema, schema.get('std'))
+        await pgconn.execute(
+            f'SET search_path = edgedb, {qi(stdschema)}')
     else:
         bk.schema = s_schema.Schema()
 
