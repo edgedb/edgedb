@@ -21,7 +21,7 @@
 
 
 CREATE FUNCTION
-std::is_distinct(s: SET OF anytype) -> std::bool
+std::_is_exclusive(s: SET OF anytype) -> std::bool
 {
     SET initial_value := True;
     FROM SQL FUNCTION '--system--';
@@ -112,8 +112,8 @@ std::maxexclusive(max: anytype) EXTENDING std::max
 
 
 CREATE ABSTRACT CONSTRAINT
-std::unique EXTENDING std::constraint
+std::exclusive EXTENDING std::constraint
 {
-    SET errmessage := '{__subject__} violates unique constraint';
-    SET expr := std::is_distinct(__subject__);
+    SET errmessage := '{__subject__} violates exclusivity constraint';
+    SET expr := std::_is_exclusive(__subject__);
 };

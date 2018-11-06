@@ -37,6 +37,7 @@ from . import utils
 
 class Property(pointers.Pointer):
     _type = 'link_property'
+    schema_class_displayname = 'property'
 
     def derive(self, schema, source, target=None, attrs=None, **kwargs):
         if target is None:
@@ -98,23 +99,6 @@ class Property(pointers.Pointer):
         result.default = self.default
         return result
 
-    def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
-        super().finalize(schema, bases=bases, apply_defaults=apply_defaults,
-                         dctx=dctx)
-
-        if not self.generic() and apply_defaults:
-            if self.cardinality is None:
-                self.cardinality = pointers.PointerCardinality.OneToOne
-
-                if dctx is not None:
-                    from . import delta as sd
-
-                    dctx.current().op.add(sd.AlterObjectProperty(
-                        property='cardinality',
-                        new_value=self.cardinality,
-                        source='default'
-                    ))
-
     @classmethod
     def get_root_classes(cls):
         return (
@@ -166,6 +150,13 @@ class CreateProperty(PropertyCommand,
                 sd.AlterObjectProperty(
                     property='required',
                     new_value=astnode.is_required
+                )
+            )
+
+            cmd.add(
+                sd.AlterObjectProperty(
+                    property='cardinality',
+                    new_value=astnode.cardinality
                 )
             )
 
@@ -235,6 +226,8 @@ class CreateProperty(PropertyCommand,
             self._encode_default(context, node, op)
         elif op.property == 'required':
             node.is_required = op.new_value
+        elif op.property == 'cardinality':
+            node.cardinality = op.new_value
         elif op.property == 'source':
             pass
         elif op.property == 'target' and link:

@@ -196,16 +196,13 @@ type Issue extending `foo.bar`::NamedObject, OwnedObject, Text:
 
     link priority -> Priority
 
-    link watchers -> User:
-        cardinality := '**'
+    multi link watchers -> User
 
-    link time_spent_log -> LogEntry:
-        cardinality := '1*'
+    multi link time_spent_log -> LogEntry
 
     link start_date := SELECT datetime::current_datetime()
 
-    link related_to -> Issue:
-        cardinality := '**'
+    multi link related_to -> Issue
 
     property time_estimate -> int64
 
@@ -369,6 +366,28 @@ type Commit:
                 default :=
                     $$some_func(
                     1, 2, 3)$$
+        """
+
+    def test_eschema_syntax_type_23(self):
+        """
+        type Foo:
+            single link foo -> Foo
+            multi link bar -> Bar
+            required single link baz -> Baz
+            required multi link spam -> Spam
+            inherited required single link ham -> Ham
+            inherited required multi link eggs -> Egg
+        """
+
+    def test_eschema_syntax_type_24(self):
+        """
+        type Foo:
+            single property foo -> str
+            multi property bar -> str
+            required single property baz -> str
+            required multi property spam -> str
+            inherited required single property ham -> str
+            inherited required multi property eggs -> str
         """
 
     def test_eschema_syntax_link_target_type_01(self):

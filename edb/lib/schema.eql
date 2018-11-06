@@ -46,7 +46,12 @@ CREATE ABSTRACT ATTRIBUTE stdattrs::readonly std::bool;
 CREATE ABSTRACT ATTRIBUTE stdattrs::computable std::bool;
 CREATE ABSTRACT ATTRIBUTE stdattrs::default std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::expression std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::cardinality std::str;
+
+CREATE SCALAR TYPE schema::cardinality_t EXTENDING std::str {
+    CREATE CONSTRAINT std::enum ('ONE', 'MANY');
+};
+CREATE ABSTRACT ATTRIBUTE stdattrs::cardinality schema::cardinality_t;
+
 CREATE ABSTRACT ATTRIBUTE stdattrs::language std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::code std::str;
 CREATE ABSTRACT ATTRIBUTE stdattrs::from_function std::str;
@@ -95,9 +100,7 @@ CREATE ABSTRACT LINK schema::attributes {
 
 
 ALTER TYPE schema::Object {
-    CREATE LINK schema::attributes -> schema::Attribute {
-        SET cardinality := '**';
-    };
+    CREATE MULTI LINK schema::attributes -> schema::Attribute;
 };
 
 
@@ -133,27 +136,20 @@ CREATE TYPE schema::TypeElement {
 
 
 CREATE TYPE schema::Tuple EXTENDING schema::ContainerType {
-    CREATE REQUIRED LINK schema::element_types -> schema::TypeElement {
-        SET cardinality := '1*';
+    CREATE REQUIRED MULTI LINK schema::element_types -> schema::TypeElement {
+        CREATE CONSTRAINT std::exclusive;
     };
 };
 
 
 CREATE TYPE schema::Delta EXTENDING schema::Object {
-    CREATE LINK schema::parents -> schema::Delta {
-        SET cardinality := '**';
-    };
+    CREATE MULTI LINK schema::parents -> schema::Delta;
 };
 
 
 CREATE ABSTRACT TYPE schema::InheritingObject EXTENDING schema::Object {
-    CREATE LINK schema::bases -> schema::InheritingObject {
-        SET cardinality := '**';
-    };
-
-    CREATE LINK schema::mro -> schema::InheritingObject {
-        SET cardinality := '**';
-    };
+    CREATE MULTI LINK schema::bases -> schema::InheritingObject;
+    CREATE MULTI LINK schema::mro -> schema::InheritingObject;
 
     CREATE PROPERTY schema::is_abstract -> std::bool {
         SET default := false;
@@ -185,15 +181,15 @@ CREATE TYPE schema::Constraint EXTENDING schema::InheritingObject {
     CREATE PROPERTY schema::subjectexpr -> std::str;
     CREATE PROPERTY schema::finalexpr -> std::str;
     CREATE PROPERTY schema::errmessage -> std::str;
-    CREATE LINK schema::params -> schema::Parameter {
-        SET cardinality := '**';
+    CREATE MULTI LINK schema::params -> schema::Parameter {
+        CREATE CONSTRAINT std::exclusive;
     };
 };
 
 
 CREATE ABSTRACT TYPE schema::ConsistencySubject EXTENDING schema::Object {
-    CREATE LINK schema::constraints -> schema::Constraint {
-        SET cardinality := '1*';
+    CREATE MULTI LINK schema::constraints -> schema::Constraint {
+        CREATE CONSTRAINT std::exclusive;
     };
 };
 
@@ -210,18 +206,22 @@ CREATE TYPE schema::SourceIndex EXTENDING schema::Object {
 
 
 CREATE ABSTRACT TYPE schema::Source EXTENDING schema::Object {
-    CREATE LINK schema::indexes -> schema::SourceIndex {
-        SET cardinality := '1*';
+    CREATE MULTI LINK schema::indexes -> schema::SourceIndex {
+        CREATE CONSTRAINT std::exclusive;
     };
 };
 
 
-CREATE ABSTRACT TYPE schema::Pointer EXTENDING schema::Object;
+CREATE ABSTRACT TYPE schema::Pointer EXTENDING
+        (schema::InheritingObject, schema::ConsistencySubject) {
+    CREATE REQUIRED PROPERTY schema::cardinality -> schema::cardinality_t;
+    CREATE REQUIRED PROPERTY schema::required -> std::bool;
+};
 
 
 ALTER TYPE schema::Source {
-    CREATE LINK schema::pointers -> schema::Pointer {
-        SET cardinality := '1*';
+    CREATE MULTI LINK schema::pointers -> schema::Pointer {
+        CREATE CONSTRAINT std::exclusive;
     };
 };
 
@@ -247,18 +247,13 @@ CREATE TYPE schema::DerivedObjectType EXTENDING
          schema::Source);
 
 
-CREATE TYPE schema::Link EXTENDING
-        (schema::InheritingObject, schema::ConsistencySubject, schema::Pointer,
-         schema::Source);
+CREATE TYPE schema::Link EXTENDING (schema::Pointer, schema::Source);
 
 
-CREATE TYPE schema::DerivedLink EXTENDING
-        (schema::InheritingObject, schema::ConsistencySubject, schema::Pointer,
-         schema::Source);
+CREATE TYPE schema::DerivedLink EXTENDING (schema::Pointer, schema::Source);
 
 
-CREATE TYPE schema::Property EXTENDING
-        (schema::InheritingObject, schema::ConsistencySubject, schema::Pointer);
+CREATE TYPE schema::Property EXTENDING schema::Pointer;
 
 
 ALTER TYPE schema::Pointer {
@@ -275,17 +270,16 @@ ALTER TYPE schema::Link {
 
 
 ALTER TYPE schema::ObjectType {
-    CREATE LINK schema::links := (SELECT __source__.pointers FILTER
-                                  __source__.pointers IS schema::Link);
-
-    CREATE LINK schema::properties := (SELECT __source__.pointers FILTER
-                                       __source__.pointers IS schema::Property);
+    CREATE LINK schema::links :=
+        __source__.pointers[IS schema::Link];
+    CREATE LINK schema::properties :=
+        __source__.pointers[IS schema::Property];
 };
 
 
 CREATE TYPE schema::Function EXTENDING schema::Object {
-    CREATE LINK schema::params -> schema::Parameter {
-        SET cardinality := '**';
+    CREATE MULTI LINK schema::params -> schema::Parameter {
+        CREATE CONSTRAINT std::exclusive;
     };
     CREATE LINK schema::return_type -> schema::Type;
     CREATE PROPERTY schema::return_typemod -> std::str;
@@ -293,8 +287,8 @@ CREATE TYPE schema::Function EXTENDING schema::Object {
 
 
 CREATE TYPE schema::Operator EXTENDING schema::Object {
-    CREATE LINK schema::params -> schema::Parameter {
-        SET cardinality := '**';
+    CREATE MULTI LINK schema::params -> schema::Parameter {
+        CREATE CONSTRAINT std::exclusive;
     };
     CREATE LINK schema::return_type -> schema::Type;
     CREATE LINK schema::commutator -> schema::Operator;

@@ -915,9 +915,29 @@ class Link(Nonterm):
     def reduce_LINK_Spec(self, *kids):
         self.val = self._process_pointerspec(kids[1].val)
 
+    def reduce_SINGLE_LINK_Spec(self, *kids):
+        self.val = self._process_pointerspec(kids[2].val)
+        self.val.cardinality = qlast.Cardinality.ONE
+
+    def reduce_MULTI_LINK_Spec(self, *kids):
+        self.val = self._process_pointerspec(kids[2].val)
+        self.val.cardinality = qlast.Cardinality.MANY
+
     def reduce_INHERITED_LINK_Spec(self, *kids):
         link = self._process_pointerspec(kids[2].val)
         link.inherited = True
+        self.val = link
+
+    def reduce_INHERITED_SINGLE_LINK_Spec(self, *kids):
+        link = self._process_pointerspec(kids[3].val)
+        link.inherited = True
+        link.cardinality = qlast.Cardinality.ONE
+        self.val = link
+
+    def reduce_INHERITED_MULTI_LINK_Spec(self, *kids):
+        link = self._process_pointerspec(kids[3].val)
+        link.inherited = True
+        link.cardinality = qlast.Cardinality.MANY
         self.val = link
 
     def reduce_REQUIRED_LINK_Spec(self, *kids):
@@ -925,10 +945,36 @@ class Link(Nonterm):
         link.required = True
         self.val = link
 
-    def reduce_REQUIRED_INHERITED_LINK_Spec(self, *kids):
+    def reduce_REQUIRED_SINGLE_LINK_Spec(self, *kids):
+        link = self._process_pointerspec(kids[3].val)
+        link.required = True
+        link.cardinality = qlast.Cardinality.ONE
+        self.val = link
+
+    def reduce_REQUIRED_MULTI_LINK_Spec(self, *kids):
+        link = self._process_pointerspec(kids[3].val)
+        link.required = True
+        link.cardinality = qlast.Cardinality.MANY
+        self.val = link
+
+    def reduce_INHERITED_REQUIRED_LINK_Spec(self, *kids):
         link = self._process_pointerspec(kids[3].val)
         link.required = True
         link.inherited = True
+        self.val = link
+
+    def reduce_INHERITED_REQUIRED_SINGLE_LINK_Spec(self, *kids):
+        link = self._process_pointerspec(kids[4].val)
+        link.required = True
+        link.inherited = True
+        link.cardinality = qlast.Cardinality.ONE
+        self.val = link
+
+    def reduce_INHERITED_REQUIRED_MULTI_LINK_Spec(self, *kids):
+        link = self._process_pointerspec(kids[4].val)
+        link.required = True
+        link.inherited = True
+        link.cardinality = qlast.Cardinality.MANY
         self.val = link
 
 
@@ -960,9 +1006,29 @@ class Property(Nonterm):
     def reduce_PROPERTY_Spec(self, *kids):
         self.val = self._process_pointerspec(kids[1].val)
 
+    def reduce_SINGLE_PROPERTY_Spec(self, *kids):
+        self.val = self._process_pointerspec(kids[2].val)
+        self.val.cardinality = qlast.Cardinality.ONE
+
+    def reduce_MULTI_PROPERTY_Spec(self, *kids):
+        self.val = self._process_pointerspec(kids[2].val)
+        self.val.cardinality = qlast.Cardinality.MANY
+
     def reduce_INHERITED_PROPERTY_Spec(self, *kids):
         prop = self._process_pointerspec(kids[2].val)
         prop.inherited = True
+        self.val = prop
+
+    def reduce_INHERITED_SINGLE_PROPERTY_Spec(self, *kids):
+        prop = self._process_pointerspec(kids[3].val)
+        prop.inherited = True
+        prop.cardinality = qlast.Cardinality.ONE
+        self.val = prop
+
+    def reduce_INHERITED_MULTI_PROPERTY_Spec(self, *kids):
+        prop = self._process_pointerspec(kids[3].val)
+        prop.inherited = True
+        prop.cardinality = qlast.Cardinality.MANY
         self.val = prop
 
     def reduce_REQUIRED_PROPERTY_Spec(self, *kids):
@@ -970,10 +1036,36 @@ class Property(Nonterm):
         prop.required = True
         self.val = prop
 
-    def reduce_REQUIRED_INHERITED_PROPERTY_Spec(self, *kids):
+    def reduce_REQUIRED_SINGLE_PROPERTY_Spec(self, *kids):
+        prop = self._process_pointerspec(kids[3].val)
+        prop.required = True
+        prop.cardinality = qlast.Cardinality.ONE
+        self.val = prop
+
+    def reduce_REQUIRED_MULTI_PROPERTY_Spec(self, *kids):
+        prop = self._process_pointerspec(kids[3].val)
+        prop.required = True
+        prop.cardinality = qlast.Cardinality.MANY
+        self.val = prop
+
+    def reduce_INHERITED_REQUIRED_PROPERTY_Spec(self, *kids):
         prop = self._process_pointerspec(kids[3].val)
         prop.required = True
         prop.inherited = True
+        self.val = prop
+
+    def reduce_INHERITED_REQUIRED_SINGLE_PROPERTY_Spec(self, *kids):
+        prop = self._process_pointerspec(kids[4].val)
+        prop.required = True
+        prop.inherited = True
+        prop.cardinality = qlast.Cardinality.ONE
+        self.val = prop
+
+    def reduce_INHERITED_REQUIRED_MULTI_PROPERTY_Spec(self, *kids):
+        prop = self._process_pointerspec(kids[4].val)
+        prop.required = True
+        prop.inherited = True
+        prop.cardinality = qlast.Cardinality.MANY
         self.val = prop
 
 

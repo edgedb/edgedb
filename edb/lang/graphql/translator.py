@@ -412,9 +412,13 @@ class GraphQLTranslator(ast.NodeVisitor):
                     filterable.limit = limit
                     # just to make sure that limit doesn't change the
                     # serialization from list to a single object, we
-                    # need to force CARDINALITY '*'
-                    if limit is not None:
-                        filterable.cardinality = qlast.Cardinality.MANY
+                    # need to force multi-cardinality, while being careful
+                    # as to not set the cardinality qualifier on a
+                    # non-computable shape element.
+                    if (limit is not None and
+                            (isinstance(filterable, qlast.Statement) or
+                             filterable.compexpr is not None)):
+                        spec.cardinality = qlast.Cardinality.MANY
 
         path.pop()
         return spec

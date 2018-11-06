@@ -49,15 +49,13 @@ scalar type constraint_enum extending str:
 
 
 abstract link translated_label:
-    cardinality := '1*'
-
     property lang -> str
     property prop1 -> str
 
 
 abstract link link_with_unique_property:
     property unique_property -> str:
-        constraint unique
+        constraint exclusive
 
 
 abstract link link_with_unique_property_inherited extending link_with_unique_property
@@ -65,7 +63,7 @@ abstract link link_with_unique_property_inherited extending link_with_unique_pro
 
 abstract link another_link_with_unique_property:
     property unique_property -> str:
-        constraint unique
+        constraint exclusive
 
 
 abstract link another_link_with_unique_property_inherited extending another_link_with_unique_property
@@ -89,15 +87,15 @@ type Object:
 
 type UniqueName:
     property name -> str:
-        constraint unique
+        constraint exclusive
 
     link link_with_unique_property -> Object
 
     link link_with_unique_property_inherited -> Object
 
     link translated_label -> Label:
-        constraint unique on (__subject__@source, __subject__@lang)
-        constraint unique on (__subject__@prop1)
+        constraint exclusive on (__subject__@source, __subject__@lang)
+        constraint exclusive on (__subject__@prop1)
 
 
 type UniqueNameInherited extending UniqueName:
@@ -106,7 +104,7 @@ type UniqueNameInherited extending UniqueName:
 
 type UniqueDescription:
     property description -> str:
-        constraint unique
+        constraint exclusive
 
     link another_link_with_unique_property -> Object
 
@@ -118,7 +116,7 @@ type UniqueDescriptionInherited extending UniqueDescription
 
 type UniqueName_2:
     property name -> str:
-        constraint unique
+        constraint exclusive
 
 
 type UniqueName_2_Inherited extending UniqueName_2
@@ -126,7 +124,7 @@ type UniqueName_2_Inherited extending UniqueName_2
 
 type UniqueName_3 extending UniqueName_2:
     inherited property name -> str:
-        constraint unique on (lower(__subject__))
+        constraint exclusive on (lower(__subject__))
 
 
 type UniqueName_4 extending UniqueName_2_Inherited
@@ -134,15 +132,15 @@ type UniqueName_4 extending UniqueName_2_Inherited
 
 type MultiConstraint:
     property name -> str:
-        constraint unique
-        constraint unique on (lower(__subject__))
+        constraint exclusive
+        constraint exclusive on (lower(__subject__))
 
     property m1 -> str
 
 
 type ParentUniqueName:
     property name -> str:
-        constraint unique
+        constraint exclusive
 
 
 type ReceivingParent:
@@ -156,12 +154,12 @@ type LosingParent extending ParentUniqueName:
 
 type AbstractConstraintParent:
     property name -> str:
-        delegated constraint unique
+        delegated constraint exclusive
 
 
 type AbstractConstraintParent2:
     property name -> str:
-        delegated constraint unique on (lower(__subject__))
+        delegated constraint exclusive on (lower(__subject__))
 
 
 type AbstractConstraintPureChild extending AbstractConstraintParent
@@ -169,18 +167,18 @@ type AbstractConstraintPureChild extending AbstractConstraintParent
 
 type AbstractConstraintMixedChild extending AbstractConstraintParent:
     inherited property name -> str:
-        constraint unique on (lower(__subject__))
+        constraint exclusive on (lower(__subject__))
 
 
 type AbstractConstraintPropagated extending AbstractConstraintParent:
     inherited property name -> str:
-        delegated constraint unique
+        delegated constraint exclusive
 
 
 type AbstractConstraintParent3:
     property name -> str:
-        delegated constraint unique
-        delegated constraint unique on (lower(__subject__))
+        delegated constraint exclusive
+        delegated constraint exclusive on (lower(__subject__))
 
 
 type AbstractConstraintMultipleParentsFlattening extending AbstractConstraintParent, AbstractConstraintParent2:
@@ -195,7 +193,7 @@ type LosingAbstractConstraintParent2 extending AbstractConstraintParent
 
 type BecomingAbstractConstraint:
     property name -> str:
-        constraint unique
+        constraint exclusive
 
 
 type BecomingAbstractConstraintChild extending BecomingAbstractConstraint
@@ -203,7 +201,7 @@ type BecomingAbstractConstraintChild extending BecomingAbstractConstraint
 
 type BecomingConcreteConstraint:
     property name -> str:
-        delegated constraint unique
+        delegated constraint exclusive
 
 
 type BecomingConcreteConstraintChild extending BecomingConcreteConstraint
@@ -211,7 +209,7 @@ type BecomingConcreteConstraintChild extending BecomingConcreteConstraint
 
 type AbstractInheritingNonAbstract extending ParentUniqueName:
     inherited property name -> str:
-        delegated constraint unique
+        delegated constraint exclusive
 
 
 type AbstractInheritingNonAbstractChild extending AbstractInheritingNonAbstract

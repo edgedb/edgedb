@@ -1242,6 +1242,53 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_shape_40(self):
+        """
+        SELECT Foo {
+            multi foo := Foo {
+                name
+            }
+        };
+        """
+
+    def test_edgeql_syntax_shape_41(self):
+        """
+        SELECT Foo {
+            single foo := Foo {
+                name
+            }
+        };
+        """
+
+    def test_edgeql_syntax_shape_42(self):
+        """
+        SELECT Foo {
+            required multi foo := Foo {
+                name
+            }
+        };
+        """
+
+    def test_edgeql_syntax_shape_43(self):
+        """
+        SELECT Foo {
+            required single foo := Foo {
+                name
+            }
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected 'foo'", line=3, col=27)
+    def test_edgeql_syntax_shape_44(self):
+        """
+        SELECT Foo {
+            required blah foo := Foo {
+                name
+            }
+        };
+        """
+
     def test_edgeql_syntax_struct_01(self):
         """
         SELECT (
@@ -1699,52 +1746,6 @@ aa';
         SELECT <tuple<>>$1;
         SELECT <tuple<Foo, int, str>>$1;
         SELECT <std::tuple<obj: Foo, count: int, name: str>>$1;
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected string '1'",
-                  line=2, col=26)
-    def test_edgeql_syntax_cardinality_01(self):
-        """
-        WITH CARDINALITY '1'
-        SELECT User.name FILTER (User.name = 'special');
-        """
-
-    def test_edgeql_syntax_cardinality_02(self):
-        """
-        WITH CARDINALITY '*'
-        SELECT User.name FILTER (User.name = 'special');
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected string 'M'",
-                  line=2, col=26)
-    def test_edgeql_syntax_cardinality_03(self):
-        """
-        WITH CARDINALITY 'M'
-        SELECT User.name FILTER (User.name = 'special');
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=9)
-    def test_edgeql_syntax_cardinality_04(self):
-        """
-        WITH CARDINALITY '*' CREATE ACTION sample;
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=9)
-    def test_edgeql_syntax_cardinality_05(self):
-        """
-        WITH
-            CARDINALITY '*',
-            MODULE test
-        DROP ACTION sample;
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=13)
-    def test_edgeql_syntax_cardinality_06(self):
-        """
-        WITH
-            CARDINALITY '*',
-            CARDINALITY '*'
-        SELECT 1;
         """
 
     def test_edgeql_syntax_with_01(self):
@@ -3251,17 +3252,13 @@ aa';
     def test_edgeql_syntax_ddl_type_03(self):
         """
         ALTER TYPE schema::Object {
-            CREATE LINK schema::attributes -> schema::Attribute {
-                SET cardinality := '**';
-            };
+            CREATE MULTI LINK schema::attributes -> schema::Attribute;
         };
 
 % OK %
 
         ALTER TYPE schema::Object
-            CREATE LINK schema::attributes -> schema::Attribute {
-                SET cardinality := '**';
-            };
+            CREATE MULTI LINK schema::attributes -> schema::Attribute;
         """
 
     def test_edgeql_syntax_ddl_type_04(self):
@@ -3282,6 +3279,42 @@ aa';
             CREATE LINK bar4 -> mymod::Bar {
                 ON TARGET DELETE DEFERRED RESTRICT;
             };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_05(self):
+        """
+        CREATE TYPE mymod::Foo {
+            CREATE SINGLE LINK foo -> mymod::Foo;
+            CREATE MULTI LINK bar -> mymod::Bar;
+            CREATE REQUIRED SINGLE LINK baz -> mymod::Baz;
+            CREATE REQUIRED MULTI LINK spam -> mymod::Spam;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_06(self):
+        """
+        CREATE TYPE mymod::Foo {
+            CREATE SINGLE PROPERTY foo -> str;
+            CREATE MULTI PROPERTY bar -> str;
+            CREATE REQUIRED SINGLE PROPERTY baz -> str;
+            CREATE REQUIRED MULTI PROPERTY spam -> str;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_07(self):
+        """
+        ALTER TYPE mymod::Foo ALTER PROPERTY foo {
+            SET SINGLE;
+            SET REQUIRED;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_08(self):
+        """
+        ALTER TYPE mymod::Foo ALTER LINK foo {
+            SET MULTI;
+            DROP REQUIRED;
         };
         """
 

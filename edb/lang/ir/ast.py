@@ -342,7 +342,7 @@ class Stmt(Base):
 
     name: str
     result: Base
-    cardinality: Cardinality = Cardinality.DEFAULT
+    cardinality: Cardinality
     parent_stmt: Base
     iterator_stmt: Base
 

@@ -17,7 +17,7 @@
 #
 
 
-import functools
+import typing
 
 from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
@@ -41,45 +41,37 @@ class PointerDirection(enum.StrEnum):
     Inbound = '<'
 
 
-class PointerCardinality(enum.StrEnum):
-    OneToOne = '11'
-    OneToMany = '1*'
-    ManyToOne = '*1'
-    ManyToMany = '**'
+Cardinality = qlast.Cardinality
 
-    def __and__(self, other):
-        if not isinstance(other, PointerCardinality):
-            return NotImplemented
 
-        if self == PointerCardinality.OneToOne:
-            return self
-        elif other == PointerCardinality.OneToOne:
-            return other
-        elif self == PointerCardinality.OneToMany:
-            if other == PointerCardinality.ManyToOne:
-                err = 'mappings %r and %r are mutually incompatible'
-                raise ValueError(err % (self, other))
-            return self
-        elif self == PointerCardinality.ManyToOne:
-            if other == PointerCardinality.OneToMany:
-                err = 'mappings %r and %r are mutually incompatible'
-                raise ValueError(err % (self, other))
-            return self
-        else:
-            return other
+def merge_cardinality(target: so.Object, sources: typing.List[so.Object],
+                      field_name: str, *, schema) -> object:
+    current = None
+    current_from = None
 
-    def __or__(self, other):
-        if not isinstance(other, PointerCardinality):
-            return NotImplemented
-        # We use the fact that '*' is less than '1'
-        return self.__class__(min(self[0], other[0]) + min(self[1], other[1]))
+    for source in [target] + list(sources):
+        nextval = getattr(source, field_name)
+        if nextval is not None:
+            if current is None:
+                current = nextval
+                current_from = source
+            else:
+                if current is not nextval:
+                    tgt_repr = (f'{target.source.displayname}.'
+                                f'{target.displayname}')
+                    cf_repr = (f'{current_from.source.displayname}.'
+                               f'{current_from.displayname}')
+                    other_repr = (f'{source.source.displayname}.'
+                                  f'{source.displayname}')
 
-    @classmethod
-    def merge_values(cls, target, sources, field_name, *, schema):
-        def f(values):
-            return functools.reduce(lambda a, b: a & b, values)
-        return utils.merge_reduce(target, sources, field_name,
-                                  schema=schema, f=f)
+                    raise schema_error.SchemaError(
+                        f'cannot redefine the target cardinality of '
+                        f'{tgt_repr!r}: it is defined '
+                        f'as {current.as_ptr_qual()!r} in {cf_repr!r} and '
+                        f'as {nextval.as_ptr_qual()!r} in {other_repr!r}.'
+                    )
+
+        return current
 
 
 class Pointer(constraints.ConsistencySubject,
@@ -96,8 +88,9 @@ class Pointer(constraints.ConsistencySubject,
                           merge_fn=utils.merge_weak_bool)
     default = so.Field(sexpr.ExpressionText, default=None,
                        coerce=True, compcoef=0.909)
-    cardinality = so.Field(PointerCardinality, default=None,
-                           compcoef=0.833, coerce=True)
+    cardinality = so.Field(qlast.Cardinality, default=None,
+                           compcoef=0.833, coerce=True,
+                           merge_fn=merge_cardinality)
 
     @property
     def displayname(self) -> str:
@@ -129,6 +122,23 @@ class Pointer(constraints.ConsistencySubject,
             target.is_derived = True
             schema.add(target)
         return target
+
+    def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
+        super().finalize(schema, bases=bases, apply_defaults=apply_defaults,
+                         dctx=dctx)
+
+        if not self.generic() and apply_defaults:
+            if self.cardinality is None:
+                self.cardinality = qlast.Cardinality.ONE
+
+                if dctx is not None:
+                    from . import delta as sd
+
+                    dctx.current().op.add(sd.AlterObjectProperty(
+                        property='cardinality',
+                        new_value=self.cardinality,
+                        source='default'
+                    ))
 
     @classmethod
     def merge_targets(cls, schema, ptr, t1, t2):
@@ -298,13 +308,18 @@ class Pointer(constraints.ConsistencySubject,
     def generic(self):
         return self.source is None
 
+    def is_exclusive(self):
+        if self.generic():
+            raise ValueError(f'{self!r} is generic')
+
+        return 'std::exclusive' in self.constraints
+
     def singular(self, direction=PointerDirection.Outbound):
+        # Determine the cardinality of a given endpoint set.
         if direction == PointerDirection.Outbound:
-            return self.cardinality in \
-                (PointerCardinality.OneToOne, PointerCardinality.ManyToOne)
+            return self.cardinality is qlast.Cardinality.ONE
         else:
-            return self.cardinality in \
-                (PointerCardinality.OneToOne, PointerCardinality.OneToMany)
+            return self.is_exclusive()
 
     def merge_defaults(self, other):
         if not self.default:
@@ -464,15 +479,10 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
         cardinality = ir_inference.infer_cardinality(
             ir, scope_tree.attach_fence(), schema)
 
-        if cardinality == qlast.Cardinality.ONE:
-            link_card = PointerCardinality.ManyToOne
-        else:
-            link_card = PointerCardinality.ManyToMany
-
         self.add(
             sd.AlterObjectProperty(
                 property='cardinality',
-                new_value=link_card
+                new_value=cardinality
             )
         )
 

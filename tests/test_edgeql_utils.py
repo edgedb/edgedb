@@ -33,8 +33,7 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
             required property name -> str
 
         type UserGroup extending NamedObject:
-            link settings -> Setting:
-                cardinality := '1*'
+            multi link settings -> Setting
 
         type Setting extending NamedObject:
             required property value -> str
@@ -44,12 +43,10 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
 
         type User extending NamedObject:
             required property active -> bool
-            link groups -> UserGroup:
-                cardinality := '**'
+            multi link groups -> UserGroup
             required property age -> int64
             required property score -> float64
-            link profile -> Profile:
-                cardinality := '*1'
+            link profile -> Profile
     """
 
     @classmethod

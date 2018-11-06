@@ -630,11 +630,10 @@ def _compile_set_in_singleton_mode(
                     raise RuntimeError(
                         'unexpectedly long path in simple expr')
 
-            colref = pgast.ColumnRef(
-                name=[
-                    common.edgedb_name_to_pg_name(ptrcls.shortname)
-                ]
-            )
+            ptr_stor_info = pg_types.get_pointer_storage_info(
+                ptrcls, schema=ctx.env.schema, resolve_type=False)
+
+            colref = pgast.ColumnRef(name=[ptr_stor_info.column_name])
         elif isinstance(node.scls, s_scalars.ScalarType):
             colref = pgast.ColumnRef(
                 name=[

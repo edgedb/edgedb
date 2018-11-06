@@ -130,10 +130,11 @@ class TestConstraintsSchema(tb.QueryTestCase):
 
         await self._run_link_tests(data, 'test::Object', 'c_my_enum')
 
-    async def test_constraints_unique_simple(self):
+    async def test_constraints_exclusive_simple(self):
         async with self._run_and_rollback():
-            with self.assertRaisesRegex(exceptions.ConstraintViolationError,
-                                        'name violates unique constraint'):
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'name violates exclusivity constraint'):
                 await self.con.execute("""
                     INSERT test::UniqueName {
                         name := 'Test'
@@ -144,10 +145,11 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     };
                 """)
 
-    async def test_constraints_unique_inherited(self):
+    async def test_constraints_exclusive_inherited(self):
         async with self._run_and_rollback():
-            with self.assertRaisesRegex(exceptions.ConstraintViolationError,
-                                        'name violates unique constraint'):
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'name violates exclusivity constraint'):
                 await self.con.execute("""
                     INSERT test::UniqueNameInherited {
                         name := 'Test'
@@ -159,34 +161,36 @@ class TestConstraintsSchema(tb.QueryTestCase):
                 """)
 
     @unittest.expectedFailure
-    async def test_constraints_unique_across_ancestry(self):
+    async def test_constraints_exclusive_across_ancestry(self):
         async with self._run_and_rollback():
-            with self.assertRaisesRegex(exceptions.ConstraintViolationError,
-                                        'name violates unique constraint'):
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'name violates exclusivity constraint'):
 
                 await self.con.execute("""
                     INSERT test::UniqueName {
-                        name := 'unique_name_across'
+                        name := 'exclusive_name_across'
                     };
 
                     INSERT test::UniqueNameInherited {
-                        name := 'unique_name_across'
+                        name := 'exclusive_name_across'
                     };
                 """)
 
         async with self._run_and_rollback():
             await self.con.execute("""
                 INSERT test::UniqueName {
-                    name := 'unique_name_ok'
+                    name := 'exclusive_name_ok'
                 };
 
                 INSERT test::UniqueNameInherited {
-                    name := 'unique_name_inherited_ok'
+                    name := 'exclusive_name_inherited_ok'
                 };
             """)
 
-            with self.assertRaisesRegex(exceptions.ConstraintViolationError,
-                                        'name violates unique constraint'):
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'name violates exclusivity constraint'):
                 # FIXME: the FILTER clause seems to filter out
                 # everything, so the UPDATE is empty
                 await self.con.execute("""
@@ -194,16 +198,17 @@ class TestConstraintsSchema(tb.QueryTestCase):
                         test::UniqueNameInherited
                     FILTER
                         test::UniqueNameInherited.name =
-                            'unique_name_inherited_ok'
+                            'exclusive_name_inherited_ok'
                     SET {
-                        name := 'unique_name_ok'
+                        name := 'exclusive_name_ok'
                     };
                 """)
 
-    async def test_constraints_unique_case_insensitive(self):
+    async def test_constraints_exclusive_case_insensitive(self):
         async with self._run_and_rollback():
-            with self.assertRaisesRegex(exceptions.ConstraintViolationError,
-                                        'name violates unique constraint'):
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'name violates exclusivity constraint'):
                 await self.con.execute("""
                     INSERT test::UniqueName_3 {
                         name := 'TeSt'
@@ -214,55 +219,57 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     };
                 """)
 
-    async def test_constraints_unique_abstract(self):
+    async def test_constraints_exclusive_abstract(self):
         async with self._run_and_rollback():
-            # This is OK, the name unique constraint is abstract
+            # This is OK, the name exclusivity constraint is abstract
             await self.con.execute("""
                 INSERT test::AbstractConstraintParent {
-                    name := 'unique_name_ap'
+                    name := 'exclusive_name_ap'
                 };
 
                 INSERT test::AbstractConstraintParent {
-                    name := 'unique_name_ap'
+                    name := 'exclusive_name_ap'
                 };
             """)
 
             # This is OK too
             await self.con.execute("""
                 INSERT test::AbstractConstraintParent {
-                    name := 'unique_name_ap1'
+                    name := 'exclusive_name_ap1'
                 };
 
                 INSERT test::AbstractConstraintPureChild {
-                    name := 'unique_name_ap1'
+                    name := 'exclusive_name_ap1'
                 };
             """)
 
         async with self._run_and_rollback():
-            with self.assertRaisesRegex(exceptions.ConstraintViolationError,
-                                        'name violates unique constraint'):
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'name violates exclusivity constraint'):
                 # Not OK, abstract constraint materializes into a real one
                 await self.con.execute("""
                     INSERT test::AbstractConstraintPureChild {
-                        name := 'unique_name_ap2'
+                        name := 'exclusive_name_ap2'
                     };
 
                     INSERT test::AbstractConstraintPureChild {
-                        name := 'unique_name_ap2'
+                        name := 'exclusive_name_ap2'
                     };
                 """)
 
         async with self._run_and_rollback():
-            with self.assertRaisesRegex(exceptions.ConstraintViolationError,
-                                        'name violates unique constraint'):
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'name violates exclusivity constraint'):
                 # Not OK, abstract constraint materializes into a real one
                 await self.con.execute("""
                     INSERT test::AbstractConstraintMixedChild {
-                        name := 'unique_name_ap2'
+                        name := 'exclusive_name_ap2'
                     };
 
                     INSERT test::AbstractConstraintMixedChild {
-                        name := 'unique_name_AP2'
+                        name := 'exclusive_name_AP2'
                     };
                 """)
 
@@ -270,101 +277,106 @@ class TestConstraintsSchema(tb.QueryTestCase):
             # This is OK, duplication is in different children
             await self.con.execute("""
                 INSERT test::AbstractConstraintPureChild {
-                    name := 'unique_name_ap3'
+                    name := 'exclusive_name_ap3'
                 };
 
                 INSERT test::AbstractConstraintMixedChild {
-                    name := 'unique_name_ap3'
+                    name := 'exclusive_name_ap3'
                 };
             """)
 
-            # This is OK, the name unique constraint is abstract again
+            # This is OK, the name exclusivity constraint is abstract again
             await self.con.execute("""
                 INSERT test::AbstractConstraintPropagated {
-                    name := 'unique_name_ap4'
+                    name := 'exclusive_name_ap4'
                 };
 
                 INSERT test::AbstractConstraintPropagated {
-                    name := 'unique_name_ap4'
+                    name := 'exclusive_name_ap4'
                 };
             """)
 
         async with self._run_and_rollback():
-            with self.assertRaisesRegex(exceptions.ConstraintViolationError,
-                                        'name violates unique constraint'):
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'name violates exclusivity constraint'):
                 # Not OK, yet
                 await self.con.execute("""
                     INSERT test::BecomingAbstractConstraint {
-                        name := 'unique_name_ap5'
+                        name := 'exclusive_name_ap5'
                     };
 
                     INSERT test::BecomingAbstractConstraintChild {
-                        name := 'unique_name_ap5'
+                        name := 'exclusive_name_ap5'
                     };
                 """)
 
         async with self._run_and_rollback():
             await self.con.execute("""
                 INSERT test::BecomingConcreteConstraint {
-                    name := 'unique_name_ap6'
+                    name := 'exclusive_name_ap6'
                 };
 
                 INSERT test::BecomingConcreteConstraintChild {
-                    name := 'unique_name_ap6'
+                    name := 'exclusive_name_ap6'
                 };
             """)
 
         async with self._run_and_rollback():
-            with self.assertRaisesRegex(exceptions.ConstraintViolationError,
-                                        'name violates unique constraint'):
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'name violates exclusivity constraint'):
                 await self.con.execute("""
                     INSERT test::LosingAbstractConstraintParent {
-                        name := 'unique_name_ap7'
+                        name := 'exclusive_name_ap7'
                     };
 
                     INSERT test::LosingAbstractConstraintParent {
-                        name := 'unique_name_ap7'
+                        name := 'exclusive_name_ap7'
                     };
                 """)
 
         async with self._run_and_rollback():
-            with self.assertRaisesRegex(exceptions.ConstraintViolationError,
-                                        'name violates unique constraint'):
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'name violates exclusivity constraint'):
                 await self.con.execute("""
                     INSERT test::AbstractConstraintMultipleParentsFlattening{
-                        name := 'unique_name_ap8'
+                        name := 'exclusive_name_ap8'
                     };
 
                     INSERT test::AbstractConstraintMultipleParentsFlattening{
-                        name := 'unique_name_ap8'
+                        name := 'exclusive_name_ap8'
                     };
                 """)
 
         async with self._run_and_rollback():
-            with self.assertRaisesRegex(exceptions.ConstraintViolationError,
-                                        'name violates unique constraint'):
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'name violates exclusivity constraint'):
                 # non-abstract inherited constraint
                 await self.con.execute("""
                     INSERT test::AbstractInheritingNonAbstract {
-                        name := 'unique_name_ana'
+                        name := 'exclusive_name_ana'
                     };
 
                     INSERT test::AbstractInheritingNonAbstract {
-                        name := 'unique_name_ana'
+                        name := 'exclusive_name_ana'
                     };
                 """)
 
         async with self._run_and_rollback():
-            with self.assertRaisesRegex(exceptions.ConstraintViolationError,
-                                        'name violates unique constraint'):
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'name violates exclusivity constraint'):
                 # non-abstract inherited constraint
                 await self.con.execute("""
                     INSERT test::AbstractInheritingNonAbstract {
-                        name := 'unique_name_ana1'
+                        name := 'exclusive_name_ana1'
                     };
 
                     INSERT test::AbstractInheritingNonAbstractChild {
-                        name := 'unique_name_ana1'
+                        name := 'exclusive_name_ana1'
                     };
                 """)
 
@@ -375,7 +387,7 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
                           'schemas', 'constraints_migration',
                           'schema.eschema')
 
-    async def test_constraints_unique_migration(self):
+    async def test_constraints_exclusive_migration(self):
         new_schema_f = os.path.join(os.path.dirname(__file__),
                                     'schemas', 'constraints_migration',
                                     'updated_schema.eschema')
@@ -389,53 +401,55 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
             ''')
 
         async with self._run_and_rollback():
-            # This is OK, the name unique constraint is abstract
+            # This is OK, the name exclusivity constraint is abstract
             await self.con.execute("""
                 INSERT test::AbstractConstraintParent {
-                    name := 'unique_name_ap'
+                    name := 'exclusive_name_ap'
                 };
 
                 INSERT test::AbstractConstraintParent {
-                    name := 'unique_name_ap'
+                    name := 'exclusive_name_ap'
                 };
             """)
 
             # This is OK too
             await self.con.execute("""
                 INSERT test::AbstractConstraintParent {
-                    name := 'unique_name_ap1'
+                    name := 'exclusive_name_ap1'
                 };
 
                 INSERT test::AbstractConstraintPureChild {
-                    name := 'unique_name_ap1'
+                    name := 'exclusive_name_ap1'
                 };
             """)
 
         async with self._run_and_rollback():
-            with self.assertRaisesRegex(exceptions.ConstraintViolationError,
-                                        'name violates unique constraint'):
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'name violates exclusivity constraint'):
                 # Not OK, abstract constraint materializes into a real one
                 await self.con.execute("""
                     INSERT test::AbstractConstraintPureChild {
-                        name := 'unique_name_ap2'
+                        name := 'exclusive_name_ap2'
                     };
 
                     INSERT test::AbstractConstraintPureChild {
-                        name := 'unique_name_ap2'
+                        name := 'exclusive_name_ap2'
                     };
                 """)
 
         async with self._run_and_rollback():
-            with self.assertRaisesRegex(exceptions.ConstraintViolationError,
-                                        'name violates unique constraint'):
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'name violates exclusivity constraint'):
                 # Not OK, abstract constraint materializes into a real one
                 await self.con.execute("""
                     INSERT test::AbstractConstraintMixedChild {
-                        name := 'unique_name_ap2'
+                        name := 'exclusive_name_ap2'
                     };
 
                     INSERT test::AbstractConstraintMixedChild {
-                        name := 'unique_name_AP2'
+                        name := 'exclusive_name_AP2'
                     };
                 """)
 
@@ -443,23 +457,23 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
             # This is OK, duplication is in different children
             await self.con.execute("""
                 INSERT test::AbstractConstraintMixedChild {
-                    name := 'unique_name_ap3'
+                    name := 'exclusive_name_ap3'
                 };
 
                 INSERT test::AbstractConstraintPureChild {
-                    name := 'unique_name_ap3'
+                    name := 'exclusive_name_ap3'
                 };
             """)
 
         async with self._run_and_rollback():
-            # This is OK, the name unique constraint is abstract again
+            # This is OK, the name exclusivity constraint is abstract again
             await self.con.execute("""
                 INSERT test::AbstractConstraintPropagated {
-                    name := 'unique_name_ap4'
+                    name := 'exclusive_name_ap4'
                 };
 
                 INSERT test::AbstractConstraintPropagated {
-                    name := 'unique_name_ap4'
+                    name := 'exclusive_name_ap4'
                 };
             """)
 
@@ -467,64 +481,67 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
             # OK, former constraint was turned into an abstract constraint
             await self.con.execute("""
                 INSERT test::BecomingAbstractConstraint {
-                    name := 'unique_name_ap5'
+                    name := 'exclusive_name_ap5'
                 };
 
                 INSERT test::BecomingAbstractConstraintChild {
-                    name := 'unique_name_ap5'
+                    name := 'exclusive_name_ap5'
                 };
             """)
 
         async with self._run_and_rollback():
-            with self.assertRaisesRegex(exceptions.ConstraintViolationError,
-                                        'name violates unique constraint'):
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'name violates exclusivity constraint'):
                 # Constraint is no longer abstract
                 await self.con.execute("""
                     INSERT test::BecomingConcreteConstraint {
-                        name := 'unique_name_ap6'
+                        name := 'exclusive_name_ap6'
                     };
 
                     INSERT test::BecomingConcreteConstraintChild {
-                        name := 'unique_name_ap6'
+                        name := 'exclusive_name_ap6'
                     };
                 """)
 
         async with self._run_and_rollback():
-            with self.assertRaisesRegex(exceptions.ConstraintViolationError,
-                                        'name violates unique constraint'):
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'name violates exclusivity constraint'):
                 # Constraint is no longer abstract
                 await self.con.execute("""
                     INSERT test::LosingAbstractConstraintParent {
-                        name := 'unique_name_ap6'
+                        name := 'exclusive_name_ap6'
                     };
 
                     INSERT test::LosingAbstractConstraintParent {
-                        name := 'unique_name_ap6'
+                        name := 'exclusive_name_ap6'
                     };
                 """)
 
         async with self._run_and_rollback():
             await self.con.execute("""
                 INSERT test::LosingAbstractConstraintParent2 {
-                    name := 'unique_name_ap7'
+                    name := 'exclusive_name_ap7'
                 };
 
                 INSERT test::LosingAbstractConstraintParent2 {
-                    name := 'unique_name_ap7'
+                    name := 'exclusive_name_ap7'
                 };
             """)
 
         async with self._run_and_rollback():
-            with self.assertRaisesRegex(exceptions.ConstraintViolationError,
-                                        'name violates unique constraint'):
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'name violates exclusivity constraint'):
                 # Constraint is no longer abstract
                 await self.con.execute("""
                     INSERT test::AbstractConstraintMultipleParentsFlattening{
-                        name := 'unique_name_ap8'
+                        name := 'exclusive_name_ap8'
                     };
 
                     INSERT test::AbstractConstraintMultipleParentsFlattening{
-                        name := 'unique_name_AP8'
+                        name := 'exclusive_name_AP8'
                     };
                 """)
 
@@ -532,11 +549,11 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
             # Parent lost its concrete constraint inheritance
             await self.con.execute("""
                 INSERT test::AbstractInheritingNonAbstract {
-                    name := 'unique_name_ana'
+                    name := 'exclusive_name_ana'
                 };
 
                 INSERT test::AbstractInheritingNonAbstract {
-                    name := 'unique_name_ana'
+                    name := 'exclusive_name_ana'
                 };
             """)
 
@@ -544,25 +561,26 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
             # Parent lost its concrete constraint inheritance
             await self.con.execute("""
                 INSERT test::AbstractInheritingNonAbstract {
-                    name := 'unique_name_ana1'
+                    name := 'exclusive_name_ana1'
                 };
 
                 INSERT test::AbstractInheritingNonAbstractChild {
-                    name := 'unique_name_ana1'
+                    name := 'exclusive_name_ana1'
                 };
             """)
 
         async with self._run_and_rollback():
-            with self.assertRaisesRegex(exceptions.ConstraintViolationError,
-                                        'name violates unique constraint'):
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'name violates exclusivity constraint'):
                 # Child uniqueness is still enforced
                 await self.con.execute("""
                     INSERT test::AbstractInheritingNonAbstractChild{
-                        name := 'unique_name_ana2'
+                        name := 'exclusive_name_ana2'
                     };
 
                     INSERT test::AbstractInheritingNonAbstractChild{
-                        name := 'unique_name_ana2'
+                        name := 'exclusive_name_ana2'
                     };
                 """)
 
@@ -571,36 +589,36 @@ class TestConstraintsDDL(tb.DDLTestCase):
     async def test_constraints_ddl_01(self):
         qry = """
             CREATE ABSTRACT LINK test::translated_label {
-                SET cardinality := '1*';
                 CREATE PROPERTY test::lang -> std::str;
                 CREATE PROPERTY test::prop1 -> std::str;
             };
 
-            CREATE ABSTRACT LINK test::link_with_unique_property {
-                CREATE PROPERTY test::unique_property -> std::str {
-                    CREATE CONSTRAINT std::unique;
+            CREATE ABSTRACT LINK test::link_with_exclusive_property {
+                CREATE PROPERTY test::exclusive_property -> std::str {
+                    CREATE CONSTRAINT std::exclusive;
                 };
             };
 
-            CREATE ABSTRACT LINK test::link_with_unique_property_inherited
-                EXTENDING test::link_with_unique_property;
+            CREATE ABSTRACT LINK test::link_with_exclusive_property_inherited
+                EXTENDING test::link_with_exclusive_property;
 
             CREATE TYPE test::UniqueName {
                 CREATE PROPERTY test::name -> std::str {
-                    CREATE CONSTRAINT std::unique;
+                    CREATE CONSTRAINT std::exclusive;
                 };
 
-                CREATE LINK test::link_with_unique_property -> std::Object;
+                CREATE LINK test::link_with_exclusive_property -> std::Object;
             };
         """
 
         await self.con.execute(qry)
 
-        # Simple unique constraint on a link
+        # Simple exclusivity constraint on a link
         #
         async with self._run_and_rollback():
-            with self.assertRaisesRegex(exceptions.ConstraintViolationError,
-                                        'name violates unique constraint'):
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'name violates exclusivity constraint'):
                 await self.con.execute("""
                     INSERT test::UniqueName {
                         name := 'Test'
@@ -614,7 +632,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
         qry = """
             CREATE TYPE test::AbstractConstraintParent {
                 CREATE PROPERTY test::name -> std::str {
-                    CREATE DELEGATED CONSTRAINT std::unique;
+                    CREATE DELEGATED CONSTRAINT std::exclusive;
                 };
             };
 
@@ -625,25 +643,25 @@ class TestConstraintsDDL(tb.DDLTestCase):
         await self.con.execute(qry)
 
         async with self._run_and_rollback():
-            # This is OK, the name unique constraint is abstract
+            # This is OK, the name exclusivity constraint is abstract
             await self.con.execute("""
                 INSERT test::AbstractConstraintParent {
-                    name := 'unique_name_ap'
+                    name := 'exclusive_name_ap'
                 };
 
                 INSERT test::AbstractConstraintParent {
-                    name := 'unique_name_ap'
+                    name := 'exclusive_name_ap'
                 };
             """)
 
             # This is OK too
             await self.con.execute("""
                 INSERT test::AbstractConstraintParent {
-                    name := 'unique_name_ap1'
+                    name := 'exclusive_name_ap1'
                 };
 
                 INSERT test::AbstractConstraintPureChild {
-                    name := 'unique_name_ap1'
+                    name := 'exclusive_name_ap1'
                 };
             """)
 

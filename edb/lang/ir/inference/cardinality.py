@@ -264,12 +264,12 @@ def _analyse_filter_clause(
                                      scope_tree, schema)
 
     if filtered_ptrs:
-        unique_constr = schema.get('std::unique')
+        exclusive_constr = schema.get('std::exclusive')
 
         for ptr in filtered_ptrs:
             is_unique = (
                 ptr.is_id_pointer() or
-                any(c.issubclass(unique_constr)
+                any(c.issubclass(exclusive_constr)
                     for c in ptr.constraints.values())
             )
             if is_unique:

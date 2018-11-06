@@ -29,8 +29,7 @@ type InsertTest:
     required property l2 -> int64
     property l3 -> str:
         default := "test"
-    link subordinates -> Subordinate:
-        cardinality := '1*'
+    multi link subordinates -> Subordinate
 
 type Annotation:
     required property name -> str
@@ -66,13 +65,11 @@ type InputValue:
     property val -> str
 
 abstract type Callable:
-    link args -> InputValue:
-        cardinality := '1*'
+    multi link args -> InputValue
 
 type Field extending Callable:
     # This link 'args' appears to be overriding the inherited 'args'
     # from Callable.
-    inherited link args -> InputValue:
-        cardinality := '1*'
+    inherited multi link args -> InputValue
 
 type Directive extending Callable

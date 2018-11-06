@@ -76,13 +76,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(' ')
 
     def _visit_aliases(self, node):
-        if node.aliases or node.cardinality:
+        if node.aliases:
             self.write('WITH')
             self._block_ws(1)
             if node.aliases:
                 self.visit_list(node.aliases)
-            if node.cardinality:
-                self.write(f"CARDINALITY '{node.cardinality}'")
             self._block_ws(-1)
 
     def _visit_filter(self, node, newlines=True):
@@ -462,6 +460,19 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         # PathSpec can only contain LinkExpr or LinkPropExpr,
         # and must not be quoted.
 
+        quals = []
+        if node.required:
+            quals.append('required')
+
+        if node.cardinality is edgeql_ast.Cardinality.MANY:
+            quals.append('multi')
+        elif node.cardinality is edgeql_ast.Cardinality.ONE:
+            quals.append('single')
+
+        if quals:
+            self.write(*quals, delimiter=' ')
+            self.write(' ')
+
         if len(node.expr.steps) == 1:
             self.visit(node.expr)
         else:
@@ -469,11 +480,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.expr.steps[0])
             self.write('].')
             self.visit(node.expr.steps[1])
-
-        if node.recurse:
-            self.write('*')
-            if node.recurse_limit:
-                self.visit(node.recurse_limit)
 
         if not node.compexpr and (node.elements or node.expr.steps[-1].target):
             self.write(': ')
@@ -737,6 +743,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('ABSTRACT')
         elif node.name == 'is_final':
             self.write('FINAL')
+        elif node.name == 'required':
+            self.write('REQUIRED')
+        elif node.name == 'cardinality':
+            if node.value is edgeql_ast.Cardinality.ONE:
+                self.write('SINGLE')
+            else:
+                self.write('MULTI')
         else:
             raise EdgeQLSourceGeneratorError(
                 'unknown special field: {!r}'.format(node.name))
@@ -940,6 +953,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         if node.is_required:
             keywords.append('REQUIRED')
+        if node.cardinality is edgeql_ast.Cardinality.ONE:
+            keywords.append('SINGLE')
+        elif node.cardinality is edgeql_ast.Cardinality.MANY:
+            keywords.append('MULTI')
         keywords.append('PROPERTY')
 
         def after_name():
@@ -968,6 +985,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         if node.is_required:
             keywords.append('REQUIRED')
+        if node.cardinality is edgeql_ast.Cardinality.ONE:
+            keywords.append('SINGLE')
+        elif node.cardinality is edgeql_ast.Cardinality.MANY:
+            keywords.append('MULTI')
         keywords.append('LINK')
 
         def after_name():

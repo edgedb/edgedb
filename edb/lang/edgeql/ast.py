@@ -120,9 +120,14 @@ AggNONE = SetModifier.NONE
 
 
 class Cardinality(s_enum.StrEnum):
-    ONE = '1'
-    MANY = '*'
-    DEFAULT = ''
+    ONE = 'ONE'
+    MANY = 'MANY'
+
+    def as_ptr_qual(self):
+        if self is Cardinality.ONE:
+            return 'single'
+        else:
+            return 'multi'
 
 
 class LinkTargetDeleteAction(s_enum.StrEnum):
@@ -457,7 +462,6 @@ class GroupExpr(Expr):
 
 class Statement(Expr):
     aliases: typing.List[typing.Union[AliasedExpr, ModuleAliasDecl]]
-    cardinality: Cardinality = Cardinality.DEFAULT
 
 
 class SubjStatement(Statement):
@@ -510,8 +514,8 @@ class ShapeElement(Expr):
     offset: Expr
     limit: Expr
     compexpr: Expr
-    recurse: bool = False
-    recurse_limit: typing.Union[BaseConstant, Parameter]
+    cardinality: Cardinality
+    required: bool = False
 
 
 class Shape(Expr):
@@ -722,9 +726,15 @@ class DropProperty(DropObject):
     pass
 
 
-class CreateConcreteProperty(CreateObject):
+class CreateConcretePointer(CreateObject):
+
     is_required: bool = False
     target: typing.Union[Expr, TypeExpr]
+    cardinality: Cardinality
+
+
+class CreateConcreteProperty(CreateConcretePointer):
+    pass
 
 
 class AlterConcreteProperty(AlterObject):
@@ -735,9 +745,9 @@ class DropConcreteProperty(AlterObject):
     pass
 
 
-class SetSpecialField(Base):
+class SetSpecialField(DDL):
     name: str
-    value: bool
+    value: object
     as_expr: bool = False
 
 
@@ -777,9 +787,8 @@ class DropLink(DropObject):
     pass
 
 
-class CreateConcreteLink(CreateExtendingObject):
-    is_required: bool = False
-    target: typing.Union[Expr, TypeExpr]
+class CreateConcreteLink(CreateExtendingObject, CreateConcretePointer):
+    pass
 
 
 class AlterConcreteLink(AlterObject):

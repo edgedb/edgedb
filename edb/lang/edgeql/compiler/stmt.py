@@ -440,7 +440,6 @@ def fini_stmt(
         irstmt: irast.Base, qlstmt: qlast.Statement, *,
         ctx: context.ContextLevel,
         parent_ctx: context.ContextLevel) -> irast.Set:
-    irstmt.cardinality = qlstmt.cardinality
 
     view_name = parent_ctx.toplevel_result_view_name
     t = irutils.infer_type(irstmt, ctx.schema)

@@ -21,8 +21,8 @@ abstract type NamedObject:
     required property name -> str
 
 type UserGroup extending NamedObject:
-    link settings -> Setting:
-        cardinality := '1*'
+    multi link settings -> Setting:
+        constraint exclusive
 
 type Setting extending NamedObject:
     required property value -> str
@@ -30,17 +30,14 @@ type Setting extending NamedObject:
 type Profile extending NamedObject:
     required property value -> str
     property tags -> array<str>
-    property odd -> array<int64>:
-        cardinality := '1*'
+    multi property odd -> array<int64>
 
 type User extending NamedObject:
     required property active -> bool
-    link groups -> UserGroup:
-        cardinality := '**'
+    multi link groups -> UserGroup
     required property age -> int64
     required property score -> float64
-    link profile -> Profile:
-        cardinality := '*1'
+    link profile -> Profile
 
 type Person extending test::User
 

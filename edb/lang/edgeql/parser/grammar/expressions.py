@@ -19,6 +19,7 @@
 
 import collections
 import re
+import typing
 
 from edb.lang.common import ast
 from edb.lang.common import parsing, context
@@ -48,7 +49,6 @@ class ExprStmt(Nonterm):
     def reduce_WithBlock_ExprStmtCore(self, *kids):
         self.val = kids[1].val
         self.val.aliases = kids[0].val.aliases
-        self.val.cardinality = kids[0].val.cardinality
 
     def reduce_ExprStmtCore(self, *kids):
         self.val = kids[0].val
@@ -212,28 +212,15 @@ class SimpleDelete(Nonterm):
 
 
 WithBlockData = collections.namedtuple(
-    'WithBlockData', ['aliases', 'cardinality'], module=__name__)
-
-
-CardinalityData = collections.namedtuple(
-    'CardinalityData', ['cardinality', 'tok'], module=__name__)
+    'WithBlockData', ['aliases'], module=__name__)
 
 
 class WithBlock(Nonterm):
     def reduce_WITH_WithDeclList(self, *kids):
         aliases = []
-        cardinality = None
         for w in kids[1].val:
-            if isinstance(w, CardinalityData):
-                if cardinality is None:
-                    cardinality = w.cardinality
-                else:
-                    raise EdgeQLSyntaxError(
-                        'only one CARDINALITY specification is allowed',
-                        context=w.tok.context)
-            else:
-                aliases.append(w)
-        self.val = WithBlockData(aliases=aliases, cardinality=cardinality)
+            aliases.append(w)
+        self.val = WithBlockData(aliases=aliases)
 
 
 class AliasDecl(Nonterm):
@@ -253,16 +240,6 @@ class AliasDecl(Nonterm):
 class WithDecl(Nonterm):
     def reduce_AliasDecl(self, *kids):
         self.val = kids[0].val
-
-    def reduce_CARDINALITY_BaseStringConstant(self, *kids):
-        if kids[1].val.value == qlast.Cardinality.MANY:
-            self.val = CardinalityData(
-                cardinality=qlast.Cardinality(kids[1].val.value),
-                tok=kids[0])
-        else:
-            raise EdgeQLSyntaxError(
-                f'Unexpected string {kids[1].val.value!r}',
-                context=kids[1].context)
 
 
 class WithDeclList(ListNonterm, element=WithDecl,
@@ -333,9 +310,8 @@ class ShapeElement(Nonterm):
         self.val.offset = kids[4].val[0]
         self.val.limit = kids[4].val[1]
 
-    def reduce_ShapePointer_ASSIGN_Expr(self, *kids):
+    def reduce_ComputableShapePointer(self, *kids):
         self.val = kids[0].val
-        self.val.compexpr = kids[2].val
 
 
 class ShapeElementList(ListNonterm, element=ShapeElement,
@@ -399,6 +375,79 @@ class ShapePointer(Nonterm):
         self.val = qlast.ShapeElement(
             expr=kids[0].val
         )
+
+
+class PtrQualsSpec(typing.NamedTuple):
+
+    required: typing.Optional[bool] = None
+    cardinality: typing.Optional[qlast.Cardinality] = None
+
+
+class PtrQuals(Nonterm):
+
+    def reduce_REQUIRED(self, *kids):
+        self.val = PtrQualsSpec(required=True)
+
+    def reduce_SINGLE(self, *kids):
+        self.val = PtrQualsSpec(cardinality=qlast.Cardinality.ONE)
+
+    def reduce_MULTI(self, *kids):
+        self.val = PtrQualsSpec(cardinality=qlast.Cardinality.MANY)
+
+    def reduce_REQUIRED_SINGLE(self, *kids):
+        self.val = PtrQualsSpec(
+            required=True, cardinality=qlast.Cardinality.ONE)
+
+    def reduce_REQUIRED_MULTI(self, *kids):
+        self.val = PtrQualsSpec(
+            required=True, cardinality=qlast.Cardinality.MANY)
+
+
+class OptPtrQuals(Nonterm):
+
+    def reduce_empty(self, *kids):
+        self.val = PtrQualsSpec()
+
+    def reduce_PtrQuals(self, *kids):
+        self.val = kids[0].val
+
+
+# We have to inline the OptPtrQuals here because the parser generator
+# fails to cope with a shift/reduce on a REQUIRED token, since PtrQuals
+# are followed by an ident in this case (unlike in DDL, where it is followed
+# by a keyword).
+class ComputableShapePointer(Nonterm):
+
+    def reduce_REQUIRED_ShapePointer_ASSIGN_Expr(self, *kids):
+        self.val = kids[1].val
+        self.val.compexpr = kids[3].val
+        self.val.required = True
+
+    def reduce_MULTI_ShapePointer_ASSIGN_Expr(self, *kids):
+        self.val = kids[1].val
+        self.val.compexpr = kids[3].val
+        self.val.cardinality = qlast.Cardinality.MANY
+
+    def reduce_SINGLE_ShapePointer_ASSIGN_Expr(self, *kids):
+        self.val = kids[1].val
+        self.val.compexpr = kids[3].val
+        self.val.cardinality = qlast.Cardinality.ONE
+
+    def reduce_REQUIRED_MULTI_ShapePointer_ASSIGN_Expr(self, *kids):
+        self.val = kids[2].val
+        self.val.compexpr = kids[4].val
+        self.val.required = True
+        self.val.cardinality = qlast.Cardinality.MANY
+
+    def reduce_REQUIRED_SINGLE_ShapePointer_ASSIGN_Expr(self, *kids):
+        self.val = kids[2].val
+        self.val.compexpr = kids[4].val
+        self.val.required = True
+        self.val.cardinality = qlast.Cardinality.ONE
+
+    def reduce_ShapePointer_ASSIGN_Expr(self, *kids):
+        self.val = kids[0].val
+        self.val.compexpr = kids[2].val
 
 
 class FilterClause(Nonterm):
@@ -537,7 +586,6 @@ class Expr(Nonterm):
     # | DISTINCT Expr
     # | DETACHED Expr
     # | EXISTS Expr
-    # | REQUIRED Expr
     # | '__source__' | '__subject__'
 
     def reduce_Path(self, *kids):
@@ -613,9 +661,6 @@ class Expr(Nonterm):
 
     def reduce_DETACHED_Expr(self, *kids):
         self.val = qlast.DetachedExpr(expr=kids[1].val)
-
-    def reduce_REQUIRED_Expr(self, *kids):
-        self.val = qlast.RequiredExpr(expr=kids[1].val)
 
     @parsing.precedence(precedence.P_UMINUS)
     def reduce_PLUS_Expr(self, *kids):

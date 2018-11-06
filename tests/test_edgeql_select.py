@@ -395,6 +395,41 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['3']
         ])
 
+    async def test_edgeql_select_computable_14(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT Issue{
+                name,
+                number,
+                # Explicit cardinality override
+                multi foo := <int64>Issue.number + 10,
+            }
+            FILTER Issue.number = '1';
+            """, [
+            [{
+                'name': 'Release EdgeDB',
+                'number': '1',
+                'foo': [11],
+            }],
+        ])
+
+    async def test_edgeql_select_computable_15(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r"possibly more than one element returned by an expression "
+                r"for a computable property 'foo' declared as 'single'",
+                position=103):
+            await self.query("""\
+                WITH MODULE test
+                SELECT Issue{
+                    name,
+                    number,
+                    # Explicit erroneous cardinality override
+                    single foo := {1, 2}
+                }
+                FILTER Issue.number = '1';
+            """)
+
     async def test_edgeql_select_match_01(self):
         await self.assert_query_result(r"""
             WITH MODULE test

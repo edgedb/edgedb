@@ -23,6 +23,8 @@
 import functools
 import typing
 
+from edb.lang.common import parsing
+
 from edb.lang.edgeql import errors
 
 from edb.lang.ir import ast as irast
@@ -291,15 +293,29 @@ def infer_pointer_cardinality(
         *,
         ptrcls: s_pointers.Pointer,
         irexpr: irast.Expr,
+        specified_card: typing.Optional[irast.Cardinality] = None,
+        source_ctx: typing.Optional[parsing.ParserContext] = None,
         ctx: context.ContextLevel) -> None:
 
-    inferred_cardinality = infer_expr_cardinality(irexpr=irexpr, ctx=ctx)
-
-    if inferred_cardinality == irast.Cardinality.MANY:
-        ptrcls.cardinality = s_pointers.PointerCardinality.ManyToMany
+    inferred_card = infer_expr_cardinality(irexpr=irexpr, ctx=ctx)
+    if specified_card is not None:
+        if specified_card is irast.Cardinality.MANY:
+            # Explicit many foo := <expr>, just take it.
+            ptr_card = specified_card
+        elif inferred_card is not specified_card:
+            # Specified cardinality is ONE, but we inferred MANY, this
+            # is an error.
+            raise errors.EdgeQLError(
+                f'possibly more than one element returned by an '
+                f'expression for a computable '
+                f'{ptrcls.schema_class_displayname} {ptrcls.displayname!r} '
+                f"declared as 'single'",
+                context=source_ctx
+            )
     else:
-        ptrcls.cardinality = s_pointers.PointerCardinality.ManyToOne
+        ptr_card = inferred_card
 
+    ptrcls.cardinality = ptr_card
     _update_cardinality_in_derived(ptrcls, ctx=ctx)
 
 
@@ -314,16 +330,31 @@ def _update_cardinality_in_derived(
             _update_cardinality_in_derived(child, ctx=ctx)
 
 
+def pend_pointer_cardinality_inference(
+        *,
+        ptrcls: s_pointers.Pointer,
+        specified_card: typing.Optional[irast.Cardinality] = None,
+        source_ctx: typing.Optional[parsing.ParserContext] = None,
+        ctx: context.ContextLevel) -> None:
+
+    ctx.pending_cardinality[ptrcls] = (specified_card, source_ctx)
+
+
 def get_pointer_cardinality_later(
         *,
         ptrcls: s_pointers.Pointer,
         irexpr: irast.Expr,
+        specified_card: typing.Optional[irast.Cardinality] = None,
+        source_ctx: typing.Optional[parsing.ParserContext] = None,
         ctx: context.ContextLevel) -> None:
-    ctx.pending_cardinality.add(ptrcls)
+
     at_stmt_fini(
         functools.partial(
             infer_pointer_cardinality,
-            ptrcls=ptrcls, irexpr=irexpr),
+            ptrcls=ptrcls,
+            irexpr=irexpr,
+            specified_card=specified_card,
+            source_ctx=source_ctx),
         ctx=ctx)
 
 

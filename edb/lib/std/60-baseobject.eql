@@ -33,7 +33,7 @@ CREATE ABSTRACT PROPERTY std::id EXTENDING std::property;
 CREATE ABSTRACT TYPE std::Object {
     CREATE REQUIRED PROPERTY std::id -> std::uuid {
         SET default := (SELECT std::uuid_generate_v1mc());
-        SET cardinality := '11';
         SET readonly := True;
+        CREATE CONSTRAINT std::exclusive;
     };
 };

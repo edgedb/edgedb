@@ -21,7 +21,6 @@ import collections.abc
 import itertools
 import json
 import pickle
-import re
 import textwrap
 import typing
 
@@ -36,7 +35,6 @@ from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import constraints as s_constr
 from edb.lang.schema import database as s_db
 from edb.lang.schema import delta as sd
-from edb.lang.schema import error as s_err
 from edb.lang.schema import expr as s_expr
 from edb.lang.schema import functions as s_funcs
 from edb.lang.schema import indexes as s_indexes
@@ -47,7 +45,6 @@ from edb.lang.schema import name as sn
 from edb.lang.schema import named as s_named
 from edb.lang.schema import objects as s_obj
 from edb.lang.schema import operators as s_opers
-from edb.lang.schema import pointers as s_pointers
 from edb.lang.schema import policy as s_policy
 from edb.lang.schema import referencing as s_referencing
 from edb.lang.schema import sources as s_sources
@@ -2137,22 +2134,6 @@ class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
 
         return create_c
 
-    def schedule_mapping_update(self, link, schema, context):
-        if self.has_table(link, schema):
-            mapping_indexes = context.get(
-                s_db.DatabaseCommandContext).op.update_mapping_indexes
-            ops = mapping_indexes.links.get(link.name)
-            if not ops:
-                mapping_indexes.links[link.name] = ops = []
-            ops.append((self, link))
-            self.pgops.add(SchedulePointerCardinalityUpdate())
-
-    def cancel_mapping_update(self, link, schema, context):
-        mapping_indexes = context.get(
-            s_db.DatabaseCommandContext).op.update_mapping_indexes
-        mapping_indexes.links.pop(link.name, None)
-        self.pgops.add(CancelPointerCardinalityUpdate())
-
     def schedule_endpoint_delete_action_update(self, link, schema, context):
         endpoint_delete_actions = context.get(
             s_db.DatabaseCommandContext).op.update_endpoint_delete_actions
@@ -2222,9 +2203,6 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
         self.attach_alter_table(context)
 
         if not link.generic():
-            if link.cardinality != s_pointers.PointerCardinality.ManyToMany:
-                self.schedule_mapping_update(link, schema, context)
-
             self.schedule_endpoint_delete_action_update(link, schema, context)
 
         return link
@@ -2338,9 +2316,6 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
             if isinstance(link.target, s_scalars.ScalarType):
                 self.alter_pointer_default(link, schema, context)
 
-            if not link.generic() and old_link.cardinality != link.cardinality:
-                self.schedule_mapping_update(link, schema, context)
-
         return link
 
 
@@ -2378,11 +2353,6 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
         condition = dbops.TableExists(name=old_table_name)
         self.pgops.add(
             dbops.DropTable(name=old_table_name, conditions=[condition]))
-        self.cancel_mapping_update(result, schema, context)
-
-        if not result.generic(
-        ) and result.cardinality != s_pointers.PointerCardinality.ManyToMany:
-            self.schedule_mapping_update(result, schema, context)
 
         self.pgops.add(
             dbops.Delete(
@@ -2562,6 +2532,8 @@ class AlterProperty(
                 prop, old_prop, schema, context)
             self.updates = updates
 
+            self.provide_table(prop, schema, context)
+
             if rec:
                 self.pgops.add(
                     dbops.Update(
@@ -2572,7 +2544,7 @@ class AlterProperty(
                     isinstance(self.old_prop.target, s_scalars.ScalarType) and\
                     prop.required != self.old_prop.required:
 
-                src_ctx = context.get(s_links.LinkCommandContext)
+                src_ctx = context.get(s_sources.SourceCommandContext)
                 src_op = src_ctx.op
                 alter_table = src_op.get_alter_table(context, priority=5)
                 column_name = common.edgedb_name_to_pg_name(prop.shortname)
@@ -2630,248 +2602,6 @@ class DeleteProperty(
                 table=self.table, condition=[('name', str(property.name))]))
 
         return property
-
-
-class CreateMappingIndexes(MetaCommand):
-    def __init__(self, table_name, cardinality, maplinks):
-        super().__init__()
-
-        key = str(table_name[1])
-        if cardinality == s_pointers.PointerCardinality.OneToOne:
-            # Each source can have only one target and
-            # each target can have only one source
-            sides = ('std::source', 'std::target')
-
-        elif cardinality == s_pointers.PointerCardinality.OneToMany:
-            # Each target can have only one source, but
-            # one source can have many targets
-            sides = ('std::target', )
-
-        elif cardinality == s_pointers.PointerCardinality.ManyToOne:
-            # Each source can have only one target, but
-            # one target can have many sources
-            sides = ('std::source', )
-
-        else:
-            sides = ()
-
-        for side in sides:
-            index = deltadbops.MappingIndex(
-                key + '_%s' % side, cardinality, maplinks, table_name)
-            index.add_columns((side, 'ptr_item_id'))
-            self.pgops.add(dbops.CreateIndex(index, priority=3))
-
-
-class AlterMappingIndexes(MetaCommand):
-    def __init__(self, idx_names, table_name, cardinality, maplinks):
-        super().__init__()
-
-        self.pgops.add(DropMappingIndexes(idx_names, table_name, cardinality))
-        self.pgops.add(CreateMappingIndexes(table_name, cardinality, maplinks))
-
-
-class DropMappingIndexes(MetaCommand):
-    def __init__(self, idx_names, table_name, cardinality):
-        super().__init__()
-
-        table_exists = dbops.TableExists(table_name)
-        group = dbops.CommandGroup(conditions=(table_exists, ), priority=3)
-
-        for idx_name in idx_names:
-            idx = dbops.Index(name=idx_name, table_name=table_name)
-            fq_idx_name = (table_name[0], idx_name)
-            index_exists = dbops.IndexExists(fq_idx_name)
-            drop = dbops.DropIndex(
-                idx, conditions=(index_exists, ), priority=3)
-            group.add_command(drop)
-
-        self.pgops.add(group)
-
-
-class UpdateMappingIndexes(MetaCommand):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.links = {}
-        self.idx_name_re = re.compile(
-            r'.*(?P<cardinality>[1*]{2})_cardinality_idx$')
-        self.idx_pred_re = re.compile(
-            r'''
-                              \( \s* ptr_item_id \s* = \s*
-                                  (?:(?: ANY \s* \( \s* ARRAY \s* \[
-                                      (?P<type_ids> \d+ (?:\s* , \s* \d+)* )
-                                  \s* \] \s* \) \s* )
-                                  |
-                                  (?P<type_id>\d+))
-                              \s* \)
-                           ''', re.X)
-        self.schema_exists = dbops.SchemaExists(name='edgedb')
-
-    def interpret_index(self, index, link_map):
-        index_name = index.name
-        index_predicate = index.predicate
-        m = self.idx_name_re.match(index_name)
-        if not m:
-            raise s_err.SchemaError(
-                'could not interpret index %s' % index_name)
-
-        cardinality = m.group('cardinality')
-
-        m = self.idx_pred_re.match(index_predicate)
-        if not m:
-            raise s_err.SchemaError(
-                'could not interpret index {} predicate: {}'.format(
-                    (index_name, index_predicate)))
-
-        ptr_item_ids = (
-            int(i)
-            for i in re.split(
-                r'\D+', m.group('type_ids') or m.group('type_id')))
-
-        links = []
-        for i in ptr_item_ids:
-            # XXX: in certain cases, orphaned indexes are left in the backend
-            # after the link was dropped.
-            try:
-                links.append(link_map[i])
-            except KeyError:
-                pass
-
-        return cardinality, links
-
-    def interpret_indexes(self, table_name, indexes, link_map):
-        for idx_data in indexes:
-            idx = dbops.Index.from_introspection(table_name, idx_data)
-            yield idx.name, self.interpret_index(idx, link_map)
-
-    def _group_indexes(self, indexes):
-        """Group indexes by link name."""
-        for index_name, (cardinality, link_names) in indexes:
-            for link_name in link_names:
-                yield link_name, index_name
-
-    def group_indexes(self, indexes):
-        key = lambda i: i[0]
-        grouped = itertools.groupby(
-            sorted(self._group_indexes(indexes), key=key), key=key)
-        for link_name, indexes in grouped:
-            yield link_name, tuple(i[1] for i in indexes)
-
-    async def apply(self, schema, context):
-        db = context.db
-        if await self.schema_exists.execute(context):
-            link_map = await context._get_class_map(reverse=True)
-            indexes = {}
-            idx_data = await datasources.introspection.tables.fetch_indexes(
-                db,
-                schema_pattern='edgedb%', index_pattern='%_cardinality_idx')
-            for row in idx_data:
-                table_name = tuple(row['table_name'])
-                indexes[table_name] = self.interpret_indexes(
-                    table_name, row['indexes'], link_map)
-        else:
-            link_map = {}
-            indexes = {}
-
-        for link_name, ops in self.links.items():
-            table_name = common.link_name_to_table_name(
-                link_name, catenate=False)
-
-            new_indexes = {
-                k: []
-                for k in s_pointers.PointerCardinality.__members__.values()
-            }
-            alter_indexes = {
-                k: []
-                for k in s_pointers.PointerCardinality.__members__.values()
-            }
-
-            existing = indexes.get(table_name)
-
-            if existing:
-                existing_by_name = dict(existing)
-                existing = dict(self.group_indexes(existing_by_name.items()))
-            else:
-                existing_by_name = {}
-                existing = {}
-
-            processed = {}
-
-            for op, scls in ops:
-                already_processed = processed.get(scls.name)
-
-                if isinstance(op, CreateLink):
-                    # CreateLink can only happen once
-                    if already_processed:
-                        raise RuntimeError('duplicate CreateLink: {}'.format(
-                            scls.name))
-
-                    new_indexes[scls.cardinality].append(
-                        (scls.name, None, None))
-
-                elif isinstance(op, AlterLink):
-                    # We are in apply stage, so the potential link changes,
-                    # renames have not yet been pushed to the database, so
-                    # link_map potentially contains old link names.
-                    ex_idx_names = existing.get(op.old_link.name)
-
-                    if ex_idx_names:
-                        ex_idx = existing_by_name[ex_idx_names[0]]
-                        queue = alter_indexes
-                    else:
-                        ex_idx = None
-                        queue = new_indexes
-
-                    item = (scls.name, op.old_link.name, ex_idx_names)
-
-                    # Delta generator could have yielded several AlterLink
-                    # commands for the same link, we need to respect only the
-                    # last state.
-                    if already_processed:
-                        if already_processed != scls.cardinality:
-                            queue[already_processed].remove(item)
-
-                            if not ex_idx or ex_idx[0] != scls.cardinality:
-                                queue[scls.cardinality].append(item)
-
-                    elif not ex_idx or ex_idx[0] != scls.cardinality:
-                        queue[scls.cardinality].append(item)
-
-                processed[scls.name] = scls.cardinality
-
-            for cardinality, maplinks in new_indexes.items():
-                if maplinks:
-                    maplinks = list(i[0] for i in maplinks)
-                    self.pgops.add(
-                        CreateMappingIndexes(
-                            table_name, cardinality, maplinks))
-
-            for cardinality, maplinks in alter_indexes.items():
-                new = []
-                alter = {}
-                for maplink in maplinks:
-                    maplink_name, orig_maplink_name, ex_idx_names = maplink
-                    ex_idx = existing_by_name[ex_idx_names[0]]
-
-                    alter_links = alter.get(ex_idx_names)
-                    if alter_links is None:
-                        alter[ex_idx_names] = alter_links = set(ex_idx[1])
-                    alter_links.discard(orig_maplink_name)
-
-                    new.append(maplink_name)
-
-                if new:
-                    self.pgops.add(
-                        CreateMappingIndexes(table_name, cardinality, new))
-
-                for idx_names, altlinks in alter.items():
-                    if not altlinks:
-                        self.pgops.add(
-                            DropMappingIndexes(
-                                ex_idx_names, table_name, cardinality))
-                    else:
-                        self.pgops.add(
-                            AlterMappingIndexes(
-                                idx_names, table_name, cardinality, altlinks))
 
 
 class UpdateEndpointDeleteActions(MetaCommand):
@@ -3203,16 +2933,13 @@ class AlterDatabase(ObjectMetaCommand, adapts=s_db.AlterDatabase):
         self._renames = {}
 
     def apply(self, schema, context):
-        self.update_mapping_indexes = UpdateMappingIndexes()
         self.update_endpoint_delete_actions = UpdateEndpointDeleteActions()
 
         s_db.AlterDatabase.apply(self, schema, context)
         MetaCommand.apply(self, schema)
 
-        # self.update_mapping_indexes.apply(schema, context)
         self.update_endpoint_delete_actions.apply(schema, context)
 
-        self.pgops.add(self.update_mapping_indexes)
         self.pgops.add(self.update_endpoint_delete_actions)
 
     def is_material(self):

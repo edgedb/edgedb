@@ -70,6 +70,7 @@ class Pointer(Spec):
     policies: typing.List[Policy]
 
     required: bool = False
+    cardinality: qlast.Cardinality
 
     # Expression of a computable link
     expr: qlast.Base = None

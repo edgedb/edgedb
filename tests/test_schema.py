@@ -18,6 +18,7 @@
 
 
 from edb.lang import _testbase as tb
+
 from edb.lang.schema import error as s_err
 from edb.lang.schema import pointers as s_pointers
 
@@ -27,25 +28,25 @@ class TestSchema(tb.BaseSchemaTest):
         """
             type UniqueName:
                 property name -> str:
-                    constraint unique
+                    constraint exclusive
 
             type UniqueName_2 extending UniqueName:
                 inherited property name -> str:
-                    constraint unique
+                    constraint exclusive
         """
 
     @tb.must_fail(s_err.SchemaError,
                   'test::name must be declared using the `inherited` keyword',
-                  position=175)
+                  position=178)
     def test_schema_inherited_02(self):
         """
             type UniqueName:
                 property name -> str:
-                    constraint unique
+                    constraint exclusive
 
             type UniqueName_2 extending UniqueName:
                 property name -> str:
-                    constraint unique
+                    constraint exclusive
         """
 
     @tb.must_fail(s_err.SchemaError,
@@ -115,17 +116,16 @@ class TestSchema(tb.BaseSchemaTest):
 
         obj = schema.get('test::Object')
         self.assertEqual(obj.getptr(schema, 'foo_plus_bar').cardinality,
-                         s_pointers.PointerCardinality.ManyToOne)
+                         s_pointers.Cardinality.ONE)
 
     def test_schema_computable_cardinality_inference_02(self):
         schema = self.load_schema("""
             type Object:
-                property foo -> str:
-                    cardinality := '1*'
+                multi property foo -> str
                 property bar -> str
                 property foo_plus_bar := __source__.foo + __source__.bar
         """)
 
         obj = schema.get('test::Object')
         self.assertEqual(obj.getptr(schema, 'foo_plus_bar').cardinality,
-                         s_pointers.PointerCardinality.ManyToMany)
+                         s_pointers.Cardinality.MANY)

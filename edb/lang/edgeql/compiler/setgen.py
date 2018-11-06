@@ -482,9 +482,9 @@ def class_indirection_set(
     poly_set = new_set(scls=target_scls, ctx=ctx)
     rptr = source_set.rptr
     if rptr is not None and not rptr.ptrcls.singular(rptr.direction):
-        cardinality = s_pointers.PointerCardinality.ManyToMany
+        cardinality = irast.Cardinality.MANY
     else:
-        cardinality = s_pointers.PointerCardinality.ManyToOne
+        cardinality = irast.Cardinality.ONE
     poly_set.path_id = irutils.type_indirection_path_id(
         source_set.path_id, target_scls, optional=optional,
         cardinality=cardinality)
@@ -701,9 +701,12 @@ def computable_ptr_set(
 
     if ptrcls in ctx.pending_cardinality:
         comp_ir_set_copy = copy.copy(comp_ir_set)
+        specified_card, source_ctx = ctx.pending_cardinality[ptrcls]
 
         stmtctx.get_pointer_cardinality_later(
-            ptrcls=ptrcls, irexpr=comp_ir_set_copy, ctx=ctx)
+            ptrcls=ptrcls, irexpr=comp_ir_set_copy,
+            specified_card=specified_card, source_ctx=source_ctx,
+            ctx=ctx)
 
         def _check_cardinality(ctx):
             if ptrcls.singular():

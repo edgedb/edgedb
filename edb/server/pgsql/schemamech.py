@@ -80,9 +80,9 @@ class ConstraintMech:
             return sn.Name(name)
 
     @classmethod
-    def _get_unique_refs(cls, tree):
+    def _get_exclusive_refs(cls, tree):
         # Check if the expression is
-        #   std::is_dictinct(<arg>) [and std::is_distinct (<arg>)...]
+        #   std::_is_exclusive(<arg>) [and std::_is_exclusive(<arg>)...]
         expr = tree.expr.expr.result
 
         astexpr = irastexpr.DistinctConjunctionExpr()
@@ -247,15 +247,14 @@ class ConstraintMech:
             raise ValueError(
                 'backend: multi-table constraints are not currently supported')
         elif ref_tables:
-            subject_db_name = next(iter(ref_tables))
+            subject_db_name, refs = next(iter(ref_tables.items()))
+            link_bias = refs[0][3].table_type == 'link'
         else:
             subject_db_name = common.scalar_name_to_domain_name(
                 subject.name, catenate=False)
+            link_bias = False
 
-        link_bias = ref_tables and next(iter(ref_tables.values()))[0][
-            3].table_type == 'link'
-
-        unique_expr_refs = cls._get_unique_refs(ir)
+        exclusive_expr_refs = cls._get_exclusive_refs(ir)
 
         pg_constr_data = {
             'subject_db_name': subject_db_name,
@@ -264,8 +263,8 @@ class ConstraintMech:
 
         exprs = pg_constr_data['expressions']
 
-        if unique_expr_refs:
-            for ref in unique_expr_refs:
+        if exclusive_expr_refs:
+            for ref in exclusive_expr_refs:
                 exprdata = cls._edgeql_ref_to_pg_constr(
                     subject, ref, schema, link_bias)
                 exprs.append(exprdata)

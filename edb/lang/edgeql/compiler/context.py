@@ -24,6 +24,7 @@ import enum
 import typing
 
 from edb.lang.common import compiler
+from edb.lang.common import parsing
 
 from edb.lang.edgeql import ast as qlast
 from edb.lang.ir import ast as irast
@@ -156,7 +157,13 @@ class ContextLevel(compiler.ContextLevel):
     completion_work: typing.List[typing.Callable]
     """A list of callbacks to execute when the whole query has been seen."""
 
-    pending_cardinality: typing.Set[s_pointers.Pointer]
+    pending_cardinality: typing.Dict[
+        s_pointers.Pointer,
+        typing.Tuple[
+            typing.Optional[irast.Cardinality],
+            parsing.ParserContext,
+        ],
+    ]
     """A set of derived pointers for which the cardinality is not yet known."""
 
     pointer_derivation_map: typing.Dict[s_pointers.Pointer, s_pointers.Pointer]
@@ -205,7 +212,7 @@ class ContextLevel(compiler.ContextLevel):
             self.all_sets = []
             self.stmt_metadata = {}
             self.completion_work = []
-            self.pending_cardinality = set()
+            self.pending_cardinality = {}
             self.pointer_derivation_map = collections.defaultdict(list)
 
             self.source_map = {}

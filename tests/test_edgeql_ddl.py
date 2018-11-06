@@ -69,6 +69,168 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 EXTENDING (test::Object1, test::Object2);
         """)
 
+    async def test_edgeql_ddl_type_05(self):
+        await self.con.execute("""
+            CREATE TYPE test::A5;
+            CREATE TYPE test::Object5 {
+                CREATE REQUIRED LINK test::a -> test::A5;
+                CREATE REQUIRED PROPERTY test::b -> str;
+            };
+        """)
+
+        await self.assert_query_result("""
+            SELECT schema::ObjectType {
+                links: {
+                    name,
+                    required,
+                }
+                FILTER .name = 'test::a'
+                ORDER BY .name,
+
+                properties: {
+                    name,
+                    required,
+                }
+                FILTER .name = 'test::b'
+                ORDER BY .name
+            }
+            FILTER .name = 'test::Object5';
+        """, [
+            [{
+                'links': [{
+                    'name': 'test::a',
+                    'required': True,
+                }],
+
+                'properties': [{
+                    'name': 'test::b',
+                    'required': True,
+                }],
+            }],
+        ])
+
+        await self.con.execute("""
+            ALTER TYPE test::Object5 {
+                ALTER LINK test::a DROP REQUIRED;
+            };
+
+            ALTER TYPE test::Object5 {
+                ALTER PROPERTY test::b DROP REQUIRED;
+            };
+        """)
+
+        await self.assert_query_result("""
+            SELECT schema::ObjectType {
+                links: {
+                    name,
+                    required,
+                }
+                FILTER .name = 'test::a'
+                ORDER BY .name,
+
+                properties: {
+                    name,
+                    required,
+                }
+                FILTER .name = 'test::b'
+                ORDER BY .name
+            }
+            FILTER .name = 'test::Object5';
+        """, [
+            [{
+                'links': [{
+                    'name': 'test::a',
+                    'required': False,
+                }],
+
+                'properties': [{
+                    'name': 'test::b',
+                    'required': False,
+                }],
+            }],
+        ])
+
+    async def test_edgeql_ddl_type_06(self):
+        await self.con.execute("""
+            CREATE TYPE test::A6;
+            CREATE TYPE test::Object6 {
+                CREATE SINGLE LINK test::a -> test::A6;
+                CREATE SINGLE PROPERTY test::b -> str;
+            };
+        """)
+
+        await self.assert_query_result("""
+            SELECT schema::ObjectType {
+                links: {
+                    name,
+                    cardinality,
+                }
+                FILTER .name = 'test::a'
+                ORDER BY .name,
+
+                properties: {
+                    name,
+                    cardinality,
+                }
+                FILTER .name = 'test::b'
+                ORDER BY .name
+            }
+            FILTER .name = 'test::Object6';
+        """, [
+            [{
+                'links': [{
+                    'name': 'test::a',
+                    'cardinality': 'ONE',
+                }],
+
+                'properties': [{
+                    'name': 'test::b',
+                    'cardinality': 'ONE',
+                }],
+            }],
+        ])
+
+        await self.con.execute("""
+            ALTER TYPE test::Object6 {
+                ALTER LINK test::a SET MULTI;
+            };
+
+            ALTER TYPE test::Object6 {
+                ALTER PROPERTY test::b SET MULTI;
+            };
+        """)
+
+        await self.assert_query_result("""
+            SELECT schema::ObjectType {
+                links: {
+                    name,
+                    cardinality,
+                }
+                FILTER .name = 'test::a'
+                ORDER BY .name,
+
+                properties: {
+                    name,
+                    cardinality,
+                }
+                FILTER .name = 'test::b'
+                ORDER BY .name
+            }
+            FILTER .name = 'test::Object6';
+        """, [
+            [{
+                'links': [{
+                    'name': 'test::a',
+                    'cardinality': 'MANY',
+                }],
+
+                'properties': [{
+                    'name': 'test::b',
+                    'cardinality': 'MANY',
+                }],
+            }],
+        ])
+
     async def test_edgeql_ddl_05(self):
         with self.assertRaisesRegex(client_errors.EdgeQLError,
                                     r'cannot create test::my_lower.*func'):
@@ -339,10 +501,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute(r"""
             CREATE TYPE test::TestSelfLink2 {
                 CREATE PROPERTY test::foo2 -> std::str;
-                CREATE PROPERTY test::bar2 -> std::str {
+                CREATE MULTI PROPERTY test::bar2 -> std::str {
                     # NOTE: this is a set of all TestSelfLink2.foo2
                     SET default := test::TestSelfLink2.foo2;
-                    SET cardinality := '1*';
                 };
             };
         """)

@@ -61,10 +61,6 @@ class DDLStmt(Nonterm):
 class DDLWithBlock(Nonterm):
     def reduce_WithBlock(self, *kids):
         self.val = kids[0].val
-        if self.val.cardinality is not None:
-            raise EdgeQLSyntaxError(
-                'CARDINALITY specification is not allowed here',
-                context=kids[0].context)
 
 
 class OptWithDDLStmt(Nonterm):
@@ -1018,34 +1014,25 @@ commands_block(
 
 
 class CreateConcretePropertyStmt(Nonterm):
-    def reduce_CreateRegularRequiredProperty(self, *kids):
-        r"""%reduce \
-            CREATE REQUIRED PROPERTY NodeName \
-            ARROW FullTypeExpr OptCreateConcretePropertyCommandsBlock \
+    def reduce_CreateRegularProperty(self, *kids):
+        """%reduce
+            CREATE OptPtrQuals PROPERTY NodeName
+            ARROW FullTypeExpr OptCreateConcretePropertyCommandsBlock
         """
         self.val = qlast.CreateConcreteProperty(
             name=kids[3].val,
-            is_required=True,
+            is_required=kids[1].val.required,
+            cardinality=kids[1].val.cardinality,
             target=kids[5].val,
-            commands=kids[6].val
+            commands=kids[6].val,
         )
 
-    def reduce_CreateRegularProperty(self, *kids):
-        r"""%reduce \
-            CREATE PROPERTY NodeName \
-            ARROW FullTypeExpr OptCreateConcretePropertyCommandsBlock \
-        """
+    def reduce_CREATE_OptPtrQuals_PROPERTY_NodeName_ASSIGN_Expr(self, *kids):
         self.val = qlast.CreateConcreteProperty(
-            name=kids[2].val,
-            is_required=False,
-            target=kids[4].val,
-            commands=kids[5].val
-        )
-
-    def reduce_CREATE_PROPERTY_NodeName_ASSIGN_Expr(self, *kids):
-        self.val = qlast.CreateConcreteProperty(
-            name=kids[2].val,
-            target=kids[4].val
+            name=kids[3].val,
+            is_required=kids[1].val.required,
+            cardinality=kids[1].val.cardinality,
+            target=kids[5].val,
         )
 
 
@@ -1053,12 +1040,44 @@ class CreateConcretePropertyStmt(Nonterm):
 # ALTER LINK ... { ALTER PROPERTY
 #
 
+class SetCardinalityStmt(Nonterm):
+
+    def reduce_SET_SINGLE(self, *kids):
+        self.val = qlast.SetSpecialField(
+            name='cardinality',
+            value=qlast.Cardinality.ONE,
+        )
+
+    def reduce_SET_MULTI(self, *kids):
+        self.val = qlast.SetSpecialField(
+            name='cardinality',
+            value=qlast.Cardinality.MANY,
+        )
+
+
+class SetRequiredStmt(Nonterm):
+
+    def reduce_SET_REQUIRED(self, *kids):
+        self.val = qlast.SetSpecialField(
+            name='required',
+            value=True,
+        )
+
+    def reduce_DROP_REQUIRED(self, *kids):
+        self.val = qlast.SetSpecialField(
+            name='required',
+            value=False,
+        )
+
+
 commands_block(
     'AlterConcreteProperty',
     RenameStmt,
     SetFieldStmt,
     DropFieldStmt,
     AlterTargetStmt,
+    SetCardinalityStmt,
+    SetRequiredStmt,
     CreateConcreteConstraintStmt,
     AlterConcreteConstraintStmt,
     DropConcreteConstraintStmt,
@@ -1222,34 +1241,25 @@ commands_block(
 
 
 class CreateConcreteLinkStmt(Nonterm):
-    def reduce_CreateRegularRequiredLink(self, *kids):
-        r"""%reduce \
-            CREATE REQUIRED LINK LinkName \
-            ARROW FullTypeExpr OptCreateConcreteLinkCommandsBlock \
+    def reduce_CreateRegularLink(self, *kids):
+        """%reduce
+            CREATE OptPtrQuals LINK LinkName
+            ARROW FullTypeExpr OptCreateConcreteLinkCommandsBlock
         """
         self.val = qlast.CreateConcreteLink(
             name=kids[3].val,
-            is_required=True,
+            is_required=kids[1].val.required,
+            cardinality=kids[1].val.cardinality,
             target=kids[5].val,
             commands=kids[6].val
         )
 
-    def reduce_CreateRegularLink(self, *kids):
-        r"""%reduce \
-            CREATE LINK LinkName \
-            ARROW FullTypeExpr OptCreateConcreteLinkCommandsBlock \
-        """
+    def reduce_CREATE_OptPtrQuals_LINK_NodeName_ASSIGN_Expr(self, *kids):
         self.val = qlast.CreateConcreteLink(
-            name=kids[2].val,
-            is_required=False,
-            target=kids[4].val,
-            commands=kids[5].val
-        )
-
-    def reduce_CREATE_LINK_NodeName_ASSIGN_Expr(self, *kids):
-        self.val = qlast.CreateConcreteLink(
-            name=kids[2].val,
-            target=kids[4].val
+            name=kids[3].val,
+            is_required=kids[1].val.required,
+            cardinality=kids[1].val.cardinality,
+            target=kids[5].val,
         )
 
 
@@ -1258,6 +1268,8 @@ commands_block(
     RenameStmt,
     SetFieldStmt,
     DropFieldStmt,
+    SetCardinalityStmt,
+    SetRequiredStmt,
     AlterTargetStmt,
     AlterExtending,
     CreateConcreteConstraintStmt,

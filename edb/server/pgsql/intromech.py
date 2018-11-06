@@ -632,7 +632,7 @@ class IntrospectionMech:
             required = r['required']
 
             if r['cardinality']:
-                cardinality = s_pointers.PointerCardinality(r['cardinality'])
+                cardinality = s_pointers.Cardinality(r['cardinality'])
             else:
                 cardinality = None
 
@@ -732,7 +732,7 @@ class IntrospectionMech:
             basemap[name] = bases
 
             if r['cardinality']:
-                cardinality = s_pointers.PointerCardinality(r['cardinality'])
+                cardinality = s_pointers.Cardinality(r['cardinality'])
             else:
                 cardinality = None
 

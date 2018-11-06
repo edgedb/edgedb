@@ -120,11 +120,6 @@ class P_DISTINCT(Precedence, assoc='right', tokens=('DISTINCT',),
     pass
 
 
-class P_REQUIRED(Precedence, assoc='right', tokens=('REQUIRED',),
-                 rel_to_last='='):
-    pass
-
-
 class P_POW_OP(Precedence, assoc='right', tokens=('CIRCUMFLEX',)):
     pass
 

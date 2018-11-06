@@ -19,11 +19,11 @@
 
 type Status:
     required property name -> str:
-        constraint unique
+        constraint exclusive
 
 type Tag:
     required property name -> str:
-        constraint unique
+        constraint exclusive
 
 abstract link annotated_status:
     property note -> str
@@ -43,13 +43,9 @@ type UpdateTest:
     link annotated_status -> Status
 
     # for testing links to sets
-    link tags -> Tag:
-        cardinality := '**'
-    link weighted_tags -> Tag:
-        cardinality := '**'
+    multi link tags -> Tag
+    multi link weighted_tags -> Tag
 
     # for testing links to sets of the same type as originator
-    link related -> UpdateTest:
-        cardinality := '**'
-    link annotated_tests -> UpdateTest:
-        cardinality := '**'
+    multi link related -> UpdateTest
+    multi link annotated_tests -> UpdateTest

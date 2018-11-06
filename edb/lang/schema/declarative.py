@@ -52,7 +52,6 @@ from . import lproperties as s_props
 from . import modules as s_mod
 from . import name as s_name
 from . import objects as s_obj
-from . import pointers as s_pointers
 from . import pseudo as s_pseudo
 from . import scalars as s_scalars
 from . import schema as s_schema
@@ -450,11 +449,7 @@ class DeclarationLoader:
 
             prop.declared_inherited = propdecl.inherited
             prop.required = bool(propdecl.required)
-
-            cardinality = self._get_literal_attribute(
-                propdecl, 'cardinality')
-            if cardinality is not None:
-                prop.cardinality = cardinality
+            prop.cardinality = propdecl.cardinality
 
             if propdecl.expr is not None:
                 prop.computable = True
@@ -672,14 +667,10 @@ class DeclarationLoader:
                 link.spectargets = spectargets
 
                 link.required = bool(linkdecl.required)
+                link.cardinality = linkdecl.cardinality
                 link.declared_inherited = linkdecl.inherited
                 if linkdecl.on_target_delete is not None:
                     link.on_target_delete = linkdecl.on_target_delete.cascade
-
-                cardinality = self._get_literal_attribute(
-                    linkdecl, 'cardinality')
-                if cardinality is not None:
-                    link.cardinality = cardinality
 
                 if linkdecl.expr is not None:
                     link.computable = True
@@ -796,12 +787,6 @@ class DeclarationLoader:
                 tgt_prop = ptr.pointers[pname]
                 tgt_prop.target = expr_type
 
-            cardinality = self._get_literal_attribute(ptrdecl, 'cardinality')
-            if cardinality is not None:
-                raise s_err.SchemaError(
-                    'computable links must not define explicit cardinality',
-                    context=expr.context)
-
             scope_tree_root = ir_ast.new_scope_tree()
             if self_set is not None:
                 scope_tree_root.attach_path(self_set.path_id)
@@ -809,13 +794,16 @@ class DeclarationLoader:
             else:
                 scope_tree = scope_tree_root
 
-            cardinality = \
+            ptr.cardinality = \
                 ir_inference.infer_cardinality(ir, scope_tree, self._schema)
 
-            if cardinality == qlast.Cardinality.MANY:
-                ptr.cardinality = s_pointers.PointerCardinality.ManyToMany
-            else:
-                ptr.cardinality = s_pointers.PointerCardinality.ManyToOne
+            if ptrdecl.cardinality is not ptr.cardinality:
+                if ptrdecl.cardinality is qlast.Cardinality.ONE:
+                    raise s_err.SchemaError(
+                        f'computable expression possibly returns more than '
+                        f'one value, but the {ptr.schema_class_displayname!r} '
+                        f'is declared as "single"',
+                        context=expr.context)
 
         if (not isinstance(expr_type, s_types.Type) or
                 (ptr.target is not None and
@@ -823,15 +811,6 @@ class DeclarationLoader:
             raise s_err.SchemaError(
                 'default value query must yield a single result of '
                 'type {!r}'.format(ptr.target.name), context=expr.context)
-
-        if not isinstance(ptr.target, s_scalars.ScalarType):
-            many_mapping = (s_pointers.PointerCardinality.ManyToOne,
-                            s_pointers.PointerCardinality.ManyToMany)
-            if ptr.cardinality not in many_mapping:
-                raise s_err.SchemaError(
-                    'type links with query defaults '
-                    'must have either a "*1" or "**" cardinality',
-                    context=expr.context)
 
 
 def load_module_declarations(schema, declarations):

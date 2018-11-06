@@ -77,6 +77,7 @@ def merge_actions(target: so.Object, sources: typing.List[so.Object],
 
 class Link(sources.Source, pointers.Pointer):
     _type = 'link'
+    schema_class_displayname = 'link'
 
     spectargets = so.Field(named.NamedObjectSet, named.NamedObjectSet,
                            coerce=True)
@@ -152,18 +153,6 @@ class Link(sources.Source, pointers.Pointer):
                          dctx=dctx)
 
         if not self.generic() and apply_defaults:
-            if self.cardinality is None:
-                self.cardinality = pointers.PointerCardinality.ManyToOne
-
-                if dctx is not None:
-                    from . import delta as sd
-
-                    dctx.current().op.add(sd.AlterObjectProperty(
-                        property='cardinality',
-                        new_value=self.cardinality,
-                        source='default'
-                    ))
-
             if self.on_target_delete is None:
                 self.set_default_value(
                     'on_target_delete', LinkTargetDeleteAction.RESTRICT)
@@ -230,6 +219,13 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                 sd.AlterObjectProperty(
                     property='required',
                     new_value=astnode.is_required
+                )
+            )
+
+            cmd.add(
+                sd.AlterObjectProperty(
+                    property='cardinality',
+                    new_value=astnode.cardinality
                 )
             )
 
@@ -446,6 +442,8 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
             self._encode_default(context, node, op)
         elif op.property == 'required':
             node.is_required = op.new_value
+        elif op.property == 'cardinality':
+            node.cardinality = op.new_value
         elif op.property == 'source':
             pass
         elif op.property == 'search':

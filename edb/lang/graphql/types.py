@@ -151,8 +151,7 @@ class GQLCoreSchema:
         if target:
             # figure out any additional wrappers due to cardinality
             # and required flags
-            if ptr.cardinality in {s_pointers.PointerCardinality.OneToMany,
-                                   s_pointers.PointerCardinality.ManyToMany}:
+            if not ptr.singular():
                 target = GraphQLList(GraphQLNonNull(target))
 
             if ptr.required:

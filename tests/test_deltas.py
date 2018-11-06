@@ -39,8 +39,7 @@ class TestDeltas(tb.DDLTestCase):
 
                 type NamedObject:
                     required property name -> str
-                    required link related -> NamedObject:
-                        cardinality := '**'
+                    required multi link related -> NamedObject
             $$;
 
             COMMIT MIGRATION test::d1;
@@ -297,8 +296,8 @@ CREATE ABSTRACT LINK test::related EXTENDING std::link {
     SET is_virtual := false;
     SET readonly := false;
 };
-ALTER ABSTRACT LINK test::related CREATE PROPERTY test::lang -> std::str {
-    SET cardinality := '11';
+ALTER ABSTRACT LINK test::related \
+CREATE SINGLE PROPERTY test::lang -> std::str {
     SET is_virtual := false;
     SET readonly := false;
 };
@@ -306,30 +305,25 @@ CREATE TYPE test::NamedObject EXTENDING std::Object {
     SET is_virtual := false;
 };
 ALTER TYPE test::NamedObject {
-    CREATE REQUIRED PROPERTY test::name -> std::str {
-        SET cardinality := '11';
+    CREATE REQUIRED SINGLE PROPERTY test::name -> std::str {
         SET is_virtual := false;
         SET readonly := false;
     };
-    CREATE REQUIRED LINK test::related -> test::NamedObject {
-        SET cardinality := '*1';
+    CREATE REQUIRED SINGLE LINK test::related -> test::NamedObject {
         SET is_virtual := false;
         SET on_target_delete := 'RESTRICT';
         SET readonly := false;
     };
     ALTER LINK test::related {
-        CREATE PROPERTY std::source -> test::NamedObject {
-            SET cardinality := '11';
+        CREATE SINGLE PROPERTY std::source -> test::NamedObject {
             SET is_virtual := false;
             SET readonly := false;
         };
-        CREATE PROPERTY std::target -> test::NamedObject {
-            SET cardinality := '11';
+        CREATE SINGLE PROPERTY std::target -> test::NamedObject {
             SET is_virtual := false;
             SET readonly := false;
         };
-        CREATE PROPERTY test::lang -> std::str {
-            SET cardinality := '11';
+        CREATE SINGLE PROPERTY test::lang -> std::str {
             SET is_virtual := false;
             SET readonly := false;
         };
@@ -360,9 +354,8 @@ CREATE ABSTRACT PROPERTY test::a {
 CREATE TYPE test::NamedObject EXTENDING std::Object {
     SET is_virtual := false;
 };
-ALTER TYPE test::NamedObject CREATE REQUIRED PROPERTY \
+ALTER TYPE test::NamedObject CREATE REQUIRED SINGLE PROPERTY \
 test::a -> array<std::int64> {
-    SET cardinality := '11';
     SET is_virtual := false;
     SET readonly := false;
 };
@@ -396,13 +389,11 @@ test::a -> array<std::int64> {
                 SET is_virtual := false;
             };
             ALTER TYPE test::Foo {
-                CREATE PROPERTY test::bar -> std::str {
-                    SET cardinality := '11';
+                CREATE SINGLE PROPERTY test::bar -> std::str {
                     SET is_virtual := false;
                     SET readonly := false;
                 };
-                CREATE PROPERTY test::__typename -> std::str {
-                    SET cardinality := '*1';
+                CREATE SINGLE PROPERTY test::__typename -> std::str {
                     SET computable := true;
                     SET default := SELECT
                         'foo'
@@ -441,13 +432,11 @@ test::a -> array<std::int64> {
                 SET is_virtual := false;
             };
             ALTER TYPE test::Foo {
-                CREATE PROPERTY test::bar -> std::str {
-                    SET cardinality := '11';
+                CREATE SINGLE PROPERTY test::bar -> std::str {
                     SET is_virtual := false;
                     SET readonly := false;
                 };
-                CREATE PROPERTY test::__typename -> std::str {
-                    SET cardinality := '*1';
+                CREATE SINGLE PROPERTY test::__typename -> std::str {
                     SET computable := true;
                     SET default := SELECT
                         __source__.__type__[IS schema::Type].name

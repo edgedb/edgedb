@@ -19,7 +19,7 @@
 
 abstract type Named:
     required property name -> str:
-        delegated constraint unique
+        delegated constraint exclusive
 
 
 abstract link deck:
@@ -33,13 +33,11 @@ abstract link friends:
 
 
 type User extending Named:
-    link deck -> Card:
-        cardinality := '**'
+    multi link deck -> Card
 
     property deck_cost := sum(__source__.deck.cost)
 
-    link friends -> User:
-        cardinality := '**'
+    multi link friends -> User
 
 
 type Card extending Named:

@@ -120,6 +120,19 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self._visit_specs(node)
 
     def _visit_Pointer(self, node):
+        quals = []
+        if node.inherited:
+            quals.append('inherited')
+        if node.required:
+            quals.append('required')
+        if node.cardinality is eqlast.Cardinality.ONE:
+            quals.append('single')
+        elif node.cardinality is eqlast.Cardinality.MANY:
+            quals.append('multi')
+        if quals:
+            self.write(*quals, delimiter=' ')
+            self.write(' ')
+
         decl = node.__class__.__name__.lower()
         self.write(decl, ' ')
         self.visit(node.name)
@@ -259,13 +272,9 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self.write('>')
 
     def visit_Link(self, node):
-        if node.required:
-            self.write('required ')
         self._visit_Pointer(node)
 
     def visit_Property(self, node):
-        if node.required:
-            self.write('required ')
         self._visit_Pointer(node)
 
     def visit_Policy(self, node):

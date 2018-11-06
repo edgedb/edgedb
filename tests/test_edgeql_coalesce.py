@@ -273,8 +273,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         await self.assert_sorted_query_result(r'''
             WITH MODULE test
             SELECT Issue {
-                te := (
-                    WITH CARDINALITY '*'
+                multi te := (
                     SELECT Issue.time_estimate ?? {-1, -2}
                 )
             };

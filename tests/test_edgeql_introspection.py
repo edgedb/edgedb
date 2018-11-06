@@ -180,7 +180,7 @@ class TestIntrospection(tb.QueryTestCase):
                 'is_abstract': False,
                 'pointers': [{
                     'attributes': [
-                        {'name': 'stdattrs::cardinality', '@value': '11'},
+                        {'name': 'stdattrs::cardinality', '@value': 'ONE'},
                         {'name': 'stdattrs::is_abstract', '@value': 'false'},
                         {'name': 'stdattrs::is_derived', '@value': 'false'},
                         {'name': 'stdattrs::is_final', '@value': 'false'},
@@ -191,7 +191,7 @@ class TestIntrospection(tb.QueryTestCase):
                     ]
                 }, {
                     'attributes': [
-                        {'name': 'stdattrs::cardinality', '@value': '**'},
+                        {'name': 'stdattrs::cardinality', '@value': 'MANY'},
                         {'name': 'stdattrs::is_abstract', '@value': 'false'},
                         {'name': 'stdattrs::is_derived', '@value': 'false'},
                         {'name': 'stdattrs::is_final', '@value': 'false'},
@@ -214,6 +214,7 @@ class TestIntrospection(tb.QueryTestCase):
                 name,
                 links: {
                     name,
+                    cardinality,
                     target: {
                         name
                     },
@@ -230,30 +231,34 @@ class TestIntrospection(tb.QueryTestCase):
                 'links': [{
                     'name': 'std::__type__',
                     'target': {'name': 'schema::Type'},
+                    'cardinality': 'ONE',
                     'attributes': [{
                         'name': 'stdattrs::cardinality',
-                        '@value': '*1',
+                        '@value': 'ONE',
                     }],
                 }, {
                     'name': 'test::issue',
                     'target': {'name': 'test::Issue'},
+                    'cardinality': 'ONE',
                     'attributes': [{
                         'name': 'stdattrs::cardinality',
-                        '@value': '*1',
+                        '@value': 'ONE',
                     }],
                 }, {
                     'name': 'test::owner',
                     'target': {'name': 'test::User'},
+                    'cardinality': 'ONE',
                     'attributes': [{
                         'name': 'stdattrs::cardinality',
-                        '@value': '*1',
+                        '@value': 'ONE',
                     }],
                 }, {
                     'name': 'test::parent',
                     'target': {'name': 'test::Comment'},
+                    'cardinality': 'ONE',
                     'attributes': [{
                         'name': 'stdattrs::cardinality',
-                        '@value': '*1',
+                        '@value': 'ONE',
                     }],
                 }]
             }]
@@ -271,7 +276,7 @@ class TestIntrospection(tb.QueryTestCase):
                 AND
                 ObjectType.links.attributes.name = 'stdattrs::cardinality'
                 AND
-                ObjectType.links.attributes@value = '**'
+                ObjectType.links.attributes@value = 'MANY'
             ORDER BY ObjectType.name;
         """, [
             [{
@@ -283,7 +288,7 @@ class TestIntrospection(tb.QueryTestCase):
 
     async def test_edgeql_introspection_objtype_08(self):
         await self.assert_query_result(r"""
-            # get all user-defined object types with at least one 1* link
+            # get all user-defined object types with at least one multi link
             WITH MODULE schema
             SELECT `ObjectType` {
                 name,
@@ -293,36 +298,17 @@ class TestIntrospection(tb.QueryTestCase):
                 AND
                 `ObjectType`.links.attributes.name = 'stdattrs::cardinality'
                 AND
-                `ObjectType`.links.attributes@value = '1*'
+                `ObjectType`.links.attributes@value = 'MANY'
             ORDER BY `ObjectType`.name;
         """, [
             [{
                 'name': 'test::Issue',
+            }, {
+                'name': 'test::User',
             }]
         ])
 
     async def test_edgeql_introspection_objtype_09(self):
-        await self.assert_query_result(r"""
-            # get all user-defined object types with at least one 1* link
-            WITH MODULE schema
-            SELECT `ObjectType` {
-                name,
-            }
-            FILTER
-                `ObjectType`.name LIKE 'test::%'
-                AND
-                `ObjectType`.<target[IS `Link`].attributes.name =
-                    'stdattrs::cardinality'
-                AND
-                `ObjectType`.<target[IS `Link`].attributes@value = '1*'
-            ORDER BY `ObjectType`.name;
-        """, [
-            [{
-                'name': 'test::LogEntry',
-            }]
-        ])
-
-    async def test_edgeql_introspection_objtype_10(self):
         await self.assert_query_result(r"""
             # get all user-defined object types with at least one
             # array property

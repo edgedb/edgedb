@@ -40,16 +40,14 @@ abstract link todo:
 
 type User:
     required property login -> str:
-        constraint unique
+        constraint exclusive
     required property firstname -> str
     required property lastname -> str
 
     property fullname := (__source__.firstname + ' ' + __source__.lastname)
 
-    link followees -> User:
-        cardinality := '**'
-    link todo -> PullRequest:
-        cardinality := '**'
+    multi link followees -> User
+    multi link todo -> PullRequest
 
 
 type PullRequest extending Authored, Text, Timestamped:
@@ -57,11 +55,8 @@ type PullRequest extending Authored, Text, Timestamped:
     required property status -> pr_status:
         default := 'Open'
 
-    link assignees -> User:
-        cardinality := '**'
-
-    link comments -> Comment:
-        cardinality := '1*'
+    multi link assignees -> User
+    multi link comments -> Comment
 
 
 type Comment extending Authored, Text, Timestamped

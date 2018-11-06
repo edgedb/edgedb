@@ -44,6 +44,7 @@ from . import dispatch
 from . import pathctx
 from . import schemactx
 from . import setgen
+from . import stmtctx
 
 
 def process_view(
@@ -419,7 +420,9 @@ def _normalize_view_ptr_expr(
     if not is_mutation:
         if ptr_cardinality is None:
             if compexpr is not None:
-                ctx.pending_cardinality.add(ptrcls)
+                stmtctx.pend_pointer_cardinality_inference(
+                    ptrcls=ptrcls, specified_card=shape_el.cardinality,
+                    source_ctx=shape_el.context, ctx=ctx)
             elif ptrcls is not base_ptrcls:
                 ctx.pointer_derivation_map[base_ptrcls].append(ptrcls)
 

@@ -1268,8 +1268,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT graphql::Query {
-            User := (
-                WITH CARDINALITY '*'
+            multi User := (
                 SELECT
                     test::User {
                         name,
@@ -1297,8 +1296,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT graphql::Query {
-            User := (
-                WITH CARDINALITY '*'
+            multi User := (
                 SELECT
                     test::User {
                         name,
@@ -1328,8 +1326,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT graphql::Query {
-            User := (
-                WITH CARDINALITY '*'
+            multi User := (
                 SELECT
                     test::User {
                         name,
