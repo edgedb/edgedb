@@ -26,6 +26,9 @@ import asyncpg
 
 from edb.lang.common import exceptions as edgedb_error
 from edb.lang.schema import name as sn
+from edb.lang.schema import objtypes as s_objtypes
+
+from . import common
 
 
 class ErrorMech:
@@ -41,33 +44,31 @@ class ErrorMech:
 
     @classmethod
     async def _interpret_db_error(
-            cls, intro_mech, constr_mech, type_mech, err):
+            cls, schema, intro_mech, constr_mech, err):
         if isinstance(err, asyncpg.NotNullViolationError):
             source_name = pointer_name = None
 
             if err.schema_name and err.table_name:
                 tabname = (err.schema_name, err.table_name)
 
-                source_name = intro_mech.table_name_to_object_name(tabname)
+                source = common.get_object_from_backend_name(
+                    schema, s_objtypes.ObjectType, tabname)
+                source_name = source.get_displayname(schema)
 
                 if err.column_name:
-                    cols = await type_mech.get_table_columns(
-                        tabname, connection=intro_mech.connection)
-                    col = cols.get(err.column_name)
-                    pointer_name = col['column_comment']
+                    pointer_name = sn.Name(err.column_name)
 
             if pointer_name is not None:
-                pname = '{{{}}}.{{{}}}'.format(source_name, pointer_name)
+                pname = f'{source_name}.{pointer_name.name}'
 
                 return edgedb_error.MissingRequiredPointerError(
-                    'missing value for required pointer {}'.format(pname),
+                    'missing value for required property {}'.format(pname),
                     source_name=source_name, pointer_name=pointer_name)
 
             else:
                 return edgedb_error.EdgeDBBackendError(err.message)
 
         elif isinstance(err, asyncpg.IntegrityConstraintViolationError):
-            schema = intro_mech.schema
             source = pointer = None
 
             for ecls, eres in cls.error_res.items():

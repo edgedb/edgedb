@@ -323,7 +323,7 @@ class InheritingObject(derivable.DerivableObject):
 
     _virtual_children = so.SchemaField(
         so.ObjectList,
-        coerce=True, default=None, ephemeral=True, introspectable=False)
+        coerce=True, default=None)
 
     is_abstract = so.SchemaField(
         bool,

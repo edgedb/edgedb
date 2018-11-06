@@ -1241,7 +1241,7 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_empty_03(self):
         with self.assertRaisesRegex(
                 exc.MissingRequiredPointerError,
-                r"missing value for required pointer"):
+                r"missing value for required property"):
             await self.con.execute(r"""
                 # just clear all the comments
                 WITH MODULE test

@@ -107,7 +107,7 @@ class Backend:
             debug.header('PgSQL Delta Plan')
             debug.dump(delta)
 
-        return delta
+        return schema, delta
 
     async def run_delta_command(self, delta_cmd):
         schema = await self.getschema()
@@ -146,14 +146,14 @@ class Backend:
 
         # Do a dry-run on test_schema to canonicalize
         # the schema delta-commands.
-        test_schema = await self._intro_mech.readschema()
+        test_schema = schema
         context = sd.CommandContext()
         canonical_ddl_plan = ddl_plan.copy()
         canonical_ddl_plan.apply(test_schema, context=context)
 
         # Apply and adapt delta, build native delta plan, which
         # will also update the schema.
-        plan = self.process_delta(canonical_ddl_plan, schema)
+        schema, plan = self.process_delta(canonical_ddl_plan, schema)
 
         context = delta_cmds.CommandContext(self.connection)
 
@@ -219,16 +219,13 @@ class Backend:
 
             raise
 
+        else:
+            self.schema = schema
+
         finally:
-            # Exception or not, re-read the schema from Postgres.
-            await self.invalidate_schema_cache()
-            await self.getschema()
+            self.invalidate_schema_cache()
 
-    async def invalidate_schema_cache(self):
-        self.schema = None
-        self.invalidate_transient_cache()
-
-    def invalidate_transient_cache(self):
+    def invalidate_schema_cache(self):
         self._intro_mech.invalidate_cache()
 
     async def exec_session_state_cmd(self, cmd):
@@ -356,27 +353,28 @@ class Backend:
         return s_ddl.compile_migration(cmd, target, self.schema)
 
     async def translate_pg_error(self, query, error):
-        return await self._intro_mech.translate_pg_error(query, error)
+        return await self._intro_mech.translate_pg_error(
+            self.schema, query, error)
 
     async def start_transaction(self):
-        self.transactions.append(self.connection.transaction())
-        await self.transactions[-1].start()
+        tx = self.connection.transaction()
+        self.transactions.append((tx, self.schema))
+        await tx.start()
 
     async def commit_transaction(self):
         if not self.transactions:
             raise exceptions.NoActiveTransactionError(
                 'there is no transaction in progress')
-        transaction = self.transactions.pop()
+        transaction, _ = self.transactions.pop()
         await transaction.commit()
 
     async def rollback_transaction(self):
         if not self.transactions:
             raise exceptions.NoActiveTransactionError(
                 'there is no transaction in progress')
-        transaction = self.transactions.pop()
+        transaction, self.schema = self.transactions.pop()
         await transaction.rollback()
-        await self.invalidate_schema_cache()
-        await self.getschema()
+        self.invalidate_schema_cache()
 
 
 async def open_database(pgconn):

@@ -17,7 +17,6 @@
 #
 
 
-import collections
 import itertools
 
 from edb.lang.ir import ast as irast
@@ -27,13 +26,10 @@ from edb.lang.edgeql import compiler as ql_compiler
 from edb.lang.edgeql import ast as qlast
 
 from edb.lang.schema import scalars as s_scalars
-from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import error as s_err
-from edb.lang.schema import links as s_links
 
 from edb.lang.common import ast
 
-from .datasources import introspection
 from . import ast as pg_ast
 from . import dbops
 from . import deltadbops
@@ -223,8 +219,8 @@ class ConstraintMech:
             subject_db_name, refs = next(iter(ref_tables.items()))
             link_bias = refs[0][3].table_type == 'link'
         else:
-            subject_db_name = common.scalar_name_to_domain_name(
-                subject.get_name(schema), catenate=False)
+            subject_db_name = common.get_backend_name(
+                schema, subject, catenate=False)
             link_bias = False
 
         exclusive_expr_refs = cls._get_exclusive_refs(ir)
@@ -394,141 +390,6 @@ class SchemaTableConstraint:
         ops.add_command(add_constr)
 
         return ops
-
-
-class TypeMech:
-    def __init__(self):
-        self._column_cache = None
-        self._table_cache = None
-
-    def invalidate_schema_cache(self):
-        self._column_cache = None
-        self._table_cache = None
-
-    async def init_cache(self, connection):
-        await self._load_table_columns(('edgedb_%', None), connection)
-
-    async def _load_table_columns(self, table_name, connection):
-        cols = await introspection.tables.fetch_columns(
-            connection,
-            table_pattern=table_name[1], schema_pattern=table_name[0])
-
-        if self._column_cache is None:
-            self._column_cache = {}
-
-        for col in cols:
-            key = (col['table_schema'], col['table_name'])
-
-            try:
-                table_cols = self._column_cache[key]
-            except KeyError:
-                table_cols = collections.OrderedDict()
-                self._column_cache[key] = table_cols
-
-            table_cols[col['column_name']] = col
-
-    async def get_table_columns(self, table_name, connection=None,
-                                cache='auto'):
-        if cache is not None:
-            cols = self.get_cached_table_columns(table_name)
-
-        if cols is None and cache != 'always':
-            cols = await self._load_table_columns(table_name, connection)
-
-        return self._column_cache.get(table_name)
-
-    def get_cached_table_columns(self, table_name):
-        if self._column_cache is not None:
-            cols = self._column_cache.get(table_name)
-        else:
-            cols = None
-
-        return cols
-
-    async def _load_type_attributes(self, type_name, connection):
-        cols = await introspection.types.fetch_attributes(
-            connection,
-            type_pattern=type_name[1], schema_pattern=type_name[0])
-
-        if self._column_cache is None:
-            self._column_cache = {}
-
-        for col in cols:
-            key = (col['type_schema'], col['type_name'])
-
-            try:
-                type_attrs = self._column_cache[key]
-            except KeyError:
-                type_attrs = collections.OrderedDict()
-                self._column_cache[key] = type_attrs
-
-            type_attrs[col['attribute_name']] = col
-
-    async def get_type_attributes(self, type_name, connection, cache='auto'):
-        if cache is not None and self._column_cache is not None:
-            cols = self._column_cache.get(type_name)
-        else:
-            cols = None
-
-        if cols is None and cache != 'always':
-            await self._load_type_attributes(type_name, connection)
-
-        return self._column_cache.get(type_name)
-
-    def get_table(self, scls, schema):
-        if self._table_cache is None:
-            self._table_cache = {}
-
-        table = self._table_cache.get(scls)
-
-        if table is None:
-            table_name = common.get_table_name(schema, scls, catenate=False)
-            table = dbops.Table(table_name)
-
-            cols = []
-
-            if isinstance(scls, s_links.Link):
-                cols.extend([
-                    dbops.Column(name='ptr_item_id', type='uuid'),
-                    dbops.Column(name='std::source', type='uuid'),
-                    dbops.Column(name='std::target', type='uuid')
-                ])
-
-            elif isinstance(scls, s_objtypes.ObjectType):
-                cols.extend([dbops.Column(name='std::__type__', type='uuid')])
-
-            else:
-                assert False
-
-            if isinstance(scls, s_objtypes.ObjectType):
-                expected_table_type = 'ObjectType'
-            else:
-                expected_table_type = 'link'
-
-            scls_pointers = scls.get_pointers(schema).items(schema)
-            for pointer_name, pointer in scls_pointers:
-                if not pointer.singular(schema):
-                    continue
-
-                if pointer_name == 'std::source':
-                    continue
-
-                ptr_stor_info = types.get_pointer_storage_info(
-                    pointer, schema=schema)
-
-                if ptr_stor_info.column_name == 'std::target':
-                    continue
-
-                if ptr_stor_info.table_type == expected_table_type:
-                    cols.append(
-                        dbops.Column(
-                            name=ptr_stor_info.column_name,
-                            type=common.qname(*ptr_stor_info.column_type)))
-            table.add_columns(cols)
-
-            self._table_cache[scls] = table
-
-        return table
 
 
 def ptr_default_to_col_default(schema, ptr, expr):

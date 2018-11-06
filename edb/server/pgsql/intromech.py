@@ -49,7 +49,6 @@ from edb.server.pgsql import dbops
 from . import datasources
 from .datasources import introspection
 
-from . import astexpr
 from . import errormech
 from . import parser
 from . import schemamech
@@ -61,23 +60,8 @@ class IntrospectionMech:
     def __init__(self, connection):
         self.schema = None
         self._constr_mech = schemamech.ConstraintMech()
-        self._type_mech = schemamech.TypeMech()
-
-        self.scalar_cache = {}
-        self.link_cache = {}
-        self.link_property_cache = {}
-        self.type_cache = {}
-        self.table_cache = {}
-        self.domain_to_scalar_map = {}
-        self.table_id_to_class_name_cache = {}
-        self.classname_to_table_id_cache = {}
-        self.attribute_link_map_cache = {}
-        self._record_mapping_cache = {}
 
         self.parser = parser.PgSQLParser()
-        self.search_idx_expr = astexpr.TextSearchExpr()
-        self.type_expr = astexpr.TypeExpr()
-        self.constant_expr = None
 
         self._operator_commutators = {}
 
@@ -86,56 +70,6 @@ class IntrospectionMech:
     def invalidate_cache(self):
         self.schema = None
         self._constr_mech.invalidate_schema_cache()
-        self._type_mech.invalidate_schema_cache()
-        self.link_cache.clear()
-        self.link_property_cache.clear()
-        self.type_cache.clear()
-        self.scalar_cache.clear()
-        self.table_cache.clear()
-        self.domain_to_scalar_map.clear()
-        self.table_id_to_class_name_cache.clear()
-        self.classname_to_table_id_cache.clear()
-        self.attribute_link_map_cache.clear()
-
-    async def get_type_map(self, force_reload=False):
-        if not self.type_cache or force_reload:
-            cl_ds = datasources.schema.objtypes
-
-            for row in await cl_ds.fetch(self.connection):
-                self.type_cache[row['name']] = row['id']
-                self.type_cache[row['id']] = sn.Name(row['name'])
-
-            cl_ds = datasources.schema.scalars
-
-            for row in await cl_ds.fetch(self.connection):
-                self.type_cache[row['name']] = row['id']
-                self.type_cache[row['id']] = sn.Name(row['name'])
-
-        return self.type_cache
-
-    async def _init_introspection_cache(self):
-        await self._type_mech.init_cache(self.connection)
-        self.domain_to_scalar_map = await self._init_scalar_map_cache()
-        # ObjectType map needed early for type filtering operations
-        # in schema queries
-        await self.get_type_map(force_reload=True)
-
-    def table_name_to_object_name(self, table_name):
-        return self.table_cache.get(table_name)['name']
-
-    async def _init_scalar_map_cache(self):
-        scalar_list = await datasources.schema.scalars.fetch(self.connection)
-
-        domain_to_scalar_map = {}
-
-        for row in scalar_list:
-            name = sn.Name(row['name'])
-
-            domain_name = common.scalar_name_to_domain_name(
-                name, catenate=False)
-            domain_to_scalar_map[domain_name] = name
-
-        return domain_to_scalar_map
 
     async def getschema(self):
         if self.schema is None:
@@ -144,8 +78,6 @@ class IntrospectionMech:
         return self.schema
 
     async def readschema(self, modules=None):
-        await self._init_introspection_cache()
-
         schema = so.Schema()
 
         schema = await self.read_modules(schema, only_modules=modules)
@@ -181,14 +113,19 @@ class IntrospectionMech:
         modules = await datasources.schema.modules.fetch(
             self.connection, only_modules)
 
-        modules = {
-            common.edgedb_module_name_to_schema_name(m['name']):
-            {'id': m['id'],
-             'name': m['name']}
+        modules = [
+            {'id': m['id'], 'name': m['name']}
             for m in modules
-        }
+        ]
 
-        recorded_schemas = set(modules.keys())
+        recorded_schemas = set()
+        for module in modules:
+            schema, mod = s_mod.Module.create_in_schema(
+                schema,
+                id=module['id'],
+                name=module['name'])
+
+            recorded_schemas.add(common.get_backend_name(schema, mod))
 
         # Sanity checks
         extra_schemas = schemas - recorded_schemas - {'edgedb', 'edgedbss'}
@@ -205,12 +142,6 @@ class IntrospectionMech:
             details = 'Missing schemas for modules: {}'.format(
                 ', '.join('{!r}'.format(s) for s in missing_schemas))
             raise s_err.SchemaError(msg, details=details)
-
-        for module in modules.values():
-            schema, mod = s_mod.Module.create_in_schema(
-                schema,
-                id=module['id'],
-                name=module['name'])
 
         return schema
 
@@ -245,7 +176,6 @@ class IntrospectionMech:
                          if row['expr'] else None)
             }
 
-            self.scalar_cache[name] = scalar_data
             scalar_data['default'] = self.unpack_default(row['default'])
 
             if scalar_data['bases']:
@@ -270,8 +200,8 @@ class IntrospectionMech:
             if (sequence is not None and
                     scalar.issubclass(schema, sequence) and
                     not scalar.get_is_abstract(schema)):
-                seq_name = common.scalar_name_to_sequence_name(
-                    scalar.get_name(schema), catenate=False)
+                seq_name = common.get_backend_name(
+                    schema, scalar, catenate=False, aspect='sequence')
                 if seq_name not in seqs:
                     msg = 'internal metadata incosistency'
                     details = (f'Missing sequence for sequence '
@@ -543,7 +473,7 @@ class IntrospectionMech:
 
         for index_data in indexes:
             subj = schema.get(index_data['subject_name'])
-            subj_table_name = common.get_table_name(
+            subj_table_name = common.get_backend_name(
                 schema, subj, catenate=False)
             index_name = sn.Name(index_data['name'])
 
@@ -572,41 +502,6 @@ class IntrospectionMech:
                 details=details)
 
         return schema
-
-    async def read_pointer_target_column(self, schema, pointer,
-                                         constraints_cache):
-        ptr_stor_info = types.get_pointer_storage_info(
-            pointer, schema=schema, resolve_type=False)
-        cols = await self._type_mech.get_table_columns(
-            ptr_stor_info.table_name, connection=self.connection)
-
-        col = cols.get(ptr_stor_info.column_name)
-
-        if not col:
-            msg = 'internal metadata inconsistency'
-            details = (
-                'Record for {!r} hosted by {!r} exists, but ' +
-                'the corresponding table column is missing').format(
-                    pointer.get_shortname(schema),
-                    pointer.get_source(schema).get_name(schema))
-            raise s_err.SchemaError(msg, details=details)
-
-        return self._get_pointer_column_target(
-            schema,
-            pointer.get_source(schema),
-            pointer.get_shortname(schema),
-            col)
-
-    def _get_pointer_column_target(self, schema, source, pointer_name, col):
-        if col['column_type_schema'] == 'pg_catalog':
-            col_type_schema = common.edgedb_module_name_to_schema_name('std')
-            col_type = col['column_type']
-        else:
-            col_type_schema = col['column_type_schema']
-            col_type = col['column_type']
-
-        target = self.scalar_from_pg_type(col_type, col_type_schema, schema)
-        return target, col['column_required']
 
     async def read_links(self, schema, only_modules):
         link_tables = await introspection.tables.fetch_tables(
@@ -681,15 +576,6 @@ class IntrospectionMech:
                 # Multiple specified targets,
                 # target is a virtual derived object
                 schema, target = link.create_common_target(schema, spectargets)
-
-            if (isinstance(target, s_scalars.ScalarType) and
-                    not source.get_is_derived(schema)):
-                target, required = await self.read_pointer_target_column(
-                    schema, link, None)
-
-                objtype_schema, objtype_table = \
-                    common.objtype_name_to_table_name(source.get_name(schema),
-                                                      catenate=False)
 
             schema = link.set_field_value(schema, 'target', target)
 
@@ -783,10 +669,6 @@ class IntrospectionMech:
                 elif bases[0] == 'std::source' and source is not None:
                     target = source.get_source(schema)
 
-            elif isinstance(target, s_scalars.ScalarType):
-                target, required = \
-                    await self.read_pointer_target_column(schema, prop, None)
-
             schema = prop.set_field_value(schema, 'target', target)
 
             if source:
@@ -864,27 +746,11 @@ class IntrospectionMech:
 
         return schema
 
-    async def get_type_attributes(self, type_name, connection=None,
-                                  cache='auto'):
-        return await self._type_mech.get_type_attributes(
-            type_name, connection, cache)
-
     async def read_objtypes(self, schema, only_modules):
-        tables = await introspection.tables.fetch_tables(
-            self.connection, schema_pattern='edgedb%', table_pattern='%_data')
-        tables = {(t['schema'], t['name']): t for t in tables}
-
         objtype_list = await datasources.schema.objtypes.fetch(
             self.connection, modules=only_modules)
         objtype_list = collections.OrderedDict((sn.Name(row['name']), row)
                                                for row in objtype_list)
-
-        visited_tables = set()
-
-        self.table_cache.update({
-            common.objtype_name_to_table_name(n, catenate=False): c
-            for n, c in objtype_list.items()
-        })
 
         basemap = {}
 
@@ -902,22 +768,7 @@ class IntrospectionMech:
                          if row['expr'] else None)
             }
 
-            table_name = common.objtype_name_to_table_name(
-                name, catenate=False)
-            table = tables.get(table_name)
-
-            if not table:
-                msg = 'internal metadata incosistency'
-                details = 'Record for type {!r} exists but ' \
-                          'the table is missing'.format(name)
-                raise s_err.SchemaError(msg, details=details)
-
-            visited_tables.add(table_name)
-
-            bases = await self.pg_table_inheritance_to_bases(
-                table['name'], table['schema'], self.table_cache)
-
-            basemap[name] = bases
+            basemap[name] = row['bases'] or []
 
             schema, objtype = s_objtypes.ObjectType.create_in_schema(
                 schema,
@@ -950,13 +801,6 @@ class IntrospectionMech:
             attrs['is_derived'] = True
             schema, objtype = s_objtypes.ObjectType.create_in_schema(
                 schema, **attrs)
-
-        tabdiff = set(tables.keys()) - visited_tables
-        if tabdiff and not only_modules:
-            msg = 'internal metadata incosistency'
-            details = 'Extraneous data tables exist: {}'.format(
-                ', '.join('"%s.%s"' % t for t in tabdiff))
-            raise s_err.SchemaError(msg, details=details)
 
         return schema
 
@@ -993,11 +837,6 @@ class IntrospectionMech:
 
         return tuple(bases)
 
-    def parse_pg_type(self, type_expr):
-        tree = self.parser.parse('None::' + type_expr)
-        typname, typmods = self.type_expr.match(tree)
-        return typname, typmods
-
     def pg_type_to_scalar_name_and_constraints(self, typname, typmods):
         if len(typname) > 1 and typname[0] != 'pg_catalog':
             return None
@@ -1015,29 +854,6 @@ class IntrospectionMech:
             return name, constraints
         return None
 
-    def scalar_from_pg_type(self, type_expr, scalar_schema, schema):
-        typname = (type_expr,)
-        typmods = None
-        domain_name = typname[-1]
-        scalar_name = self.domain_to_scalar_map.get(
-            (scalar_schema, domain_name))
-
-        if scalar_name:
-            scalar = schema.get(scalar_name, None)
-        else:
-            scalar = None
-
-        if not scalar:
-
-            typeconv = self.pg_type_to_scalar_name_and_constraints(
-                typname, typmods)
-            if typeconv:
-                name, _ = typeconv
-                scalar = schema.get(name)
-
-        assert scalar
-        return scalar
-
-    async def translate_pg_error(self, query, error):
+    async def translate_pg_error(self, schema, query, error):
         return await errormech.ErrorMech._interpret_db_error(
-            self, self._constr_mech, self._type_mech, error)
+            schema, self, self._constr_mech, error)

@@ -48,6 +48,8 @@ class ConstraintCommon:
         self._constr_id = constraint.id
         self._schema_constr_name = constraint.get_name(schema)
         self._schema_constr_is_delegated = constraint.get_is_abstract(schema)
+        self._schema = schema
+        self._constraint = constraint
 
     def constraint_name(self, quote=True):
         name = self.raw_constraint_name()
@@ -147,11 +149,8 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         return common.quote_ident(name) if quote else name
 
     def get_trigger_procname(self):
-        schema = common.edgedb_module_name_to_schema_name(
-            self.schema_constraint_name().module)
-        proc_name = common.edgedb_name_to_pg_name(
-            self.raw_constraint_name() + '_trigproc')
-        return schema, proc_name
+        return common.get_backend_name(
+            self._schema, self._constraint, catenate=False, aspect='trigproc')
 
     def get_trigger_condition(self):
         chunks = []
@@ -541,9 +540,7 @@ class AlterTableInheritableConstraintBase(
 
             # Drop trigger function
             #
-            proc_name = constraint.raw_constraint_name() + '_trigproc'
-            proc_name = self.name[0], common.edgedb_name_to_pg_name(proc_name)
-
+            proc_name = constraint.get_trigger_procname()
             self.add_commands(self.drop_constr_trigger_function(proc_name))
 
         # Drop the constraint normally from our table

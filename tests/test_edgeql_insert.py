@@ -32,8 +32,8 @@ class TestInsert(tb.QueryTestCase):
                           'insert.eschema')
 
     async def test_edgeql_insert_fail_1(self):
-        err = 'missing value for required pointer ' + \
-              '{test::InsertTest}.{test::l2}'
+        err = 'missing value for required property ' + \
+              'test::InsertTest.l2'
         with self.assertRaisesRegex(exc.MissingRequiredPointerError, err):
             await self.con.execute('''
                 INSERT test::InsertTest;
@@ -904,7 +904,7 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_empty_03(self):
         with self.assertRaisesRegex(
                 exc.MissingRequiredPointerError,
-                r"missing value for required pointer"):
+                r"missing value for required property"):
             await self.con.execute(r"""
                 WITH MODULE test
                 INSERT InsertTest {

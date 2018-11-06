@@ -1598,7 +1598,7 @@ classref_attr_aliases = {
 dbname = lambda n: \
     common.quote_ident(common.edgedb_name_to_pg_name(sn.Name(n)))
 tabname = lambda schema, obj: \
-    ('edgedbss', common.get_table_name(schema, obj, catenate=False)[1])
+    ('edgedbss', common.get_backend_name(schema, obj, catenate=False)[1])
 q = common.quote_ident
 ql = common.quote_literal
 

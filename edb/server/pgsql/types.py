@@ -96,8 +96,7 @@ def get_scalar_base(schema, scalar):
             try:
                 base = base_type_name_map[ancestor.get_name(schema)]
             except KeyError:
-                base = common.scalar_name_to_domain_name(
-                    ancestor.get_name(schema))
+                base = common.get_backend_name(schema, ancestor)
 
             return base
 
@@ -130,8 +129,8 @@ def pg_type_from_scalar(
         if column_type:
             column_type = (base,)
         else:
-            column_type = common.scalar_name_to_domain_name(
-                scalar.get_name(schema), catenate=False)
+            column_type = common.get_backend_name(
+                schema, scalar, catenate=False)
 
     return column_type
 
@@ -171,7 +170,7 @@ def pg_type_from_object(
 class PointerStorageInfo:
     @classmethod
     def _source_table_info(cls, schema, pointer):
-        table = common.get_table_name(
+        table = common.get_backend_name(
             schema, pointer.get_source(schema), catenate=False)
         ptr_name = pointer.get_shortname(schema)
         col_name = common.edgedb_name_to_pg_name(ptr_name)
@@ -181,7 +180,7 @@ class PointerStorageInfo:
 
     @classmethod
     def _pointer_table_info(cls, schema, pointer):
-        table = common.get_table_name(
+        table = common.get_backend_name(
             schema, pointer, catenate=False)
         col_name = 'std::target'
         table_type = 'link'
@@ -251,7 +250,7 @@ class PointerStorageInfo:
             col_name = common.edgedb_name_to_pg_name(
                 pointer.get_shortname(schema).name)
         elif is_lprop:
-            table = common.get_table_name(
+            table = common.get_backend_name(
                 schema, source, catenate=False)
             table_type = 'link'
             col_name = common.edgedb_name_to_pg_name(

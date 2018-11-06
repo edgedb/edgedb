@@ -20,12 +20,18 @@
 import hashlib
 import base64
 import re
+import uuid
 
+from edb.lang.schema import constraints as s_constr
+from edb.lang.schema import functions as s_func
 from edb.lang.schema import links as s_links
 from edb.lang.schema import lproperties as s_props
+from edb.lang.schema import modules as s_mod
 from edb.lang.schema import name as s_name
 from edb.lang.schema import objtypes as s_objtypes
+from edb.lang.schema import operators as s_opers
 from edb.lang.schema import pointers as s_pointers
+from edb.lang.schema import scalars as s_scalars
 
 from edb.server.pgsql.parser import keywords as pg_keywords
 
@@ -96,7 +102,7 @@ def quote_type(type_):
     return first + last
 
 
-def edgedb_module_name_to_schema_name(module, prefix='edgedb_'):
+def _edgedb_module_name_to_schema_name(module, prefix='edgedb_'):
     return edgedb_name_to_pg_name(prefix + module, len(prefix))
 
 
@@ -122,7 +128,7 @@ def edgedb_name_to_pg_name(name, prefix_length=0):
 
 
 def convert_name(name, suffix='', catenate=True, prefix='edgedb_'):
-    schema = edgedb_module_name_to_schema_name(name.module, prefix=prefix)
+    schema = _edgedb_module_name_to_schema_name(name.module, prefix=prefix)
     if suffix:
         sname = f'{name.name}_{suffix}'
     else:
@@ -136,34 +142,39 @@ def convert_name(name, suffix='', catenate=True, prefix='edgedb_'):
         return schema, dbname
 
 
-def scalar_name_to_domain_name(name, catenate=True, prefix='edgedb_'):
-    return convert_name(name, 'domain', catenate)
+def _scalar_name_to_domain_name(name, catenate=True, prefix='edgedb_', *,
+                                aspect=None):
+    if aspect is None:
+        aspect = 'domain'
+    if aspect not in ('domain', 'sequence'):
+        raise ValueError(
+            f'unexpected aspect for scalar backend name: {aspect!r}')
+    return convert_name(name, aspect, catenate)
 
 
-def scalar_name_to_sequence_name(name, catenate=True, prefix='edgedb_'):
-    return convert_name(name, 'sequence', catenate)
+def _get_backend_objtype_name(schema, objtype, catenate=True):
+    name = s_name.Name(module=objtype.get_name(schema).module,
+                       name=str(objtype.id))
+
+    return convert_name(name, catenate=catenate)
 
 
-def objtype_name_to_table_name(name, catenate=True, prefix='edgedb_'):
-    return convert_name(name, 'data', catenate)
-
-
-def link_name_to_table_name(name, catenate=True):
+def _link_name_to_table_name(name, catenate=True):
     return convert_name(name, 'link', catenate)
 
 
-def prop_name_to_table_name(name, catenate=True):
+def _prop_name_to_table_name(name, catenate=True):
     return convert_name(name, 'prop', catenate)
 
 
 def schema_name_to_pg_name(name: s_name.Name):
     return (
-        edgedb_module_name_to_schema_name(name.module),
+        _edgedb_module_name_to_schema_name(name.module),
         edgedb_name_to_pg_name(name.name)
     )
 
 
-def get_backend_operator_name(name, catenate=False):
+def _get_backend_operator_name(name, catenate=False):
     schema, oper_name = convert_name(name, catenate=False)
     oper_name = f'`{oper_name}`'
     if catenate:
@@ -172,12 +183,64 @@ def get_backend_operator_name(name, catenate=False):
         return schema, oper_name
 
 
-def get_table_name(schema, obj, catenate=True):
-    if isinstance(obj, s_objtypes.ObjectType):
-        return objtype_name_to_table_name(obj.get_name(schema), catenate)
-    elif isinstance(obj, s_props.Property):
-        return prop_name_to_table_name(obj.get_name(schema), catenate)
-    elif isinstance(obj, (s_links.Link, s_pointers.PointerLike)):
-        return link_name_to_table_name(obj.get_name(schema), catenate)
+def _get_backend_function_name(name, catenate=False):
+    schema, func_name = convert_name(name, catenate=False)
+    if catenate:
+        return qname(schema, func_name)
     else:
-        raise ValueError(f'cannot determine table for {obj!r}')
+        return schema, func_name
+
+
+def _get_backend_constraint_name(
+        schema, constraint, catenate=True, prefix='edgedb_', *, aspect=None):
+    if aspect not in ('trigproc',):
+        raise ValueError(
+            f'unexpected aspect for constraint backend name: {aspect!r}')
+
+    name = s_name.Name(module=constraint.get_name(schema).module,
+                       name=str(constraint.id))
+
+    return convert_name(name, aspect, catenate, prefix=prefix)
+
+
+def get_backend_name(schema, obj, catenate=True, *, aspect=None):
+    if isinstance(obj, s_objtypes.ObjectType):
+        return _get_backend_objtype_name(schema, obj, catenate)
+
+    elif isinstance(obj, s_props.Property):
+        return _prop_name_to_table_name(obj.get_name(schema), catenate)
+
+    elif isinstance(obj, (s_links.Link, s_pointers.PointerLike)):
+        return _link_name_to_table_name(obj.get_name(schema), catenate)
+
+    elif isinstance(obj, s_scalars.ScalarType):
+        return _scalar_name_to_domain_name(
+            obj.get_name(schema), catenate, aspect=aspect)
+
+    elif isinstance(obj, s_opers.Operator):
+        return _get_backend_operator_name(obj.get_shortname(schema), catenate)
+
+    elif isinstance(obj, s_func.Function):
+        return _get_backend_function_name(obj.get_shortname(schema), catenate)
+
+    elif isinstance(obj, s_mod.Module):
+        return _edgedb_module_name_to_schema_name(obj.get_name(schema))
+
+    elif isinstance(obj, s_constr.Constraint):
+        return _get_backend_constraint_name(
+            schema, obj, catenate, aspect=aspect)
+
+    else:
+        raise ValueError(f'cannot determine backend name for {obj!r}')
+
+
+def get_object_from_backend_name(schema, metaclass, name, *, aspect=None):
+
+    if metaclass is s_objtypes.ObjectType:
+        table_name = name[1]
+        obj_id = uuid.UUID(table_name)
+        return schema.get_by_id(obj_id)
+
+    else:
+        raise ValueError(
+            f'cannot determine object from backend name for {metaclass!r}')

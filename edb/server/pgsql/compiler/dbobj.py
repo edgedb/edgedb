@@ -44,8 +44,8 @@ def range_for_material_objtype(
     objtype = objtype.material_type(env.schema)
     objtype_name = objtype.get_name(env.schema)
 
-    table_schema_name, table_name = common.objtype_name_to_table_name(
-        objtype_name, catenate=False)
+    table_schema_name, table_name = common.get_backend_name(
+        env.schema, objtype, catenate=False)
 
     if objtype_name.module == 'schema':
         # Redirect all queries to schema tables to edgedbss
@@ -156,7 +156,7 @@ def table_from_ptrcls(
         ptrcls: s_links.Link, *,
         env: context.Environment) -> pgast.RangeVar:
     """Return a Table corresponding to a given Link."""
-    table_schema_name, table_name = common.get_table_name(
+    table_schema_name, table_name = common.get_backend_name(
         env.schema, ptrcls, catenate=False)
 
     pname = ptrcls.get_shortname(env.schema)
