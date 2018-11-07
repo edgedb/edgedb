@@ -22,7 +22,7 @@
 import collections
 import textwrap
 
-from edb.lang.common import adapter, debug, nlang, typed
+from edb.lang.common import adapter, debug, typed
 from edb.lang.common import context as parser_context
 from edb.lang.common import exceptions
 
@@ -1433,12 +1433,6 @@ def _field_to_column(field):
 
     elif issubclass(ftype, typed.TypedList) and issubclass(ftype.type, str):
         coltype = 'text[]'
-
-    elif issubclass(ftype, s_expr.ExpressionDict):
-        coltype = 'jsonb'
-
-    elif issubclass(ftype, nlang.WordCombination):
-        coltype = 'jsonb'
 
     elif issubclass(ftype, dict):
         coltype = 'jsonb'

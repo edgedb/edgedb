@@ -20,7 +20,6 @@
 import builtins
 import collections
 
-from edb.lang.common.persistent_hash import persistent_hash
 from edb.lang.common.ordered import OrderedSet
 
 from edb.lang.edgeql import ast as qlast
@@ -198,15 +197,6 @@ class Module(named.NamedObject):
 
     def get_objects(self, *, type=None, include_derived=False):
         return SchemaIterator(self, type, include_derived=include_derived)
-
-    def get_checksum(self):
-        if self.index_by_name:
-            objects = frozenset(self)
-            checksum = persistent_hash(objects)
-        else:
-            checksum = persistent_hash(None)
-
-        return checksum
 
 
 class SchemaIterator:

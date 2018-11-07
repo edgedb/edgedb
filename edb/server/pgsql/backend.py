@@ -30,17 +30,14 @@ from edb.lang.schema import delta as sd
 
 from edb.lang.schema import database as s_db
 from edb.lang.schema import ddl as s_ddl
-from edb.lang.schema import deltarepo as s_deltarepo
 from edb.lang.schema import deltas as s_deltas
 from edb.lang.schema import types as s_types
 
 from edb.server import query as backend_query
 from edb.server.pgsql import dbops
 from edb.server.pgsql import delta as delta_cmds
-from edb.server.pgsql import deltadbops
 
 from . import compiler
-from . import deltarepo as pgsql_deltarepo
 from . import intromech
 from . import types
 
@@ -74,7 +71,7 @@ class OutputDescriptor:
         self.tuple_registry = tuple_registry
 
 
-class Backend(s_deltarepo.DeltaProvider):
+class Backend:
 
     def __init__(self, connection):
         self.schema = None
@@ -85,9 +82,6 @@ class Backend(s_deltarepo.DeltaProvider):
 
         self.connection = connection
         self.transactions = []
-
-        repo = pgsql_deltarepo.MetaDeltaRepository(self.connection)
-        super().__init__(repo)
 
     async def getschema(self):
         if self.schema is None:
@@ -126,7 +120,6 @@ class Backend(s_deltarepo.DeltaProvider):
                 ddl_plan = s_db.AlterDatabase()
                 ddl_plan.update(delta.commands)
                 await self.run_ddl_command(ddl_plan)
-                await self._commit_delta(delta, ddl_plan)
 
             elif isinstance(delta_cmd, s_deltas.GetDelta):
                 delta = schema.get_delta(delta_cmd.classname)
@@ -140,22 +133,6 @@ class Backend(s_deltarepo.DeltaProvider):
                     f'unexpected delta command: {delta_cmd!r}')
 
         return result
-
-    async def _commit_delta(self, delta, ddl_plan):
-        return  # XXX
-        table = deltadbops.DeltaTable()
-        rec = table.record(
-            name=delta.name, module_id=dbops.Query(
-                '''
-                SELECT id FROM edgedb.module WHERE name = $1
-            ''', params=[delta.name.module]), parents=dbops.Query(
-                    '''
-                SELECT array_agg(id) FROM edgedb.delta WHERE name = any($1)
-            ''', params=[[parent.name for parent in delta.parents]]),
-            checksum=(await self.getschema()).get_checksum(), deltabin=b'1',
-            deltasrc=s_ddl.ddl_text_from_delta_command(ddl_plan))
-        context = delta_cmds.CommandContext(self.connection)
-        await dbops.Insert(table, records=[rec]).execute(context)
 
     async def run_ddl_command(self, ddl_plan):
         schema = await self.getschema()

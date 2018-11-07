@@ -20,8 +20,6 @@
 import collections
 import typing
 
-from edb.lang.common.persistent_hash import persistent_hash
-
 from . import error as s_err
 from . import modules as s_modules
 from . import name as schema_name
@@ -315,17 +313,6 @@ class Schema(TypeContainer):
                 objtype.materialize_policies(self)
 
         return self._policy_schema.get(subject_class, event_class)
-
-    def get_checksum(self):
-        c = []
-        for n, m in self.modules.items():
-            c.append((n, m.get_checksum()))
-
-        return persistent_hash(frozenset(c))
-
-    def get_checksum_details(self):
-        objects = list(sorted(self, key=lambda e: e.name))
-        return [(str(o.name), persistent_hash(o)) for o in objects]
 
     def get_objects(self, *, type=None, include_derived=False):
         for mod in self.get_modules():

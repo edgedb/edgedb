@@ -17,7 +17,7 @@
 #
 
 
-from edb.lang.common.persistent_hash import persistent_hash
+import hashlib
 
 from . import error as schema_error
 from . import indexes
@@ -60,51 +60,6 @@ class Source(indexes.IndexableSubject):
                                     if l.readonly)
 
         return self._ro_pointers
-
-    def get_children_common_pointers(self, schema):
-        "Get a set of compatible pointers defined in children but not in self."
-
-        from . import scalars as s_scalars, objtypes as s_objtypes
-
-        pointer_names = None
-
-        for c in self.children(schema):
-            if pointer_names is None:
-                pointer_names = set(c.pointers)
-            else:
-                pointer_names &= set(c.pointers)
-
-        if pointer_names is None:
-            pointer_names = set()
-        else:
-            pointer_names -= set(self.pointers)
-
-        result = set()
-
-        for ptr_name in pointer_names:
-            target = None
-
-            for c in self.children(schema):
-                ptr = c.pointers.get(ptr_name)
-
-                if target is None:
-                    target = ptr.target
-                else:
-                    if isinstance(ptr.target, s_scalars.ScalarType):
-                        if not isinstance(target, s_scalars.ScalarType):
-                            continue
-                        elif target.issubclass(ptr.target):
-                            target = ptr.target
-                        elif not ptr.target.issubclass(target):
-                            continue
-                    else:
-                        if not isinstance(target, s_objtypes.ObjectType):
-                            continue
-
-            ptr = ptr.derive_copy(schema, self, target)
-            result.add(ptr)
-
-        return result
 
     class PointerResolver:
         @classmethod
@@ -229,42 +184,6 @@ class Source(indexes.IndexableSubject):
 
     def getrptr_ascending(self, schema, name, include_inherited=False):
         return None
-
-    def get_ptr_sources(self, schema, pointer_name,
-                        look_in_children=False,
-                        include_inherited=False,
-                        strict_ancestry=False):
-
-        sources = set()
-
-        ptr = self.getptr_ascending(schema, pointer_name,
-                                    include_inherited=include_inherited)
-
-        if ptr:
-            sources.add(self)
-
-        elif look_in_children:
-            child_ptrs = self.getptr_descending(schema, pointer_name)
-
-            if child_ptrs:
-                if strict_ancestry:
-                    my_descendants = set(self.descendants(schema))
-                    if self.is_virtual:
-                        subclass_list = tuple(self.children(schema))
-                    else:
-                        subclass_list = (self,)
-
-                    for p in child_ptrs:
-                        if not p.source.issubclass(subclass_list):
-                            for my_descendant in my_descendants:
-                                if my_descendant.issubclass(p.source):
-                                    sources.add(my_descendant)
-                        else:
-                            sources.add(p.source)
-                else:
-                    sources.update(p.source for p in child_ptrs)
-
-        return sources
 
     def resolve_pointer(self, schema, pointer_name, *,
                         direction='>',
@@ -405,26 +324,6 @@ class Source(indexes.IndexableSubject):
 
         return ptr
 
-    def resolve_pointers(self, schema, pointer_names, look_in_children=False,
-                         include_inherited=False, strict_ancestry=False):
-        all_sources = set()
-
-        for pointer_name in pointer_names:
-            sources = self.get_ptr_sources(
-                schema, pointer_name,
-                look_in_children=look_in_children,
-                include_inherited=include_inherited,
-                strict_ancestry=strict_ancestry)
-
-            all_sources.update(sources)
-
-        if len(all_sources) == 0:
-            return None
-        elif len(all_sources) == 1:
-            return next(iter(all_sources))
-        else:
-            return self.get_nearest_common_descendant(all_sources)
-
     def add_pointer(self, pointer, *, replace=False):
         self.add_classref('pointers', pointer, replace=replace)
         if pointer.readonly and self._ro_pointers is not None:
@@ -438,7 +337,10 @@ class Source(indexes.IndexableSubject):
 
     @classmethod
     def gen_virt_parent_name(cls, names, module=None):
-        name = 'Virtual_%x' % persistent_hash(frozenset(names))
+        hashed = ';'.join(sorted(set(names)))
+        hashed = hashlib.md5(hashed.encode()).hexdigest()
+        name = f'Virtual_{hashed}'
+
         if module is None:
             module = next(iter(names)).module
         return sn.Name(name=name, module=module)

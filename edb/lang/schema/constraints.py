@@ -167,7 +167,6 @@ class Constraint(inheriting.InheritingObject):
                 )
 
         expr = edgeql.generate_source(edgeql_tree, pretty=False)
-        # XXX: check that expr has boolean result
         return expr
 
     @classmethod

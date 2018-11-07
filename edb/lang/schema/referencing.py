@@ -378,23 +378,6 @@ class ReferencingObject(inheriting.InheritingObject,
         for refdict in self.__class__.get_refdicts():
             refdict.initialize_in(self)
 
-    def __getstate__(self):
-        state = super().__getstate__()
-
-        for refdict in self.__class__.get_refdicts():
-            attr = refdict.attr
-            local_attr = refdict.local_attr
-            title = refdict.title
-            state[local_attr] = self._get_classref_dict(local_attr)
-
-            coll = getattr(self, attr)
-            state[attr] = [
-                (n, self.get_classref_origin(n, attr, local_attr, title).name)
-                for n in coll
-            ]
-
-        return state
-
     def hash_criteria(self):
         criteria = []
 
@@ -492,7 +475,7 @@ class ReferencingObject(inheriting.InheritingObject,
             else:
                 full_delta = alter_delta = delta
 
-            idx_key = lambda o: o.persistent_hash()
+            idx_key = lambda o: o.name
 
             for refdict in cls.get_refdicts():
                 local_attr = refdict.local_attr

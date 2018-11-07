@@ -19,7 +19,6 @@
 
 """Abstractions for low-level database DDL and DML operations."""
 
-from edb.lang.schema import delta as sd
 from edb.lang.schema import name as sn
 from edb.lang.schema import objects as s_obj
 
@@ -51,26 +50,6 @@ class SchemaDBObject(metaclass=SchemaDBObjectMeta):
                 return base
 
         return cls
-
-
-class CallDeltaHook(dbops.Command):
-    def __init__(
-            self, *, hook, stage, op, conditions=None, neg_conditions=None,
-            priority=0):
-        super().__init__(
-            conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
-
-        self.hook = hook
-        self.stage = stage
-        self.op = op
-
-    async def execute(self, context):
-        try:
-            self.op.call_hook(
-                context.session, stage=self.stage, hook=self.hook)
-        except sd.DeltaHookNotFoundError:
-            pass
 
 
 class ConstraintCommon:

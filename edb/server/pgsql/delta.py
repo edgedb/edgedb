@@ -51,7 +51,7 @@ from edb.lang.schema import sources as s_sources
 from edb.lang.schema import types as s_types
 
 from edb.lang.common import ordered
-from edb.lang.common import markup, nlang
+from edb.lang.common import markup
 
 from edb.lang.ir import utils as irutils
 
@@ -177,9 +177,6 @@ class NamedObjectMetaCommand(
 
         elif isinstance(value, sn.SchemaName):
             recvalue = str(value)
-
-        elif isinstance(value, nlang.WordCombination):
-            recvalue = json.dumps(value.as_dict())
 
         elif isinstance(value, collections.abc.Mapping):
             # Other dicts are JSON'ed by default

@@ -18,14 +18,13 @@
 
 
 from edb.lang.common import typed
-from . import literal
 
 
 class ExpressionText(str):
     pass
 
 
-class ExpressionList(typed.TypedList, type=literal.Literal):
+class ExpressionList(typed.TypedList, type=ExpressionText):
     @classmethod
     def merge_values(cls, target, sources, field_name, *, schema):
         result = getattr(target, field_name)
@@ -38,28 +37,3 @@ class ExpressionList(typed.TypedList, type=literal.Literal):
                     result.extend(theirs)
 
         return result
-
-
-class ExpressionDict(typed.TypedDict, keytype=str, valuetype=literal.Literal):
-    @classmethod
-    def compare_values(cls, ours, theirs, context, compcoef):
-        if not ours and not theirs:
-            basecoef = 1.0
-        elif not ours or not theirs:
-            basecoef = 0.2
-        else:
-            similarity = []
-
-            for k, v in ours.items():
-                try:
-                    theirsv = theirs[k]
-                except KeyError:
-                    # key only in ours
-                    similarity.append(0.2)
-                else:
-                    similarity.append(1.0 if v == theirsv else 0.4)
-
-            similarity.extend(0.2 for k in set(theirs) - set(ours))
-            basecoef = sum(similarity) / len(similarity)
-
-        return basecoef + (1 - basecoef) * compcoef

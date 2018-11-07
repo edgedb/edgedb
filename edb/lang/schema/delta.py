@@ -18,17 +18,12 @@
 
 
 import collections.abc
-import re
 
-from edb.lang.common.exceptions import EdgeDBError
-from edb.lang.common import exceptions as base_err
-from edb.lang.common import debug as edgedb_debug
 from edb.lang.common import adapter
 from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
 
-from edb.lang.common import markup, nlang, ordered, struct, typed
-from edb.lang.common.persistent_hash import persistent_hash
+from edb.lang.common import markup, ordered, struct, typed
 
 from . import objects as so
 from . import expr as s_expr
@@ -77,9 +72,9 @@ def delta_schemas(schema1, schema2, *, include_derived=False):
 
     for type in schema1.global_dep_order:
         o1 = schema1.get_objects(type=type, include_derived=include_derived)
-        new = ordered.OrderedIndex(o1, key=lambda o: o.persistent_hash())
+        new = ordered.OrderedIndex(o1, key=lambda o: o.name)
         o2 = schema2.get_objects(type=type, include_derived=include_derived)
-        old = ordered.OrderedIndex(o2, key=lambda o: o.persistent_hash())
+        old = ordered.OrderedIndex(o2, key=lambda o: o.name)
 
         if type in ('link', 'link_property', 'constraint'):
             new = filter(lambda i: i.generic(), new)
@@ -129,12 +124,12 @@ def delta_module(schema1, schema2, modname):
 
     for type in schema1.global_dep_order:
         new = ordered.OrderedIndex(module1.get_objects(type=type),
-                                   key=lambda o: o.persistent_hash())
+                                   key=lambda o: o.name)
         if module2 is not None:
             old = ordered.OrderedIndex(module2.get_objects(type=type),
-                                       key=lambda o: o.persistent_hash())
+                                       key=lambda o: o.name)
         else:
-            old = ordered.OrderedIndex(key=lambda o: o.persistent_hash())
+            old = ordered.OrderedIndex(key=lambda o: o.name)
 
         if type in ('link', 'link_property', 'constraint'):
             new = filter(lambda i: i.generic(), new)
@@ -153,234 +148,6 @@ def delta_module(schema1, schema2, modname):
         result.update(dels)
 
     return result
-
-
-class DeltaExceptionSchemaContext(markup.MarkupExceptionContext):
-    title = 'Protoschema Diff'
-
-    def __init__(self, schema1, schema2,
-                 schema1_title=None, schema2_title=None,
-                 schema1_checksums=None, schema2_checksums=None):
-        super().__init__()
-        self.schema1 = schema1
-        self.schema2 = schema2
-        self.schema1_title = schema1_title or 'schema 1'
-        self.schema2_title = schema2_title or 'schema 2'
-        self.schema1_checksums = schema1_checksums
-        self.schema2_checksums = schema2_checksums
-
-    @classmethod
-    def as_markup(cls, self, *, ctx):
-        me = markup.elements
-        body = []
-
-        delta = delta_schemas(self.schema2, self.schema1)
-        title = (f'Schema Delta Diff ({self.schema1_title} -> '
-                 f'{self.schema2_title}):')
-        body.append(me.doc.Section(
-            title=title, body=[markup.serialize(delta, ctx=ctx)]))
-
-        diff = edgedb_debug.get_schema_hash_diff(self.schema1, self.schema2,
-                                                 a_title=self.schema1_title,
-                                                 b_title=self.schema2_title)
-
-        body.append(me.doc.Section(title='Schema Hash Diff', body=[diff]))
-
-        diff = edgedb_debug.get_list_diff(
-            self.schema1_checksums or [],
-            self.schema2_checksums or [],
-            a_title=self.schema1_title,
-            b_title=self.schema2_title)
-
-        body.append(me.doc.Section(title='Schema Object Hashes Diff',
-                                   body=[diff]))
-
-        diff = edgedb_debug.get_schema_text_diff(self.schema1, self.schema2,
-                                                 a_title=self.schema1_title,
-                                                 b_title=self.schema2_title)
-
-        body.append(me.doc.Section(title='Schema Text Diff', body=[diff]))
-
-        return markup.elements.lang.ExceptionContext(title=self.title,
-                                                     body=body)
-
-
-class DeltaExceptionContext(markup.MarkupExceptionContext):
-    title = 'EdgeDB Delta Context'
-
-    def __init__(self, delta):
-        super().__init__
-        self.delta = delta
-
-    @classmethod
-    def as_markup(cls, self, *, ctx):
-        title = '{} {:032x}'.format(self.title, self.delta.id)
-        body = [markup.serialize(delta, ctx=ctx)
-                for delta in self.delta.deltas]
-        return markup.elements.lang.ExceptionContext(title=title, body=body)
-
-
-class DeltaError(EdgeDBError):
-    def __init__(self, msg=None, *, hint=None, details=None, delta=None):
-        super().__init__(msg, hint=hint, details=details)
-        self.delta = delta
-        if self.delta is not None:
-            base_err.replace_context(
-                self, DeltaExceptionContext(delta=self.delta))
-
-
-class DeltaChecksumError(DeltaError):
-    def __init__(self, msg=None, *, hint=None, details=None,
-                 schema1=None, schema2=None,
-                 schema1_title=None, schema2_title=None,
-                 checksums1=None, checksums2=None):
-        super().__init__(msg, hint=hint, details=details)
-        if schema1 and schema2:
-            err_ctx = DeltaExceptionSchemaContext(schema1, schema2,
-                                                  schema1_title=schema1_title,
-                                                  schema2_title=schema2_title,
-                                                  schema1_checksums=checksums1,
-                                                  schema2_checksums=checksums2)
-            base_err.replace_context(self, err_ctx)
-
-
-class DeltaHookError(DeltaError):
-    pass
-
-
-class DeltaHookNotFoundError(DeltaHookError):
-    pass
-
-
-class DeltaMeta(struct.MixedStructMeta):
-    pass
-
-
-class DeltaRefError(DeltaError):
-    pass
-
-
-class DeltaRef:
-    patterns = {
-        'offset': re.compile(
-            r'(?:(?P<repo>\w+):)?(?P<ref>\w+)(?:(?P<off1>~+)(?P<off2>\d*))?'),
-    }
-
-    def __init__(self, ref, offset, repo=None):
-        self.ref = ref
-        self.offset = offset
-        self.repo = repo
-
-    @classmethod
-    def parse(cls, spec):
-        match = cls.patterns['offset'].match(str(spec))
-        if match:
-            offset = 0
-            off1 = match.group('off1')
-            if off1:
-                offset = len(off1)
-            off2 = match.group('off2')
-            if off2:
-                offset += int(off2) - 1
-            return cls(match.group('ref'), offset, match.group('repo'))
-
-    def __str__(self):
-        if self.offset:
-            result = '%s~%s' % (self.ref, self.offset)
-        else:
-            result = '%s' % self.ref
-        if self.repo:
-            result = self.repo + ':' + result
-        return result
-
-
-class Delta(struct.MixedStruct, metaclass=DeltaMeta):
-    CURRENT_FORMAT_VERSION = 14
-
-    id = struct.Field(int)
-    parent_id = struct.Field(int, None)
-    comment = struct.Field(str, None)
-    checksum = struct.Field(int)
-    checksum_details = struct.Field(list, list)
-    deltas = struct.Field(list, None)
-    script = struct.Field(str, None)
-    snapshot = struct.Field(object, None)
-    formatver = struct.Field(int, None)
-    preprocess = struct.Field(str, None)
-    postprocess = struct.Field(str, None)
-
-    def __init__(self, **kwargs):
-        hash_items = (kwargs['parent_id'], kwargs['checksum'],
-                      kwargs['comment'])
-        kwargs['id'] = persistent_hash('%s%s%s' % hash_items)
-        super().__init__(**kwargs)
-
-    def apply(self, schema):
-        if self.snapshot is not None:
-            try:
-                self.snapshot.apply(schema)
-            except Exception as e:
-                msg = 'failed to apply delta {:032x}'.format(self.id)
-                raise DeltaError(msg, delta=self) from e
-        elif self.deltas:
-            for d in self.deltas:
-                try:
-                    d.apply(schema)
-                except Exception as e:
-                    msg = 'failed to apply delta {:032x}'.format(self.id)
-                    raise DeltaError(msg, delta=self) from e
-
-    def call_hook(self, session, stage, hook):
-        stage_code = getattr(self, stage, None)
-
-        if stage_code is not None:
-            with session.transaction():
-                def _call_hook():
-                    locals = {}
-
-                    exec(stage_code, {}, locals)
-
-                    try:
-                        hook_func = locals[hook]
-                    except KeyError as e:
-                        msg = f'{stage} code does not define {hook}() callable'
-                        raise DeltaHookNotFoundError(msg) from e
-                    else:
-                        hook_func(session)
-
-                _call_hook()
-
-    def upgrade(self, context, schema):
-        for d in self.deltas:
-            d.upgrade(context, self.formatver, schema)
-
-        if self.formatver < 14:
-            if self.deltas[0].preprocess:
-                self.preprocess = \
-                    s_expr.ExpressionText(self.deltas[0].preprocess)
-            if self.deltas[0].postprocess:
-                self.postprocess = \
-                    s_expr.ExpressionText(self.deltas[0].postprocess)
-
-        self.formatver = context.new_format_ver
-
-
-class DeltaSet:
-    def __init__(self, deltas):
-        self.deltas = ordered.OrderedSet(deltas)
-
-    def apply(self, schema):
-        for d in self.deltas:
-            d.apply(schema)
-
-    def add(self, delta):
-        self.deltas.add(delta)
-
-    def __iter__(self):
-        return iter(self.deltas)
-
-    def __bool__(self):
-        return bool(self.deltas)
 
 
 class CommandMeta(adapter.Adapter, struct.MixedStructMeta,
@@ -578,14 +345,6 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     def apply(self, schema, context):
         pass
 
-    def upgrade(self, context, format_ver, schema):
-        if context is None:
-            context = CommandContext()
-
-        with self.new_context(context):
-            for op in self.ops:
-                op.upgrade(context, format_ver, schema)
-
     def get_ast(self, context=None):
         if context is None:
             context = CommandContext()
@@ -775,12 +534,6 @@ class CommandContext:
         return CommandContextWrapper(self, token)
 
 
-class DeltaUpgradeContext(CommandContext):
-    def __init__(self, new_format_ver):
-        super().__init__()
-        self.new_format_ver = new_format_ver
-
-
 class ObjectCommandMeta(type(Command)):
     _transparent_adapter_subclass = True
     _schema_metaclasses = {}
@@ -840,21 +593,6 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
                 self)
         else:
             return super().get_subcommands(type=type)
-
-
-class Ghost(ObjectCommand):
-    """A special class to represent deleted delta commands."""
-
-    def upgrade(self, context, format_ver, schema):
-        """Remove self on during any upgrade."""
-        super().upgrade(context, format_ver, schema)
-
-        parent_ctx = context.get(CommandContextToken)
-        if parent_ctx:
-            parent_ctx.op.discard(self)
-
-    def apply(self, schema, context):
-        pass
 
 
 class ObjectCommandContext(CommandContextToken):
@@ -992,20 +730,6 @@ class AlterObjectProperty(Command):
             value = qlast.Tuple(elements=[
                 qlast.BaseConstant.from_python(el) for el in value
             ])
-        elif isinstance(value, nlang.WordCombination):
-            forms = value.as_dict()
-            if len(forms) > 1:
-                items = []
-                for k, v in forms.items():
-                    items.append((
-                        qlast.BaseConstant.from_python(k),
-                        qlast.BaseConstant.from_python(v)
-                    ))
-                value = qlast.Array(elements=[
-                    qlast.Tuple(elements=[k, v]) for k, v in items
-                ])
-            else:
-                value = qlast.BaseConstant.from_python(str(value))
         else:
             value = qlast.BaseConstant.from_python(value)
 

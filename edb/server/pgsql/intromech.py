@@ -25,7 +25,6 @@ import json
 import pickle
 
 from edb.lang.common import topological
-from edb.lang.common import nlang
 
 from edb.lang import schema as so
 
@@ -264,7 +263,7 @@ class IntrospectionMech:
 
             scalar_data = {
                 'name': name,
-                'title': self.json_to_word_combination(row['title']),
+                'title': row['title'],
                 'description': row['description'],
                 'is_abstract': row['is_abstract'],
                 'is_final': row['is_final'],
@@ -351,7 +350,7 @@ class IntrospectionMech:
             oper_data = {
                 'name': name,
                 'operator_kind': row['operator_kind'],
-                'title': self.json_to_word_combination(row['title']),
+                'title': row['title'],
                 'description': row['description'],
                 'language': row['language'],
                 'params': self._decode_func_params(row, schema),
@@ -380,7 +379,7 @@ class IntrospectionMech:
 
             func_data = {
                 'name': name,
-                'title': self.json_to_word_combination(row['title']),
+                'title': row['title'],
                 'description': row['description'],
                 'language': row['language'],
                 'params': self._decode_func_params(row, schema),
@@ -415,7 +414,7 @@ class IntrospectionMech:
             elif name != 'std::constraint':
                 bases = (sn.Name('std::constraint'), )
 
-            title = self.json_to_word_combination(r['title'])
+            title = r['title']
             description = r['description']
             subject = schema.get(r['subject']) if r['subject'] else None
 
@@ -616,7 +615,7 @@ class IntrospectionMech:
             else:
                 derived_from = None
 
-            title = self.json_to_word_combination(r['title'])
+            title = r['title']
             description = r['description']
 
             source = schema.get(r['source']) if r['source'] else None
@@ -716,7 +715,7 @@ class IntrospectionMech:
             elif name != 'std::property':
                 bases = (sn.Name('std::property'), )
 
-            title = self.json_to_word_combination(r['title'])
+            title = r['title']
             description = r['description']
             source = schema.get(r['source']) if r['source'] else None
 
@@ -791,7 +790,7 @@ class IntrospectionMech:
 
         for r in attributes:
             name = sn.Name(r['name'])
-            title = self.json_to_word_combination(r['title'])
+            title = r['title']
             description = r['description']
             attribute = s_attrs.Attribute(
                 name=name, title=title, description=description,
@@ -822,7 +821,7 @@ class IntrospectionMech:
 
         for r in actions:
             name = sn.Name(r['name'])
-            title = self.json_to_word_combination(r['title'])
+            title = r['title']
             description = r['description']
 
             action = s_policy.Action(
@@ -840,7 +839,7 @@ class IntrospectionMech:
 
         for r in events:
             name = sn.Name(r['name'])
-            title = self.json_to_word_combination(r['title'])
+            title = r['title']
             description = r['description']
 
             if r['bases']:
@@ -876,7 +875,7 @@ class IntrospectionMech:
 
         for r in policies:
             name = sn.Name(r['name'])
-            title = self.json_to_word_combination(r['title'])
+            title = r['title']
             description = r['description']
             policy = s_policy.Policy(
                 name=name, title=title, description=description,
@@ -915,7 +914,7 @@ class IntrospectionMech:
         for name, row in objtype_list.items():
             objtype = {
                 'name': name,
-                'title': self.json_to_word_combination(row['title']),
+                'title': row['title'],
                 'description': row['description'],
                 'is_abstract': row['is_abstract'],
                 'is_final': row['is_final'],
@@ -1056,12 +1055,6 @@ class IntrospectionMech:
 
         assert scalar
         return scalar
-
-    def json_to_word_combination(self, data):
-        if data:
-            return nlang.WordCombination.from_dict(json.loads(data))
-        else:
-            return None
 
     async def translate_pg_error(self, query, error):
         return await errormech.ErrorMech._interpret_db_error(

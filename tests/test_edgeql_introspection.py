@@ -509,7 +509,8 @@ class TestIntrospection(tb.QueryTestCase):
             SELECT Object {
                 name
             }
-            FILTER re_test(r'^test::\w+$', Object.name)
+            FILTER re_test(r'^test::\w+$', Object.name) AND
+                Object.name NOT LIKE '%:Virtual_%'
             ORDER BY Object.name;
         """, [
             [
@@ -526,8 +527,6 @@ class TestIntrospection(tb.QueryTestCase):
                 {'name': 'test::Text'},
                 {'name': 'test::URL'},
                 {'name': 'test::User'},
-                {'name': 'test::Virtual_1bfb5401e8affec4c5'
-                         '63a35ae764c6a56f7ca60e1d0bb8a0'},
                 {'name': 'test::address'},
                 {'name': 'test::body'},
                 {'name': 'test::due_date'},

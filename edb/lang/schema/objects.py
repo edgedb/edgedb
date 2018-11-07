@@ -24,7 +24,6 @@ import re
 import typing
 import uuid
 
-from edb.lang.common import nlang
 from edb.lang.common import parsing
 from edb.lang.common import persistent_hash as phash
 from edb.lang.common import topological
@@ -576,11 +575,6 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
 
         comparison = sorted(comparison, key=lambda item: item[0], reverse=True)
 
-        """LOG [edb.delta.comp] Index comparison
-        from edb.lang.common import markup
-        markup.dump(comparison)
-        """
-
         for s, x, y in comparison:
             if x not in used_x and y not in used_y:
                 if s != 1.0:
@@ -658,26 +652,6 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
         adds_mods.sort_subcommands_by_type()
         return adds_mods, dels
 
-    def __getstate__(self):
-        state = self.__dict__.copy()
-
-        refs = []
-
-        for field_name in self.__class__.get_fields():
-            val = state[field_name]
-            if val is not None:
-                ref, reduced = self._reduce_refs(val)
-            else:
-                ref = val
-
-            if ref is not val:
-                state[field_name] = ref
-                refs.append(field_name)
-
-        state['_classrefs'] = refs if refs else None
-
-        return state
-
     def _finalize_setstate(self, _objects, _resolve):
         classrefs = getattr(self, '_classrefs', None)
         if not classrefs:
@@ -713,8 +687,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
 
 class NamedObject(Object):
     name = Field(sn.Name, inheritable=False, compcoef=0.670)
-    title = Field(nlang.WordCombination,
-                  default=None, compcoef=0.909, coerce=True)
+    title = Field(str, default=None, compcoef=0.909, coerce=True)
     description = Field(str, default=None, compcoef=0.909)
 
     @classmethod

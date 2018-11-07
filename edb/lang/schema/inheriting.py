@@ -49,7 +49,7 @@ def delta_bases(old_bases, new_bases):
     if common_bases:
         for i, base in enumerate(new_bases):
             if common_bases[j] == base:
-                # Found common base, insert the accummulated
+                # Found common base, insert the accumulated
                 # list of new bases and continue
                 if added_base_refs:
                     ref = so.ObjectRef(classname=common_bases[j])
@@ -392,15 +392,6 @@ class InheritingObject(derivable.DerivableObject):
                           _setdefaults_=False, _relaxrequired_=True)
 
         return derived
-
-    def __getstate__(self):
-        state = super().__getstate__()
-        state['bases'] = [
-            so.ObjectRef(classname=b.name)
-            for b in self.bases
-        ]
-
-        return state
 
     def get_base_names(self):
         return self.bases.get_names()
