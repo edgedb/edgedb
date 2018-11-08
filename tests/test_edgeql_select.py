@@ -1924,10 +1924,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [4],
         ])
 
-        time = (await self.con.execute('SELECT std::current_time();'))[0][0]
-        self.assertRegex(time, r'\d+:\d+:\d+.*')
+        time = (await self.con.execute(
+            'SELECT <naive_time>"13:24:55";'))[0][0]
+        self.assertRegex(time, r'\d+:\d+:\d+')
 
-        date = (await self.con.execute('SELECT std::current_date();'))[0][0]
+        date = (await self.con.execute(
+            'SELECT <naive_date>"2000-11-23";'))[0][0]
         self.assertRegex(date, r'\d+-\d+-\d+')
 
     async def test_edgeql_select_func_09(self):

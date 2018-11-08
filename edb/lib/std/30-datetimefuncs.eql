@@ -21,21 +21,66 @@
 
 
 CREATE FUNCTION
-std::current_date() -> std::date
+std::datetime_current() -> std::datetime
 {
-    FROM SQL 'SELECT current_date';
+    FROM SQL FUNCTION 'clock_timestamp';
 };
 
 
 CREATE FUNCTION
-std::current_time() -> std::time
+std::datetime_of_transaction() -> std::datetime
 {
-    FROM SQL 'SELECT current_time';
+    FROM SQL FUNCTION 'transaction_timestamp';
 };
 
 
 CREATE FUNCTION
-std::current_datetime() -> std::datetime
+std::datetime_of_statement() -> std::datetime
 {
-    FROM SQL FUNCTION 'now';
+    FROM SQL FUNCTION 'statement_timestamp';
+};
+
+
+CREATE FUNCTION
+std::datetime_get(dt: std::datetime, el: std::str) -> std::float64
+{
+    FROM SQL $$
+    SELECT date_part("el", dt)
+    $$;
+};
+
+
+CREATE FUNCTION
+std::datetime_get(dt: std::naive_datetime, el: std::str) -> std::float64
+{
+    FROM SQL $$
+    SELECT date_part("el", dt)
+    $$;
+};
+
+
+CREATE FUNCTION
+std::time_get(dt: std::naive_time, el: std::str) -> std::float64
+{
+    FROM SQL $$
+    SELECT date_part("el", dt)
+    $$;
+};
+
+
+CREATE FUNCTION
+std::date_get(dt: std::naive_date, el: std::str) -> std::float64
+{
+    FROM SQL $$
+    SELECT date_part("el", dt)
+    $$;
+};
+
+
+CREATE FUNCTION
+std::timedelta_get(dt: std::timedelta, el: std::str) -> std::float64
+{
+    FROM SQL $$
+    SELECT date_part("el", dt)
+    $$;
 };

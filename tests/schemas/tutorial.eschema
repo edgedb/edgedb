@@ -31,7 +31,7 @@ abstract Type Text:
 
 abstract Type Timestamped:
     required property created_on -> datetime:
-        default := current_datetime()
+        default := datetime_current()
 
 
 abstract link todo:

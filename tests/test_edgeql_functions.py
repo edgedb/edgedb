@@ -689,3 +689,159 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ''', [
             [6.8],
         ])
+
+    async def test_edgeql_functions_datetime_current_01(self):
+        dt = (await self.con.execute('SELECT datetime_current();'))[0][0]
+        self.assertRegex(dt, r'\d+-\d+-\d+T\d+:\d+:\d+\.\d+.*')
+
+    async def test_edgeql_functions_datetime_current_02(self):
+        res = await self.con.execute(r'''
+            START TRANSACTION;
+
+            WITH MODULE schema
+            SELECT Type {
+                dt_t := datetime_of_transaction(),
+                dt_s := datetime_of_statement(),
+                dt_n := datetime_current(),
+            };
+            # NOTE: this test assumes that there's at least 1 microsecond
+            # time difference between statements
+            WITH MODULE schema
+            SELECT Type {
+                dt_t := datetime_of_transaction(),
+                dt_s := datetime_of_statement(),
+                dt_n := datetime_current(),
+            };
+
+            COMMIT;
+        ''')
+
+        batch1 = res[1]
+        batch2 = res[2]
+        batches = batch1 + batch2
+
+        # all of the dt_t should be the same
+        set_dt_t = {t['dt_t'] for t in batches}
+        self.assertTrue(len(set_dt_t) == 1)
+
+        # all of the dt_s should be the same in each batch
+        set_dt_s1 = {t['dt_s'] for t in batch1}
+        set_dt_s2 = {t['dt_s'] for t in batch2}
+        self.assertTrue(len(set_dt_s1) == 1)
+        self.assertTrue(len(set_dt_s1) == 1)
+
+        # the transaction and statement datetimes should be in
+        # chronological order
+        dt_t = set_dt_t.pop()
+        dt_s1 = set_dt_s1.pop()
+        dt_s2 = set_dt_s2.pop()
+        self.assertTrue(dt_t <= dt_s1 < dt_s2)
+
+        # the first "now" datetime is no earlier than the statement
+        # for each batch
+        self.assertTrue(dt_s1 <= batch1[0]['dt_n'])
+        self.assertTrue(dt_s2 <= batch2[0]['dt_n'])
+
+        # every dt_n is already in chronological order
+        self.assertEqual(
+            [t['dt_n'] for t in batches],
+            sorted([t['dt_n'] for t in batches])
+        )
+        # the first dt_n is strictly earlier than the last
+        self.assertTrue(batches[0]['dt_n'] < batches[-1]['dt_n'])
+
+    async def test_edgeql_functions_datetime_get_01(self):
+        await self.assert_query_result(r'''
+            SELECT datetime_get(
+                <datetime>'2018-05-07T15:01:22.306916-05', 'year');
+            SELECT datetime_get(
+                <datetime>'2018-05-07T15:01:22.306916-05', 'month');
+            SELECT datetime_get(
+                <datetime>'2018-05-07T15:01:22.306916-05', 'day');
+            SELECT datetime_get(
+                <datetime>'2018-05-07T15:01:22.306916-05', 'hour');
+            SELECT datetime_get(
+                <datetime>'2018-05-07T15:01:22.306916-05', 'minute');
+            SELECT datetime_get(
+                <datetime>'2018-05-07T15:01:22.306916-05', 'second');
+            SELECT datetime_get(
+                <datetime>'2018-05-07T15:01:22.306916-05', 'timezone_hour');
+        ''', [
+            {2018},
+            {5},
+            {7},
+            {20},
+            {1},
+            {22.306916},
+            {0},
+        ])
+
+    async def test_edgeql_functions_datetime_get_02(self):
+        await self.assert_query_result(r'''
+            SELECT datetime_get(
+                <naive_datetime>'2018-05-07T15:01:22.306916', 'year');
+            SELECT datetime_get(
+                <naive_datetime>'2018-05-07T15:01:22.306916', 'month');
+            SELECT datetime_get(
+                <naive_datetime>'2018-05-07T15:01:22.306916', 'day');
+            SELECT datetime_get(
+                <naive_datetime>'2018-05-07T15:01:22.306916', 'hour');
+            SELECT datetime_get(
+                <naive_datetime>'2018-05-07T15:01:22.306916', 'minute');
+            SELECT datetime_get(
+                <naive_datetime>'2018-05-07T15:01:22.306916', 'second');
+        ''', [
+            {2018},
+            {5},
+            {7},
+            {15},
+            {1},
+            {22.306916},
+        ])
+
+    async def test_edgeql_functions_datetime_get_03(self):
+        with self.assertRaisesRegex(
+            exc.UnknownEdgeDBError,
+                'timestamp units "timezone_hour" not supported'):
+            await self.con.execute('''
+                SELECT datetime_get(
+                    <naive_datetime>'2018-05-07T15:01:22.306916',
+                    'timezone_hour'
+                );
+            ''')
+
+    async def test_edgeql_functions_date_get_01(self):
+        await self.assert_query_result(r'''
+            SELECT date_get(<naive_date>'2018-05-07', 'year');
+            SELECT date_get(<naive_date>'2018-05-07', 'month');
+            SELECT date_get(<naive_date>'2018-05-07', 'day');
+        ''', [
+            {2018},
+            {5},
+            {7},
+        ])
+
+    async def test_edgeql_functions_time_get_01(self):
+        await self.assert_query_result(r'''
+            SELECT time_get(<naive_time>'15:01:22.306916', 'hour');
+            SELECT time_get(<naive_time>'15:01:22.306916', 'minute');
+            SELECT time_get(<naive_time>'15:01:22.306916', 'second');
+        ''', [
+            {15},
+            {1},
+            {22.306916},
+        ])
+
+    async def test_edgeql_functions_timedelta_get_01(self):
+        await self.assert_query_result(r'''
+            SELECT timedelta_get(<timedelta>'15:01:22.306916', 'hour');
+            SELECT timedelta_get(<timedelta>'15:01:22.306916', 'minute');
+            SELECT timedelta_get(<timedelta>'15:01:22.306916', 'second');
+
+            SELECT timedelta_get(<timedelta>'3 days 15:01:22', 'day');
+        ''', [
+            {15},
+            {1},
+            {22.306916},
+            {3},
+        ])

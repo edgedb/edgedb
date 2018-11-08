@@ -71,15 +71,49 @@ class TestEdgeQLDT(tb.QueryTestCase):
             ['2017-10-09T00:00:00+00:00'],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_dt_datetime_03(self):
         await self.assert_query_result('''
             SELECT <tuple<str,datetime>>('foo', '2020-10-10');
             SELECT (<tuple<str,datetime>>('foo', '2020-10-10')).1 +
                    <timedelta>'1 month';
         ''', [
-            [{'foo': '2020-10-10T00:00:00+00:00'}],
+            [['foo', '2020-10-10T00:00:00+00:00']],
             ['2020-11-10T00:00:00+00:00'],
+        ])
+
+    async def test_edgeql_dt_naive_datetime_01(self):
+        await self.assert_query_result('''
+            SELECT <naive_datetime>'2017-10-10T13:11' + <timedelta>'1 day';
+            SELECT <timedelta>'1 day' + <naive_datetime>'2017-10-10T13:11';
+            SELECT <naive_datetime>'2017-10-10T13:11' - <timedelta>'1 day';
+        ''', [
+            ['2017-10-11T13:11:00'],
+            ['2017-10-11T13:11:00'],
+            ['2017-10-09T13:11:00'],
+        ])
+
+    @unittest.expectedFailure
+    # FIXME: naive_date becomes naive_datetime after arithmetic with timedelta
+    async def test_edgeql_dt_naive_date_01(self):
+        await self.assert_query_result('''
+            SELECT <naive_date>'2017-10-10' + <timedelta>'1 day';
+            SELECT <timedelta>'1 day' + <naive_date>'2017-10-10';
+            SELECT <naive_date>'2017-10-10' - <timedelta>'1 day';
+        ''', [
+            ['2017-10-11'],
+            ['2017-10-11'],
+            ['2017-10-09'],
+        ])
+
+    async def test_edgeql_dt_naive_time_01(self):
+        await self.assert_query_result('''
+            SELECT <naive_time>'10:01:01' + <timedelta>'1 hour';
+            SELECT <timedelta>'1 hour' + <naive_time>'10:01:01';
+            SELECT <naive_time>'10:01:01' - <timedelta>'1 hour';
+        ''', [
+            ['11:01:01'],
+            ['11:01:01'],
+            ['09:01:01'],
         ])
 
     async def test_edgeql_dt_sequence_01(self):
