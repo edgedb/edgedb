@@ -84,3 +84,21 @@ std::timedelta_get(dt: std::timedelta, el: std::str) -> std::float64
     SELECT date_part("el", dt)
     $$;
 };
+
+
+CREATE FUNCTION
+std::datetime_trunc(dt: std::datetime, unit: std::str) -> std::datetime
+{
+    FROM SQL $$
+    SELECT date_trunc(unit, dt)
+    $$;
+};
+
+
+CREATE FUNCTION
+std::timedelta_trunc(dt: std::timedelta, unit: std::str) -> std::timedelta
+{
+    FROM SQL $$
+    SELECT date_trunc(unit, dt)
+    $$;
+};

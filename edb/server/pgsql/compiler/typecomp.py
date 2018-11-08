@@ -50,6 +50,7 @@ def cast(
     json_t = schema.get('std::json')
     str_t = schema.get('std::str')
     datetime_t = schema.get('std::datetime')
+    naive_datetime_t = schema.get('std::naive_datetime')
     bool_t = schema.get('std::bool')
     real_t = schema.get('std::anyreal')
     bytes_t = schema.get('std::bytes')
@@ -125,10 +126,14 @@ def cast(
 
     else:
         # `target_type` is not a collection.
-        if (source_type.issubclass(env.schema, datetime_t) and
+        if (source_type.issubclass(env.schema,
+                                   (datetime_t, naive_datetime_t)) and
                 target_type.issubclass(env.schema, str_t)):
-            # Normalize datetime to text conversion to have the same
-            # format as one would get by serializing to JSON.
+            # Normalize [naive] datetime to text conversion to have
+            # the same format as one would get by serializing to JSON.
+            # Otherwise Postgres doesn't follow the ISO8601 standard
+            # and uses ' ' instead of 'T' as a separator between date
+            # and time.
             #
             # EdgeQL: <text><datetime>'2010-10-10';
             # To SQL: trim(to_json('2010-01-01'::timestamptz)::text, '"')

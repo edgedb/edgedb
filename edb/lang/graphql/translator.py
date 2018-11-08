@@ -118,7 +118,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         for el in eql[0].result.elements:
             # swap in the json bits
             if (isinstance(el.compexpr, qlast.FunctionCall) and
-                    el.compexpr.func == 'str_to_json'):
+                    el.compexpr.func == 'to_json'):
                 name = el.expr.steps[0].ptr.name
                 el.compexpr.args[0].arg = qlast.StringConstant.from_python(
                     json.dumps(gqlresult.data[name], indent=4))

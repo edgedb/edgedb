@@ -572,7 +572,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
         '''
 
         if self.dummy:
-            return parse_fragment(f'''str_to_json("xxx")'''), None, None
+            return parse_fragment(f'''to_json("xxx")'''), None, None
 
         eql = parse_fragment(f'''
             SELECT {self.edb_base_name} {{

@@ -1,0 +1,420 @@
+#
+# This source file is part of the EdgeDB open source project.
+#
+# Copyright 2018-present MagicStack Inc. and the EdgeDB authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+## Function that construct various scalars from strings or other types.
+
+
+# std::to_str
+# --------
+
+# Normalize [naive] datetime to text conversion to have
+# the same format as one would get by serializing to JSON.
+# Otherwise Postgres doesn't follow the ISO8601 standard
+# and uses ' ' instead of 'T' as a separator between date
+# and time.
+#
+# EdgeQL: <text><datetime>'2010-10-10';
+# To SQL: trim(to_json('2010-01-01'::timestamptz)::text, '"')
+CREATE FUNCTION
+std::to_str(dt: std::datetime, fmt: OPTIONAL str={}) -> std::str
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            trim(to_json(dt)::text, '"')
+        ELSE
+            to_char(dt, fmt)
+        END
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_str(dt: std::naive_datetime, fmt: OPTIONAL str={}) -> std::str
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            trim(to_json(dt)::text, '"')
+        ELSE
+            to_char(dt, fmt)
+        END
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_str(d: std::naive_date, fmt: OPTIONAL str={}) -> std::str
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            d::text
+        ELSE
+            to_char(d, fmt)
+        END
+    )
+    $$;
+};
+
+
+# Currently naive time is formatted by composing it with the naive
+# current local date. This at least guarantees that the time
+# formatting is accessible and consistent with full datetime
+# formatting, but it exposes current date as well if it is included in
+# the format.
+# FIXME: date formatting should not have any special effect.
+CREATE FUNCTION
+std::to_str(nt: std::naive_time, fmt: OPTIONAL str={}) -> std::str
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            nt::text
+        ELSE
+            to_char(date_trunc('day', localtimestamp) + nt, fmt)
+        END
+    )
+    $$;
+};
+
+
+# FIXME: There's no good safe default for all possible timedeltas and some
+# timedeltas cannot be formatted without non-trivial conversions (e.g.
+# 7,000 days).
+
+
+CREATE FUNCTION
+std::to_str(i: std::int64, fmt: OPTIONAL str={}) -> std::str
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            i::text
+        ELSE
+            to_char(i, fmt)
+        END
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_str(f: std::float64, fmt: OPTIONAL str={}) -> std::str
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            f::text
+        ELSE
+            to_char(f, fmt)
+        END
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_str(d: std::decimal, fmt: OPTIONAL str={}) -> std::str
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            d::text
+        ELSE
+            to_char(d, fmt)
+        END
+    )
+    $$;
+};
+
+
+
+
+# JSON can be prettified by specifying 'pretty' as the format, any
+# other value will result in an exception.
+CREATE FUNCTION
+std::to_str(json: std::json, fmt: OPTIONAL str={}) -> std::str
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            "json"::text
+        WHEN fmt = 'pretty' THEN
+            jsonb_pretty("json")
+        ELSE
+            edgedb._raise_specific_exception(
+                'invalid_parameter_value',
+                'format ''' || fmt || ''' is invalid for JSON',
+                NULL,
+                NULL::text
+            )
+        END
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_json(str: std::str) -> std::json
+{
+    FROM SQL $$
+    SELECT "str"::jsonb
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_datetime(s: std::str, fmt: OPTIONAL str={}) -> std::datetime
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            s::timestamptz
+        ELSE
+            to_timestamp(s, fmt)
+        END
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_datetime(year: std::int64, month: std::int64, day: std::int64,
+                 hour: std::int64, min: std::int64, sec: std::float64)
+    -> std::datetime
+{
+    FROM SQL $$
+    SELECT make_timestamptz(
+        year::int, month::int, day::int,
+        hour::int, min::int, sec
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_datetime(year: std::int64, month: std::int64, day: std::int64,
+                 hour: std::int64, min: std::int64, sec: std::float64,
+                 timezone: std::str)
+    -> std::datetime
+{
+    FROM SQL $$
+    SELECT make_timestamptz(
+        year::int, month::int, day::int,
+        hour::int, min::int, sec, timezone
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_naive_datetime(s: std::str, fmt: OPTIONAL str={})
+    -> std::naive_datetime
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            s::timestamp
+        ELSE
+            to_timestamp(s, fmt)::timestamp
+        END
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_naive_datetime(year: std::int64, month: std::int64, day: std::int64,
+                       hour: std::int64, min: std::int64, sec: std::float64)
+    -> std::naive_datetime
+{
+    FROM SQL $$
+    SELECT make_timestamp(
+        year::int, month::int, day::int,
+        hour::int, min::int, sec
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_naive_date(s: std::str, fmt: OPTIONAL str={}) -> std::naive_date
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            s::date
+        ELSE
+            to_date(s, fmt)
+        END
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_naive_date(year: std::int64, month: std::int64, day: std::int64)
+    -> std::naive_date
+{
+    FROM SQL $$
+    SELECT make_date(year::int, month::int, day::int)
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_naive_time(s: std::str, fmt: OPTIONAL str={}) -> std::naive_time
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            s::time
+        ELSE
+            to_timestamp(s, fmt)::time
+        END
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_naive_time(hour: std::int64, min: std::int64, sec: std::float64)
+    -> std::naive_time
+{
+    FROM SQL $$
+    SELECT make_time(hour::int, min::int, sec)
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_timedelta(
+        NAMED ONLY years: std::int64=0,
+        NAMED ONLY months: std::int64=0,
+        NAMED ONLY weeks: std::int64=0,
+        NAMED ONLY days: std::int64=0,
+        NAMED ONLY hours: std::int64=0,
+        NAMED ONLY mins: std::int64=0,
+        NAMED ONLY secs: std::float64=0
+    ) -> std::timedelta
+{
+    FROM SQL $$
+    SELECT make_interval(
+        years::int,
+        months::int,
+        weeks::int,
+        days::int,
+        hours::int,
+        mins::int,
+        secs
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_decimal(s: std::str, fmt: OPTIONAL str={}) -> std::decimal
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            s::numeric
+        ELSE
+            to_number(s, fmt)
+        END
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_int64(s: std::str, fmt: OPTIONAL str={}) -> std::int64
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            s::bigint
+        ELSE
+            to_number(s, fmt)::bigint
+        END
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_int32(s: std::str, fmt: OPTIONAL str={}) -> std::int32
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            s::int
+        ELSE
+            to_number(s, fmt)::int
+        END
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_int16(s: std::str, fmt: OPTIONAL str={}) -> std::int16
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            s::smallint
+        ELSE
+            to_number(s, fmt)::smallint
+        END
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_float64(s: std::str, fmt: OPTIONAL str={}) -> std::float64
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            s::float8
+        ELSE
+            to_number(s, fmt)::float8
+        END
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_float32(s: std::str, fmt: OPTIONAL str={}) -> std::float32
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            s::float4
+        ELSE
+            to_number(s, fmt)::float4
+        END
+    )
+    $$;
+};

@@ -4351,7 +4351,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     number,
                     time_estimate
                 } FILTER Issue.number = '1'
-            ) = str_to_json('{"number": "1", "time_estimate": 3000}');
+            ) = to_json('{"number": "1", "time_estimate": 3000}');
 
             WITH MODULE test
             SELECT (
@@ -4359,7 +4359,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     number,
                     time_estimate
                 } FILTER Issue.number = '2'
-            ) = str_to_json('{"number": "2", "time_estimate": null}');
+            ) = to_json('{"number": "2", "time_estimate": null}');
         ''', [
             [True],
             [True],

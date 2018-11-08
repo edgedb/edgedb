@@ -2558,7 +2558,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT stdgraphql::Query {
-            __schema := str_to_json('{
+            __schema := to_json('{
                 "__typename": "__Schema"
             }')
         };
@@ -2578,7 +2578,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT stdgraphql::Query {
-            __schema := str_to_json('{
+            __schema := to_json('{
                 "__typename": "__Schema"
             }')
         };
@@ -2621,7 +2621,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT stdgraphql::Query {
-            __schema := str_to_json('{
+            __schema := to_json('{
                 "directives": [
                     {
                         "name": "include",
@@ -2723,7 +2723,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT stdgraphql::Query {
-            __schema := str_to_json('{
+            __schema := to_json('{
                 "mutationType": null
             }')
         };
@@ -2759,7 +2759,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT stdgraphql::Query {
-            __schema := str_to_json('{
+            __schema := to_json('{
                 "queryType": {
                     "kind": "OBJECT",
                     "name": "Query",
@@ -2788,7 +2788,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT stdgraphql::Query {
-            __schema := str_to_json('{
+            __schema := to_json('{
                 "types": [
                     {"kind": "OBJECT", "name": "Query"},
                     {"kind": "INPUT_OBJECT", "name": "FilterFoo"},
@@ -2861,7 +2861,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT stdgraphql::Query {
-            Foo := str_to_json('{
+            Foo := to_json('{
                 "types": [
                     {"kind": "OBJECT", "name": "Query"},
                     {"kind": "INPUT_OBJECT", "name": "FilterFoo"},
@@ -2939,7 +2939,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT stdgraphql::Query {
-            __schema := str_to_json('{
+            __schema := to_json('{
                 "directives": [
                     {
                         "name": "include",
@@ -2997,7 +2997,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     }
                 }
             ),
-            __schema := str_to_json('{
+            __schema := to_json('{
                 "types": [
                     {"kind": "OBJECT", "name": "Query"},
                     {"kind": "INPUT_OBJECT", "name": "FilterFoo"},
@@ -3069,7 +3069,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT stdgraphql::Query {
-            __type := str_to_json('{
+            __type := to_json('{
                 "__typename": "__Type",
                 "name": "User",
                 "kind": "INTERFACE"
@@ -3107,7 +3107,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT stdgraphql::Query {
-            __type := str_to_json('{
+            __type := to_json('{
                 "__typename": "__Type",
                 "kind": "OBJECT"
                 "name": "UserType",
@@ -3161,7 +3161,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT stdgraphql::Query {
-            __type := str_to_json('{
+            __type := to_json('{
                 "__typename": "__Type",
                 "kind": "INTERFACE"
                 "name": "User",
@@ -3230,7 +3230,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT stdgraphql::Query {
-            __type := str_to_json('{
+            __type := to_json('{
                 "__typename": "__Type",
                 "name": "UserGroup",
                 "kind": "INTERFACE",
@@ -3341,7 +3341,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT stdgraphql::Query {
-            __type := str_to_json('{
+            __type := to_json('{
                 "__typename": "__Type",
                 "name": "UserGroupType",
                 "kind": "OBJECT",
@@ -3458,7 +3458,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT stdgraphql::Query {
-            __type := str_to_json('{
+            __type := to_json('{
                 "__typename": "__Type",
                 "name": "ProfileType",
                 "kind": "OBJECT",
@@ -3654,7 +3654,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT stdgraphql::Query {
-            __type := str_to_json('{
+            __type := to_json('{
                 "__typename": "__Type",
                 "kind": "INTERFACE",
                 "name": "NamedObject",
@@ -4318,7 +4318,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT stdgraphql::Query {
-            __type := str_to_json('{
+            __type := to_json('{
                 "__typename": "__Type",
                 "name": "UserGroupType",
                 "kind": "OBJECT",
@@ -4484,7 +4484,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT stdgraphql::Query {
-            __type := str_to_json('{
+            __type := to_json('{
                 "__typename": "__Type",
                 "name": "FilterUser",
                 "kind": "INPUT_OBJECT",
@@ -4606,7 +4606,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT stdgraphql::Query {
-            __type := str_to_json('{
+            __type := to_json('{
                 "__typename": "__Type",
                 "name": "OrderUser",
                 "kind": "INPUT_OBJECT",
@@ -4689,7 +4689,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT stdgraphql::Query {
-            __type := str_to_json('{
+            __type := to_json('{
                 "__typename": "__Type",
                 "name": "Ordering",
                 "kind": "INPUT_OBJECT",
@@ -4745,7 +4745,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT stdgraphql::Query {
-            directionEnum := str_to_json('{
+            directionEnum := to_json('{
                 "__typename": "__Type",
                 "name": "directionEnum",
                 "kind": "ENUM",
@@ -4754,7 +4754,7 @@ class TestGraphQLTranslation(TranslatorTest):
                     {"name": "DESC"}
                 ]
             }'),
-            nullsOrderingEnum := str_to_json('{
+            nullsOrderingEnum := to_json('{
                 "__typename": "__Type",
                 "name": "nullsOrderingEnum",
                 "kind": "ENUM",

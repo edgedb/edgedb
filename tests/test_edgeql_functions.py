@@ -845,3 +845,397 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {22.306916},
             {3},
         ])
+
+    async def test_edgeql_functions_to_datetime_01(self):
+        await self.assert_query_result(r'''
+            SELECT <str>to_datetime(2018, 5, 7, 15, 1, 22.306916);
+            SELECT <str>to_datetime(2018, 5, 7, 15, 1, 22.306916, 'EST');
+            SELECT <str>to_datetime(2018, 5, 7, 15, 1, 22.306916, '-5');
+        ''', [
+            ['2018-05-07T15:01:22.306916+00:00'],
+            ['2018-05-07T20:01:22.306916+00:00'],
+            ['2018-05-07T20:01:22.306916+00:00'],
+        ])
+
+    async def test_edgeql_functions_to_naive_datetime_01(self):
+        await self.assert_query_result(r'''
+            SELECT <str>to_naive_datetime(2018, 5, 7, 15, 1, 22.306916);
+        ''', [
+            ['2018-05-07T15:01:22.306916'],
+        ])
+
+    async def test_edgeql_functions_to_naive_date_01(self):
+        await self.assert_query_result(r'''
+            SELECT <str>to_naive_date(2018, 5, 7);
+        ''', [
+            ['2018-05-07'],
+        ])
+
+    async def test_edgeql_functions_to_naive_time_01(self):
+        await self.assert_query_result(r'''
+            SELECT <str>to_naive_time(15, 1, 22.306916);
+        ''', [
+            ['15:01:22.306916'],
+        ])
+
+    async def test_edgeql_functions_to_timedelta_01(self):
+        await self.assert_query_result(r'''
+            SELECT <str>to_timedelta(years:=20);
+            SELECT <str>to_timedelta(months:=20);
+            SELECT <str>to_timedelta(weeks:=20);
+            SELECT <str>to_timedelta(days:=20);
+            SELECT <str>to_timedelta(hours:=20);
+            SELECT <str>to_timedelta(mins:=20);
+            SELECT <str>to_timedelta(secs:=20);
+        ''', [
+            ['20 years'],
+            ['1 year 8 mons'],
+            ['140 days'],
+            ['20 days'],
+            ['20:00:00'],
+            ['00:20:00'],
+            ['00:00:20'],
+        ])
+
+    async def test_edgeql_functions_to_timedelta_02(self):
+        await self.assert_query_result(r'''
+            SELECT to_timedelta(years:=20) > to_timedelta(months:=20);
+            SELECT to_timedelta(months:=20) > to_timedelta(weeks:=20);
+            SELECT to_timedelta(weeks:=20) > to_timedelta(days:=20);
+            SELECT to_timedelta(days:=20) > to_timedelta(hours:=20);
+            SELECT to_timedelta(hours:=20) > to_timedelta(mins:=20);
+            SELECT to_timedelta(mins:=20) > to_timedelta(secs:=20);
+        ''', [
+            [True],
+            [True],
+            [True],
+            [True],
+            [True],
+            [True],
+        ])
+
+    async def test_edgeql_functions_to_str_01(self):
+        # at the very least the cast <str> should be equivalent to
+        # a call to to_str() without explicit format for simple scalars
+        await self.assert_query_result(r'''
+            WITH DT := datetime_current()
+            # FIXME: the cast has a "T" and the str doesn't for some reason
+            SELECT <str>DT = to_str(DT);
+
+            WITH D := <naive_date>datetime_current()
+            SELECT <str>D = to_str(D);
+
+            WITH NT := <naive_time>datetime_current()
+            SELECT <str>NT = to_str(NT);
+
+            SELECT <str>123 = to_str(123);
+            SELECT <str>123.456 = to_str(123.456);
+            SELECT <str>123.456e-20 = to_str(123.456e-20);
+            # an unambiguous way to define a decimal is by casting
+            # from a string
+            SELECT <str><decimal>'123456789012345678901234567890.1234567890' =
+                to_str(<decimal>'123456789012345678901234567890.1234567890');
+        ''', [
+            [True],
+            [True],
+            [True],
+            [True],
+            [True],
+            [True],
+            [True],
+        ])
+
+    async def test_edgeql_functions_to_str_02(self):
+        await self.assert_query_result(r'''
+            WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
+            SELECT to_str(DT, 'YYYY-MM-DD');
+
+            WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
+            SELECT to_str(DT, 'YYYYBC');
+
+            WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
+            SELECT to_str(DT, 'FMDDth of FMMonth, YYYY');
+
+            WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
+            SELECT to_str(DT, 'CCth "century"');
+
+            WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
+            SELECT to_str(DT, 'Y,YYY Month DD Day');
+
+            # the format string doesn't have any special characters
+            WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
+            SELECT to_str(DT, 'foo');
+
+            # the format string doesn't have any special characters
+            WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
+            SELECT to_str(DT, '');
+        ''', [
+            {'2018-05-07'},
+            {'2018AD'},
+            {'7th of May, 2018'},
+            {'21st century'},
+            {'2,018 May       07 Monday   '},
+            {'foo'},
+            {},
+        ])
+
+    async def test_edgeql_functions_to_str_03(self):
+        await self.assert_query_result(r'''
+            WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
+            SELECT to_str(DT, 'HH:MI A.M.');
+        ''', [
+            # tests run in UTC time-zone, so 15:01-05 is 20:01 UTC
+            {'08:01 P.M.'},
+        ])
+
+    async def test_edgeql_functions_to_str_04(self):
+        await self.assert_query_result(r'''
+            WITH DT := <naive_date>'2018-05-07'
+            SELECT to_str(DT, 'YYYY-MM-DD');
+
+            WITH DT := <naive_date>'2018-05-07'
+            SELECT to_str(DT, 'YYYYBC');
+
+            WITH DT := <naive_date>'2018-05-07'
+            SELECT to_str(DT, 'FMDDth of FMMonth, YYYY');
+
+            WITH DT := <naive_date>'2018-05-07'
+            SELECT to_str(DT, 'CCth "century"');
+
+            WITH DT := <naive_date>'2018-05-07'
+            SELECT to_str(DT, 'Y,YYY Month DD Day');
+
+            # the format string doesn't have any special characters
+            WITH DT := <naive_date>'2018-05-07'
+            SELECT to_str(DT, 'foo');
+
+            # the format string doesn't have any special characters
+            WITH DT := <naive_date>'2018-05-07'
+            SELECT to_str(DT, '');
+        ''', [
+            {'2018-05-07'},
+            {'2018AD'},
+            {'7th of May, 2018'},
+            {'21st century'},
+            {'2,018 May       07 Monday   '},
+            {'foo'},
+            {},
+        ])
+
+    async def test_edgeql_functions_to_str_05(self):
+        await self.assert_query_result(r'''
+            SELECT to_str(123456789, '99');
+            SELECT to_str(123456789, '999999999');
+            SELECT to_str(123456789, '999,999,999');
+            SELECT to_str(123456789, '999,999,999,999');
+            SELECT to_str(123456789, 'FM999,999,999,999');
+
+            SELECT to_str(123456789, 'S999,999,999,999');
+            SELECT to_str(123456789, 'SG999,999,999,999');
+            SELECT to_str(123456789, 'S099,999,999,999');
+            SELECT to_str(123456789, 'SG099,999,999,999');
+
+            SELECT to_str(123456789, 'S099999999999');
+            SELECT to_str(123456789, 'S990999999999');
+            SELECT to_str(123456789, 'FMS990999999999');
+
+            SELECT to_str(-123456789, '999999999PR');
+
+            SELECT to_str(987654321, 'FM999999999th');
+        ''', [
+            {' ##'},  # the number is too long for the desired representation
+            {' 123456789'},
+            {' 123,456,789'},
+            {'     123,456,789'},
+            {'123,456,789'},
+            {'    +123,456,789'},
+            {'+    123,456,789'},
+            {'+000,123,456,789'},
+            {'+000,123,456,789'},
+            {'+000123456789'},
+            {'  +0123456789'},
+            {'+0123456789'},
+            {'<123456789>'},
+            {'987654321st'},
+        ])
+
+    async def test_edgeql_functions_to_str_06(self):
+        await self.assert_query_result(r'''
+            SELECT to_str(123.456789, '99');
+            SELECT to_str(123.456789, '999');
+            SELECT to_str(123.456789, '999.999');
+            SELECT to_str(123.456789, '999.999999999');
+
+            SELECT to_str(123.456789, 'FM999.999999999');
+            SELECT to_str(123.456789e-20, '999.999999999');
+            SELECT to_str(123.456789e-20, 'FM999.999999999');
+            SELECT to_str(123.456789e-20, '099.999999990');
+            SELECT to_str(123.456789e-20, 'FM990.099999999');
+
+            SELECT to_str(123.456789e-20, '0.0999EEEE');
+            SELECT to_str(123.456789e20, '0.0999EEEE');
+        ''', [
+            {' ##'},  # the integer part of the number is too long
+            {' 123'},
+            {' 123.457'},
+            {' 123.456789000'},
+            {'123.456789'},
+            {'    .000000000'},
+            {'0.'},
+            {' 000.000000000'},
+            {'0.0'},
+            {' 1.2346e-18'},
+            {' 1.2346e+22'},
+        ])
+
+    async def test_edgeql_functions_to_str_07(self):
+        await self.assert_query_result(r'''
+            SELECT to_str(<naive_time>'15:01:22', 'HH:MI A.M.');
+            SELECT to_str(<naive_time>'15:01:22', 'HH:MI:SSam.');
+            SELECT to_str(<naive_time>'15:01:22', 'HH24:MI');
+        ''', [
+            {'03:01 P.M.'},
+            {'03:01:22pm.'},
+            {'15:01'},
+        ])
+
+    async def test_edgeql_functions_to_int_01(self):
+        await self.assert_query_result(r'''
+            SELECT to_int64(' 123456789', '999999999');
+            SELECT to_int64(' 123,456,789', '999,999,999');
+            SELECT to_int64('     123,456,789', '999,999,999,999');
+            SELECT to_int64('123,456,789', 'FM999,999,999,999');
+            SELECT to_int64('    +123,456,789', 'S999,999,999,999');
+            SELECT to_int64('+    123,456,789', 'SG999,999,999,999');
+            SELECT to_int64('+000,123,456,789', 'S099,999,999,999');
+            SELECT to_int64('+000,123,456,789', 'SG099,999,999,999');
+            SELECT to_int64('+000123456789', 'S099999999999');
+            SELECT to_int64('  +0123456789', 'S990999999999');
+            SELECT to_int64('+0123456789', 'FMS990999999999');
+            SELECT to_int64('<123456789>', '999999999PR');
+            SELECT to_int64('987654321st', 'FM999999999th');
+        ''', [
+            {123456789},
+            {123456789},
+            {123456789},
+            {123456789},
+            {123456789},
+            {123456789},
+            {123456789},
+            {123456789},
+            {123456789},
+            {123456789},
+            {123456789},
+            {-123456789},
+            {987654321},
+        ])
+
+    async def test_edgeql_functions_to_int_02(self):
+        await self.assert_query_result(r'''
+            SELECT to_int32(' 123456789', '999999999');
+            SELECT to_int32(' 123,456,789', '999,999,999');
+            SELECT to_int32('     123,456,789', '999,999,999,999');
+            SELECT to_int32('123,456,789', 'FM999,999,999,999');
+            SELECT to_int32('    +123,456,789', 'S999,999,999,999');
+            SELECT to_int32('+    123,456,789', 'SG999,999,999,999');
+            SELECT to_int32('+000,123,456,789', 'S099,999,999,999');
+            SELECT to_int32('+000,123,456,789', 'SG099,999,999,999');
+            SELECT to_int32('+000123456789', 'S099999999999');
+            SELECT to_int32('  +0123456789', 'S990999999999');
+            SELECT to_int32('+0123456789', 'FMS990999999999');
+            SELECT to_int32('<123456789>', '999999999PR');
+            SELECT to_int32('987654321st', 'FM999999999th');
+        ''', [
+            {123456789},
+            {123456789},
+            {123456789},
+            {123456789},
+            {123456789},
+            {123456789},
+            {123456789},
+            {123456789},
+            {123456789},
+            {123456789},
+            {123456789},
+            {-123456789},
+            {987654321},
+        ])
+
+    async def test_edgeql_functions_to_int_03(self):
+        await self.assert_query_result(r'''
+            SELECT to_int16('12345', '999999999');
+            SELECT to_int16('12,345', '999,999,999');
+            SELECT to_int16('     12,345', '999,999,999,999');
+            SELECT to_int16('12,345', 'FM999,999,999,999');
+            SELECT to_int16('+12,345', 'S999,999,999,999');
+            SELECT to_int16('+    12,345', 'SG999,999,999,999');
+            SELECT to_int16('-000,012,345', 'S099,999,999,999');
+            SELECT to_int16('+000,012,345', 'SG099,999,999,999');
+            SELECT to_int16('+00012345', 'S099999999999');
+            SELECT to_int16('  +012345', 'S990999999999');
+            SELECT to_int16('+012345', 'FMS990999999999');
+            SELECT to_int16('<12345>', '999999999PR');
+            SELECT to_int16('4321st', 'FM999999999th');
+        ''', [
+            {12345},
+            {12345},
+            {12345},
+            {12345},
+            {12345},
+            {12345},
+            {-12345},
+            {12345},
+            {12345},
+            {12345},
+            {12345},
+            {-12345},
+            {4321},
+        ])
+
+    async def test_edgeql_functions_to_float_01(self):
+        await self.assert_query_result(r'''
+            SELECT to_float64(' 123', '999');
+            SELECT to_float64('123.457', '999.999');
+            SELECT to_float64(' 123.456789000', '999.999999999');
+            SELECT to_float64('123.456789', 'FM999.999999999');
+        ''', [
+            {123},
+            {123.457},
+            {123.456789},
+            {123.456789},
+        ])
+
+    async def test_edgeql_functions_to_float_02(self):
+        await self.assert_query_result(r'''
+            SELECT to_float32(' 123', '999');
+            SELECT to_float32('123.457', '999.999');
+            SELECT to_float32(' 123.456789000', '999.999999999');
+            SELECT to_float32('123.456789', 'FM999.999999999');
+        ''', [
+            {123},
+            {123.457},
+            {123.457},
+            {123.457},
+        ])
+
+    async def test_edgeql_functions_to_decimal_01(self):
+        await self.assert_query_result(r'''
+            SELECT to_decimal(' 123', '999');
+            SELECT to_decimal('123.457', '999.999');
+            SELECT to_decimal(' 123.456789000', '999.999999999');
+            SELECT to_decimal('123.456789', 'FM999.999999999');
+        ''', [
+            {123},
+            {123.457},
+            {123.456789},
+            {123.456789},
+        ])
+
+    async def test_edgeql_functions_to_decimal_02(self):
+        await self.assert_query_result(r'''
+            SELECT to_decimal(
+                '123456789123456789123456789.123456789123456789123456789',
+                'FM999999999999999999999999999.999999999999999999999999999');
+        ''', [
+            {123456789123456789123456789.123456789123456789123456789},
+        ])

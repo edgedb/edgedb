@@ -826,7 +826,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         try:
             await self.assert_query_result(r'''
                 SELECT test::call23('abcde', 2);
-                SELECT test::call23(str_to_json('[{"a":"b"}]'), 0);
+                SELECT test::call23(to_json('[{"a":"b"}]'), 0);
                 SELECT test::call23('abcde', <int32>2);
             ''', [
                 ['c'],

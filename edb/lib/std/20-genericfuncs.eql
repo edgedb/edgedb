@@ -44,7 +44,7 @@ CREATE FUNCTION
 std::len(array: array<anytype>) -> std::int64
 {
     FROM SQL $$
-    SELECT COALESCE(array_length("array", 1), 0)::bigint
+    SELECT cardinality("array")::bigint
     $$;
 };
 

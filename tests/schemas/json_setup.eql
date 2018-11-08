@@ -24,12 +24,12 @@ INSERT JSONTest {
     j_string := <json>'the',
     j_number := <json>2,
     j_boolean := <json>true,
-    j_array := str_to_json('[1, 1, 1]'),
-    j_object := str_to_json('{
+    j_array := to_json('[1, 1, 1]'),
+    j_object := to_json('{
         "a": 1,
         "b": 2
     }'),
-    data := str_to_json('null'),
+    data := to_json('null'),
     edb_string := 'jumps'
 };
 
@@ -38,12 +38,12 @@ INSERT JSONTest {
     j_string := <json>'quick',
     j_number := <json>2.7,
     j_boolean := <json>false,
-    j_array := str_to_json('[]'),
-    j_object := str_to_json('{
+    j_array := to_json('[]'),
+    j_object := to_json('{
         "b": 1,
         "c": 2
     }'),
-    data := str_to_json('{}'),
+    data := to_json('{}'),
     edb_string := 'over'
 };
 
@@ -52,12 +52,12 @@ INSERT JSONTest {
     j_string := <json>'brown',
     j_number := <json>2.71,
     j_boolean := <json>true,
-    j_array := str_to_json('[2, "q", [3], {}, null]'),
+    j_array := to_json('[2, "q", [3], {}, null]'),
 };
 
 INSERT JSONTest {
     number := 3,
-    data := str_to_json('[
+    data := to_json('[
         1.61,
         null,
         "Fraka",

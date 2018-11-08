@@ -273,7 +273,7 @@ aa';
 
     def test_edgeql_syntax_constants_22(self):
         r"""
-        SELECT str_to_json('{"defaultValue": "\\"SMALLEST\\""}');
+        SELECT to_json('{"defaultValue": "\\"SMALLEST\\""}');
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,

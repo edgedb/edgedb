@@ -54,21 +54,3 @@ std::json_get(
     )
     $$;
 };
-
-
-CREATE FUNCTION
-std::json_to_str(json: std::json) -> std::str
-{
-    FROM SQL $$
-    SELECT "json"::text
-    $$;
-};
-
-
-CREATE FUNCTION
-std::str_to_json(str: std::str) -> std::json
-{
-    FROM SQL $$
-    SELECT "str"::jsonb
-    $$;
-};

@@ -34,18 +34,18 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_cast_01(self):
         await self.assert_query_result("""
-            SELECT str_to_json('"qwerty"');
-            SELECT str_to_json('1');
-            SELECT str_to_json('2.3e-2');
+            SELECT to_json('"qwerty"');
+            SELECT to_json('1');
+            SELECT to_json('2.3e-2');
 
-            SELECT str_to_json('true');
-            SELECT str_to_json('false');
-            SELECT str_to_json('null');
+            SELECT to_json('true');
+            SELECT to_json('false');
+            SELECT to_json('null');
 
-            SELECT str_to_json('[2, "a", 3.456]');
-            SELECT str_to_json('[2, "a", 3.456, [["b", 1]]]');
+            SELECT to_json('[2, "a", 3.456]');
+            SELECT to_json('[2, "a", 3.456, [["b", 1]]]');
 
-            SELECT str_to_json('{
+            SELECT to_json('{
                 "a": 1,
                 "b": 2.87,
                 "c": [2, "a", 3.456],
@@ -87,14 +87,14 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_cast_02(self):
         await self.assert_query_result("""
-            SELECT <str>str_to_json('"qwerty"');
-            SELECT <int64>str_to_json('1');
-            SELECT <float64>str_to_json('2.3e-2');
+            SELECT <str>to_json('"qwerty"');
+            SELECT <int64>to_json('1');
+            SELECT <float64>to_json('2.3e-2');
 
-            SELECT <bool>str_to_json('true');
-            SELECT <bool>str_to_json('false');
+            SELECT <bool>to_json('true');
+            SELECT <bool>to_json('false');
 
-            SELECT <array<int64>>str_to_json('[2, 3, 5]');
+            SELECT <array<int64>>to_json('[2, 3, 5]');
         """, [
             ['qwerty'],
             [1],
@@ -108,10 +108,10 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_cast_03(self):
         await self.assert_query_result("""
-            SELECT <str>str_to_json('null');
-            SELECT <int64>str_to_json('null');
-            SELECT <float64>str_to_json('null');
-            SELECT <bool>str_to_json('null');
+            SELECT <str>to_json('null');
+            SELECT <int64>to_json('null');
+            SELECT <float64>to_json('null');
+            SELECT <bool>to_json('null');
         """, [
             [],
             [],
@@ -121,10 +121,10 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_cast_04(self):
         await self.assert_query_result("""
-            SELECT <str>str_to_json('null') ?= <str>{};
-            SELECT <int64>str_to_json('null') ?= <int64>{};
-            SELECT <float64>str_to_json('null') ?= <float64>{};
-            SELECT <bool>str_to_json('null') ?= <bool>{};
+            SELECT <str>to_json('null') ?= <str>{};
+            SELECT <int64>to_json('null') ?= <int64>{};
+            SELECT <float64>to_json('null') ?= <float64>{};
+            SELECT <bool>to_json('null') ?= <bool>{};
         """, [
             [True],
             [True],
@@ -135,9 +135,9 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_cast_05(self):
         await self.assert_query_result("""
             SELECT <json>{} ?= (
-                SELECT x := str_to_json('1') FILTER x = str_to_json('2')
+                SELECT x := to_json('1') FILTER x = to_json('2')
             );
-            SELECT <json>{} ?= str_to_json('null');
+            SELECT <json>{} ?= to_json('null');
         """, [
             [True],
             [False],
@@ -155,12 +155,12 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_accessor_01(self):
         await self.assert_query_result("""
-            SELECT (str_to_json('[1, "a", 3]'))[0] = str_to_json('1');
-            SELECT (str_to_json('[1, "a", 3]'))[1] = str_to_json('"a"');
-            SELECT (str_to_json('[1, "a", 3]'))[2] = str_to_json('3');
+            SELECT (to_json('[1, "a", 3]'))[0] = to_json('1');
+            SELECT (to_json('[1, "a", 3]'))[1] = to_json('"a"');
+            SELECT (to_json('[1, "a", 3]'))[2] = to_json('3');
 
-            SELECT (str_to_json('[1, "a", 3]'))[<int16>0] = str_to_json('1');
-            SELECT (str_to_json('[1, "a", 3]'))[<int32>0] = str_to_json('1');
+            SELECT (to_json('[1, "a", 3]'))[<int16>0] = to_json('1');
+            SELECT (to_json('[1, "a", 3]'))[<int32>0] = to_json('1');
         """, [
             [True],
             [True],
@@ -172,11 +172,11 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_accessor_02(self):
         await self.assert_query_result("""
-            SELECT (str_to_json('{"a": 1, "b": null}'))["a"] =
-                str_to_json('1');
+            SELECT (to_json('{"a": 1, "b": null}'))["a"] =
+                to_json('1');
 
-            SELECT (str_to_json('{"a": 1, "b": null}'))["b"] =
-                str_to_json('null');
+            SELECT (to_json('{"a": 1, "b": null}'))["b"] =
+                to_json('null');
         """, [
             [True],
             [True],
@@ -184,7 +184,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_accessor_03(self):
         await self.assert_query_result("""
-            SELECT (<str>(str_to_json('["qwerty"]'))[0])[1];
+            SELECT (<str>(to_json('["qwerty"]'))[0])[1];
         """, [
             ['w'],
         ])
@@ -195,7 +195,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 exc.UnknownEdgeDBError,
                 r'json index 10 is out of bounds'):
             await self.con.execute(r"""
-                SELECT (str_to_json('[1, "a", 3]'))[10];
+                SELECT (to_json('[1, "a", 3]'))[10];
             """)
 
     async def test_edgeql_json_accessor_05(self):
@@ -204,7 +204,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 exc.UnknownEdgeDBError,
                 r'json index -10 is out of bounds'):
             await self.con.execute(r"""
-                SELECT (str_to_json('[1, "a", 3]'))[-10];
+                SELECT (to_json('[1, "a", 3]'))[-10];
             """)
 
     async def test_edgeql_json_accessor_06(self):
@@ -214,7 +214,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 exc.UnknownEdgeDBError,
                 r'cannot index json array by text'):
             await self.con.execute(r"""
-                SELECT (str_to_json('[1, "a", 3]'))['1'];
+                SELECT (to_json('[1, "a", 3]'))['1'];
             """)
 
     async def test_edgeql_json_accessor_07(self):
@@ -223,7 +223,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 exc.UnknownEdgeDBError,
                 r"json index 'c' is out of bounds"):
             await self.con.execute(r"""
-                SELECT (str_to_json('{"a": 1, "b": null}'))["c"];
+                SELECT (to_json('{"a": 1, "b": null}'))["c"];
             """)
 
     async def test_edgeql_json_accessor_08(self):
@@ -233,7 +233,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 exc.UnknownEdgeDBError,
                 r'cannot index json object by integer'):
             await self.con.execute(r"""
-                SELECT (str_to_json('{"a": 1, "b": null}'))[0];
+                SELECT (to_json('{"a": 1, "b": null}'))[0];
             """)
 
     async def test_edgeql_json_accessor_09(self):
@@ -243,7 +243,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 exc.UnknownEdgeDBError,
                 r'cannot index json null'):
             await self.con.execute(r"""
-                SELECT (str_to_json('null'))[0];
+                SELECT (to_json('null'))[0];
             """)
 
     async def test_edgeql_json_accessor_10(self):
@@ -253,7 +253,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 exc.UnknownEdgeDBError,
                 r'cannot index json boolean'):
             await self.con.execute(r"""
-                SELECT (str_to_json('true'))[0];
+                SELECT (to_json('true'))[0];
             """)
 
     async def test_edgeql_json_accessor_11(self):
@@ -263,7 +263,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 exc.UnknownEdgeDBError,
                 r'cannot index json number'):
             await self.con.execute(r"""
-                SELECT (str_to_json('123'))[0];
+                SELECT (to_json('123'))[0];
             """)
 
     async def test_edgeql_json_accessor_12(self):
@@ -272,7 +272,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 exc.UnknownEdgeDBError,
                 r'cannot index json string'):
             await self.con.execute(r"""
-                SELECT (str_to_json('"qwerty"'))[0];
+                SELECT (to_json('"qwerty"'))[0];
             """)
 
     async def test_edgeql_json_accessor_13(self):
@@ -412,7 +412,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             WITH MODULE test
             SELECT (
                 SELECT JSONTest FILTER .number = 0
-            ).data ?= str_to_json('null');
+            ).data ?= to_json('null');
 
             WITH MODULE test
             SELECT (
@@ -422,7 +422,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             WITH MODULE test
             SELECT (
                 SELECT JSONTest FILTER .number = 2
-            ).data ?= str_to_json('null');
+            ).data ?= to_json('null');
         ''', [
             {False},
             {True},
@@ -432,15 +432,15 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_typeof_01(self):
         await self.assert_query_result(r"""
-            SELECT json_typeof(str_to_json('2'));
-            SELECT json_typeof(str_to_json('"foo"'));
-            SELECT json_typeof(str_to_json('true'));
-            SELECT json_typeof(str_to_json('false'));
-            SELECT json_typeof(str_to_json('null'));
-            SELECT json_typeof(str_to_json('[]'));
-            SELECT json_typeof(str_to_json('[2]'));
-            SELECT json_typeof(str_to_json('{}'));
-            SELECT json_typeof(str_to_json('{"a": 2}'));
+            SELECT json_typeof(to_json('2'));
+            SELECT json_typeof(to_json('"foo"'));
+            SELECT json_typeof(to_json('true'));
+            SELECT json_typeof(to_json('false'));
+            SELECT json_typeof(to_json('null'));
+            SELECT json_typeof(to_json('[]'));
+            SELECT json_typeof(to_json('[2]'));
+            SELECT json_typeof(to_json('{}'));
+            SELECT json_typeof(to_json('{"a": 2}'));
             SELECT json_typeof(<json>{});
         """, [
             ['number'],
@@ -476,7 +476,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_array_unpack_01(self):
         await self.assert_query_result("""
-            SELECT json_array_unpack(str_to_json('[1, "a", null]'));
+            SELECT json_array_unpack(to_json('[1, "a", null]'));
         """, [
             [1, 'a', None],  # None is legitimate JSON null
         ])
@@ -488,7 +488,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 exc.UnknownEdgeDBError,
                 r'operator does not exist: jsonb = bigint'):
             await self.con.execute(r'''
-                SELECT json_array_unpack(str_to_json('[2,3,4]')) IN
+                SELECT json_array_unpack(to_json('[2,3,4]')) IN
                     {2, 3, 4};
             ''')
 
@@ -499,15 +499,15 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 exc.UnknownEdgeDBError,
                 r'operator does not exist: jsonb = text'):
             await self.con.execute(r'''
-                SELECT json_array_unpack(str_to_json('[2,3,4]')) IN
+                SELECT json_array_unpack(to_json('[2,3,4]')) IN
                     {'2', '3', '4'};
             ''')
 
     async def test_edgeql_json_array_unpack_04(self):
         await self.assert_query_result(r'''
-            SELECT json_array_unpack(str_to_json('[2,3,4]')) IN
+            SELECT json_array_unpack(to_json('[2,3,4]')) IN
                 <json>{2, 3, 4};
-            SELECT json_array_unpack(str_to_json('[2,3,4]')) NOT IN
+            SELECT json_array_unpack(to_json('[2,3,4]')) NOT IN
                 <json>{2, 3, 4};
         ''', [
             [True, True, True],
@@ -533,7 +533,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 MODULE test,
                 JT0 := (SELECT JSONTest FILTER .number = 0)
             # unpacking [1, 1, 1]
-            SELECT json_array_unpack(JT0.j_array) = str_to_json('1');
+            SELECT json_array_unpack(JT0.j_array) = to_json('1');
         ''', [
             [True, True, True],
         ])
@@ -565,7 +565,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_object_unpack_01(self):
         await self.assert_sorted_query_result(r'''
-            SELECT json_object_unpack(str_to_json('{
+            SELECT json_object_unpack(to_json('{
                 "q": 1,
                 "w": [2, null, 3],
                 "e": null
@@ -586,7 +586,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
             WITH MODULE test
             SELECT json_object_unpack(JSONTest.j_object) =
-                ('c', str_to_json('1'));
+                ('c', to_json('1'));
 
             WITH MODULE test
             SELECT json_object_unpack(JSONTest.j_object).0 IN {'a', 'b', 'c'};
@@ -745,7 +745,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
             SELECT json_get(
                 JSONTest.data, '4', 'b', 'bar', '2', 'bogus',
-                default := str_to_json('null')
+                default := to_json('null')
             ) ?? <json>'oups';
 
             SELECT json_get(
@@ -777,7 +777,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         res = await self.query("""
             WITH MODULE schema
             SELECT
-                json_to_str(<json>(
+                to_str(<json>(
                     SELECT Object {
                         name,
                         foo := 'bar',
@@ -803,7 +803,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                     name
                 }
             FILTER
-                json_to_str(<json>(ScalarType {name})) LIKE '%std::json%';
+                to_str(<json>(ScalarType {name})) LIKE '%std::json%';
         """, [
             [{
                 'name': 'std::json',
@@ -817,7 +817,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             SELECT
                 True
             FILTER
-                json_to_str(
+                to_str(
                     (
                         <tuple<json>>(
                             (
@@ -842,7 +842,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             SELECT
                 True
             FILTER
-                json_to_str(<json>[(
+                to_str(<json>[(
                     SELECT Object {
                         name,
                         foo := 'bar',
@@ -928,7 +928,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         res = await self.query("""
             WITH MODULE schema
             SELECT
-                json_to_str(<json>(
+                to_str(<json>(
                     1,
                     (SELECT Object {
                             name,
@@ -949,7 +949,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_cast_tuple_to_json_02(self):
         res = await self.query("""
             SELECT
-                json_to_str(<json>(
+                to_str(<json>(
                     foo := 1,
                     bar := [1, 2, 3]
                 ));
@@ -965,12 +965,12 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_slice_01(self):
         await self.assert_query_result(r'''
-            SELECT str_to_json('[1, "a", 3, null]')[:1];
-            SELECT str_to_json('[1, "a", 3, null]')[:-1];
-            SELECT str_to_json('[1, "a", 3, null]')[1:-1];
-            SELECT str_to_json('[1, "a", 3, null]')[-1:1];
-            SELECT str_to_json('[1, "a", 3, null]')[-100:100];
-            SELECT str_to_json('[1, "a", 3, null]')[100:-100];
+            SELECT to_json('[1, "a", 3, null]')[:1];
+            SELECT to_json('[1, "a", 3, null]')[:-1];
+            SELECT to_json('[1, "a", 3, null]')[1:-1];
+            SELECT to_json('[1, "a", 3, null]')[-1:1];
+            SELECT to_json('[1, "a", 3, null]')[-100:100];
+            SELECT to_json('[1, "a", 3, null]')[100:-100];
         ''', [
             [[1]],
             [[1, 'a', 3]],
@@ -1016,7 +1016,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 exc.EdgeQLError, r'cannot slice json array by.*str'):
 
             await self.con.execute(r"""
-                SELECT str_to_json('[1, "a", 3, null]')[:'1'];
+                SELECT to_json('[1, "a", 3, null]')[:'1'];
             """)
 
     async def test_edgeql_json_bytes_cast_01(self):
@@ -1165,3 +1165,53 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 ],
             }],
         ])
+
+    async def test_edgeql_json_str_function_01(self):
+        await self.assert_query_result(r'''
+            SELECT to_str(<json>[1, 2, 3, 4]);
+            SELECT to_str(<json>[1, 2, 3, 4], 'pretty');
+        ''', [
+            {'[1, 2, 3, 4]'},
+            {'[\n    1,\n    2,\n    3,\n    4\n]'},
+        ])
+
+    async def test_edgeql_json_str_function_02(self):
+        with self.assertRaisesRegex(
+                exc.UnknownEdgeDBError,
+                r"format 'foo' is invalid for JSON"):
+            async with self.con.transaction():
+                await self.con.execute(r'''
+                    SELECT to_str(<json>[1, 2, 3, 4], 'foo');
+                ''')
+
+        with self.assertRaisesRegex(
+                exc.UnknownEdgeDBError,
+                r"format '' is invalid for JSON"):
+            async with self.con.transaction():
+                await self.con.execute(r'''
+                    SELECT to_str(<json>[1, 2, 3, 4], '');
+                ''')
+
+        with self.assertRaisesRegex(
+                exc.UnknownEdgeDBError,
+                r"format 'PRETTY' is invalid for JSON"):
+            async with self.con.transaction():
+                await self.con.execute(r'''
+                    SELECT to_str(<json>[1, 2, 3, 4], 'PRETTY');
+                ''')
+
+        with self.assertRaisesRegex(
+                exc.UnknownEdgeDBError,
+                r"format 'Pretty' is invalid for JSON"):
+            async with self.con.transaction():
+                await self.con.execute(r'''
+                    SELECT to_str(<json>[1, 2, 3, 4], 'Pretty');
+                ''')
+
+        with self.assertRaisesRegex(
+                exc.UnknownEdgeDBError,
+                r"format 'p' is invalid for JSON"):
+            async with self.con.transaction():
+                await self.con.execute(r'''
+                    SELECT to_str(<json>[1, 2, 3, 4], 'p');
+                ''')
