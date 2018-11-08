@@ -136,7 +136,7 @@ def compile_anchor(
         else:
             Object = ctx.schema.get('std::Object')
 
-            ptrcls = anchor.get_derived(
+            ctx.schema, ptrcls = anchor.get_derived(
                 ctx.schema, Object, Object,
                 mark_derived=True, add_to_schema=False)
 
@@ -156,7 +156,7 @@ def compile_anchor(
                 anchor.source.target, ctx=ctx)
         else:
             Object = ctx.schema.get('std::Object')
-            ptrcls = anchor.source.get_derived(
+            ctx.schema, ptrcls = anchor.source.get_derived(
                 ctx.schema, Object, Object,
                 mark_derived=True, add_to_schema=False)
             path = setgen.extend_path(

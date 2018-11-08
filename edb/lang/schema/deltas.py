@@ -97,8 +97,8 @@ class CreateDelta(named.CreateNamedObject, DeltaCommand):
         props = self.get_struct_properties(schema)
         metaclass = self.get_schema_metaclass()
         delta = metaclass(**props)
-        schema.add_delta(delta)
-        return delta
+        schema = schema.add_delta(delta)
+        return schema, delta
 
 
 class AlterDelta(named.CreateOrAlterNamedObject, DeltaCommand):
@@ -111,7 +111,7 @@ class AlterDelta(named.CreateOrAlterNamedObject, DeltaCommand):
         for name, value in props.items():
             setattr(delta, name, value)
 
-        return delta
+        return schema, delta
 
 
 class DeleteDelta(DeltaCommand):
@@ -119,8 +119,8 @@ class DeleteDelta(DeltaCommand):
 
     def apply(self, schema, context):
         delta = schema.get_delta(self.classname)
-        schema.delete_delta(delta)
-        return delta
+        schema = schema.delete_delta(delta)
+        return schema, delta
 
 
 class CommitDelta(DeltaCommand):
@@ -129,9 +129,9 @@ class CommitDelta(DeltaCommand):
     def apply(self, schema, context):
         delta = schema.get_delta(self.classname)
         for cmd in delta.commands:
-            cmd.apply(schema, context)
+            schema, _ = cmd.apply(schema, context)
 
-        return delta
+        return schema, delta
 
 
 class GetDelta(DeltaCommand):
@@ -139,4 +139,4 @@ class GetDelta(DeltaCommand):
 
     def apply(self, schema, context):
         delta = schema.get_delta(self.classname)
-        return delta
+        return schema, delta

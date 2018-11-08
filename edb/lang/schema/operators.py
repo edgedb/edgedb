@@ -153,7 +153,7 @@ class CreateOperator(named.CreateNamedObject, OperatorCommand):
                     f'{oper.return_type.name}',
                     context=self.source_context)
 
-        super()._add_to_schema(schema)
+        return super()._add_to_schema(schema)
 
     @classmethod
     def _cmd_tree_from_ast(cls, astnode, context, schema):

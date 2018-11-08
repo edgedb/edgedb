@@ -101,7 +101,7 @@ class Backend:
 
         delta = self.adapt_delta(delta)
         context = delta_cmds.CommandContext(self.connection)
-        delta.apply(schema, context)
+        schema, _ = delta.apply(schema, context)
 
         if debug.flags.delta_pgsql_plan:
             debug.header('PgSQL Delta Plan')
@@ -123,10 +123,10 @@ class Backend:
 
             elif isinstance(delta_cmd, s_deltas.GetDelta):
                 delta = schema.get_delta(delta_cmd.classname)
-                result = s_ddl.ddl_text_from_delta(schema, delta)
+                result = s_ddl.ddl_text_from_delta(delta)
 
             elif isinstance(delta_cmd, s_deltas.CreateDelta):
-                delta_cmd.apply(schema, context)
+                schema, _ = delta_cmd.apply(schema, context)
 
             else:
                 raise RuntimeError(

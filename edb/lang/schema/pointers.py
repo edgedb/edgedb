@@ -118,12 +118,13 @@ class Pointer(constraints.ConsistencySubject):
                                         minimize_by=minimize_by)
         if not schema.get(target.name, default=None):
             target.is_derived = True
-            schema.add(target)
-        return target
+            schema = schema.add(target)
+        return schema, target
 
     def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
-        super().finalize(schema, bases=bases, apply_defaults=apply_defaults,
-                         dctx=dctx)
+        schema = super().finalize(
+            schema, bases=bases, apply_defaults=apply_defaults,
+            dctx=dctx)
 
         if not self.generic() and apply_defaults:
             if self.cardinality is None:
@@ -137,6 +138,8 @@ class Pointer(constraints.ConsistencySubject):
                         new_value=self.cardinality,
                         source='default'
                     ))
+
+        return schema
 
     @classmethod
     def merge_targets(cls, schema, ptr, t1, t2):
@@ -172,7 +175,7 @@ class Pointer(constraints.ConsistencySubject):
                             f'{t1.name!r} while it also targets incompatible'
                             f'scalar type {t2.name!r} in other parent.')
 
-            return t1
+            return schema, t1
 
         else:
             # Targets are both objects
@@ -220,11 +223,12 @@ class Pointer(constraints.ConsistencySubject):
                     tnames, module)
                 current_target = s_objtypes.ObjectType(
                     name=parent_name, is_abstract=True, is_virtual=True)
-                schema.update_virtual_inheritance(current_target, new_targets)
+                schema = schema.update_virtual_inheritance(
+                    current_target, new_targets)
             else:
                 current_target = new_targets[0]
 
-            return current_target
+            return schema, current_target
 
     def get_derived(self, schema, source, target, **kwargs):
         fqname = self.derive_name(source)
@@ -238,11 +242,12 @@ class Pointer(constraints.ConsistencySubject):
             ptr = schema.get(fqname, default=None)
             if ptr is None:
                 if self.generic():
-                    ptr = self.derive(schema, source, target, **kwargs)
+                    schema, ptr = self.derive(schema, source, target, **kwargs)
                 else:
-                    ptr = self.derive_copy(schema, source, target, **kwargs)
+                    schema, ptr = self.derive_copy(
+                        schema, source, target, **kwargs)
 
-        return ptr
+        return schema, ptr
 
     def get_derived_name(self, source, target, *qualifiers,
                          mark_derived=False):
@@ -274,8 +279,8 @@ class Pointer(constraints.ConsistencySubject):
                     if target is None:
                         target = base.target
                     else:
-                        target = self.merge_targets(schema, self, target,
-                                                    base.target)
+                        schema, target = self.merge_targets(
+                            schema, self, target, base.target)
 
         if attrs is None:
             attrs = {}
@@ -319,14 +324,6 @@ class Pointer(constraints.ConsistencySubject):
         else:
             return self.is_exclusive()
 
-    def merge_defaults(self, other):
-        if not self.default:
-            if other.default:
-                self.default = other.default
-
-    def normalize_defaults(self):
-        pass
-
 
 class PointerVector(sn.Name):
     __slots__ = ('module', 'name', 'direction', 'target', 'is_linkprop')
@@ -341,14 +338,6 @@ class PointerVector(sn.Name):
 
     def __repr__(self):
         return '<edb.schema.PointerVector {}>'.format(self)
-
-    def __mm_serialize__(self):
-        return dict(
-            name=str(self),
-            direction=self.direction,
-            target=self.target,
-            is_linkprop=self.is_linkprop,
-        )
 
     def __hash__(self):
         if self.direction == PointerDirection.Outbound:
@@ -411,7 +400,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
                 std_link = schema.get(cls.get_default_base_name())
                 base = cls(name=base_name, bases=[std_link])
                 delta = base.delta(None)
-                delta.apply(schema, context=context.at_top())
+                schema, _ = delta.apply(schema, context=context.at_top())
                 top_ctx = referrer_ctx
                 refref_cls = getattr(
                     top_ctx.op, 'referrer_context_class', None)
@@ -422,7 +411,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
 
                 top_ctx.op.after(delta)
 
-        super()._create_begin(schema, context)
+        return super()._create_begin(schema, context)
 
     def _parse_computable(self, expr, schema, context) -> so.ObjectRef:
         from edb.lang.edgeql import utils as ql_utils

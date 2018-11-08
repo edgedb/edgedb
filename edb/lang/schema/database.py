@@ -60,10 +60,12 @@ class AlterDatabase(DatabaseCommand):
             mods = []
 
             for op in self.get_subcommands(type=modules.CreateModule):
-                mods.append(op.apply(schema, context))
+                schema, mod = op.apply(schema, context)
+                mods.append(mod)
 
             for op in self.get_subcommands(type=modules.AlterModule):
-                mods.append(op.apply(schema, context))
+                schema, mod = op.apply(schema, context)
+                mods.append(mod)
 
             for mod in mods:
                 for imported in mod.imports:
@@ -75,20 +77,20 @@ class AlterDatabase(DatabaseCommand):
                             # which might have disappeared.
                             pass
                         else:
-                            schema.add_module(impmod)
+                            schema = schema.add_module(impmod)
 
             for op in self:
                 if not isinstance(op, (modules.CreateModule,
                                        modules.AlterModule)):
-                    op.apply(schema, context)
+                    schema, _ = op.apply(schema, context)
 
             for link in schema.get_objects(type='link'):
                 if link.target and not isinstance(link.target,
                                                   so.Object):
                     link.target = schema.get(link.target)
 
-                link.acquire_ancestor_inheritance(schema)
-                link.finalize(schema)
+                schema = link.acquire_ancestor_inheritance(schema)
+                schema = link.finalize(schema)
 
             for link in schema.get_objects(type='computable'):
                 if link.target and not isinstance(link.target,
@@ -96,8 +98,10 @@ class AlterDatabase(DatabaseCommand):
                     link.target = schema.get(link.target)
 
             for objtype in schema.get_objects(type='ObjectType'):
-                objtype.acquire_ancestor_inheritance(schema)
-                objtype.finalize(schema)
+                schema = objtype.acquire_ancestor_inheritance(schema)
+                schema = objtype.finalize(schema)
+
+        return schema, None
 
 
 class DropDatabase(DatabaseCommand):

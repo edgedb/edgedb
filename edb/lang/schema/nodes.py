@@ -36,28 +36,14 @@ class Node(inheriting.InheritingObject, s_types.Type):
         return t
 
     def derive_subtype(self, schema, *, name: str) -> s_types.Type:
-        st = type(self)(name=name, bases=[self])
-        st.acquire_ancestor_inheritance(schema)
-        return st
+        return type(self).create_with_inheritance(
+            schema, name=name, bases=[self])
 
     def peel_view(self):
         if self.is_view():
             return self.bases[0]
         else:
             return self
-
-    def derive_view(self, schema, name,
-                    type: s_types.ViewType=s_types.ViewType.Select):
-        if not self.generic():
-            derived = self.derive_copy(
-                schema, self.bases[0], name, mark_derived=True)
-        else:
-            derived = self.derive(
-                schema, self, name, mark_derived=True)
-
-        derived.view_type = type
-
-        return derived
 
 
 class NodeCommandContext:
@@ -100,11 +86,11 @@ class NodeCommand(named.NamedObjectCommand):
     def _view_schema_from_ir(cls, view_name, ir, schema):
         vschema = s_schema.Schema()
         module_shell = modules.Module(name=view_name.module)
-        vschema.add_module(module_shell)
+        vschema = vschema.add_module(module_shell)
 
         if ir is not None:
             for view in ir.views.values():
-                vschema.add(view)
+                vschema = vschema.add(view)
 
             for view in ir.views.values():
                 if not hasattr(view, 'own_pointers'):
@@ -112,12 +98,12 @@ class NodeCommand(named.NamedObjectCommand):
 
                 for vptr in view.own_pointers.values():
                     vptr.target = vptr.target.material_type()
-                    vschema.add(vptr)
+                    vschema = vschema.add(vptr)
                     if not hasattr(vptr, 'own_pointers'):
                         continue
                     for vlprop in vptr.own_pointers.values():
                         vlprop.target = vlprop.target.material_type()
-                        vschema.add(vlprop)
+                        vschema = vschema.add(vlprop)
 
         return vschema
 

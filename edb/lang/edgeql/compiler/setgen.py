@@ -330,7 +330,7 @@ def resolve_ptr(
     ptr = None
 
     if isinstance(near_endpoint, s_sources.Source):
-        ptr = near_endpoint.resolve_pointer(
+        ctx.schema, ptr = near_endpoint.resolve_pointer(
             ctx.schema,
             pointer_name,
             direction=direction,
@@ -374,7 +374,8 @@ def resolve_ptr(
             bptr = schemactx.get_schema_ptr(pointer_name, ctx=ctx)
             schema_cls = ctx.schema.get('schema::ScalarType')
             if bptr.shortname == 'std::__type__':
-                ptr = bptr.derive(ctx.schema, near_endpoint, schema_cls)
+                ctx.schema, ptr = bptr.derive(
+                    ctx.schema, near_endpoint, schema_cls)
 
     if ptr is None:
         # Reference to a property on non-object
@@ -534,8 +535,7 @@ def get_expression_path_id(
         et = t.copy()
         et.name = cls_name
     else:
-        et = t.__class__(name=cls_name, bases=[t])
-        et.acquire_ancestor_inheritance(ctx.schema)
+        et = t.create_with_inheritance(ctx.schema, name=cls_name, bases=[t])
     return pathctx.get_path_id(et, ctx=ctx)
 
 

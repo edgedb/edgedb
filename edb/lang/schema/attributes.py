@@ -59,12 +59,14 @@ class AttributeSubject(referencing.ReferencingObject):
         super().__init__(**kwargs)
         self._attr_name_cache = None
 
-    def add_attribute(self, attribute, replace=False):
-        self.add_classref('attributes', attribute, replace=replace)
+    def add_attribute(self, schema, attribute, replace=False):
+        schema = self.add_classref(
+            schema, 'attributes', attribute, replace=replace)
         self._attr_name_cache = None
+        return schema
 
     def del_attribute(self, attribute_name, schema):
-        self.del_classref('attributes', attribute_name, schema)
+        return self.del_classref(schema, 'attributes', attribute_name)
 
     def delta_all_attributes(self, old, new, delta, context):
         oldattributes = old.local_attributes if old else {}
@@ -226,10 +228,10 @@ class AttributeValueCommand(sd.ObjectCommand, schema_metaclass=AttributeValue,
             return super()._cmd_tree_from_ast(astnode, context, schema)
 
     def add_attribute(self, attribute, parent, schema):
-        parent.add_attribute(attribute, replace=True)
+        return parent.add_attribute(schema, attribute, replace=True)
 
     def delete_attribute(self, attribute_class, parent, schema):
-        parent.del_attribute(attribute_class, schema)
+        return parent.del_attribute(attribute_class, schema)
 
 
 class CreateAttributeValue(AttributeValueCommand, named.CreateNamedObject):
@@ -308,18 +310,18 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedObject):
                 self.classname)
             attribute = attrsubj.scls.local_attributes.get(name)
             if attribute is None:
-                attribute = super().apply(schema, context)
-                self.add_attribute(attribute, attrsubj.scls, schema)
+                schema, attribute = super().apply(schema, context)
+                schema = self.add_attribute(attribute, attrsubj.scls, schema)
             else:
-                attribute = named.AlterNamedObject.apply(
+                schema, attribute = named.AlterNamedObject.apply(
                     self, schema, context)
 
-            return attribute
+            return schema, attribute
 
 
 class RenameAttributeValue(AttributeValueCommand, named.RenameNamedObject):
     def apply(self, schema, context):
-        result = super().apply(schema, context)
+        schema, result = super().apply(schema, context)
 
         attrsubj = context.get(AttributeSubjectCommandContext)
         assert attrsubj, "Attribute commands must be run in " + \
@@ -337,7 +339,7 @@ class RenameAttributeValue(AttributeValueCommand, named.RenameNamedObject):
         if inherited is not None:
             attrsubj.scls.attributes[norm(self.new_name)] = inherited
 
-        return result
+        return schema, result
 
 
 class AlterAttributeValue(AttributeValueCommand, named.AlterNamedObject):
@@ -376,6 +378,6 @@ class DeleteAttributeValue(AttributeValueCommand, named.DeleteNamedObject):
         assert attrsubj, "Attribute commands must be run in " + \
                          "AttributeSubject context"
 
-        self.delete_attribute(self.classname, attrsubj.scls, schema)
+        schema = self.delete_attribute(self.classname, attrsubj.scls, schema)
 
         return super().apply(schema, context)

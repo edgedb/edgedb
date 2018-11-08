@@ -237,7 +237,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
 
         return tuple(criteria)
 
-    def set_attribute(self, name, value, *,
+    def set_attribute(self, schema, name, value, *,
                       dctx=None, source=None, source_context=None):
         """Set the attribute `name` to `value`."""
         from . import delta as sd
@@ -261,7 +261,9 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
             if source_context is not None:
                 self._attr_source_contexts[name] = source_context
 
-    def get_attribute_source_context(self, name):
+        return schema
+
+    def get_attribute_source_context(self, schema, name):
         return self._attr_source_contexts.get(name)
 
     def set_default_value(self, field_name, value):
@@ -301,8 +303,11 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
             result = field.merge_fn(self, objs, field_name, schema=schema)
             ours = getattr(self, field_name)
             if result is not None or ours is not None:
-                self.set_attribute(field_name, result, dctx=dctx,
-                                   source='inheritance')
+                schema = self.set_attribute(
+                    schema, field_name, result, dctx=dctx,
+                    source='inheritance')
+
+        return schema
 
     def compare(self, other, context=None):
         if (not isinstance(other, self.__class__) and
@@ -652,18 +657,6 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
         adds_mods.sort_subcommands_by_type()
         return adds_mods, dels
 
-    def _finalize_setstate(self, _objects, _resolve):
-        classrefs = getattr(self, '_classrefs', None)
-        if not classrefs:
-            return
-
-        for field_name in classrefs:
-            ref = getattr(self, field_name)
-            val = self._restore_refs(field_name, ref, _resolve)
-            setattr(self, field_name, val)
-
-        delattr(self, '_classrefs')
-
     def get_classref_origin(self, name, attr, local_attr, classname,
                             farthest=False):
         assert name in getattr(self, attr)
@@ -671,7 +664,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
 
     def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
         if not apply_defaults:
-            return
+            return schema
 
         from . import delta as sd
 
@@ -683,6 +676,8 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
                     new_value=getattr(self, field),
                     source='default'
                 ))
+
+        return schema
 
 
 class NamedObject(Object):
@@ -890,9 +885,6 @@ class ObjectSet(typed.TypedSet, ObjectCollection, type=Object):
             basecoef = sum(similarity) / len(similarity)
 
         return basecoef + (1 - basecoef) * compcoef
-
-    def copy(self):
-        return self.__class__(self)
 
 
 class ObjectList(typed.TypedList, ObjectCollection, type=Object):

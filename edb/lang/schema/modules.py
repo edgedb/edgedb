@@ -49,13 +49,7 @@ class Module(named.NamedObject):
         self.index_by_type = {}
         self.index_derived = set()
 
-    def copy(self):
-        result = self.__class__(name=self.name, imports=self.imports)
-        for obj in self:
-            result.add(obj.copy())
-        return result
-
-    def add(self, obj):
+    def add(self, schema, obj):
         if obj in self:
             err = '{!r} is already present in the schema'.format(obj.name)
             raise s_err.SchemaError(err)
@@ -73,25 +67,22 @@ class Module(named.NamedObject):
         if getattr(obj, 'is_derived', None):
             self.index_derived.add(obj.name)
 
-    def discard(self, obj):
+        return schema
+
+    def discard(self, schema, obj):
         existing = self.index_by_name.pop(obj.name, None)
         if existing is not None:
             self._delete(existing)
-        return existing
+        return schema
 
-    def delete(self, obj):
-        existing = self.discard(obj)
+    def delete(self, schema, obj):
+        existing = self.index_by_name.pop(obj.name, None)
         if existing is None:
             err = 'object {!r} is not present in the schema'.format(obj.name)
             raise s_err.ItemNotFoundError(err)
-
-        return existing
-
-    def replace(self, obj):
-        existing = self.discard(obj)
-        if existing:
+        else:
             self._delete(existing)
-        self.add(obj)
+        return schema
 
     def _delete(self, obj):
         self.index_by_name.pop(obj.name, None)
@@ -173,7 +164,7 @@ class Module(named.NamedObject):
                 scls = default
         return scls
 
-    def reorder(self, new_order):
+    def reorder(self, schema, new_order):
         name_order = [p.name for p in new_order]
 
         def sortkey(item):
@@ -194,6 +185,8 @@ class Module(named.NamedObject):
             sortedindex = sorted(typeindex, key=sortkey)
             typeindex.clear()
             typeindex.update(sortedindex)
+
+        return schema
 
     def get_objects(self, *, type=None, include_derived=False):
         return SchemaIterator(self, type, include_derived=include_derived)
@@ -264,8 +257,8 @@ class CreateModule(named.CreateNamedObject, ModuleCommand):
             raise s_err.SchemaError(
                 f'module {self.module.name!r} already exists',
                 context=self.source_context)
-        schema.add_module(self.module)
-        return self.module
+        schema = schema.add_module(self.module)
+        return schema, self.module
 
 
 class AlterModule(named.CreateOrAlterNamedObject, ModuleCommand):
@@ -278,7 +271,7 @@ class AlterModule(named.CreateOrAlterNamedObject, ModuleCommand):
         for name, value in props.items():
             setattr(self.module, name, value)
 
-        return self.module
+        return schema, self.module
 
 
 class DeleteModule(ModuleCommand):
@@ -286,5 +279,5 @@ class DeleteModule(ModuleCommand):
 
     def apply(self, schema, context):
         self.module = schema.get_module(self.classname)
-        schema.delete_module(self.module)
-        return self.module
+        schema = schema.delete_module(self.module)
+        return schema, self.module

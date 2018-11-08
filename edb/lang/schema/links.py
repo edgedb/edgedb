@@ -91,34 +91,36 @@ class Link(sources.Source, pointers.Pointer):
         src_n = sn.Name('std::source')
         if src_n not in self.pointers:
             source_pbase = schema.get(src_n)
-            source_p = source_pbase.derive(
+            schema, source_p = source_pbase.derive(
                 schema, self, self.source, mark_derived=mark_derived,
                 add_to_schema=add_to_schema, dctx=dctx)
 
-            self.add_pointer(source_p)
+            schema = self.add_pointer(schema, source_p)
 
         tgt_n = sn.Name('std::target')
         if tgt_n not in self.pointers:
             target_pbase = schema.get(tgt_n)
-            target_p = target_pbase.derive(
+            schema, target_p = target_pbase.derive(
                 schema, self, self.target, mark_derived=mark_derived,
                 add_to_schema=add_to_schema, dctx=dctx)
 
-            self.add_pointer(target_p)
+            schema = self.add_pointer(schema, target_p)
+
+        return schema
 
     def init_derived(self, schema, source, *qualifiers,
                      mark_derived=False, add_to_schema=False,
                      dctx=None, init_props=True, **kwargs):
 
-        ptr = super().init_derived(
+        schema, ptr = super().init_derived(
             schema, source, *qualifiers, mark_derived=mark_derived,
             add_to_schema=add_to_schema, dctx=dctx, **kwargs)
 
         if init_props:
-            ptr.init_std_props(schema, mark_derived=mark_derived,
-                               add_to_schema=add_to_schema)
+            schema = ptr.init_std_props(schema, mark_derived=mark_derived,
+                                        add_to_schema=add_to_schema)
 
-        return ptr
+        return schema, ptr
 
     def is_link_property(self):
         return False
@@ -139,22 +141,16 @@ class Link(sources.Source, pointers.Pointer):
 
         return super().compare(other, context=context)
 
-    def copy(self):
-        result = super().copy()
-        result.source = self.source
-        result.target = self.target
-        result.default = self.default
-
-        return result
-
     def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
-        super().finalize(schema, bases=bases, apply_defaults=apply_defaults,
-                         dctx=dctx)
+        schema = super().finalize(
+            schema, bases=bases, apply_defaults=apply_defaults,
+            dctx=dctx)
 
         if not self.generic() and apply_defaults:
             if self.on_target_delete is None:
                 self.set_default_value(
-                    'on_target_delete', LinkTargetDeleteAction.RESTRICT)
+                    'on_target_delete',
+                    LinkTargetDeleteAction.RESTRICT)
                 if dctx is not None:
                     from . import delta as sd
 
@@ -163,6 +159,8 @@ class Link(sources.Source, pointers.Pointer):
                         new_value=self.on_target_delete,
                         source='default'
                     ))
+
+        return schema
 
     @classmethod
     def get_root_classes(cls):

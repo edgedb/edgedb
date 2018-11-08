@@ -76,7 +76,7 @@ class DeclarationLoader:
         decls = decl_ast.declarations
 
         self._module = module = s_mod.Module(name=module_name)
-        self._schema.add_module(module)
+        self._schema = self._schema.add_module(module)
         self._mod_aliases[None] = module_name
 
         self._process_imports(decl_ast)
@@ -126,10 +126,11 @@ class DeclarationLoader:
                     value = self._get_literal_value(attrdecl.value)
                     # This is a builtin attribute, not an expression,
                     # simply set it on object.
-                    obj.set_attribute(
-                        attr_name, value, source=attrdecl.value.context)
+                    self._schema = obj.set_attribute(
+                        self._schema, attr_name, value,
+                        source=attrdecl.value.context)
 
-            self._schema.add(obj)
+            self._schema = self._schema.add(obj)
             objects[type(obj)._type][obj] = decl
 
         # Second, process inheritance references.
@@ -145,7 +146,7 @@ class DeclarationLoader:
         self._init_constraints(objects['constraint'])
         constraints = self._sort(module.get_objects(type='constraint'))
         for constraint in constraints:
-            constraint.finalize(self._schema)
+            self._schema = constraint.finalize(self._schema)
 
         # Ditto for attributes.
         attributes = self._sort(module.get_objects(type='attribute'))
@@ -189,7 +190,7 @@ class DeclarationLoader:
         genlinks = [l for l in links if l.generic()]
         speclinks = [l for l in links if not l.generic()]
 
-        self._schema.reorder(itertools.chain(
+        self._schema = self._schema.reorder(itertools.chain(
             attributes, attrvals, constraints,
             scalars, props, indexes, genlinks, objtypes, speclinks))
 
@@ -202,7 +203,7 @@ class DeclarationLoader:
             cmd = cmdcls(classname=obj.name)
             ctx = ctxcls(cmd, obj)
             with dctx(ctx):
-                obj.finalize(self._schema, dctx=dctx)
+                self._schema = obj.finalize(self._schema, dctx=dctx)
 
         # Normalization for defaults and other expressions must be
         # *after* finalize() so that all pointers have been inherited.
@@ -414,7 +415,7 @@ class DeclarationLoader:
                     prop_base = s_props.Property(
                         name=prop_qname, bases=[std_lprop])
 
-                    self._schema.add(prop_base)
+                    self._schema = self._schema.add(prop_base)
                 else:
                     prop_qname = s_name.Name(prop_name)
             else:
@@ -440,8 +441,9 @@ class DeclarationLoader:
 
                 prop_qname = propdef.shortname
 
-            prop = prop_base.derive(self._schema, source, prop_target,
-                                    add_to_schema=True)
+            self._schema, prop = prop_base.derive(
+                self._schema, source, prop_target,
+                add_to_schema=True)
 
             prop.sourcectx = propdecl.context
 
@@ -452,7 +454,7 @@ class DeclarationLoader:
             if propdecl.expr is not None:
                 prop.computable = True
 
-            source.add_pointer(prop)
+            self._schema = source.add_pointer(self._schema, prop)
 
             if propdecl.attributes:
                 for attrdecl in propdecl.attributes:
@@ -505,8 +507,8 @@ class DeclarationLoader:
 
             attrvalue.sourcectx = attrdecl.context
 
-            self._schema.add(attrvalue)
-            subject.add_attribute(attrvalue)
+            self._schema = self._schema.add(attrvalue)
+            self._schema = subject.add_attribute(self._schema, attrvalue)
 
         return attrs
 
@@ -525,9 +527,11 @@ class DeclarationLoader:
                                            type=s_constr.Constraint,
                                            module_aliases=self._mod_aliases)
 
-            constraint = constr_base.derive(self._schema, subject)
+            self._schema, constraint = constr_base.derive(
+                self._schema, subject)
             constraint.is_abstract = constrdecl.delegated
-            constraint.acquire_ancestor_inheritance(self._schema)
+            self._schema = constraint.acquire_ancestor_inheritance(
+                self._schema)
             constraint.sourcectx = constrdecl.context
 
             if constrdecl.args:
@@ -538,7 +542,8 @@ class DeclarationLoader:
 
             subjectexpr = constrdecl.subject
             if subjectexpr is not None:
-                constraint.set_attribute(
+                self._schema = constraint.set_attribute(
+                    self._schema,
                     'subjectexpr',
                     s_constr.Constraint.normalize_constraint_expr(
                         self._schema, {}, subjectexpr, subject=subject,
@@ -559,8 +564,9 @@ class DeclarationLoader:
             except KeyError:
                 constr[constraint.bases[0].name] = constraint
             else:
-                constraint.merge(prev, schema=self._schema)
-                constraint.merge_localexprs(prev, schema=self._schema)
+                self._schema = constraint.merge(prev, schema=self._schema)
+                self._schema = constraint.merge_localexprs(
+                    prev, schema=self._schema)
                 constr[constraint.bases[0].name] = constraint
 
         for c in constr.values():
@@ -568,8 +574,8 @@ class DeclarationLoader:
             # here, since it's possible that it will be further used
             # in a merge of it's subject.
             #
-            self._schema.add(c)
-            subject.add_constraint(c)
+            self._schema = self._schema.add(c)
+            self._schema = subject.add_constraint(self._schema, c)
 
     def _parse_subject_indexes(self, subject, subjdecl):
         module_aliases = {None: subject.name.module}
@@ -591,8 +597,8 @@ class DeclarationLoader:
             index = s_indexes.SourceIndex(
                 name=der_name, expr=index_expr, subject=subject)
 
-            subject.add_index(index)
-            self._schema.add(index)
+            self._schema = subject.add_index(self._schema, index)
+            self._schema = self._schema.add(index)
 
     def _init_objtypes(self, objtypes):
         for objtype, objtypedecl in objtypes.items():
@@ -619,7 +625,7 @@ class DeclarationLoader:
                         link_base = s_links.Link(
                             name=link_qname, bases=[std_link])
 
-                        self._schema.add(link_base)
+                        self._schema = self._schema.add(link_base)
                     else:
                         link_qname = s_name.Name(link_name)
                 else:
@@ -645,7 +651,7 @@ class DeclarationLoader:
                     target = link_base.get_common_target(
                         self._schema, spectargets)
                     if not self._schema.get(target.name, default=None):
-                        self._schema.add(target)
+                        self._schema = self._schema.add(target)
 
                 if (not target.is_any() and
                         not isinstance(target, s_objtypes.ObjectType)):
@@ -655,7 +661,7 @@ class DeclarationLoader:
                         context=linkdecl.target[0].context
                     )
 
-                link = link_base.derive(
+                self._schema, link = link_base.derive(
                     self._schema, objtype, target,
                     add_to_schema=True,
                     apply_defaults=not linkdecl.inherited)
@@ -674,7 +680,7 @@ class DeclarationLoader:
                     link.computable = True
 
                 self._parse_source_props(link, linkdecl)
-                objtype.add_pointer(link)
+                self._schema = objtype.add_pointer(self._schema, link)
 
         for objtype, objtypedecl in objtypes.items():
             if objtypedecl.indexes:
@@ -757,7 +763,6 @@ class DeclarationLoader:
                 context=expr.context) from e
 
         ptr.default = expr_text
-        ptr.normalize_defaults()
 
         if ptr.is_pure_computable():
             # Pure computable without explicit target.

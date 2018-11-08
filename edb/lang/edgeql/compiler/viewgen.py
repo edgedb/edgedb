@@ -143,7 +143,7 @@ def _process_view(
         if ptrcls.source is source and isinstance(source, s_sources.Source):
             # source may be an ScalarType in shapes that reference __type__,
             # hence the isinstance check.
-            source.add_pointer(ptrcls, replace=True)
+            ctx.schema = source.add_pointer(ctx.schema, ptrcls, replace=True)
 
         if is_defining_shape:
             if source is None:

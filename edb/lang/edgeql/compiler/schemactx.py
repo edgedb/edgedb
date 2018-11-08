@@ -134,11 +134,11 @@ def derive_view(
             derived_name_base=derived_name_base, ctx=ctx)
 
     if scls.generic():
-        derived = scls.derive(
+        ctx.schema, derived = scls.derive(
             ctx.schema, source, target, *qualifiers, name=derived_name,
             mark_derived=True)
     else:
-        derived = scls.derive_copy(
+        ctx.schema, derived = scls.derive_copy(
             ctx.schema, source, target, *qualifiers, name=derived_name,
             attrs=dict(bases=[scls]), mark_derived=True)
 
@@ -162,7 +162,7 @@ def derive_view(
 
     if (add_to_schema and not isinstance(derived, s_types.Collection) and
             ctx.schema.get(derived.name, None) is None):
-        ctx.schema.add(derived)
+        ctx.schema = ctx.schema.add(derived)
 
     if isinstance(derived, s_types.Type):
         ctx.view_nodes[derived.name] = derived

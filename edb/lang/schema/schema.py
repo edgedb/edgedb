@@ -47,14 +47,7 @@ class Schema(TypeContainer):
         self._virtual_inheritance_cache = {}
         self._inheritance_cache = {}
 
-    def copy(self):
-        result = type(self)()
-        result.modules = collections.OrderedDict((
-            (name, mod.copy()) for name, mod in self.modules.items()))
-        result.deltas = self.deltas.copy()
-        return result
-
-    def add_module(self, class_module):
+    def add_module(self, class_module) -> 'Schema':
         """Add a module to the schema
 
         :param Module class_module: A module that should be added
@@ -64,6 +57,7 @@ class Schema(TypeContainer):
         name = class_module.name
         self.modules[name] = class_module
         self._policy_schema = None
+        return self
 
     def get_module(self, module):
         return self.modules.get(module)
@@ -83,19 +77,21 @@ class Schema(TypeContainer):
             module_name = class_module.name
 
         del self.modules[module_name]
+        return self
 
-    def add_delta(self, delta):
+    def add_delta(self, delta) -> 'Schema':
         """Add a delta to the schema.
 
         :param Delta delta: Delta object to add to the schema.
         """
         name = delta.name
         self.deltas[name] = delta
+        return self
 
     def get_delta(self, name):
         return self.deltas[name]
 
-    def delete_delta(self, delta):
+    def delete_delta(self, delta) -> 'Schema':
         """Remove the delta from the schema.
 
         :param name: Either a string name of the delta or a Delta object
@@ -108,39 +104,37 @@ class Schema(TypeContainer):
 
         del self.deltas[delta_name]
 
-    def add(self, obj):
+        return self
+
+    def add(self, obj) -> 'Schema':
         try:
             module = self.modules[obj.name.module]
         except KeyError as e:
             raise s_err.SchemaModuleNotFoundError(
                 f'module {obj.name.module!r} is not in this schema') from e
 
-        module.add(obj)
+        return module.add(self, obj)
 
-    def discard(self, obj):
+    def discard(self, obj) -> 'Schema':
         try:
             module = self.modules[obj.name.module]
         except KeyError:
             return
 
-        return module.discard(obj)
+        schema = module.discard(self, obj)
+        return schema
 
-    def delete(self, obj):
+    def delete(self, obj) -> 'Schema':
         try:
             module = self.modules[obj.name.module]
         except KeyError as e:
             raise s_err.SchemaModuleNotFoundError(
                 f'module {obj.name.module} is not in this schema') from e
 
-        return module.delete(obj)
+        schema = module.delete(self, obj)
+        return schema
 
-    def clear(self):
-        self.modules.clear()
-        self._virtual_inheritance_cache.clear()
-        self._inheritance_cache.clear()
-        self._policy_schema = None
-
-    def reorder(self, new_order):
+    def reorder(self, new_order) -> 'Schema':
         by_module = {}
 
         for item in new_order:
@@ -150,9 +144,12 @@ class Schema(TypeContainer):
                 module_order = by_module[item.name.module] = []
             module_order.append(item)
 
+        schema = self
         for module_name, module_order in by_module.items():
             module = self.modules[module_name]
-            module.reorder(module_order)
+            schema = module.reorder(schema, module_order)
+
+        return schema
 
     def _resolve_module(self, module_name) -> typing.List[s_modules.Module]:
         modules = []
@@ -246,26 +243,17 @@ class Schema(TypeContainer):
     def has_module(self, module):
         return module in self.modules
 
-    def has_class(self, name):
-        return self.get(name, default=None) is not None
-
-    def update_virtual_inheritance(self, scls, children):
-        try:
-            class_children = self._virtual_inheritance_cache[scls.name]
-        except KeyError:
-            class_children = self._virtual_inheritance_cache[scls.name] = set()
-
-        class_children.update(c.name for c in children if c is not scls)
-        scls._virtual_children = set(children)
-
-    def drop_inheritance_cache(self, scls):
+    def drop_inheritance_cache(self, scls) -> 'Schema':
         self._inheritance_cache.pop(scls.name, None)
+        return self
 
-    def drop_inheritance_cache_for_child(self, scls):
+    def drop_inheritance_cache_for_child(self, scls) -> 'Schema':
         bases = getattr(scls, 'bases', ())
 
         for base in bases:
             self._inheritance_cache.pop(base.name, None)
+
+        return self
 
     def _get_descendants(self, scls, *, max_depth=None, depth=0):
         result = set()
@@ -339,7 +327,7 @@ class SchemaOverlay(Schema):
         if obj.name.module not in self.local_modules:
             self.local_modules[obj.name.module] = s_modules.Module(
                 name=obj.name.module)
-        super().add(obj)
+        return super().add(obj)
 
     def _resolve_module(self, module_name) -> typing.List[s_modules.Module]:
         modules = []

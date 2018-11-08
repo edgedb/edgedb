@@ -29,9 +29,9 @@ from . import utils
 
 class InheritingObjectCommand(named.NamedObjectCommand):
     def _create_finalize(self, schema, context):
-        self.scls.acquire_ancestor_inheritance(schema, dctx=context)
-        self.scls.update_descendants(schema)
-        super()._create_finalize(schema, context)
+        schema = self.scls.acquire_ancestor_inheritance(schema, dctx=context)
+        schema = self.scls.update_descendants(schema)
+        return super()._create_finalize(schema, context)
 
 
 def delta_bases(old_bases, new_bases):
@@ -137,27 +137,29 @@ class CreateInheritingObject(named.CreateNamedObject, InheritingObjectCommand):
         return bases
 
     def _create_finalize(self, schema, context):
-        super()._create_finalize(schema, context)
+        schema = super()._create_finalize(schema, context)
         for base in self.scls.bases:
-            schema.drop_inheritance_cache(base)
+            schema = schema.drop_inheritance_cache(base)
+        return schema
 
 
 class AlterInheritingObject(named.AlterNamedObject, InheritingObjectCommand):
     def _alter_begin(self, schema, context, scls):
-        super()._alter_begin(schema, context, scls)
+        schema = super()._alter_begin(schema, context, scls)
 
         for op in self.get_subcommands(type=RebaseNamedObject):
-            op.apply(schema, context)
+            schema, _ = op.apply(schema, context)
 
-        scls.acquire_ancestor_inheritance(schema)
+        schema = scls.acquire_ancestor_inheritance(schema)
 
-        return scls
+        return schema
 
 
 class DeleteInheritingObject(named.DeleteNamedObject, InheritingObjectCommand):
     def _delete_finalize(self, schema, context, scls):
-        super()._delete_finalize(schema, context, scls)
-        schema.drop_inheritance_cache_for_child(scls)
+        schema = super()._delete_finalize(schema, context, scls)
+        schema = schema.drop_inheritance_cache_for_child(scls)
+        return schema
 
 
 class RebaseNamedObject(named.NamedObjectCommand):
@@ -204,7 +206,7 @@ class RebaseNamedObject(named.NamedObjectCommand):
 
         scls.bases = bases
 
-        return scls
+        return schema, scls
 
 
 def _merge_mro(obj, mros):
@@ -277,7 +279,6 @@ def create_virtual_parent(schema, children, *,
     target = schema.get(name, default=None)
 
     if target:
-        schema.update_virtual_inheritance(target, children)
         return target
 
     seen_scalars = False
@@ -302,10 +303,11 @@ def create_virtual_parent(schema, children, *,
                 'cannot set multiple scalar children for a link')
     else:
         base = schema.get(s_objtypes.ObjectType.get_default_base_name())
-        target = s_objtypes.ObjectType(name=name, is_abstract=True,
-                                       is_virtual=True, bases=[base])
-        target.acquire_ancestor_inheritance(schema)
-        schema.update_virtual_inheritance(target, children)
+        target = s_objtypes.ObjectType.create_with_inheritance(
+            schema,
+            name=name, is_abstract=True,
+            is_virtual=True, bases=[base])
+        target._virtual_children = set(children)
 
     return target
 
@@ -327,9 +329,10 @@ class InheritingObject(derivable.DerivableObject):
     is_virtual = so.Field(bool, default=False, compcoef=0.5)
 
     def merge(self, *objs, schema, dctx=None):
-        super().merge(*objs, schema=schema, dctx=dctx)
+        schema = super().merge(*objs, schema=schema, dctx=dctx)
         for obj in objs:
-            schema.drop_inheritance_cache(obj)
+            schema = schema.drop_inheritance_cache(obj)
+        return schema
 
     def delta(self, other, reverse=False, *, context):
         old, new = (other, self) if not reverse else (self, other)
@@ -370,7 +373,7 @@ class InheritingObject(derivable.DerivableObject):
             derived_name = name
 
         if as_copy:
-            derived = super().init_derived(
+            schema, derived = super().init_derived(
                 schema, source, *qualifiers, as_copy=True,
                 merge_bases=merge_bases, add_to_schema=add_to_schema,
                 mark_derived=mark_derived, attrs=attrs, dctx=dctx, name=name,
@@ -391,7 +394,7 @@ class InheritingObject(derivable.DerivableObject):
             derived = cls(name=derived_name, **derived_attrs,
                           _setdefaults_=False, _relaxrequired_=True)
 
-        return derived
+        return schema, derived
 
     def get_base_names(self):
         return self.bases.get_names()
@@ -457,18 +460,22 @@ class InheritingObject(derivable.DerivableObject):
         if bases is None:
             bases = self.bases
 
-        self.merge(*bases, schema=schema, dctx=dctx)
+        schema = self.merge(*bases, schema=schema, dctx=dctx)
+        return schema
 
     def update_descendants(self, schema, dctx=None):
         for child in self.children(schema):
-            child.acquire_ancestor_inheritance(schema, dctx=dctx)
-            child.update_descendants(schema, dctx=dctx)
+            schema = child.acquire_ancestor_inheritance(schema, dctx=dctx)
+            schema = child.update_descendants(schema, dctx=dctx)
+        return schema
 
     def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
-        super().finalize(schema, bases=bases, apply_defaults=apply_defaults,
-                         dctx=dctx)
+        schema = super().finalize(
+            schema, bases=bases, apply_defaults=apply_defaults,
+            dctx=dctx)
         self.mro = compute_mro(self)[1:]
-        self.acquire_ancestor_inheritance(schema, dctx=dctx)
+        schema = self.acquire_ancestor_inheritance(schema, dctx=dctx)
+        return schema
 
     def get_nearest_non_derived_parent(self):
         obj = self
@@ -483,3 +490,10 @@ class InheritingObject(derivable.DerivableObject):
     @classmethod
     def get_default_base_name(self):
         return None
+
+    @classmethod
+    def create_with_inheritance(cls, schema, **kwargs):
+        o = cls(**kwargs)
+        schema2 = o.acquire_ancestor_inheritance(schema)
+        assert schema2 is schema
+        return o

@@ -48,19 +48,6 @@ class Source(indexes.IndexableSubject):
         super().__init__(**kwargs)
         self._ro_pointers = None
 
-    def get_pointer_origin(self, name, farthest=False):
-        return self.get_classref_origin(name, 'pointers', 'own_pointers',
-                                        'pointer', farthest=farthest)
-
-    @property
-    def readonly_pointers(self):
-        if self._ro_pointers is None:
-            self._ro_pointers = set(l.shortname
-                                    for l in self.pointers.values()
-                                    if l.readonly)
-
-        return self._ro_pointers
-
     class PointerResolver:
         @classmethod
         def getptr_from_nqname(cls, schema, source, name):
@@ -211,7 +198,7 @@ class Source(indexes.IndexableSubject):
 
         if not ptrs:
             # No pointer candidates found at all, bail out.
-            return
+            return schema, None
 
         targets = set()
 
@@ -250,7 +237,7 @@ class Source(indexes.IndexableSubject):
                                     target = ptr.source
                                     source = req_endpoint
 
-                                dptr = ptr.get_derived(
+                                schema, dptr = ptr.get_derived(
                                     schema, source, target,
                                     mark_derived=True, add_to_schema=True)
 
@@ -260,7 +247,7 @@ class Source(indexes.IndexableSubject):
             if not targeted_ptrs:
                 # All candidates have been eliminated by the endpoint
                 # filter.
-                return None
+                return schema, None
 
             ptrs = targeted_ptrs
 
@@ -283,7 +270,7 @@ class Source(indexes.IndexableSubject):
                 utils.get_class_nearest_common_ancestor(ptrs)
 
             if update_schema:
-                target = common_parent.create_common_target(
+                schema, target = common_parent.create_common_target(
                     schema, targets, minimize_by)
             else:
                 target = common_parent.get_common_target(
@@ -299,7 +286,7 @@ class Source(indexes.IndexableSubject):
             fqname = common_parent.derive_name(ptr_source, ptr_target.name)
             ptr = schema.get(fqname, default=None)
             if ptr is None:
-                common_parent_spec = common_parent.get_derived(
+                schema, common_parent_spec = common_parent.get_derived(
                     schema,
                     source=ptr_source, target=ptr_target,
                     mark_derived=True)
@@ -307,7 +294,7 @@ class Source(indexes.IndexableSubject):
                 if len(ptrs) == 1:
                     ptr = common_parent_spec
                 else:
-                    ptr = common_parent_spec.derive_copy(
+                    schema, ptr = common_parent_spec.derive_copy(
                         schema, merge_bases=list(ptrs), add_to_schema=True,
                         source=ptr_source, target=ptr_target,
                         mark_derived=True
@@ -322,18 +309,14 @@ class Source(indexes.IndexableSubject):
 
                     ptr.mapping = mapping
 
-        return ptr
+        return schema, ptr
 
-    def add_pointer(self, pointer, *, replace=False):
-        self.add_classref('pointers', pointer, replace=replace)
+    def add_pointer(self, schema, pointer, *, replace=False):
+        schema = self.add_classref(
+            schema, 'pointers', pointer, replace=replace)
         if pointer.readonly and self._ro_pointers is not None:
             self._ro_pointers.add(pointer)
-
-    def del_pointer(self, pointer, schema):
-        self.del_classref('pointers', pointer.name, schema)
-        if self._ro_pointers is not None:
-            pointer_name = pointer.shortname
-            self._ro_pointers.discard(pointer_name)
+        return schema
 
     @classmethod
     def gen_virt_parent_name(cls, names, module=None):
@@ -344,12 +327,3 @@ class Source(indexes.IndexableSubject):
         if module is None:
             module = next(iter(names)).module
         return sn.Name(name=name, module=module)
-
-    def copy(self):
-        result = super().copy()
-
-        virt_children = getattr(self, '_virtual_children', None)
-        if virt_children:
-            result._virtual_children = virt_children.copy()
-
-        return result

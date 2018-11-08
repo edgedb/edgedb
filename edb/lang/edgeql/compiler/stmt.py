@@ -195,12 +195,12 @@ def compile_GroupQuery(
         stmt = irast.GroupStmt()
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
-        c = s_objtypes.ObjectType(
+        c = s_objtypes.ObjectType.create_with_inheritance(
+            ctx.schema,
             name=s_name.Name(
                 module='__group__', name=ctx.aliases.get('Group')),
             bases=[ctx.schema.get('std::Object')]
         )
-        c.acquire_ancestor_inheritance(ctx.schema)
 
         stmt.group_path_id = pathctx.get_path_id(c, ctx=ictx)
         pathctx.register_set_in_scope(stmt.group_path_id, ctx=ictx)

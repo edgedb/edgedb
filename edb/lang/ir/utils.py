@@ -88,7 +88,7 @@ def get_id_path_id(
     source: s_sources.Source = path_id.target
     assert isinstance(source, s_objtypes.ObjectType)
     return path_id.extend(
-        source.resolve_pointer(schema, 'std::id'),
+        source.getptr(schema, 'std::id'),
         s_pointers.PointerDirection.Outbound,
         schema.get('std::uuid'))
 
@@ -188,8 +188,8 @@ def new_empty_set(schema, *, scls=None, alias):
     else:
         base_scls = scls
     cls_name = s_name.Name(module='__expr__', name=alias)
-    cls = base_scls.__class__(name=cls_name, bases=[base_scls])
-    cls.acquire_ancestor_inheritance(schema)
+    cls = base_scls.create_with_inheritance(
+        schema, name=cls_name, bases=[base_scls])
     return irast.EmptySet(path_id=irast.PathId(cls), scls=scls)
 
 

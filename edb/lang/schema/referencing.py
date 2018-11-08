@@ -71,7 +71,7 @@ class RefDict:
 
 class RebaseReferencingObject(inheriting.RebaseNamedObject):
     def apply(self, schema, context):
-        this_obj = super().apply(schema, context)
+        schema, this_obj = super().apply(schema, context)
 
         objects = [this_obj] + list(this_obj.descendants(schema))
         for obj in objects:
@@ -91,7 +91,7 @@ class RebaseReferencingObject(inheriting.RebaseNamedObject):
                         except KeyError:
                             del coll[ref_name]
 
-        return this_obj
+        return schema, this_obj
 
 
 class ReferencingObjectMeta(type(inheriting.InheritingObject)):
@@ -219,7 +219,7 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
                 return self.astnode
 
     def _create_innards(self, schema, context):
-        super()._create_innards(schema, context)
+        schema = super()._create_innards(schema, context)
 
         referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is not None:
@@ -235,7 +235,8 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
                 # appropriate refdict in self and all descendants
                 # that don't already have an existing reference.
                 #
-                referrer.add_classref(refdict.attr, self.scls)
+                schema = referrer.add_classref(
+                    schema, refdict.attr, self.scls)
                 refname = self.scls.get_shortname(self.scls.name)
                 for child in referrer.descendants(schema):
                     child_local_coll = getattr(child, refdict.local_attr)
@@ -243,8 +244,10 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
                     if refname not in child_local_coll:
                         child_coll[refname] = self.scls
 
+        return schema
+
     def _rename_innards(self, schema, context, scls):
-        super()._rename_innards(schema, context, scls)
+        schema = super()._rename_innards(schema, context, scls)
 
         referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is not None:
@@ -275,15 +278,19 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
             if ref is not None:
                 coll[new_name] = ref
 
+        return schema
+
     def _delete_innards(self, schema, context, scls):
-        super()._delete_innards(schema, context, scls)
+        schema = super()._delete_innards(schema, context, scls)
 
         referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is not None:
             referrer = referrer_ctx.scls
             refdict = referrer.__class__.get_refdict_for_class(
                 scls.__class__)
-            referrer.del_classref(refdict.attr, scls.name, schema)
+            schema = referrer.del_classref(schema, refdict.attr, scls.name)
+
+        return schema
 
 
 class ReferencedInheritingObjectCommand(
@@ -298,10 +305,12 @@ class ReferencedInheritingObjectCommand(
             referrer = referrer_ctx.scls
             basename = mcls.get_shortname(self.classname)
             base = schema.get(basename, type=mcls)
-            self.scls = base.derive(schema, referrer, attrs=attrs,
-                                    add_to_schema=True, init_props=False)
+            schema, self.scls = base.derive(schema, referrer, attrs=attrs,
+                                            add_to_schema=True,
+                                            init_props=False)
+            return schema
         else:
-            super()._create_begin(schema, context)
+            return super()._create_begin(schema, context)
 
 
 class CreateReferencedInheritingObject(inheriting.CreateInheritingObject):
@@ -388,19 +397,8 @@ class ReferencingObject(inheriting.InheritingObject,
 
         return super().hash_criteria() + tuple(criteria)
 
-    def _finalize_setstate(self, _objects, _resolve):
-        super()._finalize_setstate(_objects, _resolve)
-
-        for refdict in self.__class__.get_refdicts():
-            attr = refdict.attr
-            local_attr = refdict.local_attr
-            self._resolve_classref_dict(
-                _objects, _resolve, local_attr)
-            self._resolve_inherited_classref_dict(
-                _objects, _resolve, attr, local_attr)
-
     def copy(self):
-        result = super(ReferencingObject, self).copy()
+        result = super().copy()
 
         for refdict in self.__class__.get_refdicts():
             attr = refdict.attr
@@ -441,7 +439,7 @@ class ReferencingObject(inheriting.InheritingObject,
         return similarity
 
     def merge(self, *objs, schema, dctx=None):
-        super().merge(*objs, schema=schema, dctx=None)
+        schema = super().merge(*objs, schema=schema, dctx=None)
 
         for obj in objs:
             for refdict in self.__class__.get_refdicts():
@@ -452,6 +450,8 @@ class ReferencingObject(inheriting.InheritingObject,
 
                 this_coll.update({k: v for k, v in other_coll.items()
                                  if k not in this_coll})
+
+        return schema
 
     def delta(self, other, reverse=False, context=None):
         old, new = (other, self) if not reverse else (self, other)
@@ -527,7 +527,7 @@ class ReferencingObject(inheriting.InheritingObject,
 
         return result
 
-    def add_classref(self, collection, obj, replace=False):
+    def add_classref(self, schema, collection, obj, replace=False):
         refdict = self.__class__.get_refdict(collection)
         attr = refdict.attr
         local_attr = refdict.local_attr
@@ -546,7 +546,9 @@ class ReferencingObject(inheriting.InheritingObject,
         local_coll[key] = obj
         all_coll[key] = obj
 
-    def del_classref(self, collection, obj_name, schema):
+        return schema
+
+    def del_classref(self, schema, collection, obj_name):
         refdict = self.__class__.get_refdict(collection)
         attr = refdict.attr
         local_attr = refdict.local_attr
@@ -568,6 +570,7 @@ class ReferencingObject(inheriting.InheritingObject,
                     descendant_coll.pop(key, None)
 
         local_coll.pop(key, None)
+        return schema
 
     def _get_classref_dict(self, attr):
         values = getattr(self, attr)
@@ -611,8 +614,9 @@ class ReferencingObject(inheriting.InheritingObject,
             setattr(self, attr, attrs)
 
     def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
-        super().finalize(schema, bases=bases, apply_defaults=apply_defaults,
-                         dctx=dctx)
+        schema = super().finalize(
+            schema, bases=bases, apply_defaults=apply_defaults,
+            dctx=dctx)
 
         if bases is None:
             bases = self.bases
@@ -624,24 +628,28 @@ class ReferencingObject(inheriting.InheritingObject,
             ref_cls = refdict.ref_cls
             exp_inh = refdict.requires_explicit_inherit
 
-            ref_keys = self.begin_classref_dict_merge(
+            schema, ref_keys = self.begin_classref_dict_merge(
                 schema, bases=bases, attr=attr)
 
-            self.merge_classref_dict(schema, bases=bases, attr=attr,
-                                     local_attr=local_attr,
-                                     backref_attr=backref_attr,
-                                     classrefcls=ref_cls,
-                                     classref_keys=ref_keys,
-                                     requires_explicit_inherit=exp_inh,
-                                     dctx=dctx)
+            schema = self.merge_classref_dict(
+                schema, bases=bases, attr=attr,
+                local_attr=local_attr,
+                backref_attr=backref_attr,
+                classrefcls=ref_cls,
+                classref_keys=ref_keys,
+                requires_explicit_inherit=exp_inh,
+                dctx=dctx)
 
-            self.finish_classref_dict_merge(schema, bases=bases, attr=attr)
+            schema = self.finish_classref_dict_merge(
+                schema, bases=bases, attr=attr)
+
+        return schema
 
     def begin_classref_dict_merge(self, schema, bases, attr):
-        pass
+        return schema, None
 
     def finish_classref_dict_merge(self, schema, bases, attr):
-        pass
+        return schema
 
     def merge_classref_dict(self, schema, *,
                             bases, attr, local_attr,
@@ -689,14 +697,16 @@ class ReferencingObject(inheriting.InheritingObject,
             pure_inheritance = False
 
             if local and inherited:
-                merged = local.derive_copy(schema, self, merge_bases=inherited,
-                                           replace_original=local,
-                                           add_to_schema=True, dctx=dctx)
+                schema, merged = local.derive_copy(
+                    schema, self, merge_bases=inherited,
+                    replace_original=local,
+                    add_to_schema=True, dctx=dctx)
 
             elif len(inherited) > 1:
                 base = inherited[0].bases[0]
-                merged = base.derive(schema, self, merge_bases=inherited,
-                                     add_to_schema=True, dctx=dctx)
+                schema, merged = base.derive(
+                    schema, self, merge_bases=inherited,
+                    add_to_schema=True, dctx=dctx)
 
             elif len(inherited) == 1:
                 # Pure inheritance
@@ -705,7 +715,7 @@ class ReferencingObject(inheriting.InheritingObject,
                 # as when a pointer has delegated constraints that must
                 # be materialized on inheritance.  We delegate the
                 # decision to the referenced class here.
-                merged = classrefcls.inherit_pure(
+                schema, merged = classrefcls.inherit_pure(
                     schema, item, source=self, dctx=dctx)
                 pure_inheritance = merged is item
 
@@ -747,20 +757,23 @@ class ReferencingObject(inheriting.InheritingObject,
 
                 classrefs[classref_key] = merged
 
+        return schema
+
     def init_derived(self, schema, source, *qualifiers, as_copy,
                      merge_bases=None, add_to_schema=False, mark_derived=False,
                      attrs=None, dctx=None, **kwargs):
 
-        derived = super().init_derived(
+        schema, derived = super().init_derived(
             schema, source, *qualifiers, as_copy=as_copy,
             mark_derived=mark_derived, add_to_schema=add_to_schema,
             attrs=attrs, dctx=dctx, merge_bases=merge_bases, **kwargs)
 
         if as_copy:
-            derived.rederive_classrefs(schema, add_to_schema=add_to_schema,
-                                       mark_derived=mark_derived)
+            schema = derived.rederive_classrefs(
+                schema, add_to_schema=add_to_schema,
+                mark_derived=mark_derived)
 
-        return derived
+        return schema, derived
 
     def rederive_classrefs(self, schema, add_to_schema=False,
                            mark_derived=False, dctx=None):
@@ -771,12 +784,15 @@ class ReferencingObject(inheriting.InheritingObject,
             local_coll = getattr(self, local_attr)
 
             for pn, p in local_coll.items():
-                local_coll[pn] = p.derive_copy(schema, self,
-                                               add_to_schema=add_to_schema,
-                                               mark_derived=mark_derived,
-                                               dctx=dctx)
+                schema, local_coll[pn] = p.derive_copy(
+                    schema, self,
+                    add_to_schema=add_to_schema,
+                    mark_derived=mark_derived,
+                    dctx=dctx)
 
             all_coll.update(local_coll)
+
+        return schema
 
 
 class ReferencingObjectCommand(sd.ObjectCommand):
@@ -789,28 +805,34 @@ class ReferencingObjectCommand(sd.ObjectCommand):
             self._apply_refs_fields_ast(context, node, refdict)
 
     def _create_innards(self, schema, context):
-        super()._create_innards(schema, context)
+        schema = super()._create_innards(schema, context)
 
         mcls = self.get_schema_metaclass()
 
         for refdict in mcls.get_refdicts():
-            self._create_refs(schema, context, self.scls, refdict)
+            schema = self._create_refs(schema, context, self.scls, refdict)
+
+        return schema
 
     def _alter_innards(self, schema, context, scls):
-        super()._alter_innards(schema, context, scls)
+        schema = super()._alter_innards(schema, context, scls)
 
         mcls = self.get_schema_metaclass()
 
         for refdict in mcls.get_refdicts():
-            self._alter_refs(schema, context, scls, refdict)
+            schema = self._alter_refs(schema, context, scls, refdict)
+
+        return schema
 
     def _delete_innards(self, schema, context, scls):
-        super()._delete_innards(schema, context, scls)
+        schema = super()._delete_innards(schema, context, scls)
 
         mcls = self.get_schema_metaclass()
 
         for refdict in mcls.get_refdicts():
-            self._delete_refs(schema, context, scls, refdict)
+            schema = self._delete_refs(schema, context, scls, refdict)
+
+        return schema
 
     def _apply_refs_fields_ast(self, context, node, refdict):
         for op in self.get_subcommands(metaclass=refdict.ref_cls):
@@ -818,17 +840,19 @@ class ReferencingObjectCommand(sd.ObjectCommand):
 
     def _create_refs(self, schema, context, scls, refdict):
         for op in self.get_subcommands(metaclass=refdict.ref_cls):
-            op.apply(schema, context=context)
+            schema, _ = op.apply(schema, context=context)
+        return schema
 
     def _alter_refs(self, schema, context, scls, refdict):
         for op in self.get_subcommands(metaclass=refdict.ref_cls):
-            op.apply(schema, context=context)
+            schema, _ = op.apply(schema, context=context)
+        return schema
 
     def _delete_refs(self, schema, context, scls, refdict):
         deleted_refs = set()
 
         for op in self.get_subcommands(metaclass=refdict.ref_cls):
-            deleted_ref = op.apply(schema, context=context)
+            schema, deleted_ref = op.apply(schema, context=context)
             deleted_refs.add(deleted_ref)
 
         # Add implicit Delete commands for any local refs not
@@ -840,5 +864,7 @@ class ReferencingObjectCommand(sd.ObjectCommand):
                 named.DeleteNamedObject, type(ref))
 
             op = del_cmd(classname=ref.name)
-            op.apply(schema, context=context)
+            schema, _ = op.apply(schema, context=context)
             self.add(op)
+
+        return schema

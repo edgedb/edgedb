@@ -105,11 +105,6 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
         else:
             return self.issubclass(other)
 
-    def copy(self):
-        result = super().copy()
-        result.default = self.default
-        return result
-
     def assignment_castable_to(self, target: s_types.Type, schema) -> bool:
         if self.implicitly_castable_to(target, schema):
             return True

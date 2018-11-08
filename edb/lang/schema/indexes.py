@@ -46,11 +46,8 @@ class SourceIndex(inheriting.InheritingObject):
 class IndexableSubject(referencing.ReferencingObject):
     indexes = referencing.RefDict(ref_cls=SourceIndex, compcoef=0.909)
 
-    def add_index(self, index):
-        self.add_classref('indexes', index)
-
-    def del_index(self, index, schema):
-        self.del_classref('indexes', index, schema)
+    def add_index(self, schema, index):
+        return self.add_classref(schema, 'indexes', index)
 
 
 class IndexSourceCommandContext:

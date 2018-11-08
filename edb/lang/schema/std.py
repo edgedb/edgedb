@@ -25,7 +25,6 @@ from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
 
 from . import ddl as s_ddl
-from . import delta as sd
 from . import error as s_err
 from . import schema as s_schema
 
@@ -72,7 +71,7 @@ def load_std_module(
     for statement in std_module_to_ddl(schema, modname):
         cmd = s_ddl.delta_from_ddl(
             statement, schema=schema, modaliases=modaliases, stdmode=True)
-        cmd.apply(schema)
+        schema, _ = cmd.apply(schema)
 
     return schema
 
@@ -94,26 +93,3 @@ def load_graphql_schema(
         schema = s_schema.Schema()
 
     return load_std_module(schema, 'stdgraphql')
-
-
-def load_default_schema(schema=None):
-    if schema is None:
-        schema = s_schema.Schema()
-
-    script = f'''
-        CREATE MODULE default;
-    '''
-    statements = edgeql.parse_block(script)
-    for stmt in statements:
-        if isinstance(stmt, qlast.Delta):
-            # CREATE/APPLY MIGRATION
-            ddl_plan = s_ddl.cmd_from_ddl(stmt, schema=schema, modaliases={})
-
-        elif isinstance(stmt, qlast.DDL):
-            # CREATE/DELETE/ALTER (FUNCTION, TYPE, etc)
-            ddl_plan = s_ddl.delta_from_ddl(stmt, schema=schema, modaliases={})
-
-        context = sd.CommandContext()
-        ddl_plan.apply(schema, context)
-
-    return schema

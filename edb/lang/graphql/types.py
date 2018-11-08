@@ -189,7 +189,8 @@ class GQLCoreSchema:
                 if name.name == '__type__':
                     continue
 
-                ptr = edb_type.resolve_pointer(self.edb_schema, name)
+                self.edb_schema, ptr = edb_type.resolve_pointer(
+                    self.edb_schema, name)
                 target = self._get_target(ptr)
                 if target:
                     if isinstance(ptr.target, ObjectType):
@@ -220,7 +221,8 @@ class GQLCoreSchema:
                     "reserved fields required for GraphQL conversion"
                 )
 
-            ptr = edb_type.resolve_pointer(self.edb_schema, name)
+            self.edb_schema, ptr = edb_type.resolve_pointer(
+                self.edb_schema, name)
 
             if not isinstance(ptr.target, ScalarType):
                 continue
@@ -286,7 +288,8 @@ class GQLCoreSchema:
             if name.name == '__type__':
                 continue
 
-            ptr = edb_type.resolve_pointer(self.edb_schema, name)
+            self.edb_schema, ptr = edb_type.resolve_pointer(
+                self.edb_schema, name)
 
             if not isinstance(ptr.target, ScalarType):
                 continue
@@ -486,6 +489,10 @@ class GQLBaseType(metaclass=GQLTypeMeta):
     def edb_schema(self):
         return self._schema.edb_schema
 
+    @edb_schema.setter
+    def edb_schema(self, schema):
+        self._schema.edb_schema = schema
+
     def convert_edb_to_gql_type(self, base, **kwargs):
         if isinstance(base, s_pointers.Pointer):
             base = base.target
@@ -512,7 +519,8 @@ class GQLBaseType(metaclass=GQLTypeMeta):
                 target = self.convert_edb_to_gql_type('std::str')
 
             else:
-                target = self.edb_base.resolve_pointer(self.edb_schema, name)
+                self.edb_schema, target = self.edb_base.resolve_pointer(
+                    self.edb_schema, name)
 
                 if target is not None:
                     target = self.convert_edb_to_gql_type(target)
@@ -522,8 +530,9 @@ class GQLBaseType(metaclass=GQLTypeMeta):
         return target
 
     def has_native_field(self, name):
-        return self.edb_base.resolve_pointer(
-            self.edb_schema, name) is not None
+        self.edb_schema, ptr = self.edb_base.resolve_pointer(
+            self.edb_schema, name)
+        return ptr is not None
 
     def issubclass(self, other):
         if isinstance(other, GQLShadowType):

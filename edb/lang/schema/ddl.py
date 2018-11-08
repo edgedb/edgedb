@@ -97,7 +97,7 @@ def ddl_text_from_delta_command(delta):
     return '\n'.join(text)
 
 
-def ddl_text_from_delta(schema, delta):
+def ddl_text_from_delta(delta):
     """Return DDL text for a delta object."""
     text = []
     for command in delta.commands:

@@ -85,6 +85,7 @@ class Constraint(inheriting.InheritingObject):
     def merge_localexprs(self, obj, schema):
         self.localfinalexpr = CumulativeBoolExpr.merge_values(
             self, [obj], 'localfinalexpr', schema=schema)
+        return schema
 
     def init_derived(self, schema, source, *qualifiers,
                      as_copy, mark_derived=False, add_to_schema=False,
@@ -102,8 +103,9 @@ class Constraint(inheriting.InheritingObject):
             merge_bases=merge_bases, attrs=attrs, dctx=dctx, **kwargs)
 
     def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
-        super().finalize(schema, bases=bases,
-                         apply_defaults=apply_defaults, dctx=dctx)
+        schema = super().finalize(
+            schema, bases=bases,
+            apply_defaults=apply_defaults, dctx=dctx)
 
         if not self.generic() and self.params is None:
             self.params = []
@@ -116,6 +118,8 @@ class Constraint(inheriting.InheritingObject):
                     new_value=self.params,
                     source='default'
                 ))
+
+        return schema
 
     @classmethod
     def _dummy_subject(cls):
@@ -227,10 +231,10 @@ class Constraint(inheriting.InheritingObject):
 
         if expr == '__subject__':
             expr_context = \
-                constraint.get_attribute_source_context('subjectexpr')
+                constraint.get_attribute_source_context(schema, 'subjectexpr')
         else:
             expr_context = \
-                constraint.get_attribute_source_context('expr')
+                constraint.get_attribute_source_context(schema, 'expr')
 
         if subject is not constraint.subject:
             # subject has been redefined
@@ -288,17 +292,18 @@ class ConsistencySubject(referencing.ReferencingObject):
 
     @classmethod
     def inherit_pure(cls, schema, item, source, *, dctx=None):
-        item = super().inherit_pure(schema, item, source, dctx=dctx)
+        schema, item = super().inherit_pure(schema, item, source, dctx=dctx)
 
         if any(c.is_abstract for c in item.constraints.values()):
             # Have abstract constraints, cannot go pure inheritance,
             # must create a derived Object with materialized
             # constraints.
             generic = item.bases[0]
-            item = generic.derive(schema, source=source, add_to_schema=True,
-                                  merge_bases=[item], dctx=dctx)
+            schema, item = generic.derive(
+                schema, source=source, add_to_schema=True,
+                merge_bases=[item], dctx=dctx)
 
-        return item
+        return schema, item
 
     def begin_classref_dict_merge(self, schema, bases, attr):
         if attr == 'constraints':
@@ -310,55 +315,28 @@ class ConsistencySubject(referencing.ReferencingObject):
                 for b in bases)
             constraints.update(c.shortname
                                for c in inherited if c.is_abstract)
-            return constraints
+            return schema, constraints
         else:
             return super().begin_classref_dict_merge(schema, bases, attr)
 
     def finish_classref_dict_merge(self, schema, bases, attr):
-        super().finish_classref_dict_merge(schema, bases, attr)
+        schema = super().finish_classref_dict_merge(schema, bases, attr)
 
         if attr == 'constraints':
             # Materialize unmerged abstract constraints
             for cn, constraint in self.constraints.items():
                 if constraint.is_abstract and cn not in self.local_constraints:
-                    constraint = constraint.derive_copy(
+                    schema, constraint = constraint.derive_copy(
                         schema, self, add_to_schema=True,
                         attrs=dict(is_abstract=False))
 
-                    self.add_constraint(constraint)
+                    schema = self.add_constraint(schema, constraint)
 
-    def add_constraint(self, constraint, replace=False):
-        self.add_classref('constraints', constraint, replace=replace)
+        return schema
 
-    def del_constraint(self, constraint_name, schema):
-        self.del_classref('constraints', constraint_name, schema)
-
-    @classmethod
-    def delta_constraints(cls, set1, set2, delta, context=None):
-        oldconstraints = set(set1)
-        newconstraints = set(set2)
-
-        for constraint in oldconstraints - newconstraints:
-            d = set1[constraint].delta(None, reverse=True, context=context)
-            delta.add(d)
-
-        for constraint in newconstraints - oldconstraints:
-            d = set2[constraint].delta(None, context=context)
-            delta.add(d)
-
-        for constraint in newconstraints & oldconstraints:
-            oldconstr = set1[constraint]
-            newconstr = set2[constraint]
-
-            if newconstr.compare(oldconstr, context=context) != 1.0:
-                d = newconstr.delta(oldconstr, context=context)
-                delta.add(d)
-
-    def delta_all_constraints(self, old, new, delta, context):
-        oldconstraints = old.local_constraints if old else {}
-        newconstraints = new.local_constraints if new else {}
-
-        self.delta_constraints(oldconstraints, newconstraints, delta, context)
+    def add_constraint(self, schema, constraint, replace=False):
+        return self.add_classref(
+            schema, 'constraints', constraint, replace=replace)
 
 
 class ConsistencySubjectCommandContext:
@@ -379,21 +357,14 @@ class ConstraintCommand(
         schema_metaclass=Constraint, context_class=ConstraintCommandContext,
         referrer_context_class=ConsistencySubjectCommandContext):
 
-    def add_constraint(self, constraint, parent, schema):
-        parent.add_constraint(constraint)
-
-    def delete_constraint(self, constraint_name, parent, schema):
-        parent.del_constraint(constraint_name, schema)
-
     def _create_begin(self, schema, context):
-        super()._create_begin(schema, context)
+        schema = super()._create_begin(schema, context)
 
         referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is not None and self.scls.finalexpr is None:
             Constraint.process_specialized_constraint(schema, self.scls)
 
-    def _alter_begin(self, schema, context, scls):
-        super()._alter_begin(schema, context, scls)
+        return schema
 
     @classmethod
     def _validate_subcommands(cls, astnode):

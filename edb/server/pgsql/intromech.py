@@ -161,22 +161,23 @@ class IntrospectionMech:
         return self.schema
 
     async def readschema(self):
-        schema = so.Schema()
         await self._init_introspection_cache()
-        await self.read_modules(schema)
-        await self.read_scalars(schema)
-        await self.read_attributes(schema)
-        await self.read_objtypes(schema)
-        await self.read_links(schema)
-        await self.read_link_properties(schema)
-        await self.read_attribute_values(schema)
-        await self.read_operators(schema)
-        await self.read_functions(schema)
-        await self.read_constraints(schema)
-        await self.read_indexes(schema)
+
+        schema = so.Schema()
+        schema = await self.read_modules(schema)
+        schema = await self.read_scalars(schema)
+        schema = await self.read_attributes(schema)
+        schema = await self.read_objtypes(schema)
+        schema = await self.read_links(schema)
+        schema = await self.read_link_properties(schema)
+        schema = await self.read_attribute_values(schema)
+        schema = await self.read_operators(schema)
+        schema = await self.read_functions(schema)
+        schema = await self.read_constraints(schema)
+        schema = await self.read_indexes(schema)
 
         await self.order_attributes(schema)
-        await self.order_scalars(schema)
+        schema = await self.order_scalars(schema)
         await self.order_operators(schema)
         await self.order_functions(schema)
         await self.order_link_properties(schema)
@@ -224,7 +225,7 @@ class IntrospectionMech:
         for module in modules.values():
             mod = s_mod.Module(
                 name=module['name'])
-            schema.add_module(mod)
+            schema = schema.add_module(mod)
             mods.append(mod)
 
         for mod in mods:
@@ -237,7 +238,9 @@ class IntrospectionMech:
                         # Module has moved, create a dummy
                         impmod = so.DummyModule(imp_name)
 
-                    schema.add_module(impmod)
+                    schema = schema.add_module(impmod)
+
+        return schema
 
     async def read_scalars(self, schema):
         seqs = await introspection.sequences.fetch(
@@ -283,7 +286,7 @@ class IntrospectionMech:
                 view_type=scalar_data['view_type'],
                 expr=scalar_data['expr'])
 
-            schema.add(scalar)
+            schema = schema.add(scalar)
 
         for scalar in schema.get_objects(type='ScalarType'):
             try:
@@ -313,9 +316,12 @@ class IntrospectionMech:
                 ', '.join(common.qname(*t) for t in extra_seqs))
             raise s_err.SchemaError(msg, details=details)
 
+        return schema
+
     async def order_scalars(self, schema):
         for scalar in schema.get_objects(type='ScalarType'):
-            scalar.acquire_ancestor_inheritance(schema)
+            schema = scalar.acquire_ancestor_inheritance(schema)
+        return schema
 
     def _decode_func_params(self, row, schema):
         if row['params']:
@@ -353,10 +359,12 @@ class IntrospectionMech:
             }
 
             oper = s_opers.Operator(**oper_data)
-            schema.add(oper)
+            schema = schema.add(oper)
 
             if row['commutator']:
                 self._operator_commutators[oper] = row['commutator']
+
+        return schema
 
     async def order_operators(self, schema):
         for oper, commutator in self._operator_commutators.items():
@@ -384,7 +392,9 @@ class IntrospectionMech:
             }
 
             func = s_funcs.Function(**func_data)
-            schema.add(func)
+            schema = schema.add(func)
+
+        return schema
 
     async def order_functions(self, schema):
         pass
@@ -424,9 +434,9 @@ class IntrospectionMech:
                 args=r['args'])
 
             if subject:
-                subject.add_constraint(constraint)
+                schema = subject.add_constraint(schema, constraint)
 
-            schema.add(constraint)
+            schema = schema.add(constraint)
 
         for constraint in schema.get_objects(type='constraint'):
             try:
@@ -437,7 +447,9 @@ class IntrospectionMech:
                 constraint.bases = [schema.get(b) for b in bases]
 
         for constraint in schema.get_objects(type='constraint'):
-            constraint.acquire_ancestor_inheritance(schema)
+            schema = constraint.acquire_ancestor_inheritance(schema)
+
+        return schema
 
     async def order_constraints(self, schema):
         pass
@@ -541,14 +553,16 @@ class IntrospectionMech:
                 subject=subj,
                 expr=index_data['expr'])
 
-            subj.add_index(index)
-            schema.add(index)
+            schema = subj.add_index(schema, index)
+            schema = schema.add(index)
 
         if pg_indexes:
             details = f'Extraneous PostgreSQL indexes found: {pg_indexes!r}'
             raise s_err.SchemaError(
                 'internal metadata inconsistency',
                 details=details)
+
+        return schema
 
     async def read_pointer_target_column(self, schema, pointer,
                                          constraints_cache):
@@ -643,7 +657,7 @@ class IntrospectionMech:
             if spectargets:
                 # Multiple specified targets,
                 # target is a virtual derived object
-                target = link.create_common_target(schema, spectargets)
+                schema, target = link.create_common_target(schema, spectargets)
 
             link_search = None
 
@@ -662,9 +676,9 @@ class IntrospectionMech:
                 link.search = link_search
 
             if source:
-                source.add_pointer(link)
+                schema = source.add_pointer(schema, link)
 
-            schema.add(link)
+            schema = schema.add(link)
 
         for link in schema.get_objects(type='link'):
             try:
@@ -675,7 +689,9 @@ class IntrospectionMech:
                 link.bases = [schema.get(b) for b in bases]
 
         for link in schema.get_objects(type='link'):
-            link.acquire_ancestor_inheritance(schema)
+            schema = link.acquire_ancestor_inheritance(schema)
+
+        return schema
 
     async def order_links(self, schema):
         g = {}
@@ -688,7 +704,7 @@ class IntrospectionMech:
         topological.normalize(g, merger=s_links.Link.merge, schema=schema)
 
         for link in schema.get_objects(type='link'):
-            link.finalize(schema)
+            schema = link.finalize(schema)
 
     async def read_link_properties(self, schema):
         link_props = await datasources.schema.links.fetch_properties(
@@ -749,10 +765,10 @@ class IntrospectionMech:
             prop.target = target
 
             if source:
-                prop.acquire_ancestor_inheritance(schema)
-                source.add_pointer(prop)
+                schema = prop.acquire_ancestor_inheritance(schema)
+                schema = source.add_pointer(schema, prop)
 
-            schema.add(prop)
+            schema = schema.add(prop)
 
         for prop in schema.get_objects(type='link_property'):
             try:
@@ -763,6 +779,8 @@ class IntrospectionMech:
                 prop.bases = [
                     schema.get(b, type=s_props.Property) for b in bases
                 ]
+
+        return schema
 
     async def order_link_properties(self, schema):
         g = {}
@@ -776,7 +794,7 @@ class IntrospectionMech:
             g, merger=s_props.Property.merge, schema=schema)
 
         for prop in schema.get_objects(type='link_property'):
-            prop.finalize(schema)
+            schema = prop.finalize(schema)
 
     async def read_attributes(self, schema):
         attributes = await datasources.schema.attributes.fetch(self.connection)
@@ -788,7 +806,9 @@ class IntrospectionMech:
             attribute = s_attrs.Attribute(
                 name=name, title=title, description=description,
                 type=self.unpack_typeref(r['type'], schema))
-            schema.add(attribute)
+            schema = schema.add(attribute)
+
+        return schema
 
     async def order_attributes(self, schema):
         pass
@@ -805,8 +825,10 @@ class IntrospectionMech:
 
             attribute = s_attrs.AttributeValue(
                 name=name, subject=subject, attribute=attribute, value=value)
-            subject.add_attribute(attribute)
-            schema.add(attribute)
+            schema = subject.add_attribute(schema, attribute)
+            schema = schema.add(attribute)
+
+        return schema
 
     async def get_type_attributes(self, type_name, connection=None,
                                   cache='auto'):
@@ -870,7 +892,7 @@ class IntrospectionMech:
                 view_type=objtype['view_type'],
                 expr=objtype['expr'])
 
-            schema.add(objtype)
+            schema = schema.add(objtype)
 
         for objtype in schema.get_objects(type='ObjectType'):
             try:
@@ -891,7 +913,7 @@ class IntrospectionMech:
                                   if attrs['view_type'] else None)
             attrs['is_derived'] = True
             objtype = s_objtypes.ObjectType(**attrs)
-            schema.add(objtype)
+            schema = schema.add(objtype)
 
         tabdiff = set(tables.keys()) - visited_tables
         if tabdiff:
@@ -899,6 +921,8 @@ class IntrospectionMech:
             details = 'Extraneous data tables exist: {}'.format(
                 ', '.join('"%s.%s"' % t for t in tabdiff))
             raise s_err.SchemaError(msg, details=details)
+
+        return schema
 
     async def order_objtypes(self, schema):
         g = {}
@@ -913,7 +937,7 @@ class IntrospectionMech:
 
         for objtype in schema.get_objects(type='ObjectType',
                                           include_derived=True):
-            objtype.finalize(schema)
+            schema = objtype.finalize(schema)
 
     async def pg_table_inheritance(self, table_name, schema_name):
         inheritance = await introspection.tables.fetch_inheritance(
@@ -972,7 +996,6 @@ class IntrospectionMech:
             if typeconv:
                 name, _ = typeconv
                 scalar = schema.get(name)
-                scalar.acquire_ancestor_inheritance(schema)
 
         assert scalar
         return scalar

@@ -229,7 +229,7 @@ class BaseEdgeQLCompilerTest(BaseDocTest):
                     f'unexpected {stmt!r} in compiler setup script')
 
             context = sd.CommandContext()
-            ddl_plan.apply(schema, context)
+            schema, _ = ddl_plan.apply(schema, context)
 
         return schema
 

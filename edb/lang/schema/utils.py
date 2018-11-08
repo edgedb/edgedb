@@ -233,25 +233,6 @@ def minimize_class_set_by_least_generic(classes):
     return result
 
 
-def get_inheritance_map(classes):
-    """Return a dict where values are strict subclasses of the key."""
-    return {scls: [p for p in classes if p != scls and p.issubclass(scls)]
-            for scls in classes}
-
-
-def get_full_inheritance_map(schema, classes):
-    """Same as :func:`get_inheritance_map`, but considers full hierarchy."""
-
-    chain = itertools.chain.from_iterable
-    result = {}
-
-    for p, descendants in get_inheritance_map(classes).items():
-        result[p] = (set(chain(d.descendants(schema) for d in descendants)) |
-                     set(descendants))
-
-    return result
-
-
 def merge_reduce(target, sources, field_name, *, schema, f):
     values = []
     ours = getattr(target, field_name)

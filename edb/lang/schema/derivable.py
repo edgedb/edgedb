@@ -58,7 +58,7 @@ class DerivableObjectBase:
             derived.update(attrs)
         derived.name = derived_name
 
-        return derived
+        return schema, derived
 
     def finalize_derived(self, schema, derived, *, merge_bases=None,
                          replace_original=None, add_to_schema=False,
@@ -66,11 +66,11 @@ class DerivableObjectBase:
                          attrs=None, dctx=None, **kwargs):
 
         if merge_bases:
-            derived.acquire_ancestor_inheritance(
+            schema = derived.acquire_ancestor_inheritance(
                 schema, bases=merge_bases)
 
-        derived.finalize(schema, bases=merge_bases,
-                         apply_defaults=apply_defaults)
+        schema = derived.finalize(schema, bases=merge_bases,
+                                  apply_defaults=apply_defaults)
 
         if mark_derived:
             derived.is_derived = True
@@ -80,29 +80,29 @@ class DerivableObjectBase:
             existing_derived = schema.get(derived.name, default=None)
 
             if existing_derived is None:
-                schema.add(derived)
+                schema = schema.add(derived)
             elif replace_original is not None:
-                schema.discard(existing_derived)
-                schema.add(derived)
+                schema = schema.discard(existing_derived)
+                schema = schema.add(derived)
 
-        return derived
+        return schema, derived
 
     def derive_copy(self, schema, *qualifiers, merge_bases=None,
                     replace_original=None, add_to_schema=False,
                     mark_derived=False, attrs=None, dctx=None,
                     name=None, **kwargs):
-        derived = self.init_derived(
+        schema, derived = self.init_derived(
             schema, *qualifiers, name=name,
             as_copy=True, merge_bases=merge_bases,
             attrs=attrs, add_to_schema=add_to_schema,
             mark_derived=mark_derived, dctx=dctx, **kwargs)
 
-        self.finalize_derived(
+        schema, derived = self.finalize_derived(
             schema, derived, merge_bases=merge_bases,
             add_to_schema=add_to_schema, mark_derived=mark_derived,
             dctx=dctx)
 
-        return derived
+        return schema, derived
 
     def derive(self, schema, source, *qualifiers, merge_bases=None,
                replace_original=None, add_to_schema=False,
@@ -113,18 +113,18 @@ class DerivableObjectBase:
                 'cannot derive from specialized {} {!r}'.format(
                     self.__class__.__name__, self.name))
 
-        derived = self.init_derived(
+        schema, derived = self.init_derived(
             schema, source, *qualifiers, name=name,
             as_copy=False, merge_bases=merge_bases,
             attrs=attrs, add_to_schema=add_to_schema,
             mark_derived=mark_derived, dctx=dctx, **kwargs)
 
-        self.finalize_derived(
+        schema, derived = self.finalize_derived(
             schema, derived, merge_bases=merge_bases,
             add_to_schema=add_to_schema, mark_derived=mark_derived,
             apply_defaults=apply_defaults, dctx=dctx)
 
-        return derived
+        return schema, derived
 
 
 class DerivableObject(so.NamedObject, DerivableObjectBase):
@@ -136,4 +136,4 @@ class DerivableObject(so.NamedObject, DerivableObjectBase):
     def inherit_pure(cls, schema, item, source, *, dctx=None):
         # This method is used by ReferencingObject and must be
         # defined for all Derivables, not just Inheriting ones.
-        return item
+        return schema, item

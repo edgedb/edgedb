@@ -156,11 +156,12 @@ class NamedObjectCommand(sd.ObjectCommand):
         metaclass = self.get_schema_metaclass()
         if schema.get(self.classname, default=None, type=metaclass):
             raise ValueError(f'{self.classname!r} already exists in schema')
-        schema.add(self.scls)
+        schema = schema.add(self.scls)
+        return schema
 
     def _create_begin(self, schema, context):
-        super()._create_begin(schema, context)
-        self._add_to_schema(schema)
+        schema = super()._create_begin(schema, context)
+        return self._add_to_schema(schema)
 
 
 class CreateOrAlterNamedObject(NamedObjectCommand):
@@ -230,37 +231,37 @@ class RenameNamedObject(NamedObjectCommand):
                                          self.classname, self.new_name)
 
     def _rename_begin(self, schema, context, scls):
-        schema.drop_inheritance_cache(scls)
-        schema.drop_inheritance_cache_for_child(scls)
+        schema = schema.drop_inheritance_cache(scls)
+        schema = schema.drop_inheritance_cache_for_child(scls)
 
         self.old_name = self.classname
-        schema.delete(scls)
+        schema = schema.delete(scls)
         scls.name = self.new_name
-        schema.add(scls)
+        schema = schema.add(scls)
 
         parent_ctx = context.get(sd.CommandContextToken)
         for subop in parent_ctx.op.get_subcommands(type=NamedObjectCommand):
             if subop is not self and subop.classname == self.old_name:
                 subop.classname = self.new_name
 
-        return scls
+        return schema
 
     def _rename_innards(self, schema, context, scls):
-        pass
+        return schema
 
     def _rename_finalize(self, schema, context, scls):
-        pass
+        return schema
 
     def apply(self, schema, context):
         metaclass = self.get_schema_metaclass()
         scls = schema.get(self.classname, type=metaclass)
         self.scls = scls
 
-        self._rename_begin(schema, context, scls)
-        self._rename_innards(schema, context, scls)
-        self._rename_finalize(schema, context, scls)
+        schema = self._rename_begin(schema, context, scls)
+        schema = self._rename_innards(schema, context, scls)
+        schema = self._rename_finalize(schema, context, scls)
 
-        return scls
+        return schema, scls
 
     def _get_ast(self, context):
         astnode = self._get_ast_node(context)
@@ -443,19 +444,19 @@ class AlterNamedObject(CreateOrAlterNamedObject, sd.AlterObject):
 
     def _alter_begin(self, schema, context, scls):
         for op in self.get_subcommands(type=RenameNamedObject):
-            op.apply(schema, context)
+            schema, _ = op.apply(schema, context)
 
         props = self.get_struct_properties(schema)
         for name, value in props.items():
             setattr(scls, name, value)
 
-        return scls
+        return schema
 
     def _alter_innards(self, schema, context, scls):
-        pass
+        return schema
 
     def _alter_finalize(self, schema, context, scls):
-        pass
+        return schema
 
     def apply(self, schema, context):
         metaclass = self.get_schema_metaclass()
@@ -466,22 +467,23 @@ class AlterNamedObject(CreateOrAlterNamedObject, sd.AlterObject):
             ctx.original_class = \
                 scls.__class__.get_canonical_class().copy(scls)
 
-            self._alter_begin(schema, context, scls)
-            self._alter_innards(schema, context, scls)
-            self._alter_finalize(schema, context, scls)
+            schema = self._alter_begin(schema, context, scls)
+            schema = self._alter_innards(schema, context, scls)
+            schema = self._alter_finalize(schema, context, scls)
 
-        return scls
+        return schema, scls
 
 
 class DeleteNamedObject(NamedObjectCommand, sd.DeleteObject):
     def _delete_begin(self, schema, context, scls):
-        pass
+        return schema
 
     def _delete_innards(self, schema, context, scls):
-        pass
+        return schema
 
     def _delete_finalize(self, schema, context, scls):
-        schema.delete(scls)
+        schema = schema.delete(scls)
+        return schema
 
     def apply(self, schema, context=None):
         metaclass = self.get_schema_metaclass()
@@ -492,8 +494,8 @@ class DeleteNamedObject(NamedObjectCommand, sd.DeleteObject):
         with self.new_context(context) as ctx:
             ctx.original_class = scls
 
-            self._delete_begin(schema, context, scls)
-            self._delete_innards(schema, context, scls)
-            self._delete_finalize(schema, context, scls)
+            schema = self._delete_begin(schema, context, scls)
+            schema = self._delete_innards(schema, context, scls)
+            schema = self._delete_finalize(schema, context, scls)
 
-        return scls
+        return schema, scls

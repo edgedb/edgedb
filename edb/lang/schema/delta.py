@@ -343,7 +343,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         self.ops = ordered.OrderedSet(sorted(self.ops, key=_key))
 
     def apply(self, schema, context):
-        pass
+        return schema, None
 
     def get_ast(self, context=None):
         if context is None:
@@ -450,7 +450,8 @@ class CommandList(typed.TypedList, type=Command):
 class CommandGroup(Command):
     def apply(self, schema, context=None):
         for op in self:
-            op.apply(schema, context)
+            schema, _ = op.apply(schema, context)
+        return schema, None
 
 
 class CommandContextToken:
@@ -615,18 +616,20 @@ class CreateObject(ObjectCommand):
         self.scls = metaclass(
             **props, _setdefaults_=False, _relaxrequired_=True)
 
+        return schema
+
     def _create_innards(self, schema, context):
-        pass
+        return schema
 
     def _create_finalize(self, schema, context):
-        self.scls.finalize(schema, dctx=context)
+        return self.scls.finalize(schema, dctx=context)
 
     def apply(self, schema, context):
-        self._create_begin(schema, context)
+        schema = self._create_begin(schema, context)
         with self.new_context(context):
-            self._create_innards(schema, context)
-            self._create_finalize(schema, context)
-        return self.scls
+            schema = self._create_innards(schema, context)
+            schema = self._create_finalize(schema, context)
+        return schema, self.scls
 
 
 class AlterObject(ObjectCommand):

@@ -42,17 +42,6 @@ class ObjectType(SourceNode, constraints.ConsistencySubject):
     def is_object_type(self):
         return True
 
-    def materialize_policies(self, schema):
-        bases = self.bases
-
-        for link_name in self.pointers:
-            own = self.own_pointers.get(link_name)
-            ro = list(filter(lambda i: i is not None,
-                             [b.pointers.get(link_name) for b in bases
-                              if not b.is_virtual]))
-            if own is not None and ro:
-                own._merge_policies(schema, ro, force_first=True)
-
     class ReversePointerResolver:
         @classmethod
         def getptr_from_nqname(cls, schema, source, name):

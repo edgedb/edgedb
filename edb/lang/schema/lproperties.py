@@ -42,7 +42,8 @@ class Property(pointers.Pointer):
         if target is None:
             target = self.target
 
-        ptr = super().derive(schema, source, target, attrs=attrs, **kwargs)
+        schema, ptr = super().derive(
+            schema, source, target, attrs=attrs, **kwargs)
 
         if ptr.shortname == 'std::source':
             ptr.target = source.source
@@ -50,7 +51,7 @@ class Property(pointers.Pointer):
         if ptr.shortname == 'std::target':
             ptr.target = source.target
 
-        return ptr
+        return schema, ptr
 
     def compare(self, other, context):
         if not isinstance(other, Property):
@@ -76,7 +77,7 @@ class Property(pointers.Pointer):
     @classmethod
     def merge_targets(cls, schema, ptr, t1, t2):
         if ptr.is_endpoint_pointer():
-            return t1
+            return schema, t1
         else:
             return super().merge_targets(schema, ptr, t1, t2)
 
@@ -90,13 +91,6 @@ class Property(pointers.Pointer):
         if self.source is None:
             raise ValueError(f'{self.name} is abstract')
         return isinstance(self.source, pointers.Pointer)
-
-    def copy(self):
-        result = super().copy()
-        result.source = self.source
-        result.target = self.target
-        result.default = self.default
-        return result
 
     @classmethod
     def get_root_classes(cls):
