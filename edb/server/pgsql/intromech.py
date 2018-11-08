@@ -42,7 +42,6 @@ from edb.lang.schema import modules as s_mod
 from edb.lang.schema import name as sn
 from edb.lang.schema import operators as s_opers
 from edb.lang.schema import pointers as s_pointers
-from edb.lang.schema import policy as s_policy
 from edb.lang.schema import pseudo as s_pseudo
 from edb.lang.schema import types as s_types
 
@@ -167,12 +166,9 @@ class IntrospectionMech:
         await self.read_modules(schema)
         await self.read_scalars(schema)
         await self.read_attributes(schema)
-        await self.read_actions(schema)
-        await self.read_events(schema)
         await self.read_objtypes(schema)
         await self.read_links(schema)
         await self.read_link_properties(schema)
-        await self.read_policies(schema)
         await self.read_attribute_values(schema)
         await self.read_operators(schema)
         await self.read_functions(schema)
@@ -180,15 +176,12 @@ class IntrospectionMech:
         await self.read_indexes(schema)
 
         await self.order_attributes(schema)
-        await self.order_actions(schema)
-        await self.order_events(schema)
         await self.order_scalars(schema)
         await self.order_operators(schema)
         await self.order_functions(schema)
         await self.order_link_properties(schema)
         await self.order_links(schema)
         await self.order_objtypes(schema)
-        await self.order_policies(schema)
 
         return schema
 
@@ -814,78 +807,6 @@ class IntrospectionMech:
                 name=name, subject=subject, attribute=attribute, value=value)
             subject.add_attribute(attribute)
             schema.add(attribute)
-
-    async def read_actions(self, schema):
-        actions = await datasources.schema.policy.fetch_actions(
-            self.connection)
-
-        for r in actions:
-            name = sn.Name(r['name'])
-            title = r['title']
-            description = r['description']
-
-            action = s_policy.Action(
-                name=name, title=title, description=description)
-            schema.add(action)
-
-    async def order_actions(self, schema):
-        pass
-
-    async def read_events(self, schema):
-        events = await datasources.schema.policy.fetch_events(
-            self.connection)
-
-        basemap = {}
-
-        for r in events:
-            name = sn.Name(r['name'])
-            title = r['title']
-            description = r['description']
-
-            if r['bases']:
-                bases = tuple(sn.Name(b) for b in r['bases'])
-            elif name != 'std::event':
-                bases = (sn.Name('std::event'), )
-            else:
-                bases = tuple()
-
-            basemap[name] = bases
-
-            event = s_policy.Event(
-                name=name, title=title, description=description)
-            schema.add(event)
-
-        for event in schema.get_objects(type='event'):
-            try:
-                bases = basemap[event.name]
-            except KeyError:
-                pass
-            else:
-                event.bases = [schema.get(b) for b in bases]
-
-        for event in schema.get_objects(type='event'):
-            event.acquire_ancestor_inheritance(schema)
-
-    async def order_events(self, schema):
-        pass
-
-    async def read_policies(self, schema):
-        policies = await datasources.schema.policy.fetch_policies(
-            self.connection)
-
-        for r in policies:
-            name = sn.Name(r['name'])
-            title = r['title']
-            description = r['description']
-            policy = s_policy.Policy(
-                name=name, title=title, description=description,
-                subject=schema.get(r['subject']), event=schema.get(r['event']),
-                actions=[schema.get(a) for a in r['actions']])
-            schema.add(policy)
-            policy.subject.add_policy(policy)
-
-    async def order_policies(self, schema):
-        pass
 
     async def get_type_attributes(self, type_name, connection=None,
                                   cache='auto'):

@@ -27,7 +27,6 @@ from . import name as sn
 from . import named
 from . import objects as so
 from . import pointers
-from . import policy
 from . import referencing
 from . import scalars
 from . import sources
@@ -214,9 +213,6 @@ class CreateProperty(PropertyCommand,
         for op in self.get_subcommands(type=constraints.ConstraintCommand):
             self._append_subcmd_ast(node, op, context)
 
-        for op in self.get_subcommands(type=policy.PolicyCommand):
-            self._append_subcmd_ast(node, op, context)
-
     def _apply_field_ast(self, context, node, op):
         link = context.get(PropertySourceContext)
 
@@ -262,9 +258,6 @@ class AlterProperty(PropertyCommand, inheriting.AlterInheritingObject):
         for op in self.get_subcommands(type=constraints.ConstraintCommand):
             self._append_subcmd_ast(node, op, context)
 
-        for op in self.get_subcommands(type=policy.PolicyCommand):
-            self._append_subcmd_ast(node, op, context)
-
     def _apply_field_ast(self, context, node, op):
         if op.property == 'target':
             if op.new_value:
@@ -297,7 +290,4 @@ class DeleteProperty(PropertyCommand, inheriting.DeleteInheritingObject):
         super()._apply_fields_ast(context, node)
 
         for op in self.get_subcommands(type=constraints.ConstraintCommand):
-            self._append_subcmd_ast(node, op, context)
-
-        for op in self.get_subcommands(type=policy.PolicyCommand):
             self._append_subcmd_ast(node, op, context)

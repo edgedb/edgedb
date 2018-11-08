@@ -26,6 +26,5 @@ from . import modules  # NOQA
 from . import objects  # NOQA
 from . import objtypes  # NOQA
 from . import operators  # NOQA
-from . import policy  # NOQA
 from . import scalars  # NOQA
 from . import views  # NOQA

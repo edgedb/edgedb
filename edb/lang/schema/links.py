@@ -32,7 +32,6 @@ from . import name as sn
 from . import named
 from . import objects as so
 from . import pointers
-from . import policy
 from . import referencing
 from . import sources
 from . import utils
@@ -191,7 +190,6 @@ class LinkSourceCommand(referencing.ReferencingObjectCommand):
 
 class LinkCommandContext(pointers.PointerCommandContext,
                          constraints.ConsistencySubjectCommandContext,
-                         policy.InternalPolicySubjectCommandContext,
                          lproperties.PropertySourceContext,
                          indexes.IndexSourceCommandContext):
     pass
@@ -469,9 +467,6 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
         for op in self.get_subcommands(type=constraints.ConstraintCommand):
             self._append_subcmd_ast(node, op, context)
 
-        for op in self.get_subcommands(type=policy.PolicyCommand):
-            self._append_subcmd_ast(node, op, context)
-
 
 class RenameLink(LinkCommand, named.RenameNamedObject):
     pass
@@ -584,9 +579,6 @@ class AlterLink(LinkCommand, named.AlterNamedObject):
         for op in self.get_subcommands(type=constraints.ConstraintCommand):
             self._append_subcmd_ast(node, op, context)
 
-        for op in self.get_subcommands(type=policy.PolicyCommand):
-            self._append_subcmd_ast(node, op, context)
-
     def _apply_field_ast(self, context, node, op):
         if op.property == 'spectargets':
             if op.new_value:
@@ -643,7 +635,4 @@ class DeleteLink(LinkCommand, named.DeleteNamedObject):
                 self._append_subcmd_ast(node, op, context)
 
         for op in self.get_subcommands(type=constraints.ConstraintCommand):
-            self._append_subcmd_ast(node, op, context)
-
-        for op in self.get_subcommands(type=policy.PolicyCommand):
             self._append_subcmd_ast(node, op, context)

@@ -30,7 +30,6 @@ from . import expr as sexpr
 from . import inheriting
 from . import name as sn
 from . import objects as so
-from . import policy
 from . import referencing
 from . import types as s_types
 from . import utils
@@ -74,8 +73,7 @@ def merge_cardinality(target: so.Object, sources: typing.List[so.Object],
         return current
 
 
-class Pointer(constraints.ConsistencySubject,
-              policy.PolicySubject, policy.InternalPolicySubject):
+class Pointer(constraints.ConsistencySubject):
 
     source = so.Field(so.Object, None, compcoef=None)
     target = so.Field(s_types.Type, None, compcoef=0.833)

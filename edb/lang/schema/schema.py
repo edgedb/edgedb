@@ -33,8 +33,9 @@ class TypeContainer:
 
 
 class Schema(TypeContainer):
-    global_dep_order = ('action', 'event', 'attribute', 'constraint',
-                        'ScalarType', 'link_property', 'link', 'ObjectType')
+    global_dep_order = ('attribute', 'constraint',
+                        'ScalarType', 'link_property',
+                        'link', 'ObjectType')
 
     """Schema is a collection of ProtoModules."""
 
@@ -296,23 +297,6 @@ class Schema(TypeContainer):
         flt = lambda p: scls in p.bases
         it = self.get_objects(type=scls._type)
         return {c.name for c in filter(flt, it)}
-
-    def get_event_policy(self, subject_class, event_class):
-        from . import policy as spol
-
-        if self._policy_schema is None:
-            self._policy_schema = spol.PolicySchema()
-
-            for policy in self.get_objects(type='policy'):
-                self._policy_schema.add(policy)
-
-            for link in self.get_objects(type='link'):
-                link.materialize_policies(self)
-
-            for objtype in self.get_objects(type='ObjectType'):
-                objtype.materialize_policies(self)
-
-        return self._policy_schema.get(subject_class, event_class)
 
     def get_objects(self, *, type=None, include_derived=False):
         for mod in self.get_modules():

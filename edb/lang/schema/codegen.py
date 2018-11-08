@@ -179,9 +179,6 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self.indentation -= 1
             self.new_lines = 2
 
-    def visit_ActionDeclaration(self, node):
-        self._visit_Declaration(node)
-
     def visit_ScalarTypeDeclaration(self, node):
         self._visit_qualifier(node)
         self._visit_Declaration(node)
@@ -215,9 +212,6 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self.write('abstract ')
 
         self._visit_Declaration(node, after_name=after_name)
-
-    def visit_EventDeclaration(self, node):
-        self._visit_Declaration(node)
 
     def visit_LinkDeclaration(self, node):
         if node.abstract:
@@ -276,13 +270,6 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
 
     def visit_Property(self, node):
         self._visit_Pointer(node)
-
-    def visit_Policy(self, node):
-        self.write('on ')
-        self.visit(node.event)
-        self.write(' ')
-        self.visit(node.action)
-        self.new_lines = 1
 
     def visit_Index(self, node):
         self.write('index ')

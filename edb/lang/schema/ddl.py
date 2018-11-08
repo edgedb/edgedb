@@ -34,7 +34,6 @@ from . import indexes  # NOQA
 from . import links  # NOQA
 from . import lproperties  # NOQA
 from . import modules  # NOQA
-from . import policy  # NOQA
 from . import views  # NOQA
 
 

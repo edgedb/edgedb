@@ -45,7 +45,6 @@ from edb.lang.schema import name as sn
 from edb.lang.schema import named as s_named
 from edb.lang.schema import objects as s_obj
 from edb.lang.schema import operators as s_opers
-from edb.lang.schema import policy as s_policy
 from edb.lang.schema import referencing as s_referencing
 from edb.lang.schema import sources as s_sources
 from edb.lang.schema import types as s_types
@@ -1713,84 +1712,6 @@ class DeleteObjectType(ObjectTypeMetaCommand,
             self.pgops.add(dbops.DropTable(name=old_table_name, priority=3))
 
         return objtype
-
-
-class ActionCommand:
-    table = metaschema.get_metaclass_table(s_policy.Action)
-
-
-class CreateAction(
-        CreateNamedObject, ActionCommand, adapts=s_policy.CreateAction):
-    pass
-
-
-class RenameAction(
-        RenameNamedObject, ActionCommand, adapts=s_policy.RenameAction):
-    pass
-
-
-class AlterAction(
-        AlterNamedObject, ActionCommand, adapts=s_policy.AlterAction):
-    pass
-
-
-class DeleteAction(
-        DeleteNamedObject, ActionCommand, adapts=s_policy.DeleteAction):
-    pass
-
-
-class EventCommand(metaclass=CommandMeta):
-    table = metaschema.get_metaclass_table(s_policy.Event)
-
-
-class CreateEvent(
-        EventCommand, CreateNamedObject, adapts=s_policy.CreateEvent):
-    pass
-
-
-class RenameEvent(
-        EventCommand, RenameNamedObject, adapts=s_policy.RenameEvent):
-    pass
-
-
-class RebaseEvent(
-        EventCommand, RebaseNamedObject, adapts=s_policy.RebaseEvent):
-    pass
-
-
-class AlterEvent(
-        EventCommand, AlterNamedObject, adapts=s_policy.AlterEvent):
-    pass
-
-
-class DeleteEvent(
-        EventCommand, DeleteNamedObject, adapts=s_policy.DeleteEvent):
-    pass
-
-
-class PolicyCommand(sd.ObjectCommand, metaclass=ReferencedObjectCommandMeta):
-    table = metaschema.get_metaclass_table(s_policy.Policy)
-    op_priority = 2
-
-
-class CreatePolicy(
-        PolicyCommand, CreateNamedObject, adapts=s_policy.CreatePolicy):
-    pass
-
-
-class RenamePolicy(
-        PolicyCommand, RenameNamedObject, adapts=s_policy.RenamePolicy):
-    pass
-
-
-class AlterPolicy(
-        PolicyCommand, AlterNamedObject, adapts=s_policy.AlterPolicy):
-    pass
-
-
-class DeletePolicy(
-        PolicyCommand, DeleteNamedObject, adapts=s_policy.DeletePolicy):
-    pass
 
 
 class SchedulePointerCardinalityUpdate(MetaCommand):

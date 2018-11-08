@@ -47,10 +47,6 @@ class Attribute(Spec):
     value: qlast.Base
 
 
-class Policy(Spec):
-    __fields = ['event', 'action']  # TODO: type this
-
-
 class Constraint(Spec):
     args: typing.List[qlast.FuncArg]
     attributes: typing.List[Attribute]
@@ -67,7 +63,6 @@ class Pointer(Spec):
 
     attributes: typing.List[Attribute]
     constraints: typing.List[Constraint]
-    policies: typing.List[Policy]
 
     required: bool = False
     cardinality: qlast.Cardinality
@@ -105,10 +100,6 @@ class Declaration(Base):
     attributes: typing.List[Attribute]
 
 
-class ActionDeclaration(Declaration):
-    pass
-
-
 class ScalarTypeDeclaration(Declaration):
     abstract: bool = False
     final: bool = False
@@ -132,10 +123,6 @@ class ConstraintDeclaration(Declaration):
     abstract: bool = False
     args: typing.List[qlast.Base]
     subject: typing.Optional[qlast.Expr]
-
-
-class EventDeclaration(Declaration):
-    pass
 
 
 class ViewDeclaration(Declaration):
@@ -164,7 +151,6 @@ class BasePointerDeclaration(Declaration):
     abstract: bool = False
     indexes: typing.List[Index]
     constraints: typing.List[Constraint]
-    policies: typing.List[Policy]
 
 
 class PropertyDeclaration(BasePointerDeclaration):

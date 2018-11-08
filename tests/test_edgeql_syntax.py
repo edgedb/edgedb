@@ -1787,12 +1787,6 @@ aa';
         DROP DATABASE sample;
         """
 
-    def test_edgeql_syntax_with_05(self):
-        """
-        WITH MODULE test CREATE ACTION sample;
-        WITH MODULE test DROP ACTION sample;
-        """
-
     def test_edgeql_syntax_with_06(self):
         """
         WITH MODULE abstract SELECT Foo;
@@ -2600,20 +2594,6 @@ aa';
     def test_edgeql_syntax_ddl_delta_04(self):
         """
         CREATE MIGRATION test::d_links01_0 TO BadLang $$type Foo$$;
-        """
-
-    def test_edgeql_syntax_ddl_action_01(self):
-        """
-        CREATE ACTION std::restrict {
-            SET title := 'Abort the event if a pointer exists';
-        };
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=13)
-    def test_edgeql_syntax_ddl_action_02(self):
-        """
-        CREATE ACTION std::restrict
-            SET title := 'Abort the event if a pointer exists';
         """
 
     # TODO: remove this test once the entire grammar is converted

@@ -826,16 +826,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_DropModule(self, node):
         self._visit_DropObject(node, 'MODULE')
 
-    def visit_CreateAction(self, node):
-        after_name = lambda: self._ddl_visit_bases(node)
-        self._visit_CreateObject(node, 'ACTION', after_name=after_name)
-
-    def visit_AlterAction(self, node):
-        self._visit_AlterObject(node, 'ACTION')
-
-    def visit_DropAction(self, node):
-        self._visit_DropObject(node, 'ACTION')
-
     def visit_CreateView(self, node):
         self._visit_CreateObject(node, 'VIEW')
 
@@ -844,10 +834,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_DropView(self, node):
         self._visit_DropObject(node, 'VIEW')
-
-    def visit_CreateEvent(self, node):
-        after_name = lambda: self._ddl_visit_bases(node)
-        self._visit_CreateObject(node, 'EVENT', after_name=after_name)
 
     def visit_CreateAttribute(self, node):
         def after_name():
@@ -1035,18 +1021,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_DropIndex(self, node):
         self._visit_DropObject(node, 'INDEX')
-
-    def visit_CreateLocalPolicy(self, node):
-        self.write('CREATE POLICY FOR ')
-        self.visit(node.event)
-        self.write(' TO ')
-        self.visit_list(node.actions)
-
-    def visit_AlterLocalPolicy(self, node):
-        self.write('ALTER POLICY FOR ')
-        self.visit(node.event)
-        self.write(' TO ')
-        self.visit_list(node.actions)
 
     def visit_CreateFunction(self, node):
         def after_name():

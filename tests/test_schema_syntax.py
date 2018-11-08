@@ -794,28 +794,6 @@ abstract property bar extending foo:
 property foo
         """
 
-    def test_eschema_syntax_action_01(self):
-        """
-action ignore
-        """
-
-    def test_eschema_syntax_action_02(self):
-        """
-action ignore:
-    title := 'Deleted'
-        """
-
-    def test_eschema_syntax_event_01(self):
-        """
-event self_deleted
-        """
-
-    def test_eschema_syntax_event_02(self):
-        """
-event self_deleted:
-    title := 'Deleted'
-        """
-
     def test_eschema_syntax_link_01(self):
         """
 abstract link coollink
@@ -861,14 +839,6 @@ abstract link coollink:
     property bar -> int64
 
     constraint expr on (self.foo = self.bar)
-
-    on self_deleted ignore
-
-action ignore:
-    title := 'Deleted'
-
-event self_deleted:
-    title := 'Deleted'
 
         """
 

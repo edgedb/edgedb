@@ -670,30 +670,6 @@ class DropRole(DropObject):
     pass
 
 
-class CreateAction(CreateObject):
-    pass
-
-
-class AlterAction(AlterObject):
-    pass
-
-
-class DropAction(DropObject):
-    pass
-
-
-class CreateEvent(CreateExtendingObject):
-    pass
-
-
-class AlterEvent(AlterObject):
-    pass
-
-
-class DropEvent(DropObject):
-    pass
-
-
 class CreateAttribute(CreateExtendingObject):
     type: typing.Optional[TypeExpr]
 
@@ -824,20 +800,6 @@ class AlterConcreteConstraint(AlterObject):
 
 class DropConcreteConstraint(DropObject):
     pass
-
-
-class CreateLocalPolicy(CompositeDDL):
-    event: ObjectRef
-    actions: typing.List[ObjectRef]
-
-
-class AlterLocalPolicy(CompositeDDL):
-    event: ObjectRef
-    actions: typing.List[ObjectRef]
-
-
-class DropLocalPolicy(CompositeDDL):
-    event: ObjectRef
 
 
 class CreateIndex(CreateObject):

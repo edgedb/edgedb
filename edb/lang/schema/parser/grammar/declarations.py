@@ -259,11 +259,6 @@ class DeclarationList(ListNonterm, element=Declaration):
 
 
 class DeclarationBase(Nonterm):
-    def reduce_ActionDeclaration(self, kid):
-        self.val = kid.val
-
-    def reduce_EventDeclaration(self, kid):
-        self.val = kid.val
 
     def reduce_ABSTRACT_AttributeDeclaration(self, *kids):
         self.val = kids[1].val
@@ -307,31 +302,6 @@ class DeclarationBase(Nonterm):
         raise SchemaSyntaxError(
             'only concrete constraints can be delegated',
             context=kids[0].context)
-
-
-class ActionDeclaration(Nonterm):
-    def reduce_ACTION_NameAndExtends_NL(self, *kids):
-        np: NameWithParents = kids[1].val
-        self.val = esast.ActionDeclaration(
-            name=np.name,
-            extends=np.extends)
-
-    def reduce_ACTION_NameAndExtends_DeclarationSpecsBlob(
-            self, *kids):
-        np: NameWithParents = kids[1].val
-        attributes = []
-
-        for spec in kids[2].val:
-            if isinstance(spec, esast.Attribute):
-                attributes.append(spec)
-            else:
-                raise SchemaSyntaxError(
-                    'illegal definition', context=spec.context)
-
-        self.val = esast.ActionDeclaration(
-            name=np.name,
-            extends=np.extends,
-            attributes=attributes)
 
 
 class ScalarTypeDeclaration(Nonterm):
@@ -497,7 +467,6 @@ class LinkDeclaration(Nonterm):
 
         constraints = []
         properties = []
-        policies = []
         attributes = []
         indexes = []
 
@@ -512,8 +481,6 @@ class LinkDeclaration(Nonterm):
                         'Link properties cannot be "required".',
                         context=spec.context)
                 properties.append(spec)
-            elif isinstance(spec, esast.Policy):
-                policies.append(spec)
             elif isinstance(spec, esast.Index):
                 indexes.append(spec)
             else:
@@ -526,8 +493,7 @@ class LinkDeclaration(Nonterm):
             attributes=attributes,
             constraints=constraints,
             properties=properties,
-            indexes=indexes,
-            policies=policies)
+            indexes=indexes)
 
 
 class PropertyDeclaration(Nonterm):
@@ -551,30 +517,6 @@ class PropertyDeclaration(Nonterm):
                     'illegal definition', context=spec.context)
 
         self.val = esast.PropertyDeclaration(
-            name=np.name,
-            extends=np.extends,
-            attributes=attributes)
-
-
-class EventDeclaration(Nonterm):
-    def reduce_EVENT_NameAndExtends_NL(self, *kids):
-        np: NameWithParents = kids[1].val
-        self.val = esast.EventDeclaration(
-            name=np.name,
-            extends=np.extends)
-
-    def reduce_EVENT_NameAndExtends_DeclarationSpecsBlob(self, *kids):
-        np: NameWithParents = kids[1].val
-        attributes = []
-
-        for spec in kids[2].val:
-            if isinstance(spec, esast.Attribute):
-                attributes.append(spec)
-            else:
-                raise SchemaSyntaxError(
-                    'illegal definition', context=spec.context)
-
-        self.val = esast.EventDeclaration(
             name=np.name,
             extends=np.extends,
             attributes=attributes)
@@ -794,9 +736,6 @@ class DeclarationSpec(Nonterm):
     def reduce_DeclarationSpecBase(self, kid):
         self.val = kid.val
 
-    def reduce_Policy(self, kid):
-        self.val = kid.val
-
     def reduce_OnDelete(self, kid):
         self.val = kid.val
 
@@ -878,7 +817,6 @@ class Link(Nonterm):
     def _process_pointerspec(self, p: PointerSpec):
         constraints = []
         attributes = []
-        policies = []
         properties = []
         on_delete = None
 
@@ -889,8 +827,6 @@ class Link(Nonterm):
                 attributes.append(spec)
             elif isinstance(spec, esast.Property):
                 properties.append(spec)
-            elif isinstance(spec, esast.Policy):
-                policies.append(spec)
             elif isinstance(spec, esast.OnTargetDelete):
                 if on_delete:
                     raise SchemaSyntaxError(  # TODO: better error message
@@ -908,7 +844,6 @@ class Link(Nonterm):
             expr=p.expr,
             attributes=attributes,
             constraints=constraints,
-            policies=policies,
             properties=properties,
             on_target_delete=on_delete)
 
@@ -982,15 +917,12 @@ class Property(Nonterm):
     def _process_pointerspec(self, p: PointerSpec):
         constraints = []
         attributes = []
-        policies = []
 
         for spec in p.spec:
             if isinstance(spec, esast.Constraint):
                 constraints.append(spec)
             elif isinstance(spec, esast.Attribute):
                 attributes.append(spec)
-            elif isinstance(spec, esast.Policy):
-                policies.append(spec)
             else:
                 raise SchemaSyntaxError(  # TODO: better error message
                     'illegal definition', context=spec.context)
@@ -1000,8 +932,7 @@ class Property(Nonterm):
             target=p.target,
             expr=p.expr,
             attributes=attributes,
-            constraints=constraints,
-            policies=policies)
+            constraints=constraints)
 
     def reduce_PROPERTY_Spec(self, *kids):
         self.val = self._process_pointerspec(kids[1].val)
@@ -1067,11 +998,6 @@ class Property(Nonterm):
         prop.inherited = True
         prop.cardinality = qlast.Cardinality.MANY
         self.val = prop
-
-
-class Policy(Nonterm):
-    def reduce_ON_ObjectName_ObjectName_NL(self, *kids):
-        self.val = esast.Policy(event=kids[1].val, action=kids[2].val)
 
 
 class OnDelete(Nonterm):

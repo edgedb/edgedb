@@ -283,14 +283,6 @@ class EdgeQLOptimizer:
                 if isinstance(expr, qlast.CreateOperator):
                     self._process_expr(context, expr.returning)
 
-        elif isinstance(expr, (qlast.CreateLocalPolicy,
-                               qlast.AlterLocalPolicy)):
-            expr.event.module = self._process_module_ref(
-                context, expr.event.module)
-            for action in expr.actions:
-                action.module = self._process_module_ref(
-                    context, action.module)
-
         elif isinstance(expr, qlast.AlterTarget):
             expr.target.maintype.module = self._process_module_ref(
                 context, expr.target.maintype.module)

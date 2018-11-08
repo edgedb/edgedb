@@ -169,8 +169,6 @@ class DeclarationLoader:
         objtypes = self._sort(module.get_objects(type='ObjectType'))
         links = self._sort(module.get_objects(type='link'))
         props = self._sort(module.get_objects(type='property'))
-        events = self._sort(module.get_objects(type='event'))
-        actions = self._sort(module.get_objects(type='action'))
         attrvals = module.get_objects(type='attribute-value')
         indexes = module.get_objects(type='index')
 
@@ -192,7 +190,7 @@ class DeclarationLoader:
         speclinks = [l for l in links if not l.generic()]
 
         self._schema.reorder(itertools.chain(
-            attributes, attrvals, actions, events, constraints,
+            attributes, attrvals, constraints,
             scalars, props, indexes, genlinks, objtypes, speclinks))
 
         dctx = s_delta.CommandContext(declarative=True)

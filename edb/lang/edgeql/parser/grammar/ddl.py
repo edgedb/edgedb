@@ -95,15 +95,6 @@ class WithDDLStmt(Nonterm):
 # DDL statements that are allowed inside CREATE DATABASE and CREATE MIGRATION
 #
 class InnerDDLStmt(Nonterm):
-    def reduce_CreateActionStmt(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_AlterActionStmt(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_DropActionStmt(self, *kids):
-        self.val = kids[0].val
-
     def reduce_CreateScalarTypeStmt(self, *kids):
         self.val = kids[0].val
 
@@ -162,9 +153,6 @@ class InnerDDLStmt(Nonterm):
         self.val = kids[0].val
 
     def reduce_DropPropertyStmt(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_CreateEventStmt(self, *kids):
         self.val = kids[0].val
 
     def reduce_CreateModuleStmt(self, *kids):
@@ -629,73 +617,6 @@ class DropRoleStmt(Nonterm):
 
 
 #
-# CREATE ACTION
-#
-class CreateActionStmt(Nonterm):
-    def reduce_CREATE_ACTION_NodeName_OptCreateCommandsBlock(
-            self, *kids):
-        self.val = qlast.CreateAction(
-            name=kids[2].val,
-            commands=kids[3].val
-        )
-
-
-#
-# ALTER ACTION
-#
-class AlterActionStmt(Nonterm):
-    def reduce_ALTER_ACTION_NodeName_AlterCommandsBlock(self, *kids):
-        self.val = qlast.AlterAction(
-            name=kids[2].val,
-            commands=kids[3].val
-        )
-
-
-#
-# DROP ACTION
-#
-class DropActionStmt(Nonterm):
-    def reduce_DROP_ACTION_NodeName(self, *kids):
-        self.val = qlast.DropAction(
-            name=kids[2].val,
-        )
-
-
-#
-# CREATE POLICY
-#
-class CreateLocalPolicyStmt(Nonterm):
-    def reduce_CREATE_POLICY_FOR_NodeName_TO_NodeNameList(
-            self, *kids):
-        self.val = qlast.CreateLocalPolicy(
-            event=kids[3].val,
-            actions=kids[5].val
-        )
-
-
-#
-# ALTER POLICY
-#
-class AlterLocalPolicyStmt(Nonterm):
-    def reduce_ALTER_POLICY_FOR_NodeName_TO_NodeNameList(
-            self, *kids):
-        self.val = qlast.AlterLocalPolicy(
-            event=kids[3].val,
-            actions=kids[5].val
-        )
-
-
-#
-# DROP POLICY
-#
-class DropLocalPolicyStmt(Nonterm):
-    def reduce_DROP_POLICY_FOR_NodeName(self, *kids):
-        self.val = qlast.DropLocalPolicy(
-            event=kids[3].val
-        )
-
-
-#
 # CREATE CONSTRAINT
 #
 class CreateConstraintStmt(Nonterm):
@@ -1121,7 +1042,6 @@ commands_block(
     CreateConcreteConstraintStmt,
     CreateConcretePropertyStmt,
     CreateIndexStmt,
-    CreateLocalPolicyStmt
 )
 
 
@@ -1156,9 +1076,6 @@ commands_block(
     DropConcretePropertyStmt,
     CreateIndexStmt,
     DropIndexStmt,
-    CreateLocalPolicyStmt,
-    AlterLocalPolicyStmt,
-    DropLocalPolicyStmt,
     opt=False
 )
 
@@ -1185,7 +1102,6 @@ commands_block(
     DropConcreteConstraintStmt,
     DropConcretePropertyStmt,
     DropIndexStmt,
-    DropLocalPolicyStmt,
 )
 
 
@@ -1235,7 +1151,6 @@ commands_block(
     SetFieldStmt,
     CreateConcreteConstraintStmt,
     CreateConcretePropertyStmt,
-    CreateLocalPolicyStmt,
     OnTargetDeleteStmt,
 )
 
@@ -1278,9 +1193,6 @@ commands_block(
     CreateConcretePropertyStmt,
     AlterConcretePropertyStmt,
     DropConcretePropertyStmt,
-    CreateLocalPolicyStmt,
-    AlterLocalPolicyStmt,
-    DropLocalPolicyStmt,
     OnTargetDeleteStmt,
     opt=False
 )
@@ -1301,7 +1213,6 @@ commands_block(
     'DropConcreteLink',
     DropConcreteConstraintStmt,
     DropConcretePropertyStmt,
-    DropLocalPolicyStmt,
 )
 
 
@@ -1488,21 +1399,6 @@ class DropViewStmt(Nonterm):
         """
         self.val = qlast.DropView(
             name=kids[2].val,
-        )
-
-
-#
-# CREATE EVENT
-#
-class CreateEventStmt(Nonterm):
-    def reduce_CreateEvent(self, *kids):
-        r"""%reduce CREATE EVENT NodeName \
-                    OptExtending OptCreateCommandsBlock \
-        """
-        self.val = qlast.CreateEvent(
-            name=kids[2].val,
-            bases=kids[3].val,
-            commands=kids[4].val
         )
 
 

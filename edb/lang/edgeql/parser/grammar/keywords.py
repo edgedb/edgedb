@@ -28,7 +28,6 @@ UNRESERVED_KEYWORD, RESERVED_KEYWORD, TYPE_FUNC_NAME_KEYWORD = keyword_types
 
 unreserved_keywords = frozenset([
     "abstract",
-    "action",
     "after",
     "as",
     "asc",
@@ -42,7 +41,6 @@ unreserved_keywords = frozenset([
     "deferred",
     "delegated",
     "desc",
-    "event",
     "final",
     "first",
     "from",
@@ -59,7 +57,6 @@ unreserved_keywords = frozenset([
     "on",
     "only",
     "operator",
-    "policy",
     "postfix",
     "prefix",
     "property",
