@@ -103,3 +103,92 @@ std::random() -> std::float64
 {
     FROM SQL FUNCTION 'random';
 };
+
+
+# polymorphic formatting functions
+
+# std::str
+# --------
+CREATE FUNCTION
+std::str(dt: std::datetime, fmt: OPTIONAL str={}) -> std::str
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            dt::text
+        ELSE
+            to_char(dt, fmt)
+        END
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::str(d: std::date, fmt: OPTIONAL str={}) -> std::str
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            d::text
+        ELSE
+            to_char(d, fmt)
+        END
+    )
+    $$;
+};
+
+
+# There's no `to_char` taking time. Blindly adding a date (such as
+# current_date() to the time would allow formatting for datetime to
+# leak.
+
+
+# There's no good safe default for all possible timedeltas and some
+# timedeltas cannot be formatted without non-trivial conversions (e.g.
+# 7,000 days).
+
+
+CREATE FUNCTION
+std::str(i: std::int64, fmt: OPTIONAL str={}) -> std::str
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            i::text
+        ELSE
+            to_char(i, fmt)
+        END
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::str(f: std::float64, fmt: OPTIONAL str={}) -> std::str
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            f::text
+        ELSE
+            to_char(f, fmt)
+        END
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::str(d: std::decimal, fmt: OPTIONAL str={}) -> std::str
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN fmt IS NULL THEN
+            d::text
+        ELSE
+            to_char(d, fmt)
+        END
+    )
+    $$;
+};

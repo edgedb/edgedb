@@ -689,3 +689,176 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ''', [
             [6.8],
         ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_functions_str_01(self):
+        # at the very least the cast <str> should be equivalent to
+        # a call to str() without explicit format for simple scalars
+        await self.assert_query_result(r'''
+            WITH DT := current_datetime()
+            # FIXME: the cast has a "T" and the str doesn't for some reason
+            SELECT <str>DT = str(DT);
+
+            WITH D := current_date()
+            SELECT <str>D = str(D);
+
+            SELECT <str>123 = str(123);
+            SELECT <str>123.456 = str(123.456);
+            SELECT <str>123.456e-20 = str(123.456e-20);
+            # an unambiguous way to define a decimal is by casting
+            # from a string
+            SELECT <str><decimal>'123456789012345678901234567890.1234567890' =
+                str(<decimal>'123456789012345678901234567890.1234567890');
+        ''', [
+            [True],
+            [True],
+            [True],
+            [True],
+            [True],
+            [True],
+        ])
+
+    async def test_edgeql_functions_str_02(self):
+        await self.assert_query_result(r'''
+            WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
+            SELECT str(DT, 'YYYY-MM-DD');
+
+            WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
+            SELECT str(DT, 'YYYYBC');
+
+            WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
+            SELECT str(DT, 'FMDDth of FMMonth, YYYY');
+
+            WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
+            SELECT str(DT, 'CCth "century"');
+
+            WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
+            SELECT str(DT, 'Y,YYY Month DD Day');
+
+            # the format string doesn't have any special characters
+            WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
+            SELECT str(DT, 'foo');
+
+            # the format string doesn't have any special characters
+            WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
+            SELECT str(DT, '');
+        ''', [
+            {'2018-05-07'},
+            {'2018AD'},
+            {'7th of May, 2018'},
+            {'21st century'},
+            {'2,018 May       07 Monday   '},
+            {'foo'},
+            {},
+        ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_functions_str_03(self):
+        await self.assert_query_result(r'''
+            WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
+            SELECT str(DT, 'HH:MI A.M.');
+        ''', [
+            # there's some implicit conversion happening, is that
+            # correct behavior?
+            {'03:01 P.M.'},
+        ])
+
+    async def test_edgeql_functions_str_04(self):
+        await self.assert_query_result(r'''
+            WITH DT := <date>'2018-05-07'
+            SELECT str(DT, 'YYYY-MM-DD');
+
+            WITH DT := <date>'2018-05-07'
+            SELECT str(DT, 'YYYYBC');
+
+            WITH DT := <date>'2018-05-07'
+            SELECT str(DT, 'FMDDth of FMMonth, YYYY');
+
+            WITH DT := <date>'2018-05-07'
+            SELECT str(DT, 'CCth "century"');
+
+            WITH DT := <date>'2018-05-07'
+            SELECT str(DT, 'Y,YYY Month DD Day');
+
+            # the format string doesn't have any special characters
+            WITH DT := <date>'2018-05-07'
+            SELECT str(DT, 'foo');
+
+            # the format string doesn't have any special characters
+            WITH DT := <date>'2018-05-07'
+            SELECT str(DT, '');
+        ''', [
+            {'2018-05-07'},
+            {'2018AD'},
+            {'7th of May, 2018'},
+            {'21st century'},
+            {'2,018 May       07 Monday   '},
+            {'foo'},
+            {},
+        ])
+
+    async def test_edgeql_functions_str_05(self):
+        await self.assert_query_result(r'''
+            SELECT str(123456789, '99');
+            SELECT str(123456789, '999999999');
+            SELECT str(123456789, '999,999,999');
+            SELECT str(123456789, '999,999,999,999');
+            SELECT str(123456789, 'FM999,999,999,999');
+
+            SELECT str(123456789, 'S999,999,999,999');
+            SELECT str(123456789, 'SG999,999,999,999');
+            SELECT str(123456789, 'S099,999,999,999');
+            SELECT str(123456789, 'SG099,999,999,999');
+
+            SELECT str(123456789, 'S099999999999');
+            SELECT str(123456789, 'S990999999999');
+            SELECT str(123456789, 'FMS990999999999');
+
+            SELECT str(-123456789, '999999999PR');
+
+            SELECT str(987654321, 'FM999999999th');
+        ''', [
+            {' ##'},  # the number is too long for the desired representation
+            {' 123456789'},
+            {' 123,456,789'},
+            {'     123,456,789'},
+            {'123,456,789'},
+            {'    +123,456,789'},
+            {'+    123,456,789'},
+            {'+000,123,456,789'},
+            {'+000,123,456,789'},
+            {'+000123456789'},
+            {'  +0123456789'},
+            {'+0123456789'},
+            {'<123456789>'},
+            {'987654321st'},
+        ])
+
+    async def test_edgeql_functions_str_06(self):
+        await self.assert_query_result(r'''
+            SELECT str(123.456789, '99');
+            SELECT str(123.456789, '999');
+            SELECT str(123.456789, '999.999');
+            SELECT str(123.456789, '999.999999999');
+
+            SELECT str(123.456789, 'FM999.999999999');
+            SELECT str(123.456789e-20, '999.999999999');
+            SELECT str(123.456789e-20, 'FM999.999999999');
+            SELECT str(123.456789e-20, '099.999999990');
+            SELECT str(123.456789e-20, 'FM990.099999999');
+
+            SELECT str(123.456789e-20, '0.0999EEEE');
+            SELECT str(123.456789e20, '0.0999EEEE');
+        ''', [
+            {' ##'},  # the integer part of the number is too long
+            {' 123'},
+            {' 123.457'},
+            {' 123.456789000'},
+            {'123.456789'},
+            {'    .000000000'},
+            {'0.'},
+            {' 000.000000000'},
+            {'0.0'},
+            {' 1.2346e-18'},
+            {' 1.2346e+22'},
+        ])
