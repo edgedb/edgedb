@@ -23,19 +23,21 @@ CREATE SCALAR TYPE std::bool EXTENDING std::anyscalar;
 
 CREATE SCALAR TYPE std::bytes EXTENDING std::anyscalar;
 
-CREATE SCALAR TYPE std::datetime EXTENDING std::anyscalar;
-
 CREATE SCALAR TYPE std::uuid EXTENDING std::anyscalar;
 
 CREATE SCALAR TYPE std::str EXTENDING std::anyscalar;
 
 CREATE SCALAR TYPE std::json EXTENDING std::anyscalar;
 
+CREATE SCALAR TYPE std::datetime EXTENDING std::anyscalar;
+
+CREATE SCALAR TYPE std::naive_datetime EXTENDING std::anyscalar;
+
+CREATE SCALAR TYPE std::naive_date EXTENDING std::anyscalar;
+
+CREATE SCALAR TYPE std::naive_time EXTENDING std::anyscalar;
+
 CREATE SCALAR TYPE std::timedelta EXTENDING std::anyscalar;
-
-CREATE SCALAR TYPE std::date EXTENDING std::anyscalar;
-
-CREATE SCALAR TYPE std::time EXTENDING std::anyscalar;
 
 CREATE ABSTRACT SCALAR TYPE std::anyreal EXTENDING std::anyscalar;
 

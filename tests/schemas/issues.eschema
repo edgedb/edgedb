@@ -86,7 +86,7 @@ type Issue extending Named, Owned, Text:
     multi link time_spent_log -> LogEntry
 
     property start_date -> datetime:
-        default := SELECT current_datetime()
+        default := SELECT datetime_current()
         # The default value of start_date will be a
         # result of the EdgeQL expression above.
 

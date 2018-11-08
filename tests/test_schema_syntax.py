@@ -122,7 +122,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
 type LogEntry extending OwnedObject, Text:
 \tproperty start_date -> datetime:
 \t\tdefault :=
-\t\t\tSELECT datetime::current_datetime()
+\t\t\tSELECT datetime::datetime_current()
 \t\ttitle := 'Start Date'
         """
 
@@ -132,7 +132,7 @@ type LogEntry extending OwnedObject, Text:
 \tproperty start_date -> datetime:
 \t\tdefault :=
 \t\t\tSELECT
-\t\t\t      datetime::current_datetime()
+\t\t\t      datetime::datetime_current()
 \t\ttitle := 'Start Date'
         """
 
@@ -144,7 +144,7 @@ type LogEntry extending OwnedObject, Text:
 \tproperty start_date -> datetime:
 \t\tdefault :=
 \t\t\tSELECT
-\t\t         datetime::current_datetime()
+\t\t         datetime::datetime_current()
 \t\ttitle := 'Start Date'
         """
 
@@ -173,7 +173,7 @@ type LogEntry extending OwnedObject, Text:
     def test_eschema_syntax_type_05(self):
         """
 type LogEntry extending OwnedObject, Text:
-   link start_date := SELECT datetime::current_datetime()
+   link start_date := SELECT datetime::datetime_current()
         """
 
     def test_eschema_syntax_type_06(self):
@@ -181,7 +181,7 @@ type LogEntry extending OwnedObject, Text:
 type LogEntry extending OwnedObject, Text:
     property start_date -> datetime:
        default :=
-            SELECT datetime::current_datetime()
+            SELECT datetime::datetime_current()
        title := 'Start Date'
         """
 
@@ -200,7 +200,7 @@ type Issue extending `foo.bar`::NamedObject, OwnedObject, Text:
 
     multi link time_spent_log -> LogEntry
 
-    link start_date := SELECT datetime::current_datetime()
+    link start_date := SELECT datetime::datetime_current()
 
     multi link related_to -> Issue
 
@@ -208,7 +208,7 @@ type Issue extending `foo.bar`::NamedObject, OwnedObject, Text:
 
     property start_date -> datetime:
        default :=
-            SELECT datetime::current_datetime()
+            SELECT datetime::datetime_current()
        title := 'Start Date'
 
     property due_date -> datetime
@@ -412,7 +412,7 @@ type User:
         """
 type LogEntry extending OwnedObject, Text:
     required link owner -> User
-    index test_index on (SELECT datetime::current_datetime())
+    index test_index on (SELECT datetime::datetime_current())
         """
 
     def test_eschema_syntax_index_02(self):
@@ -448,7 +448,7 @@ type LogEntry extending    OwnedObject,    Text:
 
                         SELECT
 
-                            datetime::current_datetime()
+                            datetime::datetime_current()
 
 
 
@@ -460,7 +460,7 @@ type LogEntry extending    OwnedObject,    Text:
         type LogEntry extending OwnedObject, Text:
             property start_date -> datetime:
                default :=
-                    SELECT datetime::current_datetime()
+                    SELECT datetime::datetime_current()
                title := 'Start Date'
         """
 
@@ -468,7 +468,7 @@ type LogEntry extending    OwnedObject,    Text:
         """     type LogEntry extending OwnedObject, Text:
                     property start_date -> datetime:
                        default :=
-                            SELECT datetime::current_datetime()
+                            SELECT datetime::datetime_current()
                        title := 'Start Date'
         """
 
@@ -479,7 +479,7 @@ type LogEntry extending    OwnedObject,    Text:
                 Text):
             property start_date -> datetime:
                default :=
-                    SELECT datetime::current_datetime()
+                    SELECT datetime::datetime_current()
                title := 'Start Date'
 
 % OK %
@@ -487,7 +487,7 @@ type LogEntry extending    OwnedObject,    Text:
         type LogEntry extending OwnedObject, Text:
             property start_date -> datetime:
                default :=
-                    SELECT datetime::current_datetime()
+                    SELECT datetime::datetime_current()
                title := 'Start Date'
         """
 
@@ -499,7 +499,7 @@ type LogEntry extending    OwnedObject,    Text:
             property start_date -> datetime:
                default :=
                     SELECT
-                    datetime::current_datetime()
+                    datetime::datetime_current()
                title := 'Start Date'
         """
 
@@ -512,7 +512,7 @@ type LogEntry extending    OwnedObject,    Text:
             property start_date -> datetime:
                default :=
                     SELECT \
-                    datetime::current_datetime()
+                    datetime::datetime_current()
                title := 'Start Date'
         """
 
