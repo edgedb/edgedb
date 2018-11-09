@@ -119,3 +119,22 @@ class StructTests(unittest.TestCase):
         s2 = pickle.loads(pickle.dumps(s1))
         assert s2.b == 41 and s2.a == '42'
         assert s2.__class__.__name__ == 'PickleTestMixed'
+
+    def test_common_struct_frozen(self):
+        class Test(MixedStruct):
+            field1 = Field(type=str, default='42', frozen=True)
+            field2 = Field(type=bool)
+
+        t1 = Test(field1='field1', field2=True, spam='ham')
+
+        with self.assertRaisesRegex(ValueError, 'cannot assign'):
+            t1.update(field1='spam')
+
+        with self.assertRaisesRegex(ValueError, 'cannot assign'):
+            t1.field1 = 'aaa'
+
+        self.assertEqual(t1.field1, 'field1')
+        self.assertEqual(t1.field2, True)
+
+        t1.field2 = False
+        self.assertEqual(t1.field2, False)

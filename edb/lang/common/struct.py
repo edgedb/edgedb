@@ -29,11 +29,12 @@ class NoDefault:
 class Field:
     """``Field`` objects: attributes of :class:`Struct`."""
 
-    __slots__ = ('name', 'type', 'default', 'coerce', 'formatters')
+    __slots__ = ('name', 'type', 'default', 'coerce', 'formatters',
+                 'frozen')
 
     def __init__(
             self, type, default=NoDefault, *, coerce=False, str_formatter=str,
-            repr_formatter=repr):
+            repr_formatter=repr, frozen=False):
         """
         :param type: A type, or a tuple of types allowed for the field value.
         :param default: Default field value.  If not specified, the field would
@@ -50,6 +51,7 @@ class Field:
         self.type = type
         self.default = default
         self.coerce = coerce
+        self.frozen = frozen
 
         if coerce and len(type) > 1:
             raise ValueError(
@@ -183,7 +185,7 @@ class Struct(metaclass=StructMeta):
         AttributeError: 'S2' object has no attribute 'spam'
     """
 
-    __slots__ = ()
+    __slots__ = ('_in_init_',)
 
     def __init__(self, *, _setdefaults_=True, _relaxrequired_=False, **kwargs):
         """
@@ -201,7 +203,12 @@ class Struct(metaclass=StructMeta):
                  `_relaxrequired_` is False.
         """
         self._check_init_argnames(kwargs)
-        self._init_fields(_setdefaults_, _relaxrequired_, kwargs)
+
+        self._in_init_ = True
+        try:
+            self._init_fields(_setdefaults_, _relaxrequired_, kwargs)
+        finally:
+            self._in_init_ = False
 
     def __setstate__(self, state):
         if isinstance(state, tuple) and len(state) == 2:
@@ -246,12 +253,20 @@ class Struct(metaclass=StructMeta):
             if formatter_obj:
                 yield (name, formatter_obj(getattr(self, name)))
 
-    def copy_with_class(self, cls):
+    def _copy_and_replace(self, cls, **replacements):
         args = {f: getattr(self, f) for f in cls._fields.keys()}
+        if replacements:
+            args = {**args, **replacements}
         return cls(**args)
+
+    def copy_with_class(self, cls):
+        return self._copy_and_replace(cls)
 
     def copy(self):
         return self.copy_with_class(type(self))
+
+    def replace(self, **replacements):
+        return self._copy_and_replace(type(self), **replacements)
 
     def items(self):
         for field in self.__class__._fields:
@@ -287,10 +302,12 @@ class Struct(metaclass=StructMeta):
         field = self._fields.get(name)
         if field is not None:
             value = self._check_field_type(field, name, value)
+            if field.frozen and not self._in_init_:
+                raise ValueError(f'cannot assign to frozen field {name!r}')
         super().__setattr__(name, value)
 
     def _check_init_argnames(self, args):
-        extra = set(args) - set(self.__class__._fields)
+        extra = set(args) - set(self.__class__._fields) - {'_in_init_'}
         if extra:
             fmt = '{} {} invalid argument{} for struct {}.{}'
             plural = len(extra) > 1
