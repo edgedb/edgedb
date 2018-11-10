@@ -343,7 +343,7 @@ class MultiLineRenderer(BaseRenderer):
 
     def report(self, test, marker):
         if marker in {Markers.failed, Markers.errored}:
-            self.failed_tests.append(test.id())
+            self.failed_tests.append(test.id().rpartition('.')[2])
 
         self.buffer[test.__class__.__module__] += marker.value
         self.completed_tests += 1
