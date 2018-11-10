@@ -94,11 +94,11 @@ class Pointer(constraints.ConsistencySubject):
     def displayname(self) -> str:
         return self.shortname.name
 
-    def material_type(self):
+    def material_type(self, schema):
         if self.generic():
             raise ValueError(f'{self!r} is generic')
 
-        return self.source.material_type().pointers.get(self.shortname)
+        return self.source.material_type(schema).getptr(schema, self.shortname)
 
     def get_near_endpoint(self, direction):
         return (self.source if direction == PointerDirection.Outbound
@@ -311,18 +311,18 @@ class Pointer(constraints.ConsistencySubject):
     def generic(self):
         return self.source is None
 
-    def is_exclusive(self):
+    def is_exclusive(self, schema):
         if self.generic():
             raise ValueError(f'{self!r} is generic')
 
-        return 'std::exclusive' in self.constraints
+        return 'std::exclusive' in self.get_constraints(schema)
 
-    def singular(self, direction=PointerDirection.Outbound):
+    def singular(self, schema, direction=PointerDirection.Outbound):
         # Determine the cardinality of a given endpoint set.
         if direction == PointerDirection.Outbound:
             return self.cardinality is qlast.Cardinality.ONE
         else:
-            return self.is_exclusive()
+            return self.is_exclusive(schema)
 
 
 class PointerVector(sn.Name):

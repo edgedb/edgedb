@@ -151,7 +151,7 @@ class GQLCoreSchema:
         if target:
             # figure out any additional wrappers due to cardinality
             # and required flags
-            if not ptr.singular():
+            if not ptr.singular(self.edb_schema):
                 target = GraphQLList(GraphQLNonNull(target))
 
             if ptr.required:
@@ -185,7 +185,8 @@ class GQLCoreSchema:
                 )
         else:
             edb_type = self.edb_schema.get(typename)
-            for name in sorted(edb_type.pointers, key=lambda x: x.name):
+            for name in sorted(edb_type.get_pointers(self.edb_schema),
+                               key=lambda x: x.name):
                 if name.name == '__type__':
                     continue
 
@@ -212,7 +213,8 @@ class GQLCoreSchema:
         fields['not'] = GraphQLInputObjectField(selftype)
 
         edb_type = self.edb_schema.get(typename)
-        for name in sorted(edb_type.pointers, key=lambda x: x.name):
+        for name in sorted(edb_type.get_pointers(self.edb_schema),
+                           key=lambda x: x.name):
             if name.name == '__type__':
                 continue
             if name.name in fields:
@@ -284,7 +286,8 @@ class GQLCoreSchema:
         fields = OrderedDict()
 
         edb_type = self.edb_schema.get(typename)
-        for name in sorted(edb_type.pointers, key=lambda x: x.name):
+        for name in sorted(edb_type.get_pointers(self.edb_schema),
+                           key=lambda x: x.name):
             if name.name == '__type__':
                 continue
 

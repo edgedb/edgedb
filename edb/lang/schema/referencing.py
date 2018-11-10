@@ -19,7 +19,7 @@
 
 import collections
 
-from edb.lang.common import ordered
+from edb.lang.common import ordered, struct
 from edb.lang.edgeql import ast as qlast
 
 from . import delta as sd
@@ -31,42 +31,13 @@ from . import named
 from . import utils
 
 
-class RefDict:
-    def __init__(self, local_attr=None, *, ordered=False, title=None,
-                 backref='subject', requires_explicit_inherit=False,
-                 ref_cls, compcoef=None):
-        self.local_attr = local_attr
-        self.ordered = ordered
-        self.title = title
-        self.backref_attr = backref
-        self.requires_explicit_inherit = requires_explicit_inherit
-        self.ref_cls = ref_cls
-        self.compcoef = compcoef
+class RefDict(struct.Struct):
 
-    def set_attr_name(self, attr):
-        self.attr = attr
-        if self.local_attr is None:
-            self.local_attr = 'local_{}'.format(attr)
-
-        if self.title is None:
-            self.title = attr
-            if self.title.endswith('s'):
-                self.title = self.title[:-1]
-
-    def get_new(self):
-        collection = collections.OrderedDict if self.ordered else dict
-        return collection()
-
-    def initialize_in(self, obj):
-        setattr(obj, self.attr, self.get_new())
-        setattr(obj, self.local_attr, self.get_new())
-
-    def copy(self):
-        return self.__class__(
-            local_attr=self.local_attr, ordered=self.ordered,
-            title=self.title, backref=self.backref_attr,
-            ref_cls=self.ref_cls, compcoef=self.compcoef,
-            requires_explicit_inherit=self.requires_explicit_inherit)
+    local_attr = struct.Field(str)
+    attr = struct.Field(str)
+    backref_attr = struct.Field(str, default='subject')
+    requires_explicit_inherit = struct.Field(bool, default=False)
+    ref_cls = struct.Field(type)
 
 
 class RebaseReferencingObject(inheriting.RebaseNamedObject):
@@ -80,10 +51,10 @@ class RebaseReferencingObject(inheriting.RebaseNamedObject):
                 local_attr = refdict.local_attr
                 backref = refdict.backref_attr
 
-                coll = getattr(obj, attr)
-                local_coll = getattr(obj, local_attr)
+                coll: dict = getattr(obj, attr)
+                local_coll: dict = getattr(obj, local_attr)
 
-                for ref_name in coll.copy():
+                for ref_name in tuple(coll):
                     if ref_name not in local_coll:
                         try:
                             obj.get_classref_origin(
@@ -109,8 +80,33 @@ class ReferencingObjectMeta(type(inheriting.InheritingObject)):
 
         cls._refdicts_by_refclass = {}
 
-        for k, dct in refdicts.items():
-            dct.set_attr_name(k)
+        for dct in refdicts.values():
+            if dct.attr not in cls._fields:
+                raise RuntimeError(
+                    f'object {name} has no refdict field {dct.attr}')
+            if dct.local_attr not in cls._fields:
+                raise RuntimeError(
+                    f'object {name} has no refdict field {dct.local_attr}')
+
+            if cls._fields[dct.attr].inheritable:
+                raise RuntimeError(
+                    f'{name}.{dct.attr} field must not be inheritable')
+            if cls._fields[dct.local_attr].inheritable:
+                raise RuntimeError(
+                    f'{name}.{dct.local_attr} field must not be inheritable')
+            if not cls._fields[dct.attr].ephemeral:
+                raise RuntimeError(
+                    f'{name}.{dct.attr} field must be ephemeral')
+            if not cls._fields[dct.local_attr].ephemeral:
+                raise RuntimeError(
+                    f'{name}.{dct.local_attr} field must be ephemeral')
+            if not cls._fields[dct.attr].coerce:
+                raise RuntimeError(
+                    f'{name}.{dct.attr} field must be coerced')
+            if not cls._fields[dct.local_attr].coerce:
+                raise RuntimeError(
+                    f'{name}.{dct.local_attr} field must be coerced')
+
             if isinstance(dct.ref_cls, str):
                 ref_cls_getter = getattr(cls, dct.ref_cls)
                 try:
@@ -132,6 +128,8 @@ class ReferencingObjectMeta(type(inheriting.InheritingObject)):
         # as we have iterated over it in reverse above.
         cls._refdicts = collections.OrderedDict(reversed(refdicts.items()))
 
+        cls._refdicts_by_field = {rd.attr: rd for rd in cls._refdicts.values()}
+
         setattr(cls, '{}.{}_refdicts'.format(cls.__module__, cls.__name__),
                      mydicts)
 
@@ -145,7 +143,7 @@ class ReferencingObjectMeta(type(inheriting.InheritingObject)):
         return iter(cls._refdicts.values())
 
     def get_refdict(cls, name):
-        return cls._refdicts.get(name)
+        return cls._refdicts_by_field.get(name)
 
     def get_refdict_for_class(cls, refcls):
         for rcls in refcls.__mro__:
@@ -288,7 +286,8 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
             referrer = referrer_ctx.scls
             refdict = referrer.__class__.get_refdict_for_class(
                 scls.__class__)
-            schema = referrer.del_classref(schema, refdict.attr, scls.name)
+            schema = referrer.del_classref(
+                schema, refdict.attr, scls.name)
 
         return schema
 
@@ -381,62 +380,27 @@ class CreateReferencedInheritingObject(inheriting.CreateInheritingObject):
 
 class ReferencingObject(inheriting.InheritingObject,
                         metaclass=ReferencingObjectMeta):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
 
-        for refdict in self.__class__.get_refdicts():
-            refdict.initialize_in(self)
-
-    def hash_criteria(self):
-        criteria = []
-
-        for refdict in self.__class__.get_refdicts():
-            attr = refdict.local_attr
-            dct = getattr(self, attr)
-            criteria.append((attr, frozenset(dct.values())))
-
-        return super().hash_criteria() + tuple(criteria)
-
-    def copy(self):
-        result = super().copy()
-
+    def replace(self, schema, **extras):
         for refdict in self.__class__.get_refdicts():
             attr = refdict.attr
             local_attr = refdict.local_attr
             all_coll = getattr(self, attr)
             local_coll = getattr(self, local_attr)
 
-            coll_copy = {n: p.copy() for n, p in all_coll.items()}
-            setattr(result, attr, coll_copy)
-            setattr(result, local_attr, {n: coll_copy[n] for n in local_coll})
+            coll_copy = {}
+            for n, p in all_coll.items():
+                schema, coll_copy[n] = p.replace(schema)
 
-        return result
+            extras[attr] = coll_copy
 
-    def compare(self, other, context=None):
-        context = context or so.ComparisonContext()
+            if local_coll is None:
+                extras[local_attr] = None
+            else:
+                extras[local_attr] = {n: coll_copy[n] for n in local_coll}
 
-        with context(self, other):
-            similarity = super().compare(other, context=context)
-            if similarity is NotImplemented:
-                return NotImplemented
-
-            for refdict in self.__class__.get_refdicts():
-                if refdict.compcoef is None:
-                    continue
-
-                local_attr = refdict.local_attr
-                ours = getattr(self, local_attr).values()
-                if other is not None:
-                    theirs = getattr(other, local_attr).values()
-                else:
-                    theirs = set()
-
-                ref_similarity = so.ObjectSet.compare_values(
-                    ours, theirs, context=context, compcoef=refdict.compcoef)
-
-                similarity *= ref_similarity
-
-        return similarity
+        schema, result = super().replace(schema, **extras)
+        return schema, result
 
     def merge(self, *objs, schema, dctx=None):
         schema = super().merge(*objs, schema=schema, dctx=None)
@@ -448,8 +412,14 @@ class ReferencingObject(inheriting.InheritingObject,
                 this_coll = getattr(self, refdict.attr)
                 other_coll = getattr(obj, refdict.attr)
 
-                this_coll.update({k: v for k, v in other_coll.items()
-                                 if k not in this_coll})
+                if other_coll is None:
+                    continue
+
+                if this_coll is None:
+                    setattr(self, refdict.attr, other_coll.copy())
+                else:
+                    this_coll.update({k: v for k, v in other_coll.items()
+                                     if k not in this_coll})
 
         return schema
 
@@ -531,20 +501,28 @@ class ReferencingObject(inheriting.InheritingObject,
         refdict = self.__class__.get_refdict(collection)
         attr = refdict.attr
         local_attr = refdict.local_attr
-        coll_obj = refdict.title
 
         local_coll = getattr(self, local_attr)
         all_coll = getattr(self, attr)
 
         key = obj.get_shortname(obj.name)
-        existing = local_coll.get(key)
-        if existing is not None and not replace:
-            msg = '{} {!r} is already present in {!r}'.format(
-                coll_obj, key, self.name)
-            raise s_err.SchemaError(msg, context=obj.sourcectx)
 
-        local_coll[key] = obj
-        all_coll[key] = obj
+        if local_coll is not None:
+            existing = local_coll.get(key)
+            if existing is not None and not replace:
+                raise s_err.SchemaError(
+                    f'{attr} {key!r} is already present in {self.name!r}',
+                    context=obj.sourcectx)
+
+        if local_coll is not None:
+            local_coll[key] = obj
+        else:
+            setattr(self, local_attr, {key: obj})
+
+        if all_coll is not None:
+            all_coll[key] = obj
+        else:
+            setattr(self, attr, {key: obj})
 
         return schema
 
@@ -571,47 +549,6 @@ class ReferencingObject(inheriting.InheritingObject,
 
         local_coll.pop(key, None)
         return schema
-
-    def _get_classref_dict(self, attr):
-        values = getattr(self, attr)
-        result = collections.OrderedDict()
-
-        if values:
-            for k, v in values.items():
-                if isinstance(v, named.NamedObject):
-                    v = so.ObjectRef(classname=v.name)
-                result[k] = v
-
-        return result
-
-    def _resolve_classref_dict(self, _objects, _resolve, local_attr):
-        values = getattr(self, local_attr)
-
-        if values:
-            for n, v in values.items():
-                if isinstance(v, so.ObjectRef):
-                    values[n] = _resolve(v.classname)
-
-    def _resolve_inherited_classref_dict(self, _objects, _resolve,
-                                         attr, local_attr):
-        values = getattr(self, attr)
-
-        if values is not None and values.__class__ is list:
-            attrs = {}
-            _mro = None
-
-            for an, origin in values:
-                try:
-                    subj = _objects[origin]
-                except KeyError:
-                    if _mro is None:
-                        _mro = {c.name: c for c in self.get_mro()
-                                if isinstance(c, named.NamedObject)}
-                    subj = _objects[origin] = _mro[origin]
-
-                attrs[an] = getattr(subj, local_attr)[an]
-
-            setattr(self, attr, attrs)
 
     def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
         schema = super().finalize(
@@ -679,7 +616,14 @@ class ReferencingObject(inheriting.InheritingObject,
                                in the collection will be used.
         """
         classrefs = getattr(self, attr)
+        if classrefs is None:
+            classrefs = so.ObjectDict()
+            setattr(self, attr, classrefs)
+
         local_classrefs = getattr(self, local_attr)
+        if local_classrefs is None:
+            local_classrefs = so.ObjectDict()
+            setattr(self, local_attr, local_classrefs)
 
         if classref_keys is None:
             classref_keys = classrefs
@@ -687,8 +631,15 @@ class ReferencingObject(inheriting.InheritingObject,
         for classref_key in classref_keys:
             local = local_classrefs.get(classref_key)
 
-            base_refs = [getattr(b, attr, {}).get(classref_key) for b in bases]
-            inherited = filter(lambda i: i is not None, base_refs)
+            inherited = []
+            for b in bases:
+                attrval = getattr(b, attr, {})
+                if not attrval:
+                    continue
+                bref = attrval.get(classref_key)
+                if bref is not None:
+                    inherited.append(bref)
+
             ancestry = {getattr(pref, backref_attr): pref
                         for pref in inherited}
 

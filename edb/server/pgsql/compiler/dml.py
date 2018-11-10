@@ -339,7 +339,7 @@ def process_insert_body(
         # a separate link table.
         for shape_el in ir_stmt.subject.shape:
             rptr = shape_el.rptr
-            ptrcls = rptr.ptrcls.material_type()
+            ptrcls = rptr.ptrcls.material_type(ctx.env.schema)
 
             if (ptrcls.is_link_property() and
                     rptr.source.path_id != ir_stmt.subject.path_id):
@@ -612,12 +612,13 @@ def process_link_update(
     target_is_scalar = isinstance(ptrcls.target, s_scalars.ScalarType)
 
     path_id = rptr.source.path_id.extend(
-        ptrcls, rptr.direction, rptr.target.scls)
+        ptrcls, rptr.direction, rptr.target.scls,
+        schema=ctx.env.schema)
 
     # The links in the dml class shape have been derived,
     # but we must use the correct specialized link class for the
     # base material type.
-    mptrcls = ptrcls.material_type()
+    mptrcls = ptrcls.material_type(ctx.env.schema)
 
     # Lookup link class id by link name.
     lname_to_id = pgast.CommonTableExpr(

@@ -150,8 +150,8 @@ def __infer_coalesce(ir, schema):
 
 @_infer_type.register(irast.SetOp)
 def __infer_setop(ir, schema):
-    left_type = infer_type(ir.left, schema).material_type()
-    right_type = infer_type(ir.right, schema).material_type()
+    left_type = infer_type(ir.left, schema).material_type(schema)
+    right_type = infer_type(ir.right, schema).material_type(schema)
 
     assert ir.op == qlast.UNION
 

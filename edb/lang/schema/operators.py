@@ -44,7 +44,8 @@ class Operator(so.NamedObject):
 
     language = so.Field(qlast.Language, default=None, compcoef=0.4,
                         coerce=True)
-    from_operator = so.Field(str, default=None, compcoef=0.4, ephemeral=True)
+    from_operator = so.Field(str, default=None, compcoef=0.4,
+                             introspectable=False)
     commutator = so.Field(so.Object, default=None, compcoef=0.99)
 
 

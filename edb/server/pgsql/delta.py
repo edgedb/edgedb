@@ -767,7 +767,7 @@ class ScalarTypeMetaCommand(ViewCapableObjectMetaCommand):
         domain_name = common.scalar_name_to_domain_name(
             scalar.name, catenate=False)
 
-        new_constraints = scalar.local_constraints
+        new_constraints = scalar.get_own_constraints(schema)
         base = types.get_scalar_base(schema, scalar)
 
         target_type = new_type
@@ -991,47 +991,6 @@ class DeleteScalarType(ScalarTypeMetaCommand,
         return schema, scalar
 
 
-class UpdateSearchIndexes(MetaCommand):
-    def __init__(self, host, **kwargs):
-        super().__init__(**kwargs)
-        self.host = host
-
-    def get_index_name(self, host_table_name, language, index_class='default'):
-        name = '%s_%s_%s_search_idx' % (
-            host_table_name[1], language, index_class)
-        return common.edgedb_name_to_pg_name(name)
-
-    def apply(self, schema, context):
-        if isinstance(self.host, s_objtypes.ObjectType):
-            columns = []
-
-            names = sorted(self.host.pointers.keys())
-
-            for link_name in names:
-                for link in self.host.pointers[link_name]:
-                    if getattr(link, 'search', None):
-                        column_name = common.edgedb_name_to_pg_name(link_name)
-                        columns.append(
-                            dbops.TextSearchIndexColumn(
-                                column_name, link.search.weight, 'english'))
-
-            if columns:
-                table_name = common.get_table_name(self.host, catenate=False)
-
-                index_name = self.get_index_name(table_name, 'default')
-                index = dbops.TextSearchIndex(
-                    name=index_name, table_name=table_name, columns=columns)
-
-                cond = dbops.IndexExists(
-                    index_name=(table_name[0], index_name))
-                op = dbops.DropIndex(index, conditions=(cond, ))
-                self.pgops.add(op)
-                op = dbops.CreateIndex(index=index)
-                self.pgops.add(op)
-
-        return schema, None
-
-
 class CompositeObjectMetaCommand(NamedObjectMetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -1129,18 +1088,6 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
                 dbops.AlterTableRenameTo(
                     old_table_name, new_table_name[1], conditions=(cond, )))
 
-    def search_index_add(self, host, pointer, schema, context):
-        if self.update_search_indexes is None:
-            self.update_search_indexes = UpdateSearchIndexes(host)
-
-    def search_index_alter(self, host, pointer, schema, context):
-        if self.update_search_indexes is None:
-            self.update_search_indexes = UpdateSearchIndexes(host)
-
-    def search_index_delete(self, host, pointer, schema, context):
-        if self.update_search_indexes is None:
-            self.update_search_indexes = UpdateSearchIndexes(host)
-
     @classmethod
     def get_source_and_pointer_ctx(cls, schema, context):
         if context:
@@ -1160,11 +1107,11 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
         return source, pointer
 
     def affirm_pointer_defaults(self, source, schema, context):
-        for pointer_name, pointer in source.pointers.items():
+        for pointer_name, pointer in source.get_pointers(schema).items():
             # XXX pointer_storage_info?
             if (
                     pointer.generic() or not pointer.scalar() or
-                    not pointer.singular() or not pointer.default):
+                    not pointer.singular(schema) or not pointer.default):
                 continue
 
             default = None
@@ -1312,17 +1259,18 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
             inherited_aptrs = set()
 
             for base in source.bases:
-                for ptr in base.pointers.values():
+                for ptr in base.get_pointers(schema).values():
                     if ptr.scalar():
                         inherited_aptrs.add(ptr.shortname)
 
             added_inh_ptrs = inherited_aptrs - {
                 p.shortname
-                for p in orig_source.pointers.values()
+                for p in orig_source.get_pointers(schema).values()
             }
 
+            ptrs = source.get_pointers(schema)
             for added_ptr in added_inh_ptrs - created_ptrs:
-                ptr = source.pointers[added_ptr]
+                ptr = ptrs[added_ptr]
                 ptr_stor_info = types.get_pointer_storage_info(
                     ptr, schema=schema)
 
@@ -1354,14 +1302,15 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
                         parent_name=parent_table_name)
                     alter_table_drop_parent.add_operation(op)
 
-                dropped_ptrs = set(orig_source.pointers) - set(source.pointers)
+                orig_ptrs = orig_source.get_pointers(schema)
+                dropped_ptrs = set(orig_ptrs) - set(ptrs)
 
                 if dropped_ptrs:
                     alter_table_drop_ptr = source_ctx.op.get_alter_table(
                         context, force_new=True)
 
                     for dropped_ptr in dropped_ptrs:
-                        ptr = orig_source.pointers[dropped_ptr]
+                        ptr = orig_ptrs[dropped_ptr]
                         ptr_stor_info = types.get_pointer_storage_info(
                             ptr, schema=schema)
 
@@ -1941,7 +1890,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
         elif src.generic():
             if src.name == 'std::link':
                 return True
-            elif src.has_user_defined_properties():
+            elif src.has_user_defined_properties(schema):
                 return True
             else:
                 for l in src.children(schema):
@@ -1953,8 +1902,8 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
 
                 return False
         else:
-            return (not src.scalar() or not src.singular() or
-                    src.has_user_defined_properties())
+            return (not src.scalar() or not src.singular(schema) or
+                    src.has_user_defined_properties(schema))
 
     def create_table(self, ptr, schema, context, conditional=False):
         c = self._create_table(ptr, schema, context, conditional=conditional)
@@ -2008,7 +1957,7 @@ class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
 
         if not link.generic() and link.scalar():
             try:
-                tgt_prop = link.pointers['std::target']
+                tgt_prop = link.getptr(schema, 'std::target')
             except KeyError:
                 pass
             else:
@@ -2123,11 +2072,6 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
 
                 if default_value is not None:
                     self.alter_pointer_default(link, schema, context)
-
-                search = self.updates.get('search')
-                if search:
-                    objtype.op.search_index_add(
-                        objtype.scls, link, schema, context)
 
         if link.generic():
             self.affirm_pointer_defaults(link, schema, context)
@@ -2244,12 +2188,6 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
                         dbops.AlterTableAlterColumnNull(
                             column_name=column_name, null=not link.required))
 
-                search = self.updates.get('search')
-                if search:
-                    objtype = context.get(s_objtypes.ObjectTypeCommandContext)
-                    objtype.op.search_index_add(
-                        objtype.scls, link, schema, context)
-
             if isinstance(link.target, s_scalars.ScalarType):
                 self.alter_pointer_default(link, schema, context)
 
@@ -2271,7 +2209,7 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
             if ptr_stor_info.table_type == 'ObjectType':
                 # Only drop the column if the link was not reinherited in the
                 # same delta.
-                if name not in objtype.scls.pointers:
+                if objtype.scls.getptr(schema, name) is None:
                     # This must be a separate so that objects depending
                     # on this column can be dropped correctly.
                     #

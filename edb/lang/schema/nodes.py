@@ -29,7 +29,7 @@ from . import types as s_types
 
 
 class Node(inheriting.InheritingObject, s_types.Type):
-    def material_type(self):
+    def material_type(self, schema):
         t = self
         while t.is_view():
             t = t.bases[0]
@@ -93,16 +93,16 @@ class NodeCommand(named.NamedObjectCommand):
                 vschema = vschema.add(view)
 
             for view in ir.views.values():
-                if not hasattr(view, 'own_pointers'):
+                if not hasattr(view, 'get_own_pointers'):  # duck check
                     continue
 
-                for vptr in view.own_pointers.values():
-                    vptr.target = vptr.target.material_type()
+                for vptr in view.get_own_pointers(schema).values():
+                    vptr.target = vptr.target.material_type(schema)
                     vschema = vschema.add(vptr)
-                    if not hasattr(vptr, 'own_pointers'):
+                    if not hasattr(vptr, 'get_own_pointers'):
                         continue
-                    for vlprop in vptr.own_pointers.values():
-                        vlprop.target = vlprop.target.material_type()
+                    for vlprop in vptr.get_own_pointers(schema).values():
+                        vlprop.target = vlprop.target.material_type(schema)
                         vschema = vschema.add(vlprop)
 
         return vschema

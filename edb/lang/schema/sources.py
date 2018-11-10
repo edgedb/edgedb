@@ -22,6 +22,7 @@ import hashlib
 from . import error as schema_error
 from . import indexes
 from . import name as sn
+from . import objects as so
 from . import pointers
 from . import referencing
 from . import utils
@@ -37,23 +38,37 @@ class SourceCommand(indexes.IndexSourceCommand):
 
 
 class Source(indexes.IndexableSubject):
-    pointers = referencing.RefDict(local_attr='own_pointers',
-                                   ordered=True,
-                                   requires_explicit_inherit=True,
-                                   backref='source',
-                                   ref_cls=pointers.Pointer,
-                                   compcoef=0.857)
+    pointers_refs = referencing.RefDict(
+        attr='pointers',
+        local_attr='own_pointers',
+        requires_explicit_inherit=True,
+        backref_attr='source',
+        ref_cls=pointers.Pointer)
+
+    pointers = so.Field(so.ObjectDict,
+                        inheritable=False, ephemeral=True, coerce=True,
+                        default=so.ObjectDict, hashable=False)
+
+    own_pointers = so.Field(so.ObjectDict, compcoef=0.857,
+                            inheritable=False, ephemeral=True, coerce=True,
+                            default=so.ObjectDict)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._ro_pointers = None
+
+    def get_pointers(self, schema):
+        return so.ObjectDictView(schema, self.pointers)
+
+    def get_own_pointers(self, schema):
+        return so.ObjectDictView(schema, self.own_pointers)
 
     class PointerResolver:
         @classmethod
         def getptr_from_nqname(cls, schema, source, name):
             ptrs = set()
 
-            for ptr_name, ptr in source.pointers.items():
+            for ptr_name, ptr in source.get_pointers(schema).items():
                 if ptr_name.name == name:
                     ptrs.add(ptr)
 
@@ -61,7 +76,7 @@ class Source(indexes.IndexableSubject):
 
         @classmethod
         def getptr_from_fqname(cls, schema, source, name):
-            ptr = source.pointers.get(name)
+            ptr = source.get_pointers(schema).get(name)
             if ptr:
                 return {ptr}
             else:
@@ -78,7 +93,7 @@ class Source(indexes.IndexableSubject):
         def getptr_inherited_from(cls, source, schema, base_ptr_class,
                                   skip_scalar):
             result = set()
-            for ptr in source.pointers.values():
+            for ptr in source.get_pointers(schema).values():
                 if (ptr.issubclass(base_ptr_class) and
                         (not skip_scalar or not ptr.scalar())):
                     result.add(ptr)

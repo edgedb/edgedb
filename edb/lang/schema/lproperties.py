@@ -84,7 +84,7 @@ class Property(pointers.Pointer):
     def scalar(self):
         return True
 
-    def has_user_defined_properties(self):
+    def has_user_defined_properties(self, schema):
         return False
 
     def is_link_property(self):

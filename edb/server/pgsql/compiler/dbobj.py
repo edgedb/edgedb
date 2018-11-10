@@ -41,7 +41,7 @@ def range_for_material_objtype(
 
     from . import pathctx  # XXX: fix cycle
 
-    objtype = objtype.material_type()
+    objtype = objtype.material_type(env.schema)
 
     table_schema_name, table_name = common.objtype_name_to_table_name(
         objtype.name, catenate=False)
@@ -206,7 +206,8 @@ def range_for_ptrcls(
     for source in {endpoint} | set(endpoint.descendants(env.schema)):
         # Sift through the descendants to see who has this link
         try:
-            src_ptrcls = source.pointers[linkname].material_type()
+            ptr = source.getptr(env.schema, linkname)
+            src_ptrcls = ptr.material_type(env.schema)
         except KeyError:
             # This source has no such link, skip it
             continue
@@ -397,7 +398,7 @@ def cols_for_pointer(
     cols = ['ptr_item_id']
 
     if isinstance(pointer, s_links.Link):
-        for ptr in pointer.pointers.values():
+        for ptr in pointer.get_pointers(env.schema).values():
             cols.append(common.edgedb_name_to_pg_name(ptr.shortname))
     else:
         cols.extend(('std::source', 'std::target'))

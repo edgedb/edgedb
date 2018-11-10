@@ -436,7 +436,7 @@ def new_static_class_rvar(
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
     set_rvar = new_root_rvar(ir_set, ctx=ctx)
     clsname = pgast.StringConstant(
-        val=ir_set.rptr.source.scls.material_type().name)
+        val=ir_set.rptr.source.scls.material_type(ctx.env.schema).name)
     nameref = dbobj.get_column(
         set_rvar, common.edgedb_name_to_pg_name('schema::name'),
         nullable=False)
@@ -466,7 +466,7 @@ def semi_join(
 
     # Target identity in the target range.
     if rptr.is_inbound and is_inline_ref:
-        tgt_pid = ir_set.path_id.extend(ptrcls)
+        tgt_pid = ir_set.path_id.extend(ptrcls, schema=ctx.env.schema)
     else:
         tgt_pid = ir_set.path_id
 

@@ -89,7 +89,9 @@ class Link(sources.Source, pointers.Pointer):
                        add_to_schema=False, dctx=None):
 
         src_n = sn.Name('std::source')
-        if src_n not in self.pointers:
+        pointers = self.get_pointers(schema)
+
+        if src_n not in pointers:
             source_pbase = schema.get(src_n)
             schema, source_p = source_pbase.derive(
                 schema, self, self.source, mark_derived=mark_derived,
@@ -98,7 +100,7 @@ class Link(sources.Source, pointers.Pointer):
             schema = self.add_pointer(schema, source_p)
 
         tgt_n = sn.Name('std::target')
-        if tgt_n not in self.pointers:
+        if tgt_n not in pointers:
             target_pbase = schema.get(tgt_n)
             schema, target_p = target_pbase.derive(
                 schema, self, self.target, mark_derived=mark_derived,
@@ -128,8 +130,8 @@ class Link(sources.Source, pointers.Pointer):
     def scalar(self):
         return False
 
-    def has_user_defined_properties(self):
-        return bool([p for p in self.pointers.values()
+    def has_user_defined_properties(self, schema):
+        return bool([p for p in self.get_pointers(schema).values()
                      if not p.is_special_pointer()])
 
     def compare(self, other, context=None):

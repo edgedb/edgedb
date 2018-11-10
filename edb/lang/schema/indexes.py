@@ -44,7 +44,23 @@ class SourceIndex(inheriting.InheritingObject):
 
 
 class IndexableSubject(referencing.ReferencingObject):
-    indexes = referencing.RefDict(ref_cls=SourceIndex, compcoef=0.909)
+    indexes_refs = referencing.RefDict(
+        attr='indexes',
+        local_attr='own_indexes',
+        ref_cls=SourceIndex)
+
+    indexes = so.Field(so.ObjectDict,
+                       inheritable=False, ephemeral=True, coerce=True,
+                       default=so.ObjectDict, hashable=False)
+    own_indexes = so.Field(so.ObjectDict, compcoef=0.909,
+                           inheritable=False, ephemeral=True, coerce=True,
+                           default=so.ObjectDict)
+
+    def get_indexes(self, schema):
+        return so.ObjectDictView(schema, self.indexes)
+
+    def get_own_indexes(self, schema):
+        return so.ObjectDictView(schema, self.own_indexes)
 
     def add_index(self, schema, index):
         return self.add_classref(schema, 'indexes', index)

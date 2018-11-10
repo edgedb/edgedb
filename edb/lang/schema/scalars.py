@@ -43,10 +43,11 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
     default = so.Field(expr.ExpressionText, default=None,
                        coerce=True, compcoef=0.909)
 
-    def _get_deps(self):
-        deps = super()._get_deps()
+    def _get_deps(self, schema):
+        deps = super()._get_deps(schema)
 
-        if self.constraints:
+        consts = self.get_constraints(schema)
+        if consts:
             N = sn.Name
 
             # Add dependency on all built-in scalars unconditionally
@@ -61,7 +62,7 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
             deps.add(N(module='std', name='bool'))
             deps.add(N(module='std', name='uuid'))
 
-            for constraint in self.constraints.values():
+            for constraint in consts.values():
                 ptypes = [p.type for p in constraint.params]
                 if ptypes:
                     for ptype in ptypes:

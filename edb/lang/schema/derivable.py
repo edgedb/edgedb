@@ -53,10 +53,10 @@ class DerivableObjectBase:
         else:
             derived_name = name
 
-        derived = self.copy()
-        if attrs is not None:
-            derived.update(attrs)
-        derived.name = derived_name
+        if attrs is None:
+            attrs = {}
+        attrs['name'] = derived_name
+        schema, derived = self.replace(schema, **attrs)
 
         return schema, derived
 
@@ -129,7 +129,7 @@ class DerivableObjectBase:
 
 class DerivableObject(so.NamedObject, DerivableObjectBase):
     declared_inherited = so.Field(bool, False, compcoef=None,
-                                  ephemeral=True, inheritable=False)
+                                  introspectable=False, inheritable=False)
     """Indicates that the object has been declared as explicitly inherited."""
 
     @classmethod

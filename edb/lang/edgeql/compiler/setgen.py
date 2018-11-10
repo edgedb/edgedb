@@ -363,7 +363,7 @@ def resolve_ptr(
                 s_utils.enrich_schema_lookup_error(
                     err, pointer_name, modaliases=ctx.modaliases,
                     item_types=(s_pointers.Pointer,),
-                    collection=near_endpoint.pointers.values(),
+                    collection=near_endpoint.get_pointers(ctx.schema).values(),
                     schema=ctx.schema
                 )
 
@@ -411,7 +411,8 @@ def extend_path(
     if target is None:
         target = ptrcls.get_far_endpoint(direction)
     path_id = src_path_id.extend(ptrcls, direction, target,
-                                 ns=ctx.path_id_namespace)
+                                 ns=ctx.path_id_namespace,
+                                 schema=ctx.schema)
 
     target_set = new_set(scls=target, path_id=path_id, ctx=ctx)
 
@@ -466,7 +467,8 @@ def tuple_indirection_set(
     el_type = source.get_subtype(el_name)
 
     path_id = irutils.tuple_indirection_path_id(
-        path_tip.path_id, el_norm_name, el_type)
+        path_tip.path_id, el_norm_name, el_type,
+        schema=ctx.schema)
     expr = irast.TupleIndirection(
         expr=path_tip, name=el_norm_name, path_id=path_id,
         context=source_context)
@@ -482,13 +484,15 @@ def class_indirection_set(
 
     poly_set = new_set(scls=target_scls, ctx=ctx)
     rptr = source_set.rptr
-    if rptr is not None and not rptr.ptrcls.singular(rptr.direction):
+    if (rptr is not None and
+            not rptr.ptrcls.singular(ctx.schema, rptr.direction)):
         cardinality = irast.Cardinality.MANY
     else:
         cardinality = irast.Cardinality.ONE
     poly_set.path_id = irutils.type_indirection_path_id(
         source_set.path_id, target_scls, optional=optional,
-        cardinality=cardinality)
+        cardinality=cardinality,
+        schema=ctx.schema)
 
     ptr = irast.Pointer(
         source=source_set,
@@ -683,7 +687,8 @@ def computable_ptr_set(
         source_path_id = rptr.target.path_id.src_path()
 
     path_id = source_path_id.extend(
-        ptrcls, s_pointers.PointerDirection.Outbound, ptrcls.target)
+        ptrcls, s_pointers.PointerDirection.Outbound, ptrcls.target,
+        schema=ctx.schema)
 
     with newctx() as subctx:
         subctx.view_scls = ptrcls.target
@@ -709,7 +714,7 @@ def computable_ptr_set(
             ctx=ctx)
 
         def _check_cardinality(ctx):
-            if ptrcls.singular():
+            if ptrcls.singular(ctx.schema):
                 stmtctx.enforce_singleton_now(comp_ir_set_copy, ctx=ctx)
 
         stmtctx.at_stmt_fini(_check_cardinality, ctx=ctx)

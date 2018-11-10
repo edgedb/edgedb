@@ -320,7 +320,7 @@ class PathId:
         else:
             return self
 
-    def extend(self, link, direction=None, target=None, *, ns=None):
+    def extend(self, link, direction=None, target=None, *, ns=None, schema):
         if not self:
             raise ValueError('cannot extend empty PathId')
 
@@ -340,7 +340,7 @@ class PathId:
         result = self.__class__()
         result._path = self._path + ((link, direction), target)
         lnk = (link.name, direction, is_linkprop)
-        norm_target = target.material_type()
+        norm_target = target.material_type(schema)
         result._norm_path = self._norm_path + (lnk, norm_target)
 
         if ns:

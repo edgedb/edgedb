@@ -88,11 +88,11 @@ def default_field_merge(target: 'Object', sources: typing.List['Object'],
 
 class Field(struct.Field):
     __slots__ = ('compcoef', 'inheritable', 'hashable', 'simpledelta',
-                 'merge_fn', 'ephemeral')
+                 'merge_fn', 'ephemeral', 'introspectable')
 
     def __init__(self, *args, compcoef=None, inheritable=True, hashable=True,
                  simpledelta=True, merge_fn=None, ephemeral=False,
-                 **kwargs):
+                 introspectable=True, **kwargs):
         """Schema item core attribute definition.
 
         """
@@ -101,6 +101,7 @@ class Field(struct.Field):
         self.inheritable = inheritable
         self.hashable = hashable
         self.simpledelta = simpledelta
+        self.introspectable = introspectable
 
         if merge_fn is not None:
             self.merge_fn = merge_fn
@@ -188,11 +189,13 @@ class ObjectMeta(struct.MixedStructMeta):
 class Object(struct.MixedStruct, metaclass=ObjectMeta):
     """Base schema item class."""
 
-    id = Field(uuid.UUID, default=None, compcoef=0.1, inheritable=False)
+    id = Field(uuid.UUID, default=None, compcoef=0.1, inheritable=False,
+               frozen=True)
     """Optional known ID for this schema item."""
 
     sourcectx = Field(parsing.ParserContext, None, compcoef=None,
-                      inheritable=False, ephemeral=True, hashable=False)
+                      inheritable=False, introspectable=False, hashable=False,
+                      ephemeral=True, frozen=True)
     """Schema source context for this object"""
 
     @classmethod
@@ -203,6 +206,10 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
         self._attr_sources = {}
         self._attr_source_contexts = {}
         super().__init__(**kwargs)
+
+    def replace(self, schema, **attrs):
+        rep = struct.Struct.replace(self, **attrs)
+        return schema, rep
 
     def is_type(self):
         return False
@@ -460,35 +467,14 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
 
         return ref, val
 
-    def _restore_refs(self, field_name, ref, resolve):
-        ftype = self.__class__.get_field(field_name).type[0]
-
-        if issubclass(ftype, (ObjectSet, ObjectList)):
-            val = ftype(r._resolve_ref(resolve) for r in ref)
-
-        elif issubclass(ftype, ObjectDict):
-            result = []
-
-            for k, r in ref.items():
-                result.append((k, r._resolve_ref(resolve)))
-
-            val = ftype(result)
-
-        elif issubclass(ftype, Object):
-            val = ftype._resolve_ref(resolve)
-
-        else:
-            val = ref
-
-        return val
-
     def delta_properties(self, delta, other, reverse=False, context=None):
         from edb.lang.schema import delta as sd
 
         old, new = (other, self) if not reverse else (self, other)
 
         ff = self.__class__.get_fields(sorted=True).items()
-        fields = [fn for fn, f in ff if f.simpledelta and not f.ephemeral]
+        fields = [fn for fn, f in ff
+                  if f.simpledelta and not f.ephemeral and f.introspectable]
 
         if old and new:
             for f in fields:
@@ -507,7 +493,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
                         property=f, old_value=None, new_value=value))
 
     @classmethod
-    def _sort_set(cls, items):
+    def _sort_set(cls, schema, items):
         if items:
             probe = next(iter(items))
             has_bases = hasattr(probe, 'bases')
@@ -518,14 +504,14 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
                 g = {}
 
                 for x in items:
-                    deps = {b for b in x._get_deps() if b in items_idx}
+                    deps = {b for b in x._get_deps(schema) if b in items_idx}
                     g[x.name] = {'item': x, 'deps': deps}
 
                 items = topological.sort(g)
 
         return items
 
-    def _get_deps(self):
+    def _get_deps(self, schema):
         return {getattr(b, 'classname', getattr(b, 'name', None))
                 for b in self.bases}
 
@@ -595,7 +581,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
         created = new - used_x
 
         if created:
-            created = cls._sort_set(created)
+            created = cls._sort_set(new_schema, created)
             for x in created:
                 adds_mods.add(x.delta(None, context=context))
 
@@ -650,7 +636,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
             adds_mods.add(p)
 
         if deleted:
-            deleted = cls._sort_set(deleted)
+            deleted = cls._sort_set(old_schema, deleted)
             for y in reversed(list(deleted)):
                 dels.add(y.delta(None, reverse=True, context=context))
 
@@ -670,10 +656,13 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
 
         fields = self.setdefaults()
         if dctx is not None and fields:
-            for field in fields:
+            for fieldname in fields:
+                field = type(self).get_field(fieldname)
+                if field.ephemeral:
+                    continue
                 dctx.current().op.add(sd.AlterObjectProperty(
-                    property=field,
-                    new_value=getattr(self, field),
+                    property=fieldname,
+                    new_value=getattr(self, fieldname),
                     source='default'
                 ))
 
@@ -810,8 +799,6 @@ class ObjectDict(typed.OrderedTypedDict, ObjectCollection,
     def persistent_hash(self):
         vals = []
         for k, v in self.items():
-            if is_named_class(v):
-                v = v.name
             vals.append((k, v))
         return phash.persistent_hash(frozenset(vals))
 
@@ -837,6 +824,29 @@ class ObjectDict(typed.OrderedTypedDict, ObjectCollection,
             basecoef = sum(similarity) / len(similarity)
 
         return basecoef + (1 - basecoef) * compcoef
+
+
+class ObjectDictView(collections.abc.Mapping):
+
+    def __init__(self, schema, dct):
+        self._dct = dct
+
+    def __getitem__(self, name):
+        if self._dct is None:
+            raise KeyError(name)
+        return self._dct[name]
+
+    def __iter__(self):
+        if self._dct is None:
+            yield from ()
+        else:
+            yield from self._dct
+
+    def __len__(self):
+        if self._dct is None:
+            return 0
+        else:
+            return len(self._dct)
 
 
 class ObjectSet(typed.TypedSet, ObjectCollection, type=Object):

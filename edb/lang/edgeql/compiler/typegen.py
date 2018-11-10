@@ -23,8 +23,6 @@
 import collections
 import typing
 
-from edb.lang.common import parsing
-
 from edb.lang.ir import ast as irast
 
 from edb.lang.schema import objects as s_obj
@@ -35,44 +33,6 @@ from edb.lang.edgeql import errors
 
 from . import context
 from . import schemactx
-
-
-def process_type_ref_expr(
-        expr: irast.Base) -> typing.Union[irast.Array, irast.TypeRef]:
-    if isinstance(expr.expr, irast.Tuple):
-        elems = []
-
-        for elem in expr.expr.elements:
-            ref_elem = process_type_ref_elem(elem.val, elem.context)
-
-            elems.append(ref_elem)
-
-        expr = irast.Array(elements=elems)
-
-    else:
-        expr = process_type_ref_elem(expr, expr.context)
-
-    return expr
-
-
-def process_type_ref_elem(
-        expr: irast.Base, qlcontext: parsing.ParserContext) -> irast.TypeRef:
-    if isinstance(expr, irast.Set):
-        if expr.rptr is not None:
-            raise errors.EdgeQLSyntaxError(
-                'expecting a type reference',
-                context=qlcontext)
-
-        result = irast.TypeRef(
-            maintype=expr.scls.material_type().name,
-        )
-
-    else:
-        raise errors.EdgeQLSyntaxError(
-            'expecting a type reference',
-            context=qlcontext)
-
-    return result
 
 
 def type_to_ql_typeref(t: s_obj.Object) -> qlast.TypeName:

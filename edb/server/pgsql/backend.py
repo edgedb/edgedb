@@ -249,7 +249,7 @@ class Backend:
         return uuid.uuid5(types.TYPE_ID_NAMESPACE, base_type_id)
 
     def _describe_type(self, t, view_shapes, _tuples):
-        mt = t.material_type()
+        mt = t.material_type(self.schema)
         is_tuple = False
 
         if isinstance(t, s_types.Collection):
@@ -278,7 +278,9 @@ class Backend:
 
             for ptr in view_shapes[t]:
                 subdesc = self._describe_type(ptr.target, view_shapes, _tuples)
-                subdesc.cardinality = '1' if ptr.singular() else '*'
+                subdesc.cardinality = (
+                    '1' if ptr.singular(self.schema) else '*'
+                )
                 subtypes.append(subdesc)
                 element_names.append(ptr.shortname.name)
 
@@ -287,7 +289,9 @@ class Backend:
                 for ptr in view_shapes[t.rptr]:
                     subdesc = self._describe_type(
                         ptr.target, view_shapes, _tuples)
-                    subdesc.cardinality = '1' if ptr.singular() else '*'
+                    subdesc.cardinality = (
+                        '1' if ptr.singular(self.schema) else '*'
+                    )
                     subtypes.append(subdesc)
                     element_names.append(ptr.shortname.name)
 

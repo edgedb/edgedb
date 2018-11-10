@@ -256,7 +256,7 @@ class Struct(metaclass=StructMeta):
     def _copy_and_replace(self, cls, **replacements):
         args = {f: getattr(self, f) for f in cls._fields.keys()}
         if replacements:
-            args = {**args, **replacements}
+            args.update(replacements)
         return cls(**args)
 
     def copy_with_class(self, cls):

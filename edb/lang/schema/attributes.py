@@ -53,77 +53,45 @@ class AttributeValue(inheriting.InheritingObject):
 
 
 class AttributeSubject(referencing.ReferencingObject):
-    attributes = referencing.RefDict(ref_cls=AttributeValue, compcoef=0.909)
+    attributes_refs = referencing.RefDict(
+        attr='attributes',
+        local_attr='own_attributes',
+        ref_cls=AttributeValue)
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self._attr_name_cache = None
+    attributes = so.Field(so.ObjectDict,
+                          inheritable=False, ephemeral=True, coerce=True,
+                          default=so.ObjectDict, hashable=False)
+    own_attributes = so.Field(so.ObjectDict, compcoef=0.909,
+                              inheritable=False, ephemeral=True, coerce=True,
+                              default=so.ObjectDict)
+
+    def get_attributes(self, schema):
+        return so.ObjectDictView(schema, self.attributes)
+
+    def get_own_attributes(self, schema):
+        return so.ObjectDictView(schema, self.own_attributes)
 
     def add_attribute(self, schema, attribute, replace=False):
         schema = self.add_classref(
             schema, 'attributes', attribute, replace=replace)
-        self._attr_name_cache = None
         return schema
 
-    def del_attribute(self, attribute_name, schema):
-        return self.del_classref(schema, 'attributes', attribute_name)
+    def del_attribute(self, schema, attribute_name):
+        return self.del_classref(schema, 'attributes_refs', attribute_name)
 
-    def delta_all_attributes(self, old, new, delta, context):
-        oldattributes = old.local_attributes if old else {}
-        newattributes = new.local_attributes if new else {}
+    def rename_attribute(self, schema, attribute_name, new_attribute_name):
+        norm = AttributeValue.get_shortname
 
-        self.delta_attributes(oldattributes, newattributes, delta, context)
+        if self.own_attributes:
+            own = self.own_attributes.pop(norm(attribute_name), None)
+            if own:
+                self.own_attributes[norm(new_attribute_name)] = own
 
-    def get_attribute(self, name):
-        value = None
+        inherited = self.attributes.pop(norm(attribute_name), None)
+        if inherited is not None:
+            self.attributes[norm(new_attribute_name)] = inherited
 
-        try:
-            value = self.attributes[name]
-        except KeyError:
-            if self._attr_name_cache is None:
-                self._attr_name_cache = self._build_attr_name_cache()
-
-            try:
-                value = self._attr_name_cache[name]
-            except KeyError:
-                pass
-
-        return value
-
-    def _build_attr_name_cache(self):
-        _attr_name_cache = {}
-        ambiguous = set()
-
-        for an, attr in self.attributes.items():
-            if an.name in _attr_name_cache:
-                ambiguous.add(an.name)
-            _attr_name_cache[an.name] = attr
-
-        for amb in ambiguous:
-            del _attr_name_cache[amb]
-
-        return _attr_name_cache
-
-    @classmethod
-    def delta_attributes(cls, set1, set2, delta, context=None):
-        oldattributes = set(set1)
-        newattributes = set(set2)
-
-        for attribute in oldattributes - newattributes:
-            d = set1[attribute].delta(None, reverse=True, context=context)
-            delta.add(d)
-
-        for attribute in newattributes - oldattributes:
-            d = set2[attribute].delta(None, context=context)
-            delta.add(d)
-
-        for attribute in newattributes & oldattributes:
-            oldattr = set1[attribute]
-            newattr = set2[attribute]
-
-            if newattr.compare(oldattr, context=context) != 1.0:
-                d = newattr.delta(oldattr, context=context)
-                delta.add(d)
+        return schema, self
 
 
 class AttributeCommandContext(sd.ObjectCommandContext):
@@ -231,7 +199,7 @@ class AttributeValueCommand(sd.ObjectCommand, schema_metaclass=AttributeValue,
         return parent.add_attribute(schema, attribute, replace=True)
 
     def delete_attribute(self, attribute_class, parent, schema):
-        return parent.del_attribute(attribute_class, schema)
+        return parent.del_attribute(schema, attribute_class)
 
 
 class CreateAttributeValue(AttributeValueCommand, named.CreateNamedObject):
@@ -327,18 +295,8 @@ class RenameAttributeValue(AttributeValueCommand, named.RenameNamedObject):
         assert attrsubj, "Attribute commands must be run in " + \
                          "AttributeSubject context"
 
-        norm = AttributeValue.get_shortname
-
-        own = attrsubj.scls.local_attributes.pop(
-            norm(self.classname), None)
-        if own:
-            attrsubj.scls.local_attributes[norm(self.new_name)] = own
-
-        inherited = attrsubj.scls.attributes.pop(
-            norm(self.classname), None)
-        if inherited is not None:
-            attrsubj.scls.attributes[norm(self.new_name)] = inherited
-
+        schema, _ = attrsubj.scls.rename_attribute(
+            schema, self.classname, self.new_name)
         return schema, result
 
 

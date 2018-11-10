@@ -365,19 +365,22 @@ class DeclarationLoader:
     def _get_scalar_deps(self, scalar):
         deps = set()
 
-        if scalar.constraints:
-            for constraint in scalar.constraints.values():
-                if constraint.params:
-                    deps.update([p.type for p in constraint.params])
+        consts = scalar.get_constraints(self._schema)
+        if not consts:
+            return deps
 
-            for dep in list(deps):
-                if isinstance(dep, s_types.Collection):
-                    deps.update(dep.get_subtypes())
-                    deps.discard(dep)
+        for constraint in consts.values():
+            if constraint.params:
+                deps.update([p.type for p in constraint.params])
 
-            # Add dependency on all builtin scalars unconditionally
-            std = self._schema.get_module('std')
-            deps.update(std.get_objects(type='ScalarType'))
+        for dep in list(deps):
+            if isinstance(dep, s_types.Collection):
+                deps.update(dep.get_subtypes())
+                deps.discard(dep)
+
+        # Add dependency on all builtin scalars unconditionally
+        std = self._schema.get_module('std')
+        deps.update(std.get_objects(type='ScalarType'))
 
         return deps
 
@@ -433,7 +436,7 @@ class DeclarationLoader:
 
             elif not source.generic():
                 link_base = source.bases[0]
-                propdef = link_base.pointers.get(prop_qname)
+                propdef = link_base.getptr(self._schema, prop_qname)
                 if not propdef:
                     raise s_err.SchemaError(
                         'link {!r} does not define property '
@@ -441,11 +444,14 @@ class DeclarationLoader:
 
                 prop_qname = propdef.shortname
 
+            new_props = {
+                'sourcectx': propdecl.context,
+            }
+
             self._schema, prop = prop_base.derive(
                 self._schema, source, prop_target,
+                attrs=new_props,
                 add_to_schema=True)
-
-            prop.sourcectx = propdecl.context
 
             prop.declared_inherited = propdecl.inherited
             prop.required = bool(propdecl.required)
@@ -503,9 +509,8 @@ class DeclarationLoader:
             attrvalue = s_attrs.AttributeValue(
                 name=dername, subject=subject,
                 attribute=attribute,
+                sourcectx=attrdecl.context,
                 value=qlcodegen.generate_source(attrdecl.value, pretty=False))
-
-            attrvalue.sourcectx = attrdecl.context
 
             self._schema = self._schema.add(attrvalue)
             self._schema = subject.add_attribute(self._schema, attrvalue)
@@ -528,11 +533,14 @@ class DeclarationLoader:
                                            module_aliases=self._mod_aliases)
 
             self._schema, constraint = constr_base.derive(
-                self._schema, subject)
-            constraint.is_abstract = constrdecl.delegated
+                self._schema, subject,
+                attrs={
+                    'is_abstract': constrdecl.delegated,
+                    'sourcectx': constrdecl.context,
+                })
+
             self._schema = constraint.acquire_ancestor_inheritance(
                 self._schema)
-            constraint.sourcectx = constrdecl.context
 
             if constrdecl.args:
                 args = [qlcodegen.generate_source(arg, pretty=False)
@@ -661,12 +669,15 @@ class DeclarationLoader:
                         context=linkdecl.target[0].context
                     )
 
+                new_props = {
+                    'sourcectx': linkdecl.context,
+                }
+
                 self._schema, link = link_base.derive(
                     self._schema, objtype, target,
+                    attrs=new_props,
                     add_to_schema=True,
                     apply_defaults=not linkdecl.inherited)
-
-                link.sourcectx = linkdecl.context
 
                 link.spectargets = spectargets
 
@@ -701,7 +712,7 @@ class DeclarationLoader:
                 prop_name = self._get_ref_name(propdecl.name)
                 generic_prop = self._schema.get(
                     prop_name, module_aliases=self._mod_aliases)
-                spec_prop = link.pointers[generic_prop.name]
+                spec_prop = link.getptr(self._schema, generic_prop.name)
 
                 if propdecl.expr is not None:
                     # Computable
@@ -714,7 +725,7 @@ class DeclarationLoader:
                 link_name = self._get_ref_name(linkdecl.name)
                 generic_link = self._schema.get(
                     link_name, module_aliases=self._mod_aliases)
-                spec_link = objtype.pointers[generic_link.name]
+                spec_link = objtype.getptr(self._schema, generic_link.name)
                 self._parse_subject_constraints(spec_link, linkdecl)
 
     def _normalize_objtype_expressions(self, objtype, typedecl):
@@ -723,7 +734,7 @@ class DeclarationLoader:
             link_name = self._get_ref_name(ptrdecl.name)
             generic_link = self._schema.get(
                 link_name, module_aliases=self._mod_aliases)
-            spec_link = objtype.pointers[generic_link.name]
+            spec_link = objtype.getptr(self._schema, generic_link.name)
 
             if ptrdecl.expr is not None:
                 # Computable
@@ -787,7 +798,7 @@ class DeclarationLoader:
 
             if isinstance(ptr, s_links.Link):
                 pname = s_name.Name('std::target')
-                tgt_prop = ptr.pointers[pname]
+                tgt_prop = ptr.getptr(self._schema, pname)
                 tgt_prop.target = expr_type
 
             scope_tree_root = ir_ast.new_scope_tree()

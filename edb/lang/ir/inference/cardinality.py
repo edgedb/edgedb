@@ -102,7 +102,7 @@ def __infer_set(ir, scope_tree, schema):
             return ONE
 
     if ir.rptr is not None:
-        if ir.rptr.ptrcls.singular(ir.rptr.direction):
+        if ir.rptr.ptrcls.singular(schema, ir.rptr.direction):
             new_scope = _get_set_scope(ir, scope_tree)
             return infer_cardinality(ir.rptr.source, new_scope, schema)
         else:
@@ -236,13 +236,15 @@ def _extract_filters(
             elif _is_ptr_or_self_ref(expr.left, result_set.scls, schema):
                 if infer_cardinality(expr.right, scope_tree, schema) == ONE:
                     if expr.left.scls == result_set.scls:
-                        ptr_filters.append(expr.left.scls.pointers['std::id'])
+                        ptr_filters.append(
+                            expr.left.scls.getptr(schema, 'std::id'))
                     else:
                         ptr_filters.append(expr.left.rptr.ptrcls)
             elif _is_ptr_or_self_ref(expr.right, result_set.scls, schema):
                 if infer_cardinality(expr.left, scope_tree, schema) == ONE:
                     if expr.right.scls == result_set.scls:
-                        ptr_filters.append(expr.right.scls.pointers['std::id'])
+                        ptr_filters.append(
+                            expr.right.scls.getptr(schema, 'std::id'))
                     else:
                         ptr_filters.append(expr.right.rptr.ptrcls)
 
@@ -270,7 +272,7 @@ def _analyse_filter_clause(
             is_unique = (
                 ptr.is_id_pointer() or
                 any(c.issubclass(exclusive_constr)
-                    for c in ptr.constraints.values())
+                    for c in ptr.get_constraints(schema).values())
             )
             if is_unique:
                 # Bingo, got an equality filter on a link with a

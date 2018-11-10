@@ -268,7 +268,7 @@ class Schema(TypeContainer):
                 child_names = self._find_children(scls)
                 self._inheritance_cache[scls.name] = child_names
         else:
-            child_names = [c.material_type().name for c in children]
+            child_names = [c.material_type(self).name for c in children]
 
         canonical_class = scls.get_canonical_class()
         children = {self.get(n, type=canonical_class) for n in child_names}

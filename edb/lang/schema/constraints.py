@@ -66,7 +66,7 @@ class Constraint(inheriting.InheritingObject):
 
     localfinalexpr = so.Field(CumulativeBoolExpr, default=None,
                               coerce=True, hashable=False, inheritable=False,
-                              ephemeral=True)
+                              introspectable=False)
 
     finalexpr = so.Field(CumulativeBoolExpr, default=None,
                          coerce=True, hashable=False, compcoef=0.909)
@@ -288,13 +288,30 @@ class Constraint(inheriting.InheritingObject):
 
 
 class ConsistencySubject(referencing.ReferencingObject):
-    constraints = referencing.RefDict(ref_cls=Constraint, compcoef=0.887)
+    constraints_refs = referencing.RefDict(
+        attr='constraints',
+        local_attr='own_constraints',
+        ref_cls=Constraint)
+
+    constraints = so.Field(so.ObjectDict,
+                           inheritable=False, ephemeral=True, coerce=True,
+                           default=so.ObjectDict, hashable=False)
+    own_constraints = so.Field(so.ObjectDict, compcoef=0.887,
+                               inheritable=False, ephemeral=True,
+                               coerce=True,
+                               default=so.ObjectDict)
+
+    def get_constraints(self, schema):
+        return so.ObjectDictView(schema, self.constraints)
+
+    def get_own_constraints(self, schema):
+        return so.ObjectDictView(schema, self.own_constraints)
 
     @classmethod
     def inherit_pure(cls, schema, item, source, *, dctx=None):
         schema, item = super().inherit_pure(schema, item, source, dctx=dctx)
 
-        if any(c.is_abstract for c in item.constraints.values()):
+        if any(c.is_abstract for c in item.get_constraints(schema).values()):
             # Have abstract constraints, cannot go pure inheritance,
             # must create a derived Object with materialized
             # constraints.
@@ -309,10 +326,9 @@ class ConsistencySubject(referencing.ReferencingObject):
         if attr == 'constraints':
             # Make sure abstract constraints from parents are mixed in
             # properly.
-            constraints = set(self.constraints)
+            constraints = set(self.get_constraints(schema))
             inherited = itertools.chain.from_iterable(
-                getattr(b, 'constraints', {}).values()
-                for b in bases)
+                b.get_constraints(schema).values() for b in bases)
             constraints.update(c.shortname
                                for c in inherited if c.is_abstract)
             return schema, constraints
@@ -324,8 +340,9 @@ class ConsistencySubject(referencing.ReferencingObject):
 
         if attr == 'constraints':
             # Materialize unmerged abstract constraints
-            for cn, constraint in self.constraints.items():
-                if constraint.is_abstract and cn not in self.local_constraints:
+            for cn, constraint in self.get_constraints(schema).items():
+                if (constraint.is_abstract and
+                        cn not in self.get_own_constraints(schema)):
                     schema, constraint = constraint.derive_copy(
                         schema, self, add_to_schema=True,
                         attrs=dict(is_abstract=False))

@@ -42,14 +42,14 @@ from . import utils
 
 class Parameter(struct.Struct):
 
-    pos = struct.Field(int)
-    name = struct.Field(str)
-    default = struct.Field(str, default=None)
-    type = struct.Field(so.Object)
+    pos = struct.Field(int, frozen=True)
+    name = struct.Field(str, frozen=True)
+    default = struct.Field(str, default=None, frozen=True)
+    type = struct.Field(so.Object, frozen=True)
     typemod = struct.Field(ft.TypeModifier,
                            default=ft.TypeModifier.SINGLETON,
-                           coerce=True)
-    kind = struct.Field(ft.ParameterKind, coerce=True)
+                           coerce=True, frozen=True)
+    kind = struct.Field(ft.ParameterKind, coerce=True, frozen=True)
 
     # Private field for caching default value AST.
     _ql_default = struct.Field(object, default=None)
@@ -116,15 +116,14 @@ class Parameter(struct.Struct):
 
     def _resolve_type_refs(self, schema):
         if isinstance(self.type, so.ObjectRef):
-            result = self.copy()
-            result.type = utils.resolve_typeref(self.type, schema)
+            rtype = utils.resolve_typeref(self.type, schema)
+            result = self.replace(type=rtype)
             return result
 
         elif isinstance(self.type, s_types.Collection):
             resolved = utils.resolve_typeref(self.type, schema)
             if resolved is not self.type:
-                result = self.copy()
-                result.type = resolved
+                result = self.replace(type=resolved)
             else:
                 result = self
             return result
@@ -132,9 +131,9 @@ class Parameter(struct.Struct):
         elif (self.kind is ft.ParameterKind.VARIADIC and
                 isinstance(self.type.get_subtypes()[0], so.ObjectRef)):
             subtype = self.type.get_subtypes()[0]
-            result = self.copy()
-            result.type = s_types.Array.from_subtypes(
+            rtype = s_types.Array.from_subtypes(
                 [utils.resolve_typeref(subtype, schema)])
+            result = self.replace(type=rtype)
             return result
 
         else:
@@ -253,19 +252,20 @@ class Function(so.NamedObject):
     _type = 'function'
 
     params = so.Field(FuncParameterList, default=None,
-                      coerce=True, compcoef=0.4)
+                      coerce=True, compcoef=0.4, frozen=True)
 
-    return_type = so.Field(so.Object, compcoef=0.2)
+    return_type = so.Field(so.Object, compcoef=0.2, frozen=True)
 
-    code = so.Field(str, default=None, compcoef=0.4)
+    code = so.Field(str, default=None, compcoef=0.4, frozen=True)
     language = so.Field(qlast.Language, default=None, compcoef=0.4,
-                        coerce=True)
-    from_function = so.Field(str, default=None, compcoef=0.4)
+                        coerce=True, frozen=True)
+    from_function = so.Field(str, default=None, compcoef=0.4, frozen=True)
 
     initial_value = so.Field(expr.ExpressionText, default=None, compcoef=0.4,
-                             coerce=True)
+                             coerce=True, frozen=True)
 
-    return_typemod = so.Field(ft.TypeModifier, compcoef=0.4, coerce=True)
+    return_typemod = so.Field(ft.TypeModifier, compcoef=0.4, coerce=True,
+                              frozen=True)
 
     @property
     def inlined_defaults(self):

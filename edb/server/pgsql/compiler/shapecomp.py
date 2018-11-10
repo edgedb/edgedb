@@ -67,7 +67,7 @@ def compile_shape(
             rptr = el.rptr
             ptrcls = rptr.ptrcls
             ptrdir = rptr.direction or s_pointers.PointerDirection.Outbound
-            is_singleton = ptrcls.singular(ptrdir)
+            is_singleton = ptrcls.singular(ctx.env.schema, ptrdir)
 
             if (irutils.is_subquery_set(el) or
                     isinstance(el.scls, s_objtypes.ObjectType) or

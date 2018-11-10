@@ -501,7 +501,8 @@ def compile_Tuple(
     for i, e in enumerate(expr.elements):
         telem = telems[i]
         ttype = ttypes[telem]
-        el_path_id = irutils.tuple_indirection_path_id(path_id, telem, ttype)
+        el_path_id = irutils.tuple_indirection_path_id(
+            path_id, telem, ttype, schema=ctx.env.schema)
         val = dispatch.compile(e.val, ctx=ctx)
         elements.append(pgast.TupleElement(path_id=el_path_id, val=val))
 

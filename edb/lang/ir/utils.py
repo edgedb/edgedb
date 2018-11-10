@@ -90,7 +90,8 @@ def get_id_path_id(
     return path_id.extend(
         source.getptr(schema, 'std::id'),
         s_pointers.PointerDirection.Outbound,
-        schema.get('std::uuid'))
+        schema.get('std::uuid'),
+        schema=schema)
 
 
 def get_subquery_shape(ir_expr):
@@ -215,11 +216,13 @@ class TupleIndirectionLink(s_links.Link):
         return False
 
 
-def tuple_indirection_path_id(tuple_path_id, element_name, element_type):
+def tuple_indirection_path_id(tuple_path_id, element_name, element_type, *,
+                              schema):
     return tuple_path_id.extend(
         TupleIndirectionLink(element_name),
         s_pointers.PointerDirection.Outbound,
-        element_type
+        element_type,
+        schema=schema
     )
 
 
@@ -253,12 +256,14 @@ class TypeIndirectionLink(s_links.Link):
 
 
 def type_indirection_path_id(path_id, target_type, *, optional: bool,
-                             cardinality: irast.Cardinality):
+                             cardinality: irast.Cardinality,
+                             schema):
     return path_id.extend(
         TypeIndirectionLink(path_id.target, target_type,
                             optional=optional, cardinality=cardinality),
         s_pointers.PointerDirection.Outbound,
-        target_type
+        target_type,
+        schema=schema
     )
 
 

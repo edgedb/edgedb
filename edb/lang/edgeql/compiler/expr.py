@@ -493,7 +493,8 @@ def _cast_expr(
                     ctx=ctx
                 )
                 val.path_id = irutils.tuple_indirection_path_id(
-                    ir_expr.path_id, n, orig_type.element_types[n])
+                    ir_expr.path_id, n, orig_type.element_types[n],
+                    schema=ctx.schema)
 
                 val_type = irutils.infer_type(val, ctx.schema)
                 # Element cast
@@ -534,7 +535,8 @@ def _cast_expr(
                     ctx=ctx
                 )
                 val.path_id = irutils.tuple_indirection_path_id(
-                    ir_expr.path_id, n, orig_type.element_types[n])
+                    ir_expr.path_id, n, orig_type.element_types[n],
+                    schema=ctx.schema)
 
                 val_type = irutils.infer_type(val, ctx.schema)
                 new_el_name = new_names[i]

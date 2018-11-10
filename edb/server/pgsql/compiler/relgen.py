@@ -1167,7 +1167,8 @@ def process_set_as_tuple(
         for element in expr.elements:
             path_id = irutils.tuple_indirection_path_id(
                 ir_set.path_id, element.name,
-                ir_set.scls.get_subtype(element.name)
+                ir_set.scls.get_subtype(element.name),
+                schema=ctx.env.schema
             )
             stmt.view_path_id_map[path_id] = element.val.path_id
 
@@ -1376,6 +1377,7 @@ def process_set_as_func_expr(
                     pgast.TupleElement(
                         path_id=irutils.tuple_indirection_path_id(
                             ir_set.path_id, n, rtype.get_subtype(n),
+                            schema=ctx.env.schema
                         ),
                         name=n,
                         val=dbobj.get_column(

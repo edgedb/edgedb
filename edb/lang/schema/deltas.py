@@ -36,12 +36,12 @@ class Delta(named.NamedObject):
                        coerce=True, inheritable=False)
 
     target = so.Field(s_schema.Schema, inheritable=False,
-                      ephemeral=True, default=None)
+                      default=None, introspectable=False)
 
     commands = so.Field(sd.CommandList,
                         default=sd.CommandList,
                         coerce=True, inheritable=False,
-                        ephemeral=True)
+                        introspectable=False)
 
 
 class DeltaCommandContext(sd.CommandContextToken):

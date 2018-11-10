@@ -277,7 +277,7 @@ def compile_InsertQuery(
             ctx=ictx)
 
         stmt.result = setgen.class_set(
-            stmt.subject.scls.material_type(),
+            stmt.subject.scls.material_type(ctx.schema),
             path_id=stmt.subject.path_id, ctx=ctx)
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
@@ -310,7 +310,7 @@ def compile_UpdateQuery(
             ctx=ictx)
 
         stmt.result = setgen.class_set(
-            stmt.subject.scls.material_type(),
+            stmt.subject.scls.material_type(ctx.schema),
             path_id=stmt.subject.path_id, ctx=ctx)
 
         stmt.where = clauses.compile_where_clause(
@@ -344,7 +344,7 @@ def compile_DeleteQuery(
             subject, shape=None, result_alias=expr.subject_alias, ctx=ictx)
 
         stmt.result = setgen.class_set(
-            stmt.subject.scls.material_type(),
+            stmt.subject.scls.material_type(ctx.schema),
             path_id=stmt.subject.path_id, ctx=ctx)
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)

@@ -146,7 +146,7 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
             self, other: 'Type', schema) -> typing.Optional['Type']:
         return
 
-    def material_type(self):
+    def material_type(self, schema):
         # When self is a view, this returns the material type
         # under the view.
         return self

@@ -95,16 +95,6 @@ class ObjectType(SourceNode, constraints.ConsistencySubject):
                                       self.__class__.ReversePointerResolver,
                                       include_inherited=include_inherited)
 
-    def get_searchable_links(self):
-        names = sorted(self.pointers.keys())
-
-        for link_name in names:
-            link_set = self.pointers[link_name]
-            for link in link_set:
-                if getattr(link, 'search', None):
-                    yield link_name, link_set
-                    break
-
     def implicitly_castable_to(self, other: s_types.Type, schema) -> bool:
         return self.issubclass(other)
 

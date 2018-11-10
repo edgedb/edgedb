@@ -1504,6 +1504,9 @@ def init_metaclass_tables():
 
         for fn in fields:
             field = mcls.get_field(fn)
+            if field.ephemeral:
+                continue
+
             cols.append(_field_to_column(field))
 
         table.add_columns(cols)
@@ -1710,7 +1713,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                 attrs = []
                 for fn in fields:
                     field = metaclass.get_field(fn)
-                    if field.ephemeral:
+                    if field.ephemeral or not field.introspectable:
                         continue
 
                     ftype = field.type[0]
@@ -1788,7 +1791,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
             ftype = type(None)
 
         if issubclass(ftype, (s_obj.ObjectSet, s_obj.ObjectList)):
-            if ptr.singular():
+            if ptr.singular(schema):
                 raise RuntimeError(
                     'introspection schema error: {!r} must not be '
                     'singular'.format(
@@ -1875,7 +1878,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
             '''
 
         else:
-            if not ptr.singular():
+            if not ptr.singular(schema):
                 raise RuntimeError(
                     'introspection schema error: {!r} must be '
                     'singular'.format(
@@ -2126,23 +2129,27 @@ async def generate_views(conn, schema):
 
         cols = []
 
-        for pn, ptr in schema_cls.pointers.items():
+        for pn, ptr in schema_cls.get_pointers(schema).items():
             if ptr.is_pure_computable():
                 continue
 
             field = mcls.get_field(pn.name)
+            if field is not None and (field.ephemeral or
+                                      not field.introspectable):
+                field = None
+
             refdict = None
             if field is None:
                 if pn.name == 'attributes':
                     # Special hack to allow generic introspection of
                     # both generic and standard attributes, so we
                     # pretend all classes are AttributeSubjects.
-                    refdict = s_attrs.AttributeSubject.attributes
+                    refdict = s_attrs.AttributeSubject.attributes_refs
 
                 elif issubclass(mcls, s_ref.ReferencingObject):
                     fn = classref_attr_aliases.get(pn.name, pn.name)
                     refdict = mcls.get_refdict(fn)
-                    if refdict is not None and ptr.singular():
+                    if refdict is not None and ptr.singular(schema):
                         # This is nether a field, nor a refdict, that's
                         # not expected.
                         raise RuntimeError(

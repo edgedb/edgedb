@@ -187,7 +187,7 @@ class PointerStorageInfo:
         return table, table_type, col_name
 
     @classmethod
-    def _resolve_type(cls, pointer, schema):
+    def _resolve_type(cls, schema, pointer):
         if pointer.target is not None:
             if isinstance(pointer.target, s_objtypes.ObjectType):
                 column_type = ('uuid',)
@@ -201,9 +201,10 @@ class PointerStorageInfo:
         return column_type
 
     @classmethod
-    def _storable_in_source(cls, pointer):
+    def _storable_in_source(cls, schema, pointer):
         return (
-            pointer.singular() and pointer.scalar() or
+            pointer.singular(schema) and
+            pointer.scalar() or
             pointer.shortname in {
                 'std::__type__',
                 'schema::element_type',
@@ -214,10 +215,11 @@ class PointerStorageInfo:
         )
 
     @classmethod
-    def _storable_in_pointer(cls, pointer):
+    def _storable_in_pointer(cls, schema, pointer):
         return (
-            not pointer.singular() or not pointer.scalar() or
-            pointer.has_user_defined_properties())
+            not pointer.singular(schema) or
+            not pointer.scalar() or
+            pointer.has_user_defined_properties(schema))
 
     def __new__(cls, schema, pointer, source=None, resolve_type=True,
                 link_bias=False):
@@ -250,15 +252,15 @@ class PointerStorageInfo:
                 table = None
                 table_type = 'ObjectType'
                 col_name = None
-            elif cls._storable_in_source(pointer) and not link_bias:
+            elif cls._storable_in_source(schema, pointer) and not link_bias:
                 table, table_type, col_name = cls._source_table_info(pointer)
-            elif cls._storable_in_pointer(pointer):
+            elif cls._storable_in_pointer(schema, pointer):
                 table, table_type, col_name = cls._pointer_table_info(pointer)
             else:
                 return None
 
         if resolve_type:
-            column_type = cls._resolve_type(pointer, schema)
+            column_type = cls._resolve_type(schema, pointer)
         else:
             column_type = None
 
