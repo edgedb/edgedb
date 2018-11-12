@@ -54,7 +54,7 @@ def cast(
     bytes_t = schema.get('std::bytes')
 
     if target_type.is_array():
-        if source_type.issubclass(json_t):
+        if source_type.issubclass(env.schema, json_t):
             # If we are casting a jsonb array to array, we do the
             # following transformation:
             # EdgeQL: <array<T>>MAP_VALUE
@@ -124,8 +124,8 @@ def cast(
 
     else:
         # `target_type` is not a collection.
-        if (source_type.issubclass(datetime_t) and
-                target_type.issubclass(str_t)):
+        if (source_type.issubclass(env.schema, datetime_t) and
+                target_type.issubclass(env.schema, str_t)):
             # Normalize datetime to text conversion to have the same
             # format as one would get by serializing to JSON.
             #
@@ -144,7 +144,8 @@ def cast(
                     pgast.StringConstant(val='"')
                 ])
 
-        elif source_type.issubclass(bool_t) and target_type.issubclass(int_t):
+        elif (source_type.issubclass(env.schema, bool_t) and
+                target_type.issubclass(env.schema, int_t)):
             # PostgreSQL 9.6 doesn't allow to cast 'boolean' to any integer
             # other than int32:
             #      SELECT 'true'::boolean::bigint;
@@ -159,7 +160,8 @@ def cast(
                     name=pg_types.pg_type_from_scalar(schema, target_type))
             )
 
-        elif source_type.issubclass(int_t) and target_type.issubclass(bool_t):
+        elif (source_type.issubclass(env.schema, int_t) and
+                target_type.issubclass(env.schema, bool_t)):
             # PostgreSQL 9.6 doesn't allow to cast any integer other
             # than int32 to 'boolean':
             #      SELECT 1::bigint::boolean;
@@ -171,7 +173,7 @@ def cast(
                 pgast.NumericConstant(val='0'),
                 op=ast.ops.NE)
 
-        elif source_type.issubclass(json_t):
+        elif source_type.issubclass(env.schema, json_t):
             # When casting from json, we want the text representation
             # of the *value*, and not a JSON literal, so that
             # <str><json>'foo' returns 'foo', and not '"foo"'.
@@ -181,13 +183,13 @@ def cast(
             const_type = pg_types.pg_type_from_object(
                 schema, target_type, topbase=True)
 
-            if target_type.issubclass(real_t):
+            if target_type.issubclass(env.schema, real_t):
                 expected_json_type = 'number'
-            elif target_type.issubclass(bool_t):
+            elif target_type.issubclass(env.schema, bool_t):
                 expected_json_type = 'boolean'
-            elif target_type.issubclass(str_t):
+            elif target_type.issubclass(env.schema, str_t):
                 expected_json_type = 'string'
-            elif target_type.issubclass(json_t):
+            elif target_type.issubclass(env.schema, json_t):
                 expected_json_type = None
             else:
                 raise NotImplementedError(
@@ -231,8 +233,8 @@ def cast(
                 )
             )
 
-        elif target_type.issubclass(json_t):
-            if source_type.issubclass(bytes_t):
+        elif target_type.issubclass(env.schema, json_t):
+            if source_type.issubclass(env.schema, bytes_t):
                 raise TypeError('cannot cast bytes to json')
             return pgast.FuncCall(
                 name=('to_jsonb',), args=[node])

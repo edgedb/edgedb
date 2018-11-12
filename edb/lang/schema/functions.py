@@ -192,9 +192,8 @@ class FuncParameterList(typed.FrozenTypedList, type=Parameter):
             ret.append(param.as_str())
         return '(' + ', '.join(ret) + ')'
 
-    @functools.lru_cache(200)
-    def has_polymorphic(self):
-        return any(p.type.is_polymorphic() for p in self)
+    def has_polymorphic(self, schema):
+        return any(p.type.is_polymorphic(schema) for p in self)
 
     @property
     @functools.lru_cache(200)
@@ -344,7 +343,7 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
         return_type = props['return_type']
         return_typemod = props['return_typemod']
         from_function = props.get('from_function')
-        has_polymorphic = params.has_polymorphic()
+        has_polymorphic = params.has_polymorphic(schema)
 
         fullname = self._get_function_fullname(name, params)
         get_signature = lambda: f'{self.classname}{params.as_str()}'
@@ -357,7 +356,7 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
                 f'is already defined',
                 context=self.source_context)
 
-        if return_type.is_polymorphic() and not has_polymorphic:
+        if return_type.is_polymorphic(schema) and not has_polymorphic:
             raise ql_errors.EdgeQLError(
                 f'cannot create {get_signature()} function: '
                 f'function returns a polymorphic type but has no '
@@ -376,7 +375,7 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
                     f'"{func.shortname}{func.params.as_str()}"',
                     context=self.source_context)
 
-            if ((has_polymorphic or func.params.has_polymorphic()) and (
+            if ((has_polymorphic or func.params.has_polymorphic(schema)) and (
                     func.return_typemod != return_typemod)):
 
                 raise ql_errors.EdgeQLError(
@@ -424,7 +423,7 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
                     context=self.source_context)
 
             check_default_type = True
-            if p.type.is_polymorphic():
+            if p.type.is_polymorphic(schema):
                 if irutils.is_empty(default):
                     check_default_type = False
                 else:

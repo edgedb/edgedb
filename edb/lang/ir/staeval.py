@@ -88,7 +88,7 @@ def evaluate_BinOp(
     if isinstance(op, ast.ops.ComparisonOperator):
         folded = evaluate_comparison_binop(binop, schema=schema)
 
-    elif result_type.issubclass(real_t):
+    elif result_type.issubclass(schema, real_t):
         folded = evaluate_arithmetic_binop(binop, schema=schema)
 
     else:
@@ -108,13 +108,13 @@ def evaluate_UnaryOp(
 
     result_type = unop.expr.scls
 
-    if (result_type.issubclass(real_t) and
+    if (result_type.issubclass(schema, real_t) and
             unop.op in (ast.ops.UMINUS, ast.ops.UPLUS)):
 
         if unop.op == ast.ops.UMINUS:
             op_val = -evaluate_to_python_val(unop.expr, schema=schema)
 
-            if result_type.issubclass(int_t):
+            if result_type.issubclass(schema, int_t):
                 return irast.IntegerConstant(
                     value=str(op_val), type=result_type)
             else:
@@ -177,7 +177,8 @@ def evaluate_arithmetic_binop(
     left_type = irutils.infer_type(left, schema)
     right_type = irutils.infer_type(right, schema)
 
-    if not left_type.issubclass(real_t) or not right_type.issubclass(real_t):
+    if (not left_type.issubclass(schema, real_t) or
+            not right_type.issubclass(schema, real_t)):
         return
 
     result_type = s_scalars.get_op_type(
@@ -202,7 +203,7 @@ def evaluate_arithmetic_binop(
             f'unexpected operator: {op}',
             context=binop.context)
 
-    if result_type.issubclass(int_t):
+    if result_type.issubclass(schema, int_t):
         return irast.IntegerConstant(value=str(value), type=result_type)
     else:
         return irast.FloatConstant(value=str(value), type=result_type)

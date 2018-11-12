@@ -40,18 +40,18 @@ class Any(PseudoType):
     def is_any(self):
         return True
 
-    def is_polymorphic(self):
+    def is_polymorphic(self, schema):
         return True
 
-    def _resolve_polymorphic(self, concrete_type: s_types.Type):
+    def _resolve_polymorphic(self, schema, concrete_type: s_types.Type):
         if isinstance(concrete_type, s_scalars.ScalarType):
             return concrete_type.get_topmost_concrete_base()
         return concrete_type
 
-    def _to_nonpolymorphic(self, concrete_type: s_types.Type):
+    def _to_nonpolymorphic(self, schema, concrete_type: s_types.Type):
         return concrete_type
 
-    def _test_polymorphic(self, other: s_types.Type):
+    def _test_polymorphic(self, schema, other: s_types.Type):
         return other.is_any()
 
     def find_common_implicitly_castable_type(

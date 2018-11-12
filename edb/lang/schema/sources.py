@@ -100,7 +100,7 @@ class Source(indexes.IndexableSubject):
                                   skip_scalar):
             result = set()
             for ptr in source.get_pointers(schema).values():
-                if (ptr.issubclass(base_ptr_class) and
+                if (ptr.issubclass(schema, base_ptr_class) and
                         (not skip_scalar or not ptr.scalar())):
                     result.add(ptr)
                     break
@@ -245,12 +245,12 @@ class Source(indexes.IndexableSubject):
                     endpoints = [endpoint]
 
                 for endpoint in endpoints:
-                    if endpoint.issubclass(req_endpoints):
+                    if endpoint.issubclass(schema, req_endpoints):
                         targeted_ptrs.add(ptr)
                         targets.add(endpoint)
                     else:
                         for req_endpoint in req_endpoints:
-                            if req_endpoint.issubclass(endpoint):
+                            if req_endpoint.issubclass(schema, endpoint):
                                 if direction == '>':
                                     source = ptr.source
                                     target = req_endpoint

@@ -62,7 +62,7 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
     def is_object_type(self):
         return False
 
-    def is_polymorphic(self):
+    def is_polymorphic(self, schema):
         return False
 
     def is_any(self):
@@ -77,7 +77,7 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
     def is_tuple(self):
         return False
 
-    def test_polymorphic(self, poly: 'Type') -> bool:
+    def test_polymorphic(self, schema, poly: 'Type') -> bool:
         """Check if this type can be matched by a polymorphic type.
 
         Examples:
@@ -89,15 +89,15 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
             - `int32`.test_polymorphic(`anyint`) -> True
         """
 
-        if not poly.is_polymorphic():
+        if not poly.is_polymorphic(schema):
             raise TypeError('expected a polymorphic type as a second argument')
 
         if poly.is_any():
             return True
 
-        return self._test_polymorphic(poly)
+        return self._test_polymorphic(schema, poly)
 
-    def resolve_polymorphic(self, other: 'Type') -> 'Type':
+    def resolve_polymorphic(self, schema, other: 'Type') -> 'Type':
         """Resolve the polymorphic type component.
 
         Examples:
@@ -105,31 +105,31 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
             - `array<anytype>`.resolve_polymorphic(`array<int>`) -> `int`
             - `array<anytype>`.resolve_polymorphic(`tuple<int>`) -> None
         """
-        if not self.is_polymorphic() or other.is_polymorphic():
+        if not self.is_polymorphic(schema) or other.is_polymorphic(schema):
             return None
 
-        return self._resolve_polymorphic(other)
+        return self._resolve_polymorphic(schema, other)
 
-    def to_nonpolymorphic(self, concrete_type: 'Type') -> 'Type':
+    def to_nonpolymorphic(self, schema, concrete_type: 'Type') -> 'Type':
         """Produce an non-polymorphic version of self.
 
         Example:
             `array<anytype>`.to_nonpolymorphic(`int`) -> `array<int>`
             `tuple<int, anytype>`.to_nonpolymorphic(`str`) -> `tuple<int, str>`
         """
-        if not self.is_polymorphic():
+        if not self.is_polymorphic(schema):
             raise TypeError('non-polymorphic type')
 
-        return self._to_nonpolymorphic(concrete_type)
+        return self._to_nonpolymorphic(schema, concrete_type)
 
-    def _test_polymorphic(self, other: 'Type'):
+    def _test_polymorphic(self, schema, other: 'Type'):
         return False
 
-    def _resolve_polymorphic(self, concrete_type: 'Type'):
+    def _resolve_polymorphic(self, schema, concrete_type: 'Type'):
         raise NotImplementedError(
             f'{type(self)} does not support resolve_polymorphic()')
 
-    def _to_nonpolymorphic(self, concrete_type: 'Type'):
+    def _to_nonpolymorphic(self, schema, concrete_type: 'Type'):
         raise NotImplementedError(
             f'{type(self)} does not support to_nonpolymorphic()')
 
@@ -179,16 +179,16 @@ class Collection(Type):
         else:
             super().__init__(name=name, **kwargs)
 
-    def is_polymorphic(self):
-        return any(st.is_polymorphic() for st in self.get_subtypes())
+    def is_polymorphic(self, schema):
+        return any(st.is_polymorphic(schema) for st in self.get_subtypes())
 
     @property
     def is_virtual(self):
         # This property in necessary for compatibility with node classes.
         return False
 
-    def _issubclass(self, parent):
-        if not isinstance(parent, Collection) and parent.is_any():
+    def _issubclass(self, schema, parent):
+        if parent.is_any():
             return True
 
         if parent.__class__ is not self.__class__:
@@ -198,19 +198,19 @@ class Collection(Type):
         my_types = self.get_subtypes()
 
         for pt, my in zip(parent_types, my_types):
-            if not pt.is_any() and not pt.issubclass(my):
+            if not pt.is_any() and not pt.issubclass(schema, my):
                 return False
 
         return True
 
-    def issubclass(self, parent):
+    def issubclass(self, schema, parent):
         if isinstance(parent, tuple):
-            return any(self.issubclass(p) for p in parent)
+            return any(self.issubclass(schema, p) for p in parent)
         else:
-            if parent.is_any():
+            if parent.is_type() and parent.is_any():
                 return True
             else:
-                return self._issubclass(parent)
+                return self._issubclass(schema, parent)
 
     @classmethod
     def compare_values(cls, ours, theirs, context, compcoef):
@@ -359,22 +359,22 @@ class Array(Collection):
         if subtype is not None:
             return Array.from_subtypes([subtype])
 
-    def _resolve_polymorphic(self, concrete_type: 'Type'):
+    def _resolve_polymorphic(self, schema, concrete_type: 'Type'):
         if not concrete_type.is_array():
             return None
         return self.element_type.resolve_polymorphic(
-            concrete_type.element_type)
+            schema, concrete_type.element_type)
 
-    def _to_nonpolymorphic(self, concrete_type: 'Type'):
+    def _to_nonpolymorphic(self, schema, concrete_type: 'Type'):
         return Array.from_subtypes((concrete_type,))
 
-    def _test_polymorphic(self, other: 'Type'):
+    def _test_polymorphic(self, schema, other: 'Type'):
         if other.is_any():
             return True
         if not other.is_array():
             return False
 
-        return self.element_type.test_polymorphic(other.element_type)
+        return self.element_type.test_polymorphic(schema, other.element_type)
 
     @classmethod
     def from_subtypes(cls, subtypes, typemods=None, *, name=None):
@@ -569,7 +569,7 @@ class Tuple(Collection):
     def get_typemods(self):
         return {'named': self.named}
 
-    def _resolve_polymorphic(self, concrete_type: 'Type'):
+    def _resolve_polymorphic(self, schema, concrete_type: 'Type'):
         if not concrete_type.is_tuple():
             return None
 
@@ -580,16 +580,16 @@ class Tuple(Collection):
             return None
 
         for source, target in zip(self_subtypes, other_subtypes):
-            if source.is_polymorphic():
-                return source.resolve_polymorphic(target)
+            if source.is_polymorphic(schema):
+                return source.resolve_polymorphic(schema, target)
 
         return None
 
-    def _to_nonpolymorphic(self, concrete_type: 'Type'):
+    def _to_nonpolymorphic(self, schema, concrete_type: 'Type'):
         new_types = []
         for st in self.get_subtypes():
-            if st.is_polymorphic():
-                nst = st.to_nonpolymorphic(concrete_type)
+            if st.is_polymorphic(schema):
+                nst = st.to_nonpolymorphic(schema, concrete_type)
             else:
                 nst = st
             new_types.append(nst)
@@ -602,7 +602,7 @@ class Tuple(Collection):
 
         return Tuple.from_subtypes(new_types, typemods)
 
-    def _test_polymorphic(self, other: 'Type'):
+    def _test_polymorphic(self, schema, other: 'Type'):
         if other.is_any():
             return True
         if not other.is_tuple():
@@ -614,7 +614,7 @@ class Tuple(Collection):
         if len(self_subtypes) != len(other_subtypes):
             return False
 
-        return all(st.test_polymorphic(ot)
+        return all(st.test_polymorphic(schema, ot)
                    for st, ot in zip(self_subtypes, other_subtypes))
 
     def __hash__(self):

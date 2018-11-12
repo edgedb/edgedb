@@ -124,8 +124,9 @@ def compile_FunctionCall(
             variadic_param_type = matched_call.func.params.variadic.type
 
         is_polymorphic = (
-            any(p.type.is_polymorphic() for p in matched_call.func.params) and
-            matched_call.func.return_type.is_polymorphic()
+            any(p.type.is_polymorphic(ctx.schema)
+                for p in matched_call.func.params) and
+            matched_call.func.return_type.is_polymorphic(ctx.schema)
         )
 
         node = irast.FunctionCall(
@@ -167,23 +168,24 @@ def try_bind_func_args(
         if in_polymorphic_func:
             # Compiling a body of a polymorphic function.
 
-            if arg_type.is_polymorphic():
-                if param_type.is_polymorphic():
-                    return arg_type.test_polymorphic(param_type)
+            if arg_type.is_polymorphic(ctx.schema):
+                if param_type.is_polymorphic(ctx.schema):
+                    return arg_type.test_polymorphic(ctx.schema, param_type)
 
-                return arg_type.resolve_polymorphic(param_type) is not None
+                arg_poly = arg_type.resolve_polymorphic(ctx.schema, param_type)
+                return arg_poly is not None
 
         else:
-            if arg_type.is_polymorphic():
+            if arg_type.is_polymorphic(ctx.schema):
                 raise errors.EdgeQLError(
                     f'a polymorphic argument in a non-polymorphic function',
                     context=arg.context)
 
-        if param_type.is_polymorphic():
-            if not arg_type.test_polymorphic(param_type):
+        if param_type.is_polymorphic(ctx.schema):
+            if not arg_type.test_polymorphic(ctx.schema, param_type):
                 return False
 
-            resolved = param_type.resolve_polymorphic(arg_type)
+            resolved = param_type.resolve_polymorphic(ctx.schema, arg_type)
             if resolved is None:
                 return False
 
@@ -192,7 +194,7 @@ def try_bind_func_args(
 
             return resolved_poly_base_type == resolved
 
-        if arg_type.issubclass(param_type):
+        if arg_type.issubclass(ctx.schema, param_type):
             return True
 
         if arg_type.implicitly_castable_to(param_type, ctx.schema):
@@ -203,7 +205,7 @@ def try_bind_func_args(
 
     in_polymorphic_func = (
         ctx.func is not None and
-        ctx.func.params.has_polymorphic()
+        ctx.func.params.has_polymorphic(ctx.schema)
     )
 
     has_empty_variadic = False
@@ -412,10 +414,11 @@ def try_bind_func_args(
                 typehint=bytes_t, ctx=ctx)))
 
     return_type = func.return_type
-    if return_type.is_polymorphic():
+    if return_type.is_polymorphic(ctx.schema):
         if resolved_poly_base_type is None:
             return _NO_MATCH
-        return_type = return_type.to_nonpolymorphic(resolved_poly_base_type)
+        return_type = return_type.to_nonpolymorphic(
+            ctx.schema, resolved_poly_base_type)
 
     return BoundCall(
         func, bound_param_args, null_args, return_type,

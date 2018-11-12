@@ -737,12 +737,12 @@ def translate(schema, graphql, *, variables=None, operation_name=None):
 
     # HACK
     query = re.sub(r'@edgedb\(.*?\)', '', graphql)
-    schema2 = gt.GQLCoreSchema(schema)
+    gqlcore = gt.GQLCoreSchema(schema)
 
     parser = gqlparser.GraphQLParser()
     gqltree = parser.parse(graphql)
     context = GraphQLTranslatorContext(
-        schema=schema, gqlcore=schema2, query=query,
+        schema=schema, gqlcore=gqlcore, query=query,
         variables=gql_vars, operation_name=operation_name)
     edge_forest_map = GraphQLTranslator(context=context).visit(gqltree)
     code = []

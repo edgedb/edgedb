@@ -411,7 +411,7 @@ class InheritingObject(derivable.DerivableObject):
     def get_mro(self):
         return compute_mro(self)
 
-    def _issubclass(self, parent):
+    def _issubclass(self, schema, parent):
         my_vchildren = getattr(self, '_virtual_children', None)
 
         if my_vchildren is None:
@@ -426,30 +426,16 @@ class InheritingObject(derivable.DerivableObject):
                 else:
                     return False
         else:
-            return all(c._issubclass(parent) for c in my_vchildren)
+            return all(c._issubclass(schema, parent) for c in my_vchildren)
 
-    def issubclass(self, parent):
+    def issubclass(self, schema, parent):
         if isinstance(parent, tuple):
-            return any(self.issubclass(p) for p in parent)
+            return any(self.issubclass(schema, p) for p in parent)
         else:
             if parent.is_type() and parent.is_any():
                 return True
             else:
-                return self._issubclass(parent)
-
-    def get_nearest_common_descendant(self, descendants):
-        descendants = list(descendants)
-        candidate = descendants.pop()
-
-        for descendant in descendants:
-            if candidate.issubclass(descendant):
-                continue
-            elif descendant.issubclass(candidate):
-                candidate = descendant
-            else:
-                return None
-
-        return candidate
+                return self._issubclass(schema, parent)
 
     def descendants(self, schema):
         return schema._get_descendants(self)

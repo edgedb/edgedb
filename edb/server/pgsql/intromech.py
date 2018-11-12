@@ -297,7 +297,8 @@ class IntrospectionMech:
 
         sequence = schema.get('std::sequence', None)
         for scalar in schema.get_objects(type='ScalarType'):
-            if (sequence is not None and scalar.issubclass(sequence) and
+            if (sequence is not None and
+                    scalar.issubclass(schema, sequence) and
                     not scalar.is_abstract):
                 seq_name = common.scalar_name_to_sequence_name(
                     scalar.name, catenate=False)

@@ -831,7 +831,7 @@ class DeclarationLoader:
 
         if (not isinstance(expr_type, s_types.Type) or
                 (ptr.target is not None and
-                 not expr_type.issubclass(ptr.target))):
+                 not expr_type.issubclass(self._schema, ptr.target))):
             raise s_err.SchemaError(
                 'default value query must yield a single result of '
                 'type {!r}'.format(ptr.target.name), context=expr.context)

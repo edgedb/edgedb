@@ -109,7 +109,7 @@ def pg_type_from_scalar(
         scalar: s_scalars.ScalarType,
         topbase: bool=False) -> typing.Tuple[str, ...]:
 
-    if scalar.is_polymorphic():
+    if scalar.is_polymorphic(schema):
         return ('anynonarray',)
 
     if topbase:
@@ -147,7 +147,7 @@ def pg_type_from_object(
         return ('record',)
 
     elif isinstance(obj, s_types.Array):
-        if obj.is_polymorphic():
+        if obj.is_polymorphic(schema):
             return ('anyarray',)
         else:
             st = schema.get(obj.element_type.name)

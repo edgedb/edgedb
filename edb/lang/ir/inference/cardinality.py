@@ -271,7 +271,7 @@ def _analyse_filter_clause(
         for ptr in filtered_ptrs:
             is_unique = (
                 ptr.is_id_pointer() or
-                any(c.issubclass(exclusive_constr)
+                any(c.issubclass(schema, exclusive_constr)
                     for c in ptr.get_constraints(schema).values())
             )
             if is_unique:

@@ -160,9 +160,9 @@ def __infer_setop(ir, schema):
             right_type, schema)
 
     else:
-        if left_type.issubclass(right_type):
+        if left_type.issubclass(schema, right_type):
             result = right_type
-        elif right_type.issubclass(left_type):
+        elif right_type.issubclass(schema, left_type):
             result = left_type
         else:
             result = s_inh.create_virtual_parent(
@@ -220,8 +220,8 @@ def __infer_binop(ir, schema):
             result = s_scalars.get_op_type(
                 ir.op, left_type, right_type, schema=schema)
 
-        elif (left_type.is_polymorphic() and
-                right_type.is_polymorphic() and
+        elif (left_type.is_polymorphic(schema) and
+                right_type.is_polymorphic(schema) and
                 left_type == right_type):
             return left_type
 
@@ -319,11 +319,11 @@ def __infer_slice(ir, schema):
     json_t = schema.get('std::json')
     bytes_t = schema.get('std::bytes')
 
-    if node_type.issubclass(str_t):
+    if node_type.issubclass(schema, str_t):
         base_name = 'string'
-    elif node_type.issubclass(json_t):
+    elif node_type.issubclass(schema, json_t):
         base_name = 'json array'
-    elif node_type.issubclass(bytes_t):
+    elif node_type.issubclass(schema, bytes_t):
         base_name = 'bytes'
     elif isinstance(node_type, s_types.Array):
         base_name = 'array'
@@ -360,7 +360,7 @@ def __infer_index(ir, schema):
 
     result = None
 
-    if node_type.issubclass(str_t):
+    if node_type.issubclass(schema, str_t):
 
         if not index_type.implicitly_castable_to(int_t, schema):
             raise ql_errors.EdgeQLError(
@@ -370,7 +370,7 @@ def __infer_index(ir, schema):
 
         result = str_t
 
-    elif node_type.issubclass(bytes_t):
+    elif node_type.issubclass(schema, bytes_t):
 
         if not index_type.implicitly_castable_to(int_t, schema):
             raise ql_errors.EdgeQLError(
@@ -380,7 +380,7 @@ def __infer_index(ir, schema):
 
         result = bytes_t
 
-    elif node_type.issubclass(json_t):
+    elif node_type.issubclass(schema, json_t):
 
         if not (index_type.implicitly_castable_to(int_t, schema) or
                 index_type.implicitly_castable_to(str_t, schema)):

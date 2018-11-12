@@ -732,7 +732,7 @@ class ScalarTypeMetaCommand(ViewCapableObjectMetaCommand):
 
     def is_sequence(self, schema, scalar):
         seq = schema.get('std::sequence', default=None)
-        return seq is not None and scalar.issubclass(seq)
+        return seq is not None and scalar.issubclass(schema, seq)
 
     def fill_record(self, schema, *, use_defaults=False):
         rec, updates = super().fill_record(schema, use_defaults=use_defaults)
@@ -1766,7 +1766,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             else:
                 default_value = common.quote_literal(
                     str(default))
-        elif ptr.target.issubclass(schema.get('std::sequence')):
+        elif ptr.target.issubclass(schema, schema.get('std::sequence')):
             # TODO: replace this with a generic scalar type default
             #       using std::nextval().
             seq_name = common.quote_literal(

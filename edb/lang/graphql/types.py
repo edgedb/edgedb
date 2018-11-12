@@ -539,7 +539,8 @@ class GQLBaseType(metaclass=GQLTypeMeta):
 
     def issubclass(self, other):
         if isinstance(other, GQLShadowType):
-            return self.edb_base.issubclass(other.edb_base)
+            return self.edb_base.issubclass(self._schema.edb_schema,
+                                            other.edb_base)
 
         return False
 

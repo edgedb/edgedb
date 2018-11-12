@@ -50,7 +50,7 @@ class ObjectType(SourceNode, constraints.ConsistencySubject):
             for link in schema.get_objects(type='link'):
                 if (link.shortname.name == name and
                         link.target is not None and
-                        source.issubclass(link.target)):
+                        source.issubclass(schema, link.target)):
                     ptrs.add(link)
 
             return ptrs
@@ -62,7 +62,7 @@ class ObjectType(SourceNode, constraints.ConsistencySubject):
             for link in schema.get_objects(type='link'):
                 if (link.shortname == name and
                         link.target is not None and
-                        source.issubclass(link.target)):
+                        source.issubclass(schema, link.target)):
                     ptrs.add(link)
 
             return ptrs
@@ -79,10 +79,10 @@ class ObjectType(SourceNode, constraints.ConsistencySubject):
                                   base_ptr_class, skip_scalar):
             result = set()
             for link in schema.get_objects(type='link'):
-                if link.issubclass(base_ptr_class) \
+                if link.issubclass(schema, base_ptr_class) \
                         and link.target is not None \
                         and (not skip_scalar or not link.scalar()) \
-                        and source.issubclass(link.target):
+                        and source.issubclass(schema, link.target):
                     result.add(link)
             return result
 
@@ -96,7 +96,7 @@ class ObjectType(SourceNode, constraints.ConsistencySubject):
                                       include_inherited=include_inherited)
 
     def implicitly_castable_to(self, other: s_types.Type, schema) -> bool:
-        return self.issubclass(other)
+        return self.issubclass(schema, other)
 
     @classmethod
     def get_root_classes(cls):

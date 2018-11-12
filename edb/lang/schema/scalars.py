@@ -84,27 +84,27 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
     def is_scalar(self):
         return True
 
-    def is_polymorphic(self):
+    def is_polymorphic(self, schema):
         return bool(self.is_abstract and self.name.module == 'std')
 
-    def _resolve_polymorphic(self, concrete_type: s_types.Type):
-        if (self.is_polymorphic() and
+    def _resolve_polymorphic(self, schema, concrete_type: s_types.Type):
+        if (self.is_polymorphic(schema) and
                 concrete_type.is_scalar() and
-                not concrete_type.is_polymorphic()):
+                not concrete_type.is_polymorphic(schema)):
             return concrete_type
 
-    def _to_nonpolymorphic(self, concrete_type: s_types.Type):
-        if (not concrete_type.is_polymorphic() and
-                concrete_type.issubclass(self)):
+    def _to_nonpolymorphic(self, schema, concrete_type: s_types.Type):
+        if (not concrete_type.is_polymorphic(schema) and
+                concrete_type.issubclass(schema, self)):
             return concrete_type
         raise TypeError(
             f'cannot interpret {concrete_type.name} as {self.name}')
 
-    def _test_polymorphic(self, other: s_types.Type):
+    def _test_polymorphic(self, schema, other: s_types.Type):
         if other.is_any():
             return True
         else:
-            return self.issubclass(other)
+            return self.issubclass(schema, other)
 
     def assignment_castable_to(self, target: s_types.Type, schema) -> bool:
         if self.implicitly_castable_to(target, schema):
@@ -129,7 +129,7 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
         if not isinstance(other, ScalarType):
             return
 
-        if self.is_polymorphic() and other.is_polymorphic():
+        if self.is_polymorphic(schema) and other.is_polymorphic(schema):
             return self
 
         left = str(self.get_topmost_concrete_base().name)
@@ -347,7 +347,7 @@ def _get_op_type(op: ast.ops.Operator,
         for def_opr_name, passed_opr in zip(candidate, operands):
             def_opr = schema.get(def_opr_name)
 
-            if passed_opr.issubclass(def_opr):
+            if passed_opr.issubclass(schema, def_opr):
                 pass
             elif passed_opr.implicitly_castable_to(def_opr, schema):
                 cast_count += 1

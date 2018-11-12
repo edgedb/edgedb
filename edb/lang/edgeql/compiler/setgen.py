@@ -401,7 +401,7 @@ def extend_path(
     else:
         if direction != s_pointers.PointerDirection.Inbound:
             source = ptrcls.get_near_endpoint(direction)
-            if not source_set.scls.issubclass(source):
+            if not source_set.scls.issubclass(ctx.schema, source):
                 # Polymorphic link reference
                 source_set = class_indirection_set(
                     source_set, source, optional=True, ctx=ctx)

@@ -192,11 +192,11 @@ class Pointer(constraints.ConsistencySubject):
             new_targets = []
 
             for tgt2 in tt2:
-                if all(tgt2.issubclass(tgt1) for tgt1 in tt1):
+                if all(tgt2.issubclass(schema, tgt1) for tgt1 in tt1):
                     # This target is a subclass of the current target, so
                     # it is a more specific requirement.
                     new_targets.append(tgt2)
-                elif all(tgt1.issubclass(tgt2) for tgt1 in tt1):
+                elif all(tgt1.issubclass(schema, tgt2) for tgt1 in tt1):
                     # Current target is a subclass of this target, no need to
                     # do anything here.
                     pass
@@ -213,7 +213,7 @@ class Pointer(constraints.ConsistencySubject):
                                 f' merged: {t1.name!r}.')
 
             for tgt1 in tt1:
-                if not any(tgt2.issubclass(tgt1) for tgt2 in tt2):
+                if not any(tgt2.issubclass(schema, tgt1) for tgt2 in tt2):
                     new_targets.append(tgt1)
 
             if len(new_targets) > 1:

@@ -163,7 +163,7 @@ class Constraint(inheriting.InheritingObject):
         if enforce_boolean:
             bool_t = schema.get('std::bool')
             expr_type = irutils.infer_type(ir_result, schema)
-            if not expr_type.issubclass(bool_t):
+            if not expr_type.issubclass(schema, bool_t):
                 raise s_errors.SchemaDefinitionError(
                     f'{constraint.displayname} constraint expression expected '
                     f'to return a bool value, got {expr_type.name.name!r}',

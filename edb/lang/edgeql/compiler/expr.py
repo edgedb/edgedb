@@ -478,7 +478,7 @@ def _cast_expr(
     json_t = ctx.schema.get('std::json')
 
     if isinstance(orig_type, s_types.Tuple):
-        if new_type.issubclass(json_t):
+        if new_type.issubclass(ctx.schema, json_t):
             # Casting to std::json involves casting each tuple
             # element and also keeping the cast around the whole tuple.
             # This is to trigger the downstream logic of casting
@@ -557,7 +557,7 @@ def _cast_expr(
 
     elif (isinstance(ir_expr, irast.Set) and
             isinstance(ir_expr.expr, irast.Array)):
-        if new_type.issubclass(json_t):
+        if new_type.issubclass(ctx.schema, json_t):
             el_type = ql_type
         elif not isinstance(new_type, s_types.Array):
             raise errors.EdgeQLError(
@@ -577,7 +577,8 @@ def _cast_expr(
             irast.TypeCast(expr=ir_expr, type=new_typeref), ctx=ctx)
 
     else:
-        if new_type.issubclass(json_t) and ir_expr.path_id.is_objtype_path():
+        if (new_type.issubclass(ctx.schema, json_t) and
+                ir_expr.path_id.is_objtype_path()):
             # JSON casts of objects are special: we want the full shape
             # and not just an identity.
             viewgen.compile_view_shapes(ir_expr, ctx=ctx)

@@ -239,7 +239,7 @@ def compile_IndexIndirection(
     # no backend function that handles indexes larger than int.
     index_t = _infer_type(expr.index, ctx=ctx)
     int_t = ctx.env.schema.get('std::anyint')
-    if index_t.issubclass(int_t):
+    if index_t.issubclass(ctx.env.schema, int_t):
         index = pgast.TypeCast(
             arg=index,
             type_name=pgast.TypeName(
@@ -399,8 +399,8 @@ def compile_BinOp(
                 result = bitcond
 
         elif (expr.op == ast.ops.DIV and
-                right_type.issubclass(anyint_t) and
-                not left_type.issubclass(decimal_t)):
+                right_type.issubclass(ctx.env.schema, anyint_t) and
+                not left_type.issubclass(ctx.env.schema, decimal_t)):
             right = pgast.TypeCast(
                 arg=right,
                 type_name=pgast.TypeName(
@@ -415,8 +415,8 @@ def compile_BinOp(
 
             # PostgreSQL does floor division on ints, so only
             # call "floor()" if either of the operands is not an int.
-            if not (left_type.issubclass(anyint_t) and
-                    right_type.issubclass(anyint_t)):
+            if not (left_type.issubclass(ctx.env.schema, anyint_t) and
+                    right_type.issubclass(ctx.env.schema, anyint_t)):
                 result = pgast.FuncCall(
                     name=('floor',),
                     args=[result],
