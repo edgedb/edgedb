@@ -64,6 +64,7 @@ _DECL_MAP = {
     s_ast.ObjectTypeDeclaration: s_objtypes.ObjectType,
     s_ast.ConstraintDeclaration: s_constr.Constraint,
     s_ast.LinkDeclaration: s_links.Link,
+    s_ast.AttributeDeclaration: s_attrs.Attribute,
 }
 
 
@@ -140,6 +141,8 @@ class DeclarationLoader:
 
         # Now, with all objects in the declaration in the schema, we can
         # process them in the semantic dependency order.
+
+        self._init_attributes(objects['attribute'])
 
         # Constraints have no external dependencies, but need to
         # be fully initialized when we get to constraint users below.
@@ -354,6 +357,10 @@ class DeclarationLoader:
 
             constraint.params = params
 
+    def _init_attributes(self, attrs):
+        for attr, attrdecl in attrs.items():
+            attr.type = self._get_ref_type(attrdecl.type)
+
     def _init_scalars(self, scalars):
         for scalar, scalardecl in scalars.items():
             if scalardecl.attributes:
@@ -504,7 +511,7 @@ class DeclarationLoader:
             # Compiling the attribute value declaration validates it.
             qlcompiler.compile_ast_fragment_to_ir(
                 attrval, schema=self._schema,
-                module_aliases=self._mod_aliases)
+                modaliases=self._mod_aliases)
 
             attrvalue = s_attrs.AttributeValue(
                 name=dername, subject=subject,
@@ -611,6 +618,9 @@ class DeclarationLoader:
     def _init_objtypes(self, objtypes):
         for objtype, objtypedecl in objtypes.items():
             self._parse_source_props(objtype, objtypedecl)
+
+            if objtypedecl.attributes:
+                self._parse_attribute_values(objtype, objtypedecl)
 
             for linkdecl in objtypedecl.links:
                 link_name = self._get_ref_name(linkdecl.name)

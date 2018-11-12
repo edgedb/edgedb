@@ -16,13 +16,12 @@
 # limitations under the License.
 #
 
-"""Low level instrospection of the schema."""
+"""Low level introspection of the schema."""
 
 
 import collections
 import importlib
 import json
-import pickle
 
 from edb.lang.common import topological
 
@@ -821,7 +820,7 @@ class IntrospectionMech:
             name = sn.Name(r['name'])
             subject = schema.get(r['subject_name'])
             attribute = schema.get(r['attribute_name'])
-            value = pickle.loads(r['value'])
+            value = r['value']
 
             attribute = s_attrs.AttributeValue(
                 name=name, subject=subject, attribute=attribute, value=value)

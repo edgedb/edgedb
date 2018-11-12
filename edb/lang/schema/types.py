@@ -426,7 +426,7 @@ class Tuple(Collection):
     schema_name = 'tuple'
 
     named = so.Field(bool, False)
-    element_types = so.Field(so.ObjectDict, coerce=True)
+    element_types = so.Field(so.ObjectMapping, coerce=True)
 
     def is_tuple(self):
         return True

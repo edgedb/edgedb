@@ -107,7 +107,7 @@ class ScalarTypeDeclaration(Declaration):
 
 
 class AttributeDeclaration(Declaration):
-    type: qlast.TypeExpr
+    type: qlast.TypeName
 
 
 class ObjectTypeDeclaration(Declaration):

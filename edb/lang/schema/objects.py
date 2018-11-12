@@ -450,10 +450,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
         return result, frozenset(comparison_v)
 
     def _reduce_refs(self, value):
-        if isinstance(value, ObjectDict):
-            ref, val = self._reduce_obj_dict(value)
-
-        elif isinstance(value, (ObjectList, TypeList)):
+        if isinstance(value, (ObjectList, TypeList)):
             ref, val = self._reduce_obj_list(value)
 
         elif isinstance(value, ObjectSet):
@@ -461,6 +458,9 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
 
         elif isinstance(value, Object):
             ref, val = value._reduce_to_ref()
+
+        elif isinstance(value, ObjectCollection):
+            raise TypeError(f'reduce_refs: cannot handle {type(value)} type')
 
         else:
             ref, val = value, value
@@ -793,8 +793,25 @@ class ObjectCollection:
     pass
 
 
-class ObjectDict(typed.OrderedTypedDict, ObjectCollection,
-                 keytype=str, valuetype=Object):
+class ObjectMapping(collections.abc.Mapping, ObjectCollection):
+
+    def __init__(self, data: dict=None):
+        self._keys = ()
+        self._map = {}
+
+        if data:
+            for k, v in data.items():
+                if not isinstance(k, str):
+                    raise TypeError(
+                        f'invalid input data for ObjectMapping: '
+                        f'expected str keys, got {type(k)}')
+                if not isinstance(v, Object):
+                    raise TypeError(
+                        f'invalid input data for ObjectMapping: '
+                        f'expected Object values, got {type(k)}')
+
+                self._keys += (k,)
+                self._map[k] = v
 
     def persistent_hash(self):
         vals = []
@@ -825,28 +842,28 @@ class ObjectDict(typed.OrderedTypedDict, ObjectCollection,
 
         return basecoef + (1 - basecoef) * compcoef
 
+    def replace(self, schema, keys: dict):
+        new_map: dict = self._map.copy()
 
-class ObjectDictView(collections.abc.Mapping):
+        for key, obj in keys.items():
+            if obj is None:
+                if key not in new_map:
+                    raise KeyError(f'{key!r} is not in the mapping')
+                new_map.pop(key)
+            else:
+                new_map[key] = obj
 
-    def __init__(self, schema, dct):
-        self._dct = dct
+        om = type(self)(new_map)
+        return schema, om
 
-    def __getitem__(self, name):
-        if self._dct is None:
-            raise KeyError(name)
-        return self._dct[name]
+    def __getitem__(self, key):
+        return self._map[key]
 
     def __iter__(self):
-        if self._dct is None:
-            yield from ()
-        else:
-            yield from self._dct
+        return iter(self._keys)
 
     def __len__(self):
-        if self._dct is None:
-            return 0
-        else:
-            return len(self._dct)
+        return len(self._keys)
 
 
 class ObjectSet(typed.TypedSet, ObjectCollection, type=Object):

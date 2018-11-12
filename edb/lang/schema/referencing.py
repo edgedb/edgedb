@@ -240,7 +240,9 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
                     child_local_coll = getattr(child, refdict.local_attr)
                     child_coll = getattr(child, refdict.attr)
                     if refname not in child_local_coll:
-                        child_coll[refname] = self.scls
+                        schema, child_coll = child_coll.replace(
+                            schema, {refname: self.scls})
+                        setattr(child, refdict.attr, child_coll)
 
         return schema
 
@@ -253,6 +255,9 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
             old_name = scls.get_shortname(self.old_name)
             new_name = scls.get_shortname(self.new_name)
 
+            if old_name == new_name:
+                return schema
+
             refdict = referrer.__class__.get_refdict_for_class(
                 scls.__class__)
 
@@ -260,21 +265,26 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
             local_attr = refdict.local_attr
 
             coll = getattr(referrer, attr)
-            local_coll = getattr(referrer, local_attr)
+            if old_name in coll:
+                ref = coll[old_name]
+                schema, coll = coll.replace(
+                    schema, {old_name: None, new_name: ref})
+                setattr(referrer, attr, coll)
 
-            local = local_coll.pop(old_name, None)
-            if local is not None:
-                local_coll[new_name] = local
+            local_coll = getattr(referrer, local_attr)
+            if old_name in local_coll:
+                local = local_coll[old_name]
+                schema, local_coll = local_coll.replace(
+                    schema, {old_name: None, new_name: local})
+                setattr(referrer, local_attr, local_coll)
 
             for child in referrer.children(schema):
                 child_coll = getattr(child, attr)
-                ref = child_coll.pop(old_name, None)
-                if ref is not None:
-                    child_coll[new_name] = ref
-
-            ref = coll.pop(old_name, None)
-            if ref is not None:
-                coll[new_name] = ref
+                if old_name in child_coll:
+                    ref = child_coll[old_name]
+                    schema, child_coll = child_coll.replace(
+                        schema, {old_name: None, new_name: ref})
+                    setattr(child, attr, child_coll)
 
         return schema
 
@@ -416,10 +426,13 @@ class ReferencingObject(inheriting.InheritingObject,
                     continue
 
                 if this_coll is None:
-                    setattr(self, refdict.attr, other_coll.copy())
+                    setattr(self, refdict.attr, other_coll)
                 else:
-                    this_coll.update({k: v for k, v in other_coll.items()
-                                     if k not in this_coll})
+                    updates = {k: v for k, v in other_coll.items()
+                               if k not in this_coll}
+
+                    schema, this_coll = this_coll.replace(schema, updates)
+                    setattr(self, refdict.attr, this_coll)
 
         return schema
 
@@ -515,14 +528,16 @@ class ReferencingObject(inheriting.InheritingObject,
                     context=obj.sourcectx)
 
         if local_coll is not None:
-            local_coll[key] = obj
+            schema, local_coll = local_coll.replace(schema, {key: obj})
+            setattr(self, local_attr, local_coll)
         else:
-            setattr(self, local_attr, {key: obj})
+            setattr(self, local_attr, so.ObjectMapping({key: obj}))
 
         if all_coll is not None:
-            all_coll[key] = obj
+            schema, all_coll = all_coll.replace(schema, {key: obj})
+            setattr(self, attr, all_coll)
         else:
-            setattr(self, attr, {key: obj})
+            setattr(self, attr, so.ObjectMapping({key: obj}))
 
         return schema
 
@@ -539,15 +554,21 @@ class ReferencingObject(inheriting.InheritingObject,
         is_inherited = any(key in getattr(b, attr) for b in self.bases)
 
         if not is_inherited:
-            all_coll.pop(key)
+            schema, all_coll = all_coll.replace(schema, {key: None})
+            setattr(self, attr, all_coll)
 
             for descendant in self.descendants(schema):
                 descendant_local_coll = getattr(descendant, local_attr)
                 if key not in descendant_local_coll:
                     descendant_coll = getattr(descendant, attr)
-                    descendant_coll.pop(key, None)
+                    schema, descendant_coll = descendant_coll.replace(
+                        schema, {key: None})
+                    setattr(descendant, attr, descendant_coll)
 
-        local_coll.pop(key, None)
+        if local_coll and key in local_coll:
+            schema, local_coll = local_coll.replace(schema, {key: None})
+            setattr(self, local_attr, local_coll)
+
         return schema
 
     def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
@@ -617,13 +638,11 @@ class ReferencingObject(inheriting.InheritingObject,
         """
         classrefs = getattr(self, attr)
         if classrefs is None:
-            classrefs = so.ObjectDict()
-            setattr(self, attr, classrefs)
+            classrefs = so.ObjectMapping()
 
         local_classrefs = getattr(self, local_attr)
         if local_classrefs is None:
-            local_classrefs = so.ObjectDict()
-            setattr(self, local_attr, local_classrefs)
+            local_classrefs = so.ObjectMapping()
 
         if classref_keys is None:
             classref_keys = classrefs
@@ -704,9 +723,14 @@ class ReferencingObject(inheriting.InheritingObject,
                         if delta.has_subcommands():
                             dctx.current().op.add(delta)
 
-                    local_classrefs[classref_key] = merged
+                    schema, local_classrefs = local_classrefs.replace(
+                        schema, {classref_key: merged})
 
-                classrefs[classref_key] = merged
+                schema, classrefs = classrefs.replace(
+                    schema, {classref_key: merged})
+
+        setattr(self, attr, classrefs)
+        setattr(self, local_attr, local_classrefs)
 
         return schema
 
@@ -735,13 +759,19 @@ class ReferencingObject(inheriting.InheritingObject,
             local_coll = getattr(self, local_attr)
 
             for pn, p in local_coll.items():
-                schema, local_coll[pn] = p.derive_copy(
+                schema, obj = p.derive_copy(
                     schema, self,
                     add_to_schema=add_to_schema,
                     mark_derived=mark_derived,
                     dctx=dctx)
 
-            all_coll.update(local_coll)
+                schema, local_coll = local_coll.replace(
+                    schema, {pn: obj})
+
+            schema, all_coll = all_coll.replace(schema, local_coll)
+
+            setattr(self, attr, all_coll)
+            setattr(self, local_attr, local_coll)
 
         return schema
 

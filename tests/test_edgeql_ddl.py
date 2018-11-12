@@ -1224,3 +1224,77 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     CREATE PROPERTY test::prop := (SELECT std::Object LIMIT 1);
                 };
             ''')
+
+    @unittest.expectedFailure
+    async def test_edgeql_ddl_attribute_01(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                CREATE ABSTRACT ATTRIBUTE test::attr1 std::str;
+
+                CREATE SCALAR TYPE test::TestAttrType1 EXTENDING std::str {
+                    SET test::attr1 := 'aaaa';
+                };
+            """)
+
+            await self.con.execute("""
+                CREATE MIGRATION test::mig1 TO eschema $$
+                abstract attribute attr2 std::str
+
+                scalar type TestAttrType1 extending std::str:
+                    attr2 := 'aaaa'
+                $$;
+
+                COMMIT MIGRATION test::mig1;
+            """)
+
+            await self.assert_query_result('''
+                WITH MODULE schema
+                SELECT ScalarType {
+                    attributes: {
+                        name,
+                        @value,
+                    } FILTER .name = 'test::attr2'
+                }
+                FILTER
+                    .name = 'test::TestAttrType1';
+
+            ''', [
+                [{"attributes": [{"name": "test::attr2", "@value": "aaaa"}]}]
+            ])
+
+    @unittest.expectedFailure
+    async def test_edgeql_ddl_attribute_02(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                CREATE ABSTRACT ATTRIBUTE test::attr1 std::str;
+
+                CREATE TYPE test::TestAttrType2 {
+                    SET test::attr1 := 'aaaa';
+                };
+            """)
+
+            await self.con.execute("""
+                CREATE MIGRATION test::mig1 TO eschema $$
+                abstract attribute attr2 std::str
+
+                type TestAttrType2:
+                    attr2 := 'aaaa'
+                $$;
+
+                COMMIT MIGRATION test::mig1;
+            """)
+
+            await self.assert_query_result('''
+                WITH MODULE schema
+                SELECT ObjectType {
+                    attributes: {
+                        name,
+                        @value,
+                    } FILTER .name = 'test::attr2'
+                }
+                FILTER
+                    .name = 'test::TestAttrType2';
+
+            ''', [
+                [{"attributes": [{"name": "test::attr2", "@value": "aaaa"}]}]
+            ])

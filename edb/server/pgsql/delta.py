@@ -165,7 +165,7 @@ class NamedObjectMetaCommand(
             recvalue = dbops.Query(
                 f'edgedb._resolve_type_id(ARRAY[{name_array}]::text[])')
 
-        elif isinstance(value, s_obj.ObjectDict):
+        elif isinstance(value, s_obj.ObjectMapping):
             result = s_types.Tuple.from_subtypes(value, {'named': True})
             recvalue = types.TypeDesc.from_type(result)
 
@@ -568,12 +568,6 @@ class CreateAttribute(
     op_priority = 1
 
 
-class RenameAttribute(
-        AttributeCommand, RenameNamedObject,
-        adapts=s_attrs.RenameAttribute):
-    pass
-
-
 class AlterAttribute(
         AttributeCommand, AlterNamedObject, adapts=s_attrs.AlterAttribute):
     pass
@@ -604,12 +598,6 @@ class AttributeValueCommand(sd.ObjectCommand,
 class CreateAttributeValue(
         AttributeValueCommand, CreateOrAlterNamedObject,
         adapts=s_attrs.CreateAttributeValue):
-    pass
-
-
-class RenameAttributeValue(
-        AttributeValueCommand, RenameNamedObject,
-        adapts=s_attrs.RenameAttributeValue):
     pass
 
 

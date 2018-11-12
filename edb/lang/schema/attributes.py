@@ -1,4 +1,5 @@
 #
+
 # This source file is part of the EdgeDB open source project.
 #
 # Copyright 2008-present MagicStack Inc. and the EdgeDB authors.
@@ -41,7 +42,7 @@ class AttributeValue(inheriting.InheritingObject):
     subject = so.Field(named.NamedObject, compcoef=1.0, default=None,
                        inheritable=False)
     attribute = so.Field(Attribute, compcoef=0.429)
-    value = so.Field(object, compcoef=0.909)
+    value = so.Field(str, compcoef=0.909)
 
     def __str__(self):
         return '<{}: {}={!r} at 0x{:x}>'.format(
@@ -58,18 +59,24 @@ class AttributeSubject(referencing.ReferencingObject):
         local_attr='own_attributes',
         ref_cls=AttributeValue)
 
-    attributes = so.Field(so.ObjectDict,
+    attributes = so.Field(so.ObjectMapping,
                           inheritable=False, ephemeral=True, coerce=True,
-                          default=so.ObjectDict, hashable=False)
-    own_attributes = so.Field(so.ObjectDict, compcoef=0.909,
+                          default=so.ObjectMapping, hashable=False)
+    own_attributes = so.Field(so.ObjectMapping, compcoef=0.909,
                               inheritable=False, ephemeral=True, coerce=True,
-                              default=so.ObjectDict)
+                              default=so.ObjectMapping)
 
     def get_attributes(self, schema):
-        return so.ObjectDictView(schema, self.attributes)
+        if self.attributes is None:
+            return so.ObjectMapping()
+        else:
+            return self.attributes
 
     def get_own_attributes(self, schema):
-        return so.ObjectDictView(schema, self.own_attributes)
+        if self.own_attributes is None:
+            return so.ObjectMapping()
+        else:
+            return self.own_attributes
 
     def add_attribute(self, schema, attribute, replace=False):
         schema = self.add_classref(
@@ -77,21 +84,7 @@ class AttributeSubject(referencing.ReferencingObject):
         return schema
 
     def del_attribute(self, schema, attribute_name):
-        return self.del_classref(schema, 'attributes_refs', attribute_name)
-
-    def rename_attribute(self, schema, attribute_name, new_attribute_name):
-        norm = AttributeValue.get_shortname
-
-        if self.own_attributes:
-            own = self.own_attributes.pop(norm(attribute_name), None)
-            if own:
-                self.own_attributes[norm(new_attribute_name)] = own
-
-        inherited = self.attributes.pop(norm(attribute_name), None)
-        if inherited is not None:
-            self.attributes[norm(new_attribute_name)] = inherited
-
-        return schema, self
+        return self.del_classref(schema, 'attributes', attribute_name)
 
 
 class AttributeCommandContext(sd.ObjectCommandContext):
@@ -140,10 +133,6 @@ class CreateAttribute(AttributeCommand, named.CreateNamedObject):
 
         else:
             super()._apply_field_ast(context, node, op)
-
-
-class RenameAttribute(AttributeCommand, named.RenameNamedObject):
-    pass
 
 
 class AlterAttribute(AttributeCommand, named.AlterNamedObject):
@@ -195,10 +184,10 @@ class AttributeValueCommand(sd.ObjectCommand, schema_metaclass=AttributeValue,
         else:
             return super()._cmd_tree_from_ast(astnode, context, schema)
 
-    def add_attribute(self, attribute, parent, schema):
+    def add_attribute(self, schema, attribute, parent):
         return parent.add_attribute(schema, attribute, replace=True)
 
-    def delete_attribute(self, attribute_class, parent, schema):
+    def del_attribute(self, schema, attribute_class, parent):
         return parent.del_attribute(schema, attribute_class)
 
 
@@ -276,28 +265,16 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedObject):
         with context(AttributeValueCommandContext(self, None)):
             name = AttributeValue.get_shortname(
                 self.classname)
-            attribute = attrsubj.scls.local_attributes.get(name)
+            attrs = attrsubj.scls.get_own_attributes(schema)
+            attribute = attrs.get(name)
             if attribute is None:
                 schema, attribute = super().apply(schema, context)
-                schema = self.add_attribute(attribute, attrsubj.scls, schema)
+                schema = self.add_attribute(schema, attribute, attrsubj.scls)
             else:
                 schema, attribute = named.AlterNamedObject.apply(
                     self, schema, context)
 
             return schema, attribute
-
-
-class RenameAttributeValue(AttributeValueCommand, named.RenameNamedObject):
-    def apply(self, schema, context):
-        schema, result = super().apply(schema, context)
-
-        attrsubj = context.get(AttributeSubjectCommandContext)
-        assert attrsubj, "Attribute commands must be run in " + \
-                         "AttributeSubject context"
-
-        schema, _ = attrsubj.scls.rename_attribute(
-            schema, self.classname, self.new_name)
-        return schema, result
 
 
 class AlterAttributeValue(AttributeValueCommand, named.AlterNamedObject):
@@ -336,6 +313,6 @@ class DeleteAttributeValue(AttributeValueCommand, named.DeleteNamedObject):
         assert attrsubj, "Attribute commands must be run in " + \
                          "AttributeSubject context"
 
-        schema = self.delete_attribute(self.classname, attrsubj.scls, schema)
+        schema = self.del_attribute(schema, self.classname, attrsubj.scls)
 
         return super().apply(schema, context)
