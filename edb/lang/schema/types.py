@@ -278,7 +278,8 @@ class Collection(Type):
         strefs = []
 
         for st in self.get_subtypes():
-            strefs.append(so.ObjectRef(classname=st.name))
+            st_ref, _ = st._reduce_to_ref(schema)
+            strefs.append(st_ref)
 
         return (
             self.__class__.from_subtypes(strefs),

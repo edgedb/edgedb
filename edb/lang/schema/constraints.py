@@ -22,6 +22,7 @@ import itertools
 from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import errors as ql_errors
+from edb.lang.edgeql import functypes as ft
 
 from . import delta as sd
 from . import error as s_errors
@@ -32,6 +33,7 @@ from . import name as sn
 from . import named
 from . import objects as so
 from . import referencing
+from . import types as s_types
 from . import utils
 
 
@@ -52,11 +54,17 @@ class CumulativeBoolExpr(s_expr.ExpressionText):
                                   schema=schema, f=join)
 
 
-class Constraint(inheriting.InheritingObject):
+class Constraint(inheriting.InheritingObject, s_func.CallableObject):
     _type = 'constraint'
 
     params = so.Field(s_func.FuncParameterList, default=None,
-                      coerce=True, compcoef=0.4)
+                      coerce=True, compcoef=0.4, simpledelta=False)
+
+    return_type = so.Field(s_types.Type, default=None, compcoef=0.2)
+
+    return_typemod = so.Field(
+        ft.TypeModifier, default=ft.TypeModifier.SINGLETON,
+        compcoef=0.4, coerce=True)
 
     expr = so.Field(s_expr.ExpressionText, default=None, compcoef=0.909,
                     coerce=True)
@@ -378,6 +386,7 @@ class ConstraintCommandContext(sd.ObjectCommandContext):
 
 class ConstraintCommand(
         referencing.ReferencedInheritingObjectCommand,
+        s_func.CallableCommand,
         schema_metaclass=Constraint, context_class=ConstraintCommandContext,
         referrer_context_class=ConsistencySubjectCommandContext):
 
@@ -407,6 +416,7 @@ class ConstraintCommand(
 
 
 class CreateConstraint(ConstraintCommand,
+                       s_func.CreateCallableObject,
                        referencing.CreateReferencedInheritingObject):
 
     astnode = [qlast.CreateConcreteConstraint, qlast.CreateConstraint]
@@ -433,26 +443,34 @@ class CreateConstraint(ConstraintCommand,
                 )
 
         elif isinstance(astnode, qlast.CreateConstraint):
-            if astnode.args:
-                params = s_func.FuncParameterList.from_ast(
-                    astnode, context.modaliases, schema,
-                    allow_named=False)
+            params = s_func.FuncParameterList.from_ast(
+                astnode, context.modaliases, schema,
+                allow_named=False, func_fqname=cmd.classname)
 
-                for param in params:
-                    if param.default is not None:
-                        raise ql_errors.EdgeQLError(
-                            'constraints do not support parameters '
-                            'with defaults',
-                            context=astnode.context)
+            for param in params:
+                if param.default is not None:
+                    raise ql_errors.EdgeQLError(
+                        'constraints do not support parameters '
+                        'with defaults',
+                        context=astnode.context)
 
-                    if param.type is None:
-                        raise ql_errors.EdgeQLError(
-                            'untyped parameter', context=astnode.context)
+                if param.type is None:
+                    raise ql_errors.EdgeQLError(
+                        'untyped parameter', context=astnode.context)
 
-                cmd.add(sd.AlterObjectProperty(
-                    property='params',
-                    new_value=params
-                ))
+        if cmd.get_attribute_value('return_type') is None:
+            cmd.add(sd.AlterObjectProperty(
+                property='return_type',
+                new_value=so.ObjectRef(
+                    classname=sn.Name('std::bool'),
+                )
+            ))
+
+        if cmd.get_attribute_value('return_typemod') is None:
+            cmd.add(sd.AlterObjectProperty(
+                property='return_typemod',
+                new_value=ft.TypeModifier.SINGLETON,
+            ))
 
         # 'subject' can be present in either astnode type
         if astnode.subject:
@@ -531,6 +549,6 @@ class AlterConstraint(ConstraintCommand, named.AlterNamedObject):
         super()._apply_field_ast(schema, context, node, op)
 
 
-class DeleteConstraint(ConstraintCommand, named.DeleteNamedObject):
+class DeleteConstraint(ConstraintCommand, s_func.DeleteCallableObject):
     astnode = [qlast.DropConcreteConstraint, qlast.DropConstraint]
     referenced_astnode = qlast.DropConcreteConstraint

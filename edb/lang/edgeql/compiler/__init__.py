@@ -155,14 +155,14 @@ def compile_func_to_ir(func, schema, *,
         name='__defaults_mask__', type=schema.get('std::bytes'))
 
     for pi, p in enumerate(func.params.as_pg_params().params):
-        anchors[p.name] = irast.Parameter(name=p.name, type=p.type)
+        anchors[p.shortname] = irast.Parameter(name=p.shortname, type=p.type)
 
         if p.default is None:
             continue
 
         tree.aliases.append(
             qlast.AliasedExpr(
-                alias=p.name,
+                alias=p.shortname,
                 expr=qlast.IfElse(
                     condition=qlast.BinOp(
                         left=qlast.FunctionCall(
@@ -178,7 +178,8 @@ def compile_func_to_ir(func, schema, *,
                             ]),
                         right=qlast.IntegerConstant(value='0'),
                         op=qlast.EQ),
-                    if_expr=qlast.Path(steps=[qlast.ObjectRef(name=p.name)]),
+                    if_expr=qlast.Path(
+                        steps=[qlast.ObjectRef(name=p.shortname)]),
                     else_expr=qlast._Optional(expr=p.get_ql_default()))))
 
     ir = compile_ast_to_ir(

@@ -864,9 +864,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_CreateConstraint(self, node):
         def after_name():
-            if node.args:
+            if node.params:
                 self.write('(')
-                self.visit_list(node.args, newlines=False)
+                self.visit_list(node.params, newlines=False)
                 self.write(')')
             if node.subject:
                 self.write(' ON (')
@@ -1025,7 +1025,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_CreateFunction(self, node):
         def after_name():
             self.write('(')
-            self.visit_list(node.args, newlines=False)
+            self.visit_list(node.params, newlines=False)
             self.write(')')
             self.write(' -> ')
             self.write(node.returning_typemod.to_edgeql(), ' ')

@@ -31,16 +31,10 @@ from . import objects as so
 from . import utils
 
 
-class Operator(so.NamedObject):
+class Operator(s_func.CallableObject):
     _type = 'operator'
 
     operator_kind = so.Field(ft.OperatorKind, coerce=True, compcoef=0.4)
-
-    params = so.Field(s_func.FuncParameterList, default=None,
-                      coerce=True, compcoef=0.4)
-
-    return_type = so.Field(so.Object, compcoef=0.2)
-    return_typemod = so.Field(ft.TypeModifier, compcoef=0.4, coerce=True)
 
     language = so.Field(qlast.Language, default=None, compcoef=0.4,
                         coerce=True)
@@ -53,7 +47,7 @@ class OperatorCommandContext(sd.ObjectCommandContext):
     pass
 
 
-class OperatorCommand(named.NamedObjectCommand, s_func.FunctionCommandMixin,
+class OperatorCommand(s_func.CallableCommand,
                       schema_metaclass=Operator,
                       context_class=OperatorCommandContext):
 
@@ -122,16 +116,14 @@ class OperatorCommand(named.NamedObjectCommand, s_func.FunctionCommandMixin,
                     )
 
 
-class CreateOperator(named.CreateNamedObject, OperatorCommand):
+class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
     astnode = qlast.CreateOperator
 
-    def _add_to_schema(self, schema):
-        props = super().get_struct_properties(schema)
-
-        params: s_func.FuncParameterList = props['params']
-        name = props['name']
-        return_type = props['return_type']
-        return_typemod = props['return_typemod']
+    def _add_to_schema(self, schema, context):
+        params: s_func.FuncParameterList = self.scls.params
+        name = self.scls.name
+        return_type = self.scls.return_type
+        return_typemod = self.scls.return_typemod
 
         get_signature = lambda: f'{self.classname}{params.as_str()}'
 
@@ -154,7 +146,7 @@ class CreateOperator(named.CreateNamedObject, OperatorCommand):
                     f'{oper.return_type.name}',
                     context=self.source_context)
 
-        return super()._add_to_schema(schema)
+        return super()._add_to_schema(schema, context)
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
@@ -162,16 +154,12 @@ class CreateOperator(named.CreateNamedObject, OperatorCommand):
 
         modaliases = context.modaliases
 
-        params = s_func.FuncParameterList.from_ast(astnode, modaliases, schema)
+        params = s_func.FuncParameterList.from_ast(astnode, modaliases, schema,
+                                                   func_fqname=cmd.classname)
 
         cmd.add(sd.AlterObjectProperty(
             property='operator_kind',
             new_value=astnode.kind,
-        ))
-
-        cmd.add(sd.AlterObjectProperty(
-            property='params',
-            new_value=params
         ))
 
         cmd.add(sd.AlterObjectProperty(
@@ -217,5 +205,5 @@ class AlterOperator(named.AlterNamedObject, OperatorCommand):
         return cmd
 
 
-class DeleteOperator(named.DeleteNamedObject, OperatorCommand):
+class DeleteOperator(s_func.DeleteCallableObject, OperatorCommand):
     astnode = qlast.DropOperator

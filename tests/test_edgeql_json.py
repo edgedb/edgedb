@@ -799,11 +799,11 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         await self.assert_query_result("""
             WITH MODULE schema
             SELECT
-                Object {
+                ScalarType {
                     name
                 }
             FILTER
-                json_to_str(<json>(Object {name})) LIKE '%std::json%';
+                json_to_str(<json>(ScalarType {name})) LIKE '%std::json%';
         """, [
             [{
                 'name': 'std::json',

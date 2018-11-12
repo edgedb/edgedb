@@ -434,7 +434,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
         return result, frozenset(comparison_v)
 
     def _reduce_refs(self, schema, value):
-        if isinstance(value, (ObjectList, TypeList)):
+        if isinstance(value, (ObjectList, FrozenObjectList, TypeList)):
             ref, val = self._reduce_obj_list(schema, value)
 
         elif isinstance(value, ObjectSet):
@@ -944,7 +944,47 @@ class ObjectSet(typed.TypedSet, ObjectCollection, type=Object):
         return basecoef + (1 - basecoef) * compcoef
 
 
-class ObjectList(typed.TypedList, ObjectCollection, type=Object):
+class BaseObjectList(ObjectCollection):
+
+    @classmethod
+    def compare_values(cls, schema, ours, theirs, context, compcoef):
+        if not ours and not theirs:
+            basecoef = 1.0
+        elif not ours or not theirs:
+            basecoef = 0.2
+        else:
+            comparison = ((x.compare(schema, y, context=context), x, y)
+                          for x, y in itertools.zip_longest(ours, theirs))
+            similarity = []
+            used_x = set()
+            used_y = set()
+
+            items = sorted(comparison, key=lambda item: item[0], reverse=True)
+
+            for s, x, y in items:
+                if x in used_x and y in used_y:
+                    continue
+                elif x in used_x:
+                    similarity.append(0.2)
+                    used_y.add(y)
+                elif y in used_y:
+                    similarity.append(0.2)
+                    used_x.add(x)
+                else:
+                    similarity.append(s)
+                    used_x.add(x)
+                    used_y.add(y)
+
+            basecoef = sum(similarity) / len(similarity)
+
+        return basecoef + (1 - basecoef) * compcoef
+
+
+class ObjectList(typed.TypedList, BaseObjectList, type=Object):
+    pass
+
+
+class FrozenObjectList(typed.FrozenTypedList, BaseObjectList, type=Object):
     pass
 
 

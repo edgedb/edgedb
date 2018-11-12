@@ -71,15 +71,15 @@ def index_parameters(ql_args: typing.List[qlast.Base], *,
         if isinstance(e, qlast.SelectQuery):
             e = e.result
 
-        if parameters.variadic and parameters.variadic.pos == i:
+        if parameters.variadic and parameters.variadic.num == i:
             assert varargs is None
             varargs = []
-            result[p.name] = qlast.Array(elements=varargs)
+            result[p.shortname] = qlast.Array(elements=varargs)
 
         if varargs is not None:
             varargs.append(e)
         else:
-            result[p.name] = e
+            result[p.shortname] = e
 
     return result
 

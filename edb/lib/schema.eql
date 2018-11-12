@@ -171,19 +171,32 @@ CREATE TYPE schema::Parameter {
 };
 
 
-CREATE ABSTRACT LINK schema::params {
+CREATE ABSTRACT LINK schema::args {
     CREATE PROPERTY schema::value -> std::str;
 };
 
 
-CREATE TYPE schema::Constraint EXTENDING schema::InheritingObject {
+CREATE ABSTRACT TYPE schema::CallableObject extending schema::Object {
+
+    CREATE MULTI LINK schema::params -> schema::Parameter {
+        CREATE CONSTRAINT std::exclusive;
+    };
+
+    CREATE LINK schema::return_type -> schema::Type;
+    CREATE PROPERTY schema::return_typemod -> std::str;
+};
+
+
+CREATE TYPE schema::Constraint EXTENDING
+        (schema::CallableObject, schema::InheritingObject)
+{
+    CREATE MULTI LINK schema::args -> schema::Parameter {
+        CREATE CONSTRAINT std::exclusive;
+    };
     CREATE PROPERTY schema::expr -> std::str;
     CREATE PROPERTY schema::subjectexpr -> std::str;
     CREATE PROPERTY schema::finalexpr -> std::str;
     CREATE PROPERTY schema::errmessage -> std::str;
-    CREATE MULTI LINK schema::params -> schema::Parameter {
-        CREATE CONSTRAINT std::exclusive;
-    };
 };
 
 
@@ -277,21 +290,10 @@ ALTER TYPE schema::ObjectType {
 };
 
 
-CREATE TYPE schema::Function EXTENDING schema::Object {
-    CREATE MULTI LINK schema::params -> schema::Parameter {
-        CREATE CONSTRAINT std::exclusive;
-    };
-    CREATE LINK schema::return_type -> schema::Type;
-    CREATE PROPERTY schema::return_typemod -> std::str;
-};
+CREATE TYPE schema::Function EXTENDING schema::CallableObject;
 
 
-CREATE TYPE schema::Operator EXTENDING schema::Object {
-    CREATE MULTI LINK schema::params -> schema::Parameter {
-        CREATE CONSTRAINT std::exclusive;
-    };
-    CREATE LINK schema::return_type -> schema::Type;
-    CREATE LINK schema::commutator -> schema::Operator;
-    CREATE PROPERTY schema::return_typemod -> std::str;
+CREATE TYPE schema::Operator EXTENDING schema::CallableObject {
     CREATE PROPERTY schema::operator_kind -> schema::operator_kind_t;
+    CREATE LINK schema::commutator -> schema::Operator;
 };

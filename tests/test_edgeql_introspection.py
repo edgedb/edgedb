@@ -473,7 +473,7 @@ class TestIntrospection(tb.QueryTestCase):
                 subject: {
                     name
                 },
-                params: {
+                args: {
                     num,
                     @value
                 } ORDER BY .num
@@ -484,7 +484,7 @@ class TestIntrospection(tb.QueryTestCase):
                 'subject': {
                     'name': 'test::body'
                 },
-                'params': [{
+                'args': [{
                     'num': 0,
                     '@value': '10000'
                 }]
@@ -506,50 +506,22 @@ class TestIntrospection(tb.QueryTestCase):
     async def test_edgeql_introspection_meta_02(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
-            SELECT Object {
+            SELECT InheritingObject {
                 name
             }
-            FILTER re_test(r'^test::\w+$', Object.name) AND
-                Object.name NOT LIKE '%:Virtual_%'
-            ORDER BY Object.name;
+            FILTER
+                re_test(r'^test::\w+$', InheritingObject.name)
+                AND InheritingObject.name NOT LIKE '%:Virtual_%'
+                AND InheritingObject.is_abstract
+            ORDER BY InheritingObject.name;
         """, [
             [
-                {'name': 'test::Comment'},
                 {'name': 'test::Dictionary'},
-                {'name': 'test::File'},
-                {'name': 'test::Issue'},
-                {'name': 'test::LogEntry'},
                 {'name': 'test::Named'},
                 {'name': 'test::Owned'},
-                {'name': 'test::Priority'},
-                {'name': 'test::Publication'},
-                {'name': 'test::Status'},
                 {'name': 'test::Text'},
-                {'name': 'test::URL'},
-                {'name': 'test::User'},
-                {'name': 'test::address'},
-                {'name': 'test::body'},
-                {'name': 'test::due_date'},
-                {'name': 'test::issue'},
-                {'name': 'test::issue_num_t'},
                 {'name': 'test::my_enum'},
-                {'name': 'test::name'},
-                {'name': 'test::number'},
-                {'name': 'test::owner'},
-                {'name': 'test::parent'},
-                {'name': 'test::priority'},
-                {'name': 'test::rank'},
-                {'name': 'test::references'},
-                {'name': 'test::related_to'},
-                {'name': 'test::spent_time'},
-                {'name': 'test::start_date'},
-                {'name': 'test::status'},
-                {'name': 'test::tags'},
-                {'name': 'test::time_estimate'},
-                {'name': 'test::time_spent_log'},
-                {'name': 'test::title'},
                 {'name': 'test::todo'},
-                {'name': 'test::watchers'},
             ]
         ])
 

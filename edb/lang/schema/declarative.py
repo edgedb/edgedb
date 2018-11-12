@@ -30,6 +30,7 @@ from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import codegen as qlcodegen
 from edb.lang.edgeql import compiler as qlcompiler
+from edb.lang.edgeql import functypes as ft
 from edb.lang.edgeql import utils as qlutils
 
 from edb.lang.ir import ast as ir_ast
@@ -112,6 +113,10 @@ class DeclarationLoader:
                 objcls_kw['is_abstract'] = decl.delegated
             if hasattr(decl, 'final'):
                 objcls_kw['final'] = decl.final
+
+            if objcls is s_constr.Constraint:
+                objcls_kw['return_type'] = self._schema.get('std::bool')
+                objcls_kw['return_typemod'] = ft.TypeModifier.SINGLETON
 
             obj = objcls(name=name,
                          sourcectx=decl.context,
@@ -342,7 +347,7 @@ class DeclarationLoader:
 
             params = s_func.FuncParameterList.from_ast(
                 decl, self._mod_aliases, self._schema,
-                allow_named=False)
+                allow_named=False, func_fqname=constraint.name)
 
             for param in params:
                 if param.default is not None:

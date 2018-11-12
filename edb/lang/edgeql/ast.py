@@ -775,8 +775,11 @@ class DropConcreteLink(DropObject):
     pass
 
 
-class CreateConstraint(CreateExtendingObject):
-    args: typing.List[FuncParam]
+class CallableObject(ObjectDDL):
+    params: typing.List[FuncParam]
+
+
+class CreateConstraint(CreateExtendingObject, CallableObject):
     subject: typing.Optional[Expr]
 
 
@@ -789,7 +792,7 @@ class DropConstraint(DropObject):
 
 
 class CreateConcreteConstraint(CreateObject):
-    args: typing.List[Base]
+    args: typing.List[FuncArg]
     is_abstract: bool = False
     subject: typing.Optional[Expr]
 
@@ -834,8 +837,7 @@ class FunctionCode(Clause):
     from_name: str
 
 
-class CreateFunction(CreateObject):
-    args: typing.List[FuncParam]
+class CreateFunction(CreateObject, CallableObject):
     returning: TypeExpr
     code: FunctionCode
     returning_typemod: ft.TypeModifier = ft.TypeModifier.SINGLETON
@@ -845,8 +847,8 @@ class AlterFunction(AlterObject):
     value: Base
 
 
-class DropFunction(DropObject):
-    args: typing.List[FuncParam]
+class DropFunction(DropObject, CallableObject):
+    pass
 
 
 class OperatorCode(Clause):
@@ -854,9 +856,8 @@ class OperatorCode(Clause):
     from_name: str
 
 
-class OperatorCommand(ObjectDDL):
+class OperatorCommand(CallableObject):
     kind: ft.OperatorKind
-    args: typing.List[FuncParam]
 
 
 class CreateOperator(CreateObject, OperatorCommand):

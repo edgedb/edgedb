@@ -30,12 +30,10 @@ from edb.lang.schema import attributes as s_attrs
 from edb.lang.schema import constraints as s_constraints
 from edb.lang.schema import database as s_db
 from edb.lang.schema import expr as s_expr
-from edb.lang.schema import functions as s_funcs
 from edb.lang.schema import inheriting as s_inheriting
 from edb.lang.schema import name as sn
 from edb.lang.schema import named as s_named
 from edb.lang.schema import objects as s_obj
-from edb.lang.schema import operators as s_opers
 from edb.lang.schema import pseudo as s_pseudo
 from edb.lang.schema import referencing as s_ref
 from edb.lang.schema import types as s_types
@@ -118,20 +116,6 @@ class ObjectTable(dbops.Table):
                 dbops.PrimaryKey(('edgedb', 'object'), columns=('id', ))
             ]
         )
-
-
-class ParameterNodeType(dbops.CompositeType):
-    def __init__(self):
-        super().__init__(name=('edgedb', 'parameter_t'))
-
-        self.add_columns([
-            dbops.Column(name='pos', type='int4'),
-            dbops.Column(name='name', type='text'),
-            dbops.Column(name='default', type='text'),
-            dbops.Column(name='type', type='edgedb.type_t'),
-            dbops.Column(name='typemod', type='text'),
-            dbops.Column(name='kind', type='text'),
-        ])
 
 
 class RaiseExceptionFunction(dbops.Function):
@@ -1418,7 +1402,8 @@ def _field_to_column(field):
     ftype = field.type[0]
     coltype = None
 
-    if issubclass(ftype, (s_obj.ObjectSet, s_obj.ObjectList)):
+    if issubclass(ftype, (s_obj.ObjectSet, s_obj.ObjectList,
+                          s_obj.FrozenObjectList)):
         # ObjectSet and ObjectList are exempt from type_t encoding,
         # as they always represent only non-collection types, and
         # keeping the encoding simple is important for performance
@@ -1445,9 +1430,6 @@ def _field_to_column(field):
 
     elif issubclass(ftype, int):
         coltype = 'bigint'
-
-    elif issubclass(ftype, s_funcs.FuncParameterList):
-        coltype = 'edgedb.parameter_t[]'
 
     else:
         coltype = 'text'
@@ -1542,7 +1524,6 @@ async def bootstrap(conn):
         dbops.CreateCompositeType(TypeType()),
         dbops.CreateCompositeType(TypeDescNodeType()),
         dbops.CreateCompositeType(TypeDescType()),
-        dbops.CreateCompositeType(ParameterNodeType()),
         dbops.CreateDomain(('edgedb', 'known_record_marker_t'), 'text'),
         dbops.CreateTable(ObjectTable()),
     ])
@@ -1727,10 +1708,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                     aname = 'stdattrs::{}'.format(fn)
                     attrcls = schema.get(aname, default=None)
                     if attrcls is None:
-                        raise RuntimeError(
-                            'introspection schema error: {}.{} is not '
-                            'defined as `stdattrs` Attribute'.format(
-                                metaclass.__name__, fn))
+                        continue
                     aname = ql(aname) + '::text'
                     aval = q(fn) + '::text'
                     if fn == 'name':
@@ -1790,7 +1768,8 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
         else:
             ftype = type(None)
 
-        if issubclass(ftype, (s_obj.ObjectSet, s_obj.ObjectList)):
+        if issubclass(ftype, (s_obj.ObjectSet, s_obj.ObjectList,
+                              s_obj.FrozenObjectList)):
             if ptr.singular(schema):
                 raise RuntimeError(
                     'introspection schema error: {!r} must not be '
@@ -1801,61 +1780,28 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
             # so we just need to unnest the array here.
             refattr = 'UNNEST(' + q(pn.name) + ')'
 
-        elif (pn.name == 'params' and
-                (mcls is s_funcs.Function or mcls is s_opers.Operator)):
-            # Function and operator params need special handling.
+        elif pn.name == 'args' and mcls is s_constraints.Constraint:
+            # Constraint args need special handling.
             link_query = f'''
                 SELECT
                     q.id            AS {dbname('std::source')},
-                    edgedb._derive_uuid(q.id, q.num::smallint)
-                                    AS {dbname('std::target')}
-                FROM
-                    (SELECT
-                        s.id        AS id,
-                        p.pos       AS num
-                     FROM
-                        edgedb.{mcls.__name__} AS s,
-
-                        LATERAL UNNEST(s.params) AS p,
-
-                        LATERAL UNNEST((p.type).types)
-                            WITH ORDINALITY AS
-                                t(id, maintype, name, collection, subtypes,
-                                  dimensions, is_root, num)
-                     WHERE
-                        t.is_root
-                    ) AS q
-            '''
-
-        elif pn.name == 'params' and mcls is s_constraints.Constraint:
-            # Constraint params need special handling.
-            link_query = f'''
-                SELECT
-                    q.id            AS {dbname('std::source')},
-                    edgedb._derive_uuid(q.id, q.num::smallint)
-                                    AS {dbname('std::target')},
+                    q.param_id      AS {dbname('std::target')},
                     q.value         AS {dbname('schema::value')}
                 FROM
                     (SELECT
                         s.id        AS id,
-                        p.pos       AS num,
+                        p.param_id  AS param_id,
                         tv.value    AS value
                      FROM
                         edgedb.{mcls.__name__} AS s,
 
-                        LATERAL UNNEST(s.params) AS p,
-
-                        LATERAL UNNEST((p.type).types)
-                            WITH ORDINALITY AS
-                                t(id, maintype, name, collection, subtypes,
-                                  dimensions, is_root, num)
+                        LATERAL UNNEST(s.params)
+                            WITH ORDINALITY AS p(param_id, num)
 
                         LEFT JOIN
                             LATERAL UNNEST(s.args)
                                 WITH ORDINALITY AS tv(value, num)
-                            ON (t.num = tv.num)
-                     WHERE
-                        t.is_root
+                            ON (p.num = tv.num)
                     ) AS q
             '''
 
@@ -1917,55 +1863,6 @@ def _generate_database_view(schema):
     '''
 
     return dbops.View(name=tabname(Database), query=view_query)
-
-
-def _generate_param_view(schema):
-    FuncParam = schema.get('schema::Parameter')
-
-    view_query = f'''
-        SELECT
-            edgedb._derive_uuid(id, q.num::smallint)
-                            AS {dbname('std::id')},
-            (SELECT id FROM edgedb.NamedObject
-                 WHERE name = 'schema::Parameter')
-                            AS {dbname('std::__type__')},
-            q.type_id       AS {dbname('schema::type')},
-            q.kind          AS {dbname('schema::kind')},
-            q.typemod       AS {dbname('schema::typemod')},
-            q.num           AS {dbname('schema::num')},
-            q.name          AS {dbname('schema::name')},
-            q.def           AS {dbname('schema::default')}
-        FROM
-            (SELECT
-                f.id        AS id,
-                p.pos      AS num,
-                (CASE WHEN ((p.type).types[1]).collection IS NULL
-                 THEN ((p.type).types[1]).maintype
-                 ELSE ((p.type).types[1]).id END)
-                            AS type_id,
-                p.name      AS name,
-                p.default   AS def,
-                p.typemod   AS typemod,
-                p.kind      AS kind
-             FROM
-                (SELECT
-                    id, params
-                 FROM edgedb.Function
-                 UNION ALL
-                 SELECT
-                    id, params
-                 FROM edgedb.Constraint
-                 UNION ALL
-                 SELECT
-                    id, params
-                 FROM edgedb.Operator
-                ) AS f,
-                LATERAL UNNEST(f.params) AS p
-
-            ) AS q
-    '''
-
-    return dbops.View(name=tabname(FuncParam), query=view_query)
 
 
 def _lookup_type(qual):
@@ -2163,13 +2060,6 @@ async def generate_views(conn, schema):
                     pass
                 elif pn.name == '__type__':
                     continue
-                elif pn.name == 'params' and (
-                        mcls is s_funcs.Function or
-                        mcls is s_constraints.Constraint or
-                        mcls is s_opers.Operator):
-                    # Function params need special handling as
-                    # they are defined as three separate fields.
-                    pass
                 else:
                     # This is nether a field, nor a refdict, that's
                     # not expected.
@@ -2183,7 +2073,8 @@ async def generate_views(conn, schema):
                 ft = field.type[0]
                 if (issubclass(ft, (s_obj.Object, s_obj.ObjectCollection)) and
                         not issubclass(ft, (s_obj.ObjectSet,
-                                            s_obj.ObjectList))):
+                                            s_obj.ObjectList,
+                                            s_obj.FrozenObjectList))):
                     type_fields.append(
                         (f'edgedb.{mcls.__name__}', pn.name)
                     )
@@ -2192,9 +2083,7 @@ async def generate_views(conn, schema):
 
             if ptrstor.table_type == 'ObjectType':
                 if (pn.name == 'name' and
-                        issubclass(mcls, (s_inheriting.InheritingObject,
-                                          s_funcs.Function,
-                                          s_opers.Operator))):
+                        issubclass(mcls, (s_obj.NamedObject))):
                     col_expr = 'edgedb.get_shortname(t.{})'.format(q(pn.name))
                 else:
                     col_expr = f't.{q(pn.name)}'
@@ -2234,9 +2123,6 @@ async def generate_views(conn, schema):
 
     te_view = _generate_type_element_view(schema, type_fields)
     views[te_view.name] = te_view
-
-    fp_view = _generate_param_view(schema)
-    views[fp_view.name] = fp_view
 
     db_view = _generate_database_view(schema)
     views[db_view.name] = db_view

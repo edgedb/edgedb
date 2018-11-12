@@ -261,10 +261,10 @@ def try_bind_func_args(
 
         pi += 1
 
-        if param.name in kwargs:
+        if param.shortname in kwargs:
             matched_kwargs += 1
 
-            arg_type, arg_val = kwargs[param.name]
+            arg_type, arg_val = kwargs[param.shortname]
             if not _check_type(arg_val, arg_type, param.type):
                 return _NO_MATCH
 
@@ -352,7 +352,7 @@ def try_bind_func_args(
                 if val is not None:
                     continue
 
-                null_args.add(param.name)
+                null_args.add(param.shortname)
 
                 defaults_mask |= 1 << i
 
@@ -368,7 +368,7 @@ def try_bind_func_args(
                         if resolved_poly_base_type is None:
                             raise errors.EdgeQLError(
                                 f'could not resolve "anytype" type for the '
-                                f'${param.name} parameter')
+                                f'${param.shortname} parameter')
                         else:
                             default_type = resolved_poly_base_type
                     else:
@@ -381,7 +381,7 @@ def try_bind_func_args(
                     default = irutils.new_empty_set(
                         ctx.schema,
                         scls=default_type,
-                        alias=param.name)
+                        alias=param.shortname)
                 else:
                     default = param.get_ir_default(schema=ctx.schema)
 
@@ -505,7 +505,7 @@ def finalize_args(bound_call: BoundCall, *,
                 arg_scope.collapse()
                 pathctx.assign_set_scope(arg, None, ctx=ctx)
             if (param_mod is _OPTIONAL or
-                    param.name in bound_call.null_args):
+                    param.shortname in bound_call.null_args):
                 pathctx.register_set_in_scope(arg, ctx=ctx)
                 pathctx.mark_path_as_optional(arg.path_id, ctx=ctx)
 

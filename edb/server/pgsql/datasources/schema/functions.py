@@ -35,21 +35,29 @@ async def fetch(
                 f.from_function,
                 f.initial_value,
                 edgedb._resolve_type(f.return_type) AS return_type,
-
-                (SELECT array_agg(
-                    (p.pos,
-                     p.name,
-                     p.default,
-                     edgedb._resolve_type(p.type),
-                     p.typemod,
-                     p.kind))
-
-                    FROM
-                        unnest(f.params) AS p
-                )                       AS params
+                edgedb._resolve_type_name(f.params) AS params
 
             FROM
                 edgedb.function f
             ORDER BY
                 f.id
+    """)
+
+
+async def fetch_params(
+        conn: asyncpg.connection.Connection) -> typing.List[asyncpg.Record]:
+    return await conn.fetch("""
+        SELECT
+                p.id,
+                p.name,
+                p.num,
+                p.default,
+                edgedb._resolve_type(p.type) AS type,
+                p.typemod,
+                p.kind
+
+            FROM
+                edgedb.Parameter p
+            ORDER BY
+                p.id
     """)

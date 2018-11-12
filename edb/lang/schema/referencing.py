@@ -441,8 +441,6 @@ class ReferencingObject(inheriting.InheritingObject,
     def delta(cls, old, new, *, context=None, old_schema, new_schema):
         context = context or so.ComparisonContext()
 
-        cls = type(new if new is not None else old)
-
         with context(old, new):
             delta = super().delta(old, new, context=context,
                                   old_schema=old_schema, new_schema=new_schema)

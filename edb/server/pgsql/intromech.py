@@ -323,25 +323,32 @@ class IntrospectionMech:
             schema = scalar.acquire_ancestor_inheritance(schema)
         return schema
 
-    def _decode_func_params(self, row, schema):
+    def _decode_func_params(self, schema, row, param_map):
         if row['params']:
-            return [
-                s_funcs.Parameter(
-                    pos=r[0],
-                    name=r[1],
-                    default=r[2],
-                    type=self.unpack_typeref(r[3], schema),
-                    typemod=r[4],
-                    kind=r[5])
-                for r in row['params']
-            ]
+            params = []
+
+            for r in row['params']:
+                param_data = param_map.get(r)
+                param = s_funcs.Parameter(
+                    num=param_data['num'],
+                    name=sn.Name(param_data['name']),
+                    default=param_data['default'],
+                    type=self.unpack_typeref(param_data['type'], schema),
+                    typemod=param_data['typemod'],
+                    kind=param_data['kind'])
+                params.append(param)
+
+            return params
         else:
             return []
 
     async def read_operators(self, schema):
         self._operator_commutators.clear()
 
-        func_list = await datasources.schema.operators.fetch(self.connection)
+        ds = datasources.schema
+        func_list = await ds.operators.fetch(self.connection)
+        param_list = await ds.functions.fetch_params(self.connection)
+        param_map = {p['name']: p for p in param_list}
 
         for row in func_list:
             name = sn.Name(row['name'])
@@ -352,7 +359,7 @@ class IntrospectionMech:
                 'title': row['title'],
                 'description': row['description'],
                 'language': row['language'],
-                'params': self._decode_func_params(row, schema),
+                'params': self._decode_func_params(schema, row, param_map),
                 'return_typemod': row['return_typemod'],
                 'from_operator': row['from_operator'],
                 'return_type': self.unpack_typeref(row['return_type'], schema)
@@ -373,7 +380,10 @@ class IntrospectionMech:
         self._operator_commutators.clear()
 
     async def read_functions(self, schema):
-        func_list = await datasources.schema.functions.fetch(self.connection)
+        ds = datasources.schema.functions
+        func_list = await ds.fetch(self.connection)
+        param_list = await ds.fetch_params(self.connection)
+        param_map = {p['name']: p for p in param_list}
 
         for row in func_list:
             name = sn.Name(row['name'])
@@ -383,7 +393,7 @@ class IntrospectionMech:
                 'title': row['title'],
                 'description': row['description'],
                 'language': row['language'],
-                'params': self._decode_func_params(row, schema),
+                'params': self._decode_func_params(schema, row, param_map),
                 'return_typemod': row['return_typemod'],
                 'from_function': row['from_function'],
                 'code': row['code'],
@@ -400,10 +410,12 @@ class IntrospectionMech:
         pass
 
     async def read_constraints(self, schema):
-        constraints_list = await datasources.schema.constraints.fetch(
-            self.connection)
+        ds = datasources.schema
+        constraints_list = await ds.constraints.fetch(self.connection)
         constraints_list = collections.OrderedDict((sn.Name(r['name']), r)
                                                    for r in constraints_list)
+        param_list = await ds.functions.fetch_params(self.connection)
+        param_map = {p['name']: p for p in param_list}
 
         basemap = {}
 
@@ -425,13 +437,16 @@ class IntrospectionMech:
 
             constraint = s_constr.Constraint(
                 name=name, subject=subject, title=title,
-                params=self._decode_func_params(r, schema),
+                params=self._decode_func_params(schema, r, param_map),
                 description=description, is_abstract=r['is_abstract'],
                 is_final=r['is_final'], expr=r['expr'],
                 subjectexpr=r['subjectexpr'],
                 localfinalexpr=r['localfinalexpr'], finalexpr=r['finalexpr'],
                 errmessage=r['errmessage'],
-                args=r['args'])
+                args=r['args'],
+                return_type=self.unpack_typeref(r['return_type'], schema),
+                return_typemod=r['return_typemod'],
+            )
 
             if subject:
                 schema = subject.add_constraint(schema, constraint)

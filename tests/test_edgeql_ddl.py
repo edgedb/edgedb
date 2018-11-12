@@ -1059,7 +1059,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                         name
                     },
                     typemod
-                },
+                } ORDER BY .name,
                 operator_kind,
                 return_typemod
             }

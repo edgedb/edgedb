@@ -635,7 +635,7 @@ class CreateConstraintStmt(Nonterm):
                     OptOnExpr OptExtending OptCreateCommandsBlock"""
         self.val = qlast.CreateConstraint(
             name=kids[3].val,
-            args=kids[4].val,
+            params=kids[4].val,
             subject=kids[5].val,
             bases=kids[6].val,
             commands=kids[7].val,
@@ -1672,7 +1672,7 @@ class CreateFunctionStmt(Nonterm, _ProcessFunctionBlockMixin):
         """
         self.val = qlast.CreateFunction(
             name=kids[2].val,
-            args=kids[3].val,
+            params=kids[3].val,
             returning=kids[6].val,
             returning_typemod=kids[5].val,
             **self._process_function_body(kids[7])
@@ -1684,7 +1684,7 @@ class DropFunctionStmt(Nonterm):
         r"""%reduce DROP FUNCTION NodeName CreateFunctionArgs"""
         self.val = qlast.DropFunction(
             name=kids[2].val,
-            args=kids[3].val)
+            params=kids[3].val)
 
 
 class FunctionType(Nonterm):
@@ -1740,7 +1740,7 @@ class CreateOperatorStmt(Nonterm):
         self.val = qlast.CreateOperator(
             kind=ft.OperatorKind(kids[1].val),
             name=kids[3].val,
-            args=kids[4].val,
+            params=kids[4].val,
             returning_typemod=kids[6].val,
             returning=kids[7].val,
             **self._process_operator_body(kids[8])
@@ -1795,7 +1795,7 @@ class AlterOperatorStmt(Nonterm):
         self.val = qlast.AlterOperator(
             kind=ft.OperatorKind(kids[1].val),
             name=kids[3].val,
-            args=kids[4].val,
+            params=kids[4].val,
             commands=kids[5].val
         )
 
@@ -1812,5 +1812,5 @@ class DropOperatorStmt(Nonterm):
         self.val = qlast.DropOperator(
             kind=ft.OperatorKind(kids[1].val),
             name=kids[3].val,
-            args=kids[4].val,
+            params=kids[4].val,
         )

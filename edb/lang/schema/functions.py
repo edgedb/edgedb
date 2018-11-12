@@ -23,8 +23,6 @@ import types
 import typing
 
 from edb.lang.common import persistent_hash as ph
-from edb.lang.common import struct
-from edb.lang.common import typed
 
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import errors as ql_errors
@@ -40,19 +38,32 @@ from . import types as s_types
 from . import utils
 
 
-class Parameter(struct.Struct):
+class Parameter(named.NamedObject):
 
-    pos = struct.Field(int, frozen=True)
-    name = struct.Field(str, frozen=True)
-    default = struct.Field(str, default=None, frozen=True)
-    type = struct.Field(so.Object, frozen=True)
-    typemod = struct.Field(ft.TypeModifier,
-                           default=ft.TypeModifier.SINGLETON,
-                           coerce=True, frozen=True)
-    kind = struct.Field(ft.ParameterKind, coerce=True, frozen=True)
+    _type = 'parameter'
+
+    num = so.Field(int, frozen=True, compcoef=0.4)
+    default = so.Field(str, default=None, frozen=True, compcoef=0.4)
+    type = so.Field(so.Object, frozen=True, compcoef=0.4)
+    typemod = so.Field(ft.TypeModifier,
+                       default=ft.TypeModifier.SINGLETON,
+                       coerce=True, frozen=True, compcoef=0.4)
+    kind = so.Field(ft.ParameterKind, coerce=True, frozen=True, compcoef=0.4)
 
     # Private field for caching default value AST.
-    _ql_default = struct.Field(object, default=None)
+    _ql_default = so.Field(
+        object,
+        default=None, ephemeral=True, introspectable=False, hashable=False)
+
+    @classmethod
+    def get_shortname(cls, fullname) -> str:
+        parts = str(fullname.name).split('@@', 1)
+        if len(parts) == 2:
+            return cls.unmangle_name(parts[0])
+        elif '::' in fullname:
+            return sn.Name(fullname).name
+        else:
+            return fullname
 
     def get_ql_default(self):
         if self._ql_default is None:
@@ -86,17 +97,9 @@ class Parameter(struct.Struct):
 
     def __hash__(self):
         return hash((
-            self.pos, self.name, self.default,
+            self.num, self.name, self.default,
             self.type, self.typemod, self.kind,
         ))
-
-    def persistent_hash(self, *, schema):
-        return ph.persistent_hash(
-            (
-                self.pos, self.name, self.default,
-                self.type, self.typemod, self.kind,
-            ),
-            schema=schema)
 
     def as_str(self):
         ret = []
@@ -104,7 +107,7 @@ class Parameter(struct.Struct):
             ret.append(self.kind.to_edgeql())
             ret.append(' ')
 
-        ret.append(f'{self.name}: ')
+        ret.append(f'{self.shortname}: ')
 
         if self.typemod is not ft.TypeModifier.SINGLETON:
             ret.append(self.typemod.to_edgeql())
@@ -142,18 +145,53 @@ class Parameter(struct.Struct):
             return self
 
 
+class ParameterCommandContext(sd.ObjectCommandContext):
+    pass
+
+
+class ParameterCommand(named.NamedObjectCommand,
+                       schema_metaclass=Parameter,
+                       context_class=ParameterCommandContext):
+    pass
+
+
+class CreateParameter(ParameterCommand, named.CreateNamedObject):
+
+    @classmethod
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+
+        for sub in cmd.get_subcommands(type=sd.AlterObjectProperty):
+            if sub.property == 'default':
+                sub.new_value = [sub.new_value]
+
+        return cmd
+
+    def _apply_field_ast(self, schema, context, node, op):
+        if op.property == 'default':
+            if op.new_value:
+                op.new_value = op.new_value[0]
+                super()._apply_field_ast(schema, context, node, op)
+        else:
+            super()._apply_field_ast(schema, context, node, op)
+
+
+class DeleteParameter(ParameterCommand, named.DeleteNamedObject):
+    pass
+
+
 class PgParams(typing.NamedTuple):
 
     params: typing.List[Parameter]
     has_param_wo_default: bool
 
 
-class FuncParameterList(typed.FrozenTypedList, type=Parameter):
+class FuncParameterList(so.FrozenObjectList, type=Parameter):
 
     @functools.lru_cache(200)
     def get_by_name(self, name) -> Parameter:
         for param in self:
-            if param.name == name:
+            if param.shortname == name:
                 return param
 
     @functools.lru_cache(200)
@@ -203,7 +241,8 @@ class FuncParameterList(typed.FrozenTypedList, type=Parameter):
         named = {}
         for param in self:
             if param.kind is ft.ParameterKind.NAMED_ONLY:
-                named[param.name] = param
+                named[param.shortname] = param
+
         return types.MappingProxyType(named)
 
     @property
@@ -217,79 +256,127 @@ class FuncParameterList(typed.FrozenTypedList, type=Parameter):
         return ph.persistent_hash(tuple(self), schema=schema)
 
     @classmethod
-    def from_ast(cls, astnode, modaliases, schema, *, allow_named=True):
+    def from_ast(cls, astnode, modaliases, schema, *,
+                 func_fqname=None, allow_named=True):
         params = []
 
-        for argi, arg in enumerate(astnode.args):
-            argd = None
-            if arg.default is not None:
-                argd = codegen.generate_source(arg.default)
+        if not getattr(astnode, 'params', None):
+            return cls(params)
 
-            argt = utils.ast_to_typeref(
-                arg.type, modaliases=modaliases, schema=schema)
+        for i, param in enumerate(astnode.params):
+            paramd = None
+            if param.default is not None:
+                paramd = codegen.generate_source(param.default)
 
-            if arg.kind is ft.ParameterKind.VARIADIC:
-                argt = s_types.Array.from_subtypes((argt,))
+            paramt = utils.ast_to_typeref(
+                param.type, modaliases=modaliases, schema=schema)
 
-            if arg.kind is ft.ParameterKind.NAMED_ONLY and not allow_named:
+            if param.kind is ft.ParameterKind.VARIADIC:
+                paramt = s_types.Array.from_subtypes((paramt,))
+
+            if param.kind is ft.ParameterKind.NAMED_ONLY and not allow_named:
                 raise ql_errors.EdgeQLError(
                     'named only parameters are not allowed in this context',
                     context=astnode.context)
 
-            param = Parameter(
-                pos=argi,
-                name=arg.name,
-                type=argt,
-                typemod=arg.typemod,
-                kind=arg.kind,
-                default=argd)
+            if func_fqname is not None:
+                param_name = sn.Name(
+                    module=func_fqname.module,
+                    name=Parameter.get_specialized_name(
+                        param.name, func_fqname)
+                )
+            else:
+                # We cannot yet determine the proper parameter name,
+                # as it is dependent on the function name, which, itself
+                # depends on arg shortnames.
+                param_name = sn.Name(
+                    module='__placeholder__',
+                    name=param.name
+                )
 
-            params.append(param)
+            params.append(
+                Parameter(
+                    num=i,
+                    name=param_name,
+                    type=paramt,
+                    typemod=param.typemod,
+                    kind=param.kind,
+                    default=paramd
+                )
+            )
 
         return cls(params)
 
 
-class Function(so.NamedObject):
-    _type = 'function'
+class CallableObject(so.NamedObject):
 
     params = so.Field(FuncParameterList, default=None,
-                      coerce=True, compcoef=0.4, frozen=True)
+                      coerce=True, compcoef=0.4, frozen=True,
+                      simpledelta=False)
 
     return_type = so.Field(so.Object, compcoef=0.2, frozen=True)
-
-    code = so.Field(str, default=None, compcoef=0.4, frozen=True)
-    language = so.Field(qlast.Language, default=None, compcoef=0.4,
-                        coerce=True, frozen=True)
-    from_function = so.Field(str, default=None, compcoef=0.4, frozen=True)
-
-    initial_value = so.Field(expr.ExpressionText, default=None, compcoef=0.4,
-                             coerce=True, frozen=True)
 
     return_typemod = so.Field(ft.TypeModifier, compcoef=0.4, coerce=True,
                               frozen=True)
 
-    @property
-    def inlined_defaults(self):
-        # This can be relaxed to just `language is EdgeQL` when we
-        # support non-constant defaults.
-        return bool(self.language is qlast.Language.EdgeQL and
-                    self.params.named_only)
-
-
-class FunctionCommandContext(sd.ObjectCommandContext):
-    pass
-
-
-class FunctionCommandMixin:
-
     @classmethod
-    def _classname_from_ast(cls, schema, astnode, context):
-        name = super()._classname_from_ast(schema, astnode, context)
+    def delta(cls, old, new, *, context=None, old_schema, new_schema):
+        context = context or so.ComparisonContext()
 
-        params = FuncParameterList.from_ast(
-            astnode, context.modaliases, schema)
+        with context(old, new):
+            delta = super().delta(old, new, context=context,
+                                  old_schema=old_schema, new_schema=new_schema)
 
-        return cls._get_function_fullname(name, params)
+            if old:
+                oldcoll = old.params
+            else:
+                oldcoll = []
+
+            if new:
+                newcoll = new.params
+            else:
+                newcoll = []
+
+            cls.delta_sets(oldcoll, newcoll, delta, context,
+                           old_schema=old_schema, new_schema=new_schema)
+
+        return delta
+
+
+class CallableCommand(named.NamedObjectCommand):
+
+    def _make_constructor_args(self, schema, context):
+        # Make sure the parameter objects exist first and foremost.
+        for op in self.get_subcommands(metaclass=Parameter):
+            schema, _ = op.apply(schema, context=context)
+
+        schema, props = super()._make_constructor_args(schema, context)
+
+        params = []
+
+        for cr_param in self.get_subcommands(type=ParameterCommand):
+            param = schema.get(cr_param.classname)
+            params.append(param)
+
+        props['params'] = FuncParameterList(params)
+
+        return schema, props
+
+    def _alter_innards(self, schema, context, scls):
+        schema = super()._alter_innards(schema, context, scls)
+
+        for op in self.get_subcommands(metaclass=Parameter):
+            schema, _ = op.apply(schema, context=context)
+
+        return schema
+
+    def _delete_innards(self, schema, context, scls):
+        schema = super()._delete_innards(schema, context, scls)
+
+        for op in self.get_subcommands(metaclass=Parameter):
+            schema, _ = op.apply(schema, context=context)
+
+        return schema
 
     @classmethod
     def _get_function_name_quals(
@@ -313,7 +400,7 @@ class FunctionCommandMixin:
 
             pk = param.kind
             if pk is ft.ParameterKind.NAMED_ONLY:
-                quals.append(f'$NO-{param.name}-{pt.name}$')
+                quals.append(f'$NO-{param.shortname}-{pt.name}$')
             elif pk is ft.ParameterKind.VARIADIC:
                 quals.append(f'$V$')
 
@@ -328,28 +415,92 @@ class FunctionCommandMixin:
             name=named.NamedObject.get_specialized_name(name, *quals))
 
 
-class FunctionCommand(FunctionCommandMixin,
-                      named.NamedObjectCommand,
-                      schema_metaclass=Function,
-                      context_class=FunctionCommandContext):
+class CreateCallableObject(named.CreateNamedObject):
+
+    @classmethod
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+
+        params = FuncParameterList.from_ast(
+            astnode, context.modaliases, schema, func_fqname=cmd.classname)
+
+        for param in params:
+            param_delta = param.delta(
+                None, param, context=None,
+                old_schema=None, new_schema=schema)
+            cmd.add(param_delta)
+
+        return cmd
+
+
+class DeleteCallableObject(named.DeleteNamedObject):
+
+    @classmethod
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+
+        params = FuncParameterList.from_ast(
+            astnode, context.modaliases, schema, func_fqname=cmd.classname)
+
+        for param in params:
+            param_delta = param.delta(
+                param, None, context=None,
+                old_schema=schema, new_schema=None)
+            cmd.add(param_delta)
+
+        return cmd
+
+
+class Function(CallableObject):
+    _type = 'function'
+
+    code = so.Field(str, default=None, compcoef=0.4, frozen=True)
+    language = so.Field(qlast.Language, default=None, compcoef=0.4,
+                        coerce=True, frozen=True)
+    from_function = so.Field(str, default=None, compcoef=0.4, frozen=True)
+
+    initial_value = so.Field(expr.ExpressionText, default=None, compcoef=0.4,
+                             coerce=True, frozen=True)
+
+    @property
+    def inlined_defaults(self):
+        # This can be relaxed to just `language is EdgeQL` when we
+        # support non-constant defaults.
+        return bool(self.language is qlast.Language.EdgeQL and
+                    self.params.named_only)
+
+
+class FunctionCommandContext(sd.ObjectCommandContext):
     pass
 
 
-class CreateFunction(named.CreateNamedObject, FunctionCommand):
+class FunctionCommand(CallableCommand,
+                      schema_metaclass=Function,
+                      context_class=FunctionCommandContext):
+
+    @classmethod
+    def _classname_from_ast(cls, schema, astnode, context):
+        name = super()._classname_from_ast(schema, astnode, context)
+
+        params = FuncParameterList.from_ast(
+            astnode, context.modaliases, schema)
+
+        return cls._get_function_fullname(schema, name, params)
+
+
+class CreateFunction(CreateCallableObject, FunctionCommand):
     astnode = qlast.CreateFunction
 
-    def _add_to_schema(self, schema):
+    def _add_to_schema(self, schema, context):
         from edb.lang.ir import utils as irutils
 
-        props = super().get_struct_properties(schema)
-
-        params: FuncParameterList = props['params']
-        fullname = props['name']
+        params: FuncParameterList = self.scls.params
+        fullname = self.scls.name
         shortname = Function.get_shortname(fullname)
-        language = props['language']
-        return_type = props['return_type']
-        return_typemod = props['return_typemod']
-        from_function = props.get('from_function')
+        language = self.scls.language
+        return_type = self.scls.return_type
+        return_typemod = self.scls.return_typemod
+        from_function = self.scls.from_function
         has_polymorphic = params.has_polymorphic(schema)
 
         get_signature = lambda: f'{shortname}{params.as_str()}'
@@ -453,21 +604,13 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
                         f'{p.type.displayname}',
                         context=self.source_context)
 
-        return super()._add_to_schema(schema)
+        return super()._add_to_schema(schema, context)
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         modaliases = context.modaliases
-
-        params = FuncParameterList.from_ast(astnode, modaliases, schema)
-
-        cmd.add(sd.AlterObjectProperty(
-            property='params',
-            new_value=params
-        ))
-
         cmd.add(sd.AlterObjectProperty(
             property='return_type',
             new_value=utils.ast_to_typeref(
@@ -506,5 +649,5 @@ class AlterFunction(named.AlterNamedObject, FunctionCommand):
     astnode = qlast.AlterFunction
 
 
-class DeleteFunction(named.DeleteNamedObject, FunctionCommand):
+class DeleteFunction(DeleteCallableObject, FunctionCommand):
     astnode = qlast.DropFunction

@@ -421,14 +421,14 @@ class ConstraintCallableAndExtends(Nonterm):
             self, *kids):
         self.val = esast.ConstraintDeclaration(
             name=kids[0].val,
-            args=kids[1].val,
+            params=kids[1].val,
             subject=kids[2].val,
             extends=kids[3].val)
 
     def reduce_Identifier_OptFunctionParameters_OptOnExpr(self, *kids):
         self.val = esast.ConstraintDeclaration(
             name=kids[0].val,
-            args=kids[1].val,
+            params=kids[1].val,
             subject=kids[2].val)
 
 
@@ -573,7 +573,7 @@ class FunctionDeclCore(Nonterm):
 
         self.val = esast.FunctionDeclaration(
             name=kids[0].val,
-            args=kids[1].val,
+            params=kids[1].val,
             returning_typemod=returning_typemod,
             returning=returning,
             attributes=attributes,
@@ -655,7 +655,7 @@ class ParenRawString(Nonterm):
                 f'Could not parse EdgeQL parameters declaration {expr!r}',
                 context=context) from None
 
-        return eql.args
+        return eql.params
 
     def parse_as_expr(self):
         expr = self.val.value

@@ -152,7 +152,7 @@ class NamedObjectCommand(sd.ObjectCommand):
             if subnode is not None:
                 node.commands.append(subnode)
 
-    def _add_to_schema(self, schema):
+    def _add_to_schema(self, schema, context):
         metaclass = self.get_schema_metaclass()
         if schema.get(self.classname, default=None, type=metaclass):
             raise ValueError(f'{self.classname!r} already exists in schema')
@@ -161,7 +161,7 @@ class NamedObjectCommand(sd.ObjectCommand):
 
     def _create_begin(self, schema, context):
         schema = super()._create_begin(schema, context)
-        return self._add_to_schema(schema)
+        return self._add_to_schema(schema, context)
 
 
 class CreateOrAlterNamedObject(NamedObjectCommand):

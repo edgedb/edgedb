@@ -277,7 +277,7 @@ class EdgeQLOptimizer:
                 self._process_expr(context, expr.target)
 
             elif isinstance(expr, qlast.OperatorCommand):
-                for arg in expr.args:
+                for arg in expr.params:
                     self._process_expr(context, arg)
 
                 if isinstance(expr, qlast.CreateOperator):

@@ -210,8 +210,9 @@ class PointerStorageInfo:
                 'schema::element_type',
                 'schema::element_types',
                 'schema::key_type',
-                'schema::type'
-            }
+            } or
+            (pointer.shortname == 'schema::type' and
+                pointer.source.shortname != 'schema::Parameter')
         )
 
     @classmethod

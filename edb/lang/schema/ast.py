@@ -89,11 +89,6 @@ class Link(Pointer):
     on_target_delete: OnTargetDelete
 
 
-# # XXX: to be killed
-# class Property(Property):
-#     pass
-
-
 class Declaration(Base):
     name: str
     extends: typing.List[qlast.TypeName]
@@ -121,7 +116,7 @@ class ObjectTypeDeclaration(Declaration):
 
 class ConstraintDeclaration(Declaration):
     abstract: bool = False
-    args: typing.List[qlast.Base]
+    params: typing.List[qlast.FuncParam]
     subject: typing.Optional[qlast.Expr]
 
 
@@ -141,7 +136,7 @@ class FunctionCode(Base):
 
 
 class FunctionDeclaration(Declaration):
-    args: list
+    params: list
     returning: qlast.TypeName
     code: FunctionCode
     returning_typemod: qlft.TypeModifier

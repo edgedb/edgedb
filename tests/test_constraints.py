@@ -700,7 +700,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
             SELECT schema::Constraint {
                 name,
                 is_abstract,
-                params: {
+                args: {
                     num,
                     name,
                     kind,
@@ -709,12 +709,12 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     },
                     typemod,
                     @value
-                } ORDER BY schema::Constraint.params.num ASC
+                } ORDER BY schema::Constraint.args.num ASC
             } FILTER .name = 'test::mymax_ext1' ORDER BY .is_abstract;
         ''', [[
             {
                 "name": 'test::mymax_ext1',
-                "params": [
+                "args": [
                     {
                         "num": 0,
                         "kind": 'POSITIONAL',
@@ -728,7 +728,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
             },
             {
                 "name": 'test::mymax_ext1',
-                "params": [
+                "args": [
                     {
                         "num": 0,
                         "kind": 'POSITIONAL',

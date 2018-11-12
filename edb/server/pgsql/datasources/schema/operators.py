@@ -35,18 +35,7 @@ async def fetch(
                 o.operator_kind,
                 edgedb._resolve_type(o.return_type) AS return_type,
                 edgedb._resolve_type_name(o.commutator) AS commutator,
-
-                (SELECT array_agg(
-                    (p.pos,
-                     p.name,
-                     p.default,
-                     edgedb._resolve_type(p.type),
-                     p.typemod,
-                     p.kind))
-
-                    FROM
-                        unnest(o.params) AS p
-                ) AS params
+                edgedb._resolve_type_name(o.params) AS params
 
             FROM
                 edgedb.operator o

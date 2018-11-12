@@ -159,7 +159,8 @@ class NamedObjectMetaCommand(
         recvalue = None
         result = value
 
-        if isinstance(value, (s_obj.ObjectSet, s_obj.ObjectList)):
+        if isinstance(value, (s_obj.ObjectSet, s_obj.ObjectList,
+                              s_obj.FrozenObjectList)):
             result = tuple(self._get_name(v) for v in value)
             name_array = ', '.join(ql(n) for n in result)
             recvalue = dbops.Query(
@@ -184,24 +185,6 @@ class NamedObjectMetaCommand(
         elif isinstance(value, collections.abc.Mapping):
             # Other dicts are JSON'ed by default
             recvalue = json.dumps(dict(value))
-
-        elif isinstance(value, s_funcs.FuncParameterList):
-            recvalue = []
-            for param in value:
-                type_desc = types.TypeDesc.from_type(schema, param.type)
-                typeq = dbops.Query(
-                    'edgedb._encode_type({type_desc})'.format(
-                        type_desc=type_desc.to_sql_expr())
-                )
-
-                recvalue.append((
-                    param.pos,
-                    param.name,
-                    param.default,
-                    typeq,
-                    param.typemod,
-                    param.kind,
-                ))
 
         if recvalue is None:
             if result is None and use_defaults:
@@ -351,6 +334,22 @@ class AlterObjectProperty(MetaCommand, adapts=sd.AlterObjectProperty):
     pass
 
 
+class ParameterCommand:
+    table = metaschema.get_metaclass_table(s_funcs.Parameter)
+
+
+class CreateParameter(ParameterCommand, CreateNamedObject,
+                      adapts=s_funcs.CreateParameter):
+
+    pass
+
+
+class DeleteParameter(ParameterCommand, DeleteNamedObject,
+                      adapts=s_funcs.DeleteParameter):
+
+    pass
+
+
 class FunctionCommand:
     table = metaschema.get_metaclass_table(s_funcs.Function)
 
@@ -408,7 +407,7 @@ class FunctionCommand:
             if compile_defaults and param.default is not None:
                 default = self.compile_default(func, param.default, schema)
 
-            args.append((param.name, pg_at, default))
+            args.append((param.shortname, pg_at, default))
 
         return args
 

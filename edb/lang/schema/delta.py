@@ -609,13 +609,16 @@ class CreateObject(ObjectCommand):
     _delta_action = 'create'
 
     def _create_begin(self, schema, context):
-        props = self.get_struct_properties(schema)
+        schema, props = self._make_constructor_args(schema, context)
 
         metaclass = self.get_schema_metaclass()
         self.scls = metaclass(
             **props, _setdefaults_=False, _relaxrequired_=True)
 
         return schema
+
+    def _make_constructor_args(self, schema, context):
+        return schema, self.get_struct_properties(schema)
 
     def _create_innards(self, schema, context):
         return schema

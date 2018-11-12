@@ -200,9 +200,9 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
 
     def visit_ConstraintDeclaration(self, node):
         def after_name(node):
-            if node.args:
+            if node.params:
                 self.write('(')
-                self.visit_list(node.args, newlines=False)
+                self.visit_list(node.params, newlines=False)
                 self.write(')')
             if node.subject:
                 self.write(' on ')
@@ -231,7 +231,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
 
         self.write(node.name)
         self.write('(')
-        self.visit_list(node.args, newlines=False)
+        self.visit_list(node.params, newlines=False)
         self.write(') -> ')
         self.write(node.returning_typemod.to_edgeql(), ' ')
         self.visit(node.returning)

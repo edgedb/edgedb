@@ -42,19 +42,11 @@ async def fetch(
                 a.args                  AS args,
                 edgedb._resolve_type_name(a.subject)
                                         AS subject,
-
-                (SELECT array_agg(
-                    (p.pos,
-                     p.name,
-                     p.default,
-                     edgedb._resolve_type(p.type),
-                     p.typemod,
-                     p.kind))
-
-                    FROM
-                        unnest(a.params) AS p
-                )                       AS params
-
+                edgedb._resolve_type_name(a.params)
+                                        AS params,
+                edgedb._resolve_type(a.return_type)
+                                        AS return_type,
+                a.return_typemod        AS return_typemod
 
             FROM
                 edgedb.constraint a
