@@ -281,6 +281,16 @@ class FunctionCommandContext(sd.ObjectCommandContext):
 
 
 class FunctionCommandMixin:
+
+    @classmethod
+    def _classname_from_ast(cls, schema, astnode, context):
+        name = super()._classname_from_ast(schema, astnode, context)
+
+        params = FuncParameterList.from_ast(
+            astnode, context.modaliases, schema)
+
+        return cls._get_function_fullname(name, params)
+
     @classmethod
     def _get_function_name_quals(
             cls, schema, name, params: FuncParameterList) -> typing.List[str]:
@@ -318,7 +328,8 @@ class FunctionCommandMixin:
             name=named.NamedObject.get_specialized_name(name, *quals))
 
 
-class FunctionCommand(named.NamedObjectCommand, FunctionCommandMixin,
+class FunctionCommand(FunctionCommandMixin,
+                      named.NamedObjectCommand,
                       schema_metaclass=Function,
                       context_class=FunctionCommandContext):
     pass
@@ -327,28 +338,21 @@ class FunctionCommand(named.NamedObjectCommand, FunctionCommandMixin,
 class CreateFunction(named.CreateNamedObject, FunctionCommand):
     astnode = qlast.CreateFunction
 
-    def get_struct_properties(self, schema):
-        props = super().get_struct_properties(schema)
-
-        props['name'] = self._get_function_fullname(
-            schema, props['name'], props['params'])
-        return props
-
     def _add_to_schema(self, schema):
         from edb.lang.ir import utils as irutils
 
         props = super().get_struct_properties(schema)
 
         params: FuncParameterList = props['params']
-        name = props['name']
+        fullname = props['name']
+        shortname = Function.get_shortname(fullname)
         language = props['language']
         return_type = props['return_type']
         return_typemod = props['return_typemod']
         from_function = props.get('from_function')
         has_polymorphic = params.has_polymorphic(schema)
 
-        fullname = self._get_function_fullname(schema, name, params)
-        get_signature = lambda: f'{self.classname}{params.as_str()}'
+        get_signature = lambda: f'{shortname}{params.as_str()}'
 
         func = schema.get(fullname, None)
         if func:
@@ -365,7 +369,7 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
                 f'polymorphic parameters',
                 context=self.source_context)
 
-        overloaded_funcs = schema.get_functions(name, ())
+        overloaded_funcs = schema.get_functions(shortname, ())
         has_from_function = from_function
 
         for func in overloaded_funcs:
@@ -504,12 +508,3 @@ class AlterFunction(named.AlterNamedObject, FunctionCommand):
 
 class DeleteFunction(named.DeleteNamedObject, FunctionCommand):
     astnode = qlast.DropFunction
-
-    @classmethod
-    def _classname_from_ast(cls, schema, astnode, context):
-        name = super()._classname_from_ast(schema, astnode, context)
-
-        params = FuncParameterList.from_ast(
-            astnode, context.modaliases, schema)
-
-        return cls._get_function_fullname(schema, name, params)

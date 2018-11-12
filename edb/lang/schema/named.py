@@ -204,14 +204,6 @@ class CreateNamedObject(CreateOrAlterNamedObject, sd.CreateObject):
         else:
             super()._apply_field_ast(schema, context, node, op)
 
-    def apply(self, schema, context):
-        metaclass = self.get_schema_metaclass()
-        if schema.get(self.classname, default=None, type=metaclass):
-            raise ValueError(f'{self.classname!r} already exists in schema')
-
-        # apply will add to the schema
-        return sd.CreateObject.apply(self, schema, context)
-
     def __repr__(self):
         return '<%s.%s "%s">' % (self.__class__.__module__,
                                  self.__class__.__name__,
