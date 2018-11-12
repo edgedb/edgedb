@@ -436,15 +436,15 @@ class ReferencingObject(inheriting.InheritingObject,
 
         return schema
 
-    def delta(self, other, reverse=False, context=None):
-        old, new = (other, self) if not reverse else (self, other)
-
+    @classmethod
+    def delta(cls, old, new, *, context=None, old_schema, new_schema):
         context = context or so.ComparisonContext()
 
-        cls = (old or new).__class__
+        cls = type(new if new is not None else old)
 
         with context(old, new):
-            delta = super().delta(other, reverse=reverse, context=context)
+            delta = super().delta(old, new, context=context,
+                                  old_schema=old_schema, new_schema=new_schema)
             if isinstance(delta, sd.CreateObject):
                 # If this is a CREATE delta, we need to make
                 # sure it is returned separately from the creation
@@ -452,7 +452,11 @@ class ReferencingObject(inheriting.InheritingObject,
                 # delta.  This is needed to avoid the hassle of
                 # sorting the delta order by dependencies or having
                 # to maintain ephemeral forward references.
-                alter_delta = super().delta(self, context=context)
+                #
+                # Generate an empty delta.
+                alter_delta = super().delta(new, new, context=context,
+                                            old_schema=new_schema,
+                                            new_schema=new_schema)
                 full_delta = sd.CommandGroup()
                 full_delta.add(delta)
             else:
@@ -475,7 +479,8 @@ class ReferencingObject(inheriting.InheritingObject,
                 else:
                     newcoll_idx = {}
 
-                self.delta_sets(oldcoll_idx, newcoll_idx, alter_delta, context)
+                cls.delta_sets(oldcoll_idx, newcoll_idx, alter_delta, context,
+                               old_schema=old_schema, new_schema=new_schema)
 
             if alter_delta is not full_delta:
                 if alter_delta.has_subcommands():
@@ -719,7 +724,10 @@ class ReferencingObject(inheriting.InheritingObject,
             if merged is not local:
                 if not pure_inheritance:
                     if dctx is not None:
-                        delta = merged.delta(local, context=None)
+                        delta = merged.delta(local, merged,
+                                             context=None,
+                                             old_schema=schema,
+                                             new_schema=schema)
                         if delta.has_subcommands():
                             dctx.current().op.add(delta)
 

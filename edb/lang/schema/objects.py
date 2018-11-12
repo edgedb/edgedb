@@ -132,13 +132,12 @@ class ComparisonContext:
         self.memo = {}
 
     def push(self, pair):
-        cls = None
         obj = pair[1] if pair[0] is None else pair[0]
-
-        cls = obj.__class__
+        cls = type(obj)
 
         if not issubclass(cls, Object):
-            raise ValueError('invalid argument type for comparison context')
+            raise ValueError(
+                f'invalid argument type {cls!r} for comparison context')
 
         cls = cls.get_canonical_class()
 
@@ -365,18 +364,8 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
                 return comp * compcoef
 
     @classmethod
-    def delta_pair(cls, new, old, context=None):
-        if new:
-            return new.delta(old, context=context)
-        elif old:
-            return old.delta(new, reverse=True, context=context)
-        else:
-            return None
-
-    def delta(self, other, reverse=False, context=None):
+    def delta(cls, old, new, *, context=None, old_schema, new_schema):
         from . import delta as sd
-
-        old, new = (other, self) if not reverse else (self, other)
 
         command_args = {}
 
@@ -389,9 +378,11 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
                 command_args['classname'] = name
 
             alter_class = sd.ObjectCommandMeta.get_command_class_or_die(
-                sd.AlterObject, type(self))
+                sd.AlterObject, type(old))
             delta = alter_class(**command_args)
-            self.delta_properties(delta, other, reverse, context=context)
+            cls.delta_properties(delta, old, new, context=context,
+                                 old_schema=old_schema,
+                                 new_schema=new_schema)
 
         elif not old:
             try:
@@ -402,9 +393,11 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
                 command_args['classname'] = name
 
             create_class = sd.ObjectCommandMeta.get_command_class_or_die(
-                sd.CreateObject, type(self))
+                sd.CreateObject, type(new))
             delta = create_class(**command_args)
-            self.delta_properties(delta, other, reverse, context=context)
+            cls.delta_properties(delta, old, new, context=context,
+                                 old_schema=old_schema,
+                                 new_schema=new_schema)
 
         else:
             try:
@@ -415,7 +408,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
                 command_args['classname'] = name
 
             delete_class = sd.ObjectCommandMeta.get_command_class_or_die(
-                sd.DeleteObject, type(self))
+                sd.DeleteObject, type(old))
             delta = delete_class(**command_args)
 
         return delta
@@ -467,19 +460,19 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
 
         return ref, val
 
-    def delta_properties(self, delta, other, reverse=False, context=None):
+    @classmethod
+    def delta_properties(cls, delta, old, new, *, context=None,
+                         old_schema, new_schema):
         from edb.lang.schema import delta as sd
 
-        old, new = (other, self) if not reverse else (self, other)
-
-        ff = self.__class__.get_fields(sorted=True).items()
+        ff = type(new).get_fields(sorted=True).items()
         fields = [fn for fn, f in ff
                   if f.simpledelta and not f.ephemeral and f.introspectable]
 
         if old and new:
             for f in fields:
-                oldattr, oldattr_v = self._reduce_refs(getattr(old, f))
-                newattr, newattr_v = self._reduce_refs(getattr(new, f))
+                oldattr, oldattr_v = new._reduce_refs(getattr(old, f))
+                newattr, newattr_v = new._reduce_refs(getattr(new, f))
 
                 if oldattr_v != newattr_v:
                     delta.add(sd.AlterObjectProperty(
@@ -488,7 +481,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
             for f in fields:
                 value = getattr(new, f)
                 if value is not None:
-                    value, _ = self._reduce_refs(value)
+                    value, _ = new._reduce_refs(value)
                     delta.add(sd.AlterObjectProperty(
                         property=f, old_value=None, new_value=value))
 
@@ -517,7 +510,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
 
     @classmethod
     def delta_sets(cls, old, new, result, context=None, *,
-                   old_schema=None, new_schema=None):
+                   old_schema, new_schema):
         adds_mods, dels = cls._delta_sets(old, new, context=context,
                                           old_schema=old_schema,
                                           new_schema=new_schema)
@@ -527,7 +520,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
 
     @classmethod
     def _delta_sets(cls, old, new, context=None, *,
-                    old_schema=None, new_schema=None):
+                    old_schema, new_schema):
         from edb.lang.schema import named as s_named
         from edb.lang.schema import database as s_db
 
@@ -536,12 +529,16 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
 
         if old is None:
             for n in new:
-                adds_mods.add(n.delta(None, context=context))
+                adds_mods.add(n.delta(None, n, context=context,
+                                      old_schema=old_schema,
+                                      new_schema=new_schema))
             adds_mods.sort_subcommands_by_type()
             return adds_mods, dels
         elif new is None:
             for o in old:
-                dels.add(o.delta(None, reverse=True, context=context))
+                dels.add(o.delta(o, None, context=context,
+                                 old_schema=old_schema,
+                                 new_schema=new_schema))
             return adds_mods, dels
 
         old = list(old)
@@ -570,7 +567,9 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
             if x not in used_x and y not in used_y:
                 if s != 1.0:
                     if s > 0.6:
-                        altered.add(x.delta(y, context=context))
+                        altered.add(x.delta(y, x, context=context,
+                                            old_schema=old_schema,
+                                            new_schema=new_schema))
                         used_x.add(x)
                         used_y.add(y)
                 else:
@@ -583,7 +582,9 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
         if created:
             created = cls._sort_set(new_schema, created)
             for x in created:
-                adds_mods.add(x.delta(None, context=context))
+                adds_mods.add(x.delta(None, x, context=context,
+                                      old_schema=old_schema,
+                                      new_schema=new_schema))
 
         if old_schema is not None and new_schema is not None:
             if old:
@@ -638,7 +639,9 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
         if deleted:
             deleted = cls._sort_set(old_schema, deleted)
             for y in reversed(list(deleted)):
-                dels.add(y.delta(None, reverse=True, context=context))
+                dels.add(y.delta(y, None, context=context,
+                                 old_schema=old_schema,
+                                 new_schema=new_schema))
 
         adds_mods.sort_subcommands_by_type()
         return adds_mods, dels
@@ -724,25 +727,29 @@ class NamedObject(Object):
     def displayname(self) -> str:
         return str(self.shortname)
 
-    def delta_properties(self, delta, other, reverse=False, context=None):
-        old, new = (other, self) if not reverse else (self, other)
-
+    @classmethod
+    def delta_properties(cls, delta, old, new, *, context=None,
+                         old_schema, new_schema):
         if old and new:
             if old.name != new.name:
-                delta.add(old.delta_rename(new.name))
+                delta.add(old.delta_rename(old, new.name,
+                                           old_schema=old_schema,
+                                           new_schema=new_schema))
 
-        super().delta_properties(delta, other, reverse, context)
+        super().delta_properties(delta, old, new, context=context,
+                                 old_schema=old_schema, new_schema=new_schema)
 
-    def delta_rename(self, new_name):
+    @classmethod
+    def delta_rename(cls, obj, new_name, *, old_schema, new_schema):
         from . import delta as sd
         from . import named
 
         rename_class = sd.ObjectCommandMeta.get_command_class_or_die(
-            named.RenameNamedObject, type(self))
+            named.RenameNamedObject, type(obj))
 
-        return rename_class(classname=self.name,
+        return rename_class(classname=obj.name,
                             new_name=new_name,
-                            metaclass=self.get_canonical_class())
+                            metaclass=obj.get_canonical_class())
 
     @classmethod
     def compare_values(cls, ours, theirs, context, compcoef):

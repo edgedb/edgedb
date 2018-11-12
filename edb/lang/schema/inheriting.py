@@ -334,18 +334,19 @@ class InheritingObject(derivable.DerivableObject):
             schema = schema.drop_inheritance_cache(obj)
         return schema
 
-    def delta(self, other, reverse=False, *, context):
-        old, new = (other, self) if not reverse else (self, other)
-
+    @classmethod
+    def delta(cls, old, new, *, context, old_schema, new_schema):
         if context is None:
             context = so.ComparisonContext()
 
         with context(old, new):
-            delta = super().delta(other, reverse=reverse, context=context)
+            delta = super().delta(old, new, context=context,
+                                  old_schema=old_schema,
+                                  new_schema=new_schema)
 
             if old and new:
                 rebase = sd.ObjectCommandMeta.get_command_class(
-                    RebaseNamedObject, type(self))
+                    RebaseNamedObject, type(new))
 
                 old_base_names = old.get_base_names()
                 new_base_names = new.get_base_names()

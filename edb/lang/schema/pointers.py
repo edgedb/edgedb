@@ -399,7 +399,9 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
                 cls = self.get_schema_metaclass()
                 std_link = schema.get(cls.get_default_base_name())
                 base = cls(name=base_name, bases=[std_link])
-                delta = base.delta(None)
+                delta = base.delta(None, base,
+                                   old_schema=None,
+                                   new_schema=schema)
                 schema, _ = delta.apply(schema, context=context.at_top())
                 top_ctx = referrer_ctx
                 refref_cls = getattr(
