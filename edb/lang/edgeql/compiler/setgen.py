@@ -521,7 +521,7 @@ def generated_set(
         typehint: typing.Optional[s_types.Type]=None,
         ctx: context.ContextLevel) -> irast.Set:
     if typehint is not None:
-        ql_typeref = s_utils.typeref_to_ast(typehint)
+        ql_typeref = s_utils.typeref_to_ast(ctx.schema, typehint)
         ir_typeref = typegen.ql_typeref_to_ir_typeref(ql_typeref, ctx=ctx)
     else:
         ir_typeref = None

@@ -505,7 +505,7 @@ class DeclarationLoader:
 
             attrval = qlast.TypeCast(
                 expr=attrdecl.value,
-                type=s_utils.typeref_to_ast(attribute.type),
+                type=s_utils.typeref_to_ast(self._schema, attribute.type),
             )
 
             # Compiling the attribute value declaration validates it.

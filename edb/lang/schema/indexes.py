@@ -89,7 +89,7 @@ class SourceIndexCommand(referencing.ReferencedObjectCommand,
                          context_class=SourceIndexCommandContext,
                          referrer_context_class=IndexSourceCommandContext):
     @classmethod
-    def _classname_from_ast(cls, astnode, context, schema):
+    def _classname_from_ast(cls, schema, astnode, context):
         parent_ctx = context.get(sd.CommandContextToken)
         subject_name = parent_ctx.op.classname
 
@@ -109,8 +109,8 @@ class CreateSourceIndex(SourceIndexCommand, named.CreateNamedObject):
     astnode = qlast.CreateIndex
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         parent_ctx = context.get(sd.CommandContextToken)
         subject_name = parent_ctx.op.classname
@@ -129,11 +129,11 @@ class CreateSourceIndex(SourceIndexCommand, named.CreateNamedObject):
 
         return cmd
 
-    def _apply_fields_ast(self, context, node):
-        super()._apply_fields_ast(context, node)
+    def _apply_fields_ast(self, schema, context, node):
+        super()._apply_fields_ast(schema, context, node)
         node.name.module = ''
 
-    def _apply_field_ast(self, context, node, op):
+    def _apply_field_ast(self, schema, context, node, op):
         if op.property == 'expr':
             node.expr = op.new_value
         elif op.property == 'is_derived':
@@ -141,7 +141,7 @@ class CreateSourceIndex(SourceIndexCommand, named.CreateNamedObject):
         elif op.property == 'subject':
             pass
         else:
-            super()._apply_field_ast(context, node, op)
+            super()._apply_field_ast(schema, context, node, op)
 
 
 class RenameSourceIndex(SourceIndexCommand, named.RenameNamedObject):

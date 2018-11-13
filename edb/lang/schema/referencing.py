@@ -182,8 +182,8 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
         return context.get(cls.get_referrer_context_class())
 
     @classmethod
-    def _classname_from_ast(cls, astnode, context, schema):
-        name = super()._classname_from_ast(astnode, context, schema)
+    def _classname_from_ast(cls, schema, astnode, context):
+        name = super()._classname_from_ast(schema, astnode, context)
 
         parent_ctx = cls.get_referrer_context(context)
         if parent_ctx is not None:
@@ -324,8 +324,8 @@ class ReferencedInheritingObjectCommand(
 
 class CreateReferencedInheritingObject(inheriting.CreateInheritingObject):
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if isinstance(astnode, cls.referenced_astnode):
             objcls = cls.get_schema_metaclass()
@@ -377,13 +377,13 @@ class CreateReferencedInheritingObject(inheriting.CreateInheritingObject):
         return cmd
 
     @classmethod
-    def _classbases_from_ast(cls, astnode, context, schema):
+    def _classbases_from_ast(cls, schema, astnode, context):
         if isinstance(astnode, cls.referenced_astnode):
             # The bases will be populated by a call to derive()
             # from within _create_begin()
             bases = None
         else:
-            bases = super()._classbases_from_ast(astnode, context, schema)
+            bases = super()._classbases_from_ast(schema, astnode, context)
 
         return bases
 
@@ -785,13 +785,13 @@ class ReferencingObject(inheriting.InheritingObject,
 
 
 class ReferencingObjectCommand(sd.ObjectCommand):
-    def _apply_fields_ast(self, context, node):
-        super()._apply_fields_ast(context, node)
+    def _apply_fields_ast(self, schema, context, node):
+        super()._apply_fields_ast(schema, context, node)
 
         mcls = self.get_schema_metaclass()
 
         for refdict in mcls.get_refdicts():
-            self._apply_refs_fields_ast(context, node, refdict)
+            self._apply_refs_fields_ast(schema, context, node, refdict)
 
     def _create_innards(self, schema, context):
         schema = super()._create_innards(schema, context)
@@ -823,9 +823,9 @@ class ReferencingObjectCommand(sd.ObjectCommand):
 
         return schema
 
-    def _apply_refs_fields_ast(self, context, node, refdict):
+    def _apply_refs_fields_ast(self, schema, context, node, refdict):
         for op in self.get_subcommands(metaclass=refdict.ref_cls):
-            self._append_subcmd_ast(node, op, context)
+            self._append_subcmd_ast(schema, node, op, context)
 
     def _create_refs(self, schema, context, scls, refdict):
         for op in self.get_subcommands(metaclass=refdict.ref_cls):

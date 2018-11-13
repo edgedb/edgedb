@@ -50,7 +50,7 @@ class ViewCommand(nodes.NodeCommand, context_class=ViewCommandContext):
 
     @classmethod
     def _command_for_ast_node(cls, astnode, schema, context):
-        classname = cls._classname_from_ast(astnode, context, schema)
+        classname = cls._classname_from_ast(schema, astnode, context)
 
         if isinstance(astnode, qlast.CreateView):
             expr = cls._get_view_expr(astnode)

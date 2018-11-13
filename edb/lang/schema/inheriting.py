@@ -81,17 +81,17 @@ class AlterInherit(sd.Command):
     astnode = qlast.AlterAddInherit, qlast.AlterDropInherit
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
         # The base changes are handled by AlterNamedObject
         return None
 
 
 class CreateInheritingObject(named.CreateNamedObject, InheritingObjectCommand):
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
-        bases = cls._classbases_from_ast(astnode, context, schema)
+        bases = cls._classbases_from_ast(schema, astnode, context)
         if bases is not None:
             cmd.add(
                 sd.AlterObjectProperty(
@@ -115,8 +115,8 @@ class CreateInheritingObject(named.CreateNamedObject, InheritingObjectCommand):
         return cmd
 
     @classmethod
-    def _classbases_from_ast(cls, astnode, context, schema):
-        classname = cls._classname_from_ast(astnode, context, schema)
+    def _classbases_from_ast(cls, schema, astnode, context):
+        classname = cls._classname_from_ast(schema, astnode, context)
 
         modaliases = context.modaliases
 

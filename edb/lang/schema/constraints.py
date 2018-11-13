@@ -412,8 +412,8 @@ class CreateConstraint(ConstraintCommand,
     referenced_astnode = qlast.CreateConcreteConstraint
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if isinstance(astnode, qlast.CreateConcreteConstraint):
             if astnode.args:
@@ -467,7 +467,7 @@ class CreateConstraint(ConstraintCommand,
 
         return cmd
 
-    def _apply_field_ast(self, context, node, op):
+    def _apply_field_ast(self, schema, context, node, op):
         if op.property == 'is_derived':
             pass
         elif op.property == 'is_abstract':
@@ -475,7 +475,7 @@ class CreateConstraint(ConstraintCommand,
         elif op.property == 'subject':
             pass
         else:
-            super()._apply_field_ast(context, node, op)
+            super()._apply_field_ast(schema, context, node, op)
 
 
 class RenameConstraint(ConstraintCommand, named.RenameNamedObject):
@@ -487,8 +487,8 @@ class AlterConstraint(ConstraintCommand, named.AlterNamedObject):
     referenced_astnode = qlast.AlterConcreteConstraint
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if isinstance(astnode, qlast.AlterConcreteConstraint):
             subject_ctx = context.get(ConsistencySubjectCommandContext)
@@ -524,10 +524,10 @@ class AlterConstraint(ConstraintCommand, named.AlterNamedObject):
 
         return cmd
 
-    def _apply_field_ast(self, context, node, op):
+    def _apply_field_ast(self, schema, context, node, op):
         if op.property == 'subject':
             return
-        super()._apply_field_ast(context, node, op)
+        super()._apply_field_ast(schema, context, node, op)
 
 
 class DeleteConstraint(ConstraintCommand, named.DeleteNamedObject):

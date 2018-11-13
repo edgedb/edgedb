@@ -48,7 +48,7 @@ class CreateDatabase(DatabaseCommand):
     astnode = qlast.CreateDatabase
 
     @classmethod
-    def _cmd_from_ast(cls, astnode, context, schema):
+    def _cmd_from_ast(cls, schema, astnode, context):
         return cls(name=astnode.name.name)
 
 
@@ -109,5 +109,5 @@ class DropDatabase(DatabaseCommand):
     astnode = qlast.DropDatabase
 
     @classmethod
-    def _cmd_from_ast(cls, astnode, context, schema):
+    def _cmd_from_ast(cls, schema, astnode, context):
         return cls(name=astnode.name.name)

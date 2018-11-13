@@ -73,12 +73,12 @@ class NamedObjectCommand(sd.ObjectCommand):
     classname = so.Field(sn.Name)
 
     @classmethod
-    def _get_ast_name(cls, astnode, context, schema):
+    def _get_ast_name(cls, schema, astnode, context):
         return astnode.name.name
 
     @classmethod
-    def _classname_from_ast(cls, astnode, context, schema):
-        nqname = cls._get_ast_name(astnode, context, schema)
+    def _classname_from_ast(cls, schema, astnode, context):
+        nqname = cls._get_ast_name(schema, astnode, context)
         module = context.modaliases.get(astnode.name.module,
                                         astnode.name.module)
         if module is None:
@@ -90,19 +90,19 @@ class NamedObjectCommand(sd.ObjectCommand):
         return sn.Name(module=module, name=nqname)
 
     @classmethod
-    def _cmd_from_ast(cls, astnode, context, schema):
-        classname = cls._classname_from_ast(astnode, context, schema)
+    def _cmd_from_ast(cls, schema, astnode, context):
+        classname = cls._classname_from_ast(schema, astnode, context)
         return cls(classname=classname)
 
-    def _append_subcmd_ast(cls, node, subcmd, context):
-        subnode = subcmd.get_ast(context)
+    def _append_subcmd_ast(cls, schema, node, subcmd, context):
+        subnode = subcmd.get_ast(schema, context)
         if subnode is not None:
             node.commands.append(subnode)
 
     def _get_ast_node(self, context):
         return self.__class__.astnode
 
-    def _get_ast(self, context):
+    def _get_ast(self, schema, context):
         metaclass = self.get_schema_metaclass()
         astnode = self._get_ast_node(context)
         if isinstance(self.classname, sn.Name):
@@ -119,7 +119,7 @@ class NamedObjectCommand(sd.ObjectCommand):
         else:
             op = astnode()
 
-        self._apply_fields_ast(context, op)
+        self._apply_fields_ast(schema, context, op)
 
         return op
 
@@ -137,18 +137,18 @@ class NamedObjectCommand(sd.ObjectCommand):
         name_ref = qlast.ObjectRef(name=name, module='')
         node.commands.append(qlast.DropAttributeValue(name=name_ref))
 
-    def _apply_fields_ast(self, context, node):
+    def _apply_fields_ast(self, schema, context, node):
         for op in self.get_subcommands(type=RenameNamedObject):
-            self._append_subcmd_ast(node, op, context)
+            self._append_subcmd_ast(schema, node, op, context)
 
         for op in self.get_subcommands(type=sd.AlterObjectProperty):
-            self._apply_field_ast(context, node, op)
+            self._apply_field_ast(schema, context, node, op)
 
-    def _apply_field_ast(self, context, node, op):
+    def _apply_field_ast(self, schema, context, node, op):
         if op.property == 'name':
             pass
         else:
-            subnode = op._get_ast(context)
+            subnode = op._get_ast(schema, context)
             if subnode is not None:
                 node.commands.append(subnode)
 
@@ -170,8 +170,8 @@ class CreateOrAlterNamedObject(NamedObjectCommand):
 
 class CreateNamedObject(CreateOrAlterNamedObject, sd.CreateObject):
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         cmd.add(
             sd.AlterObjectProperty(
@@ -182,7 +182,7 @@ class CreateNamedObject(CreateOrAlterNamedObject, sd.CreateObject):
 
         return cmd
 
-    def _apply_field_ast(self, context, node, op):
+    def _apply_field_ast(self, schema, context, node, op):
         if op.property == 'name':
             pass
         elif op.property == 'bases':
@@ -202,7 +202,7 @@ class CreateNamedObject(CreateOrAlterNamedObject, sd.CreateObject):
         elif op.property == 'is_final':
             node.is_final = op.new_value
         else:
-            super()._apply_field_ast(context, node, op)
+            super()._apply_field_ast(schema, context, node, op)
 
     def apply(self, schema, context):
         metaclass = self.get_schema_metaclass()
@@ -263,7 +263,7 @@ class RenameNamedObject(NamedObjectCommand):
 
         return schema, scls
 
-    def _get_ast(self, context):
+    def _get_ast(self, schema, context):
         astnode = self._get_ast_node(context)
         metaclass = self.get_schema_metaclass()
 
@@ -286,15 +286,15 @@ class RenameNamedObject(NamedObjectCommand):
         return astnode(new_name=ref)
 
     @classmethod
-    def _cmd_from_ast(cls, astnode, context, schema):
+    def _cmd_from_ast(cls, schema, astnode, context):
         parent_ctx = context.get(sd.CommandContextToken)
         parent_class = parent_ctx.op.get_schema_metaclass()
         rename_class = sd.ObjectCommandMeta.get_command_class(
             RenameNamedObject, parent_class)
-        return rename_class._rename_cmd_from_ast(astnode, context)
+        return rename_class._rename_cmd_from_ast(schema, astnode, context)
 
     @classmethod
-    def _rename_cmd_from_ast(cls, astnode, context):
+    def _rename_cmd_from_ast(cls, schema, astnode, context):
         parent_ctx = context.get(sd.CommandContextToken)
         parent_class = parent_ctx.op.get_schema_metaclass()
         rename_class = sd.ObjectCommandMeta.get_command_class(
@@ -318,8 +318,8 @@ class RenameNamedObject(NamedObjectCommand):
 
 class AlterNamedObject(CreateOrAlterNamedObject, sd.AlterObject):
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         added_bases = []
         dropped_bases = []
@@ -419,7 +419,7 @@ class AlterNamedObject(CreateOrAlterNamedObject, sd.AlterObject):
                 )
             )
 
-    def _apply_field_ast(self, context, node, op):
+    def _apply_field_ast(self, schema, context, node, op):
         if op.property in {'is_abstract', 'is_final'}:
             node.commands.append(
                 qlast.SetSpecialField(
@@ -430,10 +430,10 @@ class AlterNamedObject(CreateOrAlterNamedObject, sd.AlterObject):
         elif op.property == 'bases':
             self._apply_rebase_ast(context, node, op)
         else:
-            super()._apply_field_ast(context, node, op)
+            super()._apply_field_ast(schema, context, node, op)
 
-    def _get_ast(self, context):
-        node = super()._get_ast(context)
+    def _get_ast(self, schema, context):
+        node = super()._get_ast(schema, context)
         if (node is not None and hasattr(node, 'commands') and
                 not node.commands):
             # Alter node without subcommands.  Occurs when all

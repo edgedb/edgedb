@@ -236,7 +236,7 @@ class ModuleCommand(named.NamedObjectCommand, schema_metaclass=Module,
     classname = so.Field(str)
 
     @classmethod
-    def _classname_from_ast(cls, astnode, context, schema):
+    def _classname_from_ast(cls, schema, astnode, context):
         if astnode.name.module:
             classname = sn.Name(module=astnode.name.module,
                                 name=astnode.name.name)

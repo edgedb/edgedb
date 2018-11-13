@@ -375,7 +375,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
     def _parse_default(cls, cmd):
         return
 
-    def _encode_default(self, context, node, op):
+    def _encode_default(self, schema, context, node, op):
         if op.new_value:
             expr = op.new_value
             if not isinstance(expr, sexpr.ExpressionText):
@@ -385,7 +385,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
                 expr = edgeql.generate_source(expr_t, pretty=False)
 
                 op.new_value = sexpr.ExpressionText(expr)
-            super()._apply_field_ast(context, node, op)
+            super()._apply_field_ast(schema, context, node, op)
 
     def _create_begin(self, schema, context):
         referrer_ctx = self.get_referrer_context(context)

@@ -450,8 +450,8 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
         return super()._add_to_schema(schema)
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         modaliases = context.modaliases
 
@@ -504,8 +504,8 @@ class DeleteFunction(named.DeleteNamedObject, FunctionCommand):
     astnode = qlast.DropFunction
 
     @classmethod
-    def _classname_from_ast(cls, astnode, context, schema):
-        name = super()._classname_from_ast(astnode, context, schema)
+    def _classname_from_ast(cls, schema, astnode, context):
+        name = super()._classname_from_ast(schema, astnode, context)
 
         params = FuncParameterList.from_ast(
             astnode, context.modaliases, schema)

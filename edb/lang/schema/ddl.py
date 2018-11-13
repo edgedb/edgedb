@@ -74,12 +74,12 @@ def delta_from_ddl(stmts, *, schema, modaliases,
     return alter_db
 
 
-def ddl_from_delta(delta):
+def ddl_from_delta(schema, delta):
     """Return DDL AST for a delta command tree."""
-    return delta.get_ast()
+    return delta.get_ast(schema, None)
 
 
-def ddl_text_from_delta_command(delta):
+def ddl_text_from_delta_command(schema, delta):
     """Return DDL text for a delta command tree."""
     if isinstance(delta, s_db.AlterDatabase):
         commands = delta
@@ -88,7 +88,7 @@ def ddl_text_from_delta_command(delta):
 
     text = []
     for command in commands:
-        delta_ast = ddl_from_delta(command)
+        delta_ast = ddl_from_delta(schema, command)
         if delta_ast:
             stmt_text = edgeql.generate_source(edgeql.optimize(
                 delta_ast, strip_builtins=False))
@@ -97,11 +97,11 @@ def ddl_text_from_delta_command(delta):
     return '\n'.join(text)
 
 
-def ddl_text_from_delta(delta):
+def ddl_text_from_delta(schema, delta):
     """Return DDL text for a delta object."""
     text = []
     for command in delta.commands:
-        cmd_text = ddl_text_from_delta_command(command)
+        cmd_text = ddl_text_from_delta_command(schema, command)
         text.append(cmd_text)
 
     return '\n'.join(text)

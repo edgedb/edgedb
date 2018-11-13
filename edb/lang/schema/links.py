@@ -207,10 +207,10 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
     referenced_astnode = qlast.CreateConcreteLink
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
         from . import objtypes as s_objtypes
 
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if isinstance(astnode, qlast.CreateConcreteLink):
             cmd.add(
@@ -427,7 +427,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
         else:
             return qlast.CreateLink
 
-    def _apply_field_ast(self, context, node, op):
+    def _apply_field_ast(self, schema, context, node, op):
         objtype = context.get(LinkSourceCommandContext)
 
         if op.property == 'is_derived':
@@ -437,7 +437,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                 node.target = qlast.union_targets(
                     [t.classname for t in op.new_value])
         elif op.property == 'default':
-            self._encode_default(context, node, op)
+            self._encode_default(schema, context, node, op)
         elif op.property == 'required':
             node.is_required = op.new_value
         elif op.property == 'cardinality':
@@ -451,21 +451,21 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
         elif op.property == 'target' and objtype:
             if not node.target:
                 t = op.new_value
-                node.target = utils.typeref_to_ast(t)
+                node.target = utils.typeref_to_ast(schema, t)
         else:
-            super()._apply_field_ast(context, node, op)
+            super()._apply_field_ast(schema, context, node, op)
 
-    def _apply_fields_ast(self, context, node):
-        super()._apply_fields_ast(context, node)
+    def _apply_fields_ast(self, schema, context, node):
+        super()._apply_fields_ast(schema, context, node)
 
         objtype = context.get(LinkSourceCommandContext)
 
         if not objtype:
             for op in self.get_subcommands(type=indexes.SourceIndexCommand):
-                self._append_subcmd_ast(node, op, context)
+                self._append_subcmd_ast(schema, node, op, context)
 
         for op in self.get_subcommands(type=constraints.ConstraintCommand):
-            self._append_subcmd_ast(node, op, context)
+            self._append_subcmd_ast(schema, node, op, context)
 
 
 class RenameLink(LinkCommand, named.RenameNamedObject):
@@ -480,14 +480,14 @@ class AlterTarget(sd.Command):
     astnode = qlast.AlterTarget
 
     @classmethod
-    def _cmd_from_ast(cls, astnode, context, schema):
+    def _cmd_from_ast(cls, schema, astnode, context):
         return sd.AlterObjectProperty(property='target')
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
         from . import objtypes as s_objtypes
 
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         parent_ctx = context.get(LinkSourceCommandContext)
         source_name = parent_ctx.op.classname
@@ -567,19 +567,19 @@ class AlterLink(LinkCommand, named.AlterNamedObject):
         else:
             return qlast.AlterLink
 
-    def _apply_fields_ast(self, context, node):
-        super()._apply_fields_ast(context, node)
+    def _apply_fields_ast(self, schema, context, node):
+        super()._apply_fields_ast(schema, context, node)
 
         objtype = context.get(LinkSourceCommandContext)
 
         if not objtype:
             for op in self.get_subcommands(type=indexes.SourceIndexCommand):
-                self._append_subcmd_ast(node, op, context)
+                self._append_subcmd_ast(schema, node, op, context)
 
         for op in self.get_subcommands(type=constraints.ConstraintCommand):
-            self._append_subcmd_ast(node, op, context)
+            self._append_subcmd_ast(schema, node, op, context)
 
-    def _apply_field_ast(self, context, node, op):
+    def _apply_field_ast(self, schema, context, node, op):
         if op.property == 'spectargets':
             if op.new_value:
                 node.commands.append(qlast.AlterTarget(
@@ -607,7 +607,7 @@ class AlterLink(LinkCommand, named.AlterNamedObject):
             else:
                 self._drop_attribute_ast(context, node, 'search_weight')
         else:
-            super()._apply_field_ast(context, node, op)
+            super()._apply_field_ast(schema, context, node, op)
 
 
 class DeleteLink(LinkCommand, named.DeleteNamedObject):
@@ -622,17 +622,17 @@ class DeleteLink(LinkCommand, named.DeleteNamedObject):
         else:
             return qlast.DropLink
 
-    def _apply_fields_ast(self, context, node):
-        super()._apply_fields_ast(context, node)
+    def _apply_fields_ast(self, schema, context, node):
+        super()._apply_fields_ast(schema, context, node)
 
         objtype = context.get(LinkSourceCommandContext)
 
         for op in self.get_subcommands(type=lproperties.PropertyCommand):
-            self._append_subcmd_ast(node, op, context)
+            self._append_subcmd_ast(schema, node, op, context)
 
         if not objtype:
             for op in self.get_subcommands(type=indexes.SourceIndexCommand):
-                self._append_subcmd_ast(node, op, context)
+                self._append_subcmd_ast(schema, node, op, context)
 
         for op in self.get_subcommands(type=constraints.ConstraintCommand):
-            self._append_subcmd_ast(node, op, context)
+            self._append_subcmd_ast(schema, node, op, context)

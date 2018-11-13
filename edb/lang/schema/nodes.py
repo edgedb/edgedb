@@ -108,7 +108,7 @@ class NodeCommand(named.NamedObjectCommand):
         return vschema
 
     @classmethod
-    def _handle_view_op(cls, cmd, astnode, context, schema):
+    def _handle_view_op(cls, schema, cmd, astnode, context):
         from edb.lang.ir import utils as irutils
 
         view_expr = cls._maybe_get_view_expr(astnode)

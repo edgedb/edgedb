@@ -115,7 +115,7 @@ def ast_to_typeref(
         node.maintype, modaliases=modaliases, schema=schema)
 
 
-def typeref_to_ast(t: so.Object) -> ql_ast.TypeName:
+def typeref_to_ast(schema, t: so.Object) -> ql_ast.TypeName:
     if not isinstance(t, s_types.Collection):
         if isinstance(t, so.ObjectRef):
             name = t.classname
@@ -134,7 +134,7 @@ def typeref_to_ast(t: so.Object) -> ql_ast.TypeName:
                 name=t.schema_name
             ),
             subtypes=[
-                typeref_to_ast(st) for st in t.get_subtypes()
+                typeref_to_ast(schema, st) for st in t.get_subtypes()
             ]
         )
 

@@ -123,7 +123,7 @@ class Backend:
 
             elif isinstance(delta_cmd, s_deltas.GetDelta):
                 delta = schema.get_delta(delta_cmd.classname)
-                result = s_ddl.ddl_text_from_delta(delta)
+                result = s_ddl.ddl_text_from_delta(schema, delta)
 
             elif isinstance(delta_cmd, s_deltas.CreateDelta):
                 schema, _ = delta_cmd.apply(schema, context)

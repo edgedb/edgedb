@@ -132,16 +132,16 @@ class ObjectTypeCommand(constraints.ConsistencySubjectCommand,
                         nodes.NodeCommand,
                         schema_metaclass=ObjectType,
                         context_class=ObjectTypeCommandContext):
-    def _apply_field_ast(self, context, node, op):
+    def _apply_field_ast(self, schema, context, node, op):
         if op.property == 'is_derived':
             pass
         else:
-            super()._apply_field_ast(context, node, op)
+            super()._apply_field_ast(schema, context, node, op)
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
-        cmd = cls._handle_view_op(cmd, astnode, context, schema)
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        cmd = cls._handle_view_op(schema, cmd, astnode, context)
         return cmd
 
 

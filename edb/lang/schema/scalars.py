@@ -388,9 +388,9 @@ class ScalarTypeCommand(constraints.ConsistencySubjectCommand,
                         schema_metaclass=ScalarType,
                         context_class=ScalarTypeCommandContext):
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
-        cmd = cls._handle_view_op(cmd, astnode, context, schema)
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        cmd = cls._handle_view_op(schema, cmd, astnode, context)
         return cmd
 
 
@@ -398,8 +398,8 @@ class CreateScalarType(ScalarTypeCommand, inheriting.CreateInheritingObject):
     astnode = qlast.CreateScalarType
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         for sub in cmd.get_subcommands(type=sd.AlterObjectProperty):
             if sub.property == 'default':
@@ -407,13 +407,13 @@ class CreateScalarType(ScalarTypeCommand, inheriting.CreateInheritingObject):
 
         return cmd
 
-    def _apply_field_ast(self, context, node, op):
+    def _apply_field_ast(self, schema, context, node, op):
         if op.property == 'default':
             if op.new_value:
                 op.new_value = op.new_value[0]
-                super()._apply_field_ast(context, node, op)
+                super()._apply_field_ast(schema, context, node, op)
         else:
-            super()._apply_field_ast(context, node, op)
+            super()._apply_field_ast(schema, context, node, op)
 
 
 class RenameScalarType(ScalarTypeCommand, named.RenameNamedObject):

@@ -345,12 +345,12 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     def apply(self, schema, context):
         return schema, None
 
-    def get_ast(self, context=None):
+    def get_ast(self, schema, context):
         if context is None:
             context = CommandContext()
 
         with self.new_context(context):
-            return self._get_ast(context)
+            return self._get_ast(schema, context)
 
     @classmethod
     def command_for_ast_node(cls, astnode, schema, context):
@@ -373,12 +373,11 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             msg = 'cannot find command for ast node {!r}'.format(astnode)
             raise TypeError(msg)
 
-        return cmdcls._cmd_tree_from_ast(
-            astnode, context=context, schema=schema)
+        return cmdcls._cmd_tree_from_ast(schema, astnode, context)
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
-        cmd = cls._cmd_from_ast(astnode, context, schema)
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = cls._cmd_from_ast(schema, astnode, context)
         cmd.source_context = astnode.context
 
         if getattr(astnode, 'commands', None):
@@ -401,7 +400,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         return cmd
 
     @classmethod
-    def _cmd_from_ast(cls, astnode, context, schema):
+    def _cmd_from_ast(cls, schema, astnode, context):
         return cls()
 
     @classmethod
@@ -644,7 +643,7 @@ class AlterSpecialObjectProperty(Command):
     astnode = qlast.SetSpecialField
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
         return AlterObjectProperty(
             property=astnode.name,
             new_value=astnode.value
@@ -658,7 +657,7 @@ class AlterObjectProperty(Command):
     source = struct.Field(str, None)
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
         from edb.lang.edgeql import compiler as qlcompiler
 
         propname = astnode.name.name
@@ -707,7 +706,7 @@ class AlterObjectProperty(Command):
 
         return cls(property=propname, new_value=new_value)
 
-    def _get_ast(self, context):
+    def _get_ast(self, schema, context):
         value = self.new_value
 
         new_value_empty = \

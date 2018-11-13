@@ -131,8 +131,8 @@ class CreateProperty(PropertyCommand,
     referenced_astnode = qlast.CreateConcreteProperty
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         modaliases = context.modaliases
 
@@ -201,19 +201,19 @@ class CreateProperty(PropertyCommand,
         else:
             return qlast.CreateProperty
 
-    def _apply_fields_ast(self, context, node):
-        super()._apply_fields_ast(context, node)
+    def _apply_fields_ast(self, schema, context, node):
+        super()._apply_fields_ast(schema, context, node)
 
         for op in self.get_subcommands(type=constraints.ConstraintCommand):
-            self._append_subcmd_ast(node, op, context)
+            self._append_subcmd_ast(schema, node, op, context)
 
-    def _apply_field_ast(self, context, node, op):
+    def _apply_field_ast(self, schema, context, node, op):
         link = context.get(PropertySourceContext)
 
         if op.property == 'is_derived':
             pass
         elif op.property == 'default':
-            self._encode_default(context, node, op)
+            self._encode_default(schema, context, node, op)
         elif op.property == 'required':
             node.is_required = op.new_value
         elif op.property == 'cardinality':
@@ -221,9 +221,9 @@ class CreateProperty(PropertyCommand,
         elif op.property == 'source':
             pass
         elif op.property == 'target' and link:
-            node.target = utils.typeref_to_ast(op.new_value)
+            node.target = utils.typeref_to_ast(schema, op.new_value)
         else:
-            super()._apply_field_ast(context, node, op)
+            super()._apply_field_ast(schema, context, node, op)
 
 
 class RenameProperty(PropertyCommand, named.RenameNamedObject):
@@ -246,13 +246,13 @@ class AlterProperty(PropertyCommand, inheriting.AlterInheritingObject):
         else:
             return qlast.AlterProperty
 
-    def _apply_fields_ast(self, context, node):
-        super()._apply_fields_ast(context, node)
+    def _apply_fields_ast(self, schema, context, node):
+        super()._apply_fields_ast(schema, context, node)
 
         for op in self.get_subcommands(type=constraints.ConstraintCommand):
-            self._append_subcmd_ast(node, op, context)
+            self._append_subcmd_ast(schema, node, op, context)
 
-    def _apply_field_ast(self, context, node, op):
+    def _apply_field_ast(self, schema, context, node, op):
         if op.property == 'target':
             if op.new_value:
                 node.commands.append(qlast.AlterTarget(
@@ -265,7 +265,7 @@ class AlterProperty(PropertyCommand, inheriting.AlterInheritingObject):
         elif op.property == 'source':
             pass
         else:
-            super()._apply_field_ast(context, node, op)
+            super()._apply_field_ast(schema, context, node, op)
 
 
 class DeleteProperty(PropertyCommand, inheriting.DeleteInheritingObject):
@@ -280,8 +280,8 @@ class DeleteProperty(PropertyCommand, inheriting.DeleteInheritingObject):
         else:
             return qlast.DropProperty
 
-    def _apply_fields_ast(self, context, node):
-        super()._apply_fields_ast(context, node)
+    def _apply_fields_ast(self, schema, context, node):
+        super()._apply_fields_ast(schema, context, node)
 
         for op in self.get_subcommands(type=constraints.ConstraintCommand):
-            self._append_subcmd_ast(node, op, context)
+            self._append_subcmd_ast(schema, node, op, context)

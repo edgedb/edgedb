@@ -57,8 +57,8 @@ class CreateDelta(named.CreateNamedObject, DeltaCommand):
     astnode = qlast.CreateDelta
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if astnode.target is not None:
             target = s_std.load_std_schema()

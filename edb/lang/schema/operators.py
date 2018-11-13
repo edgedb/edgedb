@@ -58,14 +58,14 @@ class OperatorCommand(named.NamedObjectCommand, s_func.FunctionCommandMixin,
                       context_class=OperatorCommandContext):
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
         if not context.stdmode and not context.testmode:
             raise ql_errors.EdgeQLError(
                 'user-defined operators are not yet supported',
                 context=astnode.context
             )
 
-        return super()._cmd_tree_from_ast(astnode, context, schema)
+        return super()._cmd_tree_from_ast(schema, astnode, context)
 
     @classmethod
     def _get_operator_name_quals(
@@ -85,9 +85,9 @@ class OperatorCommand(named.NamedObjectCommand, s_func.FunctionCommandMixin,
             name=named.NamedObject.get_specialized_name(name, *quals))
 
     @classmethod
-    def _classname_from_ast(cls, astnode: qlast.OperatorCommand,
-                            context, schema) -> sn.Name:
-        name = super()._classname_from_ast(astnode, context, schema)
+    def _classname_from_ast(cls, schema, astnode: qlast.OperatorCommand,
+                            context) -> sn.Name:
+        name = super()._classname_from_ast(schema, astnode, context)
 
         params = s_func.FuncParameterList.from_ast(
             astnode, context.modaliases, schema)
@@ -157,8 +157,8 @@ class CreateOperator(named.CreateNamedObject, OperatorCommand):
         return super()._add_to_schema(schema)
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         modaliases = context.modaliases
 
@@ -208,8 +208,8 @@ class AlterOperator(named.AlterNamedObject, OperatorCommand):
     astnode = qlast.AlterOperator
 
     @classmethod
-    def _cmd_tree_from_ast(cls, astnode, context, schema):
-        cmd = super()._cmd_tree_from_ast(astnode, context, schema)
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         modaliases = context.modaliases
         params = s_func.FuncParameterList.from_ast(astnode, modaliases, schema)
 
