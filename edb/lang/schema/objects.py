@@ -290,20 +290,6 @@ class ObjectMeta(type):
         return getattr(
             cls, '{}.{}_fields'.format(cls.__module__, cls.__name__))
 
-    @property
-    def ref_type(cls):
-        if cls._ref_type is None:
-            name = cls.__name__ + '_ref'
-            dct = {'__module__': cls.__module__}
-            cls._ref_type = cls.__class__(name, (ObjectRef, cls), dct)
-
-            for fn, f in list(cls._ref_type._fields.items()):
-                f = f.copy()
-                f.default = None
-                cls._ref_type._fields[fn] = f
-
-        return cls._ref_type
-
     @classmethod
     def get_schema_metaclasses(mcls):
         return mcls._schema_metaclasses
