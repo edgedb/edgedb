@@ -146,7 +146,7 @@ def compile_FunctionCall(
             rtype = irutils.infer_type(node, fctx.schema)
             iv_ql = qlast.TypeCast(
                 expr=qlparser.parse_fragment(matched_call.func.initial_value),
-                type=typegen.type_to_ql_typeref(rtype)
+                type=typegen.type_to_ql_typeref(rtype, ctx=ctx)
             )
             node.func_initial_value = dispatch.compile(iv_ql, ctx=fctx)
 

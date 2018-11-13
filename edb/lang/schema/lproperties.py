@@ -53,14 +53,14 @@ class Property(pointers.Pointer):
 
         return schema, ptr
 
-    def compare(self, other, context):
+    def compare(self, schema, other, context):
         if not isinstance(other, Property):
             if isinstance(other, pointers.Pointer):
                 return 0.0
             else:
                 return NotImplemented
 
-        similarity = super().compare(other, context)
+        similarity = super().compare(schema, other, context)
         if (not self.generic() and not other.generic() and
                 self.shortname == 'std::source' and
                 other.shortname == 'std::source'):
@@ -69,7 +69,7 @@ class Property(pointers.Pointer):
             # in general.
             field = self.__class__.get_field('target')
             target_coef = field.type[0].compare_values(
-                self.target, other.target, context, field.compcoef)
+                schema, self.target, other.target, context, field.compcoef)
             if target_coef < 1:
                 similarity /= target_coef
         return similarity

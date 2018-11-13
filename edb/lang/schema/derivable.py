@@ -26,8 +26,8 @@ class DerivableObjectBase:
     # presumption that the derived names may be different,
     # but base names may be equal.
     #
-    def compare(self, other, context=None):
-        similarity = super().compare(other, context=context)
+    def compare(self, schema, other, context=None):
+        similarity = super().compare(schema, other, context=context)
         if self.shortname != other.shortname:
             similarity *= 0.625
 

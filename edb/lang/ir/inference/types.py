@@ -440,7 +440,7 @@ def __infer_struct(ir, schema):
 @_infer_type.register(irast.TupleIndirection)
 def __infer_struct_indirection(ir, schema):
     struct_type = infer_type(ir.expr, schema)
-    result = struct_type.get_subtype(ir.name)
+    result = struct_type.get_subtype(schema, ir.name)
     if result is None:
         raise ql_errors.EdgeQLError('could not determine struct element type',
                                     context=ir.context)

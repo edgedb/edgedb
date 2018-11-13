@@ -41,7 +41,7 @@ class NamedObjectList(so.ObjectList, type=NamedObject):
         return persistent_hash(self.get_names())
 
     @classmethod
-    def compare_values(cls, ours, theirs, context, compcoef):
+    def compare_values(cls, schema, ours, theirs, context, compcoef):
         our_names = ours.get_names() if ours else tuple()
         their_names = theirs.get_names() if theirs else tuple()
 
@@ -59,7 +59,7 @@ class NamedObjectSet(so.ObjectSet, type=NamedObject):
         return persistent_hash(self.get_names())
 
     @classmethod
-    def compare_values(cls, ours, theirs, context, compcoef):
+    def compare_values(cls, schema, ours, theirs, context, compcoef):
         our_names = ours.get_names() if ours else frozenset()
         their_names = theirs.get_names() if theirs else frozenset()
 

@@ -155,7 +155,7 @@ class NamedObjectMetaCommand(
 
         return name
 
-    def _serialize_field(self, value, col, *, use_defaults=False):
+    def _serialize_field(self, schema, value, col, *, use_defaults=False):
         recvalue = None
         result = value
 
@@ -167,14 +167,14 @@ class NamedObjectMetaCommand(
 
         elif isinstance(value, s_obj.ObjectMapping):
             result = s_types.Tuple.from_subtypes(value, {'named': True})
-            recvalue = types.TypeDesc.from_type(result)
+            recvalue = types.TypeDesc.from_type(schema, result)
 
         elif isinstance(value, s_obj.ObjectCollection):
             result = s_types.Tuple.from_subtypes(value)
-            recvalue = types.TypeDesc.from_type(result)
+            recvalue = types.TypeDesc.from_type(schema, result)
 
         elif isinstance(value, s_obj.Object):
-            recvalue = types.TypeDesc.from_type(value)
+            recvalue = types.TypeDesc.from_type(schema, value)
 
         elif isinstance(value, sn.SchemaName):
             recvalue = str(value)
@@ -186,7 +186,7 @@ class NamedObjectMetaCommand(
         elif isinstance(value, s_funcs.FuncParameterList):
             recvalue = []
             for param in value:
-                type_desc = types.TypeDesc.from_type(param.type)
+                type_desc = types.TypeDesc.from_type(schema, param.type)
                 typeq = dbops.Query(
                     'edgedb._encode_type({type_desc})'.format(
                         type_desc=type_desc.to_sql_expr())
@@ -234,7 +234,7 @@ class NamedObjectMetaCommand(
             col = table.get_column(name)
 
             v1, refqry = self._serialize_field(
-                value, col, use_defaults=use_defaults)
+                schema, value, col, use_defaults=use_defaults)
 
             updates[name] = v1
             if col is not None:

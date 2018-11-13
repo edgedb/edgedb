@@ -315,7 +315,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
 
         return schema
 
-    def compare(self, other, context=None):
+    def compare(self, schema, other, context=None):
         if (not isinstance(other, self.__class__) and
                 not isinstance(self, other.__class__)):
             return NotImplemented
@@ -338,7 +338,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
 
                 comparator = getattr(FieldType, 'compare_values', None)
                 if callable(comparator):
-                    fcoef = comparator(ours, theirs, context=context,
+                    fcoef = comparator(schema, ours, theirs, context=context,
                                        compcoef=field.compcoef)
                 elif ours != theirs:
                     fcoef = field.compcoef
@@ -351,13 +351,13 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
         return similarity
 
     @classmethod
-    def compare_values(cls, ours, theirs, context, compcoef):
+    def compare_values(cls, schema, ours, theirs, context, compcoef):
         if (ours is None) != (theirs is None):
             return compcoef
         elif ours is None:
             return 1.0
         else:
-            comp = ours.compare(theirs, context=context)
+            comp = ours.compare(schema, theirs, context=context)
             if comp is NotImplemented:
                 return NotImplemented
             else:
@@ -413,24 +413,15 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
 
         return delta
 
-    def _reduce_to_ref(self):
+    def _reduce_to_ref(self, schema):
         raise NotImplementedError
 
-    def _reduce_obj_dict(self, v):
-        result = {}
-        comparison_v = {}
-
-        for k, scls in v.items():
-            result[k], comparison_v[k] = scls._reduce_to_ref()
-
-        return result, frozenset(comparison_v.items())
-
-    def _reduce_obj_coll(self, v):
+    def _reduce_obj_coll(self, schema, v):
         result = []
         comparison_v = []
 
         for scls in v:
-            ref, comp = scls._reduce_to_ref()
+            ref, comp = scls._reduce_to_ref(schema)
             result.append(ref)
             comparison_v.append(comp)
 
@@ -438,19 +429,19 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
 
     _reduce_obj_list = _reduce_obj_coll
 
-    def _reduce_obj_set(self, v):
-        result, comparison_v = self._reduce_obj_coll(v)
+    def _reduce_obj_set(self, schema, v):
+        result, comparison_v = self._reduce_obj_coll(schema, v)
         return result, frozenset(comparison_v)
 
-    def _reduce_refs(self, value):
+    def _reduce_refs(self, schema, value):
         if isinstance(value, (ObjectList, TypeList)):
-            ref, val = self._reduce_obj_list(value)
+            ref, val = self._reduce_obj_list(schema, value)
 
         elif isinstance(value, ObjectSet):
-            ref, val = self._reduce_obj_set(value)
+            ref, val = self._reduce_obj_set(schema, value)
 
         elif isinstance(value, Object):
-            ref, val = value._reduce_to_ref()
+            ref, val = value._reduce_to_ref(schema)
 
         elif isinstance(value, ObjectCollection):
             raise TypeError(f'reduce_refs: cannot handle {type(value)} type')
@@ -471,8 +462,10 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
 
         if old and new:
             for f in fields:
-                oldattr, oldattr_v = new._reduce_refs(getattr(old, f))
-                newattr, newattr_v = new._reduce_refs(getattr(new, f))
+                oldattr, oldattr_v = new._reduce_refs(
+                    old_schema, getattr(old, f))
+                newattr, newattr_v = new._reduce_refs(
+                    new_schema, getattr(new, f))
 
                 if oldattr_v != newattr_v:
                     delta.add(sd.AlterObjectProperty(
@@ -481,7 +474,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
             for f in fields:
                 value = getattr(new, f)
                 if value is not None:
-                    value, _ = new._reduce_refs(value)
+                    value, _ = new._reduce_refs(new_schema, value)
                     delta.add(sd.AlterObjectProperty(
                         property=f, old_value=None, new_value=value))
 
@@ -554,7 +547,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
         new = OrderedSet(o for o in new
                          if o.persistent_hash() not in unchanged)
 
-        comparison = ((x.compare(y, context), x, y)
+        comparison = ((x.compare(new_schema, y, context), x, y)
                       for x, y in itertools.product(new, old))
 
         used_x = set()
@@ -752,7 +745,7 @@ class NamedObject(Object):
                             metaclass=obj.get_canonical_class())
 
     @classmethod
-    def compare_values(cls, ours, theirs, context, compcoef):
+    def compare_values(cls, schema, ours, theirs, context, compcoef):
         similarity = 1.0
 
         if (ours is None) != (theirs is None):
@@ -773,7 +766,7 @@ class NamedObject(Object):
 
     __str__ = __repr__
 
-    def _reduce_to_ref(self):
+    def _reduce_to_ref(self, schema):
         return ObjectRef(classname=self.name), self.name
 
 
@@ -789,11 +782,11 @@ class ObjectRef(Object):
 
     __str__ = __repr__
 
-    def _reduce_to_ref(self):
+    def _reduce_to_ref(self, schema):
         return self, self.classname
 
-    def _resolve_ref(self, resolve):
-        return resolve(self.classname)
+    def _resolve_ref(self, schema):
+        return schema.get(self.classname)
 
 
 class ObjectCollection:
@@ -827,7 +820,7 @@ class ObjectMapping(collections.abc.Mapping, ObjectCollection):
         return phash.persistent_hash(frozenset(vals))
 
     @classmethod
-    def compare_values(cls, ours, theirs, context, compcoef):
+    def compare_values(cls, schema, ours, theirs, context, compcoef):
         if not ours and not theirs:
             basecoef = 1.0
         elif not ours or not theirs:
@@ -842,7 +835,7 @@ class ObjectMapping(collections.abc.Mapping, ObjectCollection):
                     # key only in ours
                     similarity.append(0.2)
                 else:
-                    similarity.append(v.compare(theirsv, context))
+                    similarity.append(v.compare(schema, theirsv, context))
 
             similarity.extend(0.2 for k in set(theirs) - set(ours))
             basecoef = sum(similarity) / len(similarity)
@@ -888,13 +881,13 @@ class ObjectSet(typed.TypedSet, ObjectCollection, type=Object):
         return result
 
     @classmethod
-    def compare_values(cls, ours, theirs, context, compcoef):
+    def compare_values(cls, schema, ours, theirs, context, compcoef):
         if not ours and not theirs:
             basecoef = 1.0
         elif not ours or not theirs:
             basecoef = 0.2
         else:
-            comparison = ((x.compare(y, context=context), x, y)
+            comparison = ((x.compare(schema, y, context=context), x, y)
                           for x, y in itertools.product(ours, theirs))
             similarity = []
             used_x = set()

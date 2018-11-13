@@ -134,14 +134,14 @@ class Link(sources.Source, pointers.Pointer):
         return bool([p for p in self.get_pointers(schema).values()
                      if not p.is_special_pointer()])
 
-    def compare(self, other, context=None):
+    def compare(self, schema, other, context=None):
         if not isinstance(other, Link):
             if isinstance(other, pointers.Pointer):
                 return 0.0
             else:
                 return NotImplemented
 
-        return super().compare(other, context=context)
+        return super().compare(schema, other, context=context)
 
     def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
         schema = super().finalize(

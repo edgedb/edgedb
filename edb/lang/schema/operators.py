@@ -69,17 +69,17 @@ class OperatorCommand(named.NamedObjectCommand, s_func.FunctionCommandMixin,
 
     @classmethod
     def _get_operator_name_quals(
-            cls, name: str, kind: ft.OperatorKind,
+            cls, schema, name: str, kind: ft.OperatorKind,
             params: s_func.FuncParameterList) -> typing.List[str]:
-        quals = super()._get_function_name_quals(name, params)
+        quals = super()._get_function_name_quals(schema, name, params)
         quals.append(kind)
         return quals
 
     @classmethod
     def _get_operator_fullname(
-            cls, name: str, kind: ft.OperatorKind,
+            cls, schema, name: str, kind: ft.OperatorKind,
             params: s_func.FuncParameterList) -> sn.Name:
-        quals = cls._get_operator_name_quals(name, kind, params)
+        quals = cls._get_operator_name_quals(schema, name, kind, params)
         return sn.Name(
             module=name.module,
             name=named.NamedObject.get_specialized_name(name, *quals))
@@ -92,7 +92,7 @@ class OperatorCommand(named.NamedObjectCommand, s_func.FunctionCommandMixin,
         params = s_func.FuncParameterList.from_ast(
             astnode, context.modaliases, schema)
 
-        return cls._get_operator_fullname(name, astnode.kind, params)
+        return cls._get_operator_fullname(schema, name, astnode.kind, params)
 
     def _qualify_operator_refs(
             self, kind: ft.OperatorKind, params: s_func.FuncParameterList,

@@ -447,7 +447,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
                 'computable expression',
                 context=target_expr.context) from e
 
-        target = utils.reduce_to_typeref(target_type)
+        target = utils.reduce_to_typeref(schema, target_type)
 
         self.add(
             sd.AlterObjectProperty(

@@ -686,14 +686,14 @@ def compile_set_op(
 
         if left_type != common_type:
             left = setgen.ensure_set(
-                _cast_expr(typegen.type_to_ql_typeref(common_type),
+                _cast_expr(typegen.type_to_ql_typeref(common_type, ctx=ctx),
                            left, ctx=ctx, source_context=expr.context),
                 ctx=ctx
             )
 
         if right_type != common_type:
             right = setgen.ensure_set(
-                _cast_expr(typegen.type_to_ql_typeref(common_type),
+                _cast_expr(typegen.type_to_ql_typeref(common_type, ctx=ctx),
                            right, ctx=ctx, source_context=expr.context),
                 ctx=ctx
             )

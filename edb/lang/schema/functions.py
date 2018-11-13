@@ -281,7 +281,7 @@ class FunctionCommandContext(sd.ObjectCommandContext):
 class FunctionCommandMixin:
     @classmethod
     def _get_function_name_quals(
-            cls, name, params: FuncParameterList) -> typing.List[str]:
+            cls, schema, name, params: FuncParameterList) -> typing.List[str]:
         pgp = params.as_pg_params()
 
         quals = []
@@ -309,8 +309,8 @@ class FunctionCommandMixin:
 
     @classmethod
     def _get_function_fullname(
-            cls, name, params: FuncParameterList) -> sn.Name:
-        quals = cls._get_function_name_quals(name, params)
+            cls, schema, name, params: FuncParameterList) -> sn.Name:
+        quals = cls._get_function_name_quals(schema, name, params)
         return sn.Name(
             module=name.module,
             name=named.NamedObject.get_specialized_name(name, *quals))
@@ -329,7 +329,7 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
         props = super().get_struct_properties(schema)
 
         props['name'] = self._get_function_fullname(
-            props['name'], props['params'])
+            schema, props['name'], props['params'])
         return props
 
     def _add_to_schema(self, schema):
@@ -345,7 +345,7 @@ class CreateFunction(named.CreateNamedObject, FunctionCommand):
         from_function = props.get('from_function')
         has_polymorphic = params.has_polymorphic(schema)
 
-        fullname = self._get_function_fullname(name, params)
+        fullname = self._get_function_fullname(schema, name, params)
         get_signature = lambda: f'{self.classname}{params.as_str()}'
 
         func = schema.get(fullname, None)
@@ -510,4 +510,4 @@ class DeleteFunction(named.DeleteNamedObject, FunctionCommand):
         params = FuncParameterList.from_ast(
             astnode, context.modaliases, schema)
 
-        return cls._get_function_fullname(name, params)
+        return cls._get_function_fullname(schema, name, params)

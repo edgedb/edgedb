@@ -365,13 +365,13 @@ class TypeDesc:
         )
 
     @classmethod
-    def from_type(cls, type: s_types.Type) -> 'TypeDesc':
+    def from_type(cls, schema, type: s_types.Type) -> 'TypeDesc':
         nodes = []
-        cls._get_typedesc([(None, type)], nodes)
+        cls._get_typedesc(schema, [(None, type)], nodes)
         return cls(nodes)
 
     @classmethod
-    def _get_typedesc(cls, types, typedesc, is_root=True):
+    def _get_typedesc(cls, schema, types, typedesc, is_root=True):
         result = []
         indexes = []
         for tn, t in types:
@@ -387,7 +387,8 @@ class TypeDesc:
                 else:
                     stypes = [(None, st) for st in t.get_subtypes()]
 
-                subtypes = cls._get_typedesc(stypes, typedesc, is_root=False)
+                subtypes = cls._get_typedesc(
+                    schema, stypes, typedesc, is_root=False)
                 if isinstance(t, s_types.Array):
                     dimensions = t.dimensions
                 else:
@@ -401,7 +402,8 @@ class TypeDesc:
                     subtypes=[], dimensions=[], is_root=is_root)
             else:
                 desc = TypeDescNode(
-                    maintype=cls._get_name(t), name=tn, collection=None,
+                    maintype=cls._get_name(schema, t),
+                    name=tn, collection=None,
                     subtypes=[], dimensions=[], is_root=is_root)
 
             typedesc[indexes[i]] = desc
@@ -410,7 +412,7 @@ class TypeDesc:
         return result
 
     @classmethod
-    def _get_name(cls, value):
+    def _get_name(cls, schema, value):
         if isinstance(value, s_obj.ObjectRef):
             name = value.classname
         elif isinstance(value, s_named.NamedObject):

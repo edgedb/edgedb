@@ -35,7 +35,8 @@ from . import context
 from . import schemactx
 
 
-def type_to_ql_typeref(t: s_obj.Object) -> qlast.TypeName:
+def type_to_ql_typeref(t: s_obj.Object, *,
+                       ctx: context.ContextLevel) -> qlast.TypeName:
     if not isinstance(t, s_types.Collection):
         result = qlast.TypeName(
             maintype=qlast.ObjectRef(
@@ -49,7 +50,7 @@ def type_to_ql_typeref(t: s_obj.Object) -> qlast.TypeName:
                 name=t.schema_name
             ),
             subtypes=[
-                type_to_ql_typeref(st) for st in t.get_subtypes()
+                type_to_ql_typeref(st, ctx=ctx) for st in t.get_subtypes()
             ]
         )
 

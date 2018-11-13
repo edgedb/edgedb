@@ -464,7 +464,7 @@ def tuple_indirection_set(
         el_name = ptr_name[1]
 
     el_norm_name = source.normalize_index(el_name)
-    el_type = source.get_subtype(el_name)
+    el_type = source.get_subtype(ctx.schema, el_name)
 
     path_id = irutils.tuple_indirection_path_id(
         path_tip.path_id, el_norm_name, el_type,

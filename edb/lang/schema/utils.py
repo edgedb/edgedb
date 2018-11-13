@@ -141,38 +141,13 @@ def typeref_to_ast(schema, t: so.Object) -> ql_ast.TypeName:
     return result
 
 
-def reduce_to_typeref(t: s_types.Type) -> so.Object:
-    ref, _ = t._reduce_to_ref()
+def reduce_to_typeref(schema, t: s_types.Type) -> so.Object:
+    ref, _ = t._reduce_to_ref(schema)
     return ref
 
 
 def resolve_typeref(ref: so.Object, schema) -> so.Object:
-    if isinstance(ref, s_types.Tuple):
-        if any(isinstance(st, so.ObjectRef) for st in ref.get_subtypes()):
-            subtypes = collections.OrderedDict()
-            for st_name, st in ref.element_types.items():
-                subtypes[st_name] = st._resolve_ref(schema.get)
-
-            obj = ref.__class__.from_subtypes(
-                subtypes, typemods=ref.get_typemods())
-        else:
-            obj = ref
-
-    elif isinstance(ref, s_types.Collection):
-        if any(isinstance(st, so.ObjectRef) for st in ref.get_subtypes()):
-            subtypes = []
-            for st in ref.get_subtypes():
-                subtypes.append(st._resolve_ref(schema.get))
-
-            obj = ref.__class__.from_subtypes(
-                subtypes, typemods=ref.get_typemods())
-        else:
-            obj = ref
-
-    else:
-        obj = ref._resolve_ref(schema.get)
-
-    return obj
+    return ref._resolve_ref(schema)
 
 
 def is_nontrivial_container(value):

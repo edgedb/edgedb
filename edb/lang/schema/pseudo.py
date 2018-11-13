@@ -61,7 +61,7 @@ class Any(PseudoType):
         if self == other:
             return self
 
-    def _reduce_to_ref(self):
+    def _reduce_to_ref(self, schema):
         return AnyObjectRef(), 'anytype'
 
     def __hash__(self):
@@ -78,5 +78,5 @@ class Any(PseudoType):
 class AnyObjectRef(so.ObjectRef):
     classname = so.Field(str, default='anytype', coerce=True)
 
-    def _resolve_ref(self, resolve):
+    def _resolve_ref(self, schema):
         return Any()

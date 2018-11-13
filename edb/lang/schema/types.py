@@ -213,7 +213,7 @@ class Collection(Type):
                 return self._issubclass(schema, parent)
 
     @classmethod
-    def compare_values(cls, ours, theirs, context, compcoef):
+    def compare_values(cls, schema, ours, theirs, context, compcoef):
         if (ours is None) != (theirs is None):
             return compcoef
         elif ours is None:
@@ -227,7 +227,8 @@ class Collection(Type):
 
             similarity = []
             for i, st in enumerate(my_subtypes):
-                similarity.append(st.compare(other_subtypes[i], context))
+                similarity.append(
+                    st.compare(schema, other_subtypes[i], context))
 
             basecoef = sum(similarity) / len(similarity)
 
@@ -257,9 +258,6 @@ class Collection(Type):
 
         return eltype
 
-    def coerce(self, values, schema):
-        raise NotImplementedError
-
     @classmethod
     def get_class(cls, schema_name):
         if schema_name == 'array':
@@ -274,7 +272,7 @@ class Collection(Type):
     def from_subtypes(cls, subtypes, typemods=None):
         raise NotImplementedError
 
-    def _reduce_to_ref(self):
+    def _reduce_to_ref(self, schema):
         strefs = []
 
         for st in self.get_subtypes():
@@ -285,12 +283,18 @@ class Collection(Type):
             (self.__class__, tuple(r.classname for r in strefs))
         )
 
-    def _resolve_ref(self, resolve):
-        subtypes = []
-        for stref in self.get_subtypes():
-            subtypes.append(stref._resolve(resolve))
+    def _resolve_ref(self, schema):
+        if any(isinstance(st, so.ObjectRef)
+               for st in self.get_subtypes()):
 
-        return self.__class__.from_subtypes(subtypes)
+            subtypes = []
+            for st in self.get_subtypes():
+                subtypes.append(st._resolve_ref(schema))
+
+            return self.__class__.from_subtypes(
+                subtypes, typemods=self.get_typemods())
+        else:
+            return self
 
 
 class Array(Collection):
@@ -315,20 +319,6 @@ class Array(Collection):
 
     def get_typemods(self):
         return (self.dimensions,)
-
-    def coerce(self, items, schema):
-        container = self.get_container()
-
-        elements = []
-
-        eltype = self.get_subtype(schema, self.element_type)
-
-        for item in items:
-            if not isinstance(item, eltype):
-                item = eltype(item)
-            elements.append(item)
-
-        return container(elements)
 
     def implicitly_castable_to(self, other: Type, schema) -> bool:
         if not other.is_array():
@@ -462,7 +452,7 @@ class Tuple(Collection):
         raise s_err.ItemNotFoundError(
             f'{field} is not a member of {self.displayname}')
 
-    def get_subtype(self, field: str) -> Type:
+    def get_subtype(self, schema, field: str) -> Type:
         # index can be a name or a position
         if field.isdecimal():
             idx = int(field)
@@ -616,6 +606,19 @@ class Tuple(Collection):
 
         return all(st.test_polymorphic(schema, ot)
                    for st, ot in zip(self_subtypes, other_subtypes))
+
+    def _resolve_ref(self, schema):
+        if any(isinstance(st, so.ObjectRef)
+               for st in self.get_subtypes()):
+
+            subtypes = collections.OrderedDict()
+            for st_name, st in self.element_types.items():
+                subtypes[st_name] = st._resolve_ref(schema)
+
+            return self.__class__.from_subtypes(
+                subtypes, typemods=self.get_typemods())
+        else:
+            return self
 
     def __hash__(self):
         return hash((
