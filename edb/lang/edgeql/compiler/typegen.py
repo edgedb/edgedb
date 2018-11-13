@@ -50,7 +50,8 @@ def type_to_ql_typeref(t: s_obj.Object, *,
                 name=t.schema_name
             ),
             subtypes=[
-                type_to_ql_typeref(st, ctx=ctx) for st in t.get_subtypes()
+                type_to_ql_typeref(st, ctx=ctx)
+                for st in t.get_subtypes()
             ]
         )
 

@@ -528,7 +528,8 @@ class TypeMech:
             else:
                 expected_table_type = 'link'
 
-            for pointer_name, pointer in scls.get_pointers(schema).items():
+            scls_pointers = scls.get_pointers(schema).items(schema)
+            for pointer_name, pointer in scls_pointers:
                 if not pointer.singular(schema):
                     continue
 

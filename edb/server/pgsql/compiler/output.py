@@ -37,7 +37,8 @@ def named_tuple_as_json_object(expr, *, stype, env):
     assert stype.is_tuple() and stype.named
 
     keyvals = []
-    for el_idx, (el_name, el_type) in enumerate(stype.iter_subtypes()):
+    subtypes = stype.iter_subtypes()
+    for el_idx, (el_name, el_type) in enumerate(subtypes):
         keyvals.append(pgast.StringConstant(val=el_name))
 
         type_sentinel = typecomp.cast(

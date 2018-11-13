@@ -1355,7 +1355,7 @@ def process_set_as_func_expr(
         rtype = expr.type
 
         if isinstance(rtype, s_types.Tuple):
-            colnames = [name for name in rtype.element_types]
+            colnames = list(rtype.element_types.keys())
         else:
             colnames = [ctx.env.aliases.get('v')]
 
@@ -1376,7 +1376,8 @@ def process_set_as_func_expr(
                 elements=[
                     pgast.TupleElement(
                         path_id=irutils.tuple_indirection_path_id(
-                            ir_set.path_id, n,
+                            ir_set.path_id,
+                            n,
                             rtype.get_subtype(ctx.env.schema, n),
                             schema=ctx.env.schema
                         ),

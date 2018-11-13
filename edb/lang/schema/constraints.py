@@ -317,7 +317,8 @@ class ConsistencySubject(referencing.ReferencingObject):
     def inherit_pure(cls, schema, item, source, *, dctx=None):
         schema, item = super().inherit_pure(schema, item, source, dctx=dctx)
 
-        if any(c.is_abstract for c in item.get_constraints(schema).values()):
+        item_constraints = item.get_constraints(schema)
+        if any(c.is_abstract for c in item_constraints.objects(schema)):
             # Have abstract constraints, cannot go pure inheritance,
             # must create a derived Object with materialized
             # constraints.
@@ -332,9 +333,9 @@ class ConsistencySubject(referencing.ReferencingObject):
         if attr == 'constraints':
             # Make sure abstract constraints from parents are mixed in
             # properly.
-            constraints = set(self.get_constraints(schema))
+            constraints = set(self.get_constraints(schema).names(schema))
             inherited = itertools.chain.from_iterable(
-                b.get_constraints(schema).values() for b in bases)
+                b.get_constraints(schema).objects(schema) for b in bases)
             constraints.update(c.shortname
                                for c in inherited if c.is_abstract)
             return schema, constraints
@@ -346,9 +347,9 @@ class ConsistencySubject(referencing.ReferencingObject):
 
         if attr == 'constraints':
             # Materialize unmerged abstract constraints
-            for cn, constraint in self.get_constraints(schema).items():
+            for cn, constraint in self.get_constraints(schema).items(schema):
                 if (constraint.is_abstract and
-                        cn not in self.get_own_constraints(schema)):
+                        not self.get_own_constraints(schema).has(schema, cn)):
                     schema, constraint = constraint.derive_copy(
                         schema, self, add_to_schema=True,
                         attrs=dict(is_abstract=False))

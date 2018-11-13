@@ -144,11 +144,12 @@ def derive_view(
 
         if isinstance(derived, s_sources.Source):
             scls_pointers = scls.get_pointers(ctx.schema)
+            derived_own_pointers = derived.get_own_pointers(ctx.schema)
 
-            for pn, ptr in derived.get_own_pointers(ctx.schema).items():
+            for pn, ptr in derived_own_pointers.items(ctx.schema):
                 # This is a view of a view.  Make sure query-level
                 # computable expressions for pointers are carried over.
-                src_ptr = scls_pointers[pn]
+                src_ptr = scls_pointers.get(ctx.schema, pn)
                 computable_data = ctx.source_map.get(src_ptr)
                 if computable_data is not None:
                     ctx.source_map[ptr] = computable_data

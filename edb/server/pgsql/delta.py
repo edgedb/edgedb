@@ -166,7 +166,9 @@ class NamedObjectMetaCommand(
                 f'edgedb._resolve_type_id(ARRAY[{name_array}]::text[])')
 
         elif isinstance(value, s_obj.ObjectMapping):
-            result = s_types.Tuple.from_subtypes(value, {'named': True})
+            result = s_types.Tuple.from_subtypes(
+                dict(value.items(schema)),
+                {'named': True})
             recvalue = types.TypeDesc.from_type(schema, result)
 
         elif isinstance(value, s_obj.ObjectCollection):
@@ -772,7 +774,7 @@ class ScalarTypeMetaCommand(ViewCapableObjectMetaCommand):
             self.pgops.add(dbops.CreateDomain(
                 name=domain_name, base=new_type))
 
-            for constraint in new_constraints.values():
+            for constraint in new_constraints.objects(schema):
                 bconstr = schemac_to_backendc(scalar, constraint, schema)
                 op = dbops.CommandGroup(priority=1)
                 op.add_command(bconstr.create_ops())
@@ -1095,7 +1097,8 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
         return source, pointer
 
     def affirm_pointer_defaults(self, source, schema, context):
-        for pointer_name, pointer in source.get_pointers(schema).items():
+        source_pointers = source.get_pointers(schema).items(schema)
+        for pointer_name, pointer in source_pointers:
             # XXX pointer_storage_info?
             if (
                     pointer.generic() or not pointer.scalar() or
@@ -1247,18 +1250,18 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
             inherited_aptrs = set()
 
             for base in source.bases:
-                for ptr in base.get_pointers(schema).values():
+                for ptr in base.get_pointers(schema).objects(schema):
                     if ptr.scalar():
                         inherited_aptrs.add(ptr.shortname)
 
             added_inh_ptrs = inherited_aptrs - {
                 p.shortname
-                for p in orig_source.get_pointers(schema).values()
+                for p in orig_source.get_pointers(schema).objects(schema)
             }
 
             ptrs = source.get_pointers(schema)
             for added_ptr in added_inh_ptrs - created_ptrs:
-                ptr = ptrs[added_ptr]
+                ptr = ptrs.get(schema, added_ptr)
                 ptr_stor_info = types.get_pointer_storage_info(
                     ptr, schema=schema)
 
@@ -1291,14 +1294,17 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
                     alter_table_drop_parent.add_operation(op)
 
                 orig_ptrs = orig_source.get_pointers(schema)
-                dropped_ptrs = set(orig_ptrs) - set(ptrs)
+                dropped_ptrs = (
+                    set(orig_ptrs.names(schema)) -
+                    set(ptrs.names(schema))
+                )
 
                 if dropped_ptrs:
                     alter_table_drop_ptr = source_ctx.op.get_alter_table(
                         context, force_new=True)
 
                     for dropped_ptr in dropped_ptrs:
-                        ptr = orig_ptrs[dropped_ptr]
+                        ptr = orig_ptrs.get(schema, dropped_ptr)
                         ptr_stor_info = types.get_pointer_storage_info(
                             ptr, schema=schema)
 

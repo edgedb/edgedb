@@ -180,7 +180,8 @@ class Collection(Type):
             super().__init__(name=name, **kwargs)
 
     def is_polymorphic(self, schema):
-        return any(st.is_polymorphic(schema) for st in self.get_subtypes())
+        return any(st.is_polymorphic(schema)
+                   for st in self.get_subtypes())
 
     @property
     def is_virtual(self):
@@ -416,7 +417,7 @@ class Tuple(Collection):
     schema_name = 'tuple'
 
     named = so.Field(bool, False)
-    element_types = so.Field(so.ObjectMapping, coerce=True)
+    element_types = so.Field(dict, coerce=True)
 
     def is_tuple(self):
         return True

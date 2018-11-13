@@ -96,12 +96,13 @@ class NodeCommand(named.NamedObjectCommand):
                 if not hasattr(view, 'get_own_pointers'):  # duck check
                     continue
 
-                for vptr in view.get_own_pointers(schema).values():
+                for vptr in view.get_own_pointers(schema).objects(schema):
                     vptr.target = vptr.target.material_type(schema)
                     vschema = vschema.add(vptr)
                     if not hasattr(vptr, 'get_own_pointers'):
                         continue
-                    for vlprop in vptr.get_own_pointers(schema).values():
+                    vptr_own_pointers = vptr.get_own_pointers(schema)
+                    for vlprop in vptr_own_pointers.objects(schema):
                         vlprop.target = vlprop.target.material_type(schema)
                         vschema = vschema.add(vlprop)
 

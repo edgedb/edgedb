@@ -266,7 +266,7 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedObject):
             name = AttributeValue.get_shortname(
                 self.classname)
             attrs = attrsubj.scls.get_own_attributes(schema)
-            attribute = attrs.get(name)
+            attribute = attrs.get(schema, name)
             if attribute is None:
                 schema, attribute = super().apply(schema, context)
                 schema = self.add_attribute(schema, attribute, attrsubj.scls)

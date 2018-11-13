@@ -315,7 +315,7 @@ class Pointer(constraints.ConsistencySubject):
         if self.generic():
             raise ValueError(f'{self!r} is generic')
 
-        return 'std::exclusive' in self.get_constraints(schema)
+        return self.get_constraints(schema).has(schema, 'std::exclusive')
 
     def singular(self, schema, direction=PointerDirection.Outbound):
         # Determine the cardinality of a given endpoint set.

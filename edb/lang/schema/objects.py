@@ -641,9 +641,9 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
         adds_mods.sort_subcommands_by_type()
         return adds_mods, dels
 
-    def get_classref_origin(self, name, attr, local_attr, classname,
+    def get_classref_origin(self, schema, name, attr, local_attr, classname,
                             farthest=False):
-        assert name in getattr(self, attr)
+        assert getattr(self, attr).has(schema, name)
         return self
 
     def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
@@ -795,7 +795,7 @@ class ObjectCollection:
     pass
 
 
-class ObjectMapping(collections.abc.Mapping, ObjectCollection):
+class ObjectMapping(ObjectCollection):
 
     def __init__(self, data: dict=None):
         self._keys = ()
@@ -817,7 +817,7 @@ class ObjectMapping(collections.abc.Mapping, ObjectCollection):
 
     def persistent_hash(self, *, schema):
         vals = []
-        for k, v in self.items():
+        for k, v in self.items(schema):
             vals.append((k, v))
         return phash.persistent_hash(frozenset(vals), schema=schema)
 
@@ -830,24 +830,32 @@ class ObjectMapping(collections.abc.Mapping, ObjectCollection):
         else:
             similarity = []
 
-            for k, v in ours.items():
+            for k, v in ours.items(schema):
                 try:
-                    theirsv = theirs[k]
+                    theirsv = theirs.get(schema, k)
                 except KeyError:
                     # key only in ours
                     similarity.append(0.2)
                 else:
-                    similarity.append(v.compare(schema, theirsv, context))
+                    similarity.append(
+                        v.compare(schema, theirsv, context))
 
-            similarity.extend(0.2 for k in set(theirs) - set(ours))
+            diff = set(theirs.names(schema)) - set(ours.names(schema))
+            similarity.extend(0.2 for k in diff)
+
             basecoef = sum(similarity) / len(similarity)
 
         return basecoef + (1 - basecoef) * compcoef
 
-    def replace(self, schema, keys: dict):
+    def replace(self, schema, reps: dict):
         new_map: dict = self._map.copy()
 
-        for key, obj in keys.items():
+        if isinstance(reps, ObjectMapping):
+            keys = reps.items(schema)
+        else:
+            keys = reps.items()
+
+        for key, obj in keys:
             if obj is None:
                 if key not in new_map:
                     raise KeyError(f'{key!r} is not in the mapping')
@@ -858,14 +866,34 @@ class ObjectMapping(collections.abc.Mapping, ObjectCollection):
         om = type(self)(new_map)
         return schema, om
 
-    def __getitem__(self, key):
-        return self._map[key]
+    def names(self, schema):
+        yield from self._map.keys()
 
-    def __iter__(self):
-        return iter(self._keys)
+    def items(self, schema):
+        yield from self._map.items()
+
+    def objects(self, schema):
+        yield from self._map.values()
+
+    def has(self, schema, name):
+        return name in self._map
+
+    def get(self, schema, name, default=...):
+        if default is not ...:
+            return self._map.get(name, default)
+        else:
+            return self._map[name]
 
     def __len__(self):
         return len(self._keys)
+
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return self._map == other._map
+
+    def __hash__(self):
+        return hash(frozenset(self._map.items()))
 
 
 class ObjectSet(typed.TypedSet, ObjectCollection, type=Object):

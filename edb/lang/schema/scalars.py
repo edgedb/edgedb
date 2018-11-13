@@ -62,7 +62,7 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
             deps.add(N(module='std', name='bool'))
             deps.add(N(module='std', name='uuid'))
 
-            for constraint in consts.values():
+            for constraint in consts.objects(schema):
                 ptypes = [p.type for p in constraint.params]
                 if ptypes:
                     for ptype in ptypes:

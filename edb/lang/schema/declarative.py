@@ -376,7 +376,7 @@ class DeclarationLoader:
         if not consts:
             return deps
 
-        for constraint in consts.values():
+        for constraint in consts.objects(self._schema):
             if constraint.params:
                 deps.update([p.type for p in constraint.params])
 

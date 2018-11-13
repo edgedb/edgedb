@@ -248,16 +248,16 @@ class Backend:
 
         return uuid.uuid5(types.TYPE_ID_NAMESPACE, base_type_id)
 
-    def _describe_type(self, t, view_shapes, _tuples):
+    def _describe_type(self, schema, t, view_shapes, _tuples):
         mt = t.material_type(self.schema)
         is_tuple = False
 
         if isinstance(t, s_types.Collection):
-            subtypes = [self._describe_type(st, view_shapes, _tuples)
+            subtypes = [self._describe_type(schema, st, view_shapes, _tuples)
                         for st in t.get_subtypes()]
 
             if isinstance(t, s_types.Tuple) and t.named:
-                element_names = list(t.element_types)
+                element_names = list(t.element_types.keys())
             else:
                 element_names = None
 
@@ -277,7 +277,8 @@ class Backend:
             element_names = []
 
             for ptr in view_shapes[t]:
-                subdesc = self._describe_type(ptr.target, view_shapes, _tuples)
+                subdesc = self._describe_type(
+                    schema, ptr.target, view_shapes, _tuples)
                 subdesc.cardinality = (
                     '1' if ptr.singular(self.schema) else '*'
                 )
@@ -288,7 +289,7 @@ class Backend:
                 # There are link properties in the mix
                 for ptr in view_shapes[t.rptr]:
                     subdesc = self._describe_type(
-                        ptr.target, view_shapes, _tuples)
+                        schema, ptr.target, view_shapes, _tuples)
                     subdesc.cardinality = (
                         '1' if ptr.singular(self.schema) else '*'
                     )
@@ -318,7 +319,7 @@ class Backend:
                 output_format=None, timer=None):
         tuples = {}
         type_desc = self._describe_type(
-            query_ir.expr.scls, query_ir.view_shapes, tuples)
+            self.schema, query_ir.expr.scls, query_ir.view_shapes, tuples)
 
         output_desc = OutputDescriptor(
             type_desc=type_desc, tuple_registry=tuples)

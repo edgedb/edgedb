@@ -106,7 +106,7 @@ def _process_view(
     if is_insert:
         explicit_ptrs = {ptrcls.shortname for ptrcls in pointers}
 
-        for pn, ptrcls in scls.get_pointers(ctx.schema).items():
+        for pn, ptrcls in scls.get_pointers(ctx.schema).items(ctx.schema):
             if (not ptrcls.default or
                     pn in explicit_ptrs or
                     ptrcls.is_pure_computable()):
@@ -491,7 +491,7 @@ def _link_has_shape(
     if not isinstance(ptrcls, s_links.Link):
         return False
 
-    for p in ptrcls.get_pointers(ctx.schema).values():
+    for p in ptrcls.get_pointers(ctx.schema).objects(ctx.schema):
         if p.is_special_pointer() or p not in ctx.class_shapes[ptrcls]:
             continue
         else:
@@ -566,7 +566,7 @@ def _get_shape_configuration(
     if implicit_id and not id_present_in_shape:
         # We want the id in this shape and it's not already there,
         # so insert it in the first position.
-        for ptr in scls.get_pointers(ctx.schema).values():
+        for ptr in scls.get_pointers(ctx.schema).objects(ctx.schema):
             if ptr.is_id_pointer():
                 ctx.class_shapes[scls].insert(0, ptr)
                 shape_ptrs.insert(0, (ir_set, ptr))

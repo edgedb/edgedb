@@ -74,7 +74,7 @@ class Source(indexes.IndexableSubject):
         def getptr_from_nqname(cls, schema, source, name):
             ptrs = set()
 
-            for ptr_name, ptr in source.get_pointers(schema).items():
+            for ptr_name, ptr in source.get_pointers(schema).items(schema):
                 if ptr_name.name == name:
                     ptrs.add(ptr)
 
@@ -82,7 +82,7 @@ class Source(indexes.IndexableSubject):
 
         @classmethod
         def getptr_from_fqname(cls, schema, source, name):
-            ptr = source.get_pointers(schema).get(name)
+            ptr = source.get_pointers(schema).get(schema, name, None)
             if ptr:
                 return {ptr}
             else:
@@ -99,7 +99,7 @@ class Source(indexes.IndexableSubject):
         def getptr_inherited_from(cls, source, schema, base_ptr_class,
                                   skip_scalar):
             result = set()
-            for ptr in source.get_pointers(schema).values():
+            for ptr in source.get_pointers(schema).objects(schema):
                 if (ptr.issubclass(schema, base_ptr_class) and
                         (not skip_scalar or not ptr.scalar())):
                     result.add(ptr)

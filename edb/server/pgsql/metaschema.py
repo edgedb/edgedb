@@ -2129,7 +2129,7 @@ async def generate_views(conn, schema):
 
         cols = []
 
-        for pn, ptr in schema_cls.get_pointers(schema).items():
+        for pn, ptr in schema_cls.get_pointers(schema).items(schema):
             if ptr.is_pure_computable():
                 continue
 

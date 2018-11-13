@@ -383,7 +383,7 @@ class TypeDesc:
         for i, (tn, t) in enumerate(types):
             if isinstance(t, s_types.Collection):
                 if isinstance(t, s_types.Tuple) and t.named:
-                    stypes = t.element_types.items()
+                    stypes = list(t.element_types.items())
                 else:
                     stypes = [(None, st) for st in t.get_subtypes()]
 

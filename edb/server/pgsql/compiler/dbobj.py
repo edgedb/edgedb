@@ -398,7 +398,7 @@ def cols_for_pointer(
     cols = ['ptr_item_id']
 
     if isinstance(pointer, s_links.Link):
-        for ptr in pointer.get_pointers(env.schema).values():
+        for ptr in pointer.get_pointers(env.schema).objects(env.schema):
             cols.append(common.edgedb_name_to_pg_name(ptr.shortname))
     else:
         cols.extend(('std::source', 'std::target'))

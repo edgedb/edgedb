@@ -360,10 +360,11 @@ def resolve_ptr(
             err = errors.EdgeQLReferenceError(msg, context=source_context)
 
             if direction == s_pointers.PointerDirection.Outbound:
+                near_enpoint_pointers = near_endpoint.get_pointers(ctx.schema)
                 s_utils.enrich_schema_lookup_error(
                     err, pointer_name, modaliases=ctx.modaliases,
                     item_types=(s_pointers.Pointer,),
-                    collection=near_endpoint.get_pointers(ctx.schema).values(),
+                    collection=near_enpoint_pointers.objects(ctx.schema),
                     schema=ctx.schema
                 )
 

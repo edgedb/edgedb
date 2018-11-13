@@ -272,7 +272,7 @@ def _analyse_filter_clause(
             is_unique = (
                 ptr.is_id_pointer() or
                 any(c.issubclass(schema, exclusive_constr)
-                    for c in ptr.get_constraints(schema).values())
+                    for c in ptr.get_constraints(schema).objects(schema))
             )
             if is_unique:
                 # Bingo, got an equality filter on a link with a
