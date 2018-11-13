@@ -256,7 +256,7 @@ class FuncParameterList(so.FrozenObjectList, type=Parameter):
         return ph.persistent_hash(tuple(self), schema=schema)
 
     @classmethod
-    def from_ast(cls, astnode, modaliases, schema, *,
+    def from_ast(cls, schema, astnode, modaliases, *,
                  func_fqname=None, allow_named=True):
         params = []
 
@@ -422,7 +422,7 @@ class CreateCallableObject(named.CreateNamedObject):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         params = FuncParameterList.from_ast(
-            astnode, context.modaliases, schema, func_fqname=cmd.classname)
+            schema, astnode, context.modaliases, func_fqname=cmd.classname)
 
         for param in params:
             param_delta = param.delta(
@@ -440,7 +440,7 @@ class DeleteCallableObject(named.DeleteNamedObject):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         params = FuncParameterList.from_ast(
-            astnode, context.modaliases, schema, func_fqname=cmd.classname)
+            schema, astnode, context.modaliases, func_fqname=cmd.classname)
 
         for param in params:
             param_delta = param.delta(
@@ -483,7 +483,7 @@ class FunctionCommand(CallableCommand,
         name = super()._classname_from_ast(schema, astnode, context)
 
         params = FuncParameterList.from_ast(
-            astnode, context.modaliases, schema)
+            schema, astnode, context.modaliases)
 
         return cls._get_function_fullname(schema, name, params)
 

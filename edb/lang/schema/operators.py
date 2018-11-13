@@ -84,13 +84,13 @@ class OperatorCommand(s_func.CallableCommand,
         name = super()._classname_from_ast(schema, astnode, context)
 
         params = s_func.FuncParameterList.from_ast(
-            astnode, context.modaliases, schema)
+            schema, astnode, context.modaliases)
 
         return cls._get_operator_fullname(schema, name, astnode.kind, params)
 
     def _qualify_operator_refs(
-            self, kind: ft.OperatorKind, params: s_func.FuncParameterList,
-            context, schema):
+            self, schema, kind: ft.OperatorKind,
+            params: s_func.FuncParameterList, context):
 
         self_shortname = named.NamedObject.get_shortname(self.classname)
         commutator = self.get_attribute_value('commutator')
@@ -154,7 +154,7 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
 
         modaliases = context.modaliases
 
-        params = s_func.FuncParameterList.from_ast(astnode, modaliases, schema,
+        params = s_func.FuncParameterList.from_ast(schema, astnode, modaliases,
                                                    func_fqname=cmd.classname)
 
         cmd.add(sd.AlterObjectProperty(
@@ -184,7 +184,7 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
                     new_value=astnode.code.from_name
                 ))
 
-        cmd._qualify_operator_refs(astnode.kind, params, context, schema)
+        cmd._qualify_operator_refs(schema, astnode.kind, params, context)
         return cmd
 
 
@@ -199,9 +199,9 @@ class AlterOperator(named.AlterNamedObject, OperatorCommand):
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         modaliases = context.modaliases
-        params = s_func.FuncParameterList.from_ast(astnode, modaliases, schema)
+        params = s_func.FuncParameterList.from_ast(schema, astnode, modaliases)
 
-        cmd._qualify_operator_refs(astnode.kind, params, context, schema)
+        cmd._qualify_operator_refs(schema, astnode.kind, params, context)
         return cmd
 
 

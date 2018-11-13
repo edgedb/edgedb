@@ -362,7 +362,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         return cmdcls
 
     @classmethod
-    def from_ast(cls, astnode, *, context=None, schema):
+    def from_ast(cls, schema, astnode, *, context=None):
         if context is None:
             context = CommandContext()
 
@@ -387,13 +387,13 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
                 with context(context_class(cmd)):
                     for subastnode in astnode.commands:
                         subcmd = Command.from_ast(
-                            subastnode, context=context, schema=schema)
+                            schema, subastnode, context=context)
                         if subcmd is not None:
                             cmd.add(subcmd)
             else:
                 for subastnode in astnode.commands:
                     subcmd = Command.from_ast(
-                        subastnode, context=context, schema=schema)
+                        schema, subastnode, context=context)
                     if subcmd is not None:
                         cmd.add(subcmd)
 

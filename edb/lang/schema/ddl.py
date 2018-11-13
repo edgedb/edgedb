@@ -49,7 +49,7 @@ def cmd_from_ddl(stmt, *, context=None, schema, modaliases,
     context.schema = schema
     context.testmode = testmode
 
-    cmd = s_delta.Command.from_ast(ddl, schema=schema, context=context)
+    cmd = s_delta.Command.from_ast(schema, ddl, context=context)
     return cmd
 
 

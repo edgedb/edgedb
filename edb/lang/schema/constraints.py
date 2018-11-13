@@ -444,7 +444,7 @@ class CreateConstraint(ConstraintCommand,
 
         elif isinstance(astnode, qlast.CreateConstraint):
             params = s_func.FuncParameterList.from_ast(
-                astnode, context.modaliases, schema,
+                schema, astnode, context.modaliases,
                 allow_named=False, func_fqname=cmd.classname)
 
             for param in params:

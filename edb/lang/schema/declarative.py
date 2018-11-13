@@ -346,7 +346,7 @@ class DeclarationLoader:
                     qlcodegen.generate_source(subjexpr))
 
             params = s_func.FuncParameterList.from_ast(
-                decl, self._mod_aliases, self._schema,
+                self._schema, decl, self._mod_aliases,
                 allow_named=False, func_fqname=constraint.name)
 
             for param in params:
