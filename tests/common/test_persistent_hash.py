@@ -36,7 +36,7 @@ class PersistentHashTests(unittest.TestCase):
 
     def test_common_persistent_hash_2(self):
         class Foo:
-            def persistent_hash(self):
+            def persistent_hash(self, schema):
                 return 123
 
         val = frozenset(('aaaa', 'bbb', 21, 33.123, b'aaa', True, None, Foo()))
@@ -55,7 +55,7 @@ class PersistentHashTests(unittest.TestCase):
         self.assertFalse(isinstance(NoPH(), PersistentlyHashable))
 
         class PH:
-            def persistent_hash(self):
+            def persistent_hash(self, schema):
                 return 123
 
         self.assertTrue(issubclass(PH, PersistentlyHashable))

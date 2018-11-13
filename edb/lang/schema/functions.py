@@ -90,11 +90,13 @@ class Parameter(struct.Struct):
             self.type, self.typemod, self.kind,
         ))
 
-    def persistent_hash(self):
-        return ph.persistent_hash((
-            self.pos, self.name, self.default,
-            self.type, self.typemod, self.kind,
-        ))
+    def persistent_hash(self, *, schema):
+        return ph.persistent_hash(
+            (
+                self.pos, self.name, self.default,
+                self.type, self.typemod, self.kind,
+            ),
+            schema=schema)
 
     def as_str(self):
         ret = []
@@ -211,8 +213,8 @@ class FuncParameterList(typed.FrozenTypedList, type=Parameter):
             if param.kind is ft.ParameterKind.VARIADIC:
                 return param
 
-    def persistent_hash(self):
-        return ph.persistent_hash(tuple(self))
+    def persistent_hash(self, *, schema):
+        return ph.persistent_hash(tuple(self), schema=schema)
 
     @classmethod
     def from_ast(cls, astnode, modaliases, schema, *, allow_named=True):

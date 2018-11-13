@@ -213,14 +213,14 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
     def is_type(self):
         return False
 
-    def hash_criteria_fields(self):
+    def hash_criteria_fields(self, schema):
         for fn, f in self.__class__.get_fields(sorted=True).items():
             if f.hashable:
                 yield fn
 
-    def hash_criteria(self):
+    def hash_criteria(self, schema):
         cls = self.get_canonical_class()
-        fields = self.hash_criteria_fields()
+        fields = self.hash_criteria_fields(schema)
         criteria = [('__class__', (cls.__module__, cls.__name__))]
         abc = collections.abc
 
@@ -276,7 +276,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
         setattr(self, field_name, value)
         self._attr_sources[field_name] = 'default'
 
-    def persistent_hash(self):
+    def persistent_hash(self, *, schema):
         """Compute object 'snapshot' hash.
 
         This is an explicit method since schema Objects are mutable.
@@ -284,7 +284,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
         and thus must not contain default object hashes (addresses),
         including that of None.
         """
-        return phash.persistent_hash(self.hash_criteria())
+        return phash.persistent_hash(self.hash_criteria(schema), schema=schema)
 
     def inheritable_fields(self):
         for fn, f in self.__class__.get_fields().items():
@@ -537,15 +537,17 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
         old = list(old)
         new = list(new)
 
-        oldkeys = {o.persistent_hash() for o in old}
-        newkeys = {o.persistent_hash() for o in new}
+        oldkeys = {o.persistent_hash(schema=old_schema) for o in old}
+        newkeys = {o.persistent_hash(schema=new_schema) for o in new}
 
         unchanged = oldkeys & newkeys
 
-        old = OrderedSet(o for o in old
-                         if o.persistent_hash() not in unchanged)
-        new = OrderedSet(o for o in new
-                         if o.persistent_hash() not in unchanged)
+        old = OrderedSet(
+            o for o in old
+            if o.persistent_hash(schema=old_schema) not in unchanged)
+        new = OrderedSet(
+            o for o in new
+            if o.persistent_hash(schema=new_schema) not in unchanged)
 
         comparison = ((x.compare(new_schema, y, context), x, y)
                       for x, y in itertools.product(new, old))
@@ -813,11 +815,11 @@ class ObjectMapping(collections.abc.Mapping, ObjectCollection):
                 self._keys += (k,)
                 self._map[k] = v
 
-    def persistent_hash(self):
+    def persistent_hash(self, *, schema):
         vals = []
         for k, v in self.items():
             vals.append((k, v))
-        return phash.persistent_hash(frozenset(vals))
+        return phash.persistent_hash(frozenset(vals), schema=schema)
 
     @classmethod
     def compare_values(cls, schema, ours, theirs, context, compcoef):

@@ -21,8 +21,6 @@ import hashlib
 import base64
 import re
 
-from edb.lang.common import persistent_hash
-
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import links as s_links
 from edb.lang.schema import lproperties as s_props
@@ -182,30 +180,3 @@ def get_table_name(obj, catenate=True):
         return prop_name_to_table_name(obj.name, catenate)
     else:
         raise ValueError(f'cannot determine table for {obj!r}')
-
-
-class RecordInfo:
-    def __init__(
-            self, *, attribute_map, metaclass=None, classname=None,
-            recursive_link=False, virtuals_map=None):
-        self.attribute_map = attribute_map
-        self.virtuals_map = virtuals_map
-        self.metaclass = metaclass
-        self.classname = classname
-        self.recursive_link = recursive_link
-        self.id = str(persistent_hash.persistent_hash(self))
-
-    def persistent_hash(self):
-        return persistent_hash.persistent_hash((
-            tuple(self.attribute_map), frozenset(self.virtuals_map.items())
-            if self.virtuals_map else None, self.metaclass, self.classname,
-            self.recursive_link))
-
-    def __mm_serialize__(self):
-        return dict(
-            attribute_map=self.attribute_map, virtuals_map=self.virtuals_map,
-            metaclass=self.metaclass, classname=self.classname,
-            recursive_link=self.recursive_link, id=self.id)
-
-
-FREEFORM_RECORD_ID = '6e51108d-7440-47f7-8c65-dc4d43fd90d2'

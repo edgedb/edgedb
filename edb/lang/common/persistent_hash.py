@@ -32,41 +32,41 @@ from hashlib import md5
 from uuid import UUID
 
 
-def _any_type(value):
+def _any_type(value, *, schema=None):
     try:
         meth = value.persistent_hash
     except AttributeError:
         raise TypeError(
             f"un(persistently-)hashable type: {type(value)!r}") from None
 
-    return meth()
+    return meth(schema=schema)
 
 
 persistent_hash = functools.singledispatch(_any_type)
 
 
 @persistent_hash.register(type(None))
-def _none(value):
+def _none(value, *, schema=None):
     return _str('__edgedb__NONE__')
 
 
 @persistent_hash.register(str)
-def _str(value):
+def _str(value, *, schema=None):
     return int(md5(value.encode()).hexdigest(), 16)
 
 
 @persistent_hash.register(bytes)
-def _bytes(value):
+def _bytes(value, *, schema=None):
     return int(md5(value).hexdigest(), 16)
 
 
 @persistent_hash.register(bool)
-def _bool(value):
+def _bool(value, *, schema=None):
     return _str('__edgedb__TRUE__' if value else '__edgedb__FALSE__')
 
 
 @persistent_hash.register(int)
-def _int(value):
+def _int(value, *, schema=None):
     return value
 
 
@@ -75,22 +75,22 @@ _floatunpack = struct.Struct('>q').unpack
 
 
 @persistent_hash.register(float)
-def _float(value):
+def _float(value, *, schema=None):
     return _floatunpack(_floatpack(value))[0]
 
 
 @persistent_hash.register(decimal.Decimal)
-def _decimal(value):
+def _decimal(value, *, schema=None):
     return _str(str(value))
 
 
 @persistent_hash.register(UUID)
-def _uuid(value):
+def _uuid(value, *, schema=None):
     return _tuple(('__stdlib_UUID__', value.hex))
 
 
 @persistent_hash.register(tuple)
-def _tuple(value):
+def _tuple(value, *, schema=None):
     """Compute a persistent hash for a tuple."""
     # This algorithm is borrowed from CPython implementation.
 
@@ -101,7 +101,7 @@ def _tuple(value):
     length = len(value)
 
     for i, item in enumerate(value):
-        hash = persistent_hash(item)
+        hash = persistent_hash(item, schema=schema)
         result = ((result ^ hash) * multiplier) & ((1 << 128) - 1)
         multiplier += 82520 + (length - i) * 2
     result += 97531
@@ -110,13 +110,13 @@ def _tuple(value):
 
 
 @persistent_hash.register(frozenset)
-def _frozenset(value):
+def _frozenset(value, *, schema=None):
     """Compute a persistent hash for a frozenset."""
     # This algorithm is borrowed from CPython implementation.
 
     result = 1927868237
 
-    for hash in sorted(persistent_hash(item) for item in value):
+    for hash in sorted(persistent_hash(item, schema=schema) for item in value):
         result ^= (hash ^ (hash << 16) ^ 89869747) * 3644798167
 
     result = result * 69069 + 907133923
@@ -128,7 +128,7 @@ class PersistentlyHashable(metaclass=abc.ABCMeta):
     __slots__ = ()
 
     @abc.abstractmethod
-    def persistent_hash(self):
+    def persistent_hash(self, *, schema=None):
         return 0
 
     @classmethod
