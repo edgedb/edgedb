@@ -19,6 +19,7 @@
 
 import collections.abc
 import enum
+import types
 import typing
 
 from edb.lang.common import typed
@@ -300,8 +301,8 @@ class Collection(Type):
 
 class Array(Collection):
     schema_name = 'array'
-    element_type = so.Field(so.Object)
-    dimensions = so.Field(typed.IntList, [], coerce=True)
+    element_type = so.Field(so.Object, frozen=True)
+    dimensions = so.Field(typed.IntList, [], coerce=True, frozen=True)
 
     def is_array(self):
         return True
@@ -416,8 +417,12 @@ class Array(Collection):
 class Tuple(Collection):
     schema_name = 'tuple'
 
-    named = so.Field(bool, False)
-    element_types = so.Field(dict, coerce=True)
+    named = so.Field(bool, False, frozen=True)
+    element_types = so.Field(dict, coerce=True, frozen=True)
+
+    def __init__(self, *, element_types: dict, **kwargs):
+        element_types = types.MappingProxyType(element_types)
+        super().__init__(element_types=element_types, **kwargs)
 
     def is_tuple(self):
         return True
