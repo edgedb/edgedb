@@ -421,7 +421,8 @@ class CreateFunction(FunctionCommand, CreateNamedObject,
             args=self.compile_args(func, schema),
             has_variadic=func.params.variadic is not None,
             set_returning=func.return_typemod is ql_ft.TypeModifier.SET_OF,
-            returns=self.get_pgtype(func, func.return_type, schema),
+            returns=self.get_pgtype(
+                func, func.get_return_type(schema), schema),
             text=code)
 
     def compile_sql_function(self, func: s_funcs.Function, schema):

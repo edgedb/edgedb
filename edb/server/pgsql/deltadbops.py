@@ -42,15 +42,6 @@ class SchemaDBObject(metaclass=SchemaDBObjectMeta):
     def adapt(cls, obj):
         return cls.copy(obj)
 
-    @classmethod
-    def get_canonical_class(cls):
-        for base in cls.__bases__:
-            if issubclass(base, s_obj.Object) and not issubclass(
-                    base, SchemaDBObject):
-                return base
-
-        return cls
-
 
 class ConstraintCommon:
     def constraint_name(self, quote=True):

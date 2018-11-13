@@ -270,8 +270,7 @@ class Schema(TypeContainer):
         else:
             child_names = [c.material_type(self).name for c in children]
 
-        canonical_class = scls.get_canonical_class()
-        children = {self.get(n, type=canonical_class) for n in child_names}
+        children = {self.get(n, type=type(scls)) for n in child_names}
 
         if max_depth is not None and depth < max_depth:
             for child in children:

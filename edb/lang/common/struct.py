@@ -26,7 +26,11 @@ class NoDefault:
     pass
 
 
-class Field:
+class ProtoField:
+    pass
+
+
+class Field(ProtoField):
     """``Field`` objects: attributes of :class:`Struct`."""
 
     __slots__ = ('name', 'type', 'default', 'coerce', 'formatters',
@@ -94,9 +98,15 @@ class StructMeta(type):
         myfields = {}
 
         for k, v in clsdict.items():
-            if isinstance(v, Field):
-                v.name = k
-                myfields[k] = v
+            if not isinstance(v, ProtoField):
+                continue
+            if not isinstance(v, Field):
+                raise TypeError(
+                    f'cannot create {name} class: struct.Field expected, '
+                    f'got {type(v)}')
+
+            v.name = k
+            myfields[k] = v
 
         if '__slots__' not in clsdict:
             if use_slots is None:

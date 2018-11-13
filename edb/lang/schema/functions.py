@@ -314,7 +314,7 @@ class CallableObject(so.NamedObject):
                       coerce=True, compcoef=0.4, frozen=True,
                       simpledelta=False)
 
-    return_type = so.Field(so.Object, compcoef=0.2, frozen=True)
+    return_type = so.SchemaField(so.Object, compcoef=0.2)
 
     return_typemod = so.Field(ft.TypeModifier, compcoef=0.4, coerce=True,
                               frozen=True)
@@ -498,7 +498,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
         fullname = self.scls.name
         shortname = Function.get_shortname(fullname)
         language = self.scls.language
-        return_type = self.scls.return_type
+        return_type = self.scls.get_return_type(schema)
         return_typemod = self.scls.return_typemod
         from_function = self.scls.from_function
         has_polymorphic = params.has_polymorphic(schema)
@@ -540,7 +540,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                     f'{return_typemod.to_edgeql()} {return_type.name} '
                     f'function: overloading another function with different '
                     f'return type {func.return_typemod.to_edgeql()} '
-                    f'{func.return_type.name}',
+                    f'{func.get_return_type(schema).name}',
                     context=self.source_context)
 
             if func.from_function:

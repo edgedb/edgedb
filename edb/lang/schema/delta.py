@@ -600,7 +600,7 @@ class ObjectCommandContext(CommandContextToken):
         super().__init__(op)
         self.scls = scls
         if scls is not None:
-            self.original_class = scls.get_canonical_class().copy(scls)
+            self.original_class = scls.copy()
         else:
             self.original_class = None
 

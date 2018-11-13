@@ -19,8 +19,8 @@
 
 import importlib
 
+from edb.lang.common import struct
 from edb.lang.edgeql import ast as qlast
-
 
 from . import delta as sd
 from . import modules
@@ -44,7 +44,7 @@ class DatabaseCommand(sd.ObjectCommand, schema_metaclass=Database,
 
 
 class CreateDatabase(DatabaseCommand):
-    name = so.Field(str, None)
+    name = struct.Field(str, None)
     astnode = qlast.CreateDatabase
 
     @classmethod
@@ -105,7 +105,7 @@ class AlterDatabase(DatabaseCommand):
 
 
 class DropDatabase(DatabaseCommand):
-    name = so.Field(str, None)
+    name = struct.Field(str, None)
     astnode = qlast.DropDatabase
 
     @classmethod

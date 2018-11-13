@@ -20,6 +20,7 @@
 import builtins
 import collections
 
+from edb.lang.common import struct
 from edb.lang.common.ordered import OrderedSet
 
 from edb.lang.edgeql import ast as qlast
@@ -119,9 +120,6 @@ class Module(named.NamedObject):
 
             fq_name = '{}::{}'.format(self.name, name)
             scls = self.lookup_qname(fq_name)
-
-            if type is not None and issubclass(type, so.Object):
-                type = type.get_canonical_class()
 
         raise_ = None
 
@@ -233,7 +231,7 @@ class ModuleCommandContext(sd.CommandContextToken):
 class ModuleCommand(named.NamedObjectCommand, schema_metaclass=Module,
                     context_class=ModuleCommandContext):
 
-    classname = so.Field(str)
+    classname = struct.Field(str)
 
     @classmethod
     def _classname_from_ast(cls, schema, astnode, context):

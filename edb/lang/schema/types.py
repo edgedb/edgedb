@@ -221,7 +221,7 @@ class Collection(Type):
         elif ours is None:
             return 1.0
 
-        if ours.get_canonical_class() != theirs.get_canonical_class():
+        if type(ours) is not type(theirs):
             basecoef = 0.2
         else:
             my_subtypes = ours.get_subtypes()

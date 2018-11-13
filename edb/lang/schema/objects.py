@@ -23,6 +23,7 @@ import pathlib
 import re
 import typing
 import uuid
+import warnings
 
 from edb.lang.common import parsing
 from edb.lang.common import persistent_hash as phash
@@ -86,33 +87,6 @@ def default_field_merge(target: 'Object', sources: typing.List['Object'],
         return ours
 
 
-class Field(struct.Field):
-    __slots__ = ('compcoef', 'inheritable', 'hashable', 'simpledelta',
-                 'merge_fn', 'ephemeral', 'introspectable')
-
-    def __init__(self, *args, compcoef=None, inheritable=True, hashable=True,
-                 simpledelta=True, merge_fn=None, ephemeral=False,
-                 introspectable=True, **kwargs):
-        """Schema item core attribute definition.
-
-        """
-        super().__init__(*args, **kwargs)
-        self.compcoef = compcoef
-        self.inheritable = inheritable
-        self.hashable = hashable
-        self.simpledelta = simpledelta
-        self.introspectable = introspectable
-
-        if merge_fn is not None:
-            self.merge_fn = merge_fn
-        elif callable(getattr(self.type[0], 'merge_values', None)):
-            self.merge_fn = self.type[0].merge_values
-        else:
-            self.merge_fn = default_field_merge
-
-        self.ephemeral = ephemeral
-
-
 class ComparisonContextWrapper:
     def __init__(self, context, pair):
         self.context = context
@@ -139,8 +113,6 @@ class ComparisonContext:
             raise ValueError(
                 f'invalid argument type {cls!r} for comparison context')
 
-        cls = cls.get_canonical_class()
-
         self.stacks[cls].append(pair)
         self.ptrs.append(cls)
 
@@ -157,14 +129,166 @@ class ComparisonContext:
         return ComparisonContextWrapper(self, (left, right))
 
 
-class ObjectMeta(struct.MixedStructMeta):
+class NoDefault:
+    pass
+
+
+class Field(struct.ProtoField):  # derived from ProtoField for validation
+
+    __slots__ = ('name', 'type', 'default', 'coerce', 'formatters',
+                 'frozen',
+                 'compcoef', 'inheritable', 'hashable', 'simpledelta',
+                 'merge_fn', 'ephemeral', 'introspectable')
+
+    def __init__(self, type, default=NoDefault, *, coerce=False,
+                 str_formatter=str, repr_formatter=repr, frozen=False,
+                 compcoef=None, inheritable=True, hashable=True,
+                 simpledelta=True, merge_fn=None, ephemeral=False,
+                 introspectable=True, **kwargs):
+        """Schema item core attribute definition.
+
+        """
+        if not isinstance(type, tuple):
+            type = (type, )
+
+        self.type = type
+        self.default = default
+        self.coerce = coerce
+        self.frozen = frozen
+
+        if coerce and len(type) > 1:
+            raise ValueError(
+                'unable to coerce values for fields with multiple types')
+
+        self.formatters = {'str': str_formatter, 'repr': repr_formatter}
+
+        self.compcoef = compcoef
+        self.inheritable = inheritable
+        self.hashable = hashable
+        self.simpledelta = simpledelta
+        self.introspectable = introspectable
+
+        if merge_fn is not None:
+            self.merge_fn = merge_fn
+        elif callable(getattr(self.type[0], 'merge_values', None)):
+            self.merge_fn = self.type[0].merge_values
+        else:
+            self.merge_fn = default_field_merge
+
+        self.ephemeral = ephemeral
+
+    def copy(self):
+        return self.__class__(
+            self.type, self.default, coerce=self.coerce,
+            str_formatter=self.formatters['str'],
+            repr_formatter=self.formatters['repr'])
+
+    def adapt(self, value):
+        if not isinstance(value, self.type):
+            for t in self.type:
+                try:
+                    value = t(value)
+                except TypeError:
+                    pass
+                else:
+                    break
+
+        return value
+
+    @property
+    def required(self):
+        return self.default is NoDefault
+
+    def __get__(self, instance, owner):
+        if instance is not None:
+            return None
+        else:
+            return self
+
+
+class SchemaField(Field):
+
+    __slots__ = ('debug_getter',)
+
+    def __init__(self, *args, debug_getter=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.debug_getter = debug_getter
+
+    def __get__(self, instance, owner):
+        if instance is not None:
+            if self.debug_getter:
+                warnings.warn(
+                    f'{type(instance).__name__}.{self.name} direct access',
+                    RuntimeWarning, stacklevel=2)
+                return getattr(instance, f'_schema_field_{self.name}')
+            else:
+                raise AttributeError(self.name)
+        else:
+            return self
+
+
+class ObjectMeta(type):
+
     _schema_metaclasses = []
 
-    def __new__(mcls, name, bases, dct, **kwargs):
-        cls = super().__new__(mcls, name, bases, dct, **kwargs)
+    def __new__(mcls, name, bases, clsdict):
+        fields = {}
+        myfields = {}
+
+        if '__slots__' in clsdict:
+            raise TypeError(
+                f'cannot create {name} class: __slots__ are not supported')
+
+        for k, v in tuple(clsdict.items()):
+            if not isinstance(v, struct.ProtoField):
+                continue
+            if not isinstance(v, Field):
+                raise TypeError(
+                    f'cannot create {name} class: schema.objects.Field '
+                    f'expected, got {type(v)}')
+
+            v.name = k
+            myfields[k] = v
+
+            if isinstance(v, SchemaField):
+                getter_name = f'get_{v.name}'
+                if getter_name in clsdict:
+                    raise TypeError(
+                        f'cannot create {name} class: schema field getter '
+                        f'{getter_name}() is already defined')
+                clsdict[getter_name] = (
+                    lambda self, schema, *, _fn=v.name:
+                        self.get_field_value(schema, _fn)
+                )
+
+        cls = super().__new__(mcls, name, bases, clsdict)
+
+        for parent in reversed(cls.__mro__):
+            if parent is cls:
+                fields.update(myfields)
+            elif isinstance(parent, ObjectMeta):
+                fields.update(parent.get_ownfields())
+
+        cls._fields = fields
+        cls._sorted_fields = collections.OrderedDict(
+            sorted(fields.items(), key=lambda e: e[0]))
+        fa = '{}.{}_fields'.format(cls.__module__, cls.__name__)
+        setattr(cls, fa, myfields)
+
         cls._ref_type = None
         mcls._schema_metaclasses.append(cls)
+
         return cls
+
+    def get_field(cls, name):
+        return cls._fields.get(name)
+
+    def get_fields(cls, sorted=False):
+        return cls._sorted_fields if sorted else cls._fields
+
+    def get_ownfields(cls):
+        return getattr(
+            cls, '{}.{}_fields'.format(cls.__module__, cls.__name__))
 
     @property
     def ref_type(cls):
@@ -185,7 +309,11 @@ class ObjectMeta(struct.MixedStructMeta):
         return mcls._schema_metaclasses
 
 
-class Object(struct.MixedStruct, metaclass=ObjectMeta):
+class FieldValueNotFound(Exception):
+    pass
+
+
+class Object(metaclass=ObjectMeta):
     """Base schema item class."""
 
     id = Field(uuid.UUID, default=None, compcoef=0.1, inheritable=False,
@@ -197,17 +325,172 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
                       ephemeral=True, frozen=True)
     """Schema source context for this object"""
 
-    @classmethod
-    def get_canonical_class(cls):
-        return cls
-
-    def __init__(self, **kwargs):
-        self._attr_sources = {}
+    def __init__(self, *, _setdefaults_=True, _relaxrequired_=False, **kwargs):
         self._attr_source_contexts = {}
-        super().__init__(**kwargs)
+
+        self._in_init_ = True
+        try:
+            self._init_fields(_setdefaults_, _relaxrequired_, kwargs)
+        finally:
+            self._in_init_ = False
+
+    def setdefaults(self):
+        """Initialize unset fields with default values."""
+        fields_set = []
+        for field_name, field in self.__class__._fields.items():
+            if isinstance(field, SchemaField):
+                continue
+            value = getattr(self, field_name)
+            if value is None and field.default is not None:
+                value = self._getdefault(field_name, field)
+                self.set_default_value(field_name, value)
+                fields_set.append(field_name)
+        return fields_set
+
+    def formatfields(self, formatter='str'):
+        """Return an iterator over fields formatted using `formatter`."""
+        for name, field in self.__class__._fields.items():
+            formatter_obj = field.formatters.get(formatter)
+            if formatter_obj:
+                yield (name, formatter_obj(getattr(self, name)))
+
+    def _copy_and_replace(self, cls, **replacements):
+        args = {}
+        for field in cls._fields.values():
+            try:
+                v = self.get_field_value(
+                    None, field.name, allow_default=False)  # XXX
+            except AttributeError:
+                pass
+            else:
+                args[field.name] = v
+
+        if replacements:
+            args.update(replacements)
+
+        return cls(**args)
+
+    def copy_with_class(self, cls):
+        return self._copy_and_replace(cls)
+
+    def copy(self):
+        return self.copy_with_class(type(self))
+
+    def items(self):
+        for field in self.__class__._fields:
+            yield field, self.get_field_value(None, field)  # XXX
+
+    def __iter__(self):
+        return iter(self.__class__._fields)
+
+    def __str__(self):
+        fields = ', '.join(('%s=%s' % (name, value))
+                           for name, value in self.formatfields('str'))
+        return '<{}{}>'.format(
+            self.__class__.__name__, ' ' + fields if fields else '')
+
+    def __repr__(self):
+        fields = ', '.join(('%s=%s' % (name, value))
+                           for name, value in self.formatfields('repr'))
+        return '<{}{}>'.format(
+            self.__class__.__name__, ' ' + fields if fields else '')
+
+    def _init_fields(self, setdefaults, relaxrequired, values):
+        for field_name, field in self.__class__._fields.items():
+            value = values.get(field_name)
+
+            if value is None and field.default is not None and setdefaults:
+                value = self._getdefault(field_name, field, relaxrequired)
+
+            if isinstance(field, SchemaField):
+                setattr(self, f'_schema_field_{field_name}', value)
+            else:
+                setattr(self, field_name, value)
+
+    def __setattr__(self, name, value):
+        field = self._fields.get(name)
+        if field is not None:
+            if isinstance(field, SchemaField):
+                raise RuntimeError(
+                    f'cannot set value to SchemaField {self}.{name} directly')
+            value = self._check_field_type(field, name, value)
+            if field.frozen and not self._in_init_:
+                raise ValueError(f'cannot assign to frozen field {name!r}')
+        super().__setattr__(name, value)
+
+    def _check_field_type(self, field, name, value):
+        if (field.type and value is not None and
+                not isinstance(value, field.type)):
+            if field.coerce:
+                ftype = field.type[0]
+
+                if issubclass(ftype, (typed.AbstractTypedSequence,
+                                      typed.AbstractTypedSet)):
+                    casted_value = []
+                    for v in value:
+                        if v is not None and not isinstance(v, ftype.type):
+                            v = ftype.type(v)
+                        casted_value.append(v)
+                    value = casted_value
+                elif issubclass(ftype, typed.AbstractTypedMapping):
+                    casted_value = {}
+                    for k, v in value.items():
+                        if k is not None and not isinstance(k, ftype.keytype):
+                            k = ftype.keytype(k)
+                        if (v is not None and
+                                not isinstance(v, ftype.valuetype)):
+                            v = ftype.valuetype(v)
+                        casted_value[k] = v
+
+                    value = casted_value
+
+                try:
+                    return ftype(value)
+                except Exception as ex:
+                    raise TypeError(
+                        'cannot coerce {!r} value {!r} '
+                        'to {}'.format(name, value, ftype)) from ex
+
+            raise TypeError(
+                '{}.{}.{}: expected {} but got {!r}'.format(
+                    self.__class__.__module__, self.__class__.__name__, name,
+                    ' or '.join(t.__name__ for t in field.type), value))
+
+        return value
+
+    def _getdefault(self, field_name, field, relaxrequired=False):
+        if field.default in field.type:
+            value = field.default()
+        elif field.default is NoDefault:
+            if relaxrequired:
+                value = None
+            else:
+                raise TypeError(
+                    '%s.%s.%s is required' % (
+                        self.__class__.__module__, self.__class__.__name__,
+                        field_name))
+        else:
+            value = field.default
+        return value
+
+    def get_field_value(self, schema, field_name, *, allow_default=True):
+        field = type(self).get_field(field_name)
+        try:
+            if isinstance(field, SchemaField):
+                return self.__dict__[f'_schema_field_{field.name}']
+            else:
+                return self.__dict__[field_name]
+        except KeyError:
+            if allow_default:
+                try:
+                    return self._getdefault(field_name, field)
+                except TypeError:
+                    pass
+
+        raise FieldValueNotFound(field_name)
 
     def replace(self, schema, **attrs):
-        rep = struct.Struct.replace(self, **attrs)
+        rep = self._copy_and_replace(type(self), **attrs)
         return schema, rep
 
     def is_type(self):
@@ -219,7 +502,7 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
                 yield fn
 
     def hash_criteria(self, schema):
-        cls = self.get_canonical_class()
+        cls = type(self)
         fields = self.hash_criteria_fields(schema)
         criteria = [('__class__', (cls.__module__, cls.__name__))]
         abc = collections.abc
@@ -248,6 +531,11 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
         """Set the attribute `name` to `value`."""
         from . import delta as sd
 
+        field = type(self).get_field(name)
+        if isinstance(field, SchemaField):
+            raise RuntimeError(
+                f'cannot set_attribute on SchemaField {self}.{name}')
+
         try:
             current = getattr(self, name)
         except AttributeError:
@@ -256,7 +544,6 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
             changed = current != value
 
         if changed:
-            self._attr_sources[name] = source
             setattr(self, name, value)
             if dctx is not None:
                 dctx.current().op.add(sd.AlterObjectProperty(
@@ -273,8 +560,11 @@ class Object(struct.MixedStruct, metaclass=ObjectMeta):
         return self._attr_source_contexts.get(name)
 
     def set_default_value(self, field_name, value):
+        field = type(self).get_field(field_name)
+        if isinstance(field, SchemaField):
+            raise RuntimeError(
+                f'cannot set default for SchemaField {self}.{field_name}')
         setattr(self, field_name, value)
-        self._attr_sources[field_name] = 'default'
 
     def persistent_hash(self, *, schema):
         """Compute object 'snapshot' hash.
@@ -744,7 +1034,7 @@ class NamedObject(Object):
 
         return rename_class(classname=obj.name,
                             new_name=new_name,
-                            metaclass=obj.get_canonical_class())
+                            metaclass=type(obj))
 
     @classmethod
     def compare_values(cls, schema, ours, theirs, context, compcoef):
@@ -753,8 +1043,7 @@ class NamedObject(Object):
         if (ours is None) != (theirs is None):
             similarity /= 1.2
         elif ours is not None:
-            if (ours.__class__.get_canonical_class() !=
-                    theirs.__class__.get_canonical_class()):
+            if type(ours) is not type(theirs):
                 similarity /= 1.4
             elif ours.name != theirs.name:
                 similarity /= 1.2

@@ -194,19 +194,19 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
         # an already defined subjectexpr
         if constraint.subjectexpr is not None:
             for base in constraint.bases:
-                base_se = base.get_field_value('subjectexpr')
+                base_se = base.get_field_value(schema, 'subjectexpr')
                 if base_se and base_se != constraint.subjectexpr:
                     raise s_errors.InvalidConstraintDefinitionError(
                         'subjectexpr is already defined for ' +
                         f'{constraint.name!r}')
 
         subject = constraint.subject
-        subjectexpr = constraint.get_field_value('subjectexpr')
+        subjectexpr = constraint.get_field_value(schema, 'subjectexpr')
         if subjectexpr:
             subject, _ = cls._normalize_constraint_expr(
                 schema, {}, subjectexpr, subject)
 
-        expr = constraint.get_field_value('expr')
+        expr = constraint.get_field_value(schema, 'expr')
         if not expr:
             raise s_errors.InvalidConstraintDefinitionError(
                 f'missing constraint expression in {constraint.name!r}')
@@ -216,7 +216,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
         if params:
             args = params
         else:
-            args = constraint.get_field_value('args')
+            args = constraint.get_field_value(schema, 'args')
 
         args_map = None
         if args:

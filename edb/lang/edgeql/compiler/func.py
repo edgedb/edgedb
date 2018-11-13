@@ -123,10 +123,11 @@ def compile_FunctionCall(
         if matched_call.func.params.variadic is not None:
             variadic_param_type = matched_call.func.params.variadic.type
 
+        matched_func_ret_type = matched_call.func.get_return_type(ctx.schema)
         is_polymorphic = (
             any(p.type.is_polymorphic(ctx.schema)
                 for p in matched_call.func.params) and
-            matched_call.func.return_type.is_polymorphic(ctx.schema)
+            matched_func_ret_type.is_polymorphic(ctx.schema)
         )
 
         node = irast.FunctionCall(
@@ -226,7 +227,10 @@ def try_bind_func_args(
                         typehint=bytes_t,
                         ctx=ctx)
                 ]
-            return BoundCall(func, args, set(), func.return_type, False, False)
+            return BoundCall(
+                func, args, set(),
+                func.get_return_type(ctx.schema),
+                False, False)
         else:
             # No match: `func` is a function without parameters
             # being called with some arguments.
@@ -413,7 +417,7 @@ def try_bind_func_args(
                 irast.BytesConstant(value=bm.decode('ascii'), type=bytes_t),
                 typehint=bytes_t, ctx=ctx)))
 
-    return_type = func.return_type
+    return_type = func.get_return_type(ctx.schema)
     if return_type.is_polymorphic(ctx.schema):
         if resolved_poly_base_type is None:
             return _NO_MATCH

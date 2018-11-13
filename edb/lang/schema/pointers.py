@@ -154,8 +154,8 @@ class Pointer(constraints.ConsistencySubject):
             # Targets are not of the same node type
 
             pn = ptr.shortname
-            ccn1 = t1.get_canonical_class().__name__
-            ccn2 = t2.get_canonical_class().__name__
+            ccn1 = type(t1).__name__
+            ccn2 = type(t2).__name__
 
             detail = (f'[{ptr.source.name}].[{pn}] targets {ccn1} "{t1.name}"'
                       f'while it also targets {ccn2} "{t2.name}"'

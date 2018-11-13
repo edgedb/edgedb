@@ -17,6 +17,7 @@
 #
 
 
+from edb.lang.common import struct
 from edb.lang.edgeql import ast as qlast
 
 from . import delta as sd
@@ -165,9 +166,9 @@ class DeleteInheritingObject(named.DeleteNamedObject, InheritingObjectCommand):
 class RebaseNamedObject(named.NamedObjectCommand):
     _delta_action = 'rebase'
 
-    new_base = so.Field(tuple, default=tuple())
-    removed_bases = so.Field(tuple)
-    added_bases = so.Field(tuple)
+    new_base = struct.Field(tuple, default=tuple())
+    removed_bases = struct.Field(tuple)
+    added_bases = struct.Field(tuple)
 
     def __repr__(self):
         return '<%s.%s "%s">' % (self.__class__.__module__,
@@ -357,7 +358,7 @@ class InheritingObject(derivable.DerivableObject):
 
                     delta.add(rebase(
                         classname=new.name,
-                        metaclass=new.__class__.get_canonical_class(),
+                        metaclass=type(new),
                         removed_bases=removed,
                         added_bases=added,
                         new_base=tuple(new_base_names)))

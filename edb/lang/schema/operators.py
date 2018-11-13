@@ -122,7 +122,7 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
     def _add_to_schema(self, schema, context):
         params: s_func.FuncParameterList = self.scls.params
         name = self.scls.name
-        return_type = self.scls.return_type
+        return_type = self.scls.get_return_type(schema)
         return_typemod = self.scls.return_typemod
 
         get_signature = lambda: f'{self.classname}{params.as_str()}'
@@ -143,7 +143,7 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
                     f'{return_typemod.to_edgeql()} {return_type.name} '
                     f'operator: overloading another operator with different '
                     f'return type {oper.return_typemod.to_edgeql()} '
-                    f'{oper.return_type.name}',
+                    f'{oper.get_return_type(schema).name}',
                     context=self.source_context)
 
         return super()._add_to_schema(schema, context)

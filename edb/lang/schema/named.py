@@ -19,6 +19,7 @@
 
 import base64
 
+from edb.lang.common import struct
 from edb.lang.common.persistent_hash import persistent_hash
 
 from edb.lang.edgeql import ast as qlast
@@ -70,7 +71,7 @@ class NamedObjectSet(so.ObjectSet, type=NamedObject):
 
 
 class NamedObjectCommand(sd.ObjectCommand):
-    classname = so.Field(sn.Name)
+    classname = struct.Field(sn.Name)
 
     @classmethod
     def _get_ast_name(cls, schema, astnode, context):
@@ -215,7 +216,7 @@ class RenameNamedObject(NamedObjectCommand):
 
     astnode = qlast.Rename
 
-    new_name = so.Field(sn.Name)
+    new_name = struct.Field(sn.Name)
 
     def __repr__(self):
         return '<%s.%s "%s" to "%s">' % (self.__class__.__module__,
@@ -456,8 +457,7 @@ class AlterNamedObject(CreateOrAlterNamedObject, sd.AlterObject):
         self.scls = scls
 
         with self.new_context(context) as ctx:
-            ctx.original_class = \
-                scls.__class__.get_canonical_class().copy(scls)
+            ctx.original_class = scls.copy()
 
             schema = self._alter_begin(schema, context, scls)
             schema = self._alter_innards(schema, context, scls)
