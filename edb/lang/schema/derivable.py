@@ -56,7 +56,7 @@ class DerivableObjectBase:
         if attrs is None:
             attrs = {}
         attrs['name'] = derived_name
-        schema, derived = self.replace(schema, **attrs)
+        schema, derived = self.copy_with(schema, attrs)
 
         return schema, derived
 

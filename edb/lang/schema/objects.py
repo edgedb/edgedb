@@ -177,6 +177,10 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
 
         self.ephemeral = ephemeral
 
+    @property
+    def _attrname(self):
+        return self.name
+
     def copy(self):
         return self.__class__(
             self.type, self.default, coerce=self.coerce,
@@ -213,6 +217,10 @@ class SchemaField(Field):
     def __init__(self, *args, debug_getter=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.debug_getter = debug_getter
+
+    @property
+    def _attrname(self):
+        return f'_schema_field_{self.name}'
 
     def __get__(self, instance, owner):
         if instance is not None:
@@ -391,10 +399,7 @@ class Object(metaclass=ObjectMeta):
             if value is None and field.default is not None and setdefaults:
                 value = self._getdefault(field_name, field, relaxrequired)
 
-            if is_schema_field:
-                setattr(self, f'_schema_field_{field_name}', value)
-            else:
-                setattr(self, field_name, value)
+            setattr(self, field._attrname, value)
 
     def __setattr__(self, name, value):
         field = self._fields.get(name)
@@ -465,10 +470,7 @@ class Object(metaclass=ObjectMeta):
     def get_field_value(self, schema, field_name, *, allow_default=True):
         field = type(self).get_field(field_name)
         try:
-            if isinstance(field, SchemaField):
-                return self.__dict__[f'_schema_field_{field.name}']
-            else:
-                return self.__dict__[field_name]
+            return self.__dict__[field._attrname]
         except KeyError:
             if allow_default:
                 try:
@@ -488,9 +490,50 @@ class Object(metaclass=ObjectMeta):
             else:
                 return default
 
-    def replace(self, schema, **attrs):
-        rep = self._copy_and_replace(type(self), **attrs)
-        return schema, rep
+    def update(self, schema, updates: dict):
+        fields = type(self)._fields
+
+        if updates.keys() - fields.keys():
+            raise RuntimeError(
+                'updates list contains values for non-existant fields: ' +
+                ', '.join(updates.keys() - fields.keys()))
+
+        for field_name in updates:
+            field = fields[field_name]
+            attrname = field._attrname
+
+            new_val = updates[field_name]
+            if new_val is None:
+                self.__dict__.pop(attrname, None)
+            else:
+                new_val = self._check_field_type(field, field_name, new_val)
+                self.__dict__[attrname] = new_val
+
+        return schema
+
+    def copy_with(self, schema, updates: dict):
+        fields = type(self)._fields
+
+        if updates.keys() - fields.keys():
+            raise RuntimeError(
+                'updates list contains values for non-existant fields: ' +
+                ', '.join(updates.keys() - fields.keys()))
+
+        new = {}
+        for field_name, field in fields.items():
+            if field_name in updates:
+                new_val = updates[field_name]
+                if new_val is None:
+                    continue
+                else:
+                    new[field_name] = new_val
+            else:
+                val = self.get_explicit_field_value(schema, field_name, None)
+                if val is None:
+                    continue
+                new[field_name] = val
+
+        return schema, type(self)(**new)
 
     def is_type(self):
         return False

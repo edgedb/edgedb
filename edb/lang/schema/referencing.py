@@ -391,26 +391,36 @@ class CreateReferencedInheritingObject(inheriting.CreateInheritingObject):
 class ReferencingObject(inheriting.InheritingObject,
                         metaclass=ReferencingObjectMeta):
 
-    def replace(self, schema, **extras):
+    def copy_with(self, schema, updates):
         for refdict in self.__class__.get_refdicts():
             attr = refdict.attr
             local_attr = refdict.local_attr
-            all_coll = getattr(self, attr)
-            local_coll = getattr(self, local_attr)
 
-            coll_copy = {}
+            all_coll = self.get_explicit_field_value(schema, attr, None)
+            if all_coll is None:
+                updates[attr] = None
+                updates[local_attr] = None
+                continue
+
+            all_coll_copy = {}
             for n, p in all_coll.items(schema):
-                schema, coll_copy[n] = p.replace(schema)
+                all_coll_copy[n] = p.copy()
 
-            extras[attr] = coll_copy
-
-            if local_coll is None:
-                extras[local_attr] = None
+            if all_coll_copy:
+                updates[attr] = all_coll_copy
             else:
-                extras[local_attr] = {n: coll_copy[n]
-                                      for n in local_coll.names(schema)}
+                updates[attr] = None
+                updates[local_attr] = None
+                continue
 
-        schema, result = super().replace(schema, **extras)
+            local_coll = self.get_explicit_field_value(self, local_attr, None)
+            if local_coll is None:
+                updates[local_attr] = None
+            else:
+                updates[local_attr] = {n: all_coll_copy[n]
+                                       for n in local_coll.names(schema)}
+
+        schema, result = super().copy_with(schema, updates)
         return schema, result
 
     def merge(self, *objs, schema, dctx=None):
