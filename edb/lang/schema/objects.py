@@ -382,12 +382,16 @@ class Object(metaclass=ObjectMeta):
 
     def _init_fields(self, setdefaults, relaxrequired, values):
         for field_name, field in self.__class__._fields.items():
+            is_schema_field = isinstance(field, SchemaField)
+            if field_name not in values and is_schema_field:
+                continue
+
             value = values.get(field_name)
 
             if value is None and field.default is not None and setdefaults:
                 value = self._getdefault(field_name, field, relaxrequired)
 
-            if isinstance(field, SchemaField):
+            if is_schema_field:
                 setattr(self, f'_schema_field_{field_name}', value)
             else:
                 setattr(self, field_name, value)
