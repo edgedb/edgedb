@@ -222,7 +222,7 @@ class SchemaField(Field):
                     RuntimeWarning, stacklevel=2)
                 return getattr(instance, f'_schema_field_{self.name}')
             else:
-                raise AttributeError(self.name)
+                raise FieldValueNotFoundError(self.name)
         else:
             return self
 
@@ -295,7 +295,7 @@ class ObjectMeta(type):
         return mcls._schema_metaclasses
 
 
-class FieldValueNotFound(Exception):
+class FieldValueNotFoundError(Exception):
     pass
 
 
@@ -346,7 +346,7 @@ class Object(metaclass=ObjectMeta):
             try:
                 v = self.get_field_value(
                     None, field.name, allow_default=False)  # XXX
-            except AttributeError:
+            except FieldValueNotFoundError:
                 pass
             else:
                 args[field.name] = v
@@ -473,7 +473,17 @@ class Object(metaclass=ObjectMeta):
                 except TypeError:
                     pass
 
-        raise FieldValueNotFound(field_name)
+        raise FieldValueNotFoundError(field_name)
+
+    def get_explicit_field_value(self, schema, field_name, default=NoDefault):
+        try:
+            return self.get_field_value(
+                schema, field_name, allow_default=False)
+        except FieldValueNotFoundError:
+            if default is NoDefault:
+                raise
+            else:
+                return default
 
     def replace(self, schema, **attrs):
         rep = self._copy_and_replace(type(self), **attrs)
@@ -494,7 +504,7 @@ class Object(metaclass=ObjectMeta):
         abc = collections.abc
 
         for f in fields:
-            v = getattr(self, f)
+            v = self.get_field_value(schema, f)
 
             if not isinstance(v, phash.PersistentlyHashable):
                 if isinstance(v, abc.Set):
@@ -609,8 +619,8 @@ class Object(metaclass=ObjectMeta):
 
                 FieldType = field.type[0]
 
-                ours = getattr(self, field_name)
-                theirs = getattr(other, field_name)
+                ours = self.get_field_value(schema, field_name)
+                theirs = other.get_field_value(schema, field_name)
 
                 comparator = getattr(FieldType, 'compare_values', None)
                 if callable(comparator):
@@ -738,17 +748,18 @@ class Object(metaclass=ObjectMeta):
 
         if old and new:
             for f in fields:
-                oldattr, oldattr_v = new._reduce_refs(
-                    old_schema, getattr(old, f))
-                newattr, newattr_v = new._reduce_refs(
-                    new_schema, getattr(new, f))
+                oldattr_v = old.get_explicit_field_value(old_schema, f, None)
+                newattr_v = new.get_explicit_field_value(new_schema, f, None)
+
+                oldattr, oldattr_v = old._reduce_refs(old_schema, oldattr_v)
+                newattr, newattr_v = new._reduce_refs(new_schema, newattr_v)
 
                 if oldattr_v != newattr_v:
                     delta.add(sd.AlterObjectProperty(
                         property=f, old_value=oldattr, new_value=newattr))
         elif not old:
             for f in fields:
-                value = getattr(new, f)
+                value = new.get_explicit_field_value(new_schema, f, None)
                 if value is not None:
                     value, _ = new._reduce_refs(new_schema, value)
                     delta.add(sd.AlterObjectProperty(
