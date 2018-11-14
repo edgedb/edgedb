@@ -79,10 +79,10 @@ def is_named_class(scls):
 
 def default_field_merge(target: 'Object', sources: typing.List['Object'],
                         field_name: str, *, schema) -> object:
-    ours = getattr(target, field_name)
+    ours = target.get_explicit_field_value(schema, field_name, None)
     if ours is None:
         for source in sources:
-            theirs = getattr(source, field_name)
+            theirs = source.get_explicit_field_value(schema, field_name, None)
             if theirs is not None:
                 return theirs
     else:
@@ -586,20 +586,15 @@ class Object(metaclass=ObjectMeta):
         """Set the attribute `name` to `value`."""
         from . import delta as sd
 
-        field = type(self).get_field(name)
-        if isinstance(field, SchemaField):
-            raise RuntimeError(
-                f'cannot set_attribute on SchemaField {self}.{name}')
-
         try:
-            current = getattr(self, name)
-        except AttributeError:
+            current = self.get_explicit_field_value(schema, name)
+        except FieldValueNotFoundError:
             changed = True
         else:
             changed = current != value
 
         if changed:
-            setattr(self, name, value)
+            schema = self.update(schema, {name: value})
             if dctx is not None:
                 dctx.current().op.add(sd.AlterObjectProperty(
                     property=name,
@@ -652,7 +647,7 @@ class Object(metaclass=ObjectMeta):
         for field_name in self.inheritable_fields():
             field = self.__class__.get_field(field_name)
             result = field.merge_fn(self, objs, field_name, schema=schema)
-            ours = getattr(self, field_name)
+            ours = self.get_explicit_field_value(schema, field_name, None)
             if result is not None or ours is not None:
                 schema = self.set_attribute(
                     schema, field_name, result, dctx=dctx,

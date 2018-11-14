@@ -101,11 +101,12 @@ class OperatorCommand(s_func.CallableCommand,
                 opers = schema.get_operators(commutator.classname)
 
                 for oper in opers:
+                    oper_params = oper.get_params(schema)
                     if (oper.operator_kind == kind and
-                            len(oper.params) == len(params) and
+                            len(oper_params) == len(params) and
                             all(p1.type == p2.type and
                                 p1.typemod == p2.typemod
-                                for p1, p2 in zip(oper.params, params))):
+                                for p1, p2 in zip(oper_params, params))):
                         commutator.classname = oper.name
                         break
                 else:
@@ -120,10 +121,10 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
     astnode = qlast.CreateOperator
 
     def _add_to_schema(self, schema, context):
-        params: s_func.FuncParameterList = self.scls.params
+        params: s_func.FuncParameterList = self.scls.get_params(schema)
         name = self.scls.name
         return_type = self.scls.get_return_type(schema)
-        return_typemod = self.scls.return_typemod
+        return_typemod = self.scls.get_return_typemod(schema)
 
         get_signature = lambda: f'{self.classname}{params.as_str()}'
 
@@ -137,12 +138,13 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
 
         shortname = named.NamedObject.get_shortname(name)
         for oper in schema.get_operators(shortname, ()):
-            if oper.return_typemod != return_typemod:
+            oper_return_typemod = oper.get_return_typemod(schema)
+            if oper_return_typemod != return_typemod:
                 raise ql_errors.EdgeQLError(
                     f'cannot create {get_signature()} -> '
                     f'{return_typemod.to_edgeql()} {return_type.name} '
                     f'operator: overloading another operator with different '
-                    f'return type {oper.return_typemod.to_edgeql()} '
+                    f'return type {oper_return_typemod.to_edgeql()} '
                     f'{oper.get_return_type(schema).name}',
                     context=self.source_context)
 

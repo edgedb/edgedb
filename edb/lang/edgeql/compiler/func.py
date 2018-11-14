@@ -68,10 +68,12 @@ def compile_FunctionCall(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     with ctx.new() as fctx:
         if isinstance(expr.func, str):
-            if ctx.func is not None and ctx.func.params.get_by_name(expr.func):
-                raise errors.EdgeQLError(
-                    f'parameter `{expr.func}` is not callable',
-                    context=expr.context)
+            if ctx.func is not None:
+                ctx_func_params = ctx.func.get_params(ctx.schema)
+                if ctx_func_params.get_by_name(expr.func):
+                    raise errors.EdgeQLError(
+                        f'parameter `{expr.func}` is not callable',
+                        context=expr.context)
 
             funcname = expr.func
         else:
@@ -120,13 +122,14 @@ def compile_FunctionCall(
         args, params_typemods = finalize_args(matched_call, ctx=ctx)
 
         variadic_param_type = None
-        if matched_call.func.params.variadic is not None:
-            variadic_param_type = matched_call.func.params.variadic.type
+        matched_func_params = matched_call.func.get_params(ctx.schema)
+        if matched_func_params.variadic is not None:
+            variadic_param_type = matched_func_params.variadic.type
 
         matched_func_ret_type = matched_call.func.get_return_type(ctx.schema)
         is_polymorphic = (
             any(p.type.is_polymorphic(ctx.schema)
-                for p in matched_call.func.params) and
+                for p in matched_func_params) and
             matched_func_ret_type.is_polymorphic(ctx.schema)
         )
 
@@ -138,7 +141,7 @@ def compile_FunctionCall(
             params_typemods=params_typemods,
             context=expr.context,
             type=matched_call.return_type,
-            typemod=matched_call.func.return_typemod,
+            typemod=matched_call.func.get_return_typemod(ctx.schema),
             has_empty_variadic=matched_call.has_empty_variadic,
             variadic_param_type=variadic_param_type,
         )
@@ -206,20 +209,23 @@ def try_bind_func_args(
 
     in_polymorphic_func = (
         ctx.func is not None and
-        ctx.func.params.has_polymorphic(ctx.schema)
+        ctx.func.get_params(ctx.schema).has_polymorphic(ctx.schema)
     )
 
     has_empty_variadic = False
     used_implicit_cast = False
     resolved_poly_base_type = None
     no_args_call = not args and not kwargs
+    has_inlined_defaults = func.has_inlined_defaults(ctx.schema)
 
-    if not func.params:
+    func_params = func.get_params(ctx.schema)
+
+    if not func_params:
         if no_args_call:
             # Match: `func` is a function without parameters
             # being called with no arguments.
             args = []
-            if func.inlined_defaults:
+            if has_inlined_defaults:
                 bytes_t = ctx.schema.get('std::bytes')
                 args = [
                     setgen.ensure_set(
@@ -236,7 +242,7 @@ def try_bind_func_args(
             # being called with some arguments.
             return _NO_MATCH
 
-    pg_params = func.params.as_pg_params()
+    pg_params = func_params.as_pg_params()
 
     if no_args_call and pg_params.has_param_wo_default:
         # A call without arguments and there is at least
@@ -350,7 +356,7 @@ def try_bind_func_args(
     defaults_mask = 0
     null_args = set()
     if has_missing_args:
-        if func.inlined_defaults or func.params.named_only:
+        if has_inlined_defaults or func_params.named_only:
             for i in range(len(bound_param_args)):
                 param, val = bound_param_args[i]
                 if val is not None:
@@ -361,7 +367,7 @@ def try_bind_func_args(
                 defaults_mask |= 1 << i
 
                 empty_default = (
-                    func.inlined_defaults or
+                    has_inlined_defaults or
                     irutils.is_empty(param.get_ir_default(schema=ctx.schema))
                 )
 
@@ -381,7 +387,7 @@ def try_bind_func_args(
                 else:
                     default_type = param.type
 
-                if func.inlined_defaults:
+                if has_inlined_defaults:
                     default = irutils.new_empty_set(
                         ctx.schema,
                         scls=default_type,
@@ -406,7 +412,7 @@ def try_bind_func_args(
                 if val is not None
             ]
 
-    if func.inlined_defaults:
+    if has_inlined_defaults:
         # If we are compiling an EdgeQL function, inject the defaults
         # bit-mask as a first argument.
         bytes_t = ctx.schema.get('std::bytes')

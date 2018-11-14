@@ -33,7 +33,6 @@ from . import name as sn
 from . import named
 from . import objects as so
 from . import referencing
-from . import types as s_types
 from . import utils
 
 
@@ -56,15 +55,6 @@ class CumulativeBoolExpr(s_expr.ExpressionText):
 
 class Constraint(inheriting.InheritingObject, s_func.CallableObject):
     _type = 'constraint'
-
-    params = so.Field(s_func.FuncParameterList, default=None,
-                      coerce=True, compcoef=0.4, simpledelta=False)
-
-    return_type = so.Field(s_types.Type, default=None, compcoef=0.2)
-
-    return_typemod = so.Field(
-        ft.TypeModifier, default=ft.TypeModifier.SINGLETON,
-        compcoef=0.4, coerce=True)
 
     expr = so.Field(s_expr.ExpressionText, default=None, compcoef=0.909,
                     coerce=True)
@@ -115,15 +105,16 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
             schema, bases=bases,
             apply_defaults=apply_defaults, dctx=dctx)
 
-        if not self.generic() and self.params is None:
-            self.params = []
+        self_params = self.get_explicit_field_value(schema, 'params', None)
+        if not self.generic() and self_params is None:
+            schema = self.update(schema, {'params': []})
 
             if dctx is not None:
                 from . import delta as sd
 
                 dctx.current().op.add(sd.AlterObjectProperty(
                     property='params',
-                    new_value=self.params,
+                    new_value=self.get_params(schema),
                     source='default'
                 ))
 
@@ -225,7 +216,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
             ]
 
             args_map = edgeql_utils.index_parameters(
-                args_ql, parameters=constraint.params)
+                args_ql, parameters=constraint.get_params(schema))
 
             edgeql_utils.inline_parameters(expr_ql, args_map)
 

@@ -154,7 +154,8 @@ def compile_func_to_ir(func, schema, *,
     anchors['__defaults_mask__'] = irast.Parameter(
         name='__defaults_mask__', type=schema.get('std::bytes'))
 
-    for pi, p in enumerate(func.params.as_pg_params().params):
+    func_params = func.get_params(schema)
+    for pi, p in enumerate(func_params.as_pg_params().params):
         anchors[p.shortname] = irast.Parameter(name=p.shortname, type=p.type)
 
         if p.default is None:

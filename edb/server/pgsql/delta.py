@@ -390,14 +390,16 @@ class FunctionCommand:
                 context=self.source_context) from ex
 
     def compile_args(self, func: s_funcs.Function, schema):
-        pg_params = func.params.as_pg_params()
+        func_params = func.get_params(schema)
+        pg_params = func_params.as_pg_params()
+        has_inlined_defaults = func.has_inlined_defaults(schema)
 
         args = []
-        if func.inlined_defaults:
+        if has_inlined_defaults:
             args.append(('__defaults_mask__', ('bytea',), None))
 
         compile_defaults = not (
-            func.inlined_defaults or func.params.named_only
+            has_inlined_defaults or func_params.named_only
         )
 
         for param in pg_params.params:
@@ -416,11 +418,13 @@ class CreateFunction(FunctionCommand, CreateNamedObject,
                      adapts=s_funcs.CreateFunction):
 
     def make_function(self, func: s_funcs.Function, code, schema):
+        func_return_typemod = func.get_return_typemod(schema)
+        func_params = func.get_params(schema)
         return dbops.Function(
             name=self.get_pgname(func),
             args=self.compile_args(func, schema),
-            has_variadic=func.params.variadic is not None,
-            set_returning=func.return_typemod is ql_ft.TypeModifier.SET_OF,
+            has_variadic=func_params.variadic is not None,
+            set_returning=func_return_typemod is ql_ft.TypeModifier.SET_OF,
             returns=self.get_pgtype(
                 func, func.get_return_type(schema), schema),
             text=code)
@@ -484,7 +488,7 @@ class DeleteFunction(
                 dbops.DropFunction(
                     name=self.get_pgname(func),
                     args=self.compile_args(func, schema),
-                    has_variadic=func.params.variadic is not None,
+                    has_variadic=func.get_params(schema).variadic is not None,
                 )
             )
 
@@ -500,16 +504,17 @@ class OperatorCommand:
     def get_pg_operands(self, schema, oper: s_opers.Operator):
         left_type = None
         right_type = None
+        oper_params = oper.get_params(schema)
 
         if oper.operator_kind is ql_ft.OperatorKind.INFIX:
-            left_type = types.pg_type_from_object(schema, oper.params[0].type)
-            right_type = types.pg_type_from_object(schema, oper.params[1].type)
+            left_type = types.pg_type_from_object(schema, oper_params[0].type)
+            right_type = types.pg_type_from_object(schema, oper_params[1].type)
 
         elif oper.operator_kind is ql_ft.OperatorKind.PREFIX:
-            right_type = types.pg_type_from_object(schema, oper.params[0].type)
+            right_type = types.pg_type_from_object(schema, oper_params[0].type)
 
         elif oper.operator_kind is ql_ft.OperatorKind.POSTFIX:
-            left_type = types.pg_type_from_object(schema, oper.params[0].type)
+            left_type = types.pg_type_from_object(schema, oper_params[0].type)
 
         else:
             raise RuntimeError(f'unexpected operator type: {oper.type!r}')

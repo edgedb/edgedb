@@ -95,12 +95,6 @@ class Parameter(named.NamedObject):
 
         return ir
 
-    def __hash__(self):
-        return hash((
-            self.num, self.name, self.default,
-            self.type, self.typemod, self.kind,
-        ))
-
     def as_str(self):
         ret = []
         if self.kind is not ft.ParameterKind.POSITIONAL:
@@ -285,20 +279,22 @@ class FuncParameterList(so.FrozenObjectList, type=Parameter):
 
 class CallableObject(so.NamedObject):
 
-    params = so.Field(FuncParameterList, default=None,
-                      coerce=True, compcoef=0.4, frozen=True,
-                      simpledelta=False)
+    params = so.SchemaField(
+        FuncParameterList,
+        coerce=True, compcoef=0.4, default=None,
+        simpledelta=False)
 
-    return_type = so.SchemaField(so.Object, compcoef=0.2)
+    return_type = so.SchemaField(
+        s_types.Type, compcoef=0.2)
 
-    return_typemod = so.Field(ft.TypeModifier, compcoef=0.4, coerce=True,
-                              frozen=True)
+    return_typemod = so.SchemaField(
+        ft.TypeModifier, compcoef=0.4, coerce=True)
 
     @classmethod
     def delta(cls, old, new, *, context=None, old_schema, new_schema):
         context = context or so.ComparisonContext()
 
-        def param_is_inherited(func, param):
+        def param_is_inherited(schema, func, param):
             qualname = Parameter.get_specialized_name(
                 param.shortname, func.name)
             return qualname != param.name.name
@@ -308,14 +304,14 @@ class CallableObject(so.NamedObject):
                                   old_schema=old_schema, new_schema=new_schema)
 
             if old:
-                oldcoll = [p for p in old.params
-                           if not param_is_inherited(old, p)]
+                oldcoll = [p for p in old.get_params(old_schema)
+                           if not param_is_inherited(old_schema, old, p)]
             else:
                 oldcoll = []
 
             if new:
-                newcoll = [p for p in new.params
-                           if not param_is_inherited(new, p)]
+                newcoll = [p for p in new.get_params(new_schema)
+                           if not param_is_inherited(new_schema, new, p)]
             else:
                 newcoll = []
 
@@ -444,12 +440,11 @@ class Function(CallableObject):
     initial_value = so.Field(expr.ExpressionText, default=None, compcoef=0.4,
                              coerce=True, frozen=True)
 
-    @property
-    def inlined_defaults(self):
+    def has_inlined_defaults(self, schema):
         # This can be relaxed to just `language is EdgeQL` when we
         # support non-constant defaults.
         return bool(self.language is qlast.Language.EdgeQL and
-                    self.params.named_only)
+                    self.get_params(schema).named_only)
 
 
 class FunctionCommandContext(sd.ObjectCommandContext):
@@ -476,12 +471,12 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
     def _add_to_schema(self, schema, context):
         from edb.lang.ir import utils as irutils
 
-        params: FuncParameterList = self.scls.params
+        params: FuncParameterList = self.scls.get_params(schema)
         fullname = self.scls.name
         shortname = Function.get_shortname(fullname)
         language = self.scls.language
         return_type = self.scls.get_return_type(schema)
-        return_typemod = self.scls.return_typemod
+        return_typemod = self.scls.get_return_typemod(schema)
         from_function = self.scls.from_function
         has_polymorphic = params.has_polymorphic(schema)
 
@@ -506,22 +501,24 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
         has_from_function = from_function
 
         for func in overloaded_funcs:
-            if func.params.named_only.keys() != params.named_only.keys():
+            func_params = func.get_params(schema)
+            if func_params.named_only.keys() != params.named_only.keys():
                 raise ql_errors.EdgeQLError(
                     f'cannot create {get_signature()} function: '
                     f'overloading another function with different '
                     f'named only parameters: '
-                    f'"{func.shortname}{func.params.as_str()}"',
+                    f'"{func.shortname}{func_params.as_str()}"',
                     context=self.source_context)
 
-            if ((has_polymorphic or func.params.has_polymorphic(schema)) and (
-                    func.return_typemod != return_typemod)):
+            if ((has_polymorphic or func_params.has_polymorphic(schema)) and (
+                    func.get_return_typemod(schema) != return_typemod)):
 
+                func_return_typemod = func.get_return_typemod(schema)
                 raise ql_errors.EdgeQLError(
                     f'cannot create polymorphic {get_signature()} -> '
                     f'{return_typemod.to_edgeql()} {return_type.name} '
                     f'function: overloading another function with different '
-                    f'return type {func.return_typemod.to_edgeql()} '
+                    f'return type {func_return_typemod.to_edgeql()} '
                     f'{func.get_return_type(schema).name}',
                     context=self.source_context)
 

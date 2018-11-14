@@ -337,13 +337,17 @@ class DeclarationLoader:
 
             expr = attrs.pop('expr', None)
             if expr is not None:
-                constraint.expr = s_expr.ExpressionText(
-                    qlcodegen.generate_source(expr))
+                self._schema = constraint.update(self._schema, {
+                    'expr': s_expr.ExpressionText(
+                        qlcodegen.generate_source(expr))
+                })
 
             subjexpr = decl.subject
             if subjexpr is not None:
-                constraint.subjectexpr = s_expr.ExpressionText(
-                    qlcodegen.generate_source(subjexpr))
+                self._schema = constraint.update(self._schema, {
+                    'subjectexpr': s_expr.ExpressionText(
+                        qlcodegen.generate_source(subjexpr))
+                })
 
             params = s_func.FuncParameterList.from_ast(
                 self._schema, decl, self._mod_aliases,
@@ -360,7 +364,7 @@ class DeclarationLoader:
                     raise s_err.SchemaDefinitionError(
                         'untyped parameter', context=decl.context)
 
-            constraint.params = params
+            self._schema = constraint.update(self._schema, {'params': params})
 
     def _init_attributes(self, attrs):
         for attr, attrdecl in attrs.items():
@@ -382,8 +386,9 @@ class DeclarationLoader:
             return deps
 
         for constraint in consts.objects(self._schema):
-            if constraint.params:
-                deps.update([p.type for p in constraint.params])
+            constraint_params = constraint.get_params(self._schema)
+            if constraint_params:
+                deps.update([p.type for p in constraint_params])
 
         for dep in list(deps):
             if isinstance(dep, s_types.Collection):
