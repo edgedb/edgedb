@@ -184,7 +184,7 @@ class CreateNamedObject(CreateOrAlterNamedObject, sd.CreateObject):
         return cmd
 
     def _apply_field_ast(self, schema, context, node, op):
-        if op.property == 'name':
+        if op.property in ('id', 'name'):
             pass
         elif op.property == 'bases':
             node.bases = [
@@ -440,9 +440,7 @@ class AlterNamedObject(CreateOrAlterNamedObject, sd.AlterObject):
             schema, _ = op.apply(schema, context)
 
         props = self.get_struct_properties(schema)
-        for name, value in props.items():
-            setattr(scls, name, value)
-
+        schema = scls.update(schema, props)
         return schema
 
     def _alter_innards(self, schema, context, scls):

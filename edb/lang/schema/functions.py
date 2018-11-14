@@ -298,17 +298,24 @@ class CallableObject(so.NamedObject):
     def delta(cls, old, new, *, context=None, old_schema, new_schema):
         context = context or so.ComparisonContext()
 
+        def param_is_inherited(func, param):
+            qualname = Parameter.get_specialized_name(
+                param.shortname, func.name)
+            return qualname != param.name.name
+
         with context(old, new):
             delta = super().delta(old, new, context=context,
                                   old_schema=old_schema, new_schema=new_schema)
 
             if old:
-                oldcoll = old.params
+                oldcoll = [p for p in old.params
+                           if not param_is_inherited(old, p)]
             else:
                 oldcoll = []
 
             if new:
-                newcoll = new.params
+                newcoll = [p for p in new.params
+                           if not param_is_inherited(new, p)]
             else:
                 newcoll = []
 

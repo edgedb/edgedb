@@ -17,17 +17,11 @@
 #
 
 
-import asyncpg
-import typing
+import os
+import uuid
 
 
-async def fetch(
-        conn: asyncpg.connection.Connection) -> typing.List[asyncpg.Record]:
-    return await conn.fetch("""
-        SELECT
-                id,
-                name,
-                imports
-            FROM
-                edgedb.module
-    """)
+def uuid1mc() -> uuid.UUID:
+    """Generate a v1 UUID using a pseudo-random multicast node address."""
+    node = int.from_bytes(os.urandom(6), byteorder='little') | (1 << 40)
+    return uuid.uuid1(node=node)

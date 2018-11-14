@@ -196,7 +196,8 @@ class IntrospectionMech:
         modules = await datasources.schema.modules.fetch(self.connection)
         modules = {
             common.edgedb_module_name_to_schema_name(m['name']):
-            {'name': m['name'],
+            {'id': m['id'],
+             'name': m['name'],
              'imports': m['imports']}
             for m in modules
         }
@@ -257,6 +258,7 @@ class IntrospectionMech:
             name = sn.Name(row['name'])
 
             scalar_data = {
+                'id': row['id'],
                 'name': name,
                 'title': row['title'],
                 'description': row['description'],
@@ -354,6 +356,7 @@ class IntrospectionMech:
             name = sn.Name(row['name'])
 
             oper_data = {
+                'id': row['id'],
                 'name': name,
                 'operator_kind': row['operator_kind'],
                 'title': row['title'],
@@ -389,6 +392,7 @@ class IntrospectionMech:
             name = sn.Name(row['name'])
 
             func_data = {
+                'id': row['id'],
                 'name': name,
                 'title': row['title'],
                 'description': row['description'],
@@ -436,6 +440,7 @@ class IntrospectionMech:
             basemap[name] = bases
 
             constraint = s_constr.Constraint(
+                id=r['id'],
                 name=name, subject=subject, title=title,
                 params=self._decode_func_params(schema, r, param_map),
                 description=description, is_abstract=r['is_abstract'],
@@ -564,6 +569,7 @@ class IntrospectionMech:
                 ) from None
 
             index = s_indexes.SourceIndex(
+                id=index_data['id'],
                 name=index_name,
                 subject=subj,
                 expr=index_data['expr'])
@@ -660,6 +666,7 @@ class IntrospectionMech:
             basemap[name] = bases
 
             link = s_links.Link(
+                id=r['id'],
                 name=name, source=source, target=target,
                 spectargets=spectargets, cardinality=cardinality,
                 required=required,
@@ -760,6 +767,7 @@ class IntrospectionMech:
                 cardinality = None
 
             prop = s_props.Property(
+                id=r['id'],
                 name=name, source=source, target=target, required=required,
                 title=title, description=description, readonly=r['readonly'],
                 computable=r['computable'], default=default,
@@ -819,6 +827,7 @@ class IntrospectionMech:
             title = r['title']
             description = r['description']
             attribute = s_attrs.Attribute(
+                id=r['id'],
                 name=name, title=title, description=description,
                 type=self.unpack_typeref(r['type'], schema))
             schema = schema.add(attribute)
@@ -839,6 +848,7 @@ class IntrospectionMech:
             value = r['value']
 
             attribute = s_attrs.AttributeValue(
+                id=r['id'],
                 name=name, subject=subject, attribute=attribute, value=value)
             schema = subject.add_attribute(schema, attribute)
             schema = schema.add(attribute)
@@ -871,6 +881,7 @@ class IntrospectionMech:
 
         for name, row in objtype_list.items():
             objtype = {
+                'id': row['id'],
                 'name': name,
                 'title': row['title'],
                 'description': row['description'],
@@ -900,6 +911,7 @@ class IntrospectionMech:
             basemap[name] = bases
 
             objtype = s_objtypes.ObjectType(
+                id=objtype['id'],
                 name=name, title=objtype['title'],
                 description=objtype['description'],
                 is_abstract=objtype['is_abstract'],

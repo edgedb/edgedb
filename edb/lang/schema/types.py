@@ -21,6 +21,7 @@ import collections.abc
 import enum
 import types
 import typing
+import uuid
 
 from edb.lang.common import typed
 
@@ -29,6 +30,9 @@ from . import error as s_err
 from . import expr as s_expr
 from . import name as s_name
 from . import objects as so
+
+
+TYPE_ID_NAMESPACE = uuid.UUID('00e50276-2502-11e7-97f2-27fe51238dbd')
 
 
 class ViewType(enum.IntEnum):
@@ -287,8 +291,7 @@ class Collection(Type):
         )
 
     def _resolve_ref(self, schema):
-        if any(isinstance(st, so.ObjectRef)
-               for st in self.get_subtypes()):
+        if any(hasattr(st, '_resolve_ref') for st in self.get_subtypes()):
 
             subtypes = []
             for st in self.get_subtypes():
@@ -304,6 +307,12 @@ class Array(Collection):
     schema_name = 'array'
     element_type = so.Field(so.Object, frozen=True)
     dimensions = so.Field(typed.IntList, [], coerce=True, frozen=True)
+
+    def __init__(self, *, name=None, id=so.NoDefault, element_type, **kwargs):
+        if id is so.NoDefault:
+            id_str = f'array-{element_type.id}'
+            id = uuid.uuid5(TYPE_ID_NAMESPACE, id_str)
+        super().__init__(id=id, name=name, element_type=element_type, **kwargs)
 
     def is_array(self):
         return True
@@ -421,9 +430,16 @@ class Tuple(Collection):
     named = so.Field(bool, False, frozen=True)
     element_types = so.Field(dict, coerce=True, frozen=True)
 
-    def __init__(self, *, element_types: dict, **kwargs):
+    def __init__(self, *, name=None, id=so.NoDefault,
+                 element_types: dict, **kwargs):
         element_types = types.MappingProxyType(element_types)
-        super().__init__(element_types=element_types, **kwargs)
+        if id is so.NoDefault:
+            id_str = ','.join(
+                f'{n}:{st.id}' for n, st in element_types.items())
+            id_str = f'tuple-{id_str}'
+            id = uuid.uuid5(TYPE_ID_NAMESPACE, id_str)
+        super().__init__(
+            id=id, name=name, element_types=element_types, **kwargs)
 
     def is_tuple(self):
         return True
@@ -615,10 +631,8 @@ class Tuple(Collection):
                    for st, ot in zip(self_subtypes, other_subtypes))
 
     def _resolve_ref(self, schema):
-        if any(isinstance(st, so.ObjectRef)
-               for st in self.get_subtypes()):
-
-            subtypes = collections.OrderedDict()
+        if any(hasattr(st, '_resolve_ref') for st in self.get_subtypes()):
+            subtypes = {}
             for st_name, st in self.element_types.items():
                 subtypes[st_name] = st._resolve_ref(schema)
 

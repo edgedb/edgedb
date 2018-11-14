@@ -27,9 +27,11 @@ import warnings
 
 from edb.lang.common import parsing
 from edb.lang.common import persistent_hash as phash
+from edb.lang.common import ordered
+from edb.lang.common import struct
 from edb.lang.common import topological
-from edb.lang.common.ordered import OrderedSet
-from edb.lang.common import struct, typed
+from edb.lang.common import typed
+from edb.lang.common import uuidgen
 
 from . import error as s_err
 from . import name as sn
@@ -310,16 +312,22 @@ class FieldValueNotFoundError(Exception):
 class Object(metaclass=ObjectMeta):
     """Base schema item class."""
 
-    id = SchemaField(uuid.UUID, default=None, compcoef=0.1, inheritable=False)
-    """Optional known ID for this schema item."""
+    id = Field(uuid.UUID, inheritable=False, frozen=True, simpledelta=False)
+    """Unique ID for this schema item."""
 
     sourcectx = Field(parsing.ParserContext, None, compcoef=None,
                       inheritable=False, introspectable=False, hashable=False,
                       ephemeral=True, frozen=True)
     """Schema source context for this object"""
 
-    def __init__(self, *, _setdefaults_=True, _relaxrequired_=False, **kwargs):
+    def __init__(self, *, _setdefaults_=True, _relaxrequired_=False,
+                 id=NoDefault, **kwargs):
         self._attr_source_contexts = {}
+
+        if id is NoDefault:
+            id = uuidgen.uuid1mc()
+
+        kwargs['id'] = id
 
         self._in_init_ = True
         try:
@@ -809,6 +817,12 @@ class Object(metaclass=ObjectMeta):
                     delta.add(sd.AlterObjectProperty(
                         property=f, old_value=oldattr, new_value=newattr))
         elif not old:
+            # IDs are assigned once when the object is created and
+            # never changed.
+            id_value = new.get_explicit_field_value(new_schema, 'id')
+            delta.add(sd.AlterObjectProperty(
+                property='id', old_value=None, new_value=id_value))
+
             for f in fields:
                 value = new.get_explicit_field_value(new_schema, f, None)
                 if value is not None:
@@ -880,10 +894,10 @@ class Object(metaclass=ObjectMeta):
 
         unchanged = oldkeys & newkeys
 
-        old = OrderedSet(
+        old = ordered.OrderedSet(
             o for o in old
             if o.persistent_hash(schema=old_schema) not in unchanged)
-        new = OrderedSet(
+        new = ordered.OrderedSet(
             o for o in new
             if o.persistent_hash(schema=new_schema) not in unchanged)
 
@@ -892,7 +906,7 @@ class Object(metaclass=ObjectMeta):
 
         used_x = set()
         used_y = set()
-        altered = OrderedSet()
+        altered = ordered.OrderedSet()
 
         comparison = sorted(comparison, key=lambda item: item[0], reverse=True)
 
@@ -1038,7 +1052,9 @@ class NamedObject(Object):
         type_name = kwargs.pop('name')
         if type_id is None:
             type_id = get_known_type_id(type_name)
-        super().__init__(id=type_id, name=type_name, **kwargs)
+            if type_id is not None:
+                kwargs['id'] = type_id
+        super().__init__(name=type_name, **kwargs)
 
     @property
     def shortname(self) -> sn.Name:
