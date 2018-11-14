@@ -302,8 +302,7 @@ class FieldValueNotFoundError(Exception):
 class Object(metaclass=ObjectMeta):
     """Base schema item class."""
 
-    id = Field(uuid.UUID, default=None, compcoef=0.1, inheritable=False,
-               frozen=True)
+    id = SchemaField(uuid.UUID, default=None, compcoef=0.1, inheritable=False)
     """Optional known ID for this schema item."""
 
     sourcectx = Field(parsing.ParserContext, None, compcoef=None,
