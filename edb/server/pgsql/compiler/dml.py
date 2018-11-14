@@ -941,7 +941,7 @@ def process_link_values(
         for element in shape_tuple.elements:
             name = element.path_id.rptr_name()
             if name is None:
-                name = element.path_id.target.name
+                name = element.path_id.target_name
             colname = common.edgedb_name_to_pg_name(name)
             val = pathctx.get_rvar_path_value_var(
                 input_rvar, element.path_id, env=ctx.env)

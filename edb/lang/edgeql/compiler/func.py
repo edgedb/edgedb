@@ -366,9 +366,13 @@ def try_bind_func_args(
 
                 defaults_mask |= 1 << i
 
+                if not has_inlined_defaults:
+                    ql_default = param.get_ql_default()
+                    default = dispatch.compile(ql_default, ctx=ctx)
+
                 empty_default = (
                     has_inlined_defaults or
-                    irutils.is_empty(param.get_ir_default(schema=ctx.schema))
+                    irutils.is_empty(default)
                 )
 
                 if empty_default:
@@ -392,8 +396,6 @@ def try_bind_func_args(
                         ctx.schema,
                         scls=default_type,
                         alias=param.shortname)
-                else:
-                    default = param.get_ir_default(schema=ctx.schema)
 
                 default = setgen.ensure_set(
                     default,

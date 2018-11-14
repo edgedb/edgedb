@@ -400,7 +400,7 @@ def get_path_output_alias(
     elif isinstance(path_id.target, s_types.Collection):
         alias_base = path_id.target.schema_name
     else:
-        alias_base = path_id.target.name.name
+        _, _, alias_base = path_id.target_name.rpartition('::')
 
     return env.aliases.get(f'{alias_base}_{aspect}')
 

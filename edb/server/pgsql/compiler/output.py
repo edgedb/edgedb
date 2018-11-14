@@ -76,7 +76,7 @@ def tuple_var_as_json_object(tvar, *, path_id, env):
         for element in tvar.elements:
             rptr = element.path_id.rptr()
             if rptr is None:
-                name = element.path_id.target.name.name
+                name = element.path_id.target_name.name
             else:
                 name = rptr.shortname.name
                 if rptr.is_link_property():

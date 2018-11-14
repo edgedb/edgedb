@@ -26,6 +26,7 @@ from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import links as s_links
 from edb.lang.schema import name as s_name
 from edb.lang.schema import pointers as s_pointers
+from edb.lang.schema import pseudo as s_pseudo
 from edb.lang.schema import schema as s_schema
 from edb.lang.schema import sources as s_sources  # NOQA
 from edb.lang.schema import types as s_types  # NOQA
@@ -185,13 +186,13 @@ def is_simple_wrapper(ir_expr):
 
 def new_empty_set(schema, *, scls=None, alias):
     if scls is None:
-        base_scls = schema.get('std::str')
+        path_id_scls = s_pseudo.Any()
     else:
-        base_scls = scls
-    cls_name = s_name.Name(module='__expr__', name=alias)
-    cls = base_scls.create_with_inheritance(
-        schema, name=cls_name, bases=[base_scls])
-    return irast.EmptySet(path_id=irast.PathId(cls), scls=scls)
+        path_id_scls = scls
+
+    typename = s_name.Name(module='__expr__', name=alias)
+    path_id = irast.PathId(path_id_scls, typename=typename)
+    return irast.EmptySet(path_id=path_id, scls=scls)
 
 
 class TupleIndirectionLink(s_links.Link):

@@ -28,7 +28,7 @@ class PathId:
 
     __slots__ = ('_path', '_norm_path', '_namespace', '_prefix', '_is_ptr')
 
-    def __init__(self, initializer=None, *, namespace=None):
+    def __init__(self, initializer=None, *, namespace=None, typename=None):
         if isinstance(initializer, PathId):
             self._path = initializer._path
             self._norm_path = initializer._norm_path
@@ -43,12 +43,9 @@ class PathId:
                 raise ValueError(
                     f'invalid PathId: bad source: {initializer!r}')
             self._path = (initializer,)
-            if (initializer.is_view() and
-                    initializer.peel_view().name == initializer.name):
-                # The initializer is a view that aliases its base type.
-                self._norm_path = (initializer.peel_view(),)
-            else:
-                self._norm_path = (initializer,)
+            if typename is None:
+                typename = initializer.name
+            self._norm_path = (typename,)
             self._namespace = frozenset(namespace) if namespace else None
             self._prefix = None
             self._is_ptr = False
@@ -185,7 +182,7 @@ class PathId:
 
         path = self._norm_path
 
-        result += f'({path[0].name})'
+        result += f'({path[0]})'
 
         for i in range(1, len(path) - 1, 2):
             if debug:
@@ -197,7 +194,7 @@ class PathId:
             tgt = path[i + 1]
 
             if tgt:
-                lexpr = f'({ptr})[IS {tgt.name}]'
+                lexpr = f'({ptr})[IS {tgt}]'
             else:
                 lexpr = f'({ptr})'
 
@@ -341,7 +338,7 @@ class PathId:
         result._path = self._path + ((link, direction), target)
         lnk = (link.name, direction, is_linkprop)
         norm_target = target.material_type(schema)
-        result._norm_path = self._norm_path + (lnk, norm_target)
+        result._norm_path = self._norm_path + (lnk, norm_target.name)
 
         if ns:
             if self._namespace:
@@ -381,6 +378,10 @@ class PathId:
     @property
     def target(self):
         return self._path[-1]
+
+    @property
+    def target_name(self):
+        return self._norm_path[-1]
 
     def is_objtype_path(self):
         return (

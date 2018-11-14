@@ -553,7 +553,7 @@ def _cast_expr(
         # For the common case of casting an empty set, we simply
         # generate a new EmptySet node of the requested type.
         return irutils.new_empty_set(ctx.schema, scls=new_type,
-                                     alias=ir_expr.path_id.target.name.name)
+                                     alias=ir_expr.path_id.target_name.name)
 
     elif (isinstance(ir_expr, irast.Set) and
             isinstance(ir_expr.expr, irast.Array)):

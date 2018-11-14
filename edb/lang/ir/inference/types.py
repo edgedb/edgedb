@@ -37,11 +37,10 @@ from edb.lang.ir import ast as irast
 
 
 def amend_empty_set_type(es: irast.EmptySet, t: s_obj.Object, schema) -> None:
-    alias = es.path_id.target.name.name
-    scls_name = s_name.Name(module='__expr__', name=alias)
-    scls = t.derive_subtype(schema, name=scls_name)
-    es.path_id = irast.PathId(scls)
     es.scls = t
+    alias = es.path_id.target_name.name
+    typename = s_name.Name(module='__expr__', name=alias)
+    es.path_id = irast.PathId(t, typename=typename)
 
 
 def _infer_common_type(irs: typing.List[irast.Base], schema):

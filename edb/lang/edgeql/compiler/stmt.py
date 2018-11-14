@@ -195,14 +195,12 @@ def compile_GroupQuery(
         stmt = irast.GroupStmt()
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
-        c = s_objtypes.ObjectType.create_with_inheritance(
-            ctx.schema,
-            name=s_name.Name(
-                module='__group__', name=ctx.aliases.get('Group')),
-            bases=[ctx.schema.get('std::Object')]
-        )
+        typename = s_name.Name(
+            module='__group__', name=ctx.aliases.get('Group'))
+        obj = ctx.schema.get('std::Object')
+        stmt.group_path_id = pathctx.get_path_id(
+            obj, typename=typename, ctx=ictx)
 
-        stmt.group_path_id = pathctx.get_path_id(c, ctx=ictx)
         pathctx.register_set_in_scope(stmt.group_path_id, ctx=ictx)
 
         with ictx.newscope(fenced=True) as subjctx:
@@ -211,7 +209,7 @@ def compile_GroupQuery(
             subject_set = setgen.scoped_set(
                 dispatch.compile(expr.subject, ctx=subjctx), ctx=subjctx)
 
-            alias = expr.subject_alias or subject_set.path_id.target.name
+            alias = expr.subject_alias or subject_set.path_id.target_name
             stmt.subject = stmtctx.declare_inline_view(
                 subject_set, alias, ctx=ictx)
 
@@ -624,7 +622,7 @@ def compile_query_subject(
         viewgen.compile_view_shapes(expr, rptr=rptr, ctx=ctx)
 
     if (shape is not None or view_scls is not None) and len(expr.path_id) == 1:
-        ctx.class_view_overrides[expr.path_id.target.name] = expr.scls
+        ctx.class_view_overrides[expr.path_id.target_name] = expr.scls
 
     return expr
 

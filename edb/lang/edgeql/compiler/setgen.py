@@ -535,13 +535,8 @@ def generated_set(
 def get_expression_path_id(
         t: s_types.Type, alias: str, *,
         ctx: context.ContextLevel) -> irast.PathId:
-    cls_name = s_name.Name(module='__expr__', name=alias)
-    if isinstance(t, (s_types.Collection, s_types.Tuple)):
-        et = t.copy()
-        et.name = cls_name
-    else:
-        et = t.create_with_inheritance(ctx.schema, name=cls_name, bases=[t])
-    return pathctx.get_path_id(et, ctx=ctx)
+    typename = s_name.Name(module='__expr__', name=alias)
+    return pathctx.get_path_id(t, typename=typename, ctx=ctx)
 
 
 def new_expression_set(
