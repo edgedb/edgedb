@@ -59,24 +59,15 @@ class AttributeSubject(referencing.ReferencingObject):
         local_attr='own_attributes',
         ref_cls=AttributeValue)
 
-    attributes = so.Field(so.ObjectMapping,
-                          inheritable=False, ephemeral=True, coerce=True,
-                          default=so.ObjectMapping, hashable=False)
-    own_attributes = so.Field(so.ObjectMapping, compcoef=0.909,
-                              inheritable=False, ephemeral=True, coerce=True,
-                              default=so.ObjectMapping)
+    attributes = so.SchemaField(
+        so.ObjectMapping,
+        inheritable=False, ephemeral=True, coerce=True,
+        default=so.ObjectMapping, hashable=False)
 
-    def get_attributes(self, schema):
-        if self.attributes is None:
-            return so.ObjectMapping()
-        else:
-            return self.attributes
-
-    def get_own_attributes(self, schema):
-        if self.own_attributes is None:
-            return so.ObjectMapping()
-        else:
-            return self.own_attributes
+    own_attributes = so.SchemaField(
+        so.ObjectMapping, compcoef=0.909,
+        inheritable=False, ephemeral=True, coerce=True,
+        default=so.ObjectMapping)
 
     def add_attribute(self, schema, attribute, replace=False):
         schema = self.add_classref(

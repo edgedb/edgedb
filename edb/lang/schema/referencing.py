@@ -51,8 +51,8 @@ class RebaseReferencingObject(inheriting.RebaseNamedObject):
                 local_attr = refdict.local_attr
                 backref = refdict.backref_attr
 
-                coll: dict = getattr(obj, attr)
-                local_coll: dict = getattr(obj, local_attr)
+                coll = obj.get_field_value(schema, attr)
+                local_coll = obj.get_field_value(schema, local_attr)
 
                 for ref_name in tuple(coll.names(schema)):
                     if not local_coll.has(schema, ref_name):
@@ -228,7 +228,9 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
             if refdict.backref_attr:
                 # Set the back-reference on referenced object
                 # to the referrer.
-                setattr(self.scls, refdict.backref_attr, referrer)
+                schema = self.scls.update(schema, {
+                    refdict.backref_attr: referrer
+                })
                 # Add the newly created referenced object to the
                 # appropriate refdict in self and all descendants
                 # that don't already have an existing reference.
@@ -237,12 +239,15 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
                     schema, refdict.attr, self.scls)
                 refname = self.scls.get_shortname(self.scls.name)
                 for child in referrer.descendants(schema):
-                    child_local_coll = getattr(child, refdict.local_attr)
-                    child_coll = getattr(child, refdict.attr)
+                    child_local_coll = child.get_field_value(
+                        schema, refdict.local_attr)
+                    child_coll = child.get_field_value(schema, refdict.attr)
                     if not child_local_coll.has(schema, refname):
                         schema, child_coll = child_coll.replace(
                             schema, {refname: self.scls})
-                        setattr(child, refdict.attr, child_coll)
+                        schema = child.update(schema, {
+                            refdict.attr: child_coll
+                        })
 
         return schema
 
@@ -264,27 +269,27 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
             attr = refdict.attr
             local_attr = refdict.local_attr
 
-            coll = getattr(referrer, attr)
+            coll = referrer.get_field_value(schema, attr)
             if coll.has(schema, old_name):
                 ref = coll[old_name]
                 schema, coll = coll.replace(
                     schema, {old_name: None, new_name: ref})
-                setattr(referrer, attr, coll)
+                schema = referrer.update(schema, {attr: coll})
 
-            local_coll = getattr(referrer, local_attr)
+            local_coll = referrer.get_field_value(schema, local_attr)
             if local_coll.has(schema, old_name):
                 local = local_coll[old_name]
                 schema, local_coll = local_coll.replace(
                     schema, {old_name: None, new_name: local})
-                setattr(referrer, local_attr, local_coll)
+                schema = referrer.update(schema, {local_attr: local_coll})
 
             for child in referrer.children(schema):
-                child_coll = getattr(child, attr)
+                child_coll = child.get_field_value(schema, attr)
                 if child_coll.has(schema, old_name):
                     ref = child_coll[old_name]
                     schema, child_coll = child_coll.replace(
                         schema, {old_name: None, new_name: ref})
-                    setattr(child, attr, child_coll)
+                    schema = child.update(schema, {attr: child_coll})
 
         return schema
 
@@ -430,20 +435,23 @@ class ReferencingObject(inheriting.InheritingObject,
             for refdict in self.__class__.get_refdicts():
                 # Merge Object references in each registered collection.
                 #
-                this_coll = getattr(self, refdict.attr)
-                other_coll = getattr(obj, refdict.attr)
+                this_coll = self.get_explicit_field_value(
+                    schema, refdict.attr, None)
+
+                other_coll = obj.get_explicit_field_value(
+                    schema, refdict.attr, None)
 
                 if other_coll is None:
                     continue
 
                 if this_coll is None:
-                    setattr(self, refdict.attr, other_coll)
+                    schema = self.update(schema, {refdict.attr: other_coll})
                 else:
                     updates = {k: v for k, v in other_coll.items(schema)
                                if not this_coll.has(schema, k)}
 
                     schema, this_coll = this_coll.replace(schema, updates)
-                    setattr(self, refdict.attr, this_coll)
+                    schema = self.update(schema, {refdict.attr: this_coll})
 
         return schema
 
@@ -477,14 +485,16 @@ class ReferencingObject(inheriting.InheritingObject,
                 local_attr = refdict.local_attr
 
                 if old:
-                    oldcoll = getattr(old, local_attr).objects(old_schema)
-                    oldcoll_idx = ordered.OrderedIndex(oldcoll, key=idx_key)
+                    oldcoll = old.get_field_value(old_schema, local_attr)
+                    oldcoll_idx = ordered.OrderedIndex(
+                        oldcoll.objects(old_schema), key=idx_key)
                 else:
                     oldcoll_idx = {}
 
                 if new:
-                    newcoll = getattr(new, local_attr).objects(new_schema)
-                    newcoll_idx = ordered.OrderedIndex(newcoll, key=idx_key)
+                    newcoll = new.get_field_value(new_schema, local_attr)
+                    newcoll_idx = ordered.OrderedIndex(
+                        newcoll.objects(new_schema), key=idx_key)
                 else:
                     newcoll_idx = {}
 
@@ -501,11 +511,11 @@ class ReferencingObject(inheriting.InheritingObject,
 
     def get_classref_origin(self, schema, name, attr, local_attr, classname,
                             farthest=False):
-        assert getattr(self, attr).has(schema, name)
+        assert self.get_field_value(schema, attr).has(schema, name)
 
         result = None
 
-        if getattr(self, local_attr).has(schema, name):
+        if self.get_field_value(schema, local_attr).has(schema, name):
             result = self
 
         if not result or farthest:
@@ -513,7 +523,7 @@ class ReferencingObject(inheriting.InheritingObject,
                      if isinstance(c, named.NamedObject))
 
             for c in bases:
-                if getattr(c, local_attr).has(schema, name):
+                if c.get_field_value(schema, local_attr).has(schema, name):
                     result = c
                     if not farthest:
                         break
@@ -529,8 +539,8 @@ class ReferencingObject(inheriting.InheritingObject,
         attr = refdict.attr
         local_attr = refdict.local_attr
 
-        local_coll = getattr(self, local_attr)
-        all_coll = getattr(self, attr)
+        local_coll = self.get_explicit_field_value(schema, local_attr, None)
+        all_coll = self.get_explicit_field_value(schema, attr, None)
 
         key = obj.get_shortname(obj.name)
 
@@ -542,15 +552,16 @@ class ReferencingObject(inheriting.InheritingObject,
 
         if local_coll is not None:
             schema, local_coll = local_coll.replace(schema, {key: obj})
-            setattr(self, local_attr, local_coll)
+            schema = self.update(schema, {local_attr: local_coll})
         else:
-            setattr(self, local_attr, so.ObjectMapping({key: obj}))
+            schema = self.update(
+                schema, {local_attr: so.ObjectMapping({key: obj})})
 
         if all_coll is not None:
             schema, all_coll = all_coll.replace(schema, {key: obj})
-            setattr(self, attr, all_coll)
+            schema = self.update(schema, {attr: all_coll})
         else:
-            setattr(self, attr, so.ObjectMapping({key: obj}))
+            schema = self.update(schema, {attr: so.ObjectMapping({key: obj})})
 
         return schema
 
@@ -560,28 +571,29 @@ class ReferencingObject(inheriting.InheritingObject,
         local_attr = refdict.local_attr
         refcls = refdict.ref_cls
 
-        local_coll = getattr(self, local_attr)
-        all_coll = getattr(self, attr)
+        local_coll = self.get_field_value(schema, local_attr)
+        all_coll = self.get_field_value(schema, attr)
 
         key = refcls.get_shortname(obj_name)
-        is_inherited = any(getattr(b, attr).has(schema, key)
+        is_inherited = any(b.get_field_value(schema, attr).has(schema, key)
                            for b in self.bases)
 
         if not is_inherited:
             schema, all_coll = all_coll.replace(schema, {key: None})
-            setattr(self, attr, all_coll)
+            schema = self.update(schema, {attr: all_coll})
 
             for descendant in self.descendants(schema):
-                descendant_local_coll = getattr(descendant, local_attr)
+                descendant_local_coll = descendant.get_field_value(
+                    schema, local_attr)
                 if not descendant_local_coll.has(schema, key):
-                    descendant_coll = getattr(descendant, attr)
+                    descendant_coll = descendant.get_field_value(schema, attr)
                     schema, descendant_coll = descendant_coll.replace(
                         schema, {key: None})
-                    setattr(descendant, attr, descendant_coll)
+                    schema = descendant.update(schema, {attr: descendant_coll})
 
         if local_coll and local_coll.has(schema, key):
             schema, local_coll = local_coll.replace(schema, {key: None})
-            setattr(self, local_attr, local_coll)
+            schema = self.update(schema, {local_attr: local_coll})
 
         return schema
 
@@ -650,11 +662,12 @@ class ReferencingObject(inheriting.InheritingObject,
                                for merging.  If not specified, all keys
                                in the collection will be used.
         """
-        classrefs = getattr(self, attr)
+        classrefs = self.get_explicit_field_value(schema, attr, None)
         if classrefs is None:
             classrefs = so.ObjectMapping()
 
-        local_classrefs = getattr(self, local_attr)
+        local_classrefs = self.get_explicit_field_value(
+            schema, local_attr, None)
         if local_classrefs is None:
             local_classrefs = so.ObjectMapping()
 
@@ -666,14 +679,14 @@ class ReferencingObject(inheriting.InheritingObject,
 
             inherited = []
             for b in bases:
-                attrval = getattr(b, attr, {})
+                attrval = b.get_explicit_field_value(schema, attr, None)
                 if not attrval:
                     continue
                 bref = attrval.get(schema, classref_key, None)
                 if bref is not None:
                     inherited.append(bref)
 
-            ancestry = {getattr(pref, backref_attr): pref
+            ancestry = {pref.get_field_value(schema, backref_attr): pref
                         for pref in inherited}
 
             inherited = list(ancestry.values())
@@ -746,8 +759,10 @@ class ReferencingObject(inheriting.InheritingObject,
                 schema, classrefs = classrefs.replace(
                     schema, {classref_key: merged})
 
-        setattr(self, attr, classrefs)
-        setattr(self, local_attr, local_classrefs)
+        schema = self.update(schema, {
+            attr: classrefs,
+            local_attr: local_classrefs
+        })
 
         return schema
 
@@ -772,8 +787,8 @@ class ReferencingObject(inheriting.InheritingObject,
         for refdict in self.__class__.get_refdicts():
             attr = refdict.attr
             local_attr = refdict.local_attr
-            all_coll = getattr(self, attr)
-            local_coll = getattr(self, local_attr)
+            all_coll = self.get_field_value(schema, attr)
+            local_coll = self.get_field_value(schema, local_attr)
 
             for pn, p in local_coll.items(schema):
                 schema, obj = p.derive_copy(
@@ -787,8 +802,10 @@ class ReferencingObject(inheriting.InheritingObject,
 
             schema, all_coll = all_coll.replace(schema, local_coll)
 
-            setattr(self, attr, all_coll)
-            setattr(self, local_attr, local_coll)
+            schema = self.update(schema, {
+                attr: all_coll,
+                local_attr: local_coll
+            })
 
         return schema
 
@@ -855,7 +872,9 @@ class ReferencingObjectCommand(sd.ObjectCommand):
 
         # Add implicit Delete commands for any local refs not
         # deleted explicitly.
-        all_refs = set(getattr(scls, refdict.local_attr).objects(schema))
+        all_refs = set(
+            scls.get_field_value(schema, refdict.local_attr).objects(schema)
+        )
 
         for ref in all_refs - deleted_refs:
             del_cmd = sd.ObjectCommandMeta.get_command_class(

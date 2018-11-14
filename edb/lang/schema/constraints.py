@@ -301,25 +301,16 @@ class ConsistencySubject(referencing.ReferencingObject):
         local_attr='own_constraints',
         ref_cls=Constraint)
 
-    constraints = so.Field(so.ObjectMapping,
-                           inheritable=False, ephemeral=True, coerce=True,
-                           default=so.ObjectMapping, hashable=False)
-    own_constraints = so.Field(so.ObjectMapping, compcoef=0.887,
-                               inheritable=False, ephemeral=True,
-                               coerce=True,
-                               default=so.ObjectMapping)
+    constraints = so.SchemaField(
+        so.ObjectMapping,
+        inheritable=False, ephemeral=True, coerce=True,
+        default=so.ObjectMapping, hashable=False)
 
-    def get_constraints(self, schema):
-        if self.constraints is None:
-            return so.ObjectMapping()
-        else:
-            return self.constraints
-
-    def get_own_constraints(self, schema):
-        if self.own_constraints is None:
-            return so.ObjectMapping()
-        else:
-            return self.own_constraints
+    own_constraints = so.SchemaField(
+        so.ObjectMapping, compcoef=0.887,
+        inheritable=False, ephemeral=True,
+        coerce=True,
+        default=so.ObjectMapping)
 
     @classmethod
     def inherit_pure(cls, schema, item, source, *, dctx=None):

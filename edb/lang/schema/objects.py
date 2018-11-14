@@ -395,6 +395,10 @@ class Object(metaclass=ObjectMeta):
                 continue
 
             value = values.get(field_name)
+            if is_schema_field:
+                # values for SchemaFields will not get validated in
+                # __setattr__; do it here.
+                value = self._check_field_type(field, field.name, value)
 
             if value is None and field.default is not None and setdefaults:
                 value = self._getdefault(field_name, field, relaxrequired)
@@ -478,7 +482,8 @@ class Object(metaclass=ObjectMeta):
                 except TypeError:
                     pass
 
-        raise FieldValueNotFoundError(field_name)
+        raise FieldValueNotFoundError(
+            f'{type(self).__name__} object has no field {field_name!r}')
 
     def get_explicit_field_value(self, schema, field_name, default=NoDefault):
         try:

@@ -45,29 +45,19 @@ class Source(indexes.IndexableSubject):
         backref_attr='source',
         ref_cls=pointers.Pointer)
 
-    pointers = so.Field(so.ObjectMapping,
-                        inheritable=False, ephemeral=True, coerce=True,
-                        default=so.ObjectMapping, hashable=False)
+    pointers = so.SchemaField(
+        so.ObjectMapping,
+        inheritable=False, ephemeral=True, coerce=True,
+        default=so.ObjectMapping, hashable=False)
 
-    own_pointers = so.Field(so.ObjectMapping, compcoef=0.857,
-                            inheritable=False, ephemeral=True, coerce=True,
-                            default=so.ObjectMapping)
+    own_pointers = so.SchemaField(
+        so.ObjectMapping, compcoef=0.857,
+        inheritable=False, ephemeral=True, coerce=True,
+        default=so.ObjectMapping)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._ro_pointers = None
-
-    def get_pointers(self, schema):
-        if self.pointers is None:
-            return so.ObjectMapping()
-        else:
-            return self.pointers
-
-    def get_own_pointers(self, schema):
-        if self.own_pointers is None:
-            return so.ObjectMapping()
-        else:
-            return self.own_pointers
 
     class PointerResolver:
         @classmethod
