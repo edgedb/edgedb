@@ -228,9 +228,8 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
             if refdict.backref_attr:
                 # Set the back-reference on referenced object
                 # to the referrer.
-                schema = self.scls.update(schema, {
-                    refdict.backref_attr: referrer
-                })
+                schema = self.scls.set_field_value(
+                    schema, refdict.backref_attr, referrer)
                 # Add the newly created referenced object to the
                 # appropriate refdict in self and all descendants
                 # that don't already have an existing reference.
@@ -245,9 +244,8 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
                     if not child_local_coll.has(schema, refname):
                         schema, child_coll = child_coll.replace(
                             schema, {refname: self.scls})
-                        schema = child.update(schema, {
-                            refdict.attr: child_coll
-                        })
+                        schema = child.set_field_value(
+                            schema, refdict.attr, child_coll)
 
         return schema
 
@@ -274,14 +272,15 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
                 ref = coll[old_name]
                 schema, coll = coll.replace(
                     schema, {old_name: None, new_name: ref})
-                schema = referrer.update(schema, {attr: coll})
+                schema = referrer.set_field_value(schema, attr, coll)
 
             local_coll = referrer.get_field_value(schema, local_attr)
             if local_coll.has(schema, old_name):
                 local = local_coll[old_name]
                 schema, local_coll = local_coll.replace(
                     schema, {old_name: None, new_name: local})
-                schema = referrer.update(schema, {local_attr: local_coll})
+                schema = referrer.set_field_value(
+                    schema, local_attr, local_coll)
 
             for child in referrer.children(schema):
                 child_coll = child.get_field_value(schema, attr)
@@ -289,7 +288,7 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
                     ref = child_coll[old_name]
                     schema, child_coll = child_coll.replace(
                         schema, {old_name: None, new_name: ref})
-                    schema = child.update(schema, {attr: child_coll})
+                    schema = child.set_field_value(schema, attr, child_coll)
 
         return schema
 
@@ -445,13 +444,15 @@ class ReferencingObject(inheriting.InheritingObject,
                     continue
 
                 if this_coll is None:
-                    schema = self.update(schema, {refdict.attr: other_coll})
+                    schema = self.set_field_value(
+                        schema, refdict.attr, other_coll)
                 else:
                     updates = {k: v for k, v in other_coll.items(schema)
                                if not this_coll.has(schema, k)}
 
                     schema, this_coll = this_coll.replace(schema, updates)
-                    schema = self.update(schema, {refdict.attr: this_coll})
+                    schema = self.set_field_value(
+                        schema, refdict.attr, this_coll)
 
         return schema
 
@@ -552,16 +553,17 @@ class ReferencingObject(inheriting.InheritingObject,
 
         if local_coll is not None:
             schema, local_coll = local_coll.replace(schema, {key: obj})
-            schema = self.update(schema, {local_attr: local_coll})
+            schema = self.set_field_value(schema, local_attr, local_coll)
         else:
-            schema = self.update(
-                schema, {local_attr: so.ObjectMapping({key: obj})})
+            schema = self.set_field_value(
+                schema, local_attr, so.ObjectMapping({key: obj}))
 
         if all_coll is not None:
             schema, all_coll = all_coll.replace(schema, {key: obj})
-            schema = self.update(schema, {attr: all_coll})
+            schema = self.set_field_value(schema, attr, all_coll)
         else:
-            schema = self.update(schema, {attr: so.ObjectMapping({key: obj})})
+            schema = self.set_field_value(
+                schema, attr, so.ObjectMapping({key: obj}))
 
         return schema
 
@@ -580,7 +582,7 @@ class ReferencingObject(inheriting.InheritingObject,
 
         if not is_inherited:
             schema, all_coll = all_coll.replace(schema, {key: None})
-            schema = self.update(schema, {attr: all_coll})
+            schema = self.set_field_value(schema, attr, all_coll)
 
             for descendant in self.descendants(schema):
                 descendant_local_coll = descendant.get_field_value(
@@ -589,11 +591,12 @@ class ReferencingObject(inheriting.InheritingObject,
                     descendant_coll = descendant.get_field_value(schema, attr)
                     schema, descendant_coll = descendant_coll.replace(
                         schema, {key: None})
-                    schema = descendant.update(schema, {attr: descendant_coll})
+                    schema = descendant.set_field_value(
+                        schema, attr, descendant_coll)
 
         if local_coll and local_coll.has(schema, key):
             schema, local_coll = local_coll.replace(schema, {key: None})
-            schema = self.update(schema, {local_attr: local_coll})
+            schema = self.set_field_value(schema, local_attr, local_coll)
 
         return schema
 

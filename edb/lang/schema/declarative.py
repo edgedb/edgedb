@@ -337,17 +337,15 @@ class DeclarationLoader:
 
             expr = attrs.pop('expr', None)
             if expr is not None:
-                self._schema = constraint.update(self._schema, {
-                    'expr': s_expr.ExpressionText(
-                        qlcodegen.generate_source(expr))
-                })
+                self._schema = constraint.set_field_value(
+                    self._schema, 'expr', s_expr.ExpressionText(
+                        qlcodegen.generate_source(expr)))
 
             subjexpr = decl.subject
             if subjexpr is not None:
-                self._schema = constraint.update(self._schema, {
-                    'subjectexpr': s_expr.ExpressionText(
-                        qlcodegen.generate_source(subjexpr))
-                })
+                self._schema = constraint.set_field_value(
+                    self._schema, 'subjectexpr', s_expr.ExpressionText(
+                        qlcodegen.generate_source(subjexpr)))
 
             params = s_func.FuncParameterList.from_ast(
                 self._schema, decl, self._mod_aliases,
@@ -364,7 +362,8 @@ class DeclarationLoader:
                     raise s_err.SchemaDefinitionError(
                         'untyped parameter', context=decl.context)
 
-            self._schema = constraint.update(self._schema, {'params': params})
+            self._schema = constraint.set_field_value(
+                self._schema, 'params', params)
 
     def _init_attributes(self, attrs):
         for attr, attrdecl in attrs.items():

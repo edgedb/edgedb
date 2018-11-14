@@ -503,6 +503,9 @@ class Object(metaclass=ObjectMeta):
             else:
                 return default
 
+    def set_field_value(self, schema, name, value):
+        return self.update(schema, {name: value})
+
     def update(self, schema, updates: dict):
         fields = type(self)._fields
 
@@ -594,7 +597,7 @@ class Object(metaclass=ObjectMeta):
             changed = current != value
 
         if changed:
-            schema = self.update(schema, {name: value})
+            schema = self.set_field_value(schema, name, value)
             if dctx is not None:
                 dctx.current().op.add(sd.AlterObjectProperty(
                     property=name,

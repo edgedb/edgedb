@@ -107,7 +107,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
 
         self_params = self.get_explicit_field_value(schema, 'params', None)
         if not self.generic() and self_params is None:
-            schema = self.update(schema, {'params': []})
+            schema = self.set_field_value(schema, 'params', [])
 
             if dctx is not None:
                 from . import delta as sd
