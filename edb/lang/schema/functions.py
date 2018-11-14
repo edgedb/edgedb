@@ -119,31 +119,6 @@ class Parameter(named.NamedObject):
 
         return ''.join(ret)
 
-    def _resolve_type_refs(self, schema):
-        if isinstance(self.type, so.ObjectRef):
-            rtype = utils.resolve_typeref(self.type, schema)
-            result = self.replace(type=rtype)
-            return result
-
-        elif isinstance(self.type, s_types.Collection):
-            resolved = utils.resolve_typeref(self.type, schema)
-            if resolved is not self.type:
-                result = self.replace(type=resolved)
-            else:
-                result = self
-            return result
-
-        elif (self.kind is ft.ParameterKind.VARIADIC and
-                isinstance(self.type.get_subtypes()[0], so.ObjectRef)):
-            subtype = self.type.get_subtypes()[0]
-            rtype = s_types.Array.from_subtypes(
-                [utils.resolve_typeref(subtype, schema)])
-            result = self.replace(type=rtype)
-            return result
-
-        else:
-            return self
-
 
 class ParameterCommandContext(sd.ObjectCommandContext):
     pass
