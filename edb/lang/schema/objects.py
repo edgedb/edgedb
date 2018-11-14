@@ -220,7 +220,7 @@ class SchemaField(Field):
                 warnings.warn(
                     f'{type(instance).__name__}.{self.name} direct access',
                     RuntimeWarning, stacklevel=2)
-                return getattr(instance, f'_schema_field_{self.name}')
+                return instance.get_field_value(None, self.name)
             else:
                 raise FieldValueNotFoundError(self.name)
         else:
