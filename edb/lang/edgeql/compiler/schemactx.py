@@ -133,7 +133,9 @@ def derive_view(
             scls=scls, derived_name_quals=derived_name_quals,
             derived_name_base=derived_name_base, ctx=ctx)
 
-    if scls.generic():
+    if isinstance(scls, s_types.Collection):
+        derived = scls.derive_subtype(ctx.schema, name=derived_name)
+    elif scls.generic():
         ctx.schema, derived = scls.derive(
             ctx.schema, source, target, *qualifiers, name=derived_name,
             mark_derived=True)

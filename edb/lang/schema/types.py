@@ -313,7 +313,7 @@ class Array(Collection):
 
     def derive_subtype(self, schema, *, name: str) -> Type:
         return Array.from_subtypes(
-            self.element_type,
+            [self.element_type],
             self.get_typemods(),
             name=name)
 
