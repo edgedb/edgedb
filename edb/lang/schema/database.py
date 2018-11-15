@@ -31,7 +31,7 @@ from . import objects as so
 class Database(named.NamedObject):
     # Override 'name' to str type, since databases don't have
     # fully-qualified names.
-    name = so.Field(str)
+    name = so.SchemaField(str)
 
 
 class DatabaseCommandContext(sd.CommandContextToken):
