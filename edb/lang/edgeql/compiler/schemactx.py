@@ -163,7 +163,7 @@ def derive_view(
             vtype = s_types.ViewType.Update
         else:
             vtype = s_types.ViewType.Select
-        derived.view_type = vtype
+        ctx.schema = derived.set_field_value(ctx.schema, 'view_type', vtype)
 
     if (add_to_schema and not isinstance(derived, s_types.Collection) and
             ctx.schema.get(derived.name, None) is None):

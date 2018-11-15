@@ -31,7 +31,7 @@ from . import types as s_types
 class Node(inheriting.InheritingObject, s_types.Type):
     def material_type(self, schema):
         t = self
-        while t.is_view():
+        while t.is_view(schema):
             t = t.bases[0]
         return t
 
@@ -39,8 +39,8 @@ class Node(inheriting.InheritingObject, s_types.Type):
         return type(self).create_with_inheritance(
             schema, name=name, bases=[self])
 
-    def peel_view(self):
-        if self.is_view():
+    def peel_view(self, schema):
+        if self.is_view(schema):
             return self.bases[0]
         else:
             return self
@@ -118,7 +118,7 @@ class NodeCommand(named.NamedObjectCommand):
                                         schema, context)
             rt = irutils.infer_type(ir, schema)
 
-            if rt.is_view():
+            if rt.is_view(schema):
                 # The expression itself declares a view, use it.
                 rt.name = cmd.classname
 
@@ -136,7 +136,7 @@ class NodeCommand(named.NamedObjectCommand):
             derived_delta = sd.delta_schemas(
                 view_schema, prev_view_schema, include_derived=True)
 
-            if rt.is_view():
+            if rt.is_view(schema):
                 for op in list(derived_delta.get_subcommands()):
                     if op.classname == cmd.classname:
                         for subop in op.get_subcommands():

@@ -46,17 +46,20 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
 
     # For a type representing a view, this would contain the
     # view type.  Non-view types have None here.
-    view_type = so.Field(ViewType, default=None, compcoef=0.909)
+    view_type = so.SchemaField(
+        ViewType, default=None, compcoef=0.909)
 
     # If this type is a view, expr may contain an expression that
     # defines the view set.
-    expr = so.Field(s_expr.ExpressionText, default=None,
-                    coerce=True, compcoef=0.909)
+    expr = so.SchemaField(
+        s_expr.ExpressionText, default=None,
+        coerce=True, compcoef=0.909)
 
     # If this type is a view defined by a nested shape expression,
     # and the nested shape contains references to link properties,
     # rptr will contain the inbound pointer class.
-    rptr = so.Field(so.Object, default=None, compcoef=0.909)
+    rptr = so.SchemaField(
+        so.Object, default=None, compcoef=0.909)
 
     def derive_subtype(self, schema, *, name: str) -> 'Type':
         raise NotImplementedError
@@ -138,8 +141,8 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
         raise NotImplementedError(
             f'{type(self)} does not support to_nonpolymorphic()')
 
-    def is_view(self):
-        return self.view_type is not None
+    def is_view(self, schema):
+        return self.get_view_type(schema) is not None
 
     def assignment_castable_to(self, other: 'Type', schema) -> bool:
         return self.implicitly_castable_to(other, schema)
@@ -156,7 +159,7 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
         # under the view.
         return self
 
-    def peel_view(self):
+    def peel_view(self, schema):
         # When self is a view, this returns the class the view
         # is derived from (which may be another view).  If no
         # parent class is available, returns self.
@@ -164,8 +167,7 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
 
     def __repr__(self):
         return (
-            f'<schema.{self.__class__.__name__} {self.name}'
-            f'{" view" if self.is_view() else ""} at 0x{id(self):x}>'
+            f'<schema.{self.__class__.__name__} {self.name} at 0x{id(self):x}>'
         )
 
     __str__ = __repr__

@@ -391,7 +391,7 @@ class FunctionCommand:
 
     def compile_args(self, func: s_funcs.Function, schema):
         func_params = func.get_params(schema)
-        pg_params = func_params.as_pg_params()
+        pg_params = func_params.as_pg_params(schema)
         has_inlined_defaults = func.has_inlined_defaults(schema)
 
         args = []
@@ -399,15 +399,18 @@ class FunctionCommand:
             args.append(('__defaults_mask__', ('bytea',), None))
 
         compile_defaults = not (
-            has_inlined_defaults or func_params.named_only
+            has_inlined_defaults or func_params.find_named_only(schema)
         )
 
         for param in pg_params.params:
-            pg_at = self.get_pgtype(func, param.type, schema)
+            param_type = param.get_type(schema)
+            param_default = param.get_default(schema)
+
+            pg_at = self.get_pgtype(func, param_type, schema)
 
             default = None
-            if compile_defaults and param.default is not None:
-                default = self.compile_default(func, param.default, schema)
+            if compile_defaults and param_default is not None:
+                default = self.compile_default(func, param_default, schema)
 
             args.append((param.shortname, pg_at, default))
 
@@ -423,14 +426,14 @@ class CreateFunction(FunctionCommand, CreateNamedObject,
         return dbops.Function(
             name=self.get_pgname(func),
             args=self.compile_args(func, schema),
-            has_variadic=func_params.variadic is not None,
+            has_variadic=func_params.find_variadic(schema) is not None,
             set_returning=func_return_typemod is ql_ft.TypeModifier.SET_OF,
             returns=self.get_pgtype(
                 func, func.get_return_type(schema), schema),
             text=code)
 
     def compile_sql_function(self, func: s_funcs.Function, schema):
-        return self.make_function(func, func.code, schema)
+        return self.make_function(func, func.get_code(schema), schema)
 
     def compile_edgeql_function(self, func: s_funcs.Function, schema):
         body_ir = ql_compiler.compile_func_to_ir(func, schema)
@@ -446,17 +449,19 @@ class CreateFunction(FunctionCommand, CreateNamedObject,
     def apply(self, schema, context):
         schema, func = super().apply(schema, context)
 
-        if func.code is None:
+        if func.get_code(schema) is None:
             return schema, func
 
-        if func.language is ql_ast.Language.SQL:
+        func_language = func.get_language(schema)
+
+        if func_language is ql_ast.Language.SQL:
             dbf = self.compile_sql_function(func, schema)
-        elif func.language is ql_ast.Language.EdgeQL:
+        elif func_language is ql_ast.Language.EdgeQL:
             dbf = self.compile_edgeql_function(func, schema)
         else:
             raise ql_errors.EdgeQLError(
                 f'cannot compile function {func.shortname}: '
-                f'unsupported language {func.language}',
+                f'unsupported language {func_language}',
                 context=self.source_context)
 
         op = dbops.CreateFunction(dbf)
@@ -480,15 +485,16 @@ class DeleteFunction(
     def apply(self, schema, context):
         schema, func = super().apply(schema, context)
 
-        if func.code:
+        if func.get_code(schema):
             # An EdgeQL or a SQL function
             # (not just an alias to a SQL function).
 
+            variadic = func.get_params(schema).find_variadic(schema)
             self.pgops.add(
                 dbops.DropFunction(
                     name=self.get_pgname(func),
                     args=self.compile_args(func, schema),
-                    has_variadic=func.get_params(schema).variadic is not None,
+                    has_variadic=variadic is not None,
                 )
             )
 
@@ -505,19 +511,26 @@ class OperatorCommand:
         left_type = None
         right_type = None
         oper_params = oper.get_params(schema)
+        oper_kind = oper.get_operator_kind(schema)
 
-        if oper.operator_kind is ql_ft.OperatorKind.INFIX:
-            left_type = types.pg_type_from_object(schema, oper_params[0].type)
-            right_type = types.pg_type_from_object(schema, oper_params[1].type)
+        if oper_kind is ql_ft.OperatorKind.INFIX:
+            left_type = types.pg_type_from_object(
+                schema, oper_params[0].get_type(schema))
 
-        elif oper.operator_kind is ql_ft.OperatorKind.PREFIX:
-            right_type = types.pg_type_from_object(schema, oper_params[0].type)
+            right_type = types.pg_type_from_object(
+                schema, oper_params[1].get_type(schema))
 
-        elif oper.operator_kind is ql_ft.OperatorKind.POSTFIX:
-            left_type = types.pg_type_from_object(schema, oper_params[0].type)
+        elif oper_kind is ql_ft.OperatorKind.PREFIX:
+            right_type = types.pg_type_from_object(
+                schema, oper_params[0].get_type(schema))
+
+        elif oper_kind is ql_ft.OperatorKind.POSTFIX:
+            left_type = types.pg_type_from_object(
+                schema, oper_params[0].get_type(schema))
 
         else:
-            raise RuntimeError(f'unexpected operator type: {oper.type!r}')
+            raise RuntimeError(
+                f'unexpected operator type: {oper.get_type(schema)!r}')
 
         return left_type, right_type
 
@@ -527,13 +540,15 @@ class CreateOperator(OperatorCommand, CreateNamedObject,
 
     def apply(self, schema, context):
         schema, oper = super().apply(schema, context)
+        oper_language = oper.get_language(schema)
+        oper_fromop = oper.get_from_operator(schema)
 
-        if oper.language is ql_ast.Language.SQL and oper.from_operator:
+        if oper_language is ql_ast.Language.SQL and oper_fromop:
             args = self.get_pg_operands(schema, oper)
             self.pgops.add(dbops.CreateOperatorAlias(
                 name=self.get_pg_name(oper),
                 args=args,
-                operator=('pg_catalog', oper.from_operator)
+                operator=('pg_catalog', oper_fromop)
             ))
         else:
             raise ql_errors.EdgeQLError(
@@ -1386,7 +1401,9 @@ class CreateSourceIndex(SourceIndexCommand, CreateNamedObject,
             source = context.get(s_objtypes.ObjectTypeCommandContext)
         table_name = common.get_table_name(source.scls, catenate=False)
         ir = ql_compiler.compile_fragment_to_ir(
-            index.expr, schema, location='selector')
+            index.get_field_value(schema, 'expr'),
+            schema,
+            location='selector')
 
         sql_tree = compiler.compile_ir_to_sql_tree(
             ir, schema=schema, singleton_mode=True)
@@ -2636,7 +2653,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
         deferred_target_map = collections.defaultdict(list)
 
         for link_op, link in self.link_ops:
-            if link.generic() or link.source.is_view():
+            if link.generic() or link.source.is_view(schema):
                 continue
 
             ptr_stor_info = types.get_pointer_storage_info(link, schema=schema)

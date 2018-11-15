@@ -61,9 +61,11 @@ def inline_parameters(ql_expr: qlast.Base, args: typing.Dict[str, qlast.Base]):
 
 
 def index_parameters(ql_args: typing.List[qlast.Base], *,
-                     parameters):
+                     parameters, schema):
     result = {}
     varargs = None
+    variadic = parameters.find_variadic(schema)
+    variadic_num = variadic.get_num(schema) if variadic else -1
 
     for (i, e), p in itertools.zip_longest(enumerate(ql_args),
                                            parameters,
@@ -71,7 +73,7 @@ def index_parameters(ql_args: typing.List[qlast.Base], *,
         if isinstance(e, qlast.SelectQuery):
             e = e.result
 
-        if parameters.variadic and parameters.variadic.num == i:
+        if variadic and variadic_num == i:
             assert varargs is None
             varargs = []
             result[p.shortname] = qlast.Array(elements=varargs)

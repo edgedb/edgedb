@@ -163,6 +163,7 @@ class IntrospectionMech:
         await self._init_introspection_cache()
 
         schema = so.Schema()
+
         schema = await self.read_modules(schema)
         schema = await self.read_scalars(schema)
         schema = await self.read_attributes(schema)
@@ -175,13 +176,13 @@ class IntrospectionMech:
         schema = await self.read_constraints(schema)
         schema = await self.read_indexes(schema)
 
-        await self.order_attributes(schema)
+        schema = await self.order_attributes(schema)
         schema = await self.order_scalars(schema)
-        await self.order_operators(schema)
-        await self.order_functions(schema)
-        await self.order_link_properties(schema)
-        await self.order_links(schema)
-        await self.order_objtypes(schema)
+        schema = await self.order_operators(schema)
+        schema = await self.order_functions(schema)
+        schema = await self.order_link_properties(schema)
+        schema = await self.order_links(schema)
+        schema = await self.order_objtypes(schema)
 
         return schema
 
@@ -378,9 +379,11 @@ class IntrospectionMech:
 
     async def order_operators(self, schema):
         for oper, commutator in self._operator_commutators.items():
-            oper.commutator = schema.get(commutator)
+            schema = oper.set_field_value(
+                schema, 'commutator', schema.get(commutator))
 
         self._operator_commutators.clear()
+        return schema
 
     async def read_functions(self, schema):
         ds = datasources.schema.functions
@@ -411,7 +414,7 @@ class IntrospectionMech:
         return schema
 
     async def order_functions(self, schema):
-        pass
+        return schema
 
     async def read_constraints(self, schema):
         ds = datasources.schema
@@ -728,6 +731,8 @@ class IntrospectionMech:
         for link in schema.get_objects(type='link'):
             schema = link.finalize(schema)
 
+        return schema
+
     async def read_link_properties(self, schema):
         link_props = await datasources.schema.links.fetch_properties(
             self.connection)
@@ -819,6 +824,8 @@ class IntrospectionMech:
         for prop in schema.get_objects(type='link_property'):
             schema = prop.finalize(schema)
 
+        return schema
+
     async def read_attributes(self, schema):
         attributes = await datasources.schema.attributes.fetch(self.connection)
 
@@ -835,7 +842,7 @@ class IntrospectionMech:
         return schema
 
     async def order_attributes(self, schema):
-        pass
+        return schema
 
     async def read_attribute_values(self, schema):
         attributes = await datasources.schema.attributes.fetch_values(
@@ -965,6 +972,8 @@ class IntrospectionMech:
         for objtype in schema.get_objects(type='ObjectType',
                                           include_derived=True):
             schema = objtype.finalize(schema)
+
+        return schema
 
     async def pg_table_inheritance(self, table_name, schema_name):
         inheritance = await introspection.tables.fetch_inheritance(

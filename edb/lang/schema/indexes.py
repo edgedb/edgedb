@@ -21,7 +21,7 @@ from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
 
 from . import delta as sd
-from . import expr
+from . import expr as s_expr
 from . import inheriting
 from . import name as sn
 from . import named
@@ -33,12 +33,14 @@ class SourceIndex(inheriting.InheritingObject):
     _type = 'index'
 
     subject = so.Field(so.NamedObject)
-    expr = so.Field(str, compcoef=0.909)
+
+    expr = so.SchemaField(
+        s_expr.ExpressionText, coerce=True, compcoef=0.909)
 
     def __repr__(self):
         cls = self.__class__
-        return '<{}.{} {!r} {!r} at 0x{:x}>'.format(
-            cls.__module__, cls.__name__, self.name, self.expr, id(self))
+        return '<{}.{} {!r} at 0x{:x}>'.format(
+            cls.__module__, cls.__name__, self.name, id(self))
 
     __str__ = __repr__
 
@@ -113,7 +115,7 @@ class CreateSourceIndex(SourceIndexCommand, named.CreateNamedObject):
             ),
             sd.AlterObjectProperty(
                 property='expr',
-                new_value=expr.ExpressionText(
+                new_value=s_expr.ExpressionText(
                     edgeql.generate_source(astnode.expr, pretty=False))
             )
         ))

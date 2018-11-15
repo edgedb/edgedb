@@ -424,7 +424,7 @@ def new_rel_rvar(
         ir_set: irast.Set, stmt: pgast.Query, *,
         lateral: bool=True,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
-    if irutils.is_scalar_view_set(ir_set):
+    if irutils.is_scalar_view_set(ir_set, schema=ctx.env.schema):
         ensure_bond_for_expr(ir_set, stmt, ctx=ctx)
 
     return dbobj.rvar_for_rel(stmt, lateral=lateral, env=ctx.env)

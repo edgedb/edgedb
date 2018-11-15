@@ -285,9 +285,10 @@ class Backend:
                 subtypes.append(subdesc)
                 element_names.append(ptr.shortname.name)
 
-            if t.rptr is not None:
+            t_rptr = t.get_rptr(schema)
+            if t_rptr is not None:
                 # There are link properties in the mix
-                for ptr in view_shapes[t.rptr]:
+                for ptr in view_shapes[t_rptr]:
                     subdesc = self._describe_type(
                         schema, ptr.target, view_shapes, _tuples)
                     subdesc.cardinality = (

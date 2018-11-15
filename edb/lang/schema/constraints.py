@@ -56,8 +56,9 @@ class CumulativeBoolExpr(s_expr.ExpressionText):
 class Constraint(inheriting.InheritingObject, s_func.CallableObject):
     _type = 'constraint'
 
-    expr = so.Field(s_expr.ExpressionText, default=None, compcoef=0.909,
-                    coerce=True)
+    expr = so.SchemaField(
+        s_expr.ExpressionText, default=None, compcoef=0.909,
+        coerce=True)
 
     subjectexpr = so.Field(s_expr.ExpressionText,
                            default=None, compcoef=0.833, coerce=True)
@@ -216,7 +217,9 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
             ]
 
             args_map = edgeql_utils.index_parameters(
-                args_ql, parameters=constraint.get_params(schema))
+                args_ql,
+                parameters=constraint.get_params(schema),
+                schema=schema)
 
             edgeql_utils.inline_parameters(expr_ql, args_map)
 
@@ -253,11 +256,13 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
             enforce_boolean=True,
             expr_context=expr_context)
 
-        constraint.expr = expr_text
+        schema = constraint.set_field_value(schema, 'expr', expr_text)
         constraint.localfinalexpr = expr_text
         constraint.finalexpr = expr_text
 
         constraint.args = args or None
+
+        return schema
 
     def format_error_message(self):
         errmsg = self.errmessage
@@ -377,7 +382,8 @@ class ConstraintCommand(
 
         referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is not None and self.scls.finalexpr is None:
-            Constraint.process_specialized_constraint(schema, self.scls)
+            schema = Constraint.process_specialized_constraint(
+                schema, self.scls)
 
         return schema
 
@@ -430,15 +436,11 @@ class CreateConstraint(ConstraintCommand,
                 allow_named=False, func_fqname=cmd.classname)
 
             for param in params:
-                if param.default is not None:
+                if param.get_default(schema) is not None:
                     raise ql_errors.EdgeQLError(
                         'constraints do not support parameters '
                         'with defaults',
                         context=astnode.context)
-
-                if param.type is None:
-                    raise ql_errors.EdgeQLError(
-                        'untyped parameter', context=astnode.context)
 
         if cmd.get_attribute_value('return_type') is None:
             cmd.add(sd.AlterObjectProperty(

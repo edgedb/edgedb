@@ -260,7 +260,7 @@ def compile_InsertQuery(
                 f'cannot insert: {subject.scls.displayname} is abstract',
                 context=expr.subject.context)
 
-        if subject.scls.is_view():
+        if subject.scls.is_view(ctx.schema):
             raise errors.EdgeQLError(
                 f'cannot insert: {subject.scls.displayname} is a view',
                 context=expr.subject.context)

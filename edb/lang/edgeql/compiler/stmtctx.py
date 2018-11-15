@@ -263,7 +263,7 @@ def declare_view_from_schema(
         return vc
 
     with ctx.detached() as subctx:
-        view_expr = qlparser.parse(viewcls.expr)
+        view_expr = qlparser.parse(viewcls.get_expr(ctx.schema))
         declare_view(view_expr, alias=viewcls.name,
                      fully_detached=True, ctx=subctx)
 

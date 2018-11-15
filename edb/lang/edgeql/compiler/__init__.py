@@ -137,9 +137,9 @@ def compile_func_to_ir(func, schema, *,
 
     if debug.flags.edgeql_compile:
         debug.header('EdgeQL Function')
-        debug.print(func.code)
+        debug.print(func.get_code(schema))
 
-    trees = ql_parser.parse_block(func.code + ';')
+    trees = ql_parser.parse_block(func.get_code(schema) + ';')
     if len(trees) != 1:
         raise ql_errors.EdgeQLError(
             'functions can only contain one statement')
@@ -155,10 +155,11 @@ def compile_func_to_ir(func, schema, *,
         name='__defaults_mask__', type=schema.get('std::bytes'))
 
     func_params = func.get_params(schema)
-    for pi, p in enumerate(func_params.as_pg_params().params):
-        anchors[p.shortname] = irast.Parameter(name=p.shortname, type=p.type)
+    for pi, p in enumerate(func_params.as_pg_params(schema).params):
+        anchors[p.shortname] = irast.Parameter(
+            name=p.shortname, type=p.get_type(schema))
 
-        if p.default is None:
+        if p.get_default(schema) is None:
             continue
 
         tree.aliases.append(
@@ -181,7 +182,7 @@ def compile_func_to_ir(func, schema, *,
                         op=qlast.EQ),
                     if_expr=qlast.Path(
                         steps=[qlast.ObjectRef(name=p.shortname)]),
-                    else_expr=qlast._Optional(expr=p.get_ql_default()))))
+                    else_expr=qlast._Optional(expr=p.get_ql_default(schema)))))
 
     ir = compile_ast_to_ir(
         tree, schema, anchors=anchors, func=func,

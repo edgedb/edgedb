@@ -725,7 +725,7 @@ class ReferencingObject(inheriting.InheritingObject,
 
             if (local is not None and local is not merged and
                     requires_explicit_inherit and
-                    not local.declared_inherited and
+                    not local.get_declared_inherited(schema) and
                     dctx is not None and dctx.declarative):
                 # locally defined references *must* use
                 # the `inherited` keyword if ancestors have
@@ -738,7 +738,7 @@ class ReferencingObject(inheriting.InheritingObject,
                     context=local.sourcectx
                 )
 
-            if merged is local and local.declared_inherited:
+            if merged is local and local.get_declared_inherited(schema):
                 raise s_err.SchemaDefinitionError(
                     f'{self.shortname}: {local.shortname} cannot '
                     f'be declared `inherited` as there are no ancestors '

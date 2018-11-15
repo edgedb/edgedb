@@ -161,7 +161,8 @@ def _process_view(
 
     if (view_rptr is not None and view_rptr.derived_ptrcls is not None and
             view_scls is not scls):
-        view_scls.rptr = view_rptr.derived_ptrcls
+        ctx.schema = view_scls.set_field_value(
+            ctx.schema, 'rptr', view_rptr.derived_ptrcls)
 
     return view_scls
 
@@ -180,7 +181,7 @@ def _normalize_view_ptr_expr(
     # Pointers may be qualified by the explicit source
     # class, which is equivalent to Expr[IS Type].
     is_polymorphic = isinstance(steps[0], qlast.TypeExpr)
-    scls = view_scls.peel_view()
+    scls = view_scls.peel_view(ctx.schema)
     ptrsource = scls
     qlexpr = None
 
@@ -593,7 +594,7 @@ def _compile_view_shapes_in_set(
 
     scls = ir_set.scls
 
-    is_mutation = scls.view_type in (
+    is_mutation = scls.get_view_type(ctx.schema) in (
         s_types.ViewType.Update, s_types.ViewType.Insert)
 
     shape_ptrs = _get_shape_configuration(
@@ -633,7 +634,9 @@ def _compile_view_shapes_in_set(
             with ctx.new() as scopectx:
                 scopectx.path_scope = element_scope
                 compile_view_shapes(
-                    element, parent_view_type=scls.view_type, ctx=scopectx)
+                    element,
+                    parent_view_type=scls.get_view_type(ctx.schema),
+                    ctx=scopectx)
 
             ir_set.shape.append(element)
 

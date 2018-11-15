@@ -358,7 +358,7 @@ class GQLCoreSchema:
             interfaces = []
 
             # views are currently skipped
-            if t.is_view():
+            if t.is_view(self.edb_schema):
                 continue
 
             for st in t.get_mro():

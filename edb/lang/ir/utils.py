@@ -134,12 +134,12 @@ def is_subquery_set(ir_expr):
     )
 
 
-def is_scalar_view_set(ir_expr):
+def is_scalar_view_set(ir_expr, *, schema: s_schema.Schema):
     return (
         isinstance(ir_expr, irast.Set) and
         len(ir_expr.path_id) == 1 and
         ir_expr.path_id.is_scalar_path() and
-        ir_expr.path_id.target.is_view()
+        ir_expr.path_id.target.is_view(schema)
     )
 
 

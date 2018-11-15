@@ -34,13 +34,17 @@ from . import utils
 class Operator(s_func.CallableObject):
     _type = 'operator'
 
-    operator_kind = so.Field(ft.OperatorKind, coerce=True, compcoef=0.4)
+    operator_kind = so.SchemaField(
+        ft.OperatorKind, coerce=True, compcoef=0.4)
 
-    language = so.Field(qlast.Language, default=None, compcoef=0.4,
-                        coerce=True)
-    from_operator = so.Field(str, default=None, compcoef=0.4,
-                             introspectable=False)
-    commutator = so.Field(so.Object, default=None, compcoef=0.99)
+    language = so.SchemaField(
+        qlast.Language, default=None, compcoef=0.4, coerce=True)
+
+    from_operator = so.SchemaField(
+        str, default=None, compcoef=0.4, introspectable=False)
+
+    commutator = so.SchemaField(
+        so.Object, default=None, compcoef=0.99)
 
 
 class OperatorCommandContext(sd.ObjectCommandContext):
@@ -94,27 +98,29 @@ class OperatorCommand(s_func.CallableCommand,
 
         self_shortname = named.NamedObject.get_shortname(self.classname)
         commutator = self.get_attribute_value('commutator')
-        if commutator is not None:
-            if commutator.classname == self_shortname:
-                commutator.classname = self.classname
-            else:
-                opers = schema.get_operators(commutator.classname)
+        if commutator is None:
+            return
 
-                for oper in opers:
-                    oper_params = oper.get_params(schema)
-                    if (oper.operator_kind == kind and
-                            len(oper_params) == len(params) and
-                            all(p1.type == p2.type and
-                                p1.typemod == p2.typemod
-                                for p1, p2 in zip(oper_params, params))):
-                        commutator.classname = oper.name
-                        break
-                else:
-                    raise ql_errors.EdgeQLError(
-                        f'operator {commutator.classname} {params.as_str} '
-                        f'does not exist',
-                        context=self.source_context,
-                    )
+        if commutator.classname == self_shortname:
+            commutator.classname = self.classname
+        else:
+            opers = schema.get_operators(commutator.classname)
+
+            for oper in opers:
+                oper_params = oper.get_params(schema)
+                if (oper.get_operator_kind(schema) == kind and
+                        len(oper_params) == len(params) and
+                        all(p1.get_type(schema) == p2.get_type(schema) and
+                            p1.get_typemod(schema) == p2.get_typemod(schema)
+                            for p1, p2 in zip(oper_params, params))):
+                    commutator.classname = oper.name
+                    break
+            else:
+                raise ql_errors.EdgeQLError(
+                    f'operator {commutator.classname} {params.as_str} '
+                    f'does not exist',
+                    context=self.source_context,
+                )
 
 
 class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
@@ -126,7 +132,7 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
         return_type = self.scls.get_return_type(schema)
         return_typemod = self.scls.get_return_typemod(schema)
 
-        get_signature = lambda: f'{self.classname}{params.as_str()}'
+        get_signature = lambda: f'{self.classname}{params.as_str(schema)}'
 
         oper = schema.get(name, None)
         if oper:

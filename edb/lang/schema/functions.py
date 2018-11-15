@@ -18,7 +18,6 @@
 
 
 import copy
-import functools
 import types
 import typing
 
@@ -42,13 +41,22 @@ class Parameter(named.NamedObject):
 
     _type = 'parameter'
 
-    num = so.Field(int, frozen=True, compcoef=0.4)
-    default = so.Field(str, default=None, frozen=True, compcoef=0.4)
-    type = so.Field(so.Object, frozen=True, compcoef=0.4)
-    typemod = so.Field(ft.TypeModifier,
-                       default=ft.TypeModifier.SINGLETON,
-                       coerce=True, frozen=True, compcoef=0.4)
-    kind = so.Field(ft.ParameterKind, coerce=True, frozen=True, compcoef=0.4)
+    num = so.SchemaField(
+        int, compcoef=0.4)
+
+    default = so.SchemaField(
+        str, default=None, compcoef=0.4)
+
+    type = so.SchemaField(
+        s_types.Type, compcoef=0.4)
+
+    typemod = so.SchemaField(
+        ft.TypeModifier,
+        default=ft.TypeModifier.SINGLETON,
+        coerce=True, compcoef=0.4)
+
+    kind = so.SchemaField(
+        ft.ParameterKind, coerce=True, compcoef=0.4)
 
     # Private field for caching default value AST.
     _ql_default = so.Field(
@@ -65,26 +73,26 @@ class Parameter(named.NamedObject):
         else:
             return fullname
 
-    def get_ql_default(self):
+    def get_ql_default(self, schema):
         if self._ql_default is None:
             # Defaults are simple constants, so copying shouldn't
             # be too slow (certainly faster that parsing).
 
             from edb.lang.edgeql import parser as ql_parser
 
-            qd = ql_parser.parse_fragment(self.default)
+            qd = ql_parser.parse_fragment(self.get_default(schema))
             self._ql_default = qd
 
         return copy.deepcopy(self._ql_default)
 
     def get_ir_default(self, *, schema):
-        if self.default is None:
+        if self.get_default(schema) is None:
             return None
 
         from edb.lang.edgeql import compiler as ql_compiler
         from edb.lang.ir import utils as irutils
 
-        ql_default = self.get_ql_default()
+        ql_default = self.get_ql_default(schema)
 
         ir = ql_compiler.compile_ast_fragment_to_ir(
             ql_default, schema,
@@ -95,21 +103,25 @@ class Parameter(named.NamedObject):
 
         return ir
 
-    def as_str(self):
+    def as_str(self, schema):
         ret = []
-        if self.kind is not ft.ParameterKind.POSITIONAL:
-            ret.append(self.kind.to_edgeql())
+        kind = self.get_kind(schema)
+        typemod = self.get_typemod(schema)
+        default = self.get_default(schema)
+
+        if kind is not ft.ParameterKind.POSITIONAL:
+            ret.append(kind.to_edgeql())
             ret.append(' ')
 
         ret.append(f'{self.shortname}: ')
 
-        if self.typemod is not ft.TypeModifier.SINGLETON:
-            ret.append(self.typemod.to_edgeql())
+        if typemod is not ft.TypeModifier.SINGLETON:
+            ret.append(typemod.to_edgeql())
             ret.append(' ')
-        ret.append(self.type.name)
+        ret.append(self.get_type(schema).name)
 
-        if self.default is not None:
-            ret.append(f'={self.default}')
+        if default is not None:
+            ret.append(f'={default}')
 
         return ''.join(ret)
 
@@ -157,25 +169,26 @@ class PgParams(typing.NamedTuple):
 
 class FuncParameterList(so.FrozenObjectList, type=Parameter):
 
-    @functools.lru_cache(200)
     def get_by_name(self, name) -> Parameter:
         for param in self:
             if param.shortname == name:
                 return param
 
-    @functools.lru_cache(200)
-    def as_pg_params(self):
+    def as_pg_params(self, schema):
         params = []
         named = []
         variadic = None
         has_param_wo_default = False
         for param in self:
-            if param.kind is ft.ParameterKind.POSITIONAL:
-                if param.default is None:
+            param_kind = param.get_kind(schema)
+            param_default = param.get_default(schema)
+
+            if param_kind is ft.ParameterKind.POSITIONAL:
+                if param_default is None:
                     has_param_wo_default = True
                 params.append(param)
-            elif param.kind is ft.ParameterKind.NAMED_ONLY:
-                if param.default is None:
+            elif param_kind is ft.ParameterKind.NAMED_ONLY:
+                if param_default is None:
                     has_param_wo_default = True
                 named.append(param)
             else:
@@ -195,30 +208,26 @@ class FuncParameterList(so.FrozenObjectList, type=Parameter):
 
         return params
 
-    def as_str(self):
+    def as_str(self, schema):
         ret = []
         for param in self:
-            ret.append(param.as_str())
+            ret.append(param.as_str(schema))
         return '(' + ', '.join(ret) + ')'
 
     def has_polymorphic(self, schema):
-        return any(p.type.is_polymorphic(schema) for p in self)
+        return any(p.get_type(schema).is_polymorphic(schema) for p in self)
 
-    @property
-    @functools.lru_cache(200)
-    def named_only(self):
+    def find_named_only(self, schema) -> typing.Mapping[str, Parameter]:
         named = {}
         for param in self:
-            if param.kind is ft.ParameterKind.NAMED_ONLY:
+            if param.get_kind(schema) is ft.ParameterKind.NAMED_ONLY:
                 named[param.shortname] = param
 
         return types.MappingProxyType(named)
 
-    @property
-    @functools.lru_cache(200)
-    def variadic(self):
+    def find_variadic(self, schema) -> typing.Optional[Parameter]:
         for param in self:
-            if param.kind is ft.ParameterKind.VARIADIC:
+            if param.get_kind(schema) is ft.ParameterKind.VARIADIC:
                 return param
 
     def persistent_hash(self, *, schema):
@@ -237,8 +246,10 @@ class FuncParameterList(so.FrozenObjectList, type=Parameter):
             if param.default is not None:
                 paramd = codegen.generate_source(param.default)
 
-            paramt = utils.ast_to_typeref(
-                param.type, modaliases=modaliases, schema=schema)
+            paramt = utils.resolve_typeref(
+                utils.ast_to_typeref(
+                    param.type, modaliases=modaliases, schema=schema),
+                schema)
 
             if param.kind is ft.ParameterKind.VARIADIC:
                 paramt = s_types.Array.from_subtypes((paramt,))
@@ -359,11 +370,11 @@ class CallableCommand(named.NamedObjectCommand):
     @classmethod
     def _get_function_name_quals(
             cls, schema, name, params: FuncParameterList) -> typing.List[str]:
-        pgp = params.as_pg_params()
+        pgp = params.as_pg_params(schema)
 
         quals = []
         for param in pgp.params:
-            pt = param.type
+            pt = param.get_type(schema)
             if isinstance(pt, so.ObjectRef):
                 quals.append(pt.classname)
             elif isinstance(pt, s_types.Collection):
@@ -376,7 +387,7 @@ class CallableCommand(named.NamedObjectCommand):
             else:
                 quals.append(pt.name)
 
-            pk = param.kind
+            pk = param.get_kind(schema)
             if pk is ft.ParameterKind.NAMED_ONLY:
                 quals.append(f'$NO-{param.shortname}-{pt.name}$')
             elif pk is ft.ParameterKind.VARIADIC:
@@ -432,19 +443,23 @@ class DeleteCallableObject(named.DeleteNamedObject):
 class Function(CallableObject):
     _type = 'function'
 
-    code = so.Field(str, default=None, compcoef=0.4, frozen=True)
-    language = so.Field(qlast.Language, default=None, compcoef=0.4,
-                        coerce=True, frozen=True)
-    from_function = so.Field(str, default=None, compcoef=0.4, frozen=True)
+    code = so.SchemaField(
+        str, default=None, compcoef=0.4)
 
-    initial_value = so.Field(expr.ExpressionText, default=None, compcoef=0.4,
-                             coerce=True, frozen=True)
+    language = so.SchemaField(
+        qlast.Language, default=None, compcoef=0.4, coerce=True)
+
+    from_function = so.SchemaField(
+        str, default=None, compcoef=0.4)
+
+    initial_value = so.SchemaField(
+        expr.ExpressionText, default=None, compcoef=0.4, coerce=True)
 
     def has_inlined_defaults(self, schema):
         # This can be relaxed to just `language is EdgeQL` when we
         # support non-constant defaults.
-        return bool(self.language is qlast.Language.EdgeQL and
-                    self.get_params(schema).named_only)
+        return bool(self.get_language(schema) is qlast.Language.EdgeQL and
+                    self.get_params(schema).find_named_only(schema))
 
 
 class FunctionCommandContext(sd.ObjectCommandContext):
@@ -474,13 +489,14 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
         params: FuncParameterList = self.scls.get_params(schema)
         fullname = self.scls.name
         shortname = Function.get_shortname(fullname)
-        language = self.scls.language
+        language = self.scls.get_language(schema)
         return_type = self.scls.get_return_type(schema)
         return_typemod = self.scls.get_return_typemod(schema)
-        from_function = self.scls.from_function
+        from_function = self.scls.get_from_function(schema)
         has_polymorphic = params.has_polymorphic(schema)
+        named_only = params.find_named_only(schema)
 
-        get_signature = lambda: f'{shortname}{params.as_str()}'
+        get_signature = lambda: f'{shortname}{params.as_str(schema)}'
 
         func = schema.get(fullname, None)
         if func:
@@ -502,12 +518,15 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
 
         for func in overloaded_funcs:
             func_params = func.get_params(schema)
-            if func_params.named_only.keys() != params.named_only.keys():
+            func_named_only = func_params.find_named_only(schema)
+            func_from_function = func.get_from_function(schema)
+
+            if func_named_only.keys() != named_only.keys():
                 raise ql_errors.EdgeQLError(
                     f'cannot create {get_signature()} function: '
                     f'overloading another function with different '
                     f'named only parameters: '
-                    f'"{func.shortname}{func_params.as_str()}"',
+                    f'"{func.shortname}{func_params.as_str(schema)}"',
                     context=self.source_context)
 
             if ((has_polymorphic or func_params.has_polymorphic(schema)) and (
@@ -522,12 +541,12 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                     f'{func.get_return_type(schema).name}',
                     context=self.source_context)
 
-            if func.from_function:
-                has_from_function = func.from_function
+            if func_from_function:
+                has_from_function = func_from_function
 
         if has_from_function:
             if (from_function != has_from_function or
-                    any(f.from_function != has_from_function
+                    any(f.get_from_function(schema) != has_from_function
                         for f in overloaded_funcs)):
                 raise ql_errors.EdgeQLError(
                     f'cannot create {get_signature()}: '
@@ -537,7 +556,8 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                     context=self.source_context)
 
         if (language == qlast.Language.EdgeQL and
-                any(p.typemod is ft.TypeModifier.SET_OF for p in params)):
+                any(p.get_typemod(schema) is ft.TypeModifier.SET_OF
+                    for p in params)):
             raise ql_errors.EdgeQLError(
                 f'cannot create {get_signature()} function: '
                 f'SET OF parameters in user-defined EdgeQL functions are '
@@ -546,41 +566,44 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
 
         # check that params of type 'anytype' don't have defaults
         for p in params:
-            if p.default is None:
+            p_default = p.get_default(schema)
+            if p_default is None:
                 continue
 
+            p_type = p.get_type(schema)
+
             try:
-                default = p.get_ir_default(schema=schema)
+                ir_default = p.get_ir_default(schema=schema)
             except Exception as ex:
                 raise ql_errors.EdgeQLError(
                     f'cannot create {get_signature()} function: '
-                    f'invalid default value {p.default} of parameter '
+                    f'invalid default value {p_default} of parameter '
                     f'${p.name}: {ex}',
                     context=self.source_context)
 
             check_default_type = True
-            if p.type.is_polymorphic(schema):
-                if irutils.is_empty(default):
+            if p_type.is_polymorphic(schema):
+                if irutils.is_empty(ir_default):
                     check_default_type = False
                 else:
                     raise ql_errors.EdgeQLError(
                         f'cannot create {get_signature()} function: '
-                        f'polymorphic parameter of type {p.type.name} cannot '
+                        f'polymorphic parameter of type {p_type.name} cannot '
                         f'have a non-empty default value',
                         context=self.source_context)
-            elif (p.typemod is ft.TypeModifier.OPTIONAL and
-                    irutils.is_empty(default)):
+            elif (p.get_typemod(schema) is ft.TypeModifier.OPTIONAL and
+                    irutils.is_empty(ir_default)):
                 check_default_type = False
 
             if check_default_type:
-                default_type = irutils.infer_type(default, schema)
-                if not default_type.assignment_castable_to(p.type, schema):
+                default_type = irutils.infer_type(ir_default, schema)
+                if not default_type.assignment_castable_to(p_type, schema):
                     raise ql_errors.EdgeQLError(
                         f'cannot create {get_signature()} function: '
                         f'invalid declaration of parameter ${p.name}: '
                         f'unexpected type of the default expression: '
                         f'{default_type.displayname}, expected '
-                        f'{p.type.displayname}',
+                        f'{p_type.displayname}',
                         context=self.source_context)
 
         return super()._add_to_schema(schema, context)

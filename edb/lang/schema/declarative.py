@@ -352,15 +352,11 @@ class DeclarationLoader:
                 allow_named=False, func_fqname=constraint.name)
 
             for param in params:
-                if param.default is not None:
+                if param.get_default(self._schema) is not None:
                     raise s_err.SchemaDefinitionError(
                         'constraints do not support parameters '
                         'with defaults',
                         context=decl.context)
-
-                if param.type is None:
-                    raise s_err.SchemaDefinitionError(
-                        'untyped parameter', context=decl.context)
 
             self._schema = constraint.set_field_value(
                 self._schema, 'params', params)
@@ -387,7 +383,8 @@ class DeclarationLoader:
         for constraint in consts.objects(self._schema):
             constraint_params = constraint.get_params(self._schema)
             if constraint_params:
-                deps.update([p.type for p in constraint_params])
+                deps.update([p.get_type(self._schema)
+                             for p in constraint_params])
 
         for dep in list(deps):
             if isinstance(dep, s_types.Collection):
@@ -469,7 +466,9 @@ class DeclarationLoader:
                 attrs=new_props,
                 add_to_schema=True)
 
-            prop.declared_inherited = propdecl.inherited
+            self._schema = prop.set_field_value(
+                self._schema, 'declared_inherited', propdecl.inherited)
+
             prop.required = bool(propdecl.required)
             prop.cardinality = propdecl.cardinality
 
@@ -575,7 +574,7 @@ class DeclarationLoader:
                     source_context=constrdecl.subject.context,
                 )
 
-            s_constr.Constraint.process_specialized_constraint(
+            self._schema = s_constr.Constraint.process_specialized_constraint(
                 self._schema, constraint, args)
 
             # There can be only one specialized constraint per constraint
@@ -702,7 +701,8 @@ class DeclarationLoader:
 
                 link.required = bool(linkdecl.required)
                 link.cardinality = linkdecl.cardinality
-                link.declared_inherited = linkdecl.inherited
+                self._schema = link.set_field_value(
+                    self._schema, 'declared_inherited', linkdecl.inherited)
                 if linkdecl.on_target_delete is not None:
                     link.on_target_delete = linkdecl.on_target_delete.cascade
 

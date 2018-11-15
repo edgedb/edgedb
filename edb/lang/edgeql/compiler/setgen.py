@@ -137,7 +137,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 scls = schemactx.get_schema_type(
                     step, item_types=(s_objtypes.ObjectType,), ctx=ctx)
 
-                if (scls.view_type is not None and
+                if (scls.get_view_type(ctx.schema) is not None and
                         scls.name not in ctx.view_nodes):
                     # This is a schema-level view, as opposed to
                     # a WITH-block or inline alias view.
@@ -637,10 +637,10 @@ def computable_ptr_set(
     # self must resolve to the parent type of the view NOT the view
     # type itself.  Similarly, when resolving computable link properties
     # make sure that we use rptr.ptrcls.derived_from.
-    if source_scls.is_view():
+    if source_scls.is_view(ctx.schema):
         source_set = new_set_from_set(
             source_set, preserve_scope_ns=True, ctx=ctx)
-        source_set.scls = source_scls.peel_view()
+        source_set.scls = source_scls.peel_view(ctx.schema)
         source_set.shape = []
 
         if source_set.rptr is not None:
@@ -740,7 +740,7 @@ def _get_computable_ctx(
 
             subctx.modaliases = qlctx.modaliases.copy()
             subctx.aliased_views = qlctx.aliased_views.new_child()
-            if source_scls.is_view():
+            if source_scls.is_view(ctx.schema):
                 subctx.aliased_views[source.scls.name] = None
             subctx.source_map = qlctx.source_map.copy()
             subctx.view_nodes = qlctx.view_nodes.copy()
