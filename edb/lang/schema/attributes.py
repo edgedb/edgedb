@@ -33,7 +33,7 @@ from . import utils
 class Attribute(inheriting.InheritingObject):
     _type = 'attribute'
 
-    type = so.Field(so.Object, compcoef=0.909)
+    type = so.SchemaField(s_types.Type, compcoef=0.909)
 
 
 class AttributeValue(inheriting.InheritingObject):
@@ -42,14 +42,14 @@ class AttributeValue(inheriting.InheritingObject):
     subject = so.SchemaField(
         named.NamedObject, compcoef=1.0, default=None, inheritable=False)
 
-    attribute = so.Field(Attribute, compcoef=0.429)
-    value = so.Field(str, compcoef=0.909)
+    attribute = so.Field(
+        Attribute, compcoef=0.429)
+
+    value = so.Field(
+        str, compcoef=0.909)
 
     def __str__(self):
-        return '<{}: {}={!r} at 0x{:x}>'.format(
-            self.__class__.__name__,
-            self.attribute.name if self.attribute else '<nil>',
-            self.value, id(self))
+        return '<{}: at 0x{:x}>'.format(self.__class__.__name__, id(self))
 
     __repr__ = __str__
 
@@ -258,7 +258,7 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedObject):
             name = AttributeValue.get_shortname(
                 self.classname)
             attrs = attrsubj.scls.get_own_attributes(schema)
-            attribute = attrs.get(schema, name)
+            attribute = attrs.get(schema, name, None)
             if attribute is None:
                 schema, attribute = super().apply(schema, context)
                 schema = self.add_attribute(schema, attribute, attrsubj.scls)

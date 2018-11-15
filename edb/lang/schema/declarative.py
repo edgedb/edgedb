@@ -296,11 +296,6 @@ class DeclarationLoader:
 
         return node.value
 
-    def _get_literal_attribute(self, node, name):
-        for attr in node.attributes:
-            if attr.name.name == name:
-                return self._get_literal_value(attr.value)
-
     def _get_bases(self, obj, decl):
         """Resolve object bases from the "extends" declaration."""
         bases = []
@@ -363,7 +358,8 @@ class DeclarationLoader:
 
     def _init_attributes(self, attrs):
         for attr, attrdecl in attrs.items():
-            attr.type = self._get_ref_type(attrdecl.type)
+            self._schema = attr.set_field_value(
+                self._schema, 'type', self._get_ref_type(attrdecl.type))
 
     def _init_scalars(self, scalars):
         for scalar, scalardecl in scalars.items():
@@ -513,7 +509,8 @@ class DeclarationLoader:
 
             attrval = qlast.TypeCast(
                 expr=attrdecl.value,
-                type=s_utils.typeref_to_ast(self._schema, attribute.type),
+                type=s_utils.typeref_to_ast(
+                    self._schema, attribute.get_type(self._schema)),
             )
 
             # Compiling the attribute value declaration validates it.
