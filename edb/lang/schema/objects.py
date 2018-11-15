@@ -1228,7 +1228,8 @@ class ObjectMapping(ObjectCollection):
         return hash(frozenset(self._map.items()))
 
 
-class ObjectSet(typed.TypedSet, ObjectCollection, type=Object):
+class ObjectSet(typed.FrozenTypedSet, ObjectCollection, type=Object):
+
     @classmethod
     def merge_values(cls, target, sources, field_name, *, schema):
         result = target.get_explicit_field_value(schema, field_name, None)
@@ -1236,9 +1237,9 @@ class ObjectSet(typed.TypedSet, ObjectCollection, type=Object):
             theirs = source.get_explicit_field_value(schema, field_name, None)
             if theirs:
                 if result is None:
-                    result = theirs.copy()
+                    result = theirs
                 else:
-                    result.update(theirs)
+                    result |= theirs
 
         return result
 
@@ -1276,7 +1277,7 @@ class ObjectSet(typed.TypedSet, ObjectCollection, type=Object):
         return basecoef + (1 - basecoef) * compcoef
 
 
-class BaseObjectList(ObjectCollection):
+class ObjectList(typed.FrozenTypedList, ObjectCollection, type=Object):
 
     @classmethod
     def compare_values(cls, schema, ours, theirs, context, compcoef):
@@ -1310,7 +1311,3 @@ class BaseObjectList(ObjectCollection):
             basecoef = sum(similarity) / len(similarity)
 
         return basecoef + (1 - basecoef) * compcoef
-
-
-class ObjectList(typed.FrozenTypedList, BaseObjectList, type=Object):
-    pass

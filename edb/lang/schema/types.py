@@ -305,10 +305,14 @@ class Collection(Type):
             return self
 
 
+class Dimensions(typed.FrozenTypedList, type=int):
+    pass
+
+
 class Array(Collection):
     schema_name = 'array'
     element_type = so.Field(so.Object, frozen=True)
-    dimensions = so.Field(typed.IntList, [], coerce=True, frozen=True)
+    dimensions = so.Field(Dimensions, [], coerce=True, frozen=True)
 
     def __init__(self, *, name=None, id=so.NoDefault, element_type, **kwargs):
         if id is so.NoDefault:

@@ -449,3 +449,24 @@ class TypedSet(AbstractTypedSet, collections.abc.MutableSet, type=None):
     difference_update = __isub__
     symmetric_difference_update = __ixor__
     intersection_update = __iand__
+
+
+class FrozenTypedSet(AbstractTypedSet, collections.abc.Set, type=None):
+
+    def __init__(self, inititerable=None):
+        AbstractTypedSet.__init__(self)
+        if inititerable is not None:
+            inititerable = frozenset(inititerable)
+            self._check_items(inititerable)
+            self._data = inititerable
+        else:
+            self._data = frozenset()
+
+    def __contains__(self, el):
+        return el in self._data
+
+    def __iter__(self):
+        return iter(self._data)
+
+    def __len__(self):
+        return len(self._data)
