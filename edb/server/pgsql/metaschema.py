@@ -1402,8 +1402,7 @@ def _field_to_column(field):
     ftype = field.type[0]
     coltype = None
 
-    if issubclass(ftype, (s_obj.ObjectSet, s_obj.ObjectList,
-                          s_obj.FrozenObjectList)):
+    if issubclass(ftype, (s_obj.ObjectSet, s_obj.ObjectList)):
         # ObjectSet and ObjectList are exempt from type_t encoding,
         # as they always represent only non-collection types, and
         # keeping the encoding simple is important for performance
@@ -1768,8 +1767,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
         else:
             ftype = type(None)
 
-        if issubclass(ftype, (s_obj.ObjectSet, s_obj.ObjectList,
-                              s_obj.FrozenObjectList)):
+        if issubclass(ftype, (s_obj.ObjectSet, s_obj.ObjectList)):
             if ptr.singular(schema):
                 raise RuntimeError(
                     'introspection schema error: {!r} must not be '
@@ -2073,8 +2071,7 @@ async def generate_views(conn, schema):
                 ft = field.type[0]
                 if (issubclass(ft, (s_obj.Object, s_obj.ObjectCollection)) and
                         not issubclass(ft, (s_obj.ObjectSet,
-                                            s_obj.ObjectList,
-                                            s_obj.FrozenObjectList))):
+                                            s_obj.ObjectList))):
                     type_fields.append(
                         (f'edgedb.{mcls.__name__}', pn.name)
                     )

@@ -167,7 +167,7 @@ class PgParams(typing.NamedTuple):
     has_param_wo_default: bool
 
 
-class FuncParameterList(so.FrozenObjectList, type=Parameter):
+class FuncParameterList(so.ObjectList, type=Parameter):
 
     def get_by_name(self, name) -> Parameter:
         for param in self:

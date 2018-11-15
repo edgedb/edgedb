@@ -348,13 +348,6 @@ class Object(metaclass=ObjectMeta):
                 fields_set.append(field_name)
         return fields_set
 
-    def formatfields(self, formatter='str'):
-        """Return an iterator over fields formatted using `formatter`."""
-        for name, field in self.__class__._fields.items():
-            formatter_obj = field.formatters.get(formatter)
-            if formatter_obj:
-                yield (name, formatter_obj(getattr(self, name)))
-
     def _copy_and_replace(self, cls, **replacements):
         args = {}
         for field in cls._fields.values():
@@ -383,18 +376,6 @@ class Object(metaclass=ObjectMeta):
 
     def __iter__(self):
         return iter(self.__class__._fields)
-
-    def __str__(self):
-        fields = ', '.join(('%s=%s' % (name, value))
-                           for name, value in self.formatfields('str'))
-        return '<{}{}>'.format(
-            self.__class__.__name__, ' ' + fields if fields else '')
-
-    def __repr__(self):
-        fields = ', '.join(('%s=%s' % (name, value))
-                           for name, value in self.formatfields('repr'))
-        return '<{}{}>'.format(
-            self.__class__.__name__, ' ' + fields if fields else '')
 
     def _init_fields(self, setdefaults, relaxrequired, values):
         for field_name, field in self.__class__._fields.items():
@@ -777,7 +758,7 @@ class Object(metaclass=ObjectMeta):
         return result, frozenset(comparison_v)
 
     def _reduce_refs(self, schema, value):
-        if isinstance(value, (ObjectList, FrozenObjectList, TypeList)):
+        if isinstance(value, ObjectList):
             ref, val = self._reduce_obj_list(schema, value)
 
         elif isinstance(value, ObjectSet):
@@ -993,7 +974,7 @@ class Object(metaclass=ObjectMeta):
 
     def get_classref_origin(self, schema, name, attr, local_attr, classname,
                             farthest=False):
-        assert getattr(self, attr).has(schema, name)
+        assert self.get_field_value(schema, attr).has(schema, name)
         return self
 
     def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
@@ -1010,7 +991,7 @@ class Object(metaclass=ObjectMeta):
                     continue
                 dctx.current().op.add(sd.AlterObjectProperty(
                     property=fieldname,
-                    new_value=getattr(self, fieldname),
+                    new_value=self.get_field_value(schema, fieldname),
                     source='default'
                 ))
 
@@ -1250,9 +1231,9 @@ class ObjectMapping(ObjectCollection):
 class ObjectSet(typed.TypedSet, ObjectCollection, type=Object):
     @classmethod
     def merge_values(cls, target, sources, field_name, *, schema):
-        result = getattr(target, field_name)
+        result = target.get_explicit_field_value(schema, field_name, None)
         for source in sources:
-            theirs = getattr(source, field_name)
+            theirs = source.get_explicit_field_value(schema, field_name, None)
             if theirs:
                 if result is None:
                     result = theirs.copy()
@@ -1331,17 +1312,5 @@ class BaseObjectList(ObjectCollection):
         return basecoef + (1 - basecoef) * compcoef
 
 
-class ObjectList(typed.TypedList, BaseObjectList, type=Object):
-    pass
-
-
-class FrozenObjectList(typed.FrozenTypedList, BaseObjectList, type=Object):
-    pass
-
-
-class TypeList(typed.TypedList, ObjectCollection, type=Object):
-    pass
-
-
-class StringList(typed.TypedList, type=str, accept_none=True):
+class ObjectList(typed.FrozenTypedList, BaseObjectList, type=Object):
     pass

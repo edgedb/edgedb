@@ -159,8 +159,7 @@ class NamedObjectMetaCommand(
         recvalue = None
         result = value
 
-        if isinstance(value, (s_obj.ObjectSet, s_obj.ObjectList,
-                              s_obj.FrozenObjectList)):
+        if isinstance(value, (s_obj.ObjectSet, s_obj.ObjectList)):
             result = tuple(self._get_name(v) for v in value)
             name_array = ', '.join(ql(n) for n in result)
             recvalue = dbops.Query(
