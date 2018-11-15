@@ -210,11 +210,11 @@ def minimize_class_set_by_least_generic(classes):
 
 def merge_reduce(target, sources, field_name, *, schema, f):
     values = []
-    ours = getattr(target, field_name)
+    ours = target.get_explicit_field_value(schema, field_name, None)
     if ours is not None:
         values.append(ours)
     for source in sources:
-        theirs = getattr(source, field_name)
+        theirs = source.get_explicit_field_value(schema, field_name, None)
         if theirs is not None:
             values.append(theirs)
 

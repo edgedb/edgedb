@@ -238,7 +238,9 @@ class ConstraintMech:
         assert constraint.get_subject(schema) is not None
 
         ir = ql_compiler.compile_to_ir(
-            constraint.finalexpr, schema, anchors={qlast.Subject: subject})
+            constraint.get_finalexpr(schema),
+            schema,
+            anchors={qlast.Subject: subject})
 
         terminal_refs = ir_utils.get_terminal_references(ir.expr.expr.result)
         ref_tables = cls._get_ref_storage_info(schema, terminal_refs)

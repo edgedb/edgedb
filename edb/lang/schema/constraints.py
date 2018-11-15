@@ -60,31 +60,39 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
         s_expr.ExpressionText, default=None, compcoef=0.909,
         coerce=True)
 
-    subjectexpr = so.Field(s_expr.ExpressionText,
-                           default=None, compcoef=0.833, coerce=True)
+    subjectexpr = so.SchemaField(
+        s_expr.ExpressionText,
+        default=None, compcoef=0.833, coerce=True)
 
-    localfinalexpr = so.Field(CumulativeBoolExpr, default=None,
-                              coerce=True, hashable=False, inheritable=False,
-                              introspectable=False)
+    localfinalexpr = so.SchemaField(
+        CumulativeBoolExpr,
+        default=None, coerce=True, hashable=False, inheritable=False,
+        introspectable=False)
 
-    finalexpr = so.Field(CumulativeBoolExpr, default=None,
-                         coerce=True, hashable=False, compcoef=0.909)
+    finalexpr = so.SchemaField(
+        CumulativeBoolExpr,
+        default=None, coerce=True, hashable=False, compcoef=0.909)
 
     subject = so.SchemaField(
         so.Object, default=None, inheritable=False)
 
-    args = so.Field(s_expr.ExpressionList,
-                    default=None, coerce=True, inheritable=False,
-                    compcoef=0.875)
+    args = so.SchemaField(
+        s_expr.ExpressionList,
+        default=None, coerce=True, inheritable=False,
+        compcoef=0.875)
 
-    errmessage = so.Field(str, default=None, compcoef=0.971)
+    errmessage = so.SchemaField(
+        str, default=None, compcoef=0.971)
 
     def generic(self, schema):
         return self.get_subject(schema) is None
 
     def merge_localexprs(self, obj, schema):
-        self.localfinalexpr = CumulativeBoolExpr.merge_values(
-            self, [obj], 'localfinalexpr', schema=schema)
+        schema = self.set_field_value(
+            schema,
+            'localfinalexpr',
+            CumulativeBoolExpr.merge_values(
+                self, [obj], 'localfinalexpr', schema=schema))
         return schema
 
     def init_derived(self, schema, source, *qualifiers,
@@ -184,18 +192,18 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
 
         module_aliases = {}
 
+        subjectexpr = constraint.get_field_value(schema, 'subjectexpr')
+
         # check to make sure that the specialized constraint doesn't redefine
         # an already defined subjectexpr
-        if constraint.subjectexpr is not None:
+        if subjectexpr is not None:
             for base in constraint.bases:
                 base_se = base.get_field_value(schema, 'subjectexpr')
-                if base_se and base_se != constraint.subjectexpr:
+                if base_se and base_se != subjectexpr:
                     raise s_errors.InvalidConstraintDefinitionError(
                         'subjectexpr is already defined for ' +
                         f'{constraint.name!r}')
 
-        subjectexpr = constraint.get_field_value(schema, 'subjectexpr')
-        if subjectexpr:
             subject, _ = cls._normalize_constraint_expr(
                 schema, {}, subjectexpr, subject)
 
@@ -227,8 +235,11 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
             args_map = {name: edgeql.generate_source(val, pretty=False)
                         for name, val in args_map.items()}
 
-            constraint.errmessage = constraint.errmessage.format(
-                __subject__='{__subject__}', **args_map)
+            schema = constraint.set_field_value(
+                schema,
+                'errmessage',
+                constraint.get_errmessage(schema).format(
+                    __subject__='{__subject__}', **args_map))
 
             args = list(args_map.values())
 
@@ -257,17 +268,17 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
             enforce_boolean=True,
             expr_context=expr_context)
 
-        schema = constraint.set_field_value(schema, 'expr', expr_text)
-        constraint.localfinalexpr = expr_text
-        constraint.finalexpr = expr_text
-
-        constraint.args = args or None
+        schema = constraint.update(schema, {
+            'expr': expr_text,
+            'localfinalexpr': expr_text,
+            'finalexpr': expr_text,
+            'args': args or None,
+        })
 
         return schema
 
     def format_error_message(self, schema):
-        errmsg = self.errmessage
-
+        errmsg = self.get_errmessage(schema)
         subject = self.get_subject(schema)
         subjtitle = subject.title
 
@@ -384,7 +395,8 @@ class ConstraintCommand(
         schema = super()._create_begin(schema, context)
 
         referrer_ctx = self.get_referrer_context(context)
-        if referrer_ctx is not None and self.scls.finalexpr is None:
+        if (referrer_ctx is not None and
+                self.scls.get_finalexpr(schema) is None):
             schema = Constraint.process_specialized_constraint(
                 schema, self.scls)
 

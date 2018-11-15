@@ -18,18 +18,20 @@
 
 
 from edb.lang.common import typed
+from edb.lang.common import persistent_hash
 
 
 class ExpressionText(str):
     pass
 
 
-class ExpressionList(typed.TypedList, type=ExpressionText):
+class ExpressionList(typed.FrozenTypedList, type=ExpressionText):
+
     @classmethod
     def merge_values(cls, target, sources, field_name, *, schema):
-        result = getattr(target, field_name)
+        result = target.get_explicit_field_value(schema, field_name, None)
         for source in sources:
-            theirs = getattr(source, field_name)
+            theirs = source.get_explicit_field_value(schema, field_name, None)
             if theirs:
                 if result is None:
                     result = theirs[:]
@@ -37,3 +39,6 @@ class ExpressionList(typed.TypedList, type=ExpressionText):
                     result.extend(theirs)
 
         return result
+
+    def persistent_hash(self, *, schema):
+        return persistent_hash.persistent_hash(tuple(self), schema=schema)
