@@ -42,10 +42,10 @@ class AttributeValue(inheriting.InheritingObject):
     subject = so.SchemaField(
         named.NamedObject, compcoef=1.0, default=None, inheritable=False)
 
-    attribute = so.Field(
+    attribute = so.SchemaField(
         Attribute, compcoef=0.429)
 
-    value = so.Field(
+    value = so.SchemaField(
         str, compcoef=0.909)
 
     def __str__(self):
