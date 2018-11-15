@@ -626,7 +626,7 @@ def _compile_set_in_singleton_mode(
             ptrcls = node.rptr.ptrcls
             source = node.rptr.source
 
-            if not ptrcls.is_link_property():
+            if not ptrcls.is_link_property(ctx.env.schema):
                 if source.rptr:
                     raise RuntimeError(
                         'unexpectedly long path in simple expr')

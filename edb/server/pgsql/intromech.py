@@ -602,11 +602,14 @@ class IntrospectionMech:
             details = (
                 'Record for {!r} hosted by {!r} exists, but ' +
                 'the corresponding table column is missing').format(
-                    pointer.shortname, pointer.source.name)
+                    pointer.shortname, pointer.get_source(schema).name)
             raise s_err.SchemaError(msg, details=details)
 
         return self._get_pointer_column_target(
-            schema, pointer.source, pointer.shortname, col)
+            schema,
+            pointer.get_source(schema),
+            pointer.shortname,
+            col)
 
     def _get_pointer_column_target(self, schema, source, pointer_name, col):
         if col['column_type_schema'] == 'pg_catalog':
@@ -684,8 +687,6 @@ class IntrospectionMech:
                 # target is a virtual derived object
                 schema, target = link.create_common_target(schema, spectargets)
 
-            link_search = None
-
             if (isinstance(target, s_scalars.ScalarType) and
                     not source.is_derived):
                 target, required = await self.read_pointer_target_column(
@@ -695,10 +696,7 @@ class IntrospectionMech:
                     common.objtype_name_to_table_name(source.name,
                                                       catenate=False)
 
-            link.target = target
-
-            if link_search:
-                link.search = link_search
+            schema = link.set_field_value(schema, 'target', target)
 
             if source:
                 schema = source.add_pointer(schema, link)
@@ -711,7 +709,10 @@ class IntrospectionMech:
             except KeyError:
                 pass
             else:
-                link.bases = [schema.get(b) for b in bases]
+                schema = link.set_field_value(
+                    schema,
+                    'bases',
+                    [schema.get(b) for b in bases])
 
         for link in schema.get_objects(type='link'):
             schema = link.acquire_ancestor_inheritance(schema)
@@ -782,15 +783,15 @@ class IntrospectionMech:
 
             if bases and bases[0] in {'std::target', 'std::source'}:
                 if bases[0] == 'std::target' and source is not None:
-                    target = source.target
+                    target = source.get_target(schema)
                 elif bases[0] == 'std::source' and source is not None:
-                    target = source.source
+                    target = source.get_source(schema)
 
             elif isinstance(target, s_scalars.ScalarType):
                 target, required = \
                     await self.read_pointer_target_column(schema, prop, None)
 
-            prop.target = target
+            schema = prop.set_field_value(schema, 'target', target)
 
             if source:
                 schema = prop.acquire_ancestor_inheritance(schema)
@@ -804,9 +805,10 @@ class IntrospectionMech:
             except KeyError:
                 pass
             else:
-                prop.bases = [
-                    schema.get(b, type=s_props.Property) for b in bases
-                ]
+                schema = prop.set_field_value(
+                    schema,
+                    'bases',
+                    [schema.get(b, type=s_props.Property) for b in bases])
 
         return schema
 

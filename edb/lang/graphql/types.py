@@ -145,7 +145,7 @@ class GQLCoreSchema:
         return target
 
     def _get_target(self, ptr):
-        edb_target = ptr.target
+        edb_target = ptr.get_target(self.edb_schema)
         target = self._convert_edb_type(edb_target)
 
         if target:
@@ -154,7 +154,7 @@ class GQLCoreSchema:
             if not ptr.singular(self.edb_schema):
                 target = GraphQLList(GraphQLNonNull(target))
 
-            if ptr.required:
+            if ptr.get_required(self.edb_schema):
                 target = GraphQLNonNull(target)
 
         return target
@@ -195,8 +195,9 @@ class GQLCoreSchema:
                     self.edb_schema, name)
                 target = self._get_target(ptr)
                 if target:
-                    if isinstance(ptr.target, ObjectType):
-                        args = self._get_args(ptr.target.name)
+                    if isinstance(ptr.get_target(self.edb_schema), ObjectType):
+                        args = self._get_args(
+                            ptr.get_target(self.edb_schema).name)
                     else:
                         args = None
 
@@ -228,10 +229,10 @@ class GQLCoreSchema:
             self.edb_schema, ptr = edb_type.resolve_pointer(
                 self.edb_schema, name)
 
-            if not isinstance(ptr.target, ScalarType):
+            if not isinstance(ptr.get_target(self.edb_schema), ScalarType):
                 continue
 
-            target = self._convert_edb_type(ptr.target)
+            target = self._convert_edb_type(ptr.get_target(self.edb_schema))
             intype = self._gql_inobjtypes.get(f'Filter{target.name}')
             if intype:
                 fields[name.name] = GraphQLInputObjectField(intype)
@@ -297,10 +298,10 @@ class GQLCoreSchema:
             self.edb_schema, ptr = edb_type.resolve_pointer(
                 self.edb_schema, name)
 
-            if not isinstance(ptr.target, ScalarType):
+            if not isinstance(ptr.get_target(self.edb_schema), ScalarType):
                 continue
 
-            target = self._convert_edb_type(ptr.target)
+            target = self._convert_edb_type(ptr.get_target(self.edb_schema))
             # this makes sure that we can only order by properties
             # that can be reflected into GraphQL
             intype = self._gql_inobjtypes.get(f'Filter{target.name}')
@@ -501,7 +502,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
 
     def convert_edb_to_gql_type(self, base, **kwargs):
         if isinstance(base, s_pointers.Pointer):
-            base = base.target
+            base = base.get_target(self.edb_schema)
 
         if self.dummy:
             kwargs['dummy'] = True

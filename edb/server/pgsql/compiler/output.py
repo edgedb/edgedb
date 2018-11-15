@@ -79,7 +79,7 @@ def tuple_var_as_json_object(tvar, *, path_id, env):
                 name = element.path_id.target_name.name
             else:
                 name = rptr.shortname.name
-                if rptr.is_link_property():
+                if rptr.is_link_property(env.schema):
                     name = '@' + name
             keyvals.append(pgast.StringConstant(val=name))
             if isinstance(element.val, pgast.TupleVar):

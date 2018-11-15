@@ -172,7 +172,7 @@ def get_path_var(
             # This is an scalar set derived from an expression.
             src_path_id = path_id
 
-    elif ptrcls.is_link_property():
+    elif ptrcls.is_link_property(env.schema):
         if ptr_info.table_type != 'link' and not is_inbound:
             # This is a link prop that is stored in source rel,
             # step back to link source rvar.
@@ -588,7 +588,7 @@ def _get_rel_path_output(
 
     if isinstance(rel, pgast.NullRelation):
         if ptrcls is not None:
-            target = ptrcls.target
+            target = ptrcls.get_target(env.schema)
         else:
             target = path_id.target
 
@@ -612,8 +612,9 @@ def _get_rel_path_output(
         ptr_info = pg_types.get_pointer_storage_info(
             ptrcls, resolve_type=False, link_bias=False)
 
-        result = pgast.ColumnRef(name=[ptr_info.column_name],
-                                 nullable=not ptrcls.required)
+        result = pgast.ColumnRef(
+            name=[ptr_info.column_name],
+            nullable=not ptrcls.get_required(env.schema))
     rel.path_outputs[path_id, aspect] = result
     return result
 

@@ -140,13 +140,13 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
     __slots__ = ('name', 'type', 'default', 'coerce', 'formatters',
                  'frozen',
                  'compcoef', 'inheritable', 'hashable', 'simpledelta',
-                 'merge_fn', 'ephemeral', 'introspectable')
+                 'merge_fn', 'ephemeral', 'introspectable', 'public')
 
     def __init__(self, type, default=NoDefault, *, coerce=False,
                  str_formatter=str, repr_formatter=repr, frozen=False,
                  compcoef=None, inheritable=True, hashable=True,
                  simpledelta=True, merge_fn=None, ephemeral=False,
-                 introspectable=True, **kwargs):
+                 introspectable=True, public=False, **kwargs):
         """Schema item core attribute definition.
 
         """
@@ -157,6 +157,7 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
         self.default = default
         self.coerce = coerce
         self.frozen = frozen
+        self.public = public
 
         if coerce and len(type) > 1:
             raise ValueError(
@@ -1000,8 +1001,8 @@ class Object(metaclass=ObjectMeta):
 
 class NamedObject(Object):
     name = Field(sn.Name, inheritable=False, compcoef=0.670)
-    title = Field(str, default=None, compcoef=0.909, coerce=True)
-    description = Field(str, default=None, compcoef=0.909)
+    title = Field(str, default=None, compcoef=0.909, coerce=True, public=True)
+    description = Field(str, default=None, compcoef=0.909, public=True)
 
     @classmethod
     def mangle_name(cls, name) -> str:

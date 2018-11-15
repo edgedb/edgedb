@@ -85,17 +85,19 @@ class AlterDatabase(DatabaseCommand):
                     schema, _ = op.apply(schema, context)
 
             for link in schema.get_objects(type='link'):
-                if link.target and not isinstance(link.target,
-                                                  so.Object):
-                    link.target = schema.get(link.target)
+                link_target = link.get_target(schema)
+                if link_target and not isinstance(link_target, so.Object):
+                    schema = link.set_field_value(
+                        schema, 'target', schema.get(link_target))
 
                 schema = link.acquire_ancestor_inheritance(schema)
                 schema = link.finalize(schema)
 
             for link in schema.get_objects(type='computable'):
-                if link.target and not isinstance(link.target,
-                                                  so.Object):
-                    link.target = schema.get(link.target)
+                link_target = link.get_target(schema)
+                if link_target and not isinstance(link_target, so.Object):
+                    schema = link.set_field_value(
+                        schema, 'target', link_target)
 
             for objtype in schema.get_objects(type='ObjectType'):
                 schema = objtype.acquire_ancestor_inheritance(schema)

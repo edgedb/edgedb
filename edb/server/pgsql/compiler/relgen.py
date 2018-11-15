@@ -641,10 +641,11 @@ def process_set_as_path(
         ptrcls, resolve_type=False, link_bias=False)
 
     # Path is a link property.
-    is_linkprop = ptrcls.is_link_property()
+    is_linkprop = ptrcls.is_link_property(ctx.env.schema)
     # Path is a reference to a relationship stored in the source table.
     is_inline_ref = ptr_info.table_type == 'ObjectType'
-    is_scalar_ref = not isinstance(ptrcls.target, s_objtypes.ObjectType)
+    is_scalar_ref = not isinstance(ptrcls.get_target(ctx.env.schema),
+                                   s_objtypes.ObjectType)
     is_inline_scalar_ref = is_inline_ref and is_scalar_ref
     source_is_visible = ctx.scope_tree.is_visible(ir_source.path_id)
     semi_join = (

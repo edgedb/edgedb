@@ -40,16 +40,17 @@ class Property(pointers.Pointer):
 
     def derive(self, schema, source, target=None, attrs=None, **kwargs):
         if target is None:
-            target = self.target
+            target = self.get_target(schema)
 
         schema, ptr = super().derive(
             schema, source, target, attrs=attrs, **kwargs)
 
         if ptr.shortname == 'std::source':
-            ptr.target = source.source
-
-        if ptr.shortname == 'std::target':
-            ptr.target = source.target
+            schema = ptr.set_field_value(
+                schema, 'target', source.get_source(schema))
+        elif ptr.shortname == 'std::target':
+            schema = ptr.set_field_value(
+                schema, 'target', source.get_field_value(schema, 'target'))
 
         return schema, ptr
 
@@ -70,7 +71,11 @@ class Property(pointers.Pointer):
             # in general.
             field = self.__class__.get_field('target')
             target_coef = field.type[0].compare_values(
-                schema, self.target, other.target, context, field.compcoef)
+                schema,
+                self.get_target(schema),
+                other.get_target(schema),
+                context,
+                field.compcoef)
             if target_coef < 1:
                 similarity /= target_coef
         return similarity
@@ -88,10 +93,11 @@ class Property(pointers.Pointer):
     def has_user_defined_properties(self, schema):
         return False
 
-    def is_link_property(self):
-        if self.source is None:
+    def is_link_property(self, schema):
+        source = self.get_source(schema)
+        if source is None:
             raise ValueError(f'{self.name} is abstract')
-        return isinstance(self.source, pointers.Pointer)
+        return isinstance(source, pointers.Pointer)
 
     @classmethod
     def get_root_classes(cls):

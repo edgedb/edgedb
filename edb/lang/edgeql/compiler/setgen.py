@@ -298,7 +298,7 @@ def ptr_step_set(
         target=ptr_target, source_context=source_context,
         ctx=ctx)
 
-    target = ptrcls.get_far_endpoint(direction)
+    target = ptrcls.get_far_endpoint(ctx.schema, direction)
 
     path_tip = extend_path(
         path_tip, ptrcls, direction, target,
@@ -397,11 +397,11 @@ def extend_path(
         ctx: context.ContextLevel) -> irast.Set:
     """Return a Set node representing the new path tip."""
 
-    if ptrcls.is_link_property():
+    if ptrcls.is_link_property(ctx.schema):
         src_path_id = source_set.path_id.ptr_path()
     else:
         if direction != s_pointers.PointerDirection.Inbound:
-            source = ptrcls.get_near_endpoint(direction)
+            source = ptrcls.get_near_endpoint(ctx.schema, direction)
             if not source_set.scls.issubclass(ctx.schema, source):
                 # Polymorphic link reference
                 source_set = class_indirection_set(
@@ -410,7 +410,7 @@ def extend_path(
         src_path_id = source_set.path_id
 
     if target is None:
-        target = ptrcls.get_far_endpoint(direction)
+        target = ptrcls.get_far_endpoint(ctx.schema, direction)
     path_id = src_path_id.extend(ptrcls, direction, target,
                                  ns=ctx.path_id_namespace,
                                  schema=ctx.schema)
@@ -445,10 +445,10 @@ def _is_computable_ptr(
     else:
         return qlexpr is not None
 
-    if ptrcls.is_pure_computable():
+    if ptrcls.is_pure_computable(ctx.schema):
         return True
 
-    if force_computable and ptrcls.default is not None:
+    if force_computable and ptrcls.get_default(ctx.schema) is not None:
         return True
 
 
@@ -648,20 +648,21 @@ def computable_ptr_set(
             if (derived_from is not None and
                     not derived_from.generic(ctx.schema) and
                     derived_from.derived_from is not None and
-                    ptrcls.is_link_property()):
+                    ptrcls.is_link_property(ctx.schema)):
                 source_set.rptr.ptrcls = derived_from
 
     try:
         qlexpr, qlctx, inner_source_path_id = ctx.source_map[ptrcls]
     except KeyError:
-        if not ptrcls.default:
+        ptrcls_default = ptrcls.get_default(ctx.schema)
+        if not ptrcls_default:
             raise ValueError(
                 f'{ptrcls.shortname!r} is not a computable pointer')
 
-        if isinstance(ptrcls.default, s_expr.ExpressionText):
-            qlexpr = astutils.ensure_qlstmt(qlparser.parse(ptrcls.default))
+        if isinstance(ptrcls_default, s_expr.ExpressionText):
+            qlexpr = astutils.ensure_qlstmt(qlparser.parse(ptrcls_default))
         else:
-            qlexpr = qlast.BaseConstant.from_python(ptrcls.default)
+            qlexpr = qlast.BaseConstant.from_python(ptrcls_default)
 
         qlctx = None
         inner_source_path_id = None
@@ -678,22 +679,24 @@ def computable_ptr_set(
             qlctx=qlctx,
             ctx=ctx)
 
-    if ptrcls.is_link_property():
+    if ptrcls.is_link_property(ctx.schema):
         source_path_id = rptr.source.path_id.ptr_path()
     else:
         source_path_id = rptr.target.path_id.src_path()
 
     path_id = source_path_id.extend(
-        ptrcls, s_pointers.PointerDirection.Outbound, ptrcls.target,
+        ptrcls,
+        s_pointers.PointerDirection.Outbound,
+        ptrcls.get_target(ctx.schema),
         schema=ctx.schema)
 
     with newctx() as subctx:
-        subctx.view_scls = ptrcls.target
+        subctx.view_scls = ptrcls.get_target(ctx.schema)
         subctx.view_rptr = context.ViewRPtr(
             source_scls, ptrcls=ptrcls, rptr=rptr)
         subctx.anchors[qlast.Source] = source_set
         subctx.path_scope.contain_path(path_id)
-        subctx.empty_result_type_hint = ptrcls.target
+        subctx.empty_result_type_hint = ptrcls.get_target(ctx.schema)
 
         if isinstance(qlexpr, qlast.Statement) and unnest_fence:
             subctx.stmt_metadata[qlexpr] = context.StatementMetadata(
@@ -716,7 +719,7 @@ def computable_ptr_set(
 
         stmtctx.at_stmt_fini(_check_cardinality, ctx=ctx)
 
-    comp_ir_set.scls = ptrcls.target
+    comp_ir_set.scls = ptrcls.get_target(ctx.schema)
     comp_ir_set.path_id = path_id
     comp_ir_set.rptr = rptr
 

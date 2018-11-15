@@ -300,8 +300,9 @@ def new_root_rvar(
 
         if ptr_info.table_type == 'ObjectType':
             # Inline link
-            rref = dbobj.get_column(None, ptr_info.column_name,
-                                    nullable=not ptrcls.required)
+            rref = dbobj.get_column(
+                None, ptr_info.column_name,
+                nullable=not ptrcls.get_required(ctx.env.schema))
             pathctx.put_rvar_path_bond(
                 set_rvar, ir_set.path_id.src_path())
             pathctx.put_rvar_path_output(
@@ -390,7 +391,9 @@ def _new_mapped_pointer_rvar(
     else:
         tgt_col = common.edgedb_name_to_pg_name('std::target')
 
-    target_ref = dbobj.get_column(None, tgt_col, nullable=not ptrcls.required)
+    target_ref = dbobj.get_column(
+        None, tgt_col,
+        nullable=not ptrcls.get_required(ctx.env.schema))
 
     if ir_ptr.direction == s_pointers.PointerDirection.Inbound:
         near_ref = target_ref

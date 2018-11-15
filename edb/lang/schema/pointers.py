@@ -48,19 +48,24 @@ def merge_cardinality(target: so.Object, sources: typing.List[so.Object],
     current = None
     current_from = None
 
+    target_source = target.get_source(schema)
+
     for source in [target] + list(sources):
-        nextval = getattr(source, field_name)
+        nextval = source.get_explicit_field_value(schema, field_name, None)
         if nextval is not None:
             if current is None:
                 current = nextval
                 current_from = source
             else:
                 if current is not nextval:
-                    tgt_repr = (f'{target.source.displayname}.'
+                    current_from_source = current_from.get_source(schema)
+                    source_source = source.get_source(schema)
+
+                    tgt_repr = (f'{target_source.displayname}.'
                                 f'{target.displayname}')
-                    cf_repr = (f'{current_from.source.displayname}.'
+                    cf_repr = (f'{current_from_source.displayname}.'
                                f'{current_from.displayname}')
-                    other_repr = (f'{source.source.displayname}.'
+                    other_repr = (f'{source_source.displayname}.'
                                   f'{source.displayname}')
 
                     raise schema_error.SchemaError(
@@ -75,20 +80,37 @@ def merge_cardinality(target: so.Object, sources: typing.List[so.Object],
 
 class Pointer(constraints.ConsistencySubject):
 
-    source = so.Field(so.Object, None, compcoef=None)
-    target = so.Field(s_types.Type, None, compcoef=0.833)
+    source = so.SchemaField(
+        so.Object, None, compcoef=None)
 
-    required = so.Field(bool, default=False, compcoef=0.909,
-                        merge_fn=utils.merge_sticky_bool)
-    readonly = so.Field(bool, default=False, compcoef=0.909,
-                        merge_fn=utils.merge_sticky_bool)
-    computable = so.Field(bool, default=None, compcoef=0.909,
-                          merge_fn=utils.merge_weak_bool)
-    default = so.Field(sexpr.ExpressionText, default=None,
-                       coerce=True, compcoef=0.909)
-    cardinality = so.Field(qlast.Cardinality, default=None,
-                           compcoef=0.833, coerce=True,
-                           merge_fn=merge_cardinality)
+    target = so.SchemaField(
+        s_types.Type, None, compcoef=0.833)
+
+    required = so.SchemaField(
+        bool,
+        default=False, compcoef=0.909,
+        merge_fn=utils.merge_sticky_bool)
+
+    readonly = so.SchemaField(
+        bool,
+        public=True,
+        default=False, compcoef=0.909,
+        merge_fn=utils.merge_sticky_bool)
+
+    computable = so.SchemaField(
+        bool,
+        default=None, compcoef=0.909,
+        merge_fn=utils.merge_weak_bool)
+
+    default = so.SchemaField(
+        sexpr.ExpressionText,
+        public=True,
+        default=None, coerce=True, compcoef=0.909)
+
+    cardinality = so.SchemaField(
+        qlast.Cardinality,
+        default=None, compcoef=0.833, coerce=True,
+        merge_fn=merge_cardinality)
 
     @property
     def displayname(self) -> str:
@@ -98,15 +120,20 @@ class Pointer(constraints.ConsistencySubject):
         if self.generic(schema):
             raise ValueError(f'{self!r} is generic')
 
-        return self.source.material_type(schema).getptr(schema, self.shortname)
+        source = self.get_source(schema)
+        return source.material_type(schema).getptr(schema, self.shortname)
 
-    def get_near_endpoint(self, direction):
-        return (self.source if direction == PointerDirection.Outbound
-                else self.target)
+    def get_near_endpoint(self, schema, direction):
+        if direction == PointerDirection.Outbound:
+            return self.get_source(schema)
+        else:
+            return self.get_target(schema)
 
-    def get_far_endpoint(self, direction):
-        return (self.target if direction == PointerDirection.Outbound
-                else self.source)
+    def get_far_endpoint(self, schema, direction):
+        if direction == PointerDirection.Outbound:
+            return self.get_target(schema)
+        else:
+            return self.get_source(schema)
 
     def get_common_target(self, schema, targets, minimize_by=None):
         return inheriting.create_virtual_parent(
@@ -127,15 +154,16 @@ class Pointer(constraints.ConsistencySubject):
             dctx=dctx)
 
         if not self.generic(schema) and apply_defaults:
-            if self.cardinality is None:
-                self.cardinality = qlast.Cardinality.ONE
+            if self.get_cardinality(schema) is None:
+                schema = self.set_field_value(
+                    schema, 'cardinality', qlast.Cardinality.ONE)
 
                 if dctx is not None:
                     from . import delta as sd
 
                     dctx.current().op.add(sd.AlterObjectProperty(
                         property='cardinality',
-                        new_value=self.cardinality,
+                        new_value=self.get_cardinality(schema),
                         source='default'
                     ))
 
@@ -149,6 +177,8 @@ class Pointer(constraints.ConsistencySubject):
         # and return a target that satisfies both specified targets.
         #
 
+        source = ptr.get_source(schema)
+
         if (isinstance(t1, s_scalars.ScalarType) !=
                 isinstance(t2, s_scalars.ScalarType)):
             # Targets are not of the same node type
@@ -157,7 +187,7 @@ class Pointer(constraints.ConsistencySubject):
             ccn1 = type(t1).__name__
             ccn2 = type(t2).__name__
 
-            detail = (f'[{ptr.source.name}].[{pn}] targets {ccn1} "{t1.name}"'
+            detail = (f'[{source.name}].[{pn}] targets {ccn1} "{t1.name}"'
                       f'while it also targets {ccn2} "{t2.name}"'
                       'in other parent.')
 
@@ -171,7 +201,7 @@ class Pointer(constraints.ConsistencySubject):
                 pn = ptr.shortname
                 raise schema_error.SchemaError(
                     f'could not merge {pn!r} pointer: targets conflict',
-                    details=f'({ptr.source.name}).({pn}) targets scalar type'
+                    details=f'({source.name}).({pn}) targets scalar type'
                             f'{t1.name!r} while it also targets incompatible'
                             f'scalar type {t2.name!r} in other parent.')
 
@@ -207,7 +237,7 @@ class Pointer(constraints.ConsistencySubject):
                     pn = ptr.shortname
                     raise schema_error.SchemaError(
                         f'could not merge {pn!r} pointer: targets conflict',
-                        details=f'({ptr.source.name}).({pn}) targets object'
+                        details=f'({source.name}).({pn}) targets object'
                                 f' {t2.name!r} which is not related to any of'
                                 f' targets found in other sources being'
                                 f' merged: {t1.name!r}.')
@@ -218,7 +248,7 @@ class Pointer(constraints.ConsistencySubject):
 
             if len(new_targets) > 1:
                 tnames = (t.name for t in new_targets)
-                module = ptr.source.name.module
+                module = source.name.module
                 parent_name = s_objtypes.ObjectType.gen_virt_parent_name(
                     tnames, module)
                 current_target = s_objtypes.ObjectType(
@@ -234,7 +264,7 @@ class Pointer(constraints.ConsistencySubject):
         fqname = self.derive_name(source)
         ptr = schema.get(fqname, default=None)
         if ptr is not None:
-            if ptr.target != target:
+            if ptr.get_target(schema) != target:
                 ptr = None
 
         if ptr is None:
@@ -272,15 +302,15 @@ class Pointer(constraints.ConsistencySubject):
             if attrs and 'target' in attrs:
                 target = attrs['target']
             else:
-                target = self.target
+                target = self.get_target(schema)
 
             if merge_bases:
                 for base in merge_bases:
                     if target is None:
-                        target = base.target
+                        target = base.get_target(schema)
                     else:
                         schema, target = self.merge_targets(
-                            schema, self, target, base.target)
+                            schema, self, target, base.get_target(schema))
 
         if attrs is None:
             attrs = {}
@@ -293,8 +323,8 @@ class Pointer(constraints.ConsistencySubject):
             add_to_schema=add_to_schema, dctx=dctx, merge_bases=merge_bases,
             attrs=attrs, **kwargs)
 
-    def is_pure_computable(self):
-        return self.computable and bool(self.default)
+    def is_pure_computable(self, schema):
+        return self.get_computable(schema) and bool(self.get_default(schema))
 
     def is_id_pointer(self):
         return self.shortname in {'std::target', 'std::id'}
@@ -309,7 +339,7 @@ class Pointer(constraints.ConsistencySubject):
         return self.is_special_pointer() or self.shortname in {'std::__type__'}
 
     def generic(self, schema):
-        return self.source is None
+        return self.get_source(schema) is None
 
     def is_exclusive(self, schema):
         if self.generic(schema):
@@ -320,7 +350,7 @@ class Pointer(constraints.ConsistencySubject):
     def singular(self, schema, direction=PointerDirection.Outbound):
         # Determine the cardinality of a given endpoint set.
         if direction == PointerDirection.Outbound:
-            return self.cardinality is qlast.Cardinality.ONE
+            return self.get_cardinality(schema) is qlast.Cardinality.ONE
         else:
             return self.is_exclusive(schema)
 

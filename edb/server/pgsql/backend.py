@@ -278,7 +278,7 @@ class Backend:
 
             for ptr in view_shapes[t]:
                 subdesc = self._describe_type(
-                    schema, ptr.target, view_shapes, _tuples)
+                    schema, ptr.get_target(schema), view_shapes, _tuples)
                 subdesc.cardinality = (
                     '1' if ptr.singular(self.schema) else '*'
                 )
@@ -290,7 +290,7 @@ class Backend:
                 # There are link properties in the mix
                 for ptr in view_shapes[t_rptr]:
                     subdesc = self._describe_type(
-                        schema, ptr.target, view_shapes, _tuples)
+                        schema, ptr.get_target(schema), view_shapes, _tuples)
                     subdesc.cardinality = (
                         '1' if ptr.singular(self.schema) else '*'
                     )

@@ -529,7 +529,7 @@ def compile_result_clause(
             # or UPDATE, there's no need to explicitly specify the
             # empty set type and it can be assumed to match the pointer
             # target type.
-            target_t = view_rptr.ptrcls.target
+            target_t = view_rptr.ptrcls.get_target(ctx.schema)
 
             if astutils.is_ql_empty_set(result_expr):
                 expr = irutils.new_empty_set(
@@ -584,7 +584,7 @@ def compile_query_subject(
         matching_type = (
             expr.rptr is not None and
             view_rptr.ptrcls_is_linkprop ==
-            expr.rptr.ptrcls.is_link_property())
+            expr.rptr.ptrcls.is_link_property(ctx.schema))
         if matching_type:
             # We are inside an expression that defines a link alias in
             # the parent shape, ie. Spam { alias := Foo.bar }, so

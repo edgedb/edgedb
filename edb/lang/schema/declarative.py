@@ -21,6 +21,7 @@
 
 import collections
 import itertools
+import typing
 
 from edb.lang.common import ast
 from edb.lang.common import ordered
@@ -29,9 +30,10 @@ from edb.lang.common import topological
 from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import codegen as qlcodegen
-from edb.lang.edgeql import compiler as qlcompiler
 from edb.lang.edgeql import functypes as ft
 from edb.lang.edgeql import utils as qlutils
+
+from edb.lang.edgeql.parser.grammar import lexutils as ql_lexutils
 
 from edb.lang.ir import ast as ir_ast
 from edb.lang.ir import inference as ir_inference
@@ -364,7 +366,7 @@ class DeclarationLoader:
     def _init_scalars(self, scalars):
         for scalar, scalardecl in scalars.items():
             if scalardecl.attributes:
-                self._parse_attribute_values(scalar, scalardecl)
+                self._parse_field_setters(scalar, scalardecl.attributes)
 
             if scalardecl.constraints:
                 self._parse_subject_constraints(scalar, scalardecl)
@@ -462,72 +464,58 @@ class DeclarationLoader:
                 attrs=new_props,
                 add_to_schema=True)
 
-            self._schema = prop.set_field_value(
-                self._schema, 'declared_inherited', propdecl.inherited)
-
-            prop.required = bool(propdecl.required)
-            prop.cardinality = propdecl.cardinality
+            self._schema = prop.update(self._schema, {
+                'declared_inherited': propdecl.inherited,
+                'required': bool(propdecl.required),
+                'cardinality': propdecl.cardinality,
+            })
 
             if propdecl.expr is not None:
-                prop.computable = True
+                self._schema = prop.set_field_value(
+                    self._schema, 'computable', True)
 
             self._schema = source.add_pointer(self._schema, prop)
 
             if propdecl.attributes:
-                for attrdecl in propdecl.attributes:
-                    name = attrdecl.name.name
-                    if name == 'default':
-                        # the default can be computable or static
-                        #
-                        self._parse_ptr_default(attrdecl.value, source, prop)
-                        break
+                self._parse_field_setters(prop, propdecl.attributes)
 
             if propdecl.constraints:
                 self._parse_subject_constraints(prop, propdecl)
 
-    def _parse_ptr_default(self, expr, source, ptr):
-        """Set the default value for a pointer."""
-        ptr.default = s_expr.ExpressionText(qlcodegen.generate_source(expr))
+    def _parse_field_setters(self, ptr,
+                             attrdecls: typing.List[s_ast.Attribute]):
+        fields = type(ptr).get_fields()
+        updates = {}
 
-    def _parse_attribute_values(self, subject, subjdecl):
-        attrs = {}
+        check_type = lambda t, types: any(issubclass(bt, t) for bt in types)
 
-        for attrdecl in subjdecl.attributes:
-            attr_name = self._get_ref_name(attrdecl.name)
+        for attrdecl in attrdecls:
+            attrname = attrdecl.name.name
 
-            if hasattr(type(subject), attr_name):
-                # This is a builtin attribute should have already been set
-                continue
+            attrfield = fields.get(attrname)
+            if attrfield is None or not attrfield.public:
+                raise s_err.SchemaError(
+                    f'unexpected attribute {attrname}',
+                    context=attrdecl.context)
 
-            attribute = self._schema.get(
-                attr_name, module_aliases=self._mod_aliases)
+            if check_type(s_expr.ExpressionText, attrfield.type):
+                updates[attrname] = qlcodegen.generate_source(attrdecl.value)
 
-            genname = s_attrs.AttributeValue.get_specialized_name(
-                attribute.name, subject.name)
+            elif (check_type(bool, attrfield.type) and
+                    isinstance(attrdecl.value, qlast.BooleanConstant)):
+                updates[attrname] = attrdecl.value.value.lower() == 'true'
 
-            dername = s_name.Name(name=genname, module=subject.name.module)
+            elif (check_type(str, attrfield.type) and
+                    isinstance(attrdecl.value, qlast.StringConstant)):
+                updates[attrname] = ql_lexutils.unescape_string(
+                    attrdecl.value.value)
+            else:
+                raise s_err.SchemaError(
+                    f'unable to parse value for {attrname} attribute',
+                    context=attrdecl.context)
 
-            attrval = qlast.TypeCast(
-                expr=attrdecl.value,
-                type=s_utils.typeref_to_ast(
-                    self._schema, attribute.get_type(self._schema)),
-            )
-
-            # Compiling the attribute value declaration validates it.
-            qlcompiler.compile_ast_fragment_to_ir(
-                attrval, schema=self._schema,
-                modaliases=self._mod_aliases)
-
-            attrvalue = s_attrs.AttributeValue(
-                name=dername, subject=subject,
-                attribute=attribute,
-                sourcectx=attrdecl.context,
-                value=qlcodegen.generate_source(attrdecl.value, pretty=False))
-
-            self._schema = self._schema.add(attrvalue)
-            self._schema = subject.add_attribute(self._schema, attrvalue)
-
-        return attrs
+        if updates:
+            self._schema = ptr.update(self._schema, updates)
 
     def _parse_subject_constraints(self, subject, subjdecl):
         # Perform initial collection of constraints defined in subject context.
@@ -625,7 +613,7 @@ class DeclarationLoader:
             self._parse_source_props(objtype, objtypedecl)
 
             if objtypedecl.attributes:
-                self._parse_attribute_values(objtype, objtypedecl)
+                self._parse_field_setters(objtype, objtypedecl.attributes)
 
             for linkdecl in objtypedecl.links:
                 link_name = self._get_ref_name(linkdecl.name)
@@ -694,17 +682,22 @@ class DeclarationLoader:
                     add_to_schema=True,
                     apply_defaults=not linkdecl.inherited)
 
-                link.spectargets = spectargets
+                self._schema = link.update(self._schema, {
+                    'spectargets': spectargets,
+                    'required': bool(linkdecl.required),
+                    'cardinality': linkdecl.cardinality,
+                    'declared_inherited': linkdecl.inherited,
+                })
 
-                link.required = bool(linkdecl.required)
-                link.cardinality = linkdecl.cardinality
-                self._schema = link.set_field_value(
-                    self._schema, 'declared_inherited', linkdecl.inherited)
                 if linkdecl.on_target_delete is not None:
-                    link.on_target_delete = linkdecl.on_target_delete.cascade
+                    self._schema = link.set_field_value(
+                        self._schema,
+                        'on_target_delete',
+                        linkdecl.on_target_delete.cascade)
 
                 if linkdecl.expr is not None:
-                    link.computable = True
+                    self._schema = link.set_field_value(
+                        self._schema, 'computable', True)
 
                 self._parse_source_props(link, linkdecl)
                 self._schema = objtype.add_pointer(self._schema, link)
@@ -765,8 +758,10 @@ class DeclarationLoader:
                             attr.value, objtype, spec_link, ptrdecl)
                     else:
                         expr = attr.value
-                        _, _, spec_link.default = qlutils.normalize_tree(
+                        _, _, default = qlutils.normalize_tree(
                             expr, self._schema)
+                        self._schema = spec_link.set_field_value(
+                            self._schema, 'default', default)
 
     def _normalize_ptr_default(self, expr, source, ptr, ptrdecl):
         module_aliases = {None: source.name.module}
@@ -789,12 +784,13 @@ class DeclarationLoader:
                     source.name, ptr.shortname),
                 context=expr.context) from e
 
-        ptr.default = expr_text
+        self._schema = ptr.set_field_value(self._schema, 'default', expr_text)
 
-        if ptr.is_pure_computable():
+        if ptr.is_pure_computable(self._schema):
             # Pure computable without explicit target.
             # Fixup pointer target and target property.
-            ptr.target = expr_type
+            self._schema = ptr.set_field_value(
+                self._schema, 'target', expr_type)
 
             if isinstance(ptr, s_links.Link):
                 if not isinstance(expr_type, s_objtypes.ObjectType):
@@ -815,7 +811,8 @@ class DeclarationLoader:
             if isinstance(ptr, s_links.Link):
                 pname = s_name.Name('std::target')
                 tgt_prop = ptr.getptr(self._schema, pname)
-                tgt_prop.target = expr_type
+                self._schema = tgt_prop.set_field_value(
+                    self._schema, 'target', expr_type)
 
             scope_tree_root = ir_ast.new_scope_tree()
             if self_set is not None:
@@ -824,10 +821,12 @@ class DeclarationLoader:
             else:
                 scope_tree = scope_tree_root
 
-            ptr.cardinality = \
-                ir_inference.infer_cardinality(ir, scope_tree, self._schema)
+            self._schema = ptr.set_field_value(
+                self._schema,
+                'cardinality',
+                ir_inference.infer_cardinality(ir, scope_tree, self._schema))
 
-            if ptrdecl.cardinality is not ptr.cardinality:
+            if ptrdecl.cardinality is not ptr.get_cardinality(self._schema):
                 if ptrdecl.cardinality is qlast.Cardinality.ONE:
                     raise s_err.SchemaError(
                         f'computable expression possibly returns more than '
@@ -836,11 +835,13 @@ class DeclarationLoader:
                         context=expr.context)
 
         if (not isinstance(expr_type, s_types.Type) or
-                (ptr.target is not None and
-                 not expr_type.issubclass(self._schema, ptr.target))):
+                (ptr.get_target(self._schema) is not None and
+                 not expr_type.issubclass(
+                    self._schema, ptr.get_target(self._schema)))):
             raise s_err.SchemaError(
                 'default value query must yield a single result of '
-                'type {!r}'.format(ptr.target.name), context=expr.context)
+                'type {!r}'.format(ptr.get_target(self._schema).name),
+                context=expr.context)
 
 
 def load_module_declarations(schema, declarations):

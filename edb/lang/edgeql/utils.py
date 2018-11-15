@@ -93,7 +93,8 @@ def normalize_tree(expr, schema, *, modaliases=None, anchors=None,
         expr, schema,
         modaliases=modaliases, anchors=anchors)
 
-    edgeql_tree = compiler.decompile_ir(ir, inline_anchors=inline_anchors)
+    edgeql_tree = compiler.decompile_ir(
+        ir, inline_anchors=inline_anchors, schema=schema)
 
     source = codegen.generate_source(edgeql_tree, pretty=False)
 

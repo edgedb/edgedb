@@ -115,8 +115,9 @@ class TestSchema(tb.BaseSchemaTest):
         """)
 
         obj = schema.get('test::Object')
-        self.assertEqual(obj.getptr(schema, 'foo_plus_bar').cardinality,
-                         s_pointers.Cardinality.ONE)
+        self.assertEqual(
+            obj.getptr(schema, 'foo_plus_bar').get_cardinality(schema),
+            s_pointers.Cardinality.ONE)
 
     def test_schema_computable_cardinality_inference_02(self):
         schema = self.load_schema("""
@@ -127,5 +128,6 @@ class TestSchema(tb.BaseSchemaTest):
         """)
 
         obj = schema.get('test::Object')
-        self.assertEqual(obj.getptr(schema, 'foo_plus_bar').cardinality,
-                         s_pointers.Cardinality.MANY)
+        self.assertEqual(
+            obj.getptr(schema, 'foo_plus_bar').get_cardinality(schema),
+            s_pointers.Cardinality.MANY)

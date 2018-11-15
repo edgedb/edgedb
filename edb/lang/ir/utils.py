@@ -25,6 +25,7 @@ from edb.lang.common import ast
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import links as s_links
 from edb.lang.schema import name as s_name
+from edb.lang.schema import objects as so
 from edb.lang.schema import pointers as s_pointers
 from edb.lang.schema import pseudo as s_pseudo
 from edb.lang.schema import schema as s_schema
@@ -230,26 +231,19 @@ def tuple_indirection_path_id(tuple_path_id, element_name, element_type, *,
 class TypeIndirectionLink(s_links.Link):
     """A Link subclass that can be used in type indirection path ids."""
 
+    optional = so.SchemaField(
+        bool, compcoef=0.909, ephemeral=True, introspectable=False)
+
     def __init__(self, source, target, *, optional, cardinality):
         name = 'optindirection' if optional else 'indirection'
         super().__init__(
             name=s_name.Name(module='__type__', name=name),
             source=source,
             target=target,
-            direction=s_pointers.PointerDirection.Outbound
+            direction=s_pointers.PointerDirection.Outbound,
+            cardinality=cardinality,
+            optional=optional,
         )
-        self.optional = optional
-        self.cardinality = cardinality
-
-    def __hash__(self):
-        return hash((self.__class__, self.name, self.source, self.target))
-
-    def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            return False
-
-        return (self.name == other.name and self.source == other.source and
-                self.target == other.target)
 
     def generic(self, schema):
         # Make PathId happy.

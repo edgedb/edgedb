@@ -113,7 +113,7 @@ def fini_expression(
             ctx.schema = vptr.set_field_value(
                 ctx.schema,
                 'target',
-                vptr.target.material_type(ctx.schema))
+                vptr.get_target(ctx.schema).material_type(ctx.schema))
 
             if not hasattr(vptr, 'get_own_pointers'):
                 continue
@@ -123,7 +123,7 @@ def fini_expression(
                 ctx.schema = vlprop.set_field_value(
                     ctx.schema,
                     'target',
-                    vlprop.target.material_type(ctx.schema))
+                    vlprop.get_target(ctx.schema).material_type(ctx.schema))
 
     result = irast.Statement(
         expr=ir,
@@ -147,12 +147,14 @@ def compile_anchor(
         step = setgen.class_set(anchor, ctx=ctx)
 
     elif (isinstance(anchor, s_pointers.Pointer) and
-            not anchor.is_link_property()):
-        if anchor.source:
+            not anchor.is_link_property(ctx.schema)):
+        if anchor.get_source(ctx.schema):
             path = setgen.extend_path(
-                setgen.class_set(anchor.source, ctx=ctx), anchor,
+                setgen.class_set(anchor.get_source(ctx.schema), ctx=ctx),
+                anchor,
                 s_pointers.PointerDirection.Outbound,
-                anchor.target, ctx=ctx)
+                anchor.get_target(ctx.schema),
+                ctx=ctx)
         else:
             Object = ctx.schema.get('std::Object')
 
@@ -161,33 +163,45 @@ def compile_anchor(
                 mark_derived=True, add_to_schema=False)
 
             path = setgen.extend_path(
-                setgen.class_set(Object, ctx=ctx), ptrcls,
+                setgen.class_set(Object, ctx=ctx),
+                ptrcls,
                 s_pointers.PointerDirection.Outbound,
-                ptrcls.target, ctx=ctx)
+                ptrcls.get_target(ctx.schema),
+                ctx=ctx)
 
         step = path
 
-    elif isinstance(anchor, s_pointers.Pointer) and anchor.is_link_property():
-        if anchor.source.source:
+    elif (isinstance(anchor, s_pointers.Pointer) and
+            anchor.is_link_property(ctx.schema)):
+
+        anchor_source = anchor.get_source(ctx.schema)
+        anchor_source_source = anchor_source.get_source(ctx.schema)
+
+        if anchor_source_source:
             path = setgen.extend_path(
-                setgen.class_set(anchor.source.source, ctx=ctx),
-                anchor.source,
+                setgen.class_set(anchor_source_source, ctx=ctx),
+                anchor_source,
                 s_pointers.PointerDirection.Outbound,
-                anchor.source.target, ctx=ctx)
+                anchor.get_source(ctx.schema).get_target(ctx.schema),
+                ctx=ctx)
         else:
             Object = ctx.schema.get('std::Object')
-            ctx.schema, ptrcls = anchor.source.get_derived(
+            ctx.schema, ptrcls = anchor_source.get_derived(
                 ctx.schema, Object, Object,
                 mark_derived=True, add_to_schema=False)
             path = setgen.extend_path(
-                setgen.class_set(Object, ctx=ctx), ptrcls,
+                setgen.class_set(Object, ctx=ctx),
+                ptrcls,
                 s_pointers.PointerDirection.Outbound,
-                ptrcls.target, ctx=ctx)
+                ptrcls.get_target(ctx.schema),
+                ctx=ctx)
 
         step = setgen.extend_path(
-            path, anchor,
+            path,
+            anchor,
             s_pointers.PointerDirection.Outbound,
-            anchor.target, ctx=ctx)
+            anchor.get_target(ctx.schema),
+            ctx=ctx)
 
     elif isinstance(anchor, qlast.SubExpr):
         with ctx.new() as subctx:
@@ -335,7 +349,7 @@ def infer_pointer_cardinality(
     else:
         ptr_card = inferred_card
 
-    ptrcls.cardinality = ptr_card
+    ctx.schema = ptrcls.set_field_value(ctx.schema, 'cardinality', ptr_card)
     _update_cardinality_in_derived(ptrcls, ctx=ctx)
 
 
@@ -345,8 +359,10 @@ def _update_cardinality_in_derived(
 
     children = ctx.pointer_derivation_map.get(ptrcls)
     if children:
+        ptrcls_cardinality = ptrcls.get_cardinality(ctx.schema)
         for child in children:
-            child.cardinality = ptrcls.cardinality
+            ctx.schema = child.set_field_value(
+                ctx.schema, 'cardinality', ptrcls_cardinality)
             _update_cardinality_in_derived(child, ctx=ctx)
 
 

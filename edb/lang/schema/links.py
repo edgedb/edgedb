@@ -54,11 +54,15 @@ def merge_actions(target: so.Object, sources: typing.List[so.Object],
                     current = theirs
                     current_from = source
                 elif current != theirs:
-                    tgt_repr = (f'{target.source.displayname}.'
+                    target_source = target.get_source(schema)
+                    current_from_source = current_from.get_source(schema)
+                    source_source = source.get_source(schema)
+
+                    tgt_repr = (f'{target_source.displayname}.'
                                 f'{target.displayname}')
-                    cf_repr = (f'{current_from.source.displayname}.'
+                    cf_repr = (f'{current_from_source.displayname}.'
                                f'{current_from.displayname}')
-                    other_repr = (f'{source.source.displayname}.'
+                    other_repr = (f'{source_source.displayname}.'
                                   f'{source.displayname}')
 
                     raise s_err.SchemaError(
@@ -94,8 +98,12 @@ class Link(sources.Source, pointers.Pointer):
         if not pointers.has(schema, src_n):
             source_pbase = schema.get(src_n)
             schema, source_p = source_pbase.derive(
-                schema, self, self.source, mark_derived=mark_derived,
-                add_to_schema=add_to_schema, dctx=dctx)
+                schema,
+                self,
+                self.get_source(schema),
+                mark_derived=mark_derived,
+                add_to_schema=add_to_schema,
+                dctx=dctx)
 
             schema = self.add_pointer(schema, source_p)
 
@@ -103,8 +111,12 @@ class Link(sources.Source, pointers.Pointer):
         if not pointers.has(schema, tgt_n):
             target_pbase = schema.get(tgt_n)
             schema, target_p = target_pbase.derive(
-                schema, self, self.target, mark_derived=mark_derived,
-                add_to_schema=add_to_schema, dctx=dctx)
+                schema,
+                self,
+                self.get_target(schema),
+                mark_derived=mark_derived,
+                add_to_schema=add_to_schema,
+                dctx=dctx)
 
             schema = self.add_pointer(schema, target_p)
 
@@ -124,7 +136,7 @@ class Link(sources.Source, pointers.Pointer):
 
         return schema, ptr
 
-    def is_link_property(self):
+    def is_link_property(self, schema):
         return False
 
     def scalar(self):

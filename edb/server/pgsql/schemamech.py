@@ -108,7 +108,7 @@ class ConstraintMech:
             rptr = ref.rptr
             if rptr is not None:
                 ptr = ref.rptr.ptrcls
-                if ptr.is_link_property():
+                if ptr.is_link_property(schema):
                     src = ref.rptr.source.rptr.ptrcls
                     if src.is_derived:
                         # This specialized pointer was derived specifically

@@ -770,8 +770,9 @@ class ScalarTypeMetaCommand(ViewCapableObjectMetaCommand):
         users = []
 
         for link in schema.get_objects(type='link'):
-            if link.target and link.target.name == scalar.name:
-                users.append((link.source, link))
+            if (link.get_target(schema) and
+                    link.get_target(schema).name == scalar.name):
+                users.append((link.get_source(schema), link))
 
         domain_name = common.scalar_name_to_domain_name(
             scalar.name, catenate=False)
@@ -1115,36 +1116,14 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
 
         return source, pointer
 
-    def affirm_pointer_defaults(self, source, schema, context):
-        source_pointers = source.get_pointers(schema).items(schema)
-        for pointer_name, pointer in source_pointers:
-            # XXX pointer_storage_info?
-            if (
-                    pointer.generic(schema) or not pointer.scalar() or
-                    not pointer.singular(schema) or not pointer.default):
-                continue
-
-            default = None
-
-            if not isinstance(pointer.default, s_expr.ExpressionText):
-                default = pointer.default
-
-            if default is not None:
-                alter_table = self.get_alter_table(
-                    context, priority=3, contained=True)
-                column_name = common.edgedb_name_to_pg_name(pointer_name)
-                alter_table.add_operation(
-                    dbops.AlterTableAlterColumnDefault(
-                        column_name=column_name, default=default))
-
     def adjust_pointer_storage(self, orig_pointer, pointer, schema, context):
         old_ptr_stor_info = types.get_pointer_storage_info(
             orig_pointer, schema=schema)
         new_ptr_stor_info = types.get_pointer_storage_info(
             pointer, schema=schema)
 
-        old_target = orig_pointer.target
-        new_target = pointer.target
+        old_target = orig_pointer.get_target(schema)
+        new_target = pointer.get_target(schema)
 
         source_ctx = context.get(s_objtypes.ObjectTypeCommandContext)
         source_op = source_ctx.op
@@ -1294,7 +1273,7 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
                     col = dbops.Column(
                         name=ptr_stor_info.column_name,
                         type=common.qname(*ptr_stor_info.column_type),
-                        required=ptr.required)
+                        required=ptr.get_required(schema))
                     cond = dbops.ColumnExists(
                         table_name=source_ctx.op.table_name,
                         column_name=ptr_stor_info.column_name)
@@ -1337,7 +1316,7 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
                             col = dbops.Column(
                                 name=ptr_stor_info.column_name,
                                 type=common.qname(*ptr_stor_info.column_type),
-                                required=ptr.required)
+                                required=ptr.get_required(schema))
 
                             cond = dbops.ColumnExists(
                                 table_name=ptr_stor_info.table_name,
@@ -1573,8 +1552,6 @@ class CreateObjectType(ObjectTypeMetaCommand,
         )
         objtype_table.add_bases(bases)
 
-        self.affirm_pointer_defaults(objtype, schema, context)
-
         self.attach_alter_table(context)
 
         if self.update_search_indexes:
@@ -1780,7 +1757,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             alter_table.add_operation(dbops.AlterTableDropColumn(col))
 
     def get_pointer_default(self, ptr, schema, context):
-        if ptr.is_pure_computable():
+        if ptr.is_pure_computable(schema):
             return None
 
         default = self.updates.get('default')
@@ -1793,11 +1770,13 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             else:
                 default_value = common.quote_literal(
                     str(default))
-        elif ptr.target.issubclass(schema, schema.get('std::sequence')):
+        elif ptr.get_target(schema).issubclass(
+                schema, schema.get('std::sequence')):
             # TODO: replace this with a generic scalar type default
             #       using std::nextval().
             seq_name = common.quote_literal(
-                common.scalar_name_to_sequence_name(ptr.target.name))
+                common.scalar_name_to_sequence_name(
+                    ptr.get_target(schema).name))
             default_value = f'nextval({seq_name}::regclass)'
 
         return default_value
@@ -1843,7 +1822,8 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             dbops.Column(
                 name=ptr_stor_info.column_name,
                 type=col_type,
-                required=pointer.required, default=default,
+                required=pointer.get_required(schema),
+                default=default,
                 comment=pointer.shortname)
         ]
 
@@ -1900,7 +1880,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
     def has_table(cls, src, schema):
         if isinstance(src, s_objtypes.ObjectType):
             return True
-        elif src.is_pure_computable() or src.is_derived:
+        elif src.is_pure_computable(schema) or src.is_derived:
             return False
         elif src.generic(schema):
             if src.name == 'std::link':
@@ -2088,9 +2068,6 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
                 if default_value is not None:
                     self.alter_pointer_default(link, schema, context)
 
-        if link.generic(schema):
-            self.affirm_pointer_defaults(link, schema, context)
-
         objtype = context.get(s_objtypes.ObjectTypeCommandContext)
         self.pgops.add(
             dbops.Insert(table=self.table, records=[rec], priority=1))
@@ -2179,8 +2156,9 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
                     break
 
             if new_type:
-                if not isinstance(link.target, s_obj.Object):
-                    link.target = schema.get(link.target)
+                if not isinstance(link.get_target(schema), s_obj.Object):
+                    schema = link.set_field_value(
+                        schema, 'target', schema.get(link.get_target(schema)))
 
             self.attach_alter_table(context)
 
@@ -2191,19 +2169,24 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
                     old_link, schema=schema)
                 ptr_stor_info = types.get_pointer_storage_info(
                     link, schema=schema)
-                if (
-                        old_ptr_stor_info.table_type == 'ObjectType' and
+
+                link_required = link.get_required(schema)
+                old_link_required = self.old_link.get_required(schema)
+
+                if (old_ptr_stor_info.table_type == 'ObjectType' and
                         ptr_stor_info.table_type == 'ObjectType' and
-                        link.required != self.old_link.required):
+                        link_required != old_link_required):
+
                     ot_ctx = context.get(s_objtypes.ObjectTypeCommandContext)
                     alter_table = ot_ctx.op.get_alter_table(context)
                     column_name = common.edgedb_name_to_pg_name(
                         link.shortname)
                     alter_table.add_operation(
                         dbops.AlterTableAlterColumnNull(
-                            column_name=column_name, null=not link.required))
+                            column_name=column_name,
+                            null=not link.get_required(schema)))
 
-            if isinstance(link.target, s_scalars.ScalarType):
+            if isinstance(link.get_target(schema), s_scalars.ScalarType):
                 self.alter_pointer_default(link, schema, context)
 
         return schema, link
@@ -2376,13 +2359,14 @@ class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
                     cond = dbops.ColumnExists(
                         table_name=alter_table.name, column_name=col.name)
 
-                    if prop.required:
+                    if prop.get_required(schema):
                         # For some reason, Postgres allows dropping NOT NULL
                         # constraints from inherited columns, but we really
                         # should only always increase constraints down the
                         # inheritance chain.
                         cmd = dbops.AlterTableAlterColumnNull(
-                            column_name=col.name, null=not prop.required)
+                            column_name=col.name,
+                            null=not prop.get_required(schema))
                         alter_table.add_operation((cmd, (cond, ), None))
 
                     cmd = dbops.AlterTableAddColumn(col)
@@ -2430,15 +2414,21 @@ class AlterProperty(
                         table=self.table, record=rec, condition=[(
                             'name', str(prop.name))], priority=1))
 
-            if isinstance(prop.target, s_scalars.ScalarType) and \
-                    isinstance(self.old_prop.target, s_scalars.ScalarType) and\
-                    prop.required != self.old_prop.required:
+            prop_target = prop.get_target(schema)
+            old_prop_target = self.old_prop.get_target(schema)
+
+            prop_required = prop.get_required(schema)
+            old_prop_required = self.old_prop.get_required(schema)
+
+            if (isinstance(prop_target, s_scalars.ScalarType) and
+                    isinstance(old_prop_target, s_scalars.ScalarType) and
+                    prop_required != old_prop_required):
 
                 src_ctx = context.get(s_sources.SourceCommandContext)
                 src_op = src_ctx.op
                 alter_table = src_op.get_alter_table(context, priority=5)
                 column_name = common.edgedb_name_to_pg_name(prop.shortname)
-                if prop.required:
+                if prop.get_required(schema):
                     table = src_op._type_mech.get_table(src_ctx.scls, schema)
                     rec = table.record(**{column_name: dbops.Default()})
                     cond = [(column_name, None)]
@@ -2446,7 +2436,8 @@ class AlterProperty(
                     self.pgops.add(update)
                 alter_table.add_operation(
                     dbops.AlterTableAlterColumnNull(
-                        column_name=column_name, null=not prop.required))
+                        column_name=column_name,
+                        null=not prop.get_required(schema)))
 
             new_type = None
             for op in self.get_subcommands(type=sd.AlterObjectProperty):
@@ -2529,7 +2520,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
         return common.convert_name(target.name, name, catenate=False)
 
-    def get_trigger_proc_text(self, target, links, disposition):
+    def get_trigger_proc_text(self, target, links, disposition, schema):
         chunks = []
 
         DA = s_links.LinkTargetDeleteAction
@@ -2604,7 +2595,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
             elif action == s_links.LinkTargetDeleteAction.DELETE_SOURCE:
                 sources = collections.defaultdict(list)
                 for link in links:
-                    sources[link.source].append(link)
+                    sources[link.get_source(schema)].append(link)
 
                 for source, source_links in sources.items():
                     tables = self._get_link_table_union(source_links)
@@ -2652,19 +2643,19 @@ class UpdateEndpointDeleteActions(MetaCommand):
         deferred_target_map = collections.defaultdict(list)
 
         for link_op, link in self.link_ops:
-            if link.generic(schema) or link.source.is_view(schema):
+            if link.generic(schema) or link.get_source(schema).is_view(schema):
                 continue
 
             ptr_stor_info = types.get_pointer_storage_info(link, schema=schema)
             if ptr_stor_info.table_type != 'link':
                 continue
 
-            source_map[link.source.name].append(link)
+            source_map[link.get_source(schema).name].append(link)
 
             if link.on_target_delete is DA.DEFERRED_RESTRICT:
-                deferred_target_map[link.target.name].append(link)
+                deferred_target_map[link.get_target(schema).name].append(link)
             else:
-                target_map[link.target.name].append(link)
+                target_map[link.get_target(schema).name].append(link)
 
         for source_name, links in source_map.items():
             self._create_action_triggers(
@@ -2707,7 +2698,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
             proc_name = self.get_trigger_proc_name(
                 objtype, disposition=disposition, deferred=deferred)
             proc_text = self.get_trigger_proc_text(
-                objtype, links, disposition=disposition)
+                objtype, links, disposition=disposition, schema=schema)
 
             trig_func = dbops.Function(
                 name=proc_name, text=proc_text, volatility='volatile',

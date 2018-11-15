@@ -286,20 +286,16 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
             '''\
 CREATE ABSTRACT PROPERTY test::lang {
     SET is_virtual := false;
-    SET readonly := false;
 };
 CREATE ABSTRACT PROPERTY test::name {
     SET is_virtual := false;
-    SET readonly := false;
 };
 CREATE ABSTRACT LINK test::related EXTENDING std::link {
     SET is_virtual := false;
-    SET readonly := false;
 };
 ALTER ABSTRACT LINK test::related \
 CREATE SINGLE PROPERTY test::lang -> std::str {
     SET is_virtual := false;
-    SET readonly := false;
 };
 CREATE TYPE test::NamedObject EXTENDING std::Object {
     SET is_virtual := false;
@@ -307,25 +303,21 @@ CREATE TYPE test::NamedObject EXTENDING std::Object {
 ALTER TYPE test::NamedObject {
     CREATE REQUIRED SINGLE PROPERTY test::name -> std::str {
         SET is_virtual := false;
-        SET readonly := false;
     };
     CREATE REQUIRED SINGLE LINK test::related -> test::NamedObject {
         SET is_virtual := false;
         SET on_target_delete := 'RESTRICT';
-        SET readonly := false;
     };
     ALTER LINK test::related {
         CREATE SINGLE PROPERTY std::source -> test::NamedObject {
             SET is_virtual := false;
-            SET readonly := false;
         };
         CREATE SINGLE PROPERTY std::target -> test::NamedObject {
             SET is_virtual := false;
-            SET readonly := false;
         };
         CREATE SINGLE PROPERTY test::lang -> std::str {
             SET is_virtual := false;
-            SET readonly := false;
+            SET title := 'Language';
         };
     };
 };
@@ -349,7 +341,6 @@ ALTER TYPE test::NamedObject {
             '''\
 CREATE ABSTRACT PROPERTY test::a {
     SET is_virtual := false;
-    SET readonly := false;
 };
 CREATE TYPE test::NamedObject EXTENDING std::Object {
     SET is_virtual := false;
@@ -357,7 +348,6 @@ CREATE TYPE test::NamedObject EXTENDING std::Object {
 ALTER TYPE test::NamedObject CREATE REQUIRED SINGLE PROPERTY \
 test::a -> array<std::int64> {
     SET is_virtual := false;
-    SET readonly := false;
 };
             '''
         )
@@ -379,11 +369,9 @@ test::a -> array<std::int64> {
             '''\
             CREATE ABSTRACT PROPERTY test::bar {
                 SET is_virtual := false;
-                SET readonly := false;
             };
             CREATE ABSTRACT PROPERTY test::__typename {
                 SET is_virtual := false;
-                SET readonly := false;
             };
             CREATE ABSTRACT TYPE test::Foo EXTENDING std::Object {
                 SET is_virtual := false;
@@ -391,7 +379,6 @@ test::a -> array<std::int64> {
             ALTER TYPE test::Foo {
                 CREATE SINGLE PROPERTY test::bar -> std::str {
                     SET is_virtual := false;
-                    SET readonly := false;
                 };
                 CREATE SINGLE PROPERTY test::__typename -> std::str {
                     SET computable := true;
@@ -399,7 +386,6 @@ test::a -> array<std::int64> {
                         'foo'
                     ;
                     SET is_virtual := false;
-                    SET readonly := false;
                 };
             };
             '''
@@ -422,11 +408,9 @@ test::a -> array<std::int64> {
             '''\
             CREATE ABSTRACT PROPERTY test::bar {
                 SET is_virtual := false;
-                SET readonly := false;
             };
             CREATE ABSTRACT PROPERTY test::__typename {
                 SET is_virtual := false;
-                SET readonly := false;
             };
             CREATE ABSTRACT TYPE test::Foo EXTENDING std::Object {
                 SET is_virtual := false;
@@ -434,7 +418,6 @@ test::a -> array<std::int64> {
             ALTER TYPE test::Foo {
                 CREATE SINGLE PROPERTY test::bar -> std::str {
                     SET is_virtual := false;
-                    SET readonly := false;
                 };
                 CREATE SINGLE PROPERTY test::__typename -> std::str {
                     SET computable := true;
@@ -442,8 +425,49 @@ test::a -> array<std::int64> {
                         __source__.__type__[IS schema::Type].name
                     ;
                     SET is_virtual := false;
-                    SET readonly := false;
                 };
             };
             '''
         )
+
+    async def test_delta_ddlgen_05(self):
+        result = await self.con.execute("""
+            # setup delta
+            #
+            CREATE MIGRATION test::d5 TO eschema $$
+                type NamedObject2:
+                    property a2 -> array<int64>:
+                        readonly := true
+            $$;
+
+            GET MIGRATION test::d5;
+        """)
+
+        self._assert_result(
+            result[1],
+            '''\
+CREATE ABSTRACT PROPERTY test::a2 {
+    SET is_virtual := false;
+};
+CREATE TYPE test::NamedObject2 EXTENDING std::Object {
+    SET is_virtual := false;
+};
+ALTER TYPE test::NamedObject2 CREATE SINGLE PROPERTY \
+test::a2 -> array<std::int64> {
+    SET is_virtual := false;
+    SET readonly := true;
+};
+            '''
+        )
+
+    async def test_delta_ddlgen_06(self):
+        with self.assertRaisesRegex(
+                exceptions.SchemaError, r"unexpected attribute aaa"):
+
+            await self.con.execute("""
+                CREATE MIGRATION test::d5 TO eschema $$
+                    type NamedObject2:
+                        property a2 -> array<int64>:
+                            aaa := true
+                $$;
+            """)

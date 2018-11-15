@@ -189,7 +189,7 @@ def range_for_ptrcls(
     `ptrcls` taking source inheritance into account.
     """
     linkname = ptrcls.shortname
-    endpoint = ptrcls.source
+    endpoint = ptrcls.get_source(env.schema)
 
     tgt_col = pgtypes.get_pointer_storage_info(
         ptrcls, resolve_type=False, link_bias=True).column_name

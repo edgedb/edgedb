@@ -169,8 +169,9 @@ def pg_type_from_object(
 
 class PointerStorageInfo:
     @classmethod
-    def _source_table_info(cls, pointer):
-        table = common.get_table_name(pointer.source, catenate=False)
+    def _source_table_info(cls, schema, pointer):
+        table = common.get_table_name(
+            pointer.get_source(schema), catenate=False)
         ptr_name = pointer.shortname
         col_name = common.edgedb_name_to_pg_name(ptr_name)
         table_type = 'ObjectType'
@@ -178,7 +179,7 @@ class PointerStorageInfo:
         return table, table_type, col_name
 
     @classmethod
-    def _pointer_table_info(cls, pointer):
+    def _pointer_table_info(cls, schema, pointer):
         table = common.get_table_name(pointer, catenate=False)
         col_name = 'std::target'
         table_type = 'link'
@@ -188,11 +189,13 @@ class PointerStorageInfo:
 
     @classmethod
     def _resolve_type(cls, schema, pointer):
-        if pointer.target is not None:
-            if isinstance(pointer.target, s_objtypes.ObjectType):
+        pointer_target = pointer.get_target(schema)
+        if pointer_target is not None:
+            if isinstance(pointer_target, s_objtypes.ObjectType):
                 column_type = ('uuid',)
             else:
-                column_type = pg_type_from_object(schema, pointer.target)
+                column_type = pg_type_from_object(
+                    schema, pointer.get_target(schema))
         else:
             # The target may not be known in circular object-to-object
             # linking scenarios.
@@ -212,7 +215,7 @@ class PointerStorageInfo:
                 'schema::key_type',
             } or
             (pointer.shortname == 'schema::type' and
-                pointer.source.shortname != 'schema::Parameter')
+                pointer.get_source(schema).shortname != 'schema::Parameter')
         )
 
     @classmethod
@@ -226,9 +229,9 @@ class PointerStorageInfo:
                 link_bias=False):
 
         if source is None:
-            source = pointer.source
+            source = pointer.get_source(schema)
 
-        is_lprop = pointer.is_link_property()
+        is_lprop = pointer.is_link_property(schema)
 
         if resolve_type and schema is None:
             msg = 'PointerStorageInfo needs a schema to resolve column_type'
@@ -254,9 +257,11 @@ class PointerStorageInfo:
                 table_type = 'ObjectType'
                 col_name = None
             elif cls._storable_in_source(schema, pointer) and not link_bias:
-                table, table_type, col_name = cls._source_table_info(pointer)
+                table, table_type, col_name = cls._source_table_info(
+                    schema, pointer)
             elif cls._storable_in_pointer(schema, pointer):
-                table, table_type, col_name = cls._pointer_table_info(pointer)
+                table, table_type, col_name = cls._pointer_table_info(
+                    schema, pointer)
             else:
                 return None
 

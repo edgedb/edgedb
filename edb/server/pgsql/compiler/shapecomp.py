@@ -72,7 +72,7 @@ def compile_shape(
             if (irutils.is_subquery_set(el) or
                     isinstance(el.scls, s_objtypes.ObjectType) or
                     not is_singleton or
-                    not ptrcls.required):
+                    not ptrcls.get_required(ctx.env.schema)):
                 wrapper = relgen.set_as_subquery(
                     el, as_value=True, ctx=shapectx)
                 if not is_singleton:
@@ -83,6 +83,7 @@ def compile_shape(
             else:
                 value = dispatch.compile(el, ctx=shapectx)
 
-            elements.append(astutils.tuple_element_for_shape_el(el, value))
+            elements.append(
+                astutils.tuple_element_for_shape_el(el, value, ctx=shapectx))
 
     return pgast.TupleVar(elements=elements, named=True)

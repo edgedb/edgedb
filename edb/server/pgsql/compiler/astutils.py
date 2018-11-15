@@ -26,7 +26,7 @@ from edb.lang.schema import pointers as s_pointers
 from edb.server.pgsql import ast as pgast
 
 
-def tuple_element_for_shape_el(shape_el, value):
+def tuple_element_for_shape_el(shape_el, value, *, ctx):
     if shape_el.path_id.is_type_indirection_path():
         rptr = shape_el.rptr.source.rptr
     else:
@@ -36,9 +36,11 @@ def tuple_element_for_shape_el(shape_el, value):
     ptrname = ptrcls.shortname
 
     attr_name = s_pointers.PointerVector(
-        name=ptrname.name, module=ptrname.module,
-        direction=ptrdir, target=ptrcls.get_far_endpoint(ptrdir),
-        is_linkprop=ptrcls.is_link_property())
+        name=ptrname.name,
+        module=ptrname.module,
+        direction=ptrdir,
+        target=ptrcls.get_far_endpoint(ctx.env.schema, ptrdir),
+        is_linkprop=ptrcls.is_link_property(ctx.env.schema))
 
     return pgast.TupleElement(
         path_id=shape_el.path_id,

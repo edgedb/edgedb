@@ -31,9 +31,10 @@ class IRDecompilerContext:
 
 
 class IRDecompiler(ast.visitor.NodeVisitor):
-    def transform(self, ir_tree, inline_anchors=False):
+    def transform(self, ir_tree, inline_anchors=False, *, schema):
         self.context = IRDecompilerContext()
         self.context.inline_anchors = inline_anchors
+        self.context.schema = schema
 
         edgeql_tree = self.visit(ir_tree)
         return edgeql_tree
@@ -93,7 +94,8 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                     direction=rptr.direction,
                     target=target,
                 )
-                if isinstance(ptrcls.source, s_links.Link):
+                if isinstance(ptrcls.get_source(self.context.schema),
+                              s_links.Link):
                     link.type = 'property'
                 links.append(link)
 
@@ -320,9 +322,11 @@ class IRDecompiler(ast.visitor.NodeVisitor):
         )
 
 
-def decompile_ir(ir_tree, inline_anchors=False, return_statement=False):
+def decompile_ir(ir_tree, inline_anchors=False, return_statement=False, *,
+                 schema):
     decompiler = IRDecompiler()
-    qltree = decompiler.transform(ir_tree, inline_anchors=inline_anchors)
+    qltree = decompiler.transform(
+        ir_tree, inline_anchors=inline_anchors, schema=schema)
     if return_statement and not isinstance(qltree, qlast.Statement):
         qltree = qlast.SelectQuery(result=qltree)
     return qltree

@@ -341,7 +341,7 @@ def process_insert_body(
             rptr = shape_el.rptr
             ptrcls = rptr.ptrcls.material_type(ctx.env.schema)
 
-            if (ptrcls.is_link_property() and
+            if (ptrcls.is_link_property(ctx.env.schema) and
                     rptr.source.path_id != ir_stmt.subject.path_id):
                 parent_link_props.append(shape_el)
                 continue
@@ -362,7 +362,8 @@ def process_insert_body(
                     insert_stmt, wrapper, ir_stmt, shape_el, iterator_id,
                     ptr_info=ptr_info, ctx=subctx)
 
-                tuple_el = astutils.tuple_element_for_shape_el(shape_el, field)
+                tuple_el = astutils.tuple_element_for_shape_el(
+                    shape_el, field, ctx=subctx)
                 tuple_elements.append(tuple_el)
                 values.append(pgast.ResTarget(val=insvalue))
 
@@ -406,7 +407,8 @@ def process_insert_body(
                     wrapper, rptr.source.path_id, insert_rvar,
                     aspect='value', env=scopectx.env)
                 dispatch.visit(shape_el, ctx=scopectx)
-                tuple_el = astutils.tuple_element_for_shape_el(shape_el, None)
+                tuple_el = astutils.tuple_element_for_shape_el(
+                    shape_el, None, ctx=scopectx)
                 prop_elements.append(tuple_el)
 
         valtuple = pgast.TupleVar(elements=prop_elements, named=True)
@@ -526,7 +528,7 @@ def process_update_body(
                             name=ptr_info.column_name,
                             val=updvalue))
 
-            props_only = is_props_only_update(shape_el)
+            props_only = is_props_only_update(shape_el, ctx=scopectx)
 
             ptr_info = pg_types.get_pointer_storage_info(
                 ptrcls, resolve_type=False, link_bias=True)
@@ -560,7 +562,8 @@ def process_update_body(
                 ir_stmt, expr, False, wrapper, update_cte, None, ctx=ctx)
 
 
-def is_props_only_update(shape_el: irast.Set) -> bool:
+def is_props_only_update(shape_el: irast.Set, *,
+                         ctx: context.CompilerContextLevel) -> bool:
     """Determine whether a link update is a property-only update.
 
     :param shape_el:
@@ -571,7 +574,8 @@ def is_props_only_update(shape_el: irast.Set) -> bool:
     """
     return (
         shape_el.shape and
-        all(el.rptr.ptrcls.is_link_property() for el in shape_el.shape)
+        all(el.rptr.ptrcls.is_link_property(ctx.env.schema)
+            for el in shape_el.shape)
     )
 
 
@@ -609,7 +613,8 @@ def process_link_update(
 
     rptr = ir_expr.rptr
     ptrcls = rptr.ptrcls
-    target_is_scalar = isinstance(ptrcls.target, s_scalars.ScalarType)
+    target_is_scalar = isinstance(ptrcls.get_target(ctx.env.schema),
+                                  s_scalars.ScalarType)
 
     path_id = rptr.source.path_id.extend(
         ptrcls, rptr.direction, rptr.target.scls,

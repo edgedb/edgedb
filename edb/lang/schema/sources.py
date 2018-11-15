@@ -214,7 +214,8 @@ class Source(indexes.IndexableSubject):
         targets = set()
 
         if not far_endpoint:
-            targets.update(p.get_far_endpoint(direction) for p in ptrs)
+            targets.update(p.get_far_endpoint(schema, direction)
+                           for p in ptrs)
         else:
             # Narrow down the set of pointers by the specified list of
             # endpoints.
@@ -227,7 +228,7 @@ class Source(indexes.IndexableSubject):
                 req_endpoints = (far_endpoint,)
 
             for ptr in ptrs:
-                endpoint = ptr.get_far_endpoint(direction)
+                endpoint = ptr.get_far_endpoint(schema, direction)
 
                 if endpoint.is_virtual:
                     endpoints = endpoint.children(schema)
@@ -242,10 +243,10 @@ class Source(indexes.IndexableSubject):
                         for req_endpoint in req_endpoints:
                             if req_endpoint.issubclass(schema, endpoint):
                                 if direction == '>':
-                                    source = ptr.source
+                                    source = ptr.get_source(schema)
                                     target = req_endpoint
                                 else:
-                                    target = ptr.source
+                                    target = ptr.get_source(schema)
                                     source = req_endpoint
 
                                 schema, dptr = ptr.get_derived(
@@ -262,7 +263,8 @@ class Source(indexes.IndexableSubject):
 
             ptrs = targeted_ptrs
 
-        ptr_targets = frozenset(p.get_far_endpoint(direction) for p in ptrs)
+        ptr_targets = frozenset(p.get_far_endpoint(schema, direction)
+                                for p in ptrs)
 
         if len(ptrs) == 1 and targets == ptr_targets:
             # Found exactly one specialized pointer, just return it
@@ -325,7 +327,7 @@ class Source(indexes.IndexableSubject):
     def add_pointer(self, schema, pointer, *, replace=False):
         schema = self.add_classref(
             schema, 'pointers', pointer, replace=replace)
-        if pointer.readonly and self._ro_pointers is not None:
+        if pointer.get_readonly(schema) and self._ro_pointers is not None:
             self._ro_pointers.add(pointer)
         return schema
 

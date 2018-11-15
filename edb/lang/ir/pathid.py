@@ -26,7 +26,8 @@ from edb.lang.schema import types as s_types
 class PathId:
     """Unique identifier of a path in an expression."""
 
-    __slots__ = ('_path', '_norm_path', '_namespace', '_prefix', '_is_ptr')
+    __slots__ = ('_path', '_norm_path', '_namespace', '_prefix',
+                 '_is_ptr', '_is_linkprop')
 
     def __init__(self, initializer=None, *, namespace=None, typename=None):
         if isinstance(initializer, PathId):
@@ -37,6 +38,7 @@ class PathId:
             else:
                 self._namespace = initializer._namespace
             self._is_ptr = initializer._is_ptr
+            self._is_linkprop = initializer._is_linkprop
             self._prefix = initializer._prefix
         elif initializer is not None:
             if not isinstance(initializer, s_types.Type):
@@ -49,12 +51,14 @@ class PathId:
             self._namespace = frozenset(namespace) if namespace else None
             self._prefix = None
             self._is_ptr = False
+            self._is_linkprop = False
         else:
             self._path = ()
             self._norm_path = ()
             self._namespace = frozenset(namespace) if namespace else None
             self._prefix = None
             self._is_ptr = False
+            self._is_linkprop = False
 
     def __hash__(self):
         return hash((
@@ -217,16 +221,14 @@ class PathId:
         if not self._path:
             return ''
 
-        path = self._path
+        path = self._norm_path
 
-        result += f'{path[0].shortname.name}'
+        result += f'{path[0].name}'
 
         for i in range(1, len(path) - 1, 2):
-            ptr = path[i][0]
+            ptr = s_pointers.Pointer.get_shortname(path[i][0])
             ptrdir = path[i][1]
-            is_lprop = ptr.is_link_property()
-
-            lexpr = f'{ptr.shortname.name}'
+            is_lprop = path[i][2]
 
             if is_lprop:
                 step = '@'
@@ -235,7 +237,7 @@ class PathId:
                 if ptrdir == s_pointers.PointerDirection.Inbound:
                     step += ptrdir
 
-            result += f'{step}{lexpr}'
+            result += f'{step}{ptr.name}'
 
         if self._is_ptr:
             result += '@'
@@ -328,9 +330,9 @@ class PathId:
             direction = s_pointers.PointerDirection.Outbound
 
         if target is None:
-            target = link.get_far_endpoint(direction)
+            target = link.get_far_endpoint(schema, direction)
 
-        is_linkprop = link.is_link_property()
+        is_linkprop = link.is_link_property(schema)
         if is_linkprop and not self._is_ptr:
             raise ValueError('link property path extension on a non-link path')
 
@@ -339,6 +341,7 @@ class PathId:
         lnk = (link.name, direction, is_linkprop)
         norm_target = target.material_type(schema)
         result._norm_path = self._norm_path + (lnk, norm_target.name)
+        result._is_linkprop = is_linkprop
 
         if ns:
             if self._namespace:
@@ -399,8 +402,7 @@ class PathId:
         return self._is_ptr
 
     def is_linkprop_path(self):
-        rptr = self.rptr()
-        return rptr is not None and rptr.is_link_property()
+        return self._is_linkprop
 
     def is_type_indirection_path(self):
         rptr = self.rptr()
