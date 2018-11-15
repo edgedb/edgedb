@@ -77,8 +77,8 @@ def delta_schemas(schema1, schema2, *, include_derived=False):
         old = ordered.OrderedIndex(o2, key=lambda o: o.name)
 
         if type in ('link', 'link_property', 'constraint'):
-            new = filter(lambda i: i.generic(), new)
-            old = filter(lambda i: i.generic(), old)
+            new = filter(lambda i: i.generic(schema1), new)
+            old = filter(lambda i: i.generic(schema2), old)
 
         adds_mods, dels = so.Object._delta_sets(
             old, new, old_schema=schema2, new_schema=schema1)
@@ -132,8 +132,8 @@ def delta_module(schema1, schema2, modname):
             old = ordered.OrderedIndex(key=lambda o: o.name)
 
         if type in ('link', 'link_property', 'constraint'):
-            new = filter(lambda i: i.generic(), new)
-            old = filter(lambda i: i.generic(), old)
+            new = filter(lambda i: i.generic(schema1), new)
+            old = filter(lambda i: i.generic(schema2), old)
 
         adds_mods, dels = so.Object._delta_sets(
             old, new, old_schema=schema2, new_schema=schema1)

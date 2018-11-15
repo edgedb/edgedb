@@ -647,7 +647,7 @@ class CreateConstraint(
     def apply(self, schema, context):
         schema, constraint = super().apply(schema, context)
 
-        subject = constraint.subject
+        subject = constraint.get_subject(schema)
 
         if subject is not None:
             schemac_to_backendc = \
@@ -672,11 +672,11 @@ class RenameConstraint(
         schemac_to_backendc = \
             schemamech.ConstraintMech.schema_constraint_to_backend_constraint
         orig_bconstr = schemac_to_backendc(
-            orig_constraint.subject, orig_constraint, schema)
+            orig_constraint.get_subject(schema), orig_constraint, schema)
 
         schema, constraint = super().apply(schema, context)
 
-        subject = constraint.subject
+        subject = constraint.get_subject(schema)
 
         if subject is not None:
             bconstr = schemac_to_backendc(subject, constraint, schema)
@@ -694,7 +694,7 @@ class AlterConstraint(
     def _alter_finalize(self, schema, context, constraint):
         schema = super()._alter_finalize(schema, context, constraint)
 
-        subject = constraint.subject
+        subject = constraint.get_subject(schema)
         ctx = context.get(s_constr.ConstraintCommandContext)
 
         if subject is not None:
@@ -706,7 +706,7 @@ class AlterConstraint(
 
             orig_constraint = ctx.original_class
             orig_bconstr = schemac_to_backendc(
-                orig_constraint.subject, orig_constraint, schema)
+                orig_constraint.get_subject(schema), orig_constraint, schema)
 
             op = dbops.CommandGroup(priority=1)
             op.add_command(bconstr.alter_ops(orig_bconstr))
@@ -721,7 +721,7 @@ class DeleteConstraint(
     def apply(self, schema, context):
         schema, constraint = super().apply(schema, context)
 
-        subject = constraint.subject
+        subject = constraint.get_subject(schema)
 
         if subject is not None:
             schemac_to_backendc = \
@@ -1121,7 +1121,7 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
         for pointer_name, pointer in source_pointers:
             # XXX pointer_storage_info?
             if (
-                    pointer.generic() or not pointer.scalar() or
+                    pointer.generic(schema) or not pointer.scalar() or
                     not pointer.singular(schema) or not pointer.default):
                 continue
 
@@ -1857,7 +1857,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
 
             if host and old_name != new_name:
                 if (new_name.endswith('std::source') and
-                        not host.scls.generic()):
+                        not host.scls.generic(schema)):
                     pass
                 else:
                     old_col_name = common.edgedb_name_to_pg_name(old_name)
@@ -1903,14 +1903,14 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             return True
         elif src.is_pure_computable() or src.is_derived:
             return False
-        elif src.generic():
+        elif src.generic(schema):
             if src.name == 'std::link':
                 return True
             elif src.has_user_defined_properties(schema):
                 return True
             else:
                 for l in src.children(schema):
-                    if not l.generic():
+                    if not l.generic(schema):
                         ptr_stor_info = types.get_pointer_storage_info(
                             l, resolve_type=False)
                         if ptr_stor_info.table_type == 'link':
@@ -1926,7 +1926,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
         self.pgops.add(c)
 
     def provide_table(self, ptr, schema, context):
-        if not ptr.generic():
+        if not ptr.generic(schema):
             gen_ptr = ptr.bases[0]
 
             if self.has_table(gen_ptr, schema):
@@ -1971,7 +1971,7 @@ class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
                 table_name=new_table_name,
                 columns=[src_col, tgt_col, 'ptr_item_id']))
 
-        if not link.generic() and link.scalar():
+        if not link.generic(schema) and link.scalar():
             try:
                 tgt_prop = link.getptr(schema, 'std::target')
             except KeyError:
@@ -2066,7 +2066,7 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
         rec, updates = self.record_metadata(link, None, schema, context)
         self.updates = updates
 
-        if not link.generic():
+        if not link.generic(schema):
             ptr_stor_info = types.get_pointer_storage_info(
                 link, resolve_type=False)
 
@@ -2089,7 +2089,7 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
                 if default_value is not None:
                     self.alter_pointer_default(link, schema, context)
 
-        if link.generic():
+        if link.generic(schema):
             self.affirm_pointer_defaults(link, schema, context)
 
         objtype = context.get(s_objtypes.ObjectTypeCommandContext)
@@ -2098,7 +2098,7 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
 
         self.attach_alter_table(context)
 
-        if not link.generic():
+        if not link.generic(schema):
             self.schedule_endpoint_delete_action_update(link, schema, context)
 
         return schema, link
@@ -2114,7 +2114,7 @@ class RenameLink(LinkMetaCommand, adapts=s_links.RenameLink):
 
         self.attach_alter_table(context)
 
-        if result.generic():
+        if result.generic(schema):
             link_cmd = context.get(s_links.LinkCommandContext)
             assert link_cmd
 
@@ -2185,7 +2185,7 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
 
             self.attach_alter_table(context)
 
-            if not link.generic():
+            if not link.generic(schema):
                 self.adjust_pointer_storage(old_link, link, schema, context)
 
                 old_ptr_stor_info = types.get_pointer_storage_info(
@@ -2215,7 +2215,7 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
         schema, result = s_links.DeleteLink.apply(self, schema, context)
         schema, _ = LinkMetaCommand.apply(self, schema, context)
 
-        if not result.generic():
+        if not result.generic(schema):
             ptr_stor_info = types.get_pointer_storage_info(
                 result, schema=schema)
             objtype = context.get(s_objtypes.ObjectTypeCommandContext)
@@ -2285,7 +2285,7 @@ class PropertyMetaCommand(NamedObjectMetaCommand, PointerMetaCommand):
 
         ci = dbops.CreateIndex(pg_index)
 
-        if not prop.generic():
+        if not prop.generic(schema):
             tgt_cols = cls.get_columns(prop, schema, None)
             columns.extend(tgt_cols)
 
@@ -2653,7 +2653,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
         deferred_target_map = collections.defaultdict(list)
 
         for link_op, link in self.link_ops:
-            if link.generic() or link.source.is_view(schema):
+            if link.generic(schema) or link.source.is_view(schema):
                 continue
 
             ptr_stor_info = types.get_pointer_storage_info(link, schema=schema)

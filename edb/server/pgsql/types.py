@@ -289,7 +289,8 @@ class PointerStorageInfo:
 def get_pointer_storage_info(
         pointer, *, schema=None, source=None, resolve_type=True,
         link_bias=False):
-    assert not pointer.generic(), "only specialized pointers can be stored"
+    assert not pointer.generic(schema), \
+        "only specialized pointers can be stored"
     return PointerStorageInfo(
         schema, pointer, source=source, resolve_type=resolve_type,
         link_bias=link_bias)

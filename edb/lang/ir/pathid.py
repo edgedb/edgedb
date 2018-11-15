@@ -321,7 +321,7 @@ class PathId:
         if not self:
             raise ValueError('cannot extend empty PathId')
 
-        if link.generic():
+        if link.generic(schema):
             raise ValueError('path id must contain specialized links')
 
         if direction is None:

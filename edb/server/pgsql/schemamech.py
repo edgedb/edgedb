@@ -235,7 +235,7 @@ class ConstraintMech:
     @classmethod
     def schema_constraint_to_backend_constraint(
             cls, subject, constraint, schema):
-        assert constraint.subject is not None
+        assert constraint.get_subject(schema) is not None
 
         ir = ql_compiler.compile_to_ir(
             constraint.finalexpr, schema, anchors={qlast.Subject: subject})
@@ -281,7 +281,7 @@ class ConstraintMech:
             pg_constr_data['scope'] = 'row'
             pg_constr_data['type'] = 'check'
 
-        if isinstance(constraint.subject, s_scalars.ScalarType):
+        if isinstance(constraint.get_subject(schema), s_scalars.ScalarType):
             constraint = SchemaDomainConstraint(
                 subject=subject, constraint=constraint,
                 pg_constr_data=pg_constr_data)

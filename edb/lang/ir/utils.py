@@ -212,7 +212,7 @@ class TupleIndirectionLink(s_links.Link):
 
         return self.name == other.name
 
-    def generic(self):
+    def generic(self, schema):
         # Make PathId happy.
         return False
 
@@ -251,7 +251,7 @@ class TypeIndirectionLink(s_links.Link):
         return (self.name == other.name and self.source == other.source and
                 self.target == other.target)
 
-    def generic(self):
+    def generic(self, schema):
         # Make PathId happy.
         return False
 

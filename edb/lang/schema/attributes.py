@@ -39,8 +39,9 @@ class Attribute(inheriting.InheritingObject):
 class AttributeValue(inheriting.InheritingObject):
     _type = 'attribute-value'
 
-    subject = so.Field(named.NamedObject, compcoef=1.0, default=None,
-                       inheritable=False)
+    subject = so.SchemaField(
+        named.NamedObject, compcoef=1.0, default=None, inheritable=False)
+
     attribute = so.Field(Attribute, compcoef=0.429)
     value = so.Field(str, compcoef=0.909)
 

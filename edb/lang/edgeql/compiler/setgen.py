@@ -645,7 +645,8 @@ def computable_ptr_set(
 
         if source_set.rptr is not None:
             derived_from = source_set.rptr.ptrcls.derived_from
-            if (derived_from is not None and not derived_from.generic() and
+            if (derived_from is not None and
+                    not derived_from.generic(ctx.schema) and
                     derived_from.derived_from is not None and
                     ptrcls.is_link_property()):
                 source_set.rptr.ptrcls = derived_from

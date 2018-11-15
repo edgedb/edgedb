@@ -148,7 +148,7 @@ class Link(sources.Source, pointers.Pointer):
             schema, bases=bases, apply_defaults=apply_defaults,
             dctx=dctx)
 
-        if not self.generic() and apply_defaults:
+        if not self.generic(schema) and apply_defaults:
             if self.on_target_delete is None:
                 self.set_default_value(
                     'on_target_delete',

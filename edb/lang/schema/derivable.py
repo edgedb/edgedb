@@ -38,7 +38,7 @@ class DerivableObjectBase:
             self.shortname, source.name, *qualifiers)
         return sn.Name(name=name, module=source.name.module)
 
-    def generic(self):
+    def generic(self, schema):
         return self.shortname == self.name
 
     def get_derived_name(self, source, *qualifiers, mark_derived=False):
@@ -108,7 +108,7 @@ class DerivableObjectBase:
                replace_original=None, add_to_schema=False,
                mark_derived=False, attrs=None, dctx=None,
                name=None, apply_defaults=True, **kwargs):
-        if not self.generic():
+        if not self.generic(schema):
             raise TypeError(
                 'cannot derive from specialized {} {!r}'.format(
                     self.__class__.__name__, self.name))

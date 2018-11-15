@@ -133,7 +133,7 @@ class ErrorMech:
                 constraint = schema.get(constraint_name)
 
                 return edgedb_error.ConstraintViolationError(
-                    constraint.format_error_message())
+                    constraint.format_error_message(schema))
 
             elif error_type == 'id':
                 msg = 'unique link constraint violation'

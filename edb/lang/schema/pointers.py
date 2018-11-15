@@ -95,7 +95,7 @@ class Pointer(constraints.ConsistencySubject):
         return self.shortname.name
 
     def material_type(self, schema):
-        if self.generic():
+        if self.generic(schema):
             raise ValueError(f'{self!r} is generic')
 
         return self.source.material_type(schema).getptr(schema, self.shortname)
@@ -126,7 +126,7 @@ class Pointer(constraints.ConsistencySubject):
             schema, bases=bases, apply_defaults=apply_defaults,
             dctx=dctx)
 
-        if not self.generic() and apply_defaults:
+        if not self.generic(schema) and apply_defaults:
             if self.cardinality is None:
                 self.cardinality = qlast.Cardinality.ONE
 
@@ -241,7 +241,7 @@ class Pointer(constraints.ConsistencySubject):
             fqname = self.derive_name(source, target.name)
             ptr = schema.get(fqname, default=None)
             if ptr is None:
-                if self.generic():
+                if self.generic(schema):
                     schema, ptr = self.derive(schema, source, target, **kwargs)
                 else:
                     schema, ptr = self.derive_copy(
@@ -308,11 +308,11 @@ class Pointer(constraints.ConsistencySubject):
     def is_protected_pointer(self):
         return self.is_special_pointer() or self.shortname in {'std::__type__'}
 
-    def generic(self):
+    def generic(self, schema):
         return self.source is None
 
     def is_exclusive(self, schema):
-        if self.generic():
+        if self.generic(schema):
             raise ValueError(f'{self!r} is generic')
 
         return self.get_constraints(schema).has(schema, 'std::exclusive')

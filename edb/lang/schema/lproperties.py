@@ -61,7 +61,8 @@ class Property(pointers.Pointer):
                 return NotImplemented
 
         similarity = super().compare(schema, other, context)
-        if (not self.generic() and not other.generic() and
+        if (not self.generic(schema) and
+                not other.generic(schema) and
                 self.shortname == 'std::source' and
                 other.shortname == 'std::source'):
             # Make std::source link property ignore differences in its target.

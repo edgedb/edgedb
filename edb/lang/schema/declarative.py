@@ -182,7 +182,7 @@ class DeclarationLoader:
         indexes = module.get_objects(type='index')
 
         constraints.update(c for c in module.get_objects(type='constraint')
-                           if c.subject is not None)
+                           if c.get_subject(self._schema) is not None)
 
         # Final pass, set empty fields to default values and do
         # other object finalization.
@@ -195,8 +195,8 @@ class DeclarationLoader:
 
         # Arrange classes in the resulting schema according to determined
         # topological order.
-        genlinks = [l for l in links if l.generic()]
-        speclinks = [l for l in links if not l.generic()]
+        genlinks = [l for l in links if l.generic(self._schema)]
+        speclinks = [l for l in links if not l.generic(self._schema)]
 
         self._schema = self._schema.reorder(itertools.chain(
             attributes, attrvals, constraints,
@@ -411,7 +411,7 @@ class DeclarationLoader:
             prop_target = None
 
             if prop_base is None:
-                if not source.generic():
+                if not source.generic(self._schema):
                     # Only generic links can implicitly define properties
                     raise s_err.SchemaError('reference to an undefined '
                                             'property {!r}'.format(prop_name))
@@ -447,7 +447,7 @@ class DeclarationLoader:
                         context=propdecl.target[0].context
                     )
 
-            elif not source.generic():
+            elif not source.generic(self._schema):
                 link_base = source.bases[0]
                 propdef = link_base.getptr(self._schema, prop_qname)
                 if not propdef:

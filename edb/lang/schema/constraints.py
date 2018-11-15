@@ -70,7 +70,8 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
     finalexpr = so.Field(CumulativeBoolExpr, default=None,
                          coerce=True, hashable=False, compcoef=0.909)
 
-    subject = so.Field(so.Object, default=None, inheritable=False)
+    subject = so.SchemaField(
+        so.Object, default=None, inheritable=False)
 
     args = so.Field(s_expr.ExpressionList,
                     default=None, coerce=True, inheritable=False,
@@ -78,8 +79,8 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
 
     errmessage = so.Field(str, default=None, compcoef=0.971)
 
-    def generic(self):
-        return self.subject is None
+    def generic(self, schema):
+        return self.get_subject(schema) is None
 
     def merge_localexprs(self, obj, schema):
         self.localfinalexpr = CumulativeBoolExpr.merge_values(
@@ -107,7 +108,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
             apply_defaults=apply_defaults, dctx=dctx)
 
         self_params = self.get_explicit_field_value(schema, 'params', None)
-        if not self.generic() and self_params is None:
+        if not self.generic(schema) and self_params is None:
             schema = self.set_field_value(schema, 'params', [])
 
             if dctx is not None:
@@ -178,7 +179,8 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
         from edb.lang.edgeql import utils as edgeql_utils
         from edb.lang.edgeql import parser as edgeql_parser
 
-        assert constraint.subject is not None
+        subject = constraint.get_subject(schema)
+        assert subject is not None
 
         module_aliases = {}
 
@@ -192,7 +194,6 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
                         'subjectexpr is already defined for ' +
                         f'{constraint.name!r}')
 
-        subject = constraint.subject
         subjectexpr = constraint.get_field_value(schema, 'subjectexpr')
         if subjectexpr:
             subject, _ = cls._normalize_constraint_expr(
@@ -238,12 +239,12 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
             expr_context = \
                 constraint.get_attribute_source_context(schema, 'expr')
 
-        if subject is not constraint.subject:
+        if subject is not constraint.get_subject(schema):
             # subject has been redefined
             subject_anchor = qlast.SubExpr(
                 expr=subject,
                 anchors={
-                    qlast.Subject: constraint.subject
+                    qlast.Subject: constraint.get_subject(schema)
                 }
             )
         else:
@@ -264,15 +265,17 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
 
         return schema
 
-    def format_error_message(self):
+    def format_error_message(self, schema):
         errmsg = self.errmessage
-        subjtitle = self.subject.title
+
+        subject = self.get_subject(schema)
+        subjtitle = subject.title
 
         if not subjtitle:
             try:
-                subjname = self.subject.shortname
+                subjname = subject.shortname
             except AttributeError:
-                subjname = self.subject.name
+                subjname = subject.name
 
             subjtitle = subjname.name
 
