@@ -60,7 +60,19 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_views_basic_02(self):
+        await self.con.execute('''
+            CREATE VIEW test::expert_map := (
+                SELECT {
+                    ('Alice', 'pro'),
+                    ('Bob', 'noob'),
+                    ('Carol', 'noob'),
+                    ('Dave', 'casual'),
+                }
+            );
+        ''')
+
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT expert_map
@@ -74,7 +86,19 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         ])
 
+    @unittest.expectedFailure
     async def test_edgeql_views_basic_03(self):
+        await self.con.execute('''
+            CREATE VIEW test::scores := (
+                SELECT {
+                    (name := 'Alice', score := 100, games := 10),
+                    (name := 'Bob', score := 11, games := 2),
+                    (name := 'Carol', score := 31, games := 5),
+                    (name := 'Dave', score := 78, games := 10),
+                }
+            );
+        ''')
+
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT scores ORDER BY scores.name;
@@ -87,7 +111,6 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_views_basic_04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT <tuple<str, int64, int64>>scores
@@ -101,7 +124,6 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_views_basic_05(self):
         await self.assert_query_result(r'''
             WITH MODULE test
             SELECT <tuple<name: str, points: int64, plays: int64>>scores

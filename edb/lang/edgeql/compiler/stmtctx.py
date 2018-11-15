@@ -105,6 +105,26 @@ def fini_expression(
     else:
         cardinality = irast.Cardinality.ONE
 
+    for view in ctx.view_nodes.values():
+        if not hasattr(view, 'get_own_pointers'):  # duck check
+            continue
+
+        for vptr in view.get_own_pointers(ctx.schema).objects(ctx.schema):
+            ctx.schema = vptr.set_field_value(
+                ctx.schema,
+                'target',
+                vptr.target.material_type(ctx.schema))
+
+            if not hasattr(vptr, 'get_own_pointers'):
+                continue
+
+            vptr_own_pointers = vptr.get_own_pointers(ctx.schema)
+            for vlprop in vptr_own_pointers.objects(ctx.schema):
+                ctx.schema = vlprop.set_field_value(
+                    ctx.schema,
+                    'target',
+                    vlprop.target.material_type(ctx.schema))
+
     result = irast.Statement(
         expr=ir,
         views=ctx.view_nodes,

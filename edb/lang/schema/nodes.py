@@ -20,11 +20,11 @@
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import errors as ql_errors
 
+from . import database as s_db
 from . import delta as sd
 from . import inheriting
-from . import modules
 from . import named
-from . import schema as s_schema
+from . import objects as so
 from . import types as s_types
 
 
@@ -83,32 +83,6 @@ class NodeCommand(named.NamedObjectCommand):
         return ir
 
     @classmethod
-    def _view_schema_from_ir(cls, view_name, ir, schema):
-        vschema = s_schema.Schema()
-        module_shell = modules.Module(name=view_name.module)
-        vschema = vschema.add_module(module_shell)
-
-        if ir is not None:
-            for view in ir.views.values():
-                vschema = vschema.add(view)
-
-            for view in ir.views.values():
-                if not hasattr(view, 'get_own_pointers'):  # duck check
-                    continue
-
-                for vptr in view.get_own_pointers(schema).objects(schema):
-                    vptr.target = vptr.target.material_type(schema)
-                    vschema = vschema.add(vptr)
-                    if not hasattr(vptr, 'get_own_pointers'):
-                        continue
-                    vptr_own_pointers = vptr.get_own_pointers(schema)
-                    for vlprop in vptr_own_pointers.objects(schema):
-                        vlprop.target = vlprop.target.material_type(schema)
-                        vschema = vschema.add(vlprop)
-
-        return vschema
-
-    @classmethod
     def _handle_view_op(cls, schema, cmd, astnode, context):
         from edb.lang.ir import utils as irutils
 
@@ -122,19 +96,24 @@ class NodeCommand(named.NamedObjectCommand):
                 # The expression itself declares a view, use it.
                 rt.name = cmd.classname
 
-            view_schema = cls._view_schema_from_ir(cmd.classname, ir, schema)
+            view_types = ir.views.values()
+
             if isinstance(astnode, qlast.AlterObjectType):
                 prev = schema.get(cmd.classname)
                 prev_ir = cls._compile_view_expr(
                     prev.expr, cmd.classname, schema, context)
-                prev_view_schema = cls._view_schema_from_ir(
-                    cmd.classname, prev_ir, schema)
+                prev_view_types = prev_ir.views.values()
             else:
-                prev_view_schema = cls._view_schema_from_ir(
-                    cmd.classname, None, schema)
+                prev_view_types = []
 
-            derived_delta = sd.delta_schemas(
-                view_schema, prev_view_schema, include_derived=True)
+            derived_delta = s_db.AlterDatabase()
+
+            adds_mods, dels = so.Object._delta_sets(
+                prev_view_types, view_types,
+                old_schema=schema, new_schema=schema)
+
+            derived_delta.update(adds_mods)
+            derived_delta.update(dels)
 
             if rt.is_view(schema):
                 for op in list(derived_delta.get_subcommands()):
