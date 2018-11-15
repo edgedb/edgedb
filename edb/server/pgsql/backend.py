@@ -118,7 +118,7 @@ class Backend:
             if isinstance(delta_cmd, s_deltas.CommitDelta):
                 delta = schema.get_delta(delta_cmd.classname)
                 ddl_plan = s_db.AlterDatabase()
-                ddl_plan.update(delta.commands)
+                ddl_plan.update(delta.get_commands(schema))
                 await self.run_ddl_command(ddl_plan)
 
             elif isinstance(delta_cmd, s_deltas.GetDelta):

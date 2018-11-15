@@ -100,7 +100,7 @@ def ddl_text_from_delta_command(schema, delta):
 def ddl_text_from_delta(schema, delta):
     """Return DDL text for a delta object."""
     text = []
-    for command in delta.commands:
+    for command in delta.get_commands(schema):
         cmd_text = ddl_text_from_delta_command(schema, command)
         text.append(cmd_text)
 

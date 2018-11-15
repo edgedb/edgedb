@@ -31,17 +31,18 @@ from . import std as s_std
 
 
 class Delta(named.NamedObject):
-    parents = so.Field(named.NamedObjectList,
-                       default=named.NamedObjectList,
-                       coerce=True, inheritable=False)
+    parents = so.SchemaField(
+        named.NamedObjectList,
+        default=named.NamedObjectList, coerce=True, inheritable=False)
 
-    target = so.Field(s_schema.Schema, inheritable=False,
-                      default=None, introspectable=False)
+    target = so.SchemaField(
+        s_schema.Schema,
+        inheritable=False, default=None, introspectable=False)
 
-    commands = so.Field(sd.CommandList,
-                        default=sd.CommandList,
-                        coerce=True, inheritable=False,
-                        introspectable=False)
+    commands = so.SchemaField(
+        sd.CommandList,
+        default=sd.CommandList,
+        coerce=True, inheritable=False, introspectable=False)
 
 
 class DeltaCommandContext(sd.CommandContextToken):
@@ -128,7 +129,7 @@ class CommitDelta(DeltaCommand):
 
     def apply(self, schema, context):
         delta = schema.get_delta(self.classname)
-        for cmd in delta.commands:
+        for cmd in delta.get_commands(schema):
             schema, _ = cmd.apply(schema, context)
 
         return schema, delta
