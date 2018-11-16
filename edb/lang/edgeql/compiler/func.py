@@ -248,7 +248,7 @@ def try_bind_func_args(
             # being called with some arguments.
             return _NO_MATCH
 
-    pg_params = func_params.as_pg_params(schema)
+    pg_params = s_func.PgParams.from_params(schema, func_params)
     named_only = func_params.find_named_only(schema)
 
     if no_args_call and pg_params.has_param_wo_default:

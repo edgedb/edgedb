@@ -74,23 +74,19 @@ class OperatorCommand(s_func.CallableCommand,
         return quals
 
     @classmethod
-    def _get_operator_fullname(
-            cls, schema, name: str, kind: ft.OperatorKind,
-            params: s_func.FuncParameterList) -> sn.Name:
-        quals = cls._get_operator_name_quals(schema, name, kind, params)
-        return sn.Name(
-            module=name.module,
-            name=named.NamedObject.get_specialized_name(name, *quals))
-
-    @classmethod
     def _classname_from_ast(cls, schema, astnode: qlast.OperatorCommand,
                             context) -> sn.Name:
         name = super()._classname_from_ast(schema, astnode, context)
 
-        params = s_func.FuncParameterList.from_ast(
-            schema, astnode, context.modaliases)
+        params = cls._get_param_desc_from_ast(
+            schema, context.modaliases, astnode)
 
-        return cls._get_operator_fullname(schema, name, astnode.kind, params)
+        quals = cls._get_operator_name_quals(
+            schema, name, astnode.kind, params)
+
+        return sn.Name(
+            module=name.module,
+            name=Operator.get_specialized_name(name, *quals))
 
     def _qualify_operator_refs(
             self, schema, kind: ft.OperatorKind,
@@ -207,7 +203,8 @@ class AlterOperator(named.AlterNamedObject, OperatorCommand):
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         modaliases = context.modaliases
-        params = s_func.FuncParameterList.from_ast(schema, astnode, modaliases)
+        params = s_func.FuncParameterList.from_ast(schema, astnode, modaliases,
+                                                   func_fqname=cmd.classname)
 
         cmd._qualify_operator_refs(schema, astnode.kind, params, context)
         return cmd

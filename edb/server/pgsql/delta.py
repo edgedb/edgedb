@@ -390,7 +390,7 @@ class FunctionCommand:
 
     def compile_args(self, func: s_funcs.Function, schema):
         func_params = func.get_params(schema)
-        pg_params = func_params.as_pg_params(schema)
+        pg_params = s_funcs.PgParams.from_params(schema, func_params)
         has_inlined_defaults = func.has_inlined_defaults(schema)
 
         args = []

@@ -346,9 +346,15 @@ class DeclarationLoader:
 
             params = s_func.FuncParameterList.from_ast(
                 self._schema, decl, self._mod_aliases,
-                allow_named=False, func_fqname=constraint.name)
+                func_fqname=constraint.name)
 
             for param in params:
+                if param.get_kind(self._schema) is ft.ParameterKind.NAMED_ONLY:
+                    raise s_err.SchemaDefinitionError(
+                        'named only parameters are not allowed '
+                        'in this context',
+                        context=decl.context)
+
                 if param.get_default(self._schema) is not None:
                     raise s_err.SchemaDefinitionError(
                         'constraints do not support parameters '

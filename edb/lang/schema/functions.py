@@ -37,6 +37,50 @@ from . import types as s_types
 from . import utils
 
 
+# Non-schema description of a parameter.
+class ParameterDesc(typing.NamedTuple):
+
+    num: int
+    name: str
+    default: str
+    type: s_types.Type
+    typemod: ft.TypeModifier
+    kind: ft.ParameterKind
+
+    @classmethod
+    def from_ast(cls, schema, modaliases,
+                 num: int, astnode) -> 'ParameterDesc':
+        paramd = None
+        if astnode.default is not None:
+            paramd = codegen.generate_source(astnode.default)
+
+        paramt = utils.resolve_typeref(
+            utils.ast_to_typeref(
+                astnode.type, modaliases=modaliases, schema=schema),
+            schema)
+
+        if astnode.kind is ft.ParameterKind.VARIADIC:
+            paramt = s_types.Array.from_subtypes((paramt,))
+
+        return cls(
+            num=num,
+            name=astnode.name,
+            type=paramt,
+            typemod=astnode.typemod,
+            kind=astnode.kind,
+            default=paramd
+        )
+
+    def get_kind(self, _):
+        return self.kind
+
+    def get_default(self, _):
+        return self.default
+
+    def get_type(self, _):
+        return self.type
+
+
 class Parameter(named.NamedObject):
 
     _type = 'parameter'
@@ -163,30 +207,23 @@ class DeleteParameter(ParameterCommand, named.DeleteNamedObject):
 
 class PgParams(typing.NamedTuple):
 
-    params: typing.List[Parameter]
+    params: typing.Tuple[Parameter, ...]
     has_param_wo_default: bool
 
-
-class FuncParameterList(so.ObjectList, type=Parameter):
-
-    def get_by_name(self, name) -> Parameter:
-        for param in self:
-            if param.shortname == name:
-                return param
-
-    def as_pg_params(self, schema):
-        params = []
+    @classmethod
+    def from_params(cls, schema, params):
+        pg_params = []
         named = []
         variadic = None
         has_param_wo_default = False
-        for param in self:
+        for param in params:
             param_kind = param.get_kind(schema)
             param_default = param.get_default(schema)
 
             if param_kind is ft.ParameterKind.POSITIONAL:
                 if param_default is None:
                     has_param_wo_default = True
-                params.append(param)
+                pg_params.append(param)
             elif param_kind is ft.ParameterKind.NAMED_ONLY:
                 if param_default is None:
                     has_param_wo_default = True
@@ -195,18 +232,24 @@ class FuncParameterList(so.ObjectList, type=Parameter):
                 variadic = param
 
         if variadic is not None:
-            params.append(variadic)
+            pg_params.append(variadic)
 
         if named:
             named.sort(key=lambda p: p.name)
-            named.extend(params)
-            params = named
+            named.extend(pg_params)
+            pg_params = named
 
-        params = PgParams(
-            params=params,
+        return cls(
+            params=tuple(pg_params),
             has_param_wo_default=has_param_wo_default)
 
-        return params
+
+class FuncParameterList(so.ObjectList, type=Parameter):
+
+    def get_by_name(self, name) -> Parameter:
+        for param in self:
+            if param.shortname == name:
+                return param
 
     def as_str(self, schema):
         ret = []
@@ -234,54 +277,30 @@ class FuncParameterList(so.ObjectList, type=Parameter):
         return ph.persistent_hash(tuple(self), schema=schema)
 
     @classmethod
-    def from_ast(cls, schema, astnode, modaliases, *,
-                 func_fqname=None, allow_named=True):
+    def from_ast(cls, schema, astnode, modaliases, *, func_fqname):
+        if not getattr(astnode, 'params', None):
+            return cls([])
+
         params = []
 
-        if not getattr(astnode, 'params', None):
-            return cls(params)
+        for num, param in enumerate(astnode.params):
+            param_desc = ParameterDesc.from_ast(
+                schema, modaliases, num, param)
 
-        for i, param in enumerate(astnode.params):
-            paramd = None
-            if param.default is not None:
-                paramd = codegen.generate_source(param.default)
-
-            paramt = utils.resolve_typeref(
-                utils.ast_to_typeref(
-                    param.type, modaliases=modaliases, schema=schema),
-                schema)
-
-            if param.kind is ft.ParameterKind.VARIADIC:
-                paramt = s_types.Array.from_subtypes((paramt,))
-
-            if param.kind is ft.ParameterKind.NAMED_ONLY and not allow_named:
-                raise ql_errors.EdgeQLError(
-                    'named only parameters are not allowed in this context',
-                    context=astnode.context)
-
-            if func_fqname is not None:
-                param_name = sn.Name(
-                    module=func_fqname.module,
-                    name=Parameter.get_specialized_name(
-                        param.name, func_fqname)
-                )
-            else:
-                # We cannot yet determine the proper parameter name,
-                # as it is dependent on the function name, which, itself
-                # depends on arg shortnames.
-                param_name = sn.Name(
-                    module='__placeholder__',
-                    name=param.name
-                )
+            param_name = sn.Name(
+                module=func_fqname.module,
+                name=Parameter.get_specialized_name(
+                    param.name, func_fqname)
+            )
 
             params.append(
                 Parameter(
-                    num=i,
+                    num=num,
                     name=param_name,
-                    type=paramt,
-                    typemod=param.typemod,
-                    kind=param.kind,
-                    default=paramd
+                    type=param_desc.type,
+                    typemod=param_desc.typemod,
+                    kind=param_desc.kind,
+                    default=param_desc.default,
                 )
             )
 
@@ -369,8 +388,9 @@ class CallableCommand(named.NamedObjectCommand):
 
     @classmethod
     def _get_function_name_quals(
-            cls, schema, name, params: FuncParameterList) -> typing.List[str]:
-        pgp = params.as_pg_params(schema)
+            cls, schema, name,
+            params: typing.List[ParameterDesc]) -> typing.List[str]:
+        pgp = PgParams.from_params(schema, params)
 
         quals = []
         for param in pgp.params:
@@ -389,19 +409,21 @@ class CallableCommand(named.NamedObjectCommand):
 
             pk = param.get_kind(schema)
             if pk is ft.ParameterKind.NAMED_ONLY:
-                quals.append(f'$NO-{param.shortname}-{pt.name}$')
+                quals.append(f'$NO-{param.name}-{pt.name}$')
             elif pk is ft.ParameterKind.VARIADIC:
                 quals.append(f'$V$')
 
         return quals
 
     @classmethod
-    def _get_function_fullname(
-            cls, schema, name, params: FuncParameterList) -> sn.Name:
-        quals = cls._get_function_name_quals(schema, name, params)
-        return sn.Name(
-            module=name.module,
-            name=named.NamedObject.get_specialized_name(name, *quals))
+    def _get_param_desc_from_ast(cls, schema, modaliases, astnode):
+        params = []
+        for num, param in enumerate(astnode.params):
+            param_desc = ParameterDesc.from_ast(
+                schema, modaliases, num, param)
+            params.append(param_desc)
+
+        return params
 
 
 class CreateCallableObject(named.CreateNamedObject):
@@ -474,10 +496,15 @@ class FunctionCommand(CallableCommand,
     def _classname_from_ast(cls, schema, astnode, context):
         name = super()._classname_from_ast(schema, astnode, context)
 
-        params = FuncParameterList.from_ast(
-            schema, astnode, context.modaliases)
+        params = cls._get_param_desc_from_ast(
+            schema, context.modaliases, astnode)
 
-        return cls._get_function_fullname(schema, name, params)
+        quals = cls._get_function_name_quals(
+            schema, name, params)
+
+        return sn.Name(
+            module=name.module,
+            name=Function.get_specialized_name(name, *quals))
 
 
 class CreateFunction(CreateCallableObject, FunctionCommand):

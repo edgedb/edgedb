@@ -26,6 +26,8 @@ from edb.lang.edgeql import parser as ql_parser
 from edb.lang.common import debug
 from edb.lang.common import markup  # NOQA
 
+from edb.lang.schema import functions as s_func
+
 from edb.lang.edgeql import ast as qlast
 from edb.lang.ir import ast as irast
 from edb.lang.ir import staeval as ireval
@@ -155,7 +157,8 @@ def compile_func_to_ir(func, schema, *,
         name='__defaults_mask__', type=schema.get('std::bytes'))
 
     func_params = func.get_params(schema)
-    for pi, p in enumerate(func_params.as_pg_params(schema).params):
+    pg_params = s_func.PgParams.from_params(schema, func_params)
+    for pi, p in enumerate(pg_params.params):
         anchors[p.shortname] = irast.Parameter(
             name=p.shortname, type=p.get_type(schema))
 

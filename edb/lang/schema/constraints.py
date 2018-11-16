@@ -448,9 +448,15 @@ class CreateConstraint(ConstraintCommand,
         elif isinstance(astnode, qlast.CreateConstraint):
             params = s_func.FuncParameterList.from_ast(
                 schema, astnode, context.modaliases,
-                allow_named=False, func_fqname=cmd.classname)
+                func_fqname=cmd.classname)
 
             for param in params:
+                if param.get_kind(schema) is ft.ParameterKind.NAMED_ONLY:
+                    raise ql_errors.EdgeQLError(
+                        'named only parameters are not allowed '
+                        'in this context',
+                        context=astnode.context)
+
                 if param.get_default(schema) is not None:
                     raise ql_errors.EdgeQLError(
                         'constraints do not support parameters '
