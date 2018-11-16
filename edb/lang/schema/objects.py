@@ -345,7 +345,7 @@ class Object(metaclass=ObjectMeta):
             value = getattr(self, field_name)
             if value is None and field.default is not None:
                 value = self._getdefault(field_name, field)
-                self.set_default_value(field_name, value)
+                setattr(self, field_name, value)
                 fields_set.append(field_name)
         return fields_set
 
@@ -597,13 +597,6 @@ class Object(metaclass=ObjectMeta):
 
     def get_attribute_source_context(self, schema, name):
         return self._attr_source_contexts.get(name)
-
-    def set_default_value(self, field_name, value):
-        field = type(self).get_field(field_name)
-        if isinstance(field, SchemaField):
-            raise RuntimeError(
-                f'cannot set default for SchemaField {self}.{field_name}')
-        setattr(self, field_name, value)
 
     def persistent_hash(self, *, schema):
         """Compute object 'snapshot' hash.

@@ -2526,7 +2526,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
         DA = s_links.LinkTargetDeleteAction
 
         if disposition == 'target':
-            groups = itertools.groupby(links, lambda l: l.on_target_delete)
+            groups = itertools.groupby(
+                links, lambda l: l.get_on_target_delete(schema))
             near_endpoint, far_endpoint = 'target', 'source'
         else:
             groups = [(DA.SET_EMPTY, links)]
@@ -2652,7 +2653,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
             source_map[link.get_source(schema).name].append(link)
 
-            if link.on_target_delete is DA.DEFERRED_RESTRICT:
+            if link.get_on_target_delete(schema) is DA.DEFERRED_RESTRICT:
                 deferred_target_map[link.get_target(schema).name].append(link)
             else:
                 target_map[link.get_target(schema).name].append(link)
@@ -2662,7 +2663,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 schema, source_name, links, disposition='source')
 
         for links in target_map.values():
-            links.sort(key=lambda l: (l.on_target_delete, l.name))
+            links.sort(key=lambda l: (l.get_on_target_delete(schema), l.name))
 
         for target_name, links in target_map.items():
             self._create_action_triggers(

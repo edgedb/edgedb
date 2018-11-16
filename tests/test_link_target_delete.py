@@ -41,11 +41,13 @@ class TestLinkTargetDeleteSchema(tb.BaseSchemaTest):
 
         obj = schema.get('test::Object')
 
-        self.assertEqual(obj.getptr(schema, 'foo').on_target_delete,
-                         s_links.LinkTargetDeleteAction.SET_EMPTY)
+        self.assertEqual(
+            obj.getptr(schema, 'foo').get_on_target_delete(schema),
+            s_links.LinkTargetDeleteAction.SET_EMPTY)
 
-        self.assertEqual(obj.getptr(schema, 'bar').on_target_delete,
-                         s_links.LinkTargetDeleteAction.RESTRICT)
+        self.assertEqual(
+            obj.getptr(schema, 'bar').get_on_target_delete(schema),
+            s_links.LinkTargetDeleteAction.RESTRICT)
 
     def test_schema_on_target_delete_02(self):
         schema = self.load_schema("""
@@ -63,12 +65,14 @@ class TestLinkTargetDeleteSchema(tb.BaseSchemaTest):
         """)
 
         obj2 = schema.get('test::Object2')
-        self.assertEqual(obj2.getptr(schema, 'foo').on_target_delete,
-                         s_links.LinkTargetDeleteAction.SET_EMPTY)
+        self.assertEqual(
+            obj2.getptr(schema, 'foo').get_on_target_delete(schema),
+            s_links.LinkTargetDeleteAction.SET_EMPTY)
 
         obj3 = schema.get('test::Object3')
-        self.assertEqual(obj3.getptr(schema, 'foo').on_target_delete,
-                         s_links.LinkTargetDeleteAction.RESTRICT)
+        self.assertEqual(
+            obj3.getptr(schema, 'foo').get_on_target_delete(schema),
+            s_links.LinkTargetDeleteAction.RESTRICT)
 
     @tb.must_fail(s_err.SchemaError,
                   "cannot implicitly resolve the `on target delete` action "

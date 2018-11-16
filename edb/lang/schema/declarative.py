@@ -659,7 +659,7 @@ class DeclarationLoader:
 
                 if len(_targets) == 1:
                     # Usual case, just one target
-                    spectargets = []
+                    spectargets = None
                     target = _targets[0]
                 else:
                     # Multiple explicit targets, create common virtual

@@ -42,13 +42,13 @@ LinkTargetDeleteAction = qlast.LinkTargetDeleteAction
 
 def merge_actions(target: so.Object, sources: typing.List[so.Object],
                   field_name: str, *, schema) -> object:
-    ours = getattr(target, field_name)
+    ours = target.get_explicit_field_value(schema, field_name, None)
     if ours is None:
         current = None
         current_from = None
 
         for source in sources:
-            theirs = getattr(source, field_name)
+            theirs = source.get_explicit_field_value(schema, field_name, None)
             if theirs is not None:
                 if current is None:
                     current = theirs
@@ -82,12 +82,15 @@ class Link(sources.Source, pointers.Pointer):
     _type = 'link'
     schema_class_displayname = 'link'
 
-    spectargets = so.Field(named.NamedObjectSet, named.NamedObjectSet,
-                           coerce=True)
+    spectargets = so.SchemaField(
+        named.NamedObjectSet,
+        default=named.NamedObjectSet,
+        coerce=True)
 
-    on_target_delete = so.Field(LinkTargetDeleteAction, None,
-                                coerce=True, compcoef=0.9,
-                                merge_fn=merge_actions)
+    on_target_delete = so.SchemaField(
+        LinkTargetDeleteAction,
+        default=None, coerce=True, compcoef=0.9,
+        merge_fn=merge_actions)
 
     def init_std_props(self, schema, *, mark_derived=False,
                        add_to_schema=False, dctx=None):
@@ -161,16 +164,18 @@ class Link(sources.Source, pointers.Pointer):
             dctx=dctx)
 
         if not self.generic(schema) and apply_defaults:
-            if self.on_target_delete is None:
-                self.set_default_value(
+            if self.get_on_target_delete(schema) is None:
+                schema = self.set_field_value(
+                    schema,
                     'on_target_delete',
                     LinkTargetDeleteAction.RESTRICT)
+
                 if dctx is not None:
                     from . import delta as sd
 
                     dctx.current().op.add(sd.AlterObjectProperty(
                         property='on_target_delete',
-                        new_value=self.on_target_delete,
+                        new_value=self.get_on_target_delete(schema),
                         source='default'
                     ))
 
