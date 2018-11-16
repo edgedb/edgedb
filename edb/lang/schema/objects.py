@@ -389,6 +389,10 @@ class Object(metaclass=ObjectMeta):
                 # values for SchemaFields will not get validated in
                 # __setattr__; do it here.
                 value = self._check_field_type(field, field.name, value)
+                if value is None:
+                    # SchemaFields do not persist their defaults in
+                    # the __dict__.
+                    continue
 
             if value is None and field.default is not None and setdefaults:
                 value = self._getdefault(field_name, field, relaxrequired)
@@ -990,9 +994,12 @@ class Object(metaclass=ObjectMeta):
                 field = type(self).get_field(fieldname)
                 if field.ephemeral:
                     continue
+                val = self.get_explicit_field_value(schema, fieldname, None)
+                if val is None:
+                    continue
                 dctx.current().op.add(sd.AlterObjectProperty(
                     property=fieldname,
-                    new_value=self.get_field_value(schema, fieldname),
+                    new_value=val,
                     source='default'
                 ))
 
