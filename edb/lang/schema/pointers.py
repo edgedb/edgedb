@@ -144,7 +144,7 @@ class Pointer(constraints.ConsistencySubject):
         target = self.get_common_target(schema, targets,
                                         minimize_by=minimize_by)
         if not schema.get(target.name, default=None):
-            target.is_derived = True
+            schema = target.set_field_value(schema, 'is_derived', True)
             schema = schema.add(target)
         return schema, target
 
@@ -209,12 +209,12 @@ class Pointer(constraints.ConsistencySubject):
 
         else:
             # Targets are both objects
-            if t1.is_virtual:
+            if t1.get_is_virtual(schema):
                 tt1 = tuple(t1.children(schema))
             else:
                 tt1 = (t1,)
 
-            if t2.is_virtual:
+            if t2.get_is_virtual(schema):
                 tt2 = tuple(t2.children(schema))
             else:
                 tt2 = (t2,)

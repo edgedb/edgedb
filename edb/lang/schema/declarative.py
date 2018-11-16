@@ -309,7 +309,7 @@ class DeclarationLoader:
 
                 base = self._schema.get(base_name, type=obj.__class__,
                                         module_aliases=self._mod_aliases)
-                if base.is_final:
+                if base.get_is_final(self._schema):
                     msg = '{!r} is final and cannot be inherited ' \
                           'from'.format(base.name)
                     raise s_err.SchemaError(msg, context=decl)

@@ -45,7 +45,7 @@ class Any(PseudoType):
 
     def _resolve_polymorphic(self, schema, concrete_type: s_types.Type):
         if isinstance(concrete_type, s_scalars.ScalarType):
-            return concrete_type.get_topmost_concrete_base()
+            return concrete_type.get_topmost_concrete_base(schema)
         return concrete_type
 
     def _to_nonpolymorphic(self, schema, concrete_type: s_types.Type):

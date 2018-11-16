@@ -110,7 +110,7 @@ class ConstraintMech:
                 ptr = ref.rptr.ptrcls
                 if ptr.is_link_property(schema):
                     src = ref.rptr.source.rptr.ptrcls
-                    if src.is_derived:
+                    if src.get_is_derived(schema):
                         # This specialized pointer was derived specifically
                         # for the purposes of constraint expr compilation.
                         src = src.bases[0]
@@ -286,27 +286,30 @@ class ConstraintMech:
         if isinstance(constraint.get_subject(schema), s_scalars.ScalarType):
             constraint = SchemaDomainConstraint(
                 subject=subject, constraint=constraint,
-                pg_constr_data=pg_constr_data)
+                pg_constr_data=pg_constr_data,
+                schema=schema)
         else:
             constraint = SchemaTableConstraint(
                 subject=subject, constraint=constraint,
-                pg_constr_data=pg_constr_data)
+                pg_constr_data=pg_constr_data,
+                schema=schema)
         return constraint
 
 
 class SchemaDomainConstraint:
-    def __init__(self, subject, constraint, pg_constr_data):
+    def __init__(self, subject, constraint, pg_constr_data, schema):
         self._subject = subject
         self._constraint = constraint
         self._pg_constr_data = pg_constr_data
+        self._schema = schema
 
-    @classmethod
-    def _domain_constraint(cls, constr):
+    def _domain_constraint(self, constr):
         domain_name = constr._pg_constr_data['subject_db_name']
         expressions = constr._pg_constr_data['expressions']
 
         constr = deltadbops.SchemaConstraintDomainConstraint(
-            domain_name, constr._constraint, expressions)
+            domain_name, constr._constraint, expressions,
+            schema=self._schema)
 
         return constr
 
@@ -352,13 +355,13 @@ class SchemaDomainConstraint:
 
 
 class SchemaTableConstraint:
-    def __init__(self, subject, constraint, pg_constr_data):
+    def __init__(self, subject, constraint, pg_constr_data, schema):
         self._subject = subject
         self._constraint = constraint
         self._pg_constr_data = pg_constr_data
+        self._schema = schema
 
-    @classmethod
-    def _table_constraint(cls, constr):
+    def _table_constraint(self, constr):
         pg_c = constr._pg_constr_data
 
         table_name = pg_c['subject_db_name']
@@ -366,7 +369,8 @@ class SchemaTableConstraint:
 
         constr = deltadbops.SchemaConstraintTableConstraint(
             table_name, constraint=constr._constraint, exprdata=expressions,
-            scope=pg_c['scope'], type=pg_c['type'])
+            scope=pg_c['scope'], type=pg_c['type'],
+            schema=self._schema)
 
         return constr
 

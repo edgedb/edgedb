@@ -222,7 +222,7 @@ class Source(indexes.IndexableSubject):
             #
             targeted_ptrs = set()
 
-            if far_endpoint.is_virtual:
+            if far_endpoint.get_is_virtual(schema):
                 req_endpoints = tuple(far_endpoint.children(schema))
             else:
                 req_endpoints = (far_endpoint,)
@@ -230,7 +230,7 @@ class Source(indexes.IndexableSubject):
             for ptr in ptrs:
                 endpoint = ptr.get_far_endpoint(schema, direction)
 
-                if endpoint.is_virtual:
+                if endpoint.get_is_virtual(schema):
                     endpoints = endpoint.children(schema)
                 else:
                     endpoints = [endpoint]

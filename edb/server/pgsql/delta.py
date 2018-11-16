@@ -143,6 +143,9 @@ class NamedObjectMetaCommand(
         super().__init__(**kwargs)
         self._type_mech = schemamech.TypeMech()
 
+    def get_table(self, schema):
+        raise NotImplementedError
+
     def _get_name(self, value):
         if isinstance(value, s_obj.ObjectRef):
             name = value.classname
@@ -210,7 +213,7 @@ class NamedObjectMetaCommand(
         updates = {}
 
         rec = None
-        table = self.table
+        table = self.get_table(schema)
 
         fields = self.get_fields(schema)
 
@@ -244,7 +247,9 @@ class NamedObjectMetaCommand(
         rec, updates = self.fill_record(schema, use_defaults=True)
         self.pgops.add(
             dbops.Insert(
-                table=self.table, records=[rec], priority=self.op_priority))
+                table=self.get_table(schema),
+                records=[rec],
+                priority=self.op_priority))
         return updates
 
     def update(self, schema, context):
@@ -254,22 +259,26 @@ class NamedObjectMetaCommand(
             condition = [('name', str(self.scls.name))]
             self.pgops.add(
                 dbops.Update(
-                    table=self.table, record=updaterec, condition=condition,
+                    table=self.get_table(schema),
+                    record=updaterec,
+                    condition=condition,
                     priority=self.op_priority))
 
         return updates
 
     def rename(self, schema, context, old_name, new_name):
-        updaterec = self.table.record(name=str(new_name))
+        table = self.get_table(schema)
+        updaterec = table.record(name=str(new_name))
         condition = [('name', str(old_name))]
         self.pgops.add(
             dbops.Update(
-                table=self.table, record=updaterec, condition=condition))
+                table=table, record=updaterec, condition=condition))
 
     def delete(self, schema, context, scls):
+        table = self.get_table(schema)
         self.pgops.add(
             dbops.Delete(
-                table=self.table, condition=[('name', str(scls.name))]))
+                table=table, condition=[('name', str(scls.name))]))
 
 
 class CreateNamedObject(NamedObjectMetaCommand):
@@ -334,7 +343,10 @@ class AlterObjectProperty(MetaCommand, adapts=sd.AlterObjectProperty):
 
 
 class ParameterCommand:
-    table = metaschema.get_metaclass_table(s_funcs.Parameter)
+    _table = metaschema.get_metaclass_table(s_funcs.Parameter)
+
+    def get_table(self, schema):
+        return self._table
 
 
 class CreateParameter(ParameterCommand, CreateNamedObject,
@@ -350,7 +362,10 @@ class DeleteParameter(ParameterCommand, DeleteNamedObject,
 
 
 class FunctionCommand:
-    table = metaschema.get_metaclass_table(s_funcs.Function)
+    _table = metaschema.get_metaclass_table(s_funcs.Function)
+
+    def get_table(self, schema):
+        return self._table
 
     def get_pgname(self, func: s_funcs.Function):
         return (
@@ -501,7 +516,10 @@ class DeleteFunction(
 
 
 class OperatorCommand:
-    table = metaschema.get_metaclass_table(s_opers.Operator)
+    _table = metaschema.get_metaclass_table(s_opers.Operator)
+
+    def get_table(self, schema):
+        return self._table
 
     def get_pg_name(self, oper: s_opers.Operator) -> typing.Tuple[str, str]:
         return common.get_backend_operator_name(oper.shortname)
@@ -580,7 +598,10 @@ class DeleteOperator(
 
 
 class AttributeCommand:
-    table = metaschema.get_metaclass_table(s_attrs.Attribute)
+    _table = metaschema.get_metaclass_table(s_attrs.Attribute)
+
+    def get_table(self, schema):
+        return self._table
 
 
 class CreateAttribute(
@@ -602,8 +623,11 @@ class DeleteAttribute(
 
 class AttributeValueCommand(sd.ObjectCommand,
                             metaclass=ReferencedObjectCommandMeta):
-    table = metaschema.get_metaclass_table(s_attrs.AttributeValue)
+    _table = metaschema.get_metaclass_table(s_attrs.AttributeValue)
     op_priority = 1
+
+    def get_table(self, schema):
+        return self._table
 
     def fill_record(self, schema, *, use_defaults=False):
         rec, updates = super().fill_record(schema, use_defaults=use_defaults)
@@ -636,8 +660,11 @@ class DeleteAttributeValue(
 
 class ConstraintCommand(sd.ObjectCommand,
                         metaclass=ReferencedObjectCommandMeta):
-    table = metaschema.get_metaclass_table(s_constr.Constraint)
+    _table = metaschema.get_metaclass_table(s_constr.Constraint)
     op_priority = 3
+
+    def get_table(self, schema):
+        return self._table
 
 
 class CreateConstraint(
@@ -749,18 +776,22 @@ class ViewCapableObjectMetaCommand(NamedObjectMetaCommand):
 
 
 class ScalarTypeMetaCommand(ViewCapableObjectMetaCommand):
-    table = metaschema.get_metaclass_table(s_scalars.ScalarType)
+    _table = metaschema.get_metaclass_table(s_scalars.ScalarType)
+
+    def get_table(self, schema):
+        return self._table
 
     def is_sequence(self, schema, scalar):
         seq = schema.get('std::sequence', default=None)
         return seq is not None and scalar.issubclass(schema, seq)
 
     def fill_record(self, schema, *, use_defaults=False):
+        table = self.get_table(schema)
         rec, updates = super().fill_record(schema, use_defaults=use_defaults)
         default = updates.get('default')
         if default:
             if not rec:
-                rec = self.table.record()
+                rec = table.record()
             rec.default = self.pack_default(default)
 
         return rec, updates
@@ -839,7 +870,7 @@ class CreateScalarType(ScalarTypeMetaCommand,
 
         updates = self.create_object(schema, scalar)
 
-        if scalar.is_abstract:
+        if scalar.get_is_abstract(schema):
             return schema, scalar
 
         new_domain_name = common.scalar_name_to_domain_name(
@@ -905,6 +936,7 @@ class RebaseScalarType(ScalarTypeMetaCommand,
 
 class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
     def apply(self, schema, context=None):
+        table = self.get_table(schema)
         old_scalar = schema.get(self.classname).copy()
         schema, new_scalar = s_scalars.AlterScalarType.apply(
             self, schema, context)
@@ -916,7 +948,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
             condition = [('name', str(new_scalar.name))]
             self.pgops.add(
                 dbops.Update(
-                    table=self.table, record=updaterec, condition=condition))
+                    table=table, record=updaterec, condition=condition))
 
         self.alter_scalar(
             self, schema, context, old_scalar, new_scalar, updates=updates)
@@ -984,13 +1016,14 @@ class DeleteScalarType(ScalarTypeMetaCommand,
 
         # Domain dropping gets low priority since other things may
         # depend on it.
+        table = self.get_table(schema)
         cond = dbops.DomainExists(old_domain_name)
         ops.add(
             dbops.DropDomain(
                 name=old_domain_name, conditions=[cond], priority=3))
         ops.add(
             dbops.Delete(
-                table=self.table, condition=[(
+                table=table, condition=[(
                     'name', str(self.classname))]))
 
         if self.is_sequence(schema, scalar):
@@ -1365,7 +1398,10 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
 
 class SourceIndexCommand(sd.ObjectCommand,
                          metaclass=ReferencedObjectCommandMeta):
-    table = metaschema.get_metaclass_table(s_indexes.SourceIndex)
+    _table = metaschema.get_metaclass_table(s_indexes.SourceIndex)
+
+    def get_table(self, schema):
+        return self._table
 
 
 class CreateSourceIndex(SourceIndexCommand, CreateNamedObject,
@@ -1470,11 +1506,10 @@ class DeleteSourceIndex(SourceIndexCommand, DeleteNamedObject,
 
 class ObjectTypeMetaCommand(ViewCapableObjectMetaCommand,
                             CompositeObjectMetaCommand):
-    @property
-    def table(self):
-        if self.scls.is_virtual:
+    def get_table(self, schema):
+        if self.scls.get_is_virtual(schema):
             mcls = s_objtypes.UnionObjectType
-        elif self.scls.is_derived:
+        elif self.scls.get_is_derived(schema):
             mcls = s_objtypes.DerivedObjectType
         else:
             mcls = s_objtypes.ObjectType
@@ -1483,7 +1518,10 @@ class ObjectTypeMetaCommand(ViewCapableObjectMetaCommand,
 
     @classmethod
     def has_table(cls, objtype, schema):
-        return not (objtype.is_virtual or objtype.is_derived)
+        return not (
+            objtype.get_is_virtual(schema) or
+            objtype.get_is_derived(schema)
+        )
 
 
 class CreateObjectType(ObjectTypeMetaCommand,
@@ -1640,10 +1678,11 @@ class AlterObjectType(ObjectTypeMetaCommand,
         updaterec, updates = self.fill_record(schema)
 
         if updaterec:
+            table = self.get_table(schema)
             condition = [('name', str(objtype.name))]
             self.pgops.add(
                 dbops.Update(
-                    table=self.table, record=updaterec, condition=condition))
+                    table=table, record=updaterec, condition=condition))
 
         if self.has_table(objtype, schema):
             self.attach_alter_table(context)
@@ -1696,14 +1735,16 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
         rec, updates = self.fill_record(
             schema, use_defaults=old_pointer is None)
 
+        table = self.get_table(schema)
+
         if updates:
             if not rec:
-                rec = self.table.record()
+                rec = table.record()
 
         default = updates.get('default')
         if default:
             if not rec:
-                rec = self.table.record()
+                rec = table.record()
             rec.default = self.pack_default(default)
 
         return rec, updates
@@ -1869,18 +1910,19 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                                 name=new_col_name, type='str'))
                         self.pgops.add(dbops.Comment(tabcol, new_name))
 
-        rec = self.table.record()
+        table = self.get_table(schema)
+        rec = table.record()
         rec.name = str(self.new_name)
         self.pgops.add(
             dbops.Update(
-                table=self.table, record=rec, condition=[(
+                table=table, record=rec, condition=[(
                     'name', str(self.classname))], priority=1))
 
     @classmethod
     def has_table(cls, src, schema):
         if isinstance(src, s_objtypes.ObjectType):
             return True
-        elif src.is_pure_computable(schema) or src.is_derived:
+        elif src.is_pure_computable(schema) or src.get_is_derived(schema):
             return False
         elif src.generic(schema):
             if src.name == 'std::link':
@@ -1916,7 +1958,10 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
 
 
 class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
-    table = metaschema.get_metaclass_table(s_links.Link)
+    _table = metaschema.get_metaclass_table(s_links.Link)
+
+    def get_table(self, schema):
+        return self._table
 
     @classmethod
     def _create_table(
@@ -2069,8 +2114,9 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
                     self.alter_pointer_default(link, schema, context)
 
         objtype = context.get(s_objtypes.ObjectTypeCommandContext)
+        table = self.get_table(schema)
         self.pgops.add(
-            dbops.Insert(table=self.table, records=[rec], priority=1))
+            dbops.Insert(table=table, records=[rec], priority=1))
 
         self.attach_alter_table(context)
 
@@ -2143,9 +2189,10 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
             self.provide_table(link, schema, context)
 
             if rec:
+                table = self.get_table(schema)
                 self.pgops.add(
                     dbops.Update(
-                        table=self.table, record=rec, condition=[(
+                        table=table, record=rec, condition=[(
                             'name', str(link.name))], priority=1))
 
             new_type = None
@@ -2227,15 +2274,19 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
         self.pgops.add(
             dbops.DropTable(name=old_table_name, conditions=[condition]))
 
+        table = self.get_table(schema)
         self.pgops.add(
             dbops.Delete(
-                table=self.table, condition=[('name', str(result.name))]))
+                table=table, condition=[('name', str(result.name))]))
 
         return schema, result
 
 
 class PropertyMetaCommand(NamedObjectMetaCommand, PointerMetaCommand):
-    table = metaschema.get_metaclass_table(s_props.Property)
+    _table = metaschema.get_metaclass_table(s_props.Property)
+
+    def get_table(self, schema):
+        return self._table
 
     @classmethod
     def _create_table(
@@ -2374,8 +2425,9 @@ class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
 
         # Priority is set to 2 to make sure that INSERT is run after the host
         # link is INSERTed into edgedb.link.
+        table = self.get_table(schema)
         self.pgops.add(
-            dbops.Insert(table=self.table, records=[rec], priority=2))
+            dbops.Insert(table=table, records=[rec], priority=2))
 
         return schema, prop
 
@@ -2409,9 +2461,10 @@ class AlterProperty(
             self.provide_table(prop, schema, context)
 
             if rec:
+                table = self.get_table(schema)
                 self.pgops.add(
                     dbops.Update(
-                        table=self.table, record=rec, condition=[(
+                        table=table, record=rec, condition=[(
                             'name', str(prop.name))], priority=1))
 
             prop_target = prop.get_target(schema)
@@ -2478,9 +2531,10 @@ class DeleteProperty(
                 dbops.Column(name=column_name, type=column_type))
             alter_table.add_operation(col)
 
+        table = self.get_table(schema)
         self.pgops.add(
             dbops.Delete(
-                table=self.table, condition=[('name', str(property.name))]))
+                table=table, condition=[('name', str(property.name))]))
 
         return schema, property
 
@@ -2685,7 +2739,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
             deferred: bool=False) -> None:
         objtype = schema.get(objtype_name)
 
-        if objtype.is_virtual:
+        if objtype.get_is_virtual(schema):
             objtypes = tuple(objtype.children(schema))
         else:
             objtypes = (objtype,)
@@ -2743,7 +2797,10 @@ class CommandContext(sd.CommandContext):
 
 
 class ModuleMetaCommand(NamedObjectMetaCommand):
-    table = metaschema.get_metaclass_table(s_mod.Module)
+    _table = metaschema.get_metaclass_table(s_mod.Module)
+
+    def get_table(self, schema):
+        return self._table
 
 
 class CreateModule(ModuleMetaCommand, adapts=s_mod.CreateModule):
@@ -2773,10 +2830,11 @@ class AlterModule(ModuleMetaCommand, adapts=s_mod.AlterModule):
         updaterec, updates = self.fill_record(schema)
 
         if updaterec:
+            table = self.get_table(schema)
             condition = [('name', str(module.name))]
             self.pgops.add(
                 dbops.Update(
-                    table=self.table, record=updaterec, condition=condition))
+                    table=table, record=updaterec, condition=condition))
 
         self.attach_alter_table(context)
 
@@ -2792,13 +2850,14 @@ class DeleteModule(ModuleMetaCommand, adapts=s_mod.DeleteModule):
         schema_name = common.edgedb_module_name_to_schema_name(module_name)
         condition = dbops.SchemaExists(name=schema_name)
 
+        table = self.get_table(schema)
         cmd = dbops.CommandGroup()
         cmd.add_command(
             dbops.DropSchema(
                 name=schema_name, conditions={condition}, priority=4))
         cmd.add_command(
             dbops.Delete(
-                table=self.table, condition=[(
+                table=table, condition=[(
                     'name', str(module.name))]))
 
         self.pgops.add(cmd)

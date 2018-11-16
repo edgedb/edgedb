@@ -107,7 +107,7 @@ def range_for_objtype(
         env: context.Environment) -> pgast.BaseRangeVar:
     from . import pathctx  # XXX: fix cycle
 
-    if not objtype.is_virtual:
+    if not objtype.get_is_virtual(env.schema):
         rvar = range_for_material_objtype(
             objtype, path_id, include_overlays=include_overlays, env=env)
     else:
@@ -263,8 +263,8 @@ def range_for_pointer(
         pointer: s_links.Link, *,
         env: context.Environment) -> pgast.BaseRangeVar:
     ptrcls = pointer.ptrcls
-    if ptrcls.derived_from is not None:
-        ptrcls = ptrcls.get_nearest_non_derived_parent()
+    if ptrcls.get_derived_from(env.schema) is not None:
+        ptrcls = ptrcls.get_nearest_non_derived_parent(env.schema)
 
     return range_for_ptrcls(ptrcls, pointer.direction, env=env)
 

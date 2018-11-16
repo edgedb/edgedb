@@ -302,7 +302,7 @@ class IntrospectionMech:
         for scalar in schema.get_objects(type='ScalarType'):
             if (sequence is not None and
                     scalar.issubclass(schema, sequence) and
-                    not scalar.is_abstract):
+                    not scalar.get_is_abstract(schema)):
                 seq_name = common.scalar_name_to_sequence_name(
                     scalar.name, catenate=False)
                 if seq_name not in seqs:
@@ -688,7 +688,7 @@ class IntrospectionMech:
                 schema, target = link.create_common_target(schema, spectargets)
 
             if (isinstance(target, s_scalars.ScalarType) and
-                    not source.is_derived):
+                    not source.get_is_derived(schema)):
                 target, required = await self.read_pointer_target_column(
                     schema, link, None)
 

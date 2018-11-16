@@ -87,7 +87,7 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
         return True
 
     def is_polymorphic(self, schema):
-        return bool(self.is_abstract and self.name.module == 'std')
+        return bool(self.get_is_abstract(schema) and self.name.module == 'std')
 
     def _resolve_polymorphic(self, schema, concrete_type: s_types.Type):
         if (self.is_polymorphic(schema) and
@@ -112,16 +112,16 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
         if self.implicitly_castable_to(target, schema):
             return True
 
-        source = str(self.get_topmost_concrete_base().name)
-        target = str(target.get_topmost_concrete_base().name)
+        source = str(self.get_topmost_concrete_base(schema).name)
+        target = str(target.get_topmost_concrete_base(schema).name)
 
         return _is_assignment_castable_impl(source, target)
 
     def implicitly_castable_to(self, other: s_types.Type, schema) -> bool:
         if not isinstance(other, ScalarType):
             return False
-        left = str(self.get_topmost_concrete_base().name)
-        right = str(other.get_topmost_concrete_base().name)
+        left = str(self.get_topmost_concrete_base(schema).name)
+        right = str(other.get_topmost_concrete_base(schema).name)
         return _is_implicitly_castable_impl(left, right)
 
     def find_common_implicitly_castable_type(
@@ -134,8 +134,8 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
         if self.is_polymorphic(schema) and other.is_polymorphic(schema):
             return self
 
-        left = str(self.get_topmost_concrete_base().name)
-        right = str(other.get_topmost_concrete_base().name)
+        left = str(self.get_topmost_concrete_base(schema).name)
+        right = str(other.get_topmost_concrete_base(schema).name)
 
         if left == right:
             return schema.get(left)

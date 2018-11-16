@@ -264,7 +264,7 @@ def create_virtual_parent(schema, children, *,
 
     _children = set()
     for t in children:
-        if t.is_virtual:
+        if t.get_is_virtual(schema):
             _children.update(t.children(schema))
         else:
             _children.add(t)
@@ -321,13 +321,26 @@ class InheritingObject(derivable.DerivableObject):
     mro = so.Field(named.NamedObjectList,
                    coerce=True, default=None, hashable=False)
 
-    is_abstract = so.Field(bool, default=False,
-                           inheritable=False, compcoef=0.909)
-    is_derived = so.Field(bool, False, compcoef=0.909)
-    derived_from = so.Field(so.NamedObject, None, compcoef=0.909,
-                            inheritable=False)
-    is_final = so.Field(bool, default=False, compcoef=0.909)
-    is_virtual = so.Field(bool, default=False, compcoef=0.5)
+    is_abstract = so.SchemaField(
+        bool,
+        default=False,
+        inheritable=False, compcoef=0.909)
+
+    is_derived = so.SchemaField(
+        bool,
+        default=False, compcoef=0.909)
+
+    derived_from = so.SchemaField(
+        so.NamedObject,
+        default=None, compcoef=0.909, inheritable=False)
+
+    is_final = so.SchemaField(
+        bool,
+        default=False, compcoef=0.909)
+
+    is_virtual = so.SchemaField(
+        bool,
+        default=False, compcoef=0.5)
 
     def merge(self, *objs, schema, dctx=None):
         schema = super().merge(*objs, schema=schema, dctx=dctx)
@@ -401,10 +414,10 @@ class InheritingObject(derivable.DerivableObject):
     def get_base_names(self):
         return self.bases.get_names()
 
-    def get_topmost_concrete_base(self):
+    def get_topmost_concrete_base(self, schema):
         # Get the topmost non-abstract base.
         for ancestor in reversed(self.get_mro()):
-            if not ancestor.is_abstract:
+            if not ancestor.get_is_abstract(schema):
                 return ancestor
 
         raise ValueError(f'{self.name} has no non-abstract ancestors')
@@ -465,10 +478,10 @@ class InheritingObject(derivable.DerivableObject):
         schema = self.acquire_ancestor_inheritance(schema, dctx=dctx)
         return schema
 
-    def get_nearest_non_derived_parent(self):
+    def get_nearest_non_derived_parent(self, schema):
         obj = self
-        while obj.derived_from is not None:
-            obj = obj.derived_from
+        while obj.get_derived_from(schema) is not None:
+            obj = obj.get_derived_from(schema)
         return obj
 
     @classmethod

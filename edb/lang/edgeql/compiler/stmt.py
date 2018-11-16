@@ -255,7 +255,7 @@ def compile_InsertQuery(
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
-        if subject.scls.is_abstract:
+        if subject.scls.get_is_abstract(ctx.schema):
             raise errors.EdgeQLError(
                 f'cannot insert: {subject.scls.displayname} is abstract',
                 context=expr.subject.context)

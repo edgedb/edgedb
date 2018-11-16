@@ -284,39 +284,21 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
         self._assert_result(
             result[1],
             '''\
-CREATE ABSTRACT PROPERTY test::lang {
-    SET is_virtual := false;
-};
-CREATE ABSTRACT PROPERTY test::name {
-    SET is_virtual := false;
-};
-CREATE ABSTRACT LINK test::related EXTENDING std::link {
-    SET is_virtual := false;
-};
+CREATE ABSTRACT PROPERTY test::lang;
+CREATE ABSTRACT PROPERTY test::name;
+CREATE ABSTRACT LINK test::related EXTENDING std::link;
 ALTER ABSTRACT LINK test::related \
-CREATE SINGLE PROPERTY test::lang -> std::str {
-    SET is_virtual := false;
-};
-CREATE TYPE test::NamedObject EXTENDING std::Object {
-    SET is_virtual := false;
-};
+CREATE SINGLE PROPERTY test::lang -> std::str;
+CREATE TYPE test::NamedObject EXTENDING std::Object;
 ALTER TYPE test::NamedObject {
-    CREATE REQUIRED SINGLE PROPERTY test::name -> std::str {
-        SET is_virtual := false;
-    };
+    CREATE REQUIRED SINGLE PROPERTY test::name -> std::str;
     CREATE REQUIRED SINGLE LINK test::related -> test::NamedObject {
-        SET is_virtual := false;
         SET on_target_delete := 'RESTRICT';
     };
     ALTER LINK test::related {
-        CREATE SINGLE PROPERTY std::source -> test::NamedObject {
-            SET is_virtual := false;
-        };
-        CREATE SINGLE PROPERTY std::target -> test::NamedObject {
-            SET is_virtual := false;
-        };
+        CREATE SINGLE PROPERTY std::source -> test::NamedObject;
+        CREATE SINGLE PROPERTY std::target -> test::NamedObject;
         CREATE SINGLE PROPERTY test::lang -> std::str {
-            SET is_virtual := false;
             SET title := 'Language';
         };
     };
@@ -339,16 +321,10 @@ ALTER TYPE test::NamedObject {
         self._assert_result(
             result[1],
             '''\
-CREATE ABSTRACT PROPERTY test::a {
-    SET is_virtual := false;
-};
-CREATE TYPE test::NamedObject EXTENDING std::Object {
-    SET is_virtual := false;
-};
+CREATE ABSTRACT PROPERTY test::a;
+CREATE TYPE test::NamedObject EXTENDING std::Object;
 ALTER TYPE test::NamedObject CREATE REQUIRED SINGLE PROPERTY \
-test::a -> array<std::int64> {
-    SET is_virtual := false;
-};
+test::a -> array<std::int64>;
             '''
         )
 
@@ -367,25 +343,16 @@ test::a -> array<std::int64> {
         self._assert_result(
             result[1],
             '''\
-            CREATE ABSTRACT PROPERTY test::bar {
-                SET is_virtual := false;
-            };
-            CREATE ABSTRACT PROPERTY test::__typename {
-                SET is_virtual := false;
-            };
-            CREATE ABSTRACT TYPE test::Foo EXTENDING std::Object {
-                SET is_virtual := false;
-            };
+            CREATE ABSTRACT PROPERTY test::bar;
+            CREATE ABSTRACT PROPERTY test::__typename;
+            CREATE ABSTRACT TYPE test::Foo EXTENDING std::Object;
             ALTER TYPE test::Foo {
-                CREATE SINGLE PROPERTY test::bar -> std::str {
-                    SET is_virtual := false;
-                };
+                CREATE SINGLE PROPERTY test::bar -> std::str;
                 CREATE SINGLE PROPERTY test::__typename -> std::str {
                     SET computable := true;
                     SET default := SELECT
                         'foo'
                     ;
-                    SET is_virtual := false;
                 };
             };
             '''
@@ -406,25 +373,16 @@ test::a -> array<std::int64> {
         self._assert_result(
             result[1],
             '''\
-            CREATE ABSTRACT PROPERTY test::bar {
-                SET is_virtual := false;
-            };
-            CREATE ABSTRACT PROPERTY test::__typename {
-                SET is_virtual := false;
-            };
-            CREATE ABSTRACT TYPE test::Foo EXTENDING std::Object {
-                SET is_virtual := false;
-            };
+            CREATE ABSTRACT PROPERTY test::bar;
+            CREATE ABSTRACT PROPERTY test::__typename;
+            CREATE ABSTRACT TYPE test::Foo EXTENDING std::Object;
             ALTER TYPE test::Foo {
-                CREATE SINGLE PROPERTY test::bar -> std::str {
-                    SET is_virtual := false;
-                };
+                CREATE SINGLE PROPERTY test::bar -> std::str;
                 CREATE SINGLE PROPERTY test::__typename -> std::str {
                     SET computable := true;
                     SET default := SELECT
                         __source__.__type__[IS schema::Type].name
                     ;
-                    SET is_virtual := false;
                 };
             };
             '''
@@ -446,15 +404,10 @@ test::a -> array<std::int64> {
         self._assert_result(
             result[1],
             '''\
-CREATE ABSTRACT PROPERTY test::a2 {
-    SET is_virtual := false;
-};
-CREATE TYPE test::NamedObject2 EXTENDING std::Object {
-    SET is_virtual := false;
-};
+CREATE ABSTRACT PROPERTY test::a2;
+CREATE TYPE test::NamedObject2 EXTENDING std::Object;
 ALTER TYPE test::NamedObject2 CREATE SINGLE PROPERTY \
 test::a2 -> array<std::int64> {
-    SET is_virtual := false;
     SET readonly := true;
 };
             '''

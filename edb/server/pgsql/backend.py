@@ -268,7 +268,7 @@ class Backend:
         elif view_shapes.get(t):
             # This is a view
 
-            if mt.is_virtual:
+            if mt.get_is_virtual(schema):
                 base_type_id = self._get_union_type_id(mt)
             else:
                 base_type_id = self.get_type_id(mt)

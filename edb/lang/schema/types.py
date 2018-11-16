@@ -261,7 +261,7 @@ class Collection(Type):
             eltype = typeref
 
         if isinstance(eltype, s_scalars.ScalarType):
-            eltype = eltype.get_topmost_concrete_base()
+            eltype = eltype.get_topmost_concrete_base(schema)
             eltype = s_types.BaseTypeMeta.get_implementation(eltype.name)
 
         return eltype

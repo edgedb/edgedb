@@ -328,7 +328,8 @@ class GQLCoreSchema:
                                 if isinstance(t, ObjectType)]
 
         # concrete types are also reflected as Type (with a 'Type' postfix)
-        obj_types += [t for t in interface_types if not t.is_abstract]
+        obj_types += [t for t in interface_types
+                      if not t.get_is_abstract(self.edb_schema)]
 
         # interfaces
         for t in interface_types:

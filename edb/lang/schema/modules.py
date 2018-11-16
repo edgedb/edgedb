@@ -28,6 +28,7 @@ from edb.lang.edgeql import ast as qlast
 from . import delta as sd
 from . import functions as fu
 from . import error as s_err
+from . import inheriting
 from . import name as sn
 from . import named
 from . import objects as so
@@ -65,7 +66,8 @@ class Module(named.NamedObject):
         idx_by_type = self.index_by_type.setdefault(obj._type, OrderedSet())
         idx_by_type.add(obj.name)
 
-        if getattr(obj, 'is_derived', None):
+        if (isinstance(obj, inheriting.InheritingObject) and
+                obj.get_is_derived(schema)):
             self.index_derived.add(obj.name)
 
         return schema

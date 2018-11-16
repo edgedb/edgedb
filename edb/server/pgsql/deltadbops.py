@@ -63,15 +63,16 @@ class ConstraintCommon:
 
     @property
     def is_abstract(self):
-        return self._constraint.is_abstract
+        return self._constraint.get_is_abstract(self._schema)
 
 
 class SchemaConstraintDomainConstraint(
         ConstraintCommon, dbops.DomainConstraint):
-    def __init__(self, domain_name, constraint, exprdata):
+    def __init__(self, domain_name, constraint, exprdata, schema):
         super().__init__(domain_name)
         self._exprdata = exprdata
         self._constraint = constraint
+        self._schema = schema
 
     def constraint_code(self, block: dbops.PLBlock) -> str:
         if len(self._exprdata) == 1:
@@ -89,12 +90,14 @@ class SchemaConstraintDomainConstraint(
 
 
 class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
-    def __init__(self, table_name, *, constraint, exprdata, scope, type):
+    def __init__(self, table_name, *,
+                 constraint, exprdata, scope, type, schema):
         super().__init__(table_name, None)
         self._constraint = constraint
         self._exprdata = exprdata
         self._scope = scope
         self._type = type
+        self._schema = schema
 
     def constraint_code(self, block: dbops.PLBlock) -> str:
         if self._scope == 'row':

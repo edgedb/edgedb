@@ -90,7 +90,7 @@ def get_scalar_base(schema, scalar):
         return base
 
     for ancestor in scalar.get_mro()[1:]:
-        if not ancestor.is_abstract:
+        if not ancestor.get_is_abstract(schema):
             # Check if base is fundamental, if not, then it is
             # another domain.
             try:
@@ -113,7 +113,7 @@ def pg_type_from_scalar(
         return ('anynonarray',)
 
     if topbase:
-        base = scalar.get_topmost_concrete_base()
+        base = scalar.get_topmost_concrete_base(schema)
     else:
         base = get_scalar_base(schema, scalar)
 
