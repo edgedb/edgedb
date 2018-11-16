@@ -157,7 +157,8 @@ def compile_Set(
                 )
             return dispatch.compile(bigunion, ctx=ctx)
     else:
-        return irutils.new_empty_set(ctx.schema, alias=ctx.aliases.get('e'))
+        return irutils.new_empty_set(ctx.env.schema,
+                                     alias=ctx.aliases.get('e'))
 
 
 @dispatch.compile.register(qlast.BaseConstant)
@@ -196,7 +197,7 @@ def compile_BaseConstant(
     else:
         raise RuntimeError(f'unexpected constant type: {type(expr)}')
 
-    ct = ctx.schema.get(std_type)
+    ct = ctx.env.schema.get(std_type)
     return setgen.generated_set(node_cls(value=value, type=ct), ctx=ctx)
 
 
@@ -204,7 +205,7 @@ def try_fold_binop(
         binop: irast.BinOp, *,
         ctx: context.ContextLevel) -> typing.Optional[irast.Set]:
     try:
-        const = ireval.evaluate(binop, schema=ctx.schema)
+        const = ireval.evaluate(binop, schema=ctx.env.schema)
     except ireval.UnsupportedExpressionError:
         if binop.op in {ast.ops.ADD, ast.ops.MUL}:
             return try_fold_associative_binop(binop, ctx=ctx)
@@ -241,7 +242,7 @@ def try_fold_associative_binop(
             try:
                 new_const = ireval.evaluate(
                     irast.BinOp(op=op, left=other_const, right=my_const),
-                    schema=ctx.schema,
+                    schema=ctx.env.schema,
                 )
             except ireval.UnsupportedExpressionError:
                 pass
@@ -310,7 +311,7 @@ def compile_Array(
     elements = [dispatch.compile(e, ctx=ctx) for e in expr.elements]
     # check that none of the elements are themselves arrays
     for el, expr_el in zip(elements, expr.elements):
-        if isinstance(irutils.infer_type(el, ctx.schema), s_types.Array):
+        if isinstance(irutils.infer_type(el, ctx.env.schema), s_types.Array):
             raise errors.EdgeQLError(
                 f'nested arrays are not supported',
                 context=expr_el.context)
@@ -337,8 +338,8 @@ def compile_IfElse(
             dispatch.compile(ql_else_expr, ctx=scopectx),
             ctx=scopectx)
 
-    if_expr_type = irutils.infer_type(if_expr, ctx.schema)
-    else_expr_type = irutils.infer_type(else_expr, ctx.schema)
+    if_expr_type = irutils.infer_type(if_expr, ctx.env.schema)
+    else_expr_type = irutils.infer_type(else_expr, ctx.env.schema)
 
     result = s_utils.get_class_nearest_common_ancestor(
         [if_expr_type, else_expr_type])
@@ -385,7 +386,7 @@ def compile_UnaryOp(
 
         result = irast.UnaryOp(expr=operand, op=expr.op, context=expr.context)
         try:
-            result = ireval.evaluate(result, schema=ctx.schema)
+            result = ireval.evaluate(result, schema=ctx.env.schema)
         except ireval.UnsupportedExpressionError:
             pass
 
@@ -408,7 +409,8 @@ def compile_ExistsPredicate(
 def compile_Coalesce(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     if all(isinstance(a, qlast.Set) and not a.elements for a in expr.args):
-        return irutils.new_empty_set(ctx.schema, alias=ctx.aliases.get('e'))
+        return irutils.new_empty_set(ctx.env.schema,
+                                     alias=ctx.aliases.get('e'))
 
     # Due to the construction of relgen, the (unfenced) subscope
     # below is necessary to shield LHS paths from the outer query
@@ -428,7 +430,7 @@ def compile_Coalesce(
 
         # Make sure any empty set types are properly resolved
         # before entering them into the scope tree.
-        irutils.infer_type(larg, schema=ctx.schema)
+        irutils.infer_type(larg, schema=ctx.env.schema)
 
         pathctx.register_set_in_scope(leftmost_arg, ctx=ctx)
         pathctx.mark_path_as_optional(leftmost_arg.path_id, ctx=ctx)
@@ -467,7 +469,7 @@ def _cast_expr(
         source_context: parsing.ParserContext,
         ctx: context.ContextLevel) -> irast.Base:
     try:
-        orig_type = irutils.infer_type(ir_expr, ctx.schema)
+        orig_type = irutils.infer_type(ir_expr, ctx.env.schema)
     except errors.EdgeQLError:
         # It is possible that the source expression is unresolved
         # if the expr is an empty set (or a coalesce of empty sets).
@@ -475,10 +477,10 @@ def _cast_expr(
 
     new_type = typegen.ql_typeref_to_type(ql_type, ctx=ctx)
     new_typeref = typegen.ql_typeref_to_ir_typeref(ql_type, ctx=ctx)
-    json_t = ctx.schema.get('std::json')
+    json_t = ctx.env.schema.get('std::json')
 
     if isinstance(orig_type, s_types.Tuple):
-        if new_type.issubclass(ctx.schema, json_t):
+        if new_type.issubclass(ctx.env.schema, json_t):
             # Casting to std::json involves casting each tuple
             # element and also keeping the cast around the whole tuple.
             # This is to trigger the downstream logic of casting
@@ -494,9 +496,9 @@ def _cast_expr(
                 )
                 val.path_id = irutils.tuple_indirection_path_id(
                     ir_expr.path_id, n, orig_type.element_types[n],
-                    schema=ctx.schema)
+                    schema=ctx.env.schema)
 
-                val_type = irutils.infer_type(val, ctx.schema)
+                val_type = irutils.infer_type(val, ctx.env.schema)
                 # Element cast
                 val = _cast_expr(ql_type, val, ctx=ctx,
                                  source_context=source_context)
@@ -536,9 +538,9 @@ def _cast_expr(
                 )
                 val.path_id = irutils.tuple_indirection_path_id(
                     ir_expr.path_id, n, orig_type.element_types[n],
-                    schema=ctx.schema)
+                    schema=ctx.env.schema)
 
-                val_type = irutils.infer_type(val, ctx.schema)
+                val_type = irutils.infer_type(val, ctx.env.schema)
                 new_el_name = new_names[i]
                 if val_type != new_type.element_types[new_el_name]:
                     # Element cast
@@ -552,12 +554,12 @@ def _cast_expr(
     elif isinstance(ir_expr, irast.EmptySet):
         # For the common case of casting an empty set, we simply
         # generate a new EmptySet node of the requested type.
-        return irutils.new_empty_set(ctx.schema, scls=new_type,
+        return irutils.new_empty_set(ctx.env.schema, scls=new_type,
                                      alias=ir_expr.path_id.target_name.name)
 
     elif (isinstance(ir_expr, irast.Set) and
             isinstance(ir_expr.expr, irast.Array)):
-        if new_type.issubclass(ctx.schema, json_t):
+        if new_type.issubclass(ctx.env.schema, json_t):
             el_type = ql_type
         elif not isinstance(new_type, s_types.Array):
             raise errors.EdgeQLError(
@@ -577,7 +579,7 @@ def _cast_expr(
             irast.TypeCast(expr=ir_expr, type=new_typeref), ctx=ctx)
 
     else:
-        if (new_type.issubclass(ctx.schema, json_t) and
+        if (new_type.issubclass(ctx.env.schema, json_t) and
                 ir_expr.path_id.is_objtype_path()):
             # JSON casts of objects are special: we want the full shape
             # and not just an identity.
@@ -596,7 +598,7 @@ def compile_TypeFilter(
             dispatch.compile(expr.expr, ctx=scopectx),
             ctx=scopectx)
 
-    arg_type = irutils.infer_type(arg, ctx.schema)
+    arg_type = irutils.infer_type(arg, ctx.env.schema)
     if not isinstance(arg_type, s_objtypes.ObjectType):
         raise errors.EdgeQLError(
             f'invalid type filter operand: {arg_type.name} '
@@ -647,7 +649,7 @@ def compile_type_check_op(
         expr: qlast.IsOp, *, ctx: context.ContextLevel) -> irast.TypeCheckOp:
     # <Expr> IS <TypeExpr>
     left = dispatch.compile(expr.left, ctx=ctx)
-    ltype = irutils.infer_type(left, ctx.schema)
+    ltype = irutils.infer_type(left, ctx.env.schema)
     left = setgen.ptr_step_set(
         left, source=ltype, ptr_name=('std', '__type__'),
         direction=s_pointers.PointerDirection.Outbound,
@@ -672,12 +674,12 @@ def compile_set_op(
             dispatch.compile(expr.right, ctx=scopectx),
             ctx=scopectx)
 
-    left_type = irutils.infer_type(left, schema=ctx.schema)
-    right_type = irutils.infer_type(right, schema=ctx.schema)
+    left_type = irutils.infer_type(left, schema=ctx.env.schema)
+    right_type = irutils.infer_type(right, schema=ctx.env.schema)
 
     if left_type != right_type and isinstance(left_type, s_types.Collection):
         common_type = left_type.find_common_implicitly_castable_type(
-            right_type, ctx.schema)
+            right_type, ctx.env.schema)
 
         if common_type is None:
             raise errors.EdgeQLError(
@@ -739,7 +741,7 @@ def compile_equivalence_op(
 
     # Make sure any empty set types are properly resolved
     # before entering them into the scope tree.
-    irutils.infer_type(result, schema=ctx.schema)
+    irutils.infer_type(result, schema=ctx.env.schema)
 
     pathctx.register_set_in_scope(left, ctx=ctx)
     pathctx.mark_path_as_optional(left.path_id, ctx=ctx)

@@ -72,10 +72,24 @@ class StatementMetadata:
         self.ignore_offset_limit = ignore_offset_limit
 
 
-class ContextLevel(compiler.ContextLevel):
+class Environment:
+    """Compilation environment."""
 
     schema: s_schema.Schema
     """A Schema instance to use for class resolution."""
+
+    schema_view_cache: typing.Dict[s_nodes.Node, s_nodes.Node]
+    """Type cache used by schema-level views."""
+
+    def __init__(self, *, schema):
+        self.schema = schema
+        self.schema_view_cache = {}
+
+
+class ContextLevel(compiler.ContextLevel):
+
+    env: Environment
+    """Compilation environment common for all context levels."""
 
     derived_target_module: typing.Optional[str]
     """The name of the module for classes derived by views."""
@@ -111,9 +125,6 @@ class ContextLevel(compiler.ContextLevel):
 
     aliased_views: typing.Dict[str, s_nodes.Node]
     """A dictionary of views aliased in a statement body."""
-
-    schema_view_cache: typing.Dict[s_nodes.Node, s_nodes.Node]
-    """Type cache used by schema-level views."""
 
     expr_view_cache: typing.Dict[typing.Tuple[qlast.Base, str],
                                  irast.Set]
@@ -203,7 +214,7 @@ class ContextLevel(compiler.ContextLevel):
         self.mode = mode
 
         if prevlevel is None:
-            self.schema = None
+            self.env = None
             self.derived_target_module = None
             self.aliases = compiler.AliasGenerator()
             self.anchors = {}
@@ -219,7 +230,6 @@ class ContextLevel(compiler.ContextLevel):
             self.view_nodes = {}
             self.view_sets = {}
             self.aliased_views = collections.ChainMap()
-            self.schema_view_cache = {}
             self.expr_view_cache = {}
             self.shape_type_cache = {}
             self.class_view_overrides = {}
@@ -248,7 +258,7 @@ class ContextLevel(compiler.ContextLevel):
             self.empty_result_type_hint = None
 
         else:
-            self.schema = prevlevel.schema
+            self.env = prevlevel.env
             self.derived_target_module = prevlevel.derived_target_module
             self.aliases = prevlevel.aliases
             self.func = prevlevel.func
@@ -261,7 +271,6 @@ class ContextLevel(compiler.ContextLevel):
             self.source_map = prevlevel.source_map
             self.view_nodes = prevlevel.view_nodes
             self.view_sets = prevlevel.view_sets
-            self.schema_view_cache = prevlevel.schema_view_cache
             self.expr_view_cache = prevlevel.expr_view_cache
             self.shape_type_cache = prevlevel.shape_type_cache
 

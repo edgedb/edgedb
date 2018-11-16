@@ -61,13 +61,14 @@ def get_schema_object(
             return result
 
     try:
-        scls = ctx.schema.get(name=name, module_aliases=ctx.modaliases,
-                              type=item_types)
+        scls = ctx.env.schema.get(
+            name=name, module_aliases=ctx.modaliases,
+            type=item_types)
 
     except s_err.ItemNotFoundError as e:
         qlerror = qlerrors.EdgeQLError(e.args[0], context=srcctx)
         s_utils.enrich_schema_lookup_error(
-            qlerror, name, modaliases=ctx.modaliases, schema=ctx.schema,
+            qlerror, name, modaliases=ctx.modaliases, schema=ctx.env.schema,
             item_types=item_types)
 
         raise qlerror
@@ -134,24 +135,24 @@ def derive_view(
             derived_name_base=derived_name_base, ctx=ctx)
 
     if isinstance(scls, s_types.Collection):
-        derived = scls.derive_subtype(ctx.schema, name=derived_name)
-    elif scls.generic(ctx.schema):
-        ctx.schema, derived = scls.derive(
-            ctx.schema, source, target, *qualifiers, name=derived_name,
+        derived = scls.derive_subtype(ctx.env.schema, name=derived_name)
+    elif scls.generic(ctx.env.schema):
+        ctx.env.schema, derived = scls.derive(
+            ctx.env.schema, source, target, *qualifiers, name=derived_name,
             mark_derived=True)
     else:
-        ctx.schema, derived = scls.derive_copy(
-            ctx.schema, source, target, *qualifiers, name=derived_name,
+        ctx.env.schema, derived = scls.derive_copy(
+            ctx.env.schema, source, target, *qualifiers, name=derived_name,
             attrs=dict(bases=[scls]), mark_derived=True)
 
         if isinstance(derived, s_sources.Source):
-            scls_pointers = scls.get_pointers(ctx.schema)
-            derived_own_pointers = derived.get_own_pointers(ctx.schema)
+            scls_pointers = scls.get_pointers(ctx.env.schema)
+            derived_own_pointers = derived.get_own_pointers(ctx.env.schema)
 
-            for pn, ptr in derived_own_pointers.items(ctx.schema):
+            for pn, ptr in derived_own_pointers.items(ctx.env.schema):
                 # This is a view of a view.  Make sure query-level
                 # computable expressions for pointers are carried over.
-                src_ptr = scls_pointers.get(ctx.schema, pn)
+                src_ptr = scls_pointers.get(ctx.env.schema, pn)
                 computable_data = ctx.source_map.get(src_ptr)
                 if computable_data is not None:
                     ctx.source_map[ptr] = computable_data
@@ -163,11 +164,12 @@ def derive_view(
             vtype = s_types.ViewType.Update
         else:
             vtype = s_types.ViewType.Select
-        ctx.schema = derived.set_field_value(ctx.schema, 'view_type', vtype)
+        ctx.env.schema = derived.set_field_value(
+            ctx.env.schema, 'view_type', vtype)
 
     if (add_to_schema and not isinstance(derived, s_types.Collection) and
-            ctx.schema.get(derived.name, None) is None):
-        ctx.schema = ctx.schema.add(derived)
+            ctx.env.schema.get(derived.name, None) is None):
+        ctx.env.schema = ctx.env.schema.add(derived)
 
     if isinstance(derived, s_types.Type):
         ctx.view_nodes[derived.name] = derived

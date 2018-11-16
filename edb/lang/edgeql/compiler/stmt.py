@@ -197,7 +197,7 @@ def compile_GroupQuery(
 
         typename = s_name.Name(
             module='__group__', name=ctx.aliases.get('Group'))
-        obj = ctx.schema.get('std::Object')
+        obj = ctx.env.schema.get('std::Object')
         stmt.group_path_id = pathctx.get_path_id(
             obj, typename=typename, ctx=ictx)
 
@@ -255,12 +255,12 @@ def compile_InsertQuery(
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
-        if subject.scls.get_is_abstract(ctx.schema):
+        if subject.scls.get_is_abstract(ctx.env.schema):
             raise errors.EdgeQLError(
                 f'cannot insert: {subject.scls.displayname} is abstract',
                 context=expr.subject.context)
 
-        if subject.scls.is_view(ctx.schema):
+        if subject.scls.is_view(ctx.env.schema):
             raise errors.EdgeQLError(
                 f'cannot insert: {subject.scls.displayname} is a view',
                 context=expr.subject.context)
@@ -275,7 +275,7 @@ def compile_InsertQuery(
             ctx=ictx)
 
         stmt.result = setgen.class_set(
-            stmt.subject.scls.material_type(ctx.schema),
+            stmt.subject.scls.material_type(ctx.env.schema),
             path_id=stmt.subject.path_id, ctx=ctx)
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
@@ -291,7 +291,7 @@ def compile_UpdateQuery(
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
-        subj_type = irutils.infer_type(subject, ictx.schema)
+        subj_type = irutils.infer_type(subject, ictx.env.schema)
         if not isinstance(subj_type, s_objtypes.ObjectType):
             raise errors.EdgeQLError(
                 f'cannot update non-ObjectType objects',
@@ -308,7 +308,7 @@ def compile_UpdateQuery(
             ctx=ictx)
 
         stmt.result = setgen.class_set(
-            stmt.subject.scls.material_type(ctx.schema),
+            stmt.subject.scls.material_type(ctx.env.schema),
             path_id=stmt.subject.path_id, ctx=ctx)
 
         stmt.where = clauses.compile_where_clause(
@@ -331,7 +331,7 @@ def compile_DeleteQuery(
             subject = setgen.scoped_set(
                 dispatch.compile(expr.subject, ctx=scopectx), ctx=scopectx)
 
-        subj_type = irutils.infer_type(subject, ictx.schema)
+        subj_type = irutils.infer_type(subject, ictx.env.schema)
         if not isinstance(subj_type, s_objtypes.ObjectType):
             raise errors.EdgeQLError(
                 f'cannot delete non-ObjectType objects',
@@ -342,7 +342,7 @@ def compile_DeleteQuery(
             subject, shape=None, result_alias=expr.subject_alias, ctx=ictx)
 
         stmt.result = setgen.class_set(
-            stmt.subject.scls.material_type(ctx.schema),
+            stmt.subject.scls.material_type(ctx.env.schema),
             path_id=stmt.subject.path_id, ctx=ctx)
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
@@ -361,7 +361,7 @@ def compile_SessionStateDecl(
     for item in decl.items:
         if isinstance(item, qlast.ModuleAliasDecl):
             try:
-                module = ctx.schema.get_module(item.module)
+                module = ctx.env.schema.get_module(item.module)
             except LookupError:
                 raise errors.EdgeQLError(
                     f'module {item.module!r} does not exist',
@@ -374,7 +374,7 @@ def compile_SessionStateDecl(
             try:
                 testmode_ir = dispatch.compile(item.expr, ctx=ctx)
                 testmode = ireval.evaluate_to_python_val(
-                    testmode_ir, schema=ctx.schema)
+                    testmode_ir, schema=ctx.env.schema)
             except ireval.StaticEvaluationError as e:
                 raise errors.EdgeQLError('invalid SET expression',
                                          context=item.context) from e
@@ -440,7 +440,7 @@ def fini_stmt(
         parent_ctx: context.ContextLevel) -> irast.Set:
 
     view_name = parent_ctx.toplevel_result_view_name
-    t = irutils.infer_type(irstmt, ctx.schema)
+    t = irutils.infer_type(irstmt, ctx.env.schema)
 
     if t.name == view_name:
         # The view statement did contain a view declaration and
@@ -529,11 +529,11 @@ def compile_result_clause(
             # or UPDATE, there's no need to explicitly specify the
             # empty set type and it can be assumed to match the pointer
             # target type.
-            target_t = view_rptr.ptrcls.get_target(ctx.schema)
+            target_t = view_rptr.ptrcls.get_target(ctx.env.schema)
 
             if astutils.is_ql_empty_set(result_expr):
                 expr = irutils.new_empty_set(
-                    sctx.schema, scls=target_t,
+                    sctx.env.schema, scls=target_t,
                     alias=ctx.aliases.get('e'))
             else:
                 with sctx.new() as exprctx:
@@ -544,7 +544,7 @@ def compile_result_clause(
         else:
             if astutils.is_ql_empty_set(result_expr):
                 expr = irutils.new_empty_set(
-                    sctx.schema, scls=sctx.empty_result_type_hint,
+                    sctx.env.schema, scls=sctx.empty_result_type_hint,
                     alias=ctx.aliases.get('e'))
             else:
                 expr = setgen.ensure_set(
@@ -584,7 +584,7 @@ def compile_query_subject(
         matching_type = (
             expr.rptr is not None and
             view_rptr.ptrcls_is_linkprop ==
-            expr.rptr.ptrcls.is_link_property(ctx.schema))
+            expr.rptr.ptrcls.is_link_property(ctx.env.schema))
         if matching_type:
             # We are inside an expression that defines a link alias in
             # the parent shape, ie. Spam { alias := Foo.bar }, so

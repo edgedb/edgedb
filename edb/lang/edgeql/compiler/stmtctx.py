@@ -61,7 +61,8 @@ def init_context(
         context.ContextLevel:
     stack = context.CompilerContext()
     ctx = stack.current
-    ctx.schema = schema.get_overlay(extra=ctx.view_nodes)
+    ctx.env = context.Environment(
+        schema=schema.get_overlay(extra=ctx.view_nodes))
 
     if modaliases:
         ctx.modaliases.update(modaliases)
@@ -101,7 +102,7 @@ def fini_expression(
                 node.path_id = node.path_id.strip_weak_namespaces()
 
         cardinality = irinference.infer_cardinality(
-            ir, scope_tree=ctx.path_scope, schema=ctx.schema)
+            ir, scope_tree=ctx.path_scope, schema=ctx.env.schema)
     else:
         cardinality = irast.Cardinality.ONE
 
@@ -109,21 +110,23 @@ def fini_expression(
         if not hasattr(view, 'get_own_pointers'):  # duck check
             continue
 
-        for vptr in view.get_own_pointers(ctx.schema).objects(ctx.schema):
-            ctx.schema = vptr.set_field_value(
-                ctx.schema,
+        view_own_pointers = view.get_own_pointers(ctx.env.schema)
+        for vptr in view_own_pointers.objects(ctx.env.schema):
+            ctx.env.schema = vptr.set_field_value(
+                ctx.env.schema,
                 'target',
-                vptr.get_target(ctx.schema).material_type(ctx.schema))
+                vptr.get_target(ctx.env.schema).material_type(ctx.env.schema))
 
             if not hasattr(vptr, 'get_own_pointers'):
                 continue
 
-            vptr_own_pointers = vptr.get_own_pointers(ctx.schema)
-            for vlprop in vptr_own_pointers.objects(ctx.schema):
-                ctx.schema = vlprop.set_field_value(
-                    ctx.schema,
+            vptr_own_pointers = vptr.get_own_pointers(ctx.env.schema)
+            for vlprop in vptr_own_pointers.objects(ctx.env.schema):
+                vlprop_target = vlprop.get_target(ctx.env.schema)
+                ctx.env.schema = vlprop.set_field_value(
+                    ctx.env.schema,
                     'target',
-                    vlprop.get_target(ctx.schema).material_type(ctx.schema))
+                    vlprop_target.material_type(ctx.env.schema))
 
     result = irast.Statement(
         expr=ir,
@@ -133,7 +136,7 @@ def fini_expression(
         cardinality=cardinality,
         view_shapes=ctx.class_shapes,
     )
-    irutils.infer_type(result, schema=ctx.schema)
+    irutils.infer_type(result, schema=ctx.env.schema)
     return result
 
 
@@ -147,60 +150,60 @@ def compile_anchor(
         step = setgen.class_set(anchor, ctx=ctx)
 
     elif (isinstance(anchor, s_pointers.Pointer) and
-            not anchor.is_link_property(ctx.schema)):
-        if anchor.get_source(ctx.schema):
+            not anchor.is_link_property(ctx.env.schema)):
+        if anchor.get_source(ctx.env.schema):
             path = setgen.extend_path(
-                setgen.class_set(anchor.get_source(ctx.schema), ctx=ctx),
+                setgen.class_set(anchor.get_source(ctx.env.schema), ctx=ctx),
                 anchor,
                 s_pointers.PointerDirection.Outbound,
-                anchor.get_target(ctx.schema),
+                anchor.get_target(ctx.env.schema),
                 ctx=ctx)
         else:
-            Object = ctx.schema.get('std::Object')
+            Object = ctx.env.schema.get('std::Object')
 
-            ctx.schema, ptrcls = anchor.get_derived(
-                ctx.schema, Object, Object,
+            ctx.env.schema, ptrcls = anchor.get_derived(
+                ctx.env.schema, Object, Object,
                 mark_derived=True, add_to_schema=False)
 
             path = setgen.extend_path(
                 setgen.class_set(Object, ctx=ctx),
                 ptrcls,
                 s_pointers.PointerDirection.Outbound,
-                ptrcls.get_target(ctx.schema),
+                ptrcls.get_target(ctx.env.schema),
                 ctx=ctx)
 
         step = path
 
     elif (isinstance(anchor, s_pointers.Pointer) and
-            anchor.is_link_property(ctx.schema)):
+            anchor.is_link_property(ctx.env.schema)):
 
-        anchor_source = anchor.get_source(ctx.schema)
-        anchor_source_source = anchor_source.get_source(ctx.schema)
+        anchor_source = anchor.get_source(ctx.env.schema)
+        anchor_source_source = anchor_source.get_source(ctx.env.schema)
 
         if anchor_source_source:
             path = setgen.extend_path(
                 setgen.class_set(anchor_source_source, ctx=ctx),
                 anchor_source,
                 s_pointers.PointerDirection.Outbound,
-                anchor.get_source(ctx.schema).get_target(ctx.schema),
+                anchor.get_source(ctx.env.schema).get_target(ctx.env.schema),
                 ctx=ctx)
         else:
-            Object = ctx.schema.get('std::Object')
-            ctx.schema, ptrcls = anchor_source.get_derived(
-                ctx.schema, Object, Object,
+            Object = ctx.env.schema.get('std::Object')
+            ctx.env.schema, ptrcls = anchor_source.get_derived(
+                ctx.env.schema, Object, Object,
                 mark_derived=True, add_to_schema=False)
             path = setgen.extend_path(
                 setgen.class_set(Object, ctx=ctx),
                 ptrcls,
                 s_pointers.PointerDirection.Outbound,
-                ptrcls.get_target(ctx.schema),
+                ptrcls.get_target(ctx.env.schema),
                 ctx=ctx)
 
         step = setgen.extend_path(
             path,
             anchor,
             s_pointers.PointerDirection.Outbound,
-            anchor.get_target(ctx.schema),
+            anchor.get_target(ctx.env.schema),
             ctx=ctx)
 
     elif isinstance(anchor, qlast.SubExpr):
@@ -292,17 +295,17 @@ def declare_view(
 def declare_view_from_schema(
         viewcls: s_obj.Object, *,
         ctx: context.ContextLevel) -> irast.Set:
-    vc = ctx.schema_view_cache.get(viewcls)
+    vc = ctx.env.schema_view_cache.get(viewcls)
     if vc is not None:
         return vc
 
     with ctx.detached() as subctx:
-        view_expr = qlparser.parse(viewcls.get_expr(ctx.schema))
+        view_expr = qlparser.parse(viewcls.get_expr(ctx.env.schema))
         declare_view(view_expr, alias=viewcls.name,
                      fully_detached=True, ctx=subctx)
 
         vc = subctx.aliased_views[viewcls.name]
-        ctx.schema_view_cache[viewcls] = vc
+        ctx.env.schema_view_cache[viewcls] = vc
         ctx.source_map.update(subctx.source_map)
         ctx.aliased_views[viewcls.name] = subctx.aliased_views[viewcls.name]
         ctx.view_nodes[vc.name] = vc
@@ -320,7 +323,7 @@ def infer_expr_cardinality(
     if scope is None:
         scope = ctx.path_scope
     return irinference.infer_cardinality(
-        irexpr, scope_tree=scope, schema=ctx.schema)
+        irexpr, scope_tree=scope, schema=ctx.env.schema)
 
 
 def infer_pointer_cardinality(
@@ -349,7 +352,8 @@ def infer_pointer_cardinality(
     else:
         ptr_card = inferred_card
 
-    ctx.schema = ptrcls.set_field_value(ctx.schema, 'cardinality', ptr_card)
+    ctx.env.schema = ptrcls.set_field_value(
+        ctx.env.schema, 'cardinality', ptr_card)
     _update_cardinality_in_derived(ptrcls, ctx=ctx)
 
 
@@ -359,10 +363,10 @@ def _update_cardinality_in_derived(
 
     children = ctx.pointer_derivation_map.get(ptrcls)
     if children:
-        ptrcls_cardinality = ptrcls.get_cardinality(ctx.schema)
+        ptrcls_cardinality = ptrcls.get_cardinality(ctx.env.schema)
         for child in children:
-            ctx.schema = child.set_field_value(
-                ctx.schema, 'cardinality', ptrcls_cardinality)
+            ctx.env.schema = child.set_field_value(
+                ctx.env.schema, 'cardinality', ptrcls_cardinality)
             _update_cardinality_in_derived(child, ctx=ctx)
 
 
@@ -417,7 +421,7 @@ def enforce_singleton_now(
     if scope is None:
         scope = ctx.path_scope
     cardinality = irinference.infer_cardinality(
-        irexpr, scope_tree=scope, schema=ctx.schema)
+        irexpr, scope_tree=scope, schema=ctx.env.schema)
     if cardinality != irast.Cardinality.ONE:
         raise errors.EdgeQLError(
             'possibly more than one element returned by an expression '

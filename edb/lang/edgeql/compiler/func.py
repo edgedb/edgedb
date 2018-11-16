@@ -66,10 +66,12 @@ _NO_MATCH = BoundCall(None, (), frozenset(), None, False, False)
 @dispatch.compile.register(qlast.FunctionCall)
 def compile_FunctionCall(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
+
+    schema = ctx.env.schema
     with ctx.new() as fctx:
         if isinstance(expr.func, str):
             if ctx.func is not None:
-                ctx_func_params = ctx.func.get_params(ctx.schema)
+                ctx_func_params = ctx.func.get_params(schema)
                 if ctx_func_params.get_by_name(expr.func):
                     raise errors.EdgeQLError(
                         f'parameter `{expr.func}` is not callable',
@@ -79,7 +81,7 @@ def compile_FunctionCall(
         else:
             funcname = sn.Name(expr.func[1], expr.func[0])
 
-        funcs = fctx.schema.get_functions(
+        funcs = schema.get_functions(
             funcname, module_aliases=fctx.modaliases)
 
         if funcs is None:
@@ -121,37 +123,37 @@ def compile_FunctionCall(
 
         args, params_typemods = finalize_args(matched_call, ctx=ctx)
 
-        matched_func_params = matched_call.func.get_params(ctx.schema)
-        variadic_param = matched_func_params.find_variadic(ctx.schema)
+        matched_func_params = matched_call.func.get_params(schema)
+        variadic_param = matched_func_params.find_variadic(schema)
         variadic_param_type = None
         if variadic_param is not None:
-            variadic_param_type = variadic_param.get_type(ctx.schema)
+            variadic_param_type = variadic_param.get_type(schema)
 
-        matched_func_ret_type = matched_call.func.get_return_type(ctx.schema)
+        matched_func_ret_type = matched_call.func.get_return_type(schema)
         is_polymorphic = (
-            any(p.get_type(ctx.schema).is_polymorphic(ctx.schema)
+            any(p.get_type(schema).is_polymorphic(schema)
                 for p in matched_func_params) and
-            matched_func_ret_type.is_polymorphic(ctx.schema)
+            matched_func_ret_type.is_polymorphic(schema)
         )
 
         matched_func_initial_value = matched_call.func.get_initial_value(
-            ctx.schema)
+            schema)
 
         node = irast.FunctionCall(
             args=args,
             func_shortname=func.shortname,
             func_polymorphic=is_polymorphic,
-            func_sql_function=func.get_from_function(ctx.schema),
+            func_sql_function=func.get_from_function(schema),
             params_typemods=params_typemods,
             context=expr.context,
             type=matched_call.return_type,
-            typemod=matched_call.func.get_return_typemod(ctx.schema),
+            typemod=matched_call.func.get_return_typemod(schema),
             has_empty_variadic=matched_call.has_empty_variadic,
             variadic_param_type=variadic_param_type,
         )
 
         if matched_func_initial_value is not None:
-            rtype = irutils.infer_type(node, fctx.schema)
+            rtype = irutils.infer_type(node, schema)
             iv_ql = qlast.TypeCast(
                 expr=qlparser.parse_fragment(matched_func_initial_value),
                 type=typegen.type_to_ql_typeref(rtype, ctx=ctx)
@@ -176,24 +178,24 @@ def try_bind_func_args(
         if in_polymorphic_func:
             # Compiling a body of a polymorphic function.
 
-            if arg_type.is_polymorphic(ctx.schema):
-                if param_type.is_polymorphic(ctx.schema):
-                    return arg_type.test_polymorphic(ctx.schema, param_type)
+            if arg_type.is_polymorphic(schema):
+                if param_type.is_polymorphic(schema):
+                    return arg_type.test_polymorphic(schema, param_type)
 
-                arg_poly = arg_type.resolve_polymorphic(ctx.schema, param_type)
+                arg_poly = arg_type.resolve_polymorphic(schema, param_type)
                 return arg_poly is not None
 
         else:
-            if arg_type.is_polymorphic(ctx.schema):
+            if arg_type.is_polymorphic(schema):
                 raise errors.EdgeQLError(
                     f'a polymorphic argument in a non-polymorphic function',
                     context=arg.context)
 
-        if param_type.is_polymorphic(ctx.schema):
-            if not arg_type.test_polymorphic(ctx.schema, param_type):
+        if param_type.is_polymorphic(schema):
+            if not arg_type.test_polymorphic(schema, param_type):
                 return False
 
-            resolved = param_type.resolve_polymorphic(ctx.schema, arg_type)
+            resolved = param_type.resolve_polymorphic(schema, arg_type)
             if resolved is None:
                 return False
 
@@ -202,16 +204,16 @@ def try_bind_func_args(
 
             return resolved_poly_base_type == resolved
 
-        if arg_type.issubclass(ctx.schema, param_type):
+        if arg_type.issubclass(schema, param_type):
             return True
 
-        if arg_type.implicitly_castable_to(param_type, ctx.schema):
+        if arg_type.implicitly_castable_to(param_type, schema):
             used_implicit_cast = True
             return True
 
         return False
 
-    schema = ctx.schema
+    schema = ctx.env.schema
 
     in_polymorphic_func = (
         ctx.func is not None and
@@ -482,7 +484,7 @@ def compile_call_args(
     for ai, arg in enumerate(expr.args):
         arg_ir = compile_call_arg(arg, ctx=ctx)
 
-        arg_type = irutils.infer_type(arg_ir, ctx.schema)
+        arg_type = irutils.infer_type(arg_ir, ctx.env.schema)
         if arg_type is None:
             raise errors.EdgeQLError(
                 f'could not resolve the type of positional argument '
@@ -494,7 +496,7 @@ def compile_call_args(
     for aname, arg in expr.kwargs.items():
         arg_ir = compile_call_arg(arg, ctx=ctx)
 
-        arg_type = irutils.infer_type(arg_ir, ctx.schema)
+        arg_type = irutils.infer_type(arg_ir, ctx.env.schema)
         if arg_type is None:
             raise errors.EdgeQLError(
                 f'could not resolve the type of named argument '
@@ -519,7 +521,7 @@ def finalize_args(bound_call: BoundCall, *,
             typemods.append(_SINGLETON)
             continue
 
-        param_mod = param.get_typemod(ctx.schema)
+        param_mod = param.get_typemod(ctx.env.schema)
         typemods.append(param_mod)
 
         if param_mod is not _SET_OF:
