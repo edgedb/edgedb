@@ -203,7 +203,7 @@ class NamedObjectMetaCommand(
 
     def get_fields(self, schema):
         if isinstance(self, sd.CreateObject):
-            fields = self.scls
+            fields = dict(self.scls.get_fields_values(schema))
         else:
             fields = self.get_struct_properties(schema)
 

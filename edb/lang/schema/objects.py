@@ -371,12 +371,9 @@ class Object(metaclass=ObjectMeta):
     def copy(self):
         return self.copy_with_class(type(self))
 
-    def items(self):
+    def get_fields_values(self, schema):
         for field in self.__class__._fields:
-            yield field, self.get_field_value(None, field)  # XXX
-
-    def __iter__(self):
-        return iter(self.__class__._fields)
+            yield field, self.get_field_value(schema, field)
 
     def _init_fields(self, setdefaults, relaxrequired, values):
         for field_name, field in self.__class__._fields.items():

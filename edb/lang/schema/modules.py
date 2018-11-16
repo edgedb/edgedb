@@ -52,7 +52,7 @@ class Module(named.NamedObject):
         self.index_derived = set()
 
     def add(self, schema, obj):
-        if obj in self:
+        if obj.name in self.index_by_name:
             err = '{!r} is already present in the schema'.format(obj.name)
             raise s_err.SchemaError(err)
 
