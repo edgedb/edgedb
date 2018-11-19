@@ -168,7 +168,7 @@ class NamedObjectMetaCommand(
             recvalue = dbops.Query(
                 f'edgedb._resolve_type_id(ARRAY[{name_array}]::text[])')
 
-        elif isinstance(value, s_obj.ObjectMapping):
+        elif isinstance(value, s_obj.ObjectIndexBase):
             result = s_types.Tuple.from_subtypes(
                 schema,
                 dict(value.items(schema)),
@@ -1331,8 +1331,8 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
 
                 orig_ptrs = orig_source.get_pointers(schema)
                 dropped_ptrs = (
-                    set(orig_ptrs.names(schema)) -
-                    set(ptrs.names(schema))
+                    set(orig_ptrs.shortnames(schema)) -
+                    set(ptrs.shortnames(schema))
                 )
 
                 if dropped_ptrs:

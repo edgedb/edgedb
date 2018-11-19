@@ -53,14 +53,14 @@ class IndexableSubject(referencing.ReferencingObject):
         ref_cls=SourceIndex)
 
     indexes = so.SchemaField(
-        so.ObjectMapping,
+        so.ObjectIndexByShortname,
         inheritable=False, ephemeral=True, coerce=True,
-        default=so.ObjectMapping, hashable=False)
+        default=so.ObjectIndexByShortname, hashable=False)
 
     own_indexes = so.SchemaField(
-        so.ObjectMapping, compcoef=0.909,
+        so.ObjectIndexByShortname, compcoef=0.909,
         inheritable=False, ephemeral=True, coerce=True,
-        default=so.ObjectMapping)
+        default=so.ObjectIndexByShortname)
 
     def add_index(self, schema, index):
         return self.add_classref(schema, 'indexes', index)

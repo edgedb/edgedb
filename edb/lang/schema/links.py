@@ -83,8 +83,8 @@ class Link(sources.Source, pointers.Pointer):
     schema_class_displayname = 'link'
 
     spectargets = so.SchemaField(
-        named.NamedObjectSet,
-        default=named.NamedObjectSet,
+        so.ObjectSet,
+        default=so.ObjectSet,
         coerce=True)
 
     on_target_delete = so.SchemaField(
@@ -249,7 +249,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                 cmd.add(
                     sd.AlterObjectProperty(
                         property='spectargets',
-                        new_value=named.NamedObjectList([
+                        new_value=so.ObjectList([
                             utils.ast_to_typeref(
                                 t, modaliases=context.modaliases,
                                 schema=schema)
@@ -274,7 +274,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                 create_virt_parent.update((
                     sd.AlterObjectProperty(
                         property='bases',
-                        new_value=named.NamedObjectList([
+                        new_value=so.ObjectList([
                             so.ObjectRef(name=sn.Name(
                                 module='std', name='Object'
                             ))
@@ -510,7 +510,7 @@ class AlterTarget(sd.Command):
             alter_ptr_ctx.op.add(
                 sd.AlterObjectProperty(
                     property='spectargets',
-                    new_value=named.NamedObjectList([
+                    new_value=so.ObjectList([
                         so.ObjectRef(
                             name=sn.Name(
                                 module=t.module,

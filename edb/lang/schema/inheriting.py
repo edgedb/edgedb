@@ -121,7 +121,7 @@ class CreateInheritingObject(named.CreateNamedObject, InheritingObjectCommand):
 
         modaliases = context.modaliases
 
-        bases = named.NamedObjectList.create(
+        bases = so.ObjectList.create(
             schema,
             [utils.ast_to_typeref(b, modaliases=modaliases, schema=schema)
              for b in getattr(astnode, 'bases', None) or []]
@@ -133,7 +133,7 @@ class CreateInheritingObject(named.CreateNamedObject, InheritingObjectCommand):
 
             if default_base is not None and classname != default_base:
                 default_base = schema.get(default_base)
-                bases = named.NamedObjectList.create(
+                bases = so.ObjectList.create(
                     schema,
                     [utils.reduce_to_typeref(schema, default_base)])
 
@@ -319,13 +319,13 @@ def create_virtual_parent(schema, children, *,
 
 class InheritingObject(derivable.DerivableObject):
     bases = so.SchemaField(
-        named.NamedObjectList,
-        default=named.NamedObjectList,
+        so.ObjectList,
+        default=so.ObjectList,
         coerce=True, inheritable=False, compcoef=0.714,
         debug_getter=True)
 
     mro = so.SchemaField(
-        named.NamedObjectList,
+        so.ObjectList,
         coerce=True, default=None, hashable=False,
         debug_getter=True)
 
@@ -425,7 +425,7 @@ class InheritingObject(derivable.DerivableObject):
         return schema, derived
 
     def get_base_names(self, schema):
-        return self.get_bases(schema).get_names(schema)
+        return self.get_bases(schema).names(schema)
 
     def get_topmost_concrete_base(self, schema):
         # Get the topmost non-abstract base.

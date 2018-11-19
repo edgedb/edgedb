@@ -30,8 +30,8 @@ from . import objects as so
 
 class Delta(named.NamedObject):
     parents = so.SchemaField(
-        named.NamedObjectList,
-        default=named.NamedObjectList, coerce=True, inheritable=False)
+        so.ObjectList,
+        default=so.ObjectList, coerce=True, inheritable=False)
 
     target = so.SchemaField(
         s_ast.Schema,

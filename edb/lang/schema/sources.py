@@ -46,14 +46,14 @@ class Source(indexes.IndexableSubject):
         ref_cls=pointers.Pointer)
 
     pointers = so.SchemaField(
-        so.ObjectMapping,
+        so.ObjectIndexByShortname,
         inheritable=False, ephemeral=True, coerce=True,
-        default=so.ObjectMapping, hashable=False)
+        default=so.ObjectIndexByShortname, hashable=False)
 
     own_pointers = so.SchemaField(
-        so.ObjectMapping, compcoef=0.857,
+        so.ObjectIndexByShortname, compcoef=0.857,
         inheritable=False, ephemeral=True, coerce=True,
-        default=so.ObjectMapping)
+        default=so.ObjectIndexByShortname)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

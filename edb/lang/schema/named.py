@@ -20,7 +20,6 @@
 import base64
 
 from edb.lang.common import struct
-from edb.lang.common.persistent_hash import persistent_hash
 
 from edb.lang.edgeql import ast as qlast
 
@@ -32,44 +31,6 @@ from . import error as s_err
 
 
 NamedObject = so.NamedObject
-
-
-class NamedObjectList(so.ObjectList, type=NamedObject):
-    def get_names(self, schema):
-        return tuple(ref.name for ref in self.objects(schema))
-
-    def persistent_hash(self, *, schema):
-        return persistent_hash(self.get_names(schema), schema=schema)
-
-    @classmethod
-    def compare_values(cls, ours, theirs, *,
-                       our_schema, their_schema, context, compcoef):
-        our_names = ours.get_names(our_schema) if ours else tuple()
-        their_names = theirs.get_names(their_schema) if theirs else tuple()
-
-        if frozenset(our_names) != frozenset(their_names):
-            return compcoef
-        else:
-            return 1.0
-
-
-class NamedObjectSet(so.ObjectSet, type=NamedObject):
-    def get_names(self, schema):
-        return frozenset(ref.name for ref in self.objects(schema))
-
-    def persistent_hash(self, *, schema):
-        return persistent_hash(self.get_names(schema), schema=schema)
-
-    @classmethod
-    def compare_values(cls, ours, theirs, *,
-                       our_schema, their_schema, context, compcoef):
-        our_names = ours.get_names(our_schema) if ours else frozenset()
-        their_names = theirs.get_names(their_schema) if theirs else frozenset()
-
-        if our_names != their_names:
-            return compcoef
-        else:
-            return 1.0
 
 
 class NamedObjectCommand(sd.ObjectCommand):
@@ -179,7 +140,7 @@ class CreateNamedObject(CreateOrAlterNamedObject, sd.CreateObject):
             pass
         elif op.property == 'bases':
             if not isinstance(op.new_value, so.ObjectList):
-                bases = NamedObjectList.create(schema, op.new_value)
+                bases = so.ObjectList.create(schema, op.new_value)
             else:
                 bases = op.new_value
 

@@ -54,7 +54,6 @@ from . import links as s_links
 from . import lproperties as s_props
 from . import modules as s_mod
 from . import name as s_name
-from . import named as s_named
 from . import objects as s_obj
 from . import pseudo as s_pseudo
 from . import scalars as s_scalars
@@ -331,7 +330,7 @@ class DeclarationLoader:
                     default_base_name, module_aliases=self._mod_aliases)
                 bases.append(default_base)
 
-        return s_named.NamedObjectList.create(self._schema, bases)
+        return s_obj.ObjectList.create(self._schema, bases)
 
     def _init_constraints(self, constraints):
         for constraint, decl in constraints.items():

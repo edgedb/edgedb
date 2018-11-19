@@ -17,6 +17,7 @@
 #
 
 
+import collections
 import collections.abc
 import itertools
 import pathlib
@@ -1178,16 +1179,52 @@ class ObjectRef(NamedObject):
         return schema.get(self.name)
 
 
+class ObjectCollectionDuplicateNameError(Exception):
+    pass
+
+
 class ObjectCollection:
 
-    def __init_subclass__(cls, *, type=Object):
+    def __init_subclass__(cls, *, type=Object, container=None):
         cls._type = type
+        if container is not None:
+            cls._container = container
+
+    def __init__(self, ids, *, _private_init):
+        self._ids = ids
+
+    def __len__(self):
+        return len(self._ids)
+
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return self._ids == other._ids
+
+    def __hash__(self):
+        return hash(self._ids)
+
+    @classmethod
+    def create(cls, schema, data: typing.Iterable[NamedObject]):
+        ids = []
+
+        if isinstance(data, ObjectCollection):
+            ids = data._ids
+        elif data:
+            for v in data:
+                ids.append(cls._validate_value(schema, v))
+
+        return cls(cls._container(ids), _private_init=True)
+
+    @classmethod
+    def create_empty(cls) -> 'ObjectCollection':
+        return cls(cls._container(), _private_init=True)
 
     @classmethod
     def _validate_value(cls, schema, v):
         if not isinstance(v, cls._type):
             raise TypeError(
-                f'invalid input data for ObjectMapping: '
+                f'invalid input data for ObjectIndexByShortname: '
                 f'expected {cls._type} values, got {type(v)}')
 
         if v.id is not None:
@@ -1199,43 +1236,104 @@ class ObjectCollection:
 
         return v
 
+    def names(self, schema, *, allow_unresolved=False):
+        result = []
+
+        for item_id in self._ids:
+            if isinstance(item_id, ObjectRef):
+                try:
+                    obj = schema.get(item_id.name)
+                except s_err.ItemNotFoundError:
+                    if allow_unresolved:
+                        result.append(item_id.name)
+                    else:
+                        raise
+                else:
+                    result.append(obj.name)
+            else:
+                obj = schema.get_by_id(item_id)
+                result.append(obj.name)
+
+        return type(self)._container(result)
+
+    def shortnames(self, schema, *, allow_unresolved=False):
+        result = []
+
+        for item_id in self._ids:
+            if isinstance(item_id, ObjectRef):
+                try:
+                    obj = schema.get(item_id.name)
+                except s_err.ItemNotFoundError:
+                    if allow_unresolved:
+                        result.append(
+                            NamedObject.shortname_from_fullname(item_id.name))
+                    else:
+                        raise
+                else:
+                    result.append(obj.shortname)
+            else:
+                obj = schema.get_by_id(item_id)
+                result.append(obj.shortname)
+
+        return type(self)._container(result)
+
     def objects(self, schema):
-        raise NotImplementedError
+        result = []
 
+        for item_id in self._ids:
+            if isinstance(item_id, ObjectRef):
+                result.append(schema.get(item_id.name))
+            else:
+                result.append(schema.get_by_id(item_id))
 
-class ObjectMapping(ObjectCollection):
+        return tuple(result)
 
-    def __init__(self, data: dict, *, _private_init):
-        self._keys = tuple(data)
-        self._map = data
-
-    @classmethod
-    def create(cls, schema, data: dict=None) -> 'ObjectMapping':
-        items = {}
-
-        if data:
-            for k, v in data.items():
-                cls._validate_key(k)
-                items[k] = cls._validate_value(schema, v)
-
-        return cls(items, _private_init=True)
+    def persistent_hash(self, *, schema):
+        return phash.persistent_hash(self.names(schema, allow_unresolved=True))
 
     @classmethod
-    def create_empty(cls) -> 'ObjectMapping':
-        return cls({}, _private_init=True)
+    def compare_values(cls, ours, theirs, *,
+                       our_schema, their_schema, context, compcoef):
+        if ours is not None:
+            our_names = ours.names(our_schema, allow_unresolved=True)
+        else:
+            our_names = cls._container()
+
+        if theirs is not None:
+            their_names = theirs.names(their_schema, allow_unresolved=True)
+        else:
+            their_names = cls._container()
+
+        if frozenset(our_names) != frozenset(their_names):
+            return compcoef
+        else:
+            return 1.0
+
+
+class ObjectIndexBase(ObjectCollection, container=tuple):
+
+    def __init_subclass__(cls, *, key):
+        cls._key = key
 
     @classmethod
-    def _validate_key(self, k):
-        if not isinstance(k, str):
-            raise TypeError(
-                f'invalid input data for ObjectMapping: '
-                f'expected str keys, got {type(k)}')
+    def create(cls, schema, data: typing.Iterable[NamedObject]):
+        coll = super().create(schema, data)
+        coll._check_duplicates(schema)
+        return coll
 
     def persistent_hash(self, *, schema):
         vals = []
         for k, v in self.items(schema):
             vals.append((k, v))
         return phash.persistent_hash(frozenset(vals), schema=schema)
+
+    def _check_duplicates(self, schema):
+        counts = collections.Counter(self.keys(schema))
+        duplicates = [v for v, count in counts.items() if count > 1]
+        if duplicates:
+            raise ObjectCollectionDuplicateNameError(
+                'object index contains duplicate key(s): ' +
+                ', '.join(repr(duplicates)))
 
     @classmethod
     def compare_values(cls, ours, theirs, *,
@@ -1259,8 +1357,8 @@ class ObjectMapping(ObjectCollection):
                                   their_schema=their_schema, context=context))
 
             diff = (
-                set(theirs.names(their_schema)) -
-                set(ours.names(our_schema))
+                set(theirs.keys(their_schema)) -
+                set(ours.keys(our_schema))
             )
             similarity.extend(0.2 for k in diff)
 
@@ -1268,128 +1366,79 @@ class ObjectMapping(ObjectCollection):
 
         return basecoef + (1 - basecoef) * compcoef
 
-    def replace(self, schema, reps: dict):
-        new_map: dict = self._map.copy()
+    def add(self, schema, item) -> 'ObjectIndexBase':
+        """Return a copy of this collection containing the given item.
 
-        if isinstance(reps, ObjectMapping):
-            keys = reps.items(schema)
-        else:
-            keys = reps.items()
+        If the item is already present in the collection, an
+        ``ObjectIndexDuplicateNameError`` is raised.
+        """
 
-        for key, obj in keys:
-            self._validate_key(key)
+        key = type(self)._key(schema, item)
+        if self.has(schema, key):
+            raise ObjectCollectionDuplicateNameError(
+                f'object index already contains the {key!r} key')
 
-            if obj is None:
-                if key not in new_map:
-                    raise KeyError(f'{key!r} is not in the mapping')
-                new_map.pop(key)
-            else:
-                obj = self._validate_value(schema, obj)
-                new_map[key] = obj
+        return self.update(schema, [item])
 
-        om = type(self)(new_map, _private_init=True)
-        return schema, om
+    def update(self, schema, reps: typing.Iterable[NamedObject]):
+        items = dict(self.items(schema))
+        keyfunc = type(self)._key
 
-    def names(self, schema):
-        return self._map.keys()
+        for obj in reps:
+            items[keyfunc(schema, obj)] = obj
+
+        return schema, type(self).create(schema, items.values())
+
+    def delete(self, schema,
+               names: typing.Iterable[str]) -> 'ObjectIndexBase':
+        items = dict(self.items(schema))
+        for name in names:
+            items.pop(name)
+        return schema, type(self).create(schema, items.values())
 
     def items(self, schema):
         result = []
+        keyfunc = type(self)._key
 
-        for k, v in self._map.items():
-            if isinstance(v, ObjectRef):
-                v = schema.get(v.name)
-            else:
-                v = schema.get_by_id(v)
-            result.append((k, v))
+        for obj in self.objects(schema):
+            result.append((keyfunc(schema, obj), obj))
 
         return tuple(result)
 
-    def objects(self, schema):
+    def keys(self, schema):
         result = []
+        keyfunc = type(self)._key
 
-        for v in self._map.values():
-            if isinstance(v, ObjectRef):
-                result.append(schema.get(v.name))
-            else:
-                result.append(schema.get_by_id(v))
+        for obj in self.objects(schema):
+            result.append(keyfunc(schema, obj))
 
         return tuple(result)
 
     def has(self, schema, name):
-        return name in self._map
+        return name in self.keys(schema)
 
     def get(self, schema, name, default=...):
-        try:
-            v = self._map[name]
-        except KeyError:
-            if default is not ...:
-                return default
-            else:
-                raise
+        items = dict(self.items(schema))
+        if default is ...:
+            return items[name]
         else:
-            if isinstance(v, ObjectRef):
-                return schema.get(v.name)
-            else:
-                return schema.get_by_id(v)
-
-    def __len__(self):
-        return len(self._keys)
-
-    def __eq__(self, other):
-        if not isinstance(other, type(self)):
-            return NotImplemented
-        return self._map == other._map
-
-    def __hash__(self):
-        return hash(frozenset(self._map.items()))
+            return items.get(name, default)
 
 
-class ObjectSet(ObjectCollection):
+class ObjectIndexByFullname(ObjectIndexBase,
+                            key=lambda schema, o: o.name):
+    pass
 
-    def __init__(self, data: frozenset, *, _private_init):
-        self._ids = data
 
-    @classmethod
-    def create(cls, schema, data=None):
-        ids = []
+class ObjectIndexByShortname(ObjectIndexBase,
+                             key=lambda schema, o: o.shortname):
+    pass
 
-        if isinstance(data, ObjectSet):
-            ids = data._ids
-        elif data:
-            for v in data:
-                ids.append(cls._validate_value(schema, v))
 
-        return cls(frozenset(ids), _private_init=True)
-
-    @classmethod
-    def create_empty(cls) -> 'ObjectSet':
-        return cls(frozenset(), _private_init=True)
-
-    def __len__(self):
-        return len(self._ids)
-
-    def __eq__(self, other):
-        if not isinstance(other, type(self)):
-            return NotImplemented
-        return self._ids == other._ids
-
-    def __hash__(self):
-        return hash(self._ids)
+class ObjectSet(ObjectCollection, container=frozenset):
 
     def __repr__(self):
         return f'{{{", ".join(str(id) for id in self._ids)}}}'
-
-    def objects(self, schema):
-        result = []
-
-        for item_id in self._ids:
-            if isinstance(item_id, ObjectRef):
-                result.append(schema.get(item_id.name))
-            else:
-                result.append(schema.get_by_id(item_id))
-
-        return frozenset(result)
 
     @classmethod
     def merge_values(cls, target, sources, field_name, *, schema):
@@ -1404,113 +1453,11 @@ class ObjectSet(ObjectCollection):
 
         return result
 
-    @classmethod
-    def compare_values(cls, ours, theirs, *,
-                       our_schema, their_schema, context, compcoef):
-        if not ours and not theirs:
-            basecoef = 1.0
-        elif not ours or not theirs:
-            basecoef = 0.2
-        else:
-            ours_set = ours.objects(our_schema)
-            theirs_set = theirs.objects(their_schema)
 
-            comparison = []
-            for x, y in itertools.product(ours_set, theirs_set):
-                comp = x.compare(y, our_schema=our_schema,
-                                 their_schema=their_schema, context=context)
-                comparison.append((comp, x, y))
-
-            similarity = []
-            used_x = set()
-            used_y = set()
-
-            items = sorted(comparison, key=lambda item: item[0], reverse=True)
-
-            for s, x, y in items:
-                if x in used_x and y in used_y:
-                    continue
-                elif x in used_x:
-                    similarity.append(0.2)
-                    used_y.add(y)
-                elif y in used_y:
-                    similarity.append(0.2)
-                    used_x.add(x)
-                else:
-                    similarity.append(s)
-                    used_x.add(x)
-                    used_y.add(y)
-
-            basecoef = sum(similarity) / len(similarity)
-
-        return basecoef + (1 - basecoef) * compcoef
-
-
-class ObjectList(ObjectCollection):
-
-    def __init__(self, data: tuple, *, _private_init):
-        self._ids = data
-
-    @classmethod
-    def create(cls, schema, data=None):
-        ids = []
-
-        if isinstance(data, ObjectSet):
-            ids = data._ids
-        elif data:
-            for v in data:
-                ids.append(cls._validate_value(schema, v))
-
-        return cls(tuple(ids), _private_init=True)
-
-    @classmethod
-    def create_empty(cls) -> 'ObjectList':
-        return cls((), _private_init=True)
-
-    def __len__(self):
-        return len(self._ids)
-
-    def __eq__(self, other):
-        if not isinstance(other, type(self)):
-            return NotImplemented
-        return self._ids == other._ids
-
-    def __hash__(self):
-        return hash(tuple(self._ids))
+class ObjectList(ObjectCollection, container=tuple):
 
     def __repr__(self):
         return f'[{", ".join(str(id) for id in self._ids)}]'
-
-    def names(self, schema, *, allow_unresolved=False):
-        result = []
-
-        for item_id in self._ids:
-            if isinstance(item_id, ObjectRef):
-                try:
-                    obj = schema.get(item_id.name)
-                except s_err.ItemNotFoundError:
-                    if allow_unresolved:
-                        result.append(item_id.name)
-                    else:
-                        raise
-                else:
-                    result.append(obj.name)
-            else:
-                obj = schema.get_by_id(item_id)
-                result.append(obj.name)
-
-        return tuple(result)
-
-    def objects(self, schema):
-        result = []
-
-        for item_id in self._ids:
-            if isinstance(item_id, ObjectRef):
-                result.append(schema.get(item_id.name))
-            else:
-                result.append(schema.get_by_id(item_id))
-
-        return tuple(result)
 
     def first(self, schema, default=NoDefault):
         try:
@@ -1522,44 +1469,3 @@ class ObjectList(ObjectCollection):
             raise IndexError('ObjectList is empty')
         else:
             return default
-
-    @classmethod
-    def compare_values(cls, ours, theirs, *,
-                       our_schema, their_schema, context, compcoef):
-        if not ours and not theirs:
-            basecoef = 1.0
-        elif not ours or not theirs:
-            basecoef = 0.2
-        else:
-            ours_set = ours.objects(our_schema)
-            theirs_set = theirs.objects(their_schema)
-
-            comparison = []
-            for x, y in itertools.zip_longest(ours_set, theirs_set):
-                comp = x.compare(y, our_schema=our_schema,
-                                 their_schema=their_schema, context=context)
-                comparison.append((comp, x, y))
-
-            similarity = []
-            used_x = set()
-            used_y = set()
-
-            items = sorted(comparison, key=lambda item: item[0], reverse=True)
-
-            for s, x, y in items:
-                if x in used_x and y in used_y:
-                    continue
-                elif x in used_x:
-                    similarity.append(0.2)
-                    used_y.add(y)
-                elif y in used_y:
-                    similarity.append(0.2)
-                    used_x.add(x)
-                else:
-                    similarity.append(s)
-                    used_x.add(x)
-                    used_y.add(y)
-
-            basecoef = sum(similarity) / len(similarity)
-
-        return basecoef + (1 - basecoef) * compcoef

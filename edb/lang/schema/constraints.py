@@ -311,15 +311,15 @@ class ConsistencySubject(referencing.ReferencingObject):
         ref_cls=Constraint)
 
     constraints = so.SchemaField(
-        so.ObjectMapping,
+        so.ObjectIndexByShortname,
         inheritable=False, ephemeral=True, coerce=True,
-        default=so.ObjectMapping, hashable=False)
+        default=so.ObjectIndexByShortname, hashable=False)
 
     own_constraints = so.SchemaField(
-        so.ObjectMapping, compcoef=0.887,
+        so.ObjectIndexByShortname, compcoef=0.887,
         inheritable=False, ephemeral=True,
         coerce=True,
-        default=so.ObjectMapping)
+        default=so.ObjectIndexByShortname)
 
     @classmethod
     def inherit_pure(cls, schema, item, source, *, dctx=None):
@@ -342,7 +342,7 @@ class ConsistencySubject(referencing.ReferencingObject):
         if attr == 'constraints':
             # Make sure abstract constraints from parents are mixed in
             # properly.
-            constraints = set(self.get_constraints(schema).names(schema))
+            constraints = set(self.get_constraints(schema).shortnames(schema))
             inherited = itertools.chain.from_iterable(
                 b.get_constraints(schema).objects(schema)
                 for b in bases)
