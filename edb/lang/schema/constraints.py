@@ -32,6 +32,7 @@ from . import inheriting
 from . import name as sn
 from . import named
 from . import objects as so
+from . import pseudo as s_pseudo
 from . import referencing
 from . import utils
 
@@ -96,7 +97,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
         return schema
 
     def init_derived(self, schema, source, *qualifiers,
-                     as_copy, mark_derived=False, add_to_schema=False,
+                     as_copy, mark_derived=False,
                      merge_bases=None, attrs=None,
                      dctx=None, **kwargs):
 
@@ -107,8 +108,8 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
 
         return super().init_derived(
             schema, source, *qualifiers, as_copy=as_copy,
-            mark_derived=mark_derived, add_to_schema=add_to_schema,
-            merge_bases=merge_bases, attrs=attrs, dctx=dctx, **kwargs)
+            mark_derived=mark_derived, merge_bases=merge_bases,
+            attrs=attrs, dctx=dctx, **kwargs)
 
     def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
         schema = super().finalize(
@@ -131,12 +132,10 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
         return schema
 
     @classmethod
-    def _dummy_subject(cls):
-        from . import scalars as s_scalars
-
+    def _dummy_subject(cls, schema):
         # Point subject placeholder to a dummy pointer to make EdgeQL
         # pipeline happy.
-        return s_scalars.ScalarType(name=sn.Name('std::_subject_tgt'))
+        return s_pseudo.Any.create()
 
     @classmethod
     def _normalize_constraint_expr(
@@ -164,7 +163,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
         from edb.lang.ir import utils as irutils
 
         if subject is None:
-            subject = cls._dummy_subject()
+            subject = cls._dummy_subject(schema)
 
         edgeql_tree, ir_result = cls._normalize_constraint_expr(
             schema, module_aliases, expr, subject)
@@ -197,7 +196,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
         # check to make sure that the specialized constraint doesn't redefine
         # an already defined subjectexpr
         if subjectexpr is not None:
-            for base in constraint.bases:
+            for base in constraint.get_bases(schema).objects(schema):
                 base_se = base.get_field_value(schema, 'subjectexpr')
                 if base_se and base_se != subjectexpr:
                     raise s_errors.InvalidConstraintDefinitionError(
@@ -332,9 +331,9 @@ class ConsistencySubject(referencing.ReferencingObject):
             # Have abstract constraints, cannot go pure inheritance,
             # must create a derived Object with materialized
             # constraints.
-            generic = item.bases[0]
+            generic = next(iter(item.get_bases(schema).objects(schema)))
             schema, item = generic.derive(
-                schema, source=source, add_to_schema=True,
+                schema, source=source,
                 merge_bases=[item], dctx=dctx)
 
         return schema, item
@@ -345,7 +344,8 @@ class ConsistencySubject(referencing.ReferencingObject):
             # properly.
             constraints = set(self.get_constraints(schema).names(schema))
             inherited = itertools.chain.from_iterable(
-                b.get_constraints(schema).objects(schema) for b in bases)
+                b.get_constraints(schema).objects(schema)
+                for b in bases)
             constraints.update(c.shortname
                                for c in inherited if c.get_is_abstract(schema))
             return schema, constraints
@@ -361,8 +361,7 @@ class ConsistencySubject(referencing.ReferencingObject):
                 if (constraint.get_is_abstract(schema) and
                         not self.get_own_constraints(schema).has(schema, cn)):
                     schema, constraint = constraint.derive_copy(
-                        schema, self, add_to_schema=True,
-                        attrs=dict(is_abstract=False))
+                        schema, self, attrs=dict(is_abstract=False))
 
                     schema = self.add_constraint(schema, constraint)
 
@@ -447,9 +446,8 @@ class CreateConstraint(ConstraintCommand,
                 )
 
         elif isinstance(astnode, qlast.CreateConstraint):
-            params = s_func.FuncParameterList.from_ast(
-                schema, astnode, context.modaliases,
-                func_fqname=cmd.classname)
+            params = cls._get_param_desc_from_ast(
+                schema, context.modaliases, astnode)
 
             for param in params:
                 if param.get_kind(schema) is ft.ParameterKind.NAMED_ONLY:
@@ -467,8 +465,8 @@ class CreateConstraint(ConstraintCommand,
         if cmd.get_attribute_value('return_type') is None:
             cmd.add(sd.AlterObjectProperty(
                 property='return_type',
-                new_value=so.ObjectRef(
-                    classname=sn.Name('std::bool'),
+                new_value=utils.reduce_to_typeref(
+                    schema, schema.get('std::bool')
                 )
             ))
 

@@ -35,16 +35,17 @@ NamedObject = so.NamedObject
 
 
 class NamedObjectList(so.ObjectList, type=NamedObject):
-    def get_names(self):
-        return tuple(ref.name for ref in self)
+    def get_names(self, schema):
+        return tuple(ref.name for ref in self.objects(schema))
 
     def persistent_hash(self, *, schema):
-        return persistent_hash(self.get_names(), schema=schema)
+        return persistent_hash(self.get_names(schema), schema=schema)
 
     @classmethod
-    def compare_values(cls, schema, ours, theirs, context, compcoef):
-        our_names = ours.get_names() if ours else tuple()
-        their_names = theirs.get_names() if theirs else tuple()
+    def compare_values(cls, ours, theirs, *,
+                       our_schema, their_schema, context, compcoef):
+        our_names = ours.get_names(our_schema) if ours else tuple()
+        their_names = theirs.get_names(their_schema) if theirs else tuple()
 
         if frozenset(our_names) != frozenset(their_names):
             return compcoef
@@ -53,16 +54,17 @@ class NamedObjectList(so.ObjectList, type=NamedObject):
 
 
 class NamedObjectSet(so.ObjectSet, type=NamedObject):
-    def get_names(self):
-        return frozenset(ref.name for ref in self)
+    def get_names(self, schema):
+        return frozenset(ref.name for ref in self.objects(schema))
 
     def persistent_hash(self, *, schema):
-        return persistent_hash(self.get_names(), schema=schema)
+        return persistent_hash(self.get_names(schema), schema=schema)
 
     @classmethod
-    def compare_values(cls, schema, ours, theirs, context, compcoef):
-        our_names = ours.get_names() if ours else frozenset()
-        their_names = theirs.get_names() if theirs else frozenset()
+    def compare_values(cls, ours, theirs, *,
+                       our_schema, their_schema, context, compcoef):
+        our_names = ours.get_names(our_schema) if ours else frozenset()
+        their_names = theirs.get_names(their_schema) if theirs else frozenset()
 
         if our_names != their_names:
             return compcoef
@@ -107,8 +109,8 @@ class NamedObjectCommand(sd.ObjectCommand):
         metaclass = self.get_schema_metaclass()
         astnode = self._get_ast_node(context)
         if isinstance(self.classname, sn.Name):
-            if hasattr(metaclass, 'get_shortname'):
-                nname = metaclass.get_shortname(self.classname)
+            if hasattr(metaclass, 'shortname_from_fullname'):
+                nname = metaclass.shortname_from_fullname(self.classname)
             else:
                 nname = self.classname
             name = qlast.ObjectRef(module=nname.module, name=nname.name)
@@ -153,17 +155,6 @@ class NamedObjectCommand(sd.ObjectCommand):
             if subnode is not None:
                 node.commands.append(subnode)
 
-    def _add_to_schema(self, schema, context):
-        metaclass = self.get_schema_metaclass()
-        if schema.get(self.classname, default=None, type=metaclass):
-            raise ValueError(f'{self.classname!r} already exists in schema')
-        schema = schema.add(self.scls)
-        return schema
-
-    def _create_begin(self, schema, context):
-        schema = super()._create_begin(schema, context)
-        return self._add_to_schema(schema, context)
-
 
 class CreateOrAlterNamedObject(NamedObjectCommand):
     pass
@@ -187,14 +178,21 @@ class CreateNamedObject(CreateOrAlterNamedObject, sd.CreateObject):
         if op.property in ('id', 'name'):
             pass
         elif op.property == 'bases':
+            if not isinstance(op.new_value, so.ObjectList):
+                bases = NamedObjectList.create(schema, op.new_value)
+            else:
+                bases = op.new_value
+
+            base_names = bases.names(schema, allow_unresolved=True)
+
             node.bases = [
                 qlast.TypeName(
                     maintype=qlast.ObjectRef(
-                        name=b.classname.name,
-                        module=b.classname.module
+                        name=b.name,
+                        module=b.module
                     )
                 )
-                for b in op.new_value
+                for b in base_names
             ]
         elif op.property == 'mro':
             pass
@@ -260,8 +258,8 @@ class RenameNamedObject(NamedObjectCommand):
         astnode = self._get_ast_node(context)
         metaclass = self.get_schema_metaclass()
 
-        if hasattr(metaclass, 'get_shortname'):
-            new_name = metaclass.get_shortname(self.new_name)
+        if hasattr(metaclass, 'shortname_from_fullname'):
+            new_name = metaclass.shortname_from_fullname(self.new_name)
         else:
             new_name = self.new_name
 
@@ -454,8 +452,9 @@ class AlterNamedObject(CreateOrAlterNamedObject, sd.AlterObject):
         scls = schema.get(self.classname, type=metaclass)
         self.scls = scls
 
-        with self.new_context(context) as ctx:
-            ctx.original_class = scls.copy()
+        with self.new_context(schema, context) as ctx:
+            ctx.original_schema = schema
+            _, ctx.original_class = scls.temp_copy(schema)
 
             schema = self._alter_begin(schema, context, scls)
             schema = self._alter_innards(schema, context, scls)
@@ -481,7 +480,7 @@ class DeleteNamedObject(NamedObjectCommand, sd.DeleteObject):
         self.scls = scls
         self.old_class = scls
 
-        with self.new_context(context) as ctx:
+        with self.new_context(schema, context) as ctx:
             ctx.original_class = scls
 
             schema = self._delete_begin(schema, context, scls)

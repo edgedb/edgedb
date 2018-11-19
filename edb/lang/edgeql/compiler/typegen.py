@@ -131,12 +131,13 @@ def ql_typeref_to_type(
 
                 subtypes[type_name] = ql_typeref_to_type(st, ctx=ctx)
 
-            return coll.from_subtypes(subtypes, {'named': named})
+            return coll.from_subtypes(
+                ctx.env.schema, subtypes, {'named': named})
         else:
             subtypes = []
             for st in ql_t.subtypes:
                 subtypes.append(ql_typeref_to_type(st, ctx=ctx))
 
-            return coll.from_subtypes(subtypes)
+            return coll.from_subtypes(ctx.env.schema, subtypes)
     else:
         return schemactx.get_schema_type(ql_t.maintype, ctx=ctx)

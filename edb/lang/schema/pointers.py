@@ -78,7 +78,15 @@ def merge_cardinality(target: so.Object, sources: typing.List[so.Object],
         return current
 
 
-class Pointer(constraints.ConsistencySubject):
+class PointerLike:
+    # An abstract base class for pointer-like objects, which
+    # include actual schema properties and links, as well as
+    # pseudo-links used by the compiler to represent things like
+    # tuple and type indirection.
+    pass
+
+
+class Pointer(constraints.ConsistencySubject, PointerLike):
 
     source = so.SchemaField(
         so.Object, None, compcoef=None)
@@ -135,17 +143,13 @@ class Pointer(constraints.ConsistencySubject):
         else:
             return self.get_source(schema)
 
-    def get_common_target(self, schema, targets, minimize_by=None):
-        return inheriting.create_virtual_parent(
+    def create_common_target(self, schema, targets, minimize_by=False):
+        schema, target = inheriting.create_virtual_parent(
             schema, targets, module_name=self.name.module,
             minimize_by=minimize_by)
 
-    def create_common_target(self, schema, targets, minimize_by=False):
-        target = self.get_common_target(schema, targets,
-                                        minimize_by=minimize_by)
-        if not schema.get(target.name, default=None):
-            schema = target.set_field_value(schema, 'is_derived', True)
-            schema = schema.add(target)
+        schema = target.set_field_value(schema, 'is_derived', True)
+
         return schema, target
 
     def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
@@ -234,10 +238,10 @@ class Pointer(constraints.ConsistencySubject):
                     # The link is neither a subclass, nor a superclass
                     # of the previously seen targets, which creates an
                     # unresolvable target requirement conflict.
-                    pn = ptr.shortname
+                    pn = ptr.displayname
                     raise schema_error.SchemaError(
                         f'could not merge {pn!r} pointer: targets conflict',
-                        details=f'({source.name}).({pn}) targets object'
+                        details=f'{source.name}.{pn} targets object'
                                 f' {t2.name!r} which is not related to any of'
                                 f' targets found in other sources being'
                                 f' merged: {t1.name!r}.')
@@ -251,8 +255,10 @@ class Pointer(constraints.ConsistencySubject):
                 module = source.name.module
                 parent_name = s_objtypes.ObjectType.gen_virt_parent_name(
                     tnames, module)
-                current_target = s_objtypes.ObjectType(
-                    name=parent_name, is_abstract=True, is_virtual=True)
+                schema, current_target = \
+                    s_objtypes.ObjectType.create_in_schema(
+                        schema,
+                        name=parent_name, is_abstract=True, is_virtual=True)
                 schema = schema.update_virtual_inheritance(
                     current_target, new_targets)
             else:
@@ -289,7 +295,7 @@ class Pointer(constraints.ConsistencySubject):
         return fqname
 
     def init_derived(self, schema, source, *qualifiers,
-                     as_copy, mark_derived=False, add_to_schema=False,
+                     as_copy, mark_derived=False,
                      merge_bases=None, attrs=None,
                      dctx=None, **kwargs):
 
@@ -320,8 +326,7 @@ class Pointer(constraints.ConsistencySubject):
 
         return super().init_derived(
             schema, source, target, as_copy=as_copy, mark_derived=mark_derived,
-            add_to_schema=add_to_schema, dctx=dctx, merge_bases=merge_bases,
-            attrs=attrs, **kwargs)
+            dctx=dctx, merge_bases=merge_bases, attrs=attrs, **kwargs)
 
     def is_pure_computable(self, schema):
         return self.get_computable(schema) and bool(self.get_default(schema))
@@ -422,17 +427,24 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
         if referrer_ctx is not None:
             # This is a specialized pointer, check that appropriate
             # generic parent exists, and if not, create it.
-            base_ref = self.get_attribute_value('bases')[0]
-            base_name = base_ref.classname
-            base = schema.get(base_name, default=None)
+            bases = self.get_attribute_value('bases')
+            if not isinstance(bases, so.ObjectList):
+                bases = so.ObjectList.create(schema, bases)
+
+            try:
+                base = next(iter(bases.objects(schema)))
+            except schema_error.ItemNotFoundError:
+                base = None
+                base_name = Pointer.shortname_from_fullname(self.classname)
+
             if base is None:
                 cls = self.get_schema_metaclass()
-                std_link = schema.get(cls.get_default_base_name())
-                base = cls(name=base_name, bases=[std_link])
+                std_ptr = schema.get(cls.get_default_base_name())
+                schema, base = cls.create_in_schema_with_inheritance(
+                    schema, name=base_name, bases=[std_ptr])
                 delta = base.delta(None, base,
                                    old_schema=None,
                                    new_schema=schema)
-                schema, _ = delta.apply(schema, context=context.at_top())
                 top_ctx = referrer_ctx
                 refref_cls = getattr(
                     top_ctx.op, 'referrer_context_class', None)

@@ -37,7 +37,7 @@ class InheritingObjectCommand(named.NamedObjectCommand):
 
 def delta_bases(old_bases, new_bases):
     dropped = frozenset(old_bases) - frozenset(new_bases)
-    removed_bases = [so.ObjectRef(classname=b) for b in dropped]
+    removed_bases = [so.ObjectRef(name=b) for b in dropped]
     common_bases = [b for b in old_bases if b not in dropped]
 
     added_bases = []
@@ -53,7 +53,7 @@ def delta_bases(old_bases, new_bases):
                 # Found common base, insert the accumulated
                 # list of new bases and continue
                 if added_base_refs:
-                    ref = so.ObjectRef(classname=common_bases[j])
+                    ref = so.ObjectRef(name=common_bases[j])
                     added_bases.append((added_base_refs, ('BEFORE', ref)))
                     added_base_refs = []
                 j += 1
@@ -63,12 +63,12 @@ def delta_bases(old_bases, new_bases):
                     continue
 
             # Base has been inserted at position j
-            added_base_refs.append(so.ObjectRef(classname=base))
+            added_base_refs.append(so.ObjectRef(name=base))
             added_set.add(base)
 
     # Finally, add all remaining bases to the end of the list
     tail_bases = added_base_refs + [
-        so.ObjectRef(classname=b) for b in new_bases
+        so.ObjectRef(name=b) for b in new_bases
         if b not in added_set and b not in common_bases
     ]
 
@@ -121,9 +121,10 @@ class CreateInheritingObject(named.CreateNamedObject, InheritingObjectCommand):
 
         modaliases = context.modaliases
 
-        bases = so.ObjectList(
-            utils.ast_to_typeref(b, modaliases=modaliases, schema=schema)
-            for b in getattr(astnode, 'bases', None) or []
+        bases = named.NamedObjectList.create(
+            schema,
+            [utils.ast_to_typeref(b, modaliases=modaliases, schema=schema)
+             for b in getattr(astnode, 'bases', None) or []]
         )
 
         mcls = cls.get_schema_metaclass()
@@ -131,15 +132,16 @@ class CreateInheritingObject(named.CreateNamedObject, InheritingObjectCommand):
             default_base = mcls.get_default_base_name()
 
             if default_base is not None and classname != default_base:
-                bases = so.ObjectList([
-                    so.ObjectRef(classname=default_base)
-                ])
+                default_base = schema.get(default_base)
+                bases = named.NamedObjectList.create(
+                    schema,
+                    [utils.reduce_to_typeref(schema, default_base)])
 
         return bases
 
     def _create_finalize(self, schema, context):
         schema = super()._create_finalize(schema, context)
-        for base in self.scls.bases:
+        for base in self.scls.get_bases(schema).objects(schema):
             schema = schema.drop_inheritance_cache(base)
         return schema
 
@@ -178,11 +180,11 @@ class RebaseNamedObject(named.NamedObjectCommand):
     def apply(self, schema, context):
         metaclass = self.get_schema_metaclass()
         scls = schema.get(self.classname, type=metaclass)
-        bases = list(scls.bases)
-        removed_bases = {b.classname for b in self.removed_bases}
+        bases = list(scls.get_bases(schema).objects(schema))
+        removed_bases = {b.name for b in self.removed_bases}
         existing_bases = set()
 
-        for b in scls.bases:
+        for b in bases:
             if b.name in removed_bases:
                 bases.remove(b)
             else:
@@ -201,11 +203,11 @@ class RebaseNamedObject(named.NamedObjectCommand):
             else:
                 idx = index[ref]
 
-            bases[idx:idx] = [schema.get(b.classname) for b in new_bases
-                              if b.classname not in existing_bases]
+            bases[idx:idx] = [schema.get(b.name) for b in new_bases
+                              if b.name not in existing_bases]
             index = {b.name: i for i, b in enumerate(bases)}
 
-        scls.bases = bases
+        schema = scls.set_field_value(schema, 'bases', bases)
 
         return schema, scls
 
@@ -237,12 +239,12 @@ def _merge_mro(obj, mros):
     return result
 
 
-def compute_mro(obj):
-    bases = obj.bases if obj.bases is not None else tuple()
+def compute_mro(schema, obj):
+    bases = tuple(obj.get_bases(schema).objects(schema))
     mros = [[obj]]
 
     for base in bases:
-        mros.append(base.get_mro())
+        mros.append(base.compute_mro(schema))
 
     return _merge_mro(obj, mros)
 
@@ -252,15 +254,15 @@ def create_virtual_parent(schema, children, *,
     from . import scalars as s_scalars, objtypes as s_objtypes, sources
 
     if len(children) == 1:
-        return next(iter(children))
+        return schema, next(iter(children))
 
     if minimize_by == 'most_generic':
-        children = utils.minimize_class_set_by_most_generic(children)
+        children = utils.minimize_class_set_by_most_generic(schema, children)
     elif minimize_by == 'least_generic':
-        children = utils.minimize_class_set_by_least_generic(children)
+        children = utils.minimize_class_set_by_least_generic(schema, children)
 
     if len(children) == 1:
-        return next(iter(children))
+        return schema, next(iter(children))
 
     _children = set()
     for t in children:
@@ -280,7 +282,7 @@ def create_virtual_parent(schema, children, *,
     target = schema.get(name, default=None)
 
     if target:
-        return target
+        return schema, target
 
     seen_scalars = False
     seen_objtypes = False
@@ -298,28 +300,34 @@ def create_virtual_parent(schema, children, *,
             seen_objtypes = True
 
     if seen_scalars and len(children) > 1:
-        target = utils.get_class_nearest_common_ancestor(children)
+        target = utils.get_class_nearest_common_ancestor(schema, children)
         if target is None:
             raise schema_error.SchemaError(
                 'cannot set multiple scalar children for a link')
     else:
         base = schema.get(s_objtypes.ObjectType.get_default_base_name())
-        target = s_objtypes.ObjectType.create_with_inheritance(
-            schema,
-            name=name, is_abstract=True,
-            is_virtual=True, bases=[base])
+        schema, target = \
+            s_objtypes.ObjectType.create_in_schema_with_inheritance(
+                schema,
+                name=name, is_abstract=True,
+                is_virtual=True, bases=[base]
+            )
         target._virtual_children = set(children)
 
-    return target
+    return schema, target
 
 
 class InheritingObject(derivable.DerivableObject):
-    bases = so.Field(named.NamedObjectList,
-                     default=named.NamedObjectList,
-                     coerce=True, inheritable=False, compcoef=0.714)
+    bases = so.SchemaField(
+        named.NamedObjectList,
+        default=named.NamedObjectList,
+        coerce=True, inheritable=False, compcoef=0.714,
+        debug_getter=True)
 
-    mro = so.Field(named.NamedObjectList,
-                   coerce=True, default=None, hashable=False)
+    mro = so.SchemaField(
+        named.NamedObjectList,
+        coerce=True, default=None, hashable=False,
+        debug_getter=True)
 
     is_abstract = so.SchemaField(
         bool,
@@ -362,8 +370,8 @@ class InheritingObject(derivable.DerivableObject):
                 rebase = sd.ObjectCommandMeta.get_command_class(
                     RebaseNamedObject, type(new))
 
-                old_base_names = old.get_base_names()
-                new_base_names = new.get_base_names()
+                old_base_names = old.get_base_names(old_schema)
+                new_base_names = new.get_base_names(new_schema)
 
                 if old_base_names != new_base_names and rebase is not None:
                     removed, added = delta_bases(
@@ -379,8 +387,9 @@ class InheritingObject(derivable.DerivableObject):
         return delta
 
     def init_derived(self, schema, source, *qualifiers, as_copy,
-                     merge_bases=None, add_to_schema=False, mark_derived=False,
-                     attrs=None, dctx=None, name=None, **kwargs):
+                     merge_bases=None, mark_derived=False,
+                     replace_original=None, attrs=None, dctx=None,
+                     name=None, **kwargs):
         if name is None:
             derived_name = self.get_derived_name(
                 source, *qualifiers, mark_derived=mark_derived)
@@ -390,9 +399,9 @@ class InheritingObject(derivable.DerivableObject):
         if as_copy:
             schema, derived = super().init_derived(
                 schema, source, *qualifiers, as_copy=True,
-                merge_bases=merge_bases, add_to_schema=add_to_schema,
-                mark_derived=mark_derived, attrs=attrs, dctx=dctx, name=name,
-                **kwargs)
+                merge_bases=merge_bases, mark_derived=mark_derived,
+                attrs=attrs, dctx=dctx, name=name,
+                replace_original=replace_original, **kwargs)
 
         else:
             derived_attrs = {}
@@ -405,31 +414,35 @@ class InheritingObject(derivable.DerivableObject):
 
             derived_attrs.pop('name', None)
 
-            cls = type(self)
-            derived = cls(name=derived_name, **derived_attrs,
-                          _setdefaults_=False, _relaxrequired_=True)
+            existing_derived = schema.get(derived_name, default=None)
+            if existing_derived is not None and replace_original is not None:
+                schema = schema.mark_as_garbage(existing_derived)
+
+            schema, derived = type(self).create_in_schema(
+                schema, name=derived_name, **derived_attrs,
+                _setdefaults_=False, _relaxrequired_=True)
 
         return schema, derived
 
-    def get_base_names(self):
-        return self.bases.get_names()
+    def get_base_names(self, schema):
+        return self.get_bases(schema).get_names(schema)
 
     def get_topmost_concrete_base(self, schema):
         # Get the topmost non-abstract base.
-        for ancestor in reversed(self.get_mro()):
+        for ancestor in reversed(self.compute_mro(schema)):
             if not ancestor.get_is_abstract(schema):
                 return ancestor
 
         raise ValueError(f'{self.name} has no non-abstract ancestors')
 
-    def get_mro(self):
-        return compute_mro(self)
+    def compute_mro(self, schema):
+        return compute_mro(schema, self)
 
     def _issubclass(self, schema, parent):
         my_vchildren = getattr(self, '_virtual_children', None)
 
         if my_vchildren is None:
-            mro = self.get_mro()
+            mro = self.compute_mro(schema)
 
             if parent in mro:
                 return True
@@ -459,7 +472,7 @@ class InheritingObject(derivable.DerivableObject):
 
     def acquire_ancestor_inheritance(self, schema, bases=None, *, dctx=None):
         if bases is None:
-            bases = self.bases
+            bases = self.get_bases(schema).objects(schema)
 
         schema = self.merge(*bases, schema=schema, dctx=dctx)
         return schema
@@ -474,7 +487,8 @@ class InheritingObject(derivable.DerivableObject):
         schema = super().finalize(
             schema, bases=bases, apply_defaults=apply_defaults,
             dctx=dctx)
-        self.mro = compute_mro(self)[1:]
+        schema = self.set_field_value(
+            schema, 'mro', compute_mro(schema, self)[1:])
         schema = self.acquire_ancestor_inheritance(schema, dctx=dctx)
         return schema
 
@@ -493,8 +507,7 @@ class InheritingObject(derivable.DerivableObject):
         return None
 
     @classmethod
-    def create_with_inheritance(cls, schema, **kwargs):
-        o = cls(**kwargs)
-        schema2 = o.acquire_ancestor_inheritance(schema)
-        assert schema2 is schema
-        return o
+    def create_in_schema_with_inheritance(cls, schema, **kwargs):
+        schema, o = cls.create_in_schema(schema, **kwargs)
+        schema = o.acquire_ancestor_inheritance(schema)
+        return schema, o

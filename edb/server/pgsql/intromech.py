@@ -20,7 +20,6 @@
 
 
 import collections
-import importlib
 import json
 
 from edb.lang.common import topological
@@ -159,22 +158,22 @@ class IntrospectionMech:
 
         return self.schema
 
-    async def readschema(self):
+    async def readschema(self, modules=None):
         await self._init_introspection_cache()
 
         schema = so.Schema()
 
-        schema = await self.read_modules(schema)
-        schema = await self.read_scalars(schema)
-        schema = await self.read_attributes(schema)
-        schema = await self.read_objtypes(schema)
-        schema = await self.read_links(schema)
-        schema = await self.read_link_properties(schema)
-        schema = await self.read_attribute_values(schema)
-        schema = await self.read_operators(schema)
-        schema = await self.read_functions(schema)
-        schema = await self.read_constraints(schema)
-        schema = await self.read_indexes(schema)
+        schema = await self.read_modules(schema, only_modules=modules)
+        schema = await self.read_scalars(schema, only_modules=modules)
+        schema = await self.read_attributes(schema, only_modules=modules)
+        schema = await self.read_objtypes(schema, only_modules=modules)
+        schema = await self.read_links(schema, only_modules=modules)
+        schema = await self.read_link_properties(schema, only_modules=modules)
+        schema = await self.read_attribute_values(schema, only_modules=modules)
+        schema = await self.read_operators(schema, only_modules=modules)
+        schema = await self.read_functions(schema, only_modules=modules)
+        schema = await self.read_constraints(schema, only_modules=modules)
+        schema = await self.read_indexes(schema, only_modules=modules)
 
         schema = await self.order_attributes(schema)
         schema = await self.order_scalars(schema)
@@ -186,7 +185,7 @@ class IntrospectionMech:
 
         return schema
 
-    async def read_modules(self, schema):
+    async def read_modules(self, schema, only_modules):
         schemas = await introspection.schemas.fetch(
             self.connection, schema_pattern='edgedb_%')
         schemas = {
@@ -194,12 +193,13 @@ class IntrospectionMech:
             for s in schemas if not s['name'].startswith('edgedb_aux_')
         }
 
-        modules = await datasources.schema.modules.fetch(self.connection)
+        modules = await datasources.schema.modules.fetch(
+            self.connection, only_modules)
+
         modules = {
             common.edgedb_module_name_to_schema_name(m['name']):
             {'id': m['id'],
-             'name': m['name'],
-             'imports': m['imports']}
+             'name': m['name']}
             for m in modules
         }
 
@@ -209,7 +209,7 @@ class IntrospectionMech:
         extra_schemas = schemas - recorded_schemas - {'edgedb', 'edgedbss'}
         missing_schemas = recorded_schemas - schemas
 
-        if extra_schemas:
+        if extra_schemas and not only_modules:
             msg = 'internal metadata incosistency'
             details = 'Extraneous data schemas exist: {}'.format(
                 ', '.join('"%s"' % s for s in extra_schemas))
@@ -221,29 +221,14 @@ class IntrospectionMech:
                 ', '.join('{!r}'.format(s) for s in missing_schemas))
             raise s_err.SchemaError(msg, details=details)
 
-        mods = []
-
         for module in modules.values():
-            mod = s_mod.Module(
+            schema, mod = s_mod.Module.create_in_schema(
+                schema,
                 name=module['name'])
-            schema = schema.add_module(mod)
-            mods.append(mod)
-
-        for mod in mods:
-            for imp_name in mod.imports:
-                if not schema.has_module(imp_name):
-                    # Must be a foreign module, import it directly
-                    try:
-                        impmod = importlib.import_module(imp_name)
-                    except ImportError:
-                        # Module has moved, create a dummy
-                        impmod = so.DummyModule(imp_name)
-
-                    schema = schema.add_module(impmod)
 
         return schema
 
-    async def read_scalars(self, schema):
+    async def read_scalars(self, schema, only_modules):
         seqs = await introspection.sequences.fetch(
             self.connection,
             schema_pattern='edgedb%', sequence_pattern='%_sequence')
@@ -251,7 +236,8 @@ class IntrospectionMech:
 
         seen_seqs = set()
 
-        scalar_list = await datasources.schema.scalars.fetch(self.connection)
+        scalar_list = await datasources.schema.scalars.fetch(
+            self.connection, only_modules)
 
         basemap = {}
 
@@ -277,18 +263,12 @@ class IntrospectionMech:
             scalar_data['default'] = self.unpack_default(row['default'])
 
             if scalar_data['bases']:
-                basemap[name] = scalar_data['bases']
+                basemap[name] = scalar_data.pop('bases')
 
-            scalar = s_scalars.ScalarType(
-                name=name, default=scalar_data['default'],
-                title=scalar_data['title'],
-                description=scalar_data['description'],
-                is_abstract=scalar_data['is_abstract'],
-                is_final=scalar_data['is_final'],
-                view_type=scalar_data['view_type'],
-                expr=scalar_data['expr'])
-
-            schema = schema.add(scalar)
+            schema, scalar = s_scalars.ScalarType.create_in_schema(
+                schema,
+                **scalar_data
+            )
 
         for scalar in schema.get_objects(type='ScalarType'):
             try:
@@ -296,7 +276,8 @@ class IntrospectionMech:
             except KeyError:
                 pass
             else:
-                scalar.bases = [schema.get(sn.Name(basename[0]))]
+                schema = scalar.set_field_value(
+                    schema, 'bases', [schema.get(sn.Name(basename[0]))])
 
         sequence = schema.get('std::sequence', None)
         for scalar in schema.get_objects(type='ScalarType'):
@@ -313,7 +294,7 @@ class IntrospectionMech:
                 seen_seqs.add(seq_name)
 
         extra_seqs = set(seqs) - seen_seqs
-        if extra_seqs:
+        if extra_seqs and not only_modules:
             msg = 'internal metadata incosistency'
             details = 'Extraneous sequences exist: {}'.format(
                 ', '.join(common.qname(*t) for t in extra_seqs))
@@ -332,7 +313,9 @@ class IntrospectionMech:
 
             for r in row['params']:
                 param_data = param_map.get(r)
-                param = s_funcs.Parameter(
+                schema, param = s_funcs.Parameter.create_in_schema(
+                    schema,
+                    id=param_data['id'],
                     num=param_data['num'],
                     name=sn.Name(param_data['name']),
                     default=param_data['default'],
@@ -341,20 +324,24 @@ class IntrospectionMech:
                     kind=param_data['kind'])
                 params.append(param)
 
-            return params
+            return schema, params
         else:
-            return []
+            return schema, []
 
-    async def read_operators(self, schema):
+    async def read_operators(self, schema, only_modules):
         self._operator_commutators.clear()
 
         ds = datasources.schema
-        func_list = await ds.operators.fetch(self.connection)
-        param_list = await ds.functions.fetch_params(self.connection)
+        func_list = await ds.operators.fetch(
+            self.connection, only_modules)
+        param_list = await ds.functions.fetch_params(
+            self.connection, only_modules)
         param_map = {p['name']: p for p in param_list}
 
         for row in func_list:
             name = sn.Name(row['name'])
+
+            schema, params = self._decode_func_params(schema, row, param_map)
 
             oper_data = {
                 'id': row['id'],
@@ -363,14 +350,14 @@ class IntrospectionMech:
                 'title': row['title'],
                 'description': row['description'],
                 'language': row['language'],
-                'params': self._decode_func_params(schema, row, param_map),
+                'params': params,
                 'return_typemod': row['return_typemod'],
                 'from_operator': row['from_operator'],
                 'return_type': self.unpack_typeref(row['return_type'], schema)
             }
 
-            oper = s_opers.Operator(**oper_data)
-            schema = schema.add(oper)
+            schema, oper = s_opers.Operator.create_in_schema(
+                schema, **oper_data)
 
             if row['commutator']:
                 self._operator_commutators[oper] = row['commutator']
@@ -385,14 +372,16 @@ class IntrospectionMech:
         self._operator_commutators.clear()
         return schema
 
-    async def read_functions(self, schema):
+    async def read_functions(self, schema, only_modules):
         ds = datasources.schema.functions
-        func_list = await ds.fetch(self.connection)
-        param_list = await ds.fetch_params(self.connection)
+        func_list = await ds.fetch(self.connection, only_modules)
+        param_list = await ds.fetch_params(self.connection, only_modules)
         param_map = {p['name']: p for p in param_list}
 
         for row in func_list:
             name = sn.Name(row['name'])
+
+            schema, params = self._decode_func_params(schema, row, param_map)
 
             func_data = {
                 'id': row['id'],
@@ -400,7 +389,7 @@ class IntrospectionMech:
                 'title': row['title'],
                 'description': row['description'],
                 'language': row['language'],
-                'params': self._decode_func_params(schema, row, param_map),
+                'params': params,
                 'return_typemod': row['return_typemod'],
                 'from_function': row['from_function'],
                 'code': row['code'],
@@ -408,20 +397,21 @@ class IntrospectionMech:
                 'return_type': self.unpack_typeref(row['return_type'], schema)
             }
 
-            func = s_funcs.Function(**func_data)
-            schema = schema.add(func)
+            schema, _ = s_funcs.Function.create_in_schema(schema, **func_data)
 
         return schema
 
     async def order_functions(self, schema):
         return schema
 
-    async def read_constraints(self, schema):
+    async def read_constraints(self, schema, only_modules):
         ds = datasources.schema
-        constraints_list = await ds.constraints.fetch(self.connection)
-        constraints_list = collections.OrderedDict((sn.Name(r['name']), r)
-                                                   for r in constraints_list)
-        param_list = await ds.functions.fetch_params(self.connection)
+        constraints_list = await ds.constraints.fetch(
+            self.connection, modules=only_modules)
+        constraints_list = collections.OrderedDict(
+            (sn.Name(r['name']), r) for r in constraints_list)
+        param_list = await ds.functions.fetch_params(
+            self.connection, modules=only_modules)
         param_map = {p['name']: p for p in param_list}
 
         basemap = {}
@@ -430,7 +420,7 @@ class IntrospectionMech:
             bases = tuple()
 
             if r['subject']:
-                bases = (s_constr.Constraint.get_shortname(name), )
+                bases = (s_constr.Constraint.shortname_from_fullname(name), )
             elif r['bases']:
                 bases = tuple(sn.Name(b) for b in r['bases'])
             elif name != 'std::constraint':
@@ -442,10 +432,18 @@ class IntrospectionMech:
 
             basemap[name] = bases
 
-            constraint = s_constr.Constraint(
+            if not r['subject']:
+                schema, params = self._decode_func_params(schema, r, param_map)
+            else:
+                params = None
+
+            schema, constraint = s_constr.Constraint.create_in_schema(
+                schema,
                 id=r['id'],
-                name=name, subject=subject, title=title,
-                params=self._decode_func_params(schema, r, param_map),
+                name=name,
+                subject=subject,
+                title=title,
+                params=params,
                 description=description, is_abstract=r['is_abstract'],
                 is_final=r['is_final'], expr=r['expr'],
                 subjectexpr=r['subjectexpr'],
@@ -459,15 +457,14 @@ class IntrospectionMech:
             if subject:
                 schema = subject.add_constraint(schema, constraint)
 
-            schema = schema.add(constraint)
-
         for constraint in schema.get_objects(type='constraint'):
             try:
                 bases = basemap[constraint.name]
             except KeyError:
                 pass
             else:
-                constraint.bases = [schema.get(b) for b in bases]
+                schema = constraint.set_field_value(
+                    schema, 'bases', [schema.get(b) for b in bases])
 
         for constraint in schema.get_objects(type='constraint'):
             schema = constraint.acquire_ancestor_inheritance(schema)
@@ -498,10 +495,10 @@ class IntrospectionMech:
             else:
                 st = [st[1] for st in subtypes]
 
-            scls = coll_type.from_subtypes(st, typemods=typemods)
+            scls = coll_type.from_subtypes(schema, st, typemods=typemods)
 
         elif t['maintype'] == 'anytype':
-            scls = s_pseudo.Any()
+            scls = s_pseudo.Any.create()
 
         else:
             scls = schema.get(t['maintype'])
@@ -542,7 +539,7 @@ class IntrospectionMech:
         for idx_data in indexes:
             yield dbops.Index.from_introspection(table_name, idx_data)
 
-    async def read_indexes(self, schema):
+    async def read_indexes(self, schema, only_modules):
         pg_index_data = await introspection.tables.fetch_indexes(
             self.connection,
             schema_pattern='edgedb%', index_pattern='%_reg_idx')
@@ -556,8 +553,9 @@ class IntrospectionMech:
                 )
 
         ds = datasources.schema.indexes
+        indexes = await ds.fetch(self.connection, modules=only_modules)
 
-        for index_data in await ds.fetch(self.connection):
+        for index_data in indexes:
             subj = schema.get(index_data['subject_name'])
             subj_table_name = common.get_table_name(subj, catenate=False)
             index_name = sn.Name(index_data['name'])
@@ -571,16 +569,16 @@ class IntrospectionMech:
                             f'the corresponding PostgreSQL index is missing.'
                 ) from None
 
-            index = s_indexes.SourceIndex(
+            schema, index = s_indexes.SourceIndex.create_in_schema(
+                schema,
                 id=index_data['id'],
                 name=index_name,
                 subject=subj,
                 expr=index_data['expr'])
 
             schema = subj.add_index(schema, index)
-            schema = schema.add(index)
 
-        if pg_indexes:
+        if pg_indexes and not only_modules:
             details = f'Extraneous PostgreSQL indexes found: {pg_indexes!r}'
             raise s_err.SchemaError(
                 'internal metadata inconsistency',
@@ -622,13 +620,14 @@ class IntrospectionMech:
         target = self.scalar_from_pg_type(col_type, col_type_schema, schema)
         return target, col['column_required']
 
-    async def read_links(self, schema):
+    async def read_links(self, schema, only_modules):
         link_tables = await introspection.tables.fetch_tables(
             self.connection,
             schema_pattern='edgedb%', table_pattern='%_link')
         link_tables = {(t['schema'], t['name']): t for t in link_tables}
 
-        links_list = await datasources.schema.links.fetch(self.connection)
+        links_list = await datasources.schema.links.fetch(
+            self.connection, modules=only_modules)
         links_list = collections.OrderedDict((sn.Name(r['name']), r)
                                              for r in links_list)
 
@@ -638,7 +637,7 @@ class IntrospectionMech:
             bases = tuple()
 
             if r['source']:
-                bases = (s_links.Link.get_shortname(name), )
+                bases = (s_links.Link.shortname_from_fullname(name), )
             elif r['bases']:
                 bases = tuple(sn.Name(b) for b in r['bases'])
             elif name != 'std::link':
@@ -671,15 +670,23 @@ class IntrospectionMech:
 
             basemap[name] = bases
 
-            link = s_links.Link(
+            schema, link = s_links.Link.create_in_schema(
+                schema,
                 id=r['id'],
-                name=name, source=source, target=target,
-                spectargets=spectargets, cardinality=cardinality,
+                name=name,
+                source=source,
+                target=target,
+                spectargets=spectargets,
+                cardinality=cardinality,
                 required=required,
-                title=title, description=description,
-                derived_from=derived_from, is_derived=r['is_derived'],
-                is_abstract=r['is_abstract'], is_final=r['is_final'],
-                readonly=r['readonly'], computable=r['computable'],
+                title=title,
+                description=description,
+                derived_from=derived_from,
+                is_derived=r['is_derived'],
+                is_abstract=r['is_abstract'],
+                is_final=r['is_final'],
+                readonly=r['readonly'],
+                computable=r['computable'],
                 default=default)
 
             if spectargets:
@@ -700,8 +707,6 @@ class IntrospectionMech:
 
             if source:
                 schema = source.add_pointer(schema, link)
-
-            schema = schema.add(link)
 
         for link in schema.get_objects(type='link'):
             try:
@@ -724,8 +729,9 @@ class IntrospectionMech:
 
         for link in schema.get_objects(type='link'):
             g[link.name] = {"item": link, "merge": [], "deps": []}
-            if link.bases:
-                g[link.name]['merge'].extend(b.name for b in link.bases)
+            link_bases = link.get_bases(schema).objects(schema)
+            if link_bases:
+                g[link.name]['merge'].extend(b.name for b in link_bases)
 
         topological.normalize(g, merger=s_links.Link.merge, schema=schema)
 
@@ -734,9 +740,9 @@ class IntrospectionMech:
 
         return schema
 
-    async def read_link_properties(self, schema):
+    async def read_link_properties(self, schema, only_modules):
         link_props = await datasources.schema.links.fetch_properties(
-            self.connection)
+            self.connection, modules=only_modules)
         link_props = collections.OrderedDict((sn.Name(r['name']), r)
                                              for r in link_props)
         basemap = {}
@@ -746,7 +752,7 @@ class IntrospectionMech:
             bases = ()
 
             if r['source']:
-                bases = (s_props.Property.get_shortname(name), )
+                bases = (s_props.Property.shortname_from_fullname(name), )
             elif r['bases']:
                 bases = tuple(sn.Name(b) for b in r['bases'])
             elif name != 'std::property':
@@ -772,7 +778,8 @@ class IntrospectionMech:
             else:
                 cardinality = None
 
-            prop = s_props.Property(
+            schema, prop = s_props.Property.create_in_schema(
+                schema,
                 id=r['id'],
                 name=name, source=source, target=target, required=required,
                 title=title, description=description, readonly=r['readonly'],
@@ -797,8 +804,6 @@ class IntrospectionMech:
                 schema = prop.acquire_ancestor_inheritance(schema)
                 schema = source.add_pointer(schema, prop)
 
-            schema = schema.add(prop)
-
         for prop in schema.get_objects(type='link_property'):
             try:
                 bases = basemap[prop.name]
@@ -817,8 +822,9 @@ class IntrospectionMech:
 
         for prop in schema.get_objects(type='link_property'):
             g[prop.name] = {"item": prop, "merge": [], "deps": []}
-            if prop.bases:
-                g[prop.name]['merge'].extend(b.name for b in prop.bases)
+            prop_bases = prop.get_bases(schema).objects(schema)
+            if prop_bases:
+                g[prop.name]['merge'].extend(b.name for b in prop_bases)
 
         topological.normalize(
             g, merger=s_props.Property.merge, schema=schema)
@@ -828,27 +834,28 @@ class IntrospectionMech:
 
         return schema
 
-    async def read_attributes(self, schema):
-        attributes = await datasources.schema.attributes.fetch(self.connection)
+    async def read_attributes(self, schema, only_modules):
+        attributes = await datasources.schema.attributes.fetch(
+            self.connection, modules=only_modules)
 
         for r in attributes:
             name = sn.Name(r['name'])
             title = r['title']
             description = r['description']
-            attribute = s_attrs.Attribute(
+            schema, attribute = s_attrs.Attribute.create_in_schema(
+                schema,
                 id=r['id'],
                 name=name, title=title, description=description,
                 type=self.unpack_typeref(r['type'], schema))
-            schema = schema.add(attribute)
 
         return schema
 
     async def order_attributes(self, schema):
         return schema
 
-    async def read_attribute_values(self, schema):
+    async def read_attribute_values(self, schema, only_modules):
         attributes = await datasources.schema.attributes.fetch_values(
-            self.connection)
+            self.connection, modules=only_modules)
 
         for r in attributes:
             name = sn.Name(r['name'])
@@ -856,11 +863,15 @@ class IntrospectionMech:
             attribute = schema.get(r['attribute_name'])
             value = r['value']
 
-            attribute = s_attrs.AttributeValue(
+            schema, attribute = s_attrs.AttributeValue.create_in_schema(
+                schema,
                 id=r['id'],
-                name=name, subject=subject, attribute=attribute, value=value)
+                name=name,
+                subject=subject,
+                attribute=attribute,
+                value=value)
+
             schema = subject.add_attribute(schema, attribute)
-            schema = schema.add(attribute)
 
         return schema
 
@@ -869,13 +880,13 @@ class IntrospectionMech:
         return await self._type_mech.get_type_attributes(
             type_name, connection, cache)
 
-    async def read_objtypes(self, schema):
+    async def read_objtypes(self, schema, only_modules):
         tables = await introspection.tables.fetch_tables(
             self.connection, schema_pattern='edgedb%', table_pattern='%_data')
         tables = {(t['schema'], t['name']): t for t in tables}
 
         objtype_list = await datasources.schema.objtypes.fetch(
-            self.connection)
+            self.connection, modules=only_modules)
         objtype_list = collections.OrderedDict((sn.Name(row['name']), row)
                                                for row in objtype_list)
 
@@ -919,7 +930,8 @@ class IntrospectionMech:
 
             basemap[name] = bases
 
-            objtype = s_objtypes.ObjectType(
+            schema, objtype = s_objtypes.ObjectType.create_in_schema(
+                schema,
                 id=objtype['id'],
                 name=name, title=objtype['title'],
                 description=objtype['description'],
@@ -928,15 +940,14 @@ class IntrospectionMech:
                 view_type=objtype['view_type'],
                 expr=objtype['expr'])
 
-            schema = schema.add(objtype)
-
         for objtype in schema.get_objects(type='ObjectType'):
             try:
                 bases = basemap[objtype.name]
             except KeyError:
                 pass
             else:
-                objtype.bases = [schema.get(b) for b in bases]
+                schema = objtype.set_field_value(
+                    schema, 'bases', [schema.get(b) for b in bases])
 
         derived = await datasources.schema.objtypes.fetch_derived(
             self.connection)
@@ -948,11 +959,11 @@ class IntrospectionMech:
             attrs['view_type'] = (s_types.ViewType(attrs['view_type'])
                                   if attrs['view_type'] else None)
             attrs['is_derived'] = True
-            objtype = s_objtypes.ObjectType(**attrs)
-            schema = schema.add(objtype)
+            schema, objtype = s_objtypes.ObjectType.create_in_schema(
+                schema, **attrs)
 
         tabdiff = set(tables.keys()) - visited_tables
-        if tabdiff:
+        if tabdiff and not only_modules:
             msg = 'internal metadata incosistency'
             details = 'Extraneous data tables exist: {}'.format(
                 ', '.join('"%s.%s"' % t for t in tabdiff))
@@ -965,8 +976,9 @@ class IntrospectionMech:
         for objtype in schema.get_objects(type='ObjectType',
                                           include_derived=True):
             g[objtype.name] = {"item": objtype, "merge": [], "deps": []}
-            if objtype.bases:
-                g[objtype.name]["merge"].extend(b.name for b in objtype.bases)
+            objtype_bases = objtype.get_bases(schema).objects(schema)
+            if objtype_bases:
+                g[objtype.name]["merge"].extend(b.name for b in objtype_bases)
 
         topological.normalize(
             g, merger=s_objtypes.ObjectType.merge, schema=schema)

@@ -22,7 +22,8 @@ import typing
 
 
 async def fetch(
-        conn: asyncpg.connection.Connection) -> typing.List[asyncpg.Record]:
+        conn: asyncpg.connection.Connection,
+        modules=None) -> typing.List[asyncpg.Record]:
     return await conn.fetch("""
         SELECT
                 f.id AS id,
@@ -36,16 +37,19 @@ async def fetch(
                 f.initial_value,
                 edgedb._resolve_type(f.return_type) AS return_type,
                 edgedb._resolve_type_name(f.params) AS params
-
             FROM
                 edgedb.function f
+            WHERE
+                $1::text[] IS NULL
+                OR split_part(f.name, '::', 1) = any($1::text[])
             ORDER BY
                 f.id
-    """)
+    """, modules)
 
 
 async def fetch_params(
-        conn: asyncpg.connection.Connection) -> typing.List[asyncpg.Record]:
+        conn: asyncpg.connection.Connection,
+        modules=None) -> typing.List[asyncpg.Record]:
     return await conn.fetch("""
         SELECT
                 p.id,
@@ -55,9 +59,11 @@ async def fetch_params(
                 edgedb._resolve_type(p.type) AS type,
                 p.typemod,
                 p.kind
-
             FROM
                 edgedb.Parameter p
+            WHERE
+                $1::text[] IS NULL
+                OR split_part(p.name, '::', 1) = any($1::text[])
             ORDER BY
                 p.id
-    """)
+    """, modules)

@@ -321,20 +321,31 @@ class Object(metaclass=ObjectMeta):
                       ephemeral=True, frozen=True)
     """Schema source context for this object"""
 
-    def __init__(self, *, _setdefaults_=True, _relaxrequired_=False,
-                 id=NoDefault, **kwargs):
+    def __init__(self, *, _private_init):
         self._attr_source_contexts = {}
 
+    @classmethod
+    def _create(cls, schema, *, _setdefaults_=True, _relaxrequired_=False,
+                id=NoDefault, **kwargs) -> 'Object':
+
         if id is NoDefault:
-            id = uuidgen.uuid1mc()
+            type_id = get_known_type_id(kwargs.get('name'))
+            if type_id is not None:
+                id = type_id
+            else:
+                id = uuidgen.uuid1mc()
 
         kwargs['id'] = id
 
-        self._in_init_ = True
+        obj = cls(_private_init=True)
+
+        obj._in_init_ = True
         try:
-            self._init_fields(_setdefaults_, _relaxrequired_, kwargs)
+            obj._init_fields(schema, _setdefaults_, _relaxrequired_, kwargs)
         finally:
-            self._in_init_ = False
+            obj._in_init_ = False
+
+        return obj
 
     def setdefaults(self):
         """Initialize unset fields with default values."""
@@ -349,7 +360,7 @@ class Object(metaclass=ObjectMeta):
                 fields_set.append(field_name)
         return fields_set
 
-    def _copy_and_replace(self, cls, **replacements):
+    def _copy_and_replace(self, schema, cls, **replacements):
         args = {}
         for field in cls._fields.values():
             try:
@@ -363,19 +374,21 @@ class Object(metaclass=ObjectMeta):
         if replacements:
             args.update(replacements)
 
-        return cls(**args)
+        return cls.create_in_schema(schema, **args)
 
-    def copy_with_class(self, cls):
-        return self._copy_and_replace(cls)
+    def copy_with_class(self, schema, cls):
+        return self._copy_and_replace(schema, cls)
 
-    def copy(self):
-        return self.copy_with_class(type(self))
+    def copy(self, schema):
+        return self.copy_with_class(schema, type(self))
 
     def get_fields_values(self, schema):
         for field in self.__class__._fields:
-            yield field, self.get_field_value(schema, field)
+            value = self.get_explicit_field_value(schema, field, None)
+            if value is not None:
+                yield field, value
 
-    def _init_fields(self, setdefaults, relaxrequired, values):
+    def _init_fields(self, schema, setdefaults, relaxrequired, values):
         for field_name, field in self.__class__._fields.items():
             is_schema_field = isinstance(field, SchemaField)
             if field_name not in values and is_schema_field:
@@ -385,7 +398,8 @@ class Object(metaclass=ObjectMeta):
             if is_schema_field:
                 # values for SchemaFields will not get validated in
                 # __setattr__; do it here.
-                value = self._check_field_type(field, field.name, value)
+                value = self._check_field_type(
+                    schema, field, field.name, value)
                 if value is None:
                     # SchemaFields do not persist their defaults in
                     # the __dict__.
@@ -402,12 +416,12 @@ class Object(metaclass=ObjectMeta):
             if isinstance(field, SchemaField):
                 raise RuntimeError(
                     f'cannot set value to SchemaField {self}.{name} directly')
-            value = self._check_field_type(field, name, value)
+            value = self._check_field_type(None, field, name, value)
             if field.frozen and not self._in_init_:
                 raise ValueError(f'cannot assign to frozen field {name!r}')
         super().__setattr__(name, value)
 
-    def _check_field_type(self, field, name, value):
+    def _check_field_type(self, schema, field, name, value):
         if (field.type and value is not None and
                 not isinstance(value, field.type)):
             if field.coerce:
@@ -433,12 +447,17 @@ class Object(metaclass=ObjectMeta):
 
                     value = casted_value
 
-                try:
-                    return ftype(value)
-                except Exception as ex:
-                    raise TypeError(
-                        'cannot coerce {!r} value {!r} '
-                        'to {}'.format(name, value, ftype)) from ex
+                if issubclass(ftype, ObjectCollection):
+                    assert schema is not None
+
+                    return ftype.create(schema, value)
+                else:
+                    try:
+                        return ftype(value)
+                    except Exception as ex:
+                        raise TypeError(
+                            'cannot coerce {!r} value {!r} '
+                            'to {}'.format(name, value, ftype)) from ex
 
             raise TypeError(
                 '{}.{}.{}: expected {} but got {!r}'.format(
@@ -449,7 +468,10 @@ class Object(metaclass=ObjectMeta):
 
     def _getdefault(self, field_name, field, relaxrequired=False):
         if field.default in field.type:
-            value = field.default()
+            if issubclass(field.default, ObjectCollection):
+                value = field.default.create_empty()
+            else:
+                value = field.default()
         elif field.default is NoDefault:
             if relaxrequired:
                 value = None
@@ -502,15 +524,17 @@ class Object(metaclass=ObjectMeta):
             attrname = field._attrname
 
             new_val = updates[field_name]
+
             if new_val is None:
                 self.__dict__.pop(attrname, None)
             else:
-                new_val = self._check_field_type(field, field_name, new_val)
+                new_val = self._check_field_type(
+                    schema, field, field_name, new_val)
                 self.__dict__[attrname] = new_val
 
         return schema
 
-    def copy_with(self, schema, updates: dict):
+    def copy_with(self, schema, updates: dict, *, _nameless=False):
         fields = type(self)._fields
 
         if updates.keys() - fields.keys():
@@ -532,7 +556,11 @@ class Object(metaclass=ObjectMeta):
                     continue
                 new[field_name] = val
 
-        return schema, type(self)(**new)
+        return type(self).create_in_schema(schema, **new, _nameless=_nameless)
+
+    def temp_copy(self, schema):
+        new_id = uuidgen.uuid1mc()
+        return self.copy_with(schema, updates={'id': new_id}, _nameless=True)
 
     def is_type(self):
         return False
@@ -634,7 +662,7 @@ class Object(metaclass=ObjectMeta):
 
         return schema
 
-    def compare(self, schema, other, context=None):
+    def compare(self, other, *, our_schema, their_schema, context=None):
         if (not isinstance(other, self.__class__) and
                 not isinstance(self, other.__class__)):
             return NotImplemented
@@ -652,12 +680,14 @@ class Object(metaclass=ObjectMeta):
 
                 FieldType = field.type[0]
 
-                ours = self.get_field_value(schema, field_name)
-                theirs = other.get_field_value(schema, field_name)
+                ours = self.get_field_value(our_schema, field_name)
+                theirs = other.get_field_value(their_schema, field_name)
 
                 comparator = getattr(FieldType, 'compare_values', None)
                 if callable(comparator):
-                    fcoef = comparator(schema, ours, theirs, context=context,
+                    fcoef = comparator(ours, theirs, context=context,
+                                       our_schema=our_schema,
+                                       their_schema=their_schema,
                                        compcoef=field.compcoef)
                 elif ours != theirs:
                     fcoef = field.compcoef
@@ -670,13 +700,15 @@ class Object(metaclass=ObjectMeta):
         return similarity
 
     @classmethod
-    def compare_values(cls, schema, ours, theirs, context, compcoef):
+    def compare_values(cls, ours, theirs, *,
+                       our_schema, their_schema, context, compcoef):
         if (ours is None) != (theirs is None):
             return compcoef
         elif ours is None:
             return 1.0
         else:
-            comp = ours.compare(schema, theirs, context=context)
+            comp = ours.compare(theirs, our_schema=our_schema,
+                                their_schema=their_schema, context=context)
             if comp is NotImplemented:
                 return NotImplemented
             else:
@@ -735,16 +767,19 @@ class Object(metaclass=ObjectMeta):
     def _reduce_to_ref(self, schema):
         raise NotImplementedError
 
+    def _resolve_ref(self, schema):
+        return self
+
     def _reduce_obj_coll(self, schema, v):
         result = []
         comparison_v = []
 
-        for scls in v:
+        for scls in v.objects(schema):
             ref, comp = scls._reduce_to_ref(schema)
             result.append(ref)
             comparison_v.append(comp)
 
-        return result, tuple(comparison_v)
+        return type(v).create(schema, result), tuple(comparison_v)
 
     _reduce_obj_list = _reduce_obj_coll
 
@@ -784,12 +819,12 @@ class Object(metaclass=ObjectMeta):
                 oldattr_v = old.get_explicit_field_value(old_schema, f, None)
                 newattr_v = new.get_explicit_field_value(new_schema, f, None)
 
-                oldattr, oldattr_v = old._reduce_refs(old_schema, oldattr_v)
-                newattr, newattr_v = new._reduce_refs(new_schema, newattr_v)
+                oldattr_v, oldattr_v1 = old._reduce_refs(old_schema, oldattr_v)
+                newattr_v, newattr_v1 = new._reduce_refs(new_schema, newattr_v)
 
-                if oldattr_v != newattr_v:
+                if oldattr_v1 != newattr_v1:
                     delta.add(sd.AlterObjectProperty(
-                        property=f, old_value=oldattr, new_value=newattr))
+                        property=f, old_value=oldattr_v, new_value=newattr_v))
         elif not old:
             # IDs are assigned once when the object is created and
             # never changed.
@@ -806,11 +841,12 @@ class Object(metaclass=ObjectMeta):
 
     @classmethod
     def _sort_set(cls, schema, items):
+        from . import inheriting as s_inh
+
         if items:
             probe = next(iter(items))
-            has_bases = hasattr(probe, 'bases')
 
-            if has_bases:
+            if isinstance(probe, s_inh.InheritingObject):
                 items_idx = {p.name: p for p in items}
 
                 g = {}
@@ -824,8 +860,7 @@ class Object(metaclass=ObjectMeta):
         return items
 
     def _get_deps(self, schema):
-        return {getattr(b, 'classname', getattr(b, 'name', None))
-                for b in self.bases}
+        return {b.name for b in self.get_bases(schema).objects(schema)}
 
     @classmethod
     def delta_sets(cls, old, new, result, context=None, *,
@@ -842,6 +877,7 @@ class Object(metaclass=ObjectMeta):
                     old_schema, new_schema):
         from edb.lang.schema import named as s_named
         from edb.lang.schema import database as s_db
+        from edb.lang.schema import inheriting as s_inh
 
         adds_mods = s_db.AlterDatabase()
         dels = s_db.AlterDatabase()
@@ -875,8 +911,11 @@ class Object(metaclass=ObjectMeta):
             o for o in new
             if o.persistent_hash(schema=new_schema) not in unchanged)
 
-        comparison = ((x.compare(new_schema, y, context), x, y)
-                      for x, y in itertools.product(new, old))
+        comparison = []
+        for x, y in itertools.product(new, old):
+            comp = x.compare(y, our_schema=new_schema,
+                             their_schema=old_schema)
+            comparison.append((comp, x, y))
 
         used_x = set()
         used_y = set()
@@ -916,7 +955,7 @@ class Object(metaclass=ObjectMeta):
                 probe = None
 
             if probe is not None:
-                has_bases = hasattr(probe, 'bases')
+                has_bases = isinstance(probe, s_inh.InheritingObject)
             else:
                 has_bases = False
 
@@ -941,10 +980,15 @@ class Object(metaclass=ObjectMeta):
 
                     new_class = new_schema.get(new_name)
 
-                    bases = {getattr(b, 'classname', getattr(b, 'name', None))
-                             for b in old_class.bases} | \
-                            {getattr(b, 'classname', getattr(b, 'name', None))
-                             for b in new_class.bases}
+                    old_bases = \
+                        old_class.get_bases(old_schema).objects(old_schema)
+                    new_bases = \
+                        new_class.get_bases(new_schema).objects(new_schema)
+
+                    bases = (
+                        {b.name for b in old_bases} |
+                        {b.name for b in new_bases}
+                    )
 
                     deps = {b for b in bases if b in altered_idx}
 
@@ -1002,6 +1046,15 @@ class NamedObject(Object):
     description = Field(str, default=None, compcoef=0.909, public=True)
 
     @classmethod
+    def create_in_schema(cls, schema, *, _nameless=False, **kwargs):
+        name = kwargs.get('name')
+        if not name:
+            raise RuntimeError(f'cannot create {cls} without a name')
+        obj = cls._create(schema, **kwargs)
+        schema.add(name, obj, _nameless=_nameless)
+        return schema, obj
+
+    @classmethod
     def mangle_name(cls, name) -> str:
         return name.replace('::', '|')
 
@@ -1010,7 +1063,7 @@ class NamedObject(Object):
         return name.replace('|', '::')
 
     @classmethod
-    def get_shortname(cls, fullname) -> sn.Name:
+    def shortname_from_fullname(cls, fullname) -> sn.Name:
         parts = str(fullname.name).split('@@', 1)
         if len(parts) == 2:
             return sn.Name(cls.unmangle_name(parts[0]))
@@ -1024,15 +1077,6 @@ class NamedObject(Object):
                 '@'.join(cls.mangle_name(qualifier)
                          for qualifier in qualifiers if qualifier))
 
-    def __init__(self, **kwargs):
-        type_id = kwargs.pop('id', None)
-        type_name = kwargs.pop('name')
-        if type_id is None:
-            type_id = get_known_type_id(type_name)
-            if type_id is not None:
-                kwargs['id'] = type_id
-        super().__init__(name=type_name, **kwargs)
-
     @property
     def shortname(self) -> sn.Name:
         try:
@@ -1045,9 +1089,12 @@ class NamedObject(Object):
             if cached[0] == self.name:
                 return cached[1]
 
-        shortname = self.get_shortname(self.name)
+        shortname = self.shortname_from_fullname(self.name)
         self._cached_shortname = (self.name, shortname)
         return shortname
+
+    def get_shortname(self, schema) -> sn.Name:
+        return self.shortname
 
     @property
     def displayname(self) -> str:
@@ -1078,7 +1125,8 @@ class NamedObject(Object):
                             metaclass=type(obj))
 
     @classmethod
-    def compare_values(cls, schema, ours, theirs, context, compcoef):
+    def compare_values(cls, ours, theirs, *,
+                       our_schema, their_schema, context, compcoef):
         similarity = 1.0
 
         if (ours is None) != (theirs is None):
@@ -1099,51 +1147,89 @@ class NamedObject(Object):
     __str__ = __repr__
 
     def _reduce_to_ref(self, schema):
-        return ObjectRef(classname=self.name), self.name
+        return ObjectRef(name=self.name), self.name
 
 
-class ObjectRef(Object):
-    classname = Field(sn.SchemaName, coerce=True)
+class ObjectRef(NamedObject):
+
+    def __init__(self, *, id=None, name: str):
+        super().__init__(_private_init=True)
+
+        self._id = id
+        self._name = name
+
+    @property
+    def id(self):
+        return self._id
 
     @property
     def name(self):
-        return self.classname
+        return self._name
 
     def __repr__(self):
-        return '<ObjectRef "{}" at 0x{:x}>'.format(self.classname, id(self))
+        return '<ObjectRef "{}" at 0x{:x}>'.format(self.name, id(self))
 
     __str__ = __repr__
 
     def _reduce_to_ref(self, schema):
-        return self, self.classname
+        return self, self.name
 
     def _resolve_ref(self, schema):
-        return schema.get(self.classname)
+        return schema.get(self.name)
 
 
 class ObjectCollection:
-    pass
+
+    def __init_subclass__(cls, *, type=Object):
+        cls._type = type
+
+    @classmethod
+    def _validate_value(cls, schema, v):
+        if not isinstance(v, cls._type):
+            raise TypeError(
+                f'invalid input data for ObjectMapping: '
+                f'expected {cls._type} values, got {type(v)}')
+
+        if v.id is not None:
+            return v.id
+        elif isinstance(v, ObjectRef):
+            return v
+        else:
+            raise TypeError(f'object {v!r} has no ID!')
+
+        return v
+
+    def objects(self, schema):
+        raise NotImplementedError
 
 
 class ObjectMapping(ObjectCollection):
 
-    def __init__(self, data: dict=None):
-        self._keys = ()
-        self._map = {}
+    def __init__(self, data: dict, *, _private_init):
+        self._keys = tuple(data)
+        self._map = data
+
+    @classmethod
+    def create(cls, schema, data: dict=None) -> 'ObjectMapping':
+        items = {}
 
         if data:
             for k, v in data.items():
-                if not isinstance(k, str):
-                    raise TypeError(
-                        f'invalid input data for ObjectMapping: '
-                        f'expected str keys, got {type(k)}')
-                if not isinstance(v, Object):
-                    raise TypeError(
-                        f'invalid input data for ObjectMapping: '
-                        f'expected Object values, got {type(k)}')
+                cls._validate_key(k)
+                items[k] = cls._validate_value(schema, v)
 
-                self._keys += (k,)
-                self._map[k] = v
+        return cls(items, _private_init=True)
+
+    @classmethod
+    def create_empty(cls) -> 'ObjectMapping':
+        return cls({}, _private_init=True)
+
+    @classmethod
+    def _validate_key(self, k):
+        if not isinstance(k, str):
+            raise TypeError(
+                f'invalid input data for ObjectMapping: '
+                f'expected str keys, got {type(k)}')
 
     def persistent_hash(self, *, schema):
         vals = []
@@ -1152,7 +1238,8 @@ class ObjectMapping(ObjectCollection):
         return phash.persistent_hash(frozenset(vals), schema=schema)
 
     @classmethod
-    def compare_values(cls, schema, ours, theirs, context, compcoef):
+    def compare_values(cls, ours, theirs, *,
+                       our_schema, their_schema, context, compcoef):
         if not ours and not theirs:
             basecoef = 1.0
         elif not ours or not theirs:
@@ -1160,17 +1247,21 @@ class ObjectMapping(ObjectCollection):
         else:
             similarity = []
 
-            for k, v in ours.items(schema):
+            for k, v in ours.items(our_schema):
                 try:
-                    theirsv = theirs.get(schema, k)
+                    theirsv = theirs.get(their_schema, k)
                 except KeyError:
                     # key only in ours
                     similarity.append(0.2)
                 else:
                     similarity.append(
-                        v.compare(schema, theirsv, context))
+                        v.compare(theirsv, our_schema=our_schema,
+                                  their_schema=their_schema, context=context))
 
-            diff = set(theirs.names(schema)) - set(ours.names(schema))
+            diff = (
+                set(theirs.names(their_schema)) -
+                set(ours.names(our_schema))
+            )
             similarity.extend(0.2 for k in diff)
 
             basecoef = sum(similarity) / len(similarity)
@@ -1186,33 +1277,61 @@ class ObjectMapping(ObjectCollection):
             keys = reps.items()
 
         for key, obj in keys:
+            self._validate_key(key)
+
             if obj is None:
                 if key not in new_map:
                     raise KeyError(f'{key!r} is not in the mapping')
                 new_map.pop(key)
             else:
+                obj = self._validate_value(schema, obj)
                 new_map[key] = obj
 
-        om = type(self)(new_map)
+        om = type(self)(new_map, _private_init=True)
         return schema, om
 
     def names(self, schema):
-        yield from self._map.keys()
+        return self._map.keys()
 
     def items(self, schema):
-        yield from self._map.items()
+        result = []
+
+        for k, v in self._map.items():
+            if isinstance(v, ObjectRef):
+                v = schema.get(v.name)
+            else:
+                v = schema.get_by_id(v)
+            result.append((k, v))
+
+        return tuple(result)
 
     def objects(self, schema):
-        yield from self._map.values()
+        result = []
+
+        for v in self._map.values():
+            if isinstance(v, ObjectRef):
+                result.append(schema.get(v.name))
+            else:
+                result.append(schema.get_by_id(v))
+
+        return tuple(result)
 
     def has(self, schema, name):
         return name in self._map
 
     def get(self, schema, name, default=...):
-        if default is not ...:
-            return self._map.get(name, default)
+        try:
+            v = self._map[name]
+        except KeyError:
+            if default is not ...:
+                return default
+            else:
+                raise
         else:
-            return self._map[name]
+            if isinstance(v, ObjectRef):
+                return schema.get(v.name)
+            else:
+                return schema.get_by_id(v)
 
     def __len__(self):
         return len(self._keys)
@@ -1226,7 +1345,51 @@ class ObjectMapping(ObjectCollection):
         return hash(frozenset(self._map.items()))
 
 
-class ObjectSet(typed.FrozenTypedSet, ObjectCollection, type=Object):
+class ObjectSet(ObjectCollection):
+
+    def __init__(self, data: frozenset, *, _private_init):
+        self._ids = data
+
+    @classmethod
+    def create(cls, schema, data=None):
+        ids = []
+
+        if isinstance(data, ObjectSet):
+            ids = data._ids
+        elif data:
+            for v in data:
+                ids.append(cls._validate_value(schema, v))
+
+        return cls(frozenset(ids), _private_init=True)
+
+    @classmethod
+    def create_empty(cls) -> 'ObjectSet':
+        return cls(frozenset(), _private_init=True)
+
+    def __len__(self):
+        return len(self._ids)
+
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return self._ids == other._ids
+
+    def __hash__(self):
+        return hash(self._ids)
+
+    def __repr__(self):
+        return f'{{{", ".join(str(id) for id in self._ids)}}}'
+
+    def objects(self, schema):
+        result = []
+
+        for item_id in self._ids:
+            if isinstance(item_id, ObjectRef):
+                result.append(schema.get(item_id.name))
+            else:
+                result.append(schema.get_by_id(item_id))
+
+        return frozenset(result)
 
     @classmethod
     def merge_values(cls, target, sources, field_name, *, schema):
@@ -1237,19 +1400,27 @@ class ObjectSet(typed.FrozenTypedSet, ObjectCollection, type=Object):
                 if result is None:
                     result = theirs
                 else:
-                    result |= theirs
+                    result._ids |= theirs._ids
 
         return result
 
     @classmethod
-    def compare_values(cls, schema, ours, theirs, context, compcoef):
+    def compare_values(cls, ours, theirs, *,
+                       our_schema, their_schema, context, compcoef):
         if not ours and not theirs:
             basecoef = 1.0
         elif not ours or not theirs:
             basecoef = 0.2
         else:
-            comparison = ((x.compare(schema, y, context=context), x, y)
-                          for x, y in itertools.product(ours, theirs))
+            ours_set = ours.objects(our_schema)
+            theirs_set = theirs.objects(their_schema)
+
+            comparison = []
+            for x, y in itertools.product(ours_set, theirs_set):
+                comp = x.compare(y, our_schema=our_schema,
+                                 their_schema=their_schema, context=context)
+                comparison.append((comp, x, y))
+
             similarity = []
             used_x = set()
             used_y = set()
@@ -1275,17 +1446,100 @@ class ObjectSet(typed.FrozenTypedSet, ObjectCollection, type=Object):
         return basecoef + (1 - basecoef) * compcoef
 
 
-class ObjectList(typed.FrozenTypedList, ObjectCollection, type=Object):
+class ObjectList(ObjectCollection):
+
+    def __init__(self, data: tuple, *, _private_init):
+        self._ids = data
 
     @classmethod
-    def compare_values(cls, schema, ours, theirs, context, compcoef):
+    def create(cls, schema, data=None):
+        ids = []
+
+        if isinstance(data, ObjectSet):
+            ids = data._ids
+        elif data:
+            for v in data:
+                ids.append(cls._validate_value(schema, v))
+
+        return cls(tuple(ids), _private_init=True)
+
+    @classmethod
+    def create_empty(cls) -> 'ObjectList':
+        return cls((), _private_init=True)
+
+    def __len__(self):
+        return len(self._ids)
+
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return self._ids == other._ids
+
+    def __hash__(self):
+        return hash(tuple(self._ids))
+
+    def __repr__(self):
+        return f'[{", ".join(str(id) for id in self._ids)}]'
+
+    def names(self, schema, *, allow_unresolved=False):
+        result = []
+
+        for item_id in self._ids:
+            if isinstance(item_id, ObjectRef):
+                try:
+                    obj = schema.get(item_id.name)
+                except s_err.ItemNotFoundError:
+                    if allow_unresolved:
+                        result.append(item_id.name)
+                    else:
+                        raise
+                else:
+                    result.append(obj.name)
+            else:
+                obj = schema.get_by_id(item_id)
+                result.append(obj.name)
+
+        return tuple(result)
+
+    def objects(self, schema):
+        result = []
+
+        for item_id in self._ids:
+            if isinstance(item_id, ObjectRef):
+                result.append(schema.get(item_id.name))
+            else:
+                result.append(schema.get_by_id(item_id))
+
+        return tuple(result)
+
+    def first(self, schema, default=NoDefault):
+        try:
+            return next(iter(self.objects(schema)))
+        except StopIteration:
+            pass
+
+        if default is NoDefault:
+            raise IndexError('ObjectList is empty')
+        else:
+            return default
+
+    @classmethod
+    def compare_values(cls, ours, theirs, *,
+                       our_schema, their_schema, context, compcoef):
         if not ours and not theirs:
             basecoef = 1.0
         elif not ours or not theirs:
             basecoef = 0.2
         else:
-            comparison = ((x.compare(schema, y, context=context), x, y)
-                          for x, y in itertools.zip_longest(ours, theirs))
+            ours_set = ours.objects(our_schema)
+            theirs_set = theirs.objects(their_schema)
+
+            comparison = []
+            for x, y in itertools.zip_longest(ours_set, theirs_set):
+                comp = x.compare(y, our_schema=our_schema,
+                                 their_schema=their_schema, context=context)
+                comparison.append((comp, x, y))
+
             similarity = []
             used_x = set()
             used_y = set()

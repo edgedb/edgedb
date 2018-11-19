@@ -17,8 +17,6 @@
 #
 
 
-import importlib
-
 from edb.lang.common import struct
 from edb.lang.edgeql import ast as qlast
 
@@ -66,18 +64,6 @@ class AlterDatabase(DatabaseCommand):
             for op in self.get_subcommands(type=modules.AlterModule):
                 schema, mod = op.apply(schema, context)
                 mods.append(mod)
-
-            for mod in mods:
-                for imported in mod.imports:
-                    if not schema.has_module(imported):
-                        try:
-                            impmod = importlib.import_module(imported)
-                        except ImportError:
-                            # Reference to a non-schema external module,
-                            # which might have disappeared.
-                            pass
-                        else:
-                            schema = schema.add_module(impmod)
 
             for op in self:
                 if not isinstance(op, (modules.CreateModule,

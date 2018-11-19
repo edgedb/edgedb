@@ -22,7 +22,8 @@ import typing
 
 
 async def fetch(
-        conn: asyncpg.connection.Connection) -> typing.List[asyncpg.Record]:
+        conn: asyncpg.connection.Connection, *,
+        modules=None) -> typing.List[asyncpg.Record]:
     return await conn.fetch("""
         SELECT
                 l.id,
@@ -44,13 +45,17 @@ async def fetch(
                 l.default
             FROM
                 edgedb.link l
+            WHERE
+                $1::text[] IS NULL
+                OR split_part(l.name, '::', 1) = any($1::text[])
             ORDER BY
                 l.name LIKE 'std::%' DESC, l.id, l.target NULLS FIRST
-    """)
+    """, modules)
 
 
 async def fetch_properties(
-        conn: asyncpg.connection.Connection) -> typing.List[asyncpg.Record]:
+        conn: asyncpg.connection.Connection, *,
+        modules=None) -> typing.List[asyncpg.Record]:
     return await conn.fetch("""
         SELECT
                 p.id                    AS id,
@@ -76,6 +81,9 @@ async def fetch_properties(
                 p.is_derived            AS is_derived
             FROM
                 edgedb.Property p
+            WHERE
+                $1::text[] IS NULL
+                OR split_part(p.name, '::', 1) = any($1::text[])
             ORDER BY
                 p.id, p.target NULLS FIRST
-    """)
+    """, modules)

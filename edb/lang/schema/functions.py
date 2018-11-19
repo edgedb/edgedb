@@ -37,6 +37,29 @@ from . import types as s_types
 from . import utils
 
 
+def param_as_str(schema, param):
+    ret = []
+    kind = param.get_kind(schema)
+    typemod = param.get_typemod(schema)
+    default = param.get_default(schema)
+
+    if kind is not ft.ParameterKind.POSITIONAL:
+        ret.append(kind.to_edgeql())
+        ret.append(' ')
+
+    ret.append(f'{param.shortname}: ')
+
+    if typemod is not ft.TypeModifier.SINGLETON:
+        ret.append(typemod.to_edgeql())
+        ret.append(' ')
+    ret.append(param.get_type(schema).name)
+
+    if default is not None:
+        ret.append(f'={default}')
+
+    return ''.join(ret)
+
+
 # Non-schema description of a parameter.
 class ParameterDesc(typing.NamedTuple):
 
@@ -60,7 +83,7 @@ class ParameterDesc(typing.NamedTuple):
             schema)
 
         if astnode.kind is ft.ParameterKind.VARIADIC:
-            paramt = s_types.Array.from_subtypes((paramt,))
+            paramt = s_types.Array.from_subtypes(schema, (paramt,))
 
         return cls(
             num=num,
@@ -71,6 +94,10 @@ class ParameterDesc(typing.NamedTuple):
             default=paramd
         )
 
+    @property
+    def shortname(self):
+        return self.name
+
     def get_kind(self, _):
         return self.kind
 
@@ -79,6 +106,69 @@ class ParameterDesc(typing.NamedTuple):
 
     def get_type(self, _):
         return self.type
+
+    def get_typemod(self, _):
+        return self.typemod
+
+    def as_str(self, schema) -> str:
+        return param_as_str(schema, self)
+
+    @classmethod
+    def from_create_delta(cls, schema, cmd):
+        props = cmd.get_struct_properties(schema)
+        props['name'] = Parameter.shortname_from_fullname(props['name'])
+        return cls(
+            num=props['num'],
+            name=props['name'],
+            type=props['type'],
+            typemod=props['typemod'],
+            kind=props['kind'],
+            default=props['default'],
+        )
+
+    def as_create_delta(self, schema, func_fqname):
+        CreateParameter = sd.ObjectCommandMeta.get_command_class_or_die(
+            sd.CreateObject, Parameter)
+
+        param_name = sn.Name(
+            module=func_fqname.module,
+            name=Parameter.get_specialized_name(
+                self.name, func_fqname)
+        )
+
+        cmd = CreateParameter(classname=param_name)
+
+        cmd.add(sd.AlterObjectProperty(
+            property='name',
+            new_value=param_name,
+        ))
+
+        cmd.add(sd.AlterObjectProperty(
+            property='type',
+            new_value=utils.reduce_to_typeref(schema, self.type),
+        ))
+
+        for attr in ('num', 'typemod', 'kind', 'default'):
+            cmd.add(sd.AlterObjectProperty(
+                property=attr,
+                new_value=getattr(self, attr),
+            ))
+
+        return cmd
+
+    def as_delete_delta(self, schema, func_fqname):
+        DeleteParameter = sd.ObjectCommandMeta.get_command_class_or_die(
+            sd.DeleteObject, Parameter)
+
+        param_name = sn.Name(
+            module=func_fqname.module,
+            name=Parameter.get_specialized_name(
+                self.name, func_fqname)
+        )
+
+        cmd = DeleteParameter(classname=param_name)
+
+        return cmd
 
 
 class Parameter(named.NamedObject):
@@ -108,7 +198,7 @@ class Parameter(named.NamedObject):
         default=None, ephemeral=True, introspectable=False, hashable=False)
 
     @classmethod
-    def get_shortname(cls, fullname) -> str:
+    def shortname_from_fullname(cls, fullname) -> str:
         parts = str(fullname.name).split('@@', 1)
         if len(parts) == 2:
             return cls.unmangle_name(parts[0])
@@ -147,27 +237,8 @@ class Parameter(named.NamedObject):
 
         return ir
 
-    def as_str(self, schema):
-        ret = []
-        kind = self.get_kind(schema)
-        typemod = self.get_typemod(schema)
-        default = self.get_default(schema)
-
-        if kind is not ft.ParameterKind.POSITIONAL:
-            ret.append(kind.to_edgeql())
-            ret.append(' ')
-
-        ret.append(f'{self.shortname}: ')
-
-        if typemod is not ft.TypeModifier.SINGLETON:
-            ret.append(typemod.to_edgeql())
-            ret.append(' ')
-        ret.append(self.get_type(schema).name)
-
-        if default is not None:
-            ret.append(f'={default}')
-
-        return ''.join(ret)
+    def as_str(self, schema) -> str:
+        return param_as_str(schema, self)
 
 
 class ParameterCommandContext(sd.ObjectCommandContext):
@@ -216,6 +287,10 @@ class PgParams(typing.NamedTuple):
         named = []
         variadic = None
         has_param_wo_default = False
+
+        if isinstance(params, FuncParameterList):
+            params = params.objects(schema)
+
         for param in params:
             param_kind = param.get_kind(schema)
             param_default = param.get_default(schema)
@@ -246,35 +321,36 @@ class PgParams(typing.NamedTuple):
 
 class FuncParameterList(so.ObjectList, type=Parameter):
 
-    def get_by_name(self, name) -> Parameter:
-        for param in self:
+    def get_by_name(self, schema, name) -> Parameter:
+        for param in self.objects(schema):
             if param.shortname == name:
                 return param
 
     def as_str(self, schema):
         ret = []
-        for param in self:
+        for param in self.objects(schema):
             ret.append(param.as_str(schema))
         return '(' + ', '.join(ret) + ')'
 
     def has_polymorphic(self, schema):
-        return any(p.get_type(schema).is_polymorphic(schema) for p in self)
+        return any(p.get_type(schema).is_polymorphic(schema)
+                   for p in self.objects(schema))
 
     def find_named_only(self, schema) -> typing.Mapping[str, Parameter]:
         named = {}
-        for param in self:
+        for param in self.objects(schema):
             if param.get_kind(schema) is ft.ParameterKind.NAMED_ONLY:
                 named[param.shortname] = param
 
         return types.MappingProxyType(named)
 
     def find_variadic(self, schema) -> typing.Optional[Parameter]:
-        for param in self:
+        for param in self.objects(schema):
             if param.get_kind(schema) is ft.ParameterKind.VARIADIC:
                 return param
 
     def persistent_hash(self, *, schema):
-        return ph.persistent_hash(tuple(self), schema=schema)
+        return ph.persistent_hash(tuple(self.objects(schema)), schema=schema)
 
     @classmethod
     def from_ast(cls, schema, astnode, modaliases, *, func_fqname):
@@ -293,18 +369,18 @@ class FuncParameterList(so.ObjectList, type=Parameter):
                     param.name, func_fqname)
             )
 
-            params.append(
-                Parameter(
-                    num=num,
-                    name=param_name,
-                    type=param_desc.type,
-                    typemod=param_desc.typemod,
-                    kind=param_desc.kind,
-                    default=param_desc.default,
-                )
-            )
+            schema, param = Parameter.create_in_schema(
+                schema,
+                num=num,
+                name=param_name,
+                type=param_desc.type,
+                typemod=param_desc.typemod,
+                kind=param_desc.kind,
+                default=param_desc.default)
 
-        return cls(params)
+            params.append(param)
+
+        return schema, cls.create(schema, params)
 
 
 class CallableObject(so.NamedObject):
@@ -334,13 +410,15 @@ class CallableObject(so.NamedObject):
                                   old_schema=old_schema, new_schema=new_schema)
 
             if old:
-                oldcoll = [p for p in old.get_params(old_schema)
+                old_params = old.get_params(old_schema).objects(old_schema)
+                oldcoll = [p for p in old_params
                            if not param_is_inherited(old_schema, old, p)]
             else:
                 oldcoll = []
 
             if new:
-                newcoll = [p for p in new.get_params(new_schema)
+                new_params = new.get_params(new_schema).objects(new_schema)
+                newcoll = [p for p in new_params
                            if not param_is_inherited(new_schema, new, p)]
             else:
                 newcoll = []
@@ -366,8 +444,7 @@ class CallableCommand(named.NamedObjectCommand):
             param = schema.get(cr_param.classname)
             params.append(param)
 
-        props['params'] = FuncParameterList(params)
-
+        props['params'] = FuncParameterList.create(schema, params)
         return schema, props
 
     def _alter_innards(self, schema, context, scls):
@@ -418,6 +495,11 @@ class CallableCommand(named.NamedObjectCommand):
     @classmethod
     def _get_param_desc_from_ast(cls, schema, modaliases, astnode):
         params = []
+        if not hasattr(astnode, 'params'):
+            # Some Callables, like the concrete constraints,
+            # have no params in their AST.
+            return []
+
         for num, param in enumerate(astnode.params):
             param_desc = ParameterDesc.from_ast(
                 schema, modaliases, num, param)
@@ -425,21 +507,27 @@ class CallableCommand(named.NamedObjectCommand):
 
         return params
 
+    @classmethod
+    def _get_param_desc_from_delta(cls, schema, cmd):
+        params = []
+        for subcmd in cmd.get_subcommands(type=CreateParameter):
+            param = ParameterDesc.from_create_delta(schema, subcmd)
+            params.append(param)
 
-class CreateCallableObject(named.CreateNamedObject):
+        return params
+
+
+class CreateCallableObject(named.CreateNamedObject, CallableCommand):
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
-        params = FuncParameterList.from_ast(
-            schema, astnode, context.modaliases, func_fqname=cmd.classname)
+        params = cls._get_param_desc_from_ast(
+            schema, context.modaliases, astnode)
 
         for param in params:
-            param_delta = param.delta(
-                None, param, context=None,
-                old_schema=None, new_schema=schema)
-            cmd.add(param_delta)
+            cmd.add(param.as_create_delta(schema, cmd.classname))
 
         return cmd
 
@@ -450,14 +538,11 @@ class DeleteCallableObject(named.DeleteNamedObject):
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
-        params = FuncParameterList.from_ast(
-            schema, astnode, context.modaliases, func_fqname=cmd.classname)
+        params = cls._get_param_desc_from_ast(
+            schema, context.modaliases, astnode)
 
         for param in params:
-            param_delta = param.delta(
-                param, None, context=None,
-                old_schema=schema, new_schema=None)
-            cmd.add(param_delta)
+            cmd.add(param.as_delete_delta(schema, cmd.classname))
 
         return cmd
 
@@ -510,12 +595,25 @@ class FunctionCommand(CallableCommand,
 class CreateFunction(CreateCallableObject, FunctionCommand):
     astnode = qlast.CreateFunction
 
-    def _add_to_schema(self, schema, context):
+    def _create_begin(self, schema, context):
         from edb.lang.ir import utils as irutils
 
+        fullname = self.classname
+        shortname = Function.shortname_from_fullname(fullname)
+        cp = self._get_param_desc_from_delta(schema, self)
+        signature = f'{shortname}({", ".join(p.as_str(schema) for p in cp)})'
+
+        func = schema.get(fullname, None)
+        if func:
+            raise ql_errors.EdgeQLError(
+                f'cannot create the `{signature}` function: '
+                f'a function with the same signature '
+                f'is already defined',
+                context=self.source_context)
+
+        schema = super()._create_begin(schema, context)
+
         params: FuncParameterList = self.scls.get_params(schema)
-        fullname = self.scls.name
-        shortname = Function.get_shortname(fullname)
         language = self.scls.get_language(schema)
         return_type = self.scls.get_return_type(schema)
         return_typemod = self.scls.get_return_typemod(schema)
@@ -523,19 +621,9 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
         has_polymorphic = params.has_polymorphic(schema)
         named_only = params.find_named_only(schema)
 
-        get_signature = lambda: f'{shortname}{params.as_str(schema)}'
-
-        func = schema.get(fullname, None)
-        if func:
-            raise ql_errors.EdgeQLError(
-                f'cannot create {get_signature()} function: '
-                f'a function with the same signature '
-                f'is already defined',
-                context=self.source_context)
-
         if return_type.is_polymorphic(schema) and not has_polymorphic:
             raise ql_errors.EdgeQLError(
-                f'cannot create {get_signature()} function: '
+                f'cannot create `{signature}` function: '
                 f'function returns a polymorphic type but has no '
                 f'polymorphic parameters',
                 context=self.source_context)
@@ -550,7 +638,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
 
             if func_named_only.keys() != named_only.keys():
                 raise ql_errors.EdgeQLError(
-                    f'cannot create {get_signature()} function: '
+                    f'cannot create `{signature}` function: '
                     f'overloading another function with different '
                     f'named only parameters: '
                     f'"{func.shortname}{func_params.as_str(schema)}"',
@@ -561,8 +649,8 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
 
                 func_return_typemod = func.get_return_typemod(schema)
                 raise ql_errors.EdgeQLError(
-                    f'cannot create polymorphic {get_signature()} -> '
-                    f'{return_typemod.to_edgeql()} {return_type.name} '
+                    f'cannot create the polymorphic `{signature} -> '
+                    f'{return_typemod.to_edgeql()} {return_type.name}` '
                     f'function: overloading another function with different '
                     f'return type {func_return_typemod.to_edgeql()} '
                     f'{func.get_return_type(schema).name}',
@@ -576,7 +664,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                     any(f.get_from_function(schema) != has_from_function
                         for f in overloaded_funcs)):
                 raise ql_errors.EdgeQLError(
-                    f'cannot create {get_signature()}: '
+                    f'cannot create the `{signature}` function: '
                     f'overloading "FROM SQL FUNCTION" functions is '
                     f'allowed only when all functions point to the same '
                     f'SQL function',
@@ -584,15 +672,15 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
 
         if (language == qlast.Language.EdgeQL and
                 any(p.get_typemod(schema) is ft.TypeModifier.SET_OF
-                    for p in params)):
+                    for p in params.objects(schema))):
             raise ql_errors.EdgeQLError(
-                f'cannot create {get_signature()} function: '
+                f'cannot create the `{signature}` function: '
                 f'SET OF parameters in user-defined EdgeQL functions are '
                 f'not yet supported',
                 context=self.source_context)
 
         # check that params of type 'anytype' don't have defaults
-        for p in params:
+        for p in params.objects(schema):
             p_default = p.get_default(schema)
             if p_default is None:
                 continue
@@ -603,7 +691,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                 ir_default = p.get_ir_default(schema=schema)
             except Exception as ex:
                 raise ql_errors.EdgeQLError(
-                    f'cannot create {get_signature()} function: '
+                    f'cannot create the `{signature}` function: '
                     f'invalid default value {p_default} of parameter '
                     f'${p.name}: {ex}',
                     context=self.source_context)
@@ -614,7 +702,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                     check_default_type = False
                 else:
                     raise ql_errors.EdgeQLError(
-                        f'cannot create {get_signature()} function: '
+                        f'cannot create the `{signature}` function: '
                         f'polymorphic parameter of type {p_type.name} cannot '
                         f'have a non-empty default value',
                         context=self.source_context)
@@ -626,14 +714,14 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                 default_type = irutils.infer_type(ir_default, schema)
                 if not default_type.assignment_castable_to(p_type, schema):
                     raise ql_errors.EdgeQLError(
-                        f'cannot create {get_signature()} function: '
+                        f'cannot create the `{signature}` function: '
                         f'invalid declaration of parameter ${p.name}: '
                         f'unexpected type of the default expression: '
                         f'{default_type.displayname}, expected '
                         f'{p_type.displayname}',
                         context=self.source_context)
 
-        return super()._add_to_schema(schema, context)
+        return schema
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):

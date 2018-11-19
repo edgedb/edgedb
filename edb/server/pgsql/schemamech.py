@@ -113,7 +113,7 @@ class ConstraintMech:
                     if src.get_is_derived(schema):
                         # This specialized pointer was derived specifically
                         # for the purposes of constraint expr compilation.
-                        src = src.bases[0]
+                        src = src.get_bases(schema).first(schema)
                 else:
                     src = ref.rptr.source.scls
                 ref_ptrs[ref] = (ptr, src)

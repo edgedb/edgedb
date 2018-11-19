@@ -22,7 +22,8 @@ import typing
 
 
 async def fetch(
-        conn: asyncpg.connection.Connection) -> typing.List[asyncpg.Record]:
+        conn: asyncpg.connection.Connection,
+        modules=None) -> typing.List[asyncpg.Record]:
     return await conn.fetch("""
         SELECT
             c.id AS id,
@@ -37,5 +38,8 @@ async def fetch(
             c.default AS default
         FROM
             edgedb.ScalarType c
+        WHERE
+            $1::text[] IS NULL OR split_part(c.name, '::', 1) = any($1::text[])
         ORDER BY
-            c.id""")
+            c.id
+    """, modules)

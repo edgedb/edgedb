@@ -54,6 +54,7 @@ from . import links as s_links
 from . import lproperties as s_props
 from . import modules as s_mod
 from . import name as s_name
+from . import named as s_named
 from . import objects as s_obj
 from . import pseudo as s_pseudo
 from . import scalars as s_scalars
@@ -79,8 +80,9 @@ class DeclarationLoader:
     def load_module(self, module_name, decl_ast):
         decls = decl_ast.declarations
 
-        self._module = module = s_mod.Module(name=module_name)
-        self._schema = self._schema.add_module(module)
+        self._schema, self._module = s_mod.Module.create_in_schema(
+            self._schema, name=module_name)
+        module = self._module
         self._mod_aliases[None] = module_name
 
         self._process_imports(decl_ast)
@@ -120,11 +122,14 @@ class DeclarationLoader:
                 objcls_kw['return_type'] = self._schema.get('std::bool')
                 objcls_kw['return_typemod'] = ft.TypeModifier.SINGLETON
 
-            obj = objcls(name=name,
-                         sourcectx=decl.context,
-                         _setdefaults_=False,
-                         _relaxrequired_=True,
-                         **objcls_kw)
+            self._schema, obj = objcls.create_in_schema(
+                self._schema,
+                name=name,
+                sourcectx=decl.context,
+                _setdefaults_=False,
+                _relaxrequired_=True,
+                **objcls_kw,
+            )
 
             for attrdecl in decl.attributes:
                 attr_name = self._get_ref_name(attrdecl.name)
@@ -138,13 +143,13 @@ class DeclarationLoader:
                         self._schema, attr_name, value,
                         source=attrdecl.value.context)
 
-            self._schema = self._schema.add(obj)
             objects[type(obj)._type][obj] = decl
 
         # Second, process inheritance references.
         chain = itertools.chain.from_iterable
         for obj, decl in chain(t.items() for t in objects.values()):
-            obj.bases = self._get_bases(obj, decl)
+            self._schema = obj.set_field_value(
+                self._schema, 'bases', self._get_bases(obj, decl))
 
         # Now, with all objects in the declaration in the schema, we can
         # process them in the semantic dependency order.
@@ -211,7 +216,7 @@ class DeclarationLoader:
                 s_delta.CreateObject, type(obj))
             ctxcls = cmdcls.get_context_class()
             cmd = cmdcls(classname=obj.name)
-            ctx = ctxcls(cmd, obj)
+            ctx = ctxcls(self._schema, cmd, obj)
             with dctx(ctx):
                 self._schema = obj.finalize(self._schema, dctx=dctx)
 
@@ -246,10 +251,12 @@ class DeclarationLoader:
                     this_item['deps'].append(dep.name)
                     g[dep.name] = {'item': dep, 'merge': [], 'deps': []}
 
-            if obj.bases:
-                g[obj.name]['deps'].extend(b.name for b in obj.bases)
+            obj_bases = obj.get_bases(self._schema)
+            if obj_bases:
+                g[obj.name]['deps'].extend(
+                    b.name for b in obj_bases.objects(self._schema))
 
-                for base in obj.bases:
+                for base in obj_bases.objects(self._schema):
                     if base.name.module != obj.name.module:
                         g[base.name] = {'item': base, 'merge': [], 'deps': []}
 
@@ -277,7 +284,7 @@ class DeclarationLoader:
         if ref.subtypes:
             subtypes = [self._get_ref_type(s) for s in ref.subtypes]
             ccls = s_types.Collection.get_class(clsname)
-            typ = ccls.from_subtypes(subtypes)
+            typ = ccls.from_subtypes(self._schema, subtypes)
         else:
             try:
                 typ = self._schema.get(
@@ -324,7 +331,7 @@ class DeclarationLoader:
                     default_base_name, module_aliases=self._mod_aliases)
                 bases.append(default_base)
 
-        return s_obj.ObjectList(bases)
+        return s_named.NamedObjectList.create(self._schema, bases)
 
     def _init_constraints(self, constraints):
         for constraint, decl in constraints.items():
@@ -344,11 +351,11 @@ class DeclarationLoader:
                     self._schema, 'subjectexpr', s_expr.ExpressionText(
                         qlcodegen.generate_source(subjexpr)))
 
-            params = s_func.FuncParameterList.from_ast(
+            self._schema, params = s_func.FuncParameterList.from_ast(
                 self._schema, decl, self._mod_aliases,
                 func_fqname=constraint.name)
 
-            for param in params:
+            for param in params.objects(self._schema):
                 if param.get_kind(self._schema) is ft.ParameterKind.NAMED_ONLY:
                     raise s_err.SchemaDefinitionError(
                         'named only parameters are not allowed '
@@ -388,7 +395,7 @@ class DeclarationLoader:
             constraint_params = constraint.get_params(self._schema)
             if constraint_params:
                 deps.update([p.get_type(self._schema)
-                             for p in constraint_params])
+                             for p in constraint_params.objects(self._schema)])
 
         for dep in list(deps):
             if isinstance(dep, s_types.Collection):
@@ -432,10 +439,12 @@ class DeclarationLoader:
                         s_props.Property.get_default_base_name(),
                         module_aliases=self._mod_aliases)
 
-                    prop_base = s_props.Property(
-                        name=prop_qname, bases=[std_lprop])
+                    self._schema, prop_base = \
+                        s_props.Property.create_in_schema(
+                            self._schema,
+                            name=prop_qname,
+                            bases=[std_lprop])
 
-                    self._schema = self._schema.add(prop_base)
                 else:
                     prop_qname = s_name.Name(prop_name)
             else:
@@ -452,7 +461,7 @@ class DeclarationLoader:
                     )
 
             elif not source.generic(self._schema):
-                link_base = source.bases[0]
+                link_base = source.get_bases(self._schema).first(self._schema)
                 propdef = link_base.getptr(self._schema, prop_qname)
                 if not propdef:
                     raise s_err.SchemaError(
@@ -467,8 +476,7 @@ class DeclarationLoader:
 
             self._schema, prop = prop_base.derive(
                 self._schema, source, prop_target,
-                attrs=new_props,
-                add_to_schema=True)
+                attrs=new_props)
 
             self._schema = prop.update(self._schema, {
                 'declared_inherited': propdecl.inherited,
@@ -540,6 +548,7 @@ class DeclarationLoader:
 
             self._schema, constraint = constr_base.derive(
                 self._schema, subject,
+                replace_original=True,
                 attrs={
                     'is_abstract': constrdecl.delegated,
                     'sourcectx': constrdecl.context,
@@ -572,23 +581,24 @@ class DeclarationLoader:
             # class per subject. At this point all placeholders have been
             # folded, so it is possible to merge the constraints consistently
             # by merging their final exprs.
-            #
+            c_base = constraint.get_bases(self._schema).first(self._schema)
+            c_base_name = c_base.name
             try:
-                prev = constr[constraint.bases[0].name]
+                prev = constr[c_base_name]
             except KeyError:
-                constr[constraint.bases[0].name] = constraint
+                constr[c_base_name] = constraint
             else:
                 self._schema = constraint.merge(prev, schema=self._schema)
                 self._schema = constraint.merge_localexprs(
                     prev, schema=self._schema)
-                constr[constraint.bases[0].name] = constraint
+                constr[c_base_name] = constraint
 
         for c in constr.values():
             # Note that we don't do finalization for the constraint
             # here, since it's possible that it will be further used
             # in a merge of it's subject.
-            #
-            self._schema = self._schema.add(c)
+            self._schema = self._schema.discard(c)
+            self._schema.add(c.name, c)
             self._schema = subject.add_constraint(self._schema, c)
 
     def _parse_subject_indexes(self, subject, subjdecl):
@@ -608,11 +618,14 @@ class DeclarationLoader:
                 anchors={qlast.Subject: subject},
                 inline_anchors=True)
 
-            index = s_indexes.SourceIndex(
-                name=der_name, expr=index_expr, subject=subject)
+            self._schema, index = s_indexes.SourceIndex.create_in_schema(
+                self._schema,
+                name=der_name,
+                expr=index_expr,
+                subject=subject
+            )
 
             self._schema = subject.add_index(self._schema, index)
-            self._schema = self._schema.add(index)
 
     def _init_objtypes(self, objtypes):
         for objtype, objtypedecl in objtypes.items():
@@ -639,10 +652,12 @@ class DeclarationLoader:
                             s_links.Link.get_default_base_name(),
                             module_aliases=self._mod_aliases)
 
-                        link_base = s_links.Link(
-                            name=link_qname, bases=[std_link])
+                        self._schema, link_base = \
+                            s_links.Link.create_in_schema(
+                                self._schema,
+                                name=link_qname,
+                                bases=[std_link])
 
-                        self._schema = self._schema.add(link_base)
                     else:
                         link_qname = s_name.Name(link_name)
                 else:
@@ -652,7 +667,7 @@ class DeclarationLoader:
                     # This is a computable, but we cannot interpret
                     # the expression yet, so set the target to `any`
                     # temporarily.
-                    _targets = [s_pseudo.Any()]
+                    _targets = [s_pseudo.Any.create()]
 
                 else:
                     _targets = [self._get_ref_type(t) for t in linkdecl.target]
@@ -664,11 +679,10 @@ class DeclarationLoader:
                 else:
                     # Multiple explicit targets, create common virtual
                     # parent and use it as target.
-                    spectargets = s_obj.ObjectSet(_targets)
-                    target = link_base.get_common_target(
-                        self._schema, spectargets)
-                    if not self._schema.get(target.name, default=None):
-                        self._schema = self._schema.add(target)
+                    spectargets = s_obj.ObjectSet.create(
+                        self._schema, _targets)
+                    self._schema, target = link_base.create_common_target(
+                        self._schema, _targets)
 
                 if (not target.is_any() and
                         not isinstance(target, s_objtypes.ObjectType)):
@@ -685,7 +699,6 @@ class DeclarationLoader:
                 self._schema, link = link_base.derive(
                     self._schema, objtype, target,
                     attrs=new_props,
-                    add_to_schema=True,
                     apply_defaults=not linkdecl.inherited)
 
                 self._schema = link.update(self._schema, {

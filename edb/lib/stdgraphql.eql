@@ -17,23 +17,23 @@
 #
 
 
-CREATE MODULE graphql;
+CREATE MODULE stdgraphql;
 
 
 # these are just some placeholders for packaging GraphQL queries
-CREATE TYPE graphql::Query;
-ALTER TYPE graphql::Query {
-    CREATE PROPERTY graphql::__typename := 'Query';
+CREATE TYPE stdgraphql::Query;
+ALTER TYPE stdgraphql::Query {
+    CREATE PROPERTY stdgraphql::__typename := 'Query';
 };
 
 
-CREATE TYPE graphql::Mutation;
-ALTER TYPE graphql::Mutation {
-    CREATE PROPERTY graphql::__typename := 'Mutation';
+CREATE TYPE stdgraphql::Mutation;
+ALTER TYPE stdgraphql::Mutation {
+    CREATE PROPERTY stdgraphql::__typename := 'Mutation';
 };
 
 
-CREATE FUNCTION graphql::short_name(name: std::str) -> std::str
+CREATE FUNCTION stdgraphql::short_name(name: std::str) -> std::str
     FROM EdgeQL $$
         SELECT re_replace(r'.+?::(.+$)', r'\1', name) + 'Type'
     $$;

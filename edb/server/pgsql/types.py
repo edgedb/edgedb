@@ -89,7 +89,7 @@ def get_scalar_base(schema, scalar):
     if base is not None:
         return base
 
-    for ancestor in scalar.get_mro()[1:]:
+    for ancestor in scalar.compute_mro(schema)[1:]:
         if not ancestor.get_is_abstract(schema):
             # Check if base is fundamental, if not, then it is
             # another domain.
@@ -120,7 +120,7 @@ def pg_type_from_scalar(
     if topbase:
         column_type = base_type_name_map.get(base.name)
         if not column_type:
-            base_class = base.bases[0]
+            base_class = base.get_bases(schema).first(schema)
             column_type = (base_type_name_map[base_class.adapts],)
         else:
             column_type = (column_type,)

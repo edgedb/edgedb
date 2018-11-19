@@ -46,6 +46,8 @@ class Schema(TypeContainer):
         self._policy_schema = None
         self._virtual_inheritance_cache = {}
         self._inheritance_cache = {}
+        self._garbage = set()
+        self.index_by_id = {}
 
     def add_module(self, class_module) -> 'Schema':
         """Add a module to the schema
@@ -79,7 +81,7 @@ class Schema(TypeContainer):
         del self.modules[module_name]
         return self
 
-    def add_delta(self, delta) -> 'Schema':
+    def _add_delta(self, delta) -> 'Schema':
         """Add a delta to the schema.
 
         :param Delta delta: Delta object to add to the schema.
@@ -106,32 +108,69 @@ class Schema(TypeContainer):
 
         return self
 
-    def add(self, obj) -> 'Schema':
-        try:
-            module = self.modules[obj.name.module]
-        except KeyError as e:
-            raise s_err.SchemaModuleNotFoundError(
-                f'module {obj.name.module!r} is not in this schema') from e
+    def add(self, name, obj=None, *, _nameless=False) -> 'Schema':
+        from . import deltas as s_deltas
 
-        return module.add(self, obj)
+        if obj is None:
+            obj = name
+            name = obj.name
+            import warnings
+            warnings.warn(
+                f'Deprecated call to schema.add()',
+                RuntimeWarning, stacklevel=2)
 
-    def discard(self, obj) -> 'Schema':
+        if isinstance(obj, s_modules.Module):
+            self.modules[name] = obj
+            return self
+        elif isinstance(obj, s_deltas.Delta):
+            self._add_delta(obj)
+            return self
+
+        self.index_by_id[obj.id] = obj
+
+        if _nameless:
+            return self
+        else:
+            try:
+                module = self.modules[name.module]
+            except KeyError as e:
+                raise s_err.SchemaModuleNotFoundError(
+                    f'module {name.module!r} is not in this schema') from e
+
+            return module._add(self, name, obj)
+
+    def mark_as_garbage(self, obj) -> 'Schema':
         try:
             module = self.modules[obj.name.module]
         except KeyError:
             return
 
-        schema = module.discard(self, obj)
+        schema = module._discard(self, obj)
+        self._garbage.add(obj.id)
+
+        return schema
+
+    def discard(self, obj) -> 'Schema':
+        self.index_by_id.pop(obj.id, None)
+
+        try:
+            module = self.modules[obj.name.module]
+        except KeyError:
+            return
+
+        schema = module._discard(self, obj)
         return schema
 
     def delete(self, obj) -> 'Schema':
+        self.index_by_id.pop(obj.id, None)
+
         try:
             module = self.modules[obj.name.module]
         except KeyError as e:
             raise s_err.SchemaModuleNotFoundError(
                 f'module {obj.name.module} is not in this schema') from e
 
-        schema = module.delete(self, obj)
+        schema = module._delete(self, obj)
         return schema
 
     def reorder(self, new_order) -> 'Schema':
@@ -222,6 +261,18 @@ class Schema(TypeContainer):
         raise s_err.ItemNotFoundError(
             f'reference to a non-existent operator: {name}')
 
+    def get_by_id(self, item_id, default=_void):
+        try:
+            return self.index_by_id[item_id]
+        except KeyError:
+            if default is _void:
+                raise s_err.ItemNotFoundError(
+                    f'reference to a non-existent schema item: {item_id}'
+                    f' in schema {self!r}'
+                ) from None
+            else:
+                return default
+
     def get(self, name, default=_void, *, module_aliases=None, type=None):
         def getter(modules, name):
             for module in modules:
@@ -248,9 +299,9 @@ class Schema(TypeContainer):
         return self
 
     def drop_inheritance_cache_for_child(self, scls) -> 'Schema':
-        bases = getattr(scls, 'bases', ())
+        bases = scls.get_bases(self)
 
-        for base in bases:
+        for base in bases.objects(self):
             self._inheritance_cache.pop(base.name, None)
 
         return self
@@ -281,7 +332,7 @@ class Schema(TypeContainer):
         return result
 
     def _find_children(self, scls):
-        flt = lambda p: scls in p.bases
+        flt = lambda p: scls in p.get_bases(self).objects(self)
         it = self.get_objects(type=scls._type)
         return {c.name for c in filter(flt, it)}
 
@@ -302,6 +353,8 @@ class SchemaOverlay(Schema):
         self.modules = collections.ChainMap(self.local_modules, schema.modules)
         self.deltas = collections.OrderedDict()
 
+        self.index_by_id = {}
+        self._garbage = set()
         self._policy_schema = None
         self._local_vic = {}
         self._virtual_inheritance_cache = collections.ChainMap(
@@ -311,9 +364,9 @@ class SchemaOverlay(Schema):
             self._local_ic, schema._inheritance_cache)
 
         if extra:
-            for v in extra.values():
+            for n, v in extra.items():
                 if hasattr(v, '_type'):
-                    self.add(v)
+                    self.add(n, v)
 
     def has_module(self, module):
         return module in self.modules
@@ -322,11 +375,26 @@ class SchemaOverlay(Schema):
         yield from self.local_modules.values()
         yield from self.schema.get_modules()
 
-    def add(self, obj):
-        if obj.name.module not in self.local_modules:
-            self.local_modules[obj.name.module] = s_modules.Module(
-                name=obj.name.module)
-        return super().add(obj)
+    def add(self, name, obj=None, *, _nameless=False):
+        if not _nameless:
+            if isinstance(obj, s_modules.Module):
+                self.local_modules[name] = obj
+                return self
+
+            if obj is None:
+                obj = name
+                name = obj.name
+                import warnings
+                warnings.warn(
+                    f'Deprecated call to schema.add()',
+                    RuntimeWarning, stacklevel=2)
+
+            if obj.name.module not in self.local_modules:
+                s_modules.Module.create_in_schema(
+                    self,
+                    name=obj.name.module)
+
+        return super().add(name, obj, _nameless=_nameless)
 
     def _resolve_module(self, module_name) -> typing.List[s_modules.Module]:
         modules = []
@@ -342,3 +410,10 @@ class SchemaOverlay(Schema):
                         modules.append(their_module)
 
         return modules
+
+    def get_by_id(self, item_id, default=_void):
+        item = self.index_by_id.get(item_id)
+        if item is None:
+            return self.schema.get_by_id(item_id, default=default)
+        else:
+            return item

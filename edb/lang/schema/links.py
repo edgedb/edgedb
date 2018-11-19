@@ -92,8 +92,7 @@ class Link(sources.Source, pointers.Pointer):
         default=None, coerce=True, compcoef=0.9,
         merge_fn=merge_actions)
 
-    def init_std_props(self, schema, *, mark_derived=False,
-                       add_to_schema=False, dctx=None):
+    def init_std_props(self, schema, *, mark_derived=False, dctx=None):
 
         src_n = sn.Name('std::source')
         pointers = self.get_pointers(schema)
@@ -101,12 +100,8 @@ class Link(sources.Source, pointers.Pointer):
         if not pointers.has(schema, src_n):
             source_pbase = schema.get(src_n)
             schema, source_p = source_pbase.derive(
-                schema,
-                self,
-                self.get_source(schema),
-                mark_derived=mark_derived,
-                add_to_schema=add_to_schema,
-                dctx=dctx)
+                schema, self, self.get_source(schema),
+                mark_derived=mark_derived, dctx=dctx)
 
             schema = self.add_pointer(schema, source_p)
 
@@ -114,28 +109,24 @@ class Link(sources.Source, pointers.Pointer):
         if not pointers.has(schema, tgt_n):
             target_pbase = schema.get(tgt_n)
             schema, target_p = target_pbase.derive(
-                schema,
-                self,
-                self.get_target(schema),
-                mark_derived=mark_derived,
-                add_to_schema=add_to_schema,
-                dctx=dctx)
+                schema, self, self.get_target(schema),
+                mark_derived=mark_derived, dctx=dctx)
 
             schema = self.add_pointer(schema, target_p)
 
         return schema
 
     def init_derived(self, schema, source, *qualifiers,
-                     mark_derived=False, add_to_schema=False,
-                     dctx=None, init_props=True, **kwargs):
+                     mark_derived=False, dctx=None,
+                     init_props=True, **kwargs):
 
         schema, ptr = super().init_derived(
-            schema, source, *qualifiers, mark_derived=mark_derived,
-            add_to_schema=add_to_schema, dctx=dctx, **kwargs)
+            schema, source, *qualifiers,
+            mark_derived=mark_derived,
+            dctx=dctx, **kwargs)
 
         if init_props:
-            schema = ptr.init_std_props(schema, mark_derived=mark_derived,
-                                        add_to_schema=add_to_schema)
+            schema = ptr.init_std_props(schema, mark_derived=mark_derived)
 
         return schema, ptr
 
@@ -149,14 +140,16 @@ class Link(sources.Source, pointers.Pointer):
         return bool([p for p in self.get_pointers(schema).objects(schema)
                      if not p.is_special_pointer()])
 
-    def compare(self, schema, other, context=None):
+    def compare(self, other, *, our_schema, their_schema, context=None):
         if not isinstance(other, Link):
             if isinstance(other, pointers.Pointer):
                 return 0.0
             else:
                 return NotImplemented
 
-        return super().compare(schema, other, context=context)
+        return super().compare(
+            other, our_schema=our_schema,
+            their_schema=their_schema, context=context)
 
     def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
         schema = super().finalize(
@@ -256,7 +249,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                 cmd.add(
                     sd.AlterObjectProperty(
                         property='spectargets',
-                        new_value=so.ObjectList([
+                        new_value=named.NamedObjectList([
                             utils.ast_to_typeref(
                                 t, modaliases=context.modaliases,
                                 schema=schema)
@@ -271,7 +264,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                     module=source_name.module
                 )
 
-                target = so.ObjectRef(classname=target_name)
+                target = so.ObjectRef(name=target_name)
 
                 create_virt_parent = s_objtypes.CreateObjectType(
                     classname=target_name,
@@ -281,8 +274,8 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                 create_virt_parent.update((
                     sd.AlterObjectProperty(
                         property='bases',
-                        new_value=so.ObjectList([
-                            so.ObjectRef(classname=sn.Name(
+                        new_value=named.NamedObjectList([
+                            so.ObjectRef(name=sn.Name(
                                 module='std', name='Object'
                             ))
                         ])
@@ -317,7 +310,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                         target_expr, schema, context)
 
             if (isinstance(target, so.ObjectRef) and
-                    target.classname == source_name):
+                    target.name == source_name):
                 # Special case for loop links.  Since the target
                 # is the same as the source, we know it's a proper
                 # type.
@@ -359,20 +352,20 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                     property='bases',
                     new_value=[
                         so.ObjectRef(
-                            classname=base_prop_name
+                            name=base_prop_name
                         )
                     ]
                 ),
                 sd.AlterObjectProperty(
                     property='source',
                     new_value=so.ObjectRef(
-                        classname=cmd.classname
+                        name=cmd.classname
                     )
                 ),
                 sd.AlterObjectProperty(
                     property='target',
                     new_value=so.ObjectRef(
-                        classname=source_name
+                        name=source_name
                     )
                 ),
                 sd.AlterObjectProperty(
@@ -406,14 +399,14 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                     property='bases',
                     new_value=[
                         so.ObjectRef(
-                            classname=base_prop_name
+                            name=base_prop_name
                         )
                     ]
                 ),
                 sd.AlterObjectProperty(
                     property='source',
                     new_value=so.ObjectRef(
-                        classname=cmd.classname
+                        name=cmd.classname
                     )
                 ),
                 sd.AlterObjectProperty(
@@ -452,7 +445,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
         elif op.property == 'spectargets':
             if op.new_value:
                 node.target = qlast.union_targets(
-                    [t.classname for t in op.new_value])
+                    [t.name for t in op.new_value])
         elif op.property == 'default':
             self._encode_default(schema, context, node, op)
         elif op.property == 'required':
@@ -517,9 +510,9 @@ class AlterTarget(sd.Command):
             alter_ptr_ctx.op.add(
                 sd.AlterObjectProperty(
                     property='spectargets',
-                    new_value=so.ObjectList([
+                    new_value=named.NamedObjectList([
                         so.ObjectRef(
-                            classname=sn.Name(
+                            name=sn.Name(
                                 module=t.module,
                                 name=t.name
                             )
@@ -535,7 +528,7 @@ class AlterTarget(sd.Command):
                 module=source_name.module
             )
 
-            target = so.ObjectRef(classname=target_name)
+            target = so.ObjectRef(name=target_name)
 
             create_virt_parent = s_objtypes.CreateObjectType(
                 classname=target_name,

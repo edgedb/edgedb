@@ -23,9 +23,7 @@ import typing
 from edb.lang.common import ast
 
 from edb.lang.schema import objtypes as s_objtypes
-from edb.lang.schema import links as s_links
 from edb.lang.schema import name as s_name
-from edb.lang.schema import objects as so
 from edb.lang.schema import pointers as s_pointers
 from edb.lang.schema import pseudo as s_pseudo
 from edb.lang.schema import schema as s_schema
@@ -187,7 +185,7 @@ def is_simple_wrapper(ir_expr):
 
 def new_empty_set(schema, *, scls=None, alias):
     if scls is None:
-        path_id_scls = s_pseudo.Any()
+        path_id_scls = s_pseudo.Any.create()
     else:
         path_id_scls = scls
 
@@ -196,13 +194,11 @@ def new_empty_set(schema, *, scls=None, alias):
     return irast.EmptySet(path_id=path_id, scls=scls)
 
 
-class TupleIndirectionLink(s_links.Link):
-    """A Link subclass that can be used in tuple indirection path ids."""
+class TupleIndirectionLink(s_pointers.PointerLike):
+    """A Link-alike that can be used in tuple indirection path ids."""
 
     def __init__(self, element_name):
-        super().__init__(
-            name=s_name.Name(module='__tuple__', name=str(element_name))
-        )
+        self.name = s_name.Name(module='__tuple__', name=str(element_name))
 
     def __hash__(self):
         return hash((self.__class__, self.name))
@@ -213,8 +209,27 @@ class TupleIndirectionLink(s_links.Link):
 
         return self.name == other.name
 
+    @property
+    def shortname(self):
+        return self.name
+
+    def is_link_property(self, schema):
+        return False
+
     def generic(self, schema):
-        # Make PathId happy.
+        return False
+
+    def get_source(self, schema):
+        return None
+
+    def singular(self, schema,
+                 direction=s_pointers.PointerDirection.Outbound) -> bool:
+        return True
+
+    def scalar(self):
+        return self._target.is_scalar()
+
+    def is_pure_computable(self, schema):
         return False
 
 
@@ -228,25 +243,51 @@ def tuple_indirection_path_id(tuple_path_id, element_name, element_type, *,
     )
 
 
-class TypeIndirectionLink(s_links.Link):
-    """A Link subclass that can be used in type indirection path ids."""
-
-    optional = so.SchemaField(
-        bool, compcoef=0.909, ephemeral=True, introspectable=False)
+class TypeIndirectionLink(s_pointers.PointerLike):
+    """A Link-alike that can be used in type indirection path ids."""
 
     def __init__(self, source, target, *, optional, cardinality):
         name = 'optindirection' if optional else 'indirection'
-        super().__init__(
-            name=s_name.Name(module='__type__', name=name),
-            source=source,
-            target=target,
-            direction=s_pointers.PointerDirection.Outbound,
-            cardinality=cardinality,
-            optional=optional,
-        )
+        self._name = s_name.Name(module='__type__', name=name)
+        self._source = source
+        self._target = target
+        self._cardinality = cardinality
+        self._optional = optional
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def shortname(self):
+        return self._name
+
+    def is_link_property(self, schema):
+        return False
 
     def generic(self, schema):
-        # Make PathId happy.
+        return False
+
+    def get_source(self, schema):
+        return self._source
+
+    def get_target(self, schema):
+        return self._target
+
+    def get_cardinality(self, schema):
+        return self._cardinality
+
+    def singular(self, schema,
+                 direction=s_pointers.PointerDirection.Outbound) -> bool:
+        if direction is s_pointers.PointerDirection.Outbound:
+            return self.get_cardinality(schema) is irast.Cardinality.ONE
+        else:
+            return True
+
+    def scalar(self):
+        return self._target.is_scalar()
+
+    def is_pure_computable(self, schema):
         return False
 
 

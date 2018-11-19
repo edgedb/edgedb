@@ -33,9 +33,13 @@ class Any(PseudoType):
 
     name = so.Field(str, default='anytype', inheritable=False, compcoef=0.670)
     schema_name = 'anytype'
+    _instance = None
 
-    def __init__(self, *, name='anytype', **kwargs):
-        super().__init__(name=name, **kwargs)
+    @classmethod
+    def create(cls):
+        if cls._instance is None:
+            cls._instance = cls._create(None, name='anytype')
+        return cls._instance
 
     def is_any(self):
         return True
@@ -76,7 +80,9 @@ class Any(PseudoType):
 
 
 class AnyObjectRef(so.ObjectRef):
-    classname = so.Field(str, default='anytype', coerce=True)
+
+    def __init__(self, *, id=None, name='anytype'):
+        super().__init__(id=id, name=name)
 
     def _resolve_ref(self, schema):
-        return Any()
+        return Any.create()

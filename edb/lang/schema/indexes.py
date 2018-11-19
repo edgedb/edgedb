@@ -27,6 +27,7 @@ from . import name as sn
 from . import named
 from . import objects as so
 from . import referencing
+from . import utils as s_utils
 
 
 class SourceIndex(inheriting.InheritingObject):
@@ -93,10 +94,6 @@ class SourceIndexCommand(referencing.ReferencedObjectCommand,
 
         return sn.Name(name=idx_name, module=subject_name.module)
 
-    def _create_begin(self, schema, context):
-        return inheriting.InheritingObjectCommand._create_begin(
-            self, schema, context)
-
 
 class CreateSourceIndex(SourceIndexCommand, named.CreateNamedObject):
     astnode = qlast.CreateIndex
@@ -106,12 +103,12 @@ class CreateSourceIndex(SourceIndexCommand, named.CreateNamedObject):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         parent_ctx = context.get(sd.CommandContextToken)
-        subject_name = parent_ctx.op.classname
+        subject = parent_ctx.scls
 
         cmd.update((
             sd.AlterObjectProperty(
                 property='subject',
-                new_value=so.ObjectRef(classname=subject_name)
+                new_value=s_utils.reduce_to_typeref(schema, subject)
             ),
             sd.AlterObjectProperty(
                 property='expr',
@@ -121,6 +118,10 @@ class CreateSourceIndex(SourceIndexCommand, named.CreateNamedObject):
         ))
 
         return cmd
+
+    def _create_begin(self, schema, context):
+        return named.CreateNamedObject._create_begin(
+            self, schema, context)
 
     def _apply_fields_ast(self, schema, context, node):
         super()._apply_fields_ast(schema, context, node)

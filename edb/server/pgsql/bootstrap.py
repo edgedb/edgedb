@@ -197,7 +197,7 @@ async def _init_defaults(conn, cluster, loop):
 
 async def _populate_data(conn, cluster, loop):
     script = f'''
-        INSERT graphql::Query;
+        INSERT stdgraphql::Query;
     '''
 
     await _run_script(script, conn, cluster, loop)

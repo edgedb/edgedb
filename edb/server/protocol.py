@@ -246,7 +246,7 @@ class Protocol(asyncio.Protocol):
         results = []
 
         for statement in statements:
-            plan = planner.plan_statement(
+            plan = await planner.plan_statement(
                 statement, self.backend, flags, timer=timer)
 
             with timer.timeit('execution'):

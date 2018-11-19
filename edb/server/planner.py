@@ -41,7 +41,7 @@ class TransactionStatement:
         return '<{} {!r} at 0x{:x}>'.format(self.__name__, self.op, id(self))
 
 
-def plan_statement(stmt, backend, flags={}, *, timer):
+async def plan_statement(stmt, backend, flags={}, *, timer):
     schema = backend.schema
     modaliases = backend.modaliases
     testmode = backend.testmode
@@ -51,8 +51,16 @@ def plan_statement(stmt, backend, flags={}, *, timer):
         return s_ddl.cmd_from_ddl(
             stmt, schema=schema, modaliases=modaliases, testmode=testmode)
 
+    elif isinstance(stmt, qlast.CreateDelta):
+        # CREATE MIGRATION
+        cmd = s_ddl.cmd_from_ddl(
+            stmt, schema=schema, modaliases=modaliases, testmode=testmode)
+
+        cmd = await backend.compile_migration(cmd)
+        return cmd
+
     elif isinstance(stmt, qlast.Delta):
-        # CREATE/APPLY MIGRATION
+        # Other MIGRATION commands.
         return s_ddl.cmd_from_ddl(
             stmt, schema=schema, modaliases=modaliases, testmode=testmode)
 

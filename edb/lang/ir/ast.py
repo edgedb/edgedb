@@ -26,6 +26,7 @@ from edb.lang.schema import modules as s_modules
 from edb.lang.schema import name as sn
 from edb.lang.schema import objects as so
 from edb.lang.schema import pointers as s_pointers
+from edb.lang.schema import schema as s_schema
 from edb.lang.schema import types as s_types
 
 from edb.lang.edgeql import ast as qlast
@@ -71,7 +72,7 @@ class Pointer(Base):
 
     source: Base
     target: Base
-    ptrcls: so.Object
+    ptrcls: s_pointers.PointerLike
     direction: s_pointers.PointerDirection
     anchor: typing.Union[str, ast.MetaAST]
     show_as_anchor: typing.Union[str, ast.MetaAST]
@@ -120,6 +121,7 @@ class Statement(Command):
     params: typing.Dict[str, s_types.Type]
     cardinality: Cardinality
     view_shapes: typing.Dict[so.Object, typing.List[s_pointers.Pointer]]
+    schema: s_schema.Schema
     scope_tree: ScopeTreeNode
     scope_map: typing.Dict[Set, str]
     source_map: typing.Dict[s_pointers.Pointer,

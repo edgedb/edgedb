@@ -22,12 +22,14 @@ import typing
 
 
 async def fetch(
-        conn: asyncpg.connection.Connection) -> typing.List[asyncpg.Record]:
+        conn: asyncpg.connection.Connection,
+        modules=None) -> typing.List[asyncpg.Record]:
     return await conn.fetch("""
         SELECT
                 id,
-                name,
-                imports
+                name
             FROM
                 edgedb.module
-    """)
+            WHERE
+                $1::text[] IS NULL OR name = any($1::text[])
+    """, modules)

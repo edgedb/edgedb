@@ -124,7 +124,6 @@ def derive_view(
         derived_name_base: typing.Optional[str]=None,
         is_insert: bool=False,
         is_update: bool=False,
-        add_to_schema: bool=True,
         ctx: context.ContextLevel) -> s_obj.Object:
     if source is None:
         source = scls
@@ -135,15 +134,17 @@ def derive_view(
             derived_name_base=derived_name_base, ctx=ctx)
 
     if isinstance(scls, s_types.Collection):
-        derived = scls.derive_subtype(ctx.env.schema, name=derived_name)
+        ctx.env.schema, derived = scls.derive_subtype(
+            ctx.env.schema, name=derived_name)
     elif scls.generic(ctx.env.schema):
         ctx.env.schema, derived = scls.derive(
-            ctx.env.schema, source, target, *qualifiers, name=derived_name,
+            ctx.env.schema, source, target, *qualifiers,
+            name=derived_name, replace_original=True,
             mark_derived=True)
     else:
         ctx.env.schema, derived = scls.derive_copy(
             ctx.env.schema, source, target, *qualifiers, name=derived_name,
-            attrs=dict(bases=[scls]), mark_derived=True)
+            replace_original=True, attrs=dict(bases=[scls]), mark_derived=True)
 
         if isinstance(derived, s_sources.Source):
             scls_pointers = scls.get_pointers(ctx.env.schema)
@@ -167,7 +168,7 @@ def derive_view(
         ctx.env.schema = derived.set_field_value(
             ctx.env.schema, 'view_type', vtype)
 
-    if (add_to_schema and not isinstance(derived, s_types.Collection) and
+    if (not isinstance(derived, s_types.Collection) and
             ctx.env.schema.get(derived.name, None) is None):
         ctx.env.schema = ctx.env.schema.add(derived)
 

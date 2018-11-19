@@ -196,7 +196,7 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
             except s_err.ItemNotFoundError:
                 base_name = sn.Name(name)
             else:
-                base_name = base_ref.classname
+                base_name = base_ref.name
 
             pcls = cls.get_schema_metaclass()
             pnn = pcls.get_specialized_name(base_name, referrer_name)
@@ -236,7 +236,7 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
                 #
                 schema = referrer.add_classref(
                     schema, refdict.attr, self.scls)
-                refname = self.scls.get_shortname(self.scls.name)
+                refname = self.scls.shortname_from_fullname(self.scls.name)
                 for child in referrer.descendants(schema):
                     child_local_coll = child.get_field_value(
                         schema, refdict.local_attr)
@@ -255,8 +255,8 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
         referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is not None:
             referrer = referrer_ctx.scls
-            old_name = scls.get_shortname(self.old_name)
-            new_name = scls.get_shortname(self.new_name)
+            old_name = scls.shortname_from_fullname(self.old_name)
+            new_name = scls.shortname_from_fullname(self.new_name)
 
             if old_name == new_name:
                 return schema
@@ -316,10 +316,9 @@ class ReferencedInheritingObjectCommand(
         if referrer_ctx is not None and not attrs.get('is_derived'):
             mcls = self.get_schema_metaclass()
             referrer = referrer_ctx.scls
-            basename = mcls.get_shortname(self.classname)
+            basename = mcls.shortname_from_fullname(self.classname)
             base = schema.get(basename, type=mcls)
             schema, self.scls = base.derive(schema, referrer, attrs=attrs,
-                                            add_to_schema=True,
                                             init_props=False)
             return schema
         else:
@@ -341,9 +340,9 @@ class CreateReferencedInheritingObject(inheriting.CreateInheritingObject):
             except s_err.ItemNotFoundError:
                 # Certain concrete items, like pointers create
                 # abstract parents implicitly.
-                nname = objcls.get_shortname(cmd.classname)
+                nname = objcls.shortname_from_fullname(cmd.classname)
                 base = so.ObjectRef(
-                    classname=sn.Name(
+                    name=sn.Name(
                         module=nname.module,
                         name=nname.name
                     )
@@ -352,7 +351,7 @@ class CreateReferencedInheritingObject(inheriting.CreateInheritingObject):
             cmd.add(
                 sd.AlterObjectProperty(
                     property='bases',
-                    new_value=so.ObjectList([base])
+                    new_value=named.NamedObjectList.create(schema, [base])
                 )
             )
 
@@ -365,7 +364,7 @@ class CreateReferencedInheritingObject(inheriting.CreateInheritingObject):
                 sd.AlterObjectProperty(
                     property=refdict.backref_attr,
                     new_value=so.ObjectRef(
-                        classname=referrer_name
+                        name=referrer_name
                     )
                 )
             )
@@ -395,7 +394,7 @@ class CreateReferencedInheritingObject(inheriting.CreateInheritingObject):
 class ReferencingObject(inheriting.InheritingObject,
                         metaclass=ReferencingObjectMeta):
 
-    def copy_with(self, schema, updates):
+    def copy_with(self, schema, updates, *, _nameless=False):
         for refdict in self.__class__.get_refdicts():
             attr = refdict.attr
             local_attr = refdict.local_attr
@@ -408,7 +407,7 @@ class ReferencingObject(inheriting.InheritingObject,
 
             all_coll_copy = {}
             for n, p in all_coll.items(schema):
-                all_coll_copy[n] = p.copy()
+                all_coll_copy[n] = p
 
             if all_coll_copy:
                 updates[attr] = all_coll_copy
@@ -424,7 +423,8 @@ class ReferencingObject(inheriting.InheritingObject,
                 updates[local_attr] = {n: all_coll_copy[n]
                                        for n in local_coll.names(schema)}
 
-        schema, result = super().copy_with(schema, updates)
+        schema, result = super().copy_with(
+            schema, updates, _nameless=_nameless)
         return schema, result
 
     def merge(self, *objs, schema, dctx=None):
@@ -520,7 +520,7 @@ class ReferencingObject(inheriting.InheritingObject,
             result = self
 
         if not result or farthest:
-            bases = (c for c in self.get_mro()[1:]
+            bases = (c for c in self.compute_mro(schema)[1:]
                      if isinstance(c, named.NamedObject))
 
             for c in bases:
@@ -543,7 +543,7 @@ class ReferencingObject(inheriting.InheritingObject,
         local_coll = self.get_explicit_field_value(schema, local_attr, None)
         all_coll = self.get_explicit_field_value(schema, attr, None)
 
-        key = obj.get_shortname(obj.name)
+        key = obj.shortname_from_fullname(obj.name)
 
         if local_coll is not None:
             if local_coll.has(schema, key) and not replace:
@@ -556,14 +556,15 @@ class ReferencingObject(inheriting.InheritingObject,
             schema = self.set_field_value(schema, local_attr, local_coll)
         else:
             schema = self.set_field_value(
-                schema, local_attr, so.ObjectMapping({key: obj}))
+                schema, local_attr,
+                so.ObjectMapping.create(schema, {key: obj}))
 
         if all_coll is not None:
             schema, all_coll = all_coll.replace(schema, {key: obj})
             schema = self.set_field_value(schema, attr, all_coll)
         else:
             schema = self.set_field_value(
-                schema, attr, so.ObjectMapping({key: obj}))
+                schema, attr, so.ObjectMapping.create(schema, {key: obj}))
 
         return schema
 
@@ -576,9 +577,9 @@ class ReferencingObject(inheriting.InheritingObject,
         local_coll = self.get_field_value(schema, local_attr)
         all_coll = self.get_field_value(schema, attr)
 
-        key = refcls.get_shortname(obj_name)
+        key = refcls.shortname_from_fullname(obj_name)
         is_inherited = any(b.get_field_value(schema, attr).has(schema, key)
-                           for b in self.bases)
+                           for b in self.get_bases(schema).objects(schema))
 
         if not is_inherited:
             schema, all_coll = all_coll.replace(schema, {key: None})
@@ -606,7 +607,7 @@ class ReferencingObject(inheriting.InheritingObject,
             dctx=dctx)
 
         if bases is None:
-            bases = self.bases
+            bases = self.get_bases(schema).objects(schema)
 
         for refdict in self.__class__.get_refdicts():
             attr = refdict.attr
@@ -667,12 +668,12 @@ class ReferencingObject(inheriting.InheritingObject,
         """
         classrefs = self.get_explicit_field_value(schema, attr, None)
         if classrefs is None:
-            classrefs = so.ObjectMapping()
+            classrefs = so.ObjectMapping.create_empty()
 
         local_classrefs = self.get_explicit_field_value(
             schema, local_attr, None)
         if local_classrefs is None:
-            local_classrefs = so.ObjectMapping()
+            local_classrefs = so.ObjectMapping.create_empty()
 
         if classref_keys is None:
             classref_keys = classrefs.names(schema)
@@ -699,14 +700,12 @@ class ReferencingObject(inheriting.InheritingObject,
             if local and inherited:
                 schema, merged = local.derive_copy(
                     schema, self, merge_bases=inherited,
-                    replace_original=local,
-                    add_to_schema=True, dctx=dctx)
+                    replace_original=local, dctx=dctx)
 
             elif len(inherited) > 1:
-                base = inherited[0].bases[0]
+                base = inherited[0].get_bases(schema).first(schema)
                 schema, merged = base.derive(
-                    schema, self, merge_bases=inherited,
-                    add_to_schema=True, dctx=dctx)
+                    schema, self, merge_bases=inherited, dctx=dctx)
 
             elif len(inherited) == 1:
                 # Pure inheritance
@@ -738,7 +737,8 @@ class ReferencingObject(inheriting.InheritingObject,
                     context=local.sourcectx
                 )
 
-            if merged is local and local.get_declared_inherited(schema):
+            if (merged is local and local is not None and
+                    local.get_declared_inherited(schema)):
                 raise s_err.SchemaDefinitionError(
                     f'{self.shortname}: {local.shortname} cannot '
                     f'be declared `inherited` as there are no ancestors '
@@ -770,23 +770,25 @@ class ReferencingObject(inheriting.InheritingObject,
         return schema
 
     def init_derived(self, schema, source, *qualifiers, as_copy,
-                     merge_bases=None, add_to_schema=False, mark_derived=False,
+                     merge_bases=None, mark_derived=False,
+                     replace_original=None,
                      attrs=None, dctx=None, **kwargs):
 
         schema, derived = super().init_derived(
             schema, source, *qualifiers, as_copy=as_copy,
-            mark_derived=mark_derived, add_to_schema=add_to_schema,
-            attrs=attrs, dctx=dctx, merge_bases=merge_bases, **kwargs)
+            mark_derived=mark_derived, attrs=attrs, dctx=dctx,
+            replace_original=replace_original,
+            merge_bases=merge_bases, **kwargs)
 
         if as_copy:
             schema = derived.rederive_classrefs(
-                schema, add_to_schema=add_to_schema,
-                mark_derived=mark_derived)
+                schema, mark_derived=mark_derived,
+                replace_original=replace_original)
 
         return schema, derived
 
-    def rederive_classrefs(self, schema, add_to_schema=False,
-                           mark_derived=False, dctx=None):
+    def rederive_classrefs(self, schema, *, mark_derived=False,
+                           replace_original=None, dctx=None):
         for refdict in self.__class__.get_refdicts():
             attr = refdict.attr
             local_attr = refdict.local_attr
@@ -795,9 +797,10 @@ class ReferencingObject(inheriting.InheritingObject,
 
             for pn, p in local_coll.items(schema):
                 schema, obj = p.derive_copy(
-                    schema, self,
-                    add_to_schema=add_to_schema,
+                    schema,
+                    self,
                     mark_derived=mark_derived,
+                    replace_original=replace_original,
                     dctx=dctx)
 
                 schema, local_coll = local_coll.replace(
@@ -863,6 +866,10 @@ class ReferencingObjectCommand(sd.ObjectCommand):
 
     def _alter_refs(self, schema, context, scls, refdict):
         for op in self.get_subcommands(metaclass=refdict.ref_cls):
+            derived_from = op.get_attribute_value('derived_from')
+            if derived_from is not None:
+                continue
+
             schema, _ = op.apply(schema, context=context)
         return schema
 

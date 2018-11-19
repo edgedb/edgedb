@@ -597,7 +597,13 @@ def compile_query_subject(
             else:
                 ptr_metacls = s_props.Property
 
-            view_rptr.base_ptrcls = ptr_metacls(name=view_rptr.ptrcls_name)
+            base_ptrcls = ctx.env.schema.get(view_rptr.ptrcls_name, None)
+            if base_ptrcls is None:
+                ctx.env.schema, view_rptr.base_ptrcls = \
+                    ptr_metacls.create_in_schema(
+                        ctx.env.schema, name=view_rptr.ptrcls_name)
+            else:
+                view_rptr.base_ptrcls = base_ptrcls
 
     if shape is not None and view_scls is None:
         if (view_name is None and

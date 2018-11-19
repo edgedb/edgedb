@@ -210,26 +210,32 @@ class BaseEdgeQLCompilerTest(BaseDocTest):
         script = cls.get_schema_script()
         statements = edgeql.parse_block(script)
 
-        schema = s_std.load_std_schema()
-        schema = s_std.load_graphql_schema(schema)
+        current_schema = s_std.load_std_schema()
+        current_schema = s_std.load_graphql_schema(current_schema)
+
+        target_schema = s_std.load_std_schema()
+        target_schema = s_std.load_graphql_schema(target_schema)
 
         for stmt in statements:
             if isinstance(stmt, qlast.Delta):
                 # CREATE/APPLY MIGRATION
                 ddl_plan = s_ddl.cmd_from_ddl(
-                    stmt, schema=schema, modaliases={None: 'default'})
+                    stmt, schema=current_schema, modaliases={None: 'default'})
+
+                ddl_plan = s_ddl.compile_migration(
+                    ddl_plan, target_schema, current_schema)
 
             elif isinstance(stmt, qlast.DDL):
                 # CREATE/DELETE/ALTER (FUNCTION, TYPE, etc)
                 ddl_plan = s_ddl.delta_from_ddl(
-                    stmt, schema=schema, modaliases={None: 'default'})
+                    stmt, schema=current_schema, modaliases={None: 'default'})
 
             else:
                 raise ValueError(
                     f'unexpected {stmt!r} in compiler setup script')
 
             context = sd.CommandContext()
-            schema, _ = ddl_plan.apply(schema, context)
+            schema, _ = ddl_plan.apply(current_schema, context)
 
         return schema
 

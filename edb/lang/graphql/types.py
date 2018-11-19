@@ -92,7 +92,7 @@ class GQLCoreSchema:
         self.modules = {
             m.name for m in
             self.edb_schema.get_modules()
-        } - {'schema', 'graphql'}
+        } - {'schema', 'stdgraphql'}
         self.modules = list(self.modules)
         self.modules.sort()
 
@@ -363,7 +363,10 @@ class GQLCoreSchema:
             if t.is_view(self.edb_schema):
                 continue
 
-            for st in t.get_mro():
+            if t.name in self._gql_interfaces:
+                interfaces.append(self._gql_interfaces[t.name])
+
+            for st in t.get_mro(self.edb_schema).objects(self.edb_schema):
                 if (isinstance(st, ObjectType) and
                         st.name in self._gql_interfaces):
                     interfaces.append(self._gql_interfaces[st.name])
@@ -384,13 +387,13 @@ class GQLCoreSchema:
 
         if isinstance(name, str):
             if name == 'Query':
-                name = f'graphql::{name}'
+                name = f'stdgraphql::{name}'
 
         else:
             edb_base = name
             name = f'{edb_base.name.module}::{edb_base.name.name}'
 
-        if not name.startswith('graphql::'):
+        if not name.startswith('stdgraphql::'):
             if edb_base is None:
                 if '::' in name:
                     edb_base = self.edb_schema.get(name)
@@ -578,7 +581,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
 
         if name == '__typename':
             eql = parse_fragment(
-                f'''graphql::short_name(
+                f'''stdgraphql::short_name(
                     {codegen.generate_source(parent)}.__type__.name)''')
 
         elif has_shape:
@@ -605,7 +608,7 @@ class GQLShadowType(GQLBaseType):
 
 
 class GQLQuery(GQLBaseType):
-    edb_type = 'graphql::Query'
+    edb_type = 'stdgraphql::Query'
 
     def __init__(self, schema, **kwargs):
         self.modules = schema.modules
@@ -643,7 +646,7 @@ class GQLQuery(GQLBaseType):
 
 
 class GQLMutation(GQLBaseType):
-    edb_type = 'graphql::Mutation'
+    edb_type = 'stdgraphql::Mutation'
 
     def __init__(self, schema, **kwargs):
         self.modules = schema.modules

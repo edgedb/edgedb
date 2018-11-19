@@ -188,8 +188,7 @@ class Source(indexes.IndexableSubject):
                         far_endpoint=None,
                         look_in_children=False,
                         include_inherited=False,
-                        target_most_generic=True,
-                        update_schema=True):
+                        target_most_generic=True):
 
         # First, lookup the inheritance hierarchy up, and, if requested,
         # down, to select all pointers with the requested name.
@@ -250,8 +249,7 @@ class Source(indexes.IndexableSubject):
                                     source = req_endpoint
 
                                 schema, dptr = ptr.get_derived(
-                                    schema, source, target,
-                                    mark_derived=True, add_to_schema=True)
+                                    schema, source, target, mark_derived=True)
 
                                 targeted_ptrs.add(dptr)
                                 targets.add(req_endpoint)
@@ -279,15 +277,10 @@ class Source(indexes.IndexableSubject):
             else:
                 minimize_by = 'least_generic'
 
-            common_parent = \
-                utils.get_class_nearest_common_ancestor(ptrs)
-
-            if update_schema:
-                schema, target = common_parent.create_common_target(
-                    schema, targets, minimize_by)
-            else:
-                target = common_parent.get_common_target(
-                    schema, targets, minimize_by)
+            common_parent = utils.get_class_nearest_common_ancestor(
+                schema, ptrs)
+            schema, target = common_parent.create_common_target(
+                schema, targets, minimize_by)
 
             if direction == '>':
                 ptr_source = self
@@ -308,7 +301,7 @@ class Source(indexes.IndexableSubject):
                     ptr = common_parent_spec
                 else:
                     schema, ptr = common_parent_spec.derive_copy(
-                        schema, merge_bases=list(ptrs), add_to_schema=True,
+                        schema, merge_bases=list(ptrs),
                         source=ptr_source, target=ptr_target,
                         mark_derived=True
                     )

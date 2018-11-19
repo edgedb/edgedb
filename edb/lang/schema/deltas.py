@@ -22,12 +22,10 @@
 
 from edb.lang.edgeql import ast as qlast
 
-from . import declarative as s_decl
+from . import ast as s_ast
 from . import delta as sd
 from . import named
 from . import objects as so
-from . import schema as s_schema
-from . import std as s_std
 
 
 class Delta(named.NamedObject):
@@ -36,7 +34,7 @@ class Delta(named.NamedObject):
         default=named.NamedObjectList, coerce=True, inheritable=False)
 
     target = so.SchemaField(
-        s_schema.Schema,
+        s_ast.Schema,
         inheritable=False, default=None, introspectable=False)
 
     commands = so.SchemaField(
@@ -62,34 +60,9 @@ class CreateDelta(named.CreateNamedObject, DeltaCommand):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if astnode.target is not None:
-            target = s_std.load_std_schema()
-            s_decl.load_module_declarations(target, [
-                (cmd.classname.module, astnode.target)
-            ])
-
-            modules = (
-                set(target.modules) - {'std', 'schema', 'stdattrs'})
-            if len(modules) != 1:
-                raise RuntimeError('unexpected delta module structure')
-
-            modname = next(iter(modules))
-
-            diff = sd.delta_module(target, schema, modname)
-            migration = list(diff.get_subcommands())
-
-            for op in cmd.get_subcommands(type=sd.AlterObjectProperty):
-                if op.property == 'commands':
-                    op.new_value = migration + op.new_value
-                    break
-            else:
-                cmd.add(sd.AlterObjectProperty(
-                    property='commands',
-                    new_value=migration
-                ))
-
             cmd.add(sd.AlterObjectProperty(
                 property='target',
-                new_value=target
+                new_value=astnode.target
             ))
 
         return cmd
@@ -97,9 +70,7 @@ class CreateDelta(named.CreateNamedObject, DeltaCommand):
     def apply(self, schema, context):
         props = self.get_struct_properties(schema)
         metaclass = self.get_schema_metaclass()
-        delta = metaclass(**props)
-        schema = schema.add_delta(delta)
-        return schema, delta
+        return metaclass.create_in_schema(schema, **props)
 
 
 class AlterDelta(named.CreateOrAlterNamedObject, DeltaCommand):

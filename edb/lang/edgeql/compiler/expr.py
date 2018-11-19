@@ -342,7 +342,7 @@ def compile_IfElse(
     else_expr_type = irutils.infer_type(else_expr, ctx.env.schema)
 
     result = s_utils.get_class_nearest_common_ancestor(
-        [if_expr_type, else_expr_type])
+        ctx.env.schema, [if_expr_type, else_expr_type])
 
     if result is None:
         raise errors.EdgeQLError(

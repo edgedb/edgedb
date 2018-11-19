@@ -93,7 +93,7 @@ def _infer_common_type(irs: typing.List[irast.Base], schema):
             if common_type is None:
                 break
     else:
-        common_type = s_utils.get_class_nearest_common_ancestor(types)
+        common_type = s_utils.get_class_nearest_common_ancestor(schema, types)
 
     if common_type is None:
         return None
@@ -164,7 +164,7 @@ def __infer_setop(ir, schema):
         elif right_type.issubclass(schema, left_type):
             result = left_type
         else:
-            result = s_inh.create_virtual_parent(
+            schema, result = s_inh.create_virtual_parent(
                 schema, [left_type, right_type])
 
     return result
@@ -284,7 +284,7 @@ def __infer_typeref(ir, schema):
     if ir.subtypes:
         coll = s_types.Collection.get_class(ir.maintype)
         result = coll.from_subtypes(
-            [infer_type(t, schema) for t in ir.subtypes])
+            schema, [infer_type(t, schema) for t in ir.subtypes])
     else:
         result = schema.get(ir.maintype)
 
@@ -405,7 +405,7 @@ def __infer_index(ir, schema):
             (node_type.is_scalar() and node_type.name == 'std::anyscalar') and
             (index_type.implicitly_castable_to(int_t, schema) or
                 index_type.implicitly_castable_to(str_t, schema))):
-        result = s_pseudo.Any()
+        result = s_pseudo.Any.create()
 
     else:
         raise ql_errors.EdgeQLError(
@@ -427,13 +427,14 @@ def __infer_array(ir, schema):
             'could not determine type of empty array',
             context=ir.context)
 
-    return s_types.Array(element_type=element_type)
+    return s_types.Array.create(schema, element_type=element_type)
 
 
 @_infer_type.register(irast.Tuple)
 def __infer_struct(ir, schema):
     element_types = {el.name: infer_type(el.val, schema) for el in ir.elements}
-    return s_types.Tuple(element_types=element_types, named=ir.named)
+    return s_types.Tuple.create(
+        schema, element_types=element_types, named=ir.named)
 
 
 @_infer_type.register(irast.TupleIndirection)

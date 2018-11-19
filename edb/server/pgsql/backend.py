@@ -249,7 +249,7 @@ class Backend:
         return uuid.uuid5(types.TYPE_ID_NAMESPACE, base_type_id)
 
     def _describe_type(self, schema, t, view_shapes, _tuples):
-        mt = t.material_type(self.schema)
+        mt = t.material_type(schema)
         is_tuple = False
 
         if isinstance(t, s_types.Collection):
@@ -320,13 +320,13 @@ class Backend:
                 output_format=None, timer=None):
         tuples = {}
         type_desc = self._describe_type(
-            self.schema, query_ir.expr.scls, query_ir.view_shapes, tuples)
+            query_ir.schema, query_ir.expr.scls, query_ir.view_shapes, tuples)
 
         output_desc = OutputDescriptor(
             type_desc=type_desc, tuple_registry=tuples)
 
         sql_text, argmap = compiler.compile_ir_to_sql(
-            query_ir, schema=self.schema,
+            query_ir, schema=query_ir.schema,
             output_format=output_format, timer=timer)
 
         argtypes = {}
@@ -338,6 +338,19 @@ class Backend:
             argument_types=argtypes,
             output_desc=output_desc,
             output_format=output_format)
+
+    async def compile_migration(
+            self, cmd: s_deltas.CreateDelta) -> s_deltas.CreateDelta:
+
+        declarations = cmd.get_attribute_value('target')
+        if not declarations:
+            return cmd
+
+        stdmodules = {'std', 'schema', 'stdattrs'}
+
+        target = await self._intro_mech.readschema(stdmodules)
+
+        return s_ddl.compile_migration(cmd, target, self.schema)
 
     async def translate_pg_error(self, query, error):
         return await self._intro_mech.translate_pg_error(query, error)

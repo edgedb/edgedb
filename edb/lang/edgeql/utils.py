@@ -68,7 +68,7 @@ def index_parameters(ql_args: typing.List[qlast.Base], *,
     variadic_num = variadic.get_num(schema) if variadic else -1
 
     for (i, e), p in itertools.zip_longest(enumerate(ql_args),
-                                           parameters,
+                                           parameters.objects(schema),
                                            fillvalue=None):
         if isinstance(e, qlast.SelectQuery):
             e = e.result

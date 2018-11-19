@@ -192,7 +192,7 @@ class PathId:
             if debug:
                 ptr = path[i][0]
             else:
-                ptr = s_pointers.Pointer.get_shortname(path[i][0])
+                ptr = s_pointers.Pointer.shortname_from_fullname(path[i][0])
             ptrdir = path[i][1]
             is_lprop = path[i][2]
             tgt = path[i + 1]
@@ -226,7 +226,7 @@ class PathId:
         result += f'{path[0].name}'
 
         for i in range(1, len(path) - 1, 2):
-            ptr = s_pointers.Pointer.get_shortname(path[i][0])
+            ptr = s_pointers.Pointer.shortname_from_fullname(path[i][0])
             ptrdir = path[i][1]
             is_lprop = path[i][2]
 

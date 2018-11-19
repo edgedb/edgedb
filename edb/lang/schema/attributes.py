@@ -199,7 +199,7 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedObject):
                 schema, astnode, context)
 
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        propname = AttributeValue.get_shortname(cmd.classname)
+        propname = AttributeValue.shortname_from_fullname(cmd.classname)
 
         val = astnode.value
         if isinstance(val, qlast.BaseConstant):
@@ -218,16 +218,17 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedObject):
             raise ValueError(msg.format(val))
 
         parent_ctx = context.get(sd.CommandContextToken)
-        subject_name = parent_ctx.op.classname
+        subject = parent_ctx.scls
+        attr = schema.get(propname)
 
         cmd.update((
             sd.AlterObjectProperty(
                 property='subject',
-                new_value=so.ObjectRef(classname=subject_name)
+                new_value=utils.reduce_to_typeref(schema, subject)
             ),
             sd.AlterObjectProperty(
                 property='attribute',
-                new_value=so.ObjectRef(classname=propname)
+                new_value=utils.reduce_to_typeref(schema, attr)
             ),
             sd.AlterObjectProperty(
                 property='value',
@@ -255,7 +256,7 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedObject):
                          "AttributeSubject context"
 
         with context(AttributeValueCommandContext(self, None)):
-            name = AttributeValue.get_shortname(
+            name = AttributeValue.shortname_from_fullname(
                 self.classname)
             attrs = attrsubj.scls.get_own_attributes(schema)
             attribute = attrs.get(schema, name, None)

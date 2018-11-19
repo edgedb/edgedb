@@ -152,7 +152,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            graphql::Query {
+            stdgraphql::Query {
                 User := (SELECT
                     test::User {
                         name,
@@ -189,7 +189,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         # query users
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -226,7 +226,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         # query settings
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             Setting := (SELECT
                 test::Setting {
                     name,
@@ -299,7 +299,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         # query mixed
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name
@@ -333,7 +333,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             foo := (SELECT
                 test::User {
                     name,
@@ -377,7 +377,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -415,7 +415,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -451,7 +451,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -487,7 +487,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -513,7 +513,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -535,7 +535,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     groups: {
@@ -560,7 +560,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     groups: {
@@ -594,7 +594,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -626,7 +626,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -658,7 +658,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -695,7 +695,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
         # critical variables: $nogroup=False
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -733,7 +733,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
         # critical variables: $nogroup=True
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -780,7 +780,7 @@ class TestGraphQLTranslation(TranslatorTest):
         # query settings
         # critical variables: $novalue=False
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             Setting := (SELECT
                 test::Setting {
                     name,
@@ -825,7 +825,7 @@ class TestGraphQLTranslation(TranslatorTest):
         # query users
         # critical variables: $nogroup=True
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -872,7 +872,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -900,7 +900,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -931,7 +931,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -953,7 +953,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name
@@ -983,7 +983,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -1018,7 +1018,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -1050,7 +1050,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -1081,7 +1081,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -1112,7 +1112,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -1141,7 +1141,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -1173,7 +1173,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -1206,7 +1206,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -1239,7 +1239,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -1266,7 +1266,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             multi User := (
                 SELECT
                     test::User {
@@ -1294,7 +1294,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             multi User := (
                 SELECT
                     test::User {
@@ -1324,7 +1324,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             multi User := (
                 SELECT
                     test::User {
@@ -1351,7 +1351,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -1376,7 +1376,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -1402,7 +1402,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
         # critical variables: $val=True
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -1442,7 +1442,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -1462,7 +1462,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -1482,7 +1482,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -1503,7 +1503,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -1523,7 +1523,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -1656,7 +1656,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -1676,7 +1676,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -1781,7 +1781,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             UserGroup := (SELECT
                 test::UserGroup {
                     id,
@@ -1802,7 +1802,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -1822,7 +1822,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -1842,7 +1842,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -1862,7 +1862,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -1883,7 +1883,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -1904,7 +1904,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -1925,7 +1925,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -1947,7 +1947,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -2012,7 +2012,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -2036,7 +2036,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -2065,7 +2065,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -2134,7 +2134,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             NamedObject := (SELECT
                 test::NamedObject {
                     id,
@@ -2159,7 +2159,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             NamedObject := (SELECT
                 test::NamedObject {
                     id,
@@ -2222,7 +2222,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             NamedObject := (SELECT
                 test::NamedObject {
                     id,
@@ -2252,7 +2252,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -2274,7 +2274,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             NamedObject := (SELECT
                 test::NamedObject {
                     [IS test::User].age
@@ -2295,7 +2295,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -2316,7 +2316,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -2339,7 +2339,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -2370,7 +2370,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -2392,7 +2392,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -2417,7 +2417,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -2448,7 +2448,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -2468,7 +2468,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             Foo := (SELECT
                 test::Foo {
                     `select`,
@@ -2495,16 +2495,16 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
-                    __typename := graphql::short_name(
+                    __typename := stdgraphql::short_name(
                         test::User.__type__.name),
                     groups: {
                         id,
                         name,
-                        __typename := graphql::short_name(
+                        __typename := stdgraphql::short_name(
                             test::User.groups.__type__.name)
                     }
                 })
@@ -2519,7 +2519,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             __typename
         };
         """
@@ -2536,12 +2536,12 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
-            foo := graphql::short_name(std::str.__type__.name),
+        SELECT stdgraphql::Query {
+            foo := stdgraphql::short_name(std::str.__type__.name),
             User := (SELECT
                 test::User {
                     name,
-                    bar := graphql::short_name(test::User.__type__.name)
+                    bar := stdgraphql::short_name(test::User.__type__.name)
                 }
             )
         };
@@ -2557,7 +2557,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             __schema := str_to_json('{
                 "__typename": "__Schema"
             }')
@@ -2577,7 +2577,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             __schema := str_to_json('{
                 "__typename": "__Schema"
             }')
@@ -2620,7 +2620,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             __schema := str_to_json('{
                 "directives": [
                     {
@@ -2722,7 +2722,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             __schema := str_to_json('{
                 "mutationType": null
             }')
@@ -2758,7 +2758,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             __schema := str_to_json('{
                 "queryType": {
                     "kind": "OBJECT",
@@ -2787,7 +2787,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             __schema := str_to_json('{
                 "types": [
                     {"kind": "OBJECT", "name": "Query"},
@@ -2860,7 +2860,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             Foo := str_to_json('{
                 "types": [
                     {"kind": "OBJECT", "name": "Query"},
@@ -2938,7 +2938,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             __schema := str_to_json('{
                 "directives": [
                     {
@@ -2987,7 +2987,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
 
 % OK %
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -3068,7 +3068,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             __type := str_to_json('{
                 "__typename": "__Type",
                 "name": "User",
@@ -3106,7 +3106,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             __type := str_to_json('{
                 "__typename": "__Type",
                 "kind": "OBJECT"
@@ -3160,7 +3160,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             __type := str_to_json('{
                 "__typename": "__Type",
                 "kind": "INTERFACE"
@@ -3229,7 +3229,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             __type := str_to_json('{
                 "__typename": "__Type",
                 "name": "UserGroup",
@@ -3340,7 +3340,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             __type := str_to_json('{
                 "__typename": "__Type",
                 "name": "UserGroupType",
@@ -3457,7 +3457,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             __type := str_to_json('{
                 "__typename": "__Type",
                 "name": "ProfileType",
@@ -3653,7 +3653,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             __type := str_to_json('{
                 "__typename": "__Type",
                 "kind": "INTERFACE",
@@ -4317,7 +4317,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             __type := str_to_json('{
                 "__typename": "__Type",
                 "name": "UserGroupType",
@@ -4483,7 +4483,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             __type := str_to_json('{
                 "__typename": "__Type",
                 "name": "FilterUser",
@@ -4605,7 +4605,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             __type := str_to_json('{
                 "__typename": "__Type",
                 "name": "OrderUser",
@@ -4688,7 +4688,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             __type := str_to_json('{
                 "__typename": "__Type",
                 "name": "Ordering",
@@ -4744,7 +4744,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT graphql::Query {
+        SELECT stdgraphql::Query {
             directionEnum := str_to_json('{
                 "__typename": "__Type",
                 "name": "directionEnum",

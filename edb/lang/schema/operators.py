@@ -90,9 +90,10 @@ class OperatorCommand(s_func.CallableCommand,
 
     def _qualify_operator_refs(
             self, schema, kind: ft.OperatorKind,
-            params: s_func.FuncParameterList, context):
+            params: typing.List[s_func.ParameterDesc], context):
 
-        self_shortname = named.NamedObject.get_shortname(self.classname)
+        self_shortname = named.NamedObject.shortname_from_fullname(
+            self.classname)
         commutator = self.get_attribute_value('commutator')
         if commutator is None:
             return
@@ -113,7 +114,7 @@ class OperatorCommand(s_func.CallableCommand,
                     break
             else:
                 raise ql_errors.EdgeQLError(
-                    f'operator {commutator.classname} {params.as_str} '
+                    f'operator {commutator.classname} {params.as_str(schema)} '
                     f'does not exist',
                     context=self.source_context,
                 )
@@ -122,35 +123,43 @@ class OperatorCommand(s_func.CallableCommand,
 class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
     astnode = qlast.CreateOperator
 
-    def _add_to_schema(self, schema, context):
-        params: s_func.FuncParameterList = self.scls.get_params(schema)
-        name = self.scls.name
-        return_type = self.scls.get_return_type(schema)
-        return_typemod = self.scls.get_return_typemod(schema)
+    def _create_begin(self, schema, context):
 
-        get_signature = lambda: f'{self.classname}{params.as_str(schema)}'
+        fullname = self.classname
+        shortname = Operator.shortname_from_fullname(fullname)
+        cp = self._get_param_desc_from_delta(schema, self)
+        signature = f'{shortname}({", ".join(p.as_str(schema) for p in cp)})'
 
-        oper = schema.get(name, None)
-        if oper:
+        func = schema.get(fullname, None)
+        if func:
             raise ql_errors.EdgeQLError(
-                f'cannot create {get_signature()} operator: '
+                f'cannot create the `{signature}` operator: '
                 f'an operator with the same signature '
                 f'is already defined',
                 context=self.source_context)
 
-        shortname = named.NamedObject.get_shortname(name)
+        schema = super()._create_begin(schema, context)
+
+        params: s_func.FuncParameterList = self.scls.get_params(schema)
+        fullname = self.scls.name
+        shortname = Operator.shortname_from_fullname(fullname)
+        return_type = self.scls.get_return_type(schema)
+        return_typemod = self.scls.get_return_typemod(schema)
+
+        get_signature = lambda: f'{shortname}{params.as_str(schema)}'
+
         for oper in schema.get_operators(shortname, ()):
             oper_return_typemod = oper.get_return_typemod(schema)
             if oper_return_typemod != return_typemod:
                 raise ql_errors.EdgeQLError(
-                    f'cannot create {get_signature()} -> '
-                    f'{return_typemod.to_edgeql()} {return_type.name} '
+                    f'cannot create the `{get_signature()} -> '
+                    f'{return_typemod.to_edgeql()} {return_type.name}` '
                     f'operator: overloading another operator with different '
                     f'return type {oper_return_typemod.to_edgeql()} '
                     f'{oper.get_return_type(schema).name}',
                     context=self.source_context)
 
-        return super()._add_to_schema(schema, context)
+        return schema
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
@@ -158,8 +167,8 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
 
         modaliases = context.modaliases
 
-        params = s_func.FuncParameterList.from_ast(schema, astnode, modaliases,
-                                                   func_fqname=cmd.classname)
+        params = cls._get_param_desc_from_ast(
+            schema, modaliases, astnode)
 
         cmd.add(sd.AlterObjectProperty(
             property='operator_kind',
@@ -202,9 +211,9 @@ class AlterOperator(named.AlterNamedObject, OperatorCommand):
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        modaliases = context.modaliases
-        params = s_func.FuncParameterList.from_ast(schema, astnode, modaliases,
-                                                   func_fqname=cmd.classname)
+
+        params = cls._get_param_desc_from_ast(
+            schema, context.modaliases, astnode)
 
         cmd._qualify_operator_refs(schema, astnode.kind, params, context)
         return cmd

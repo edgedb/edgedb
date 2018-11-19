@@ -233,7 +233,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_05(self):
         with self.assertRaisesRegex(client_errors.EdgeQLError,
-                                    r'cannot create test::my_lower.*func'):
+                                    r'cannot create.*test::my_lower.*func'):
 
             await self.con.execute("""
                 CREATE FUNCTION test::my_lower(s: std::str) -> std::str
@@ -251,7 +251,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         """)
 
         with self.assertRaisesRegex(client_errors.EdgeQLError,
-                                    r'cannot create test::my_lower.*func'):
+                                    r'cannot create.*test::my_lower.*func'):
 
             await self.con.execute("""
                 CREATE FUNCTION test::my_lower(s: SET OF anytype)
@@ -681,7 +681,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_20(self):
         with self.assertRaisesRegex(
                 client_errors.EdgeQLError,
-                r'cannot create test::my_agg.*function:.+anytype.+cannot '
+                r'cannot create.*test::my_agg.*function:.+anytype.+cannot '
                 r'have a non-empty default'):
             await self.con.execute(r"""
                 CREATE FUNCTION test::my_agg(
@@ -885,7 +885,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_33(self):
         with self.assertRaisesRegex(
                 client_errors.EdgeQLError,
-                r'cannot create test::ddlf_6\(a: std::int64\) func.*'
+                r'cannot create.*test::ddlf_6\(a: std::int64\).*'
                 r'function with the same signature is already defined'):
 
             await self.con.execute(r'''
@@ -903,7 +903,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_34(self):
         with self.assertRaisesRegex(
                 client_errors.EdgeQLError,
-                r'cannot create test::ddlf_7\(a: SET OF std::int64\) func.*'
+                r'cannot create.*test::ddlf_7\(a: SET OF std::int64\).*'
                 r'SET OF parameters in user-defined EdgeQL functions are '
                 r'not yet supported'):
 
@@ -945,7 +945,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_36(self):
         with self.assertRaisesRegex(
                 client_errors.EdgeQLError,
-                r'cannot create test::ddlf_9.*NAMED ONLY h:.*'
+                r'cannot create.*test::ddlf_9.*NAMED ONLY h:.*'
                 r'different named only parameters'):
 
             await self.con.execute(r'''
@@ -965,7 +965,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_37(self):
         with self.assertRaisesRegex(
                 client_errors.EdgeQLError,
-                r'cannot create polymorphic test::ddlf_10.*'
+                r'cannot create the polymorphic.*test::ddlf_10.*'
                 r'function with different return type'):
 
             await self.con.execute(r'''
@@ -984,7 +984,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_38(self):
         with self.assertRaisesRegex(
                 client_errors.EdgeQLError,
-                r'cannot create test::ddlf_11.*'
+                r'cannot create.*test::ddlf_11.*'
                 r'overloading "FROM SQL FUNCTION"'):
 
             await self.con.execute(r'''
@@ -1002,7 +1002,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_39(self):
         with self.assertRaisesRegex(
                 client_errors.EdgeQLError,
-                r'cannot create test::ddlf_12.*'
+                r'cannot create.*test::ddlf_12.*'
                 r'function returns a polymorphic type but has no '
                 r'polymorphic parameters'):
 

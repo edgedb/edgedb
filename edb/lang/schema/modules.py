@@ -40,31 +40,32 @@ class Module(named.NamedObject):
     # fully-qualified names.
     name = so.Field(str)
 
-    imports = so.Field(so.ObjectSet, so.ObjectSet)
+    @classmethod
+    def create_in_schema(cls, schema, **kwargs):
+        schema, mod = super().create_in_schema(schema, **kwargs)
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+        mod.funcs_by_name = collections.defaultdict(list)
+        mod.opers_by_name = collections.defaultdict(list)
+        mod.index_by_name = collections.OrderedDict()
+        mod.index_by_type = {}
+        mod.index_derived = set()
 
-        self.funcs_by_name = collections.defaultdict(list)
-        self.opers_by_name = collections.defaultdict(list)
-        self.index_by_name = collections.OrderedDict()
-        self.index_by_type = {}
-        self.index_derived = set()
+        return schema, mod
 
-    def add(self, schema, obj):
-        if obj.name in self.index_by_name:
-            err = '{!r} is already present in the schema'.format(obj.name)
+    def _add(self, schema, name, obj):
+        if name in self.index_by_name:
+            err = f'{name!r} is already present in the schema {schema!r}'
             raise s_err.SchemaError(err)
 
-        if isinstance(obj, fu.Function):
-            self.funcs_by_name[obj.shortname.name].append(obj)
-        elif isinstance(obj, s_opers.Operator):
-            self.opers_by_name[obj.shortname.name].append(obj)
+        self.index_by_name[name] = obj
 
-        self.index_by_name[obj.name] = obj
+        if isinstance(obj, fu.Function):
+            self.funcs_by_name[obj.get_shortname(schema).name].append(obj)
+        elif isinstance(obj, s_opers.Operator):
+            self.opers_by_name[obj.get_shortname(schema).name].append(obj)
 
         idx_by_type = self.index_by_type.setdefault(obj._type, OrderedSet())
-        idx_by_type.add(obj.name)
+        idx_by_type.add(name)
 
         if (isinstance(obj, inheriting.InheritingObject) and
                 obj.get_is_derived(schema)):
@@ -72,23 +73,25 @@ class Module(named.NamedObject):
 
         return schema
 
-    def discard(self, schema, obj):
-        existing = self.index_by_name.pop(obj.name, None)
-        if existing is not None:
-            self._delete(existing)
+    def _discard(self, schema, obj):
+        existing = self.index_by_name.get(obj.name)
+        if existing is None:
+            return schema
+
+        self._do_delete(existing)
         return schema
 
-    def delete(self, schema, obj):
-        existing = self.index_by_name.pop(obj.name, None)
+    def _delete(self, schema, obj):
+        existing = self.index_by_name.get(obj.name)
         if existing is None:
             err = 'object {!r} is not present in the schema'.format(obj.name)
             raise s_err.ItemNotFoundError(err)
-        else:
-            self._delete(existing)
+
+        self._do_delete(existing)
         return schema
 
-    def _delete(self, obj):
-        self.index_by_name.pop(obj.name, None)
+    def _do_delete(self, obj):
+        self.index_by_name.pop(obj.name)
         self.index_by_type[obj.__class__._type].remove(obj.name)
         self.index_derived.discard(obj.name)
 
@@ -225,7 +228,7 @@ class SchemaIterator:
 
 
 class ModuleCommandContext(sd.CommandContextToken):
-    def __init__(self, op, module=None):
+    def __init__(self, schema, op, module):
         super().__init__(op)
         self.module = module
 
@@ -252,13 +255,11 @@ class CreateModule(named.CreateNamedObject, ModuleCommand):
     def apply(self, schema, context):
         props = self.get_struct_properties(schema)
         metaclass = self.get_schema_metaclass()
-        self.module = metaclass(**props)
-        if schema.get_module(self.module.name) is not None:
+        if schema.get_module(self.classname) is not None:
             raise s_err.SchemaError(
-                f'module {self.module.name!r} already exists',
+                f'module {self.classname!r} already exists',
                 context=self.source_context)
-        schema = schema.add_module(self.module)
-        return schema, self.module
+        return metaclass.create_in_schema(schema, **props)
 
 
 class AlterModule(named.CreateOrAlterNamedObject, ModuleCommand):

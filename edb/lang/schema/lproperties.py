@@ -54,16 +54,19 @@ class Property(pointers.Pointer):
 
         return schema, ptr
 
-    def compare(self, schema, other, context):
+    def compare(self, other, *, our_schema, their_schema, context=None):
         if not isinstance(other, Property):
             if isinstance(other, pointers.Pointer):
                 return 0.0
             else:
                 return NotImplemented
 
-        similarity = super().compare(schema, other, context)
-        if (not self.generic(schema) and
-                not other.generic(schema) and
+        similarity = super().compare(
+            other, our_schema=our_schema,
+            their_schema=their_schema, context=context)
+
+        if (not self.generic(our_schema) and
+                not other.generic(their_schema) and
                 self.shortname == 'std::source' and
                 other.shortname == 'std::source'):
             # Make std::source link property ignore differences in its target.
@@ -71,11 +74,12 @@ class Property(pointers.Pointer):
             # in general.
             field = self.__class__.get_field('target')
             target_coef = field.type[0].compare_values(
-                schema,
-                self.get_target(schema),
-                other.get_target(schema),
-                context,
-                field.compcoef)
+                self.get_target(our_schema),
+                other.get_target(their_schema),
+                our_schema=our_schema,
+                their_schema=their_schema,
+                context=context,
+                compcoef=field.compcoef)
             if target_coef < 1:
                 similarity /= target_coef
         return similarity
@@ -107,7 +111,7 @@ class Property(pointers.Pointer):
 
     @classmethod
     def get_default_base_name(self):
-        return 'std::property'
+        return sn.Name('std::property')
 
 
 class PropertySourceContext(sources.SourceCommandContext):
@@ -167,7 +171,7 @@ class CreateProperty(PropertyCommand,
                 sd.AlterObjectProperty(
                     property='source',
                     new_value=so.ObjectRef(
-                        classname=source_name
+                        name=source_name
                     )
                 )
             )

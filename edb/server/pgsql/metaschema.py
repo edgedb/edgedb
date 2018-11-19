@@ -594,7 +594,7 @@ class NormalizeNameFunction(dbops.Function):
 
     def __init__(self):
         super().__init__(
-            name=('edgedb', 'get_shortname'),
+            name=('edgedb', 'shortname_from_fullname'),
             args=[('name', 'text')],
             returns='text',
             volatility='immutable',
@@ -1436,7 +1436,6 @@ def _field_to_column(field):
     return dbops.Column(
         name=field.name,
         type=coltype,
-        required=field.required
     )
 
 
@@ -1711,7 +1710,8 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                     aname = ql(aname) + '::text'
                     aval = q(fn) + '::text'
                     if fn == 'name':
-                        aval = 'edgedb.get_shortname({})'.format(aval)
+                        aval = 'edgedb.shortname_from_fullname({})'.format(
+                            aval)
                     attrs.append([aname, aval])
 
                 if attrs:
@@ -2081,7 +2081,8 @@ async def generate_views(conn, schema):
             if ptrstor.table_type == 'ObjectType':
                 if (pn.name == 'name' and
                         issubclass(mcls, (s_obj.NamedObject))):
-                    col_expr = 'edgedb.get_shortname(t.{})'.format(q(pn.name))
+                    col_expr = 'edgedb.shortname_from_fullname(t.{})'.format(
+                        q(pn.name))
                 else:
                     col_expr = f't.{q(pn.name)}'
 

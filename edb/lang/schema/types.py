@@ -176,15 +176,17 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
 class Collection(Type):
     _type = 'collection'
 
-    def __init__(self, *, name=None, **kwargs):
+    @classmethod
+    def _create(cls, schema, *, name=None, **kwargs):
         if name is None:
             name = s_name.SchemaName(module='std', name='collection')
-            super().__init__(name=name, **kwargs)
-            subtypes = ",".join(st.name for st in self.get_subtypes())
-            self.name = s_name.SchemaName(
-                module='std', name=f'{self.schema_name}<{subtypes}>')
+            t = super()._create(schema, name=name, **kwargs)
+            subtypes = ",".join(st.name for st in t.get_subtypes())
+            t.name = s_name.SchemaName(
+                module='std', name=f'{t.schema_name}<{subtypes}>')
+            return t
         else:
-            super().__init__(name=name, **kwargs)
+            return super()._create(schema, name=name, **kwargs)
 
     def is_polymorphic(self, schema):
         return any(st.is_polymorphic(schema)
@@ -221,7 +223,8 @@ class Collection(Type):
                 return self._issubclass(schema, parent)
 
     @classmethod
-    def compare_values(cls, schema, ours, theirs, context, compcoef):
+    def compare_values(cls, ours, theirs, *,
+                       our_schema, their_schema, context, compcoef):
         if (ours is None) != (theirs is None):
             return compcoef
         elif ours is None:
@@ -236,7 +239,9 @@ class Collection(Type):
             similarity = []
             for i, st in enumerate(my_subtypes):
                 similarity.append(
-                    st.compare(schema, other_subtypes[i], context))
+                    st.compare(
+                        other_subtypes[i], our_schema=our_schema,
+                        their_schema=their_schema, context=context))
 
             basecoef = sum(similarity) / len(similarity)
 
@@ -256,7 +261,7 @@ class Collection(Type):
         from . import types as s_types
 
         if isinstance(typeref, so.ObjectRef):
-            eltype = schema.get(typeref.classname)
+            eltype = schema.get(typeref.name)
         else:
             eltype = typeref
 
@@ -277,7 +282,7 @@ class Collection(Type):
                 'unknown collection type: {!r}'.format(schema_name))
 
     @classmethod
-    def from_subtypes(cls, subtypes, typemods=None):
+    def from_subtypes(cls, schema, subtypes, typemods=None):
         raise NotImplementedError
 
     def _reduce_to_ref(self, schema):
@@ -288,8 +293,8 @@ class Collection(Type):
             strefs.append(st_ref)
 
         return (
-            self.__class__.from_subtypes(strefs),
-            (self.__class__, tuple(r.classname for r in strefs))
+            self.__class__.from_subtypes(schema, strefs),
+            (self.__class__, tuple(r.name for r in strefs))
         )
 
     def _resolve_ref(self, schema):
@@ -300,7 +305,7 @@ class Collection(Type):
                 subtypes.append(st._resolve_ref(schema))
 
             return self.__class__.from_subtypes(
-                subtypes, typemods=self.get_typemods())
+                schema, subtypes, typemods=self.get_typemods())
         else:
             return self
 
@@ -314,11 +319,14 @@ class Array(Collection):
     element_type = so.Field(so.Object, frozen=True)
     dimensions = so.Field(Dimensions, [], coerce=True, frozen=True)
 
-    def __init__(self, *, name=None, id=so.NoDefault, element_type, **kwargs):
+    @classmethod
+    def create(cls, schema, *, name=None,
+               id=so.NoDefault, element_type, **kwargs):
         if id is so.NoDefault:
             id_str = f'array-{element_type.id}'
             id = uuid.uuid5(TYPE_ID_NAMESPACE, id_str)
-        super().__init__(id=id, name=name, element_type=element_type, **kwargs)
+        return super()._create(
+            schema, id=id, name=name, element_type=element_type, **kwargs)
 
     def is_array(self):
         return True
@@ -327,7 +335,8 @@ class Array(Collection):
         return tuple
 
     def derive_subtype(self, schema, *, name: str) -> Type:
-        return Array.from_subtypes(
+        return schema, Array.from_subtypes(
+            schema,
             [self.element_type],
             self.get_typemods(),
             name=name)
@@ -365,7 +374,7 @@ class Array(Collection):
             other.element_type, schema)
 
         if subtype is not None:
-            return Array.from_subtypes([subtype])
+            return Array.from_subtypes(schema, [subtype])
 
     def _resolve_polymorphic(self, schema, concrete_type: 'Type'):
         if not concrete_type.is_array():
@@ -374,7 +383,7 @@ class Array(Collection):
             schema, concrete_type.element_type)
 
     def _to_nonpolymorphic(self, schema, concrete_type: 'Type'):
-        return Array.from_subtypes((concrete_type,))
+        return Array.from_subtypes(schema, (concrete_type,))
 
     def _test_polymorphic(self, schema, other: 'Type'):
         if other.is_any():
@@ -385,7 +394,7 @@ class Array(Collection):
         return self.element_type.test_polymorphic(schema, other.element_type)
 
     @classmethod
-    def from_subtypes(cls, subtypes, typemods=None, *, name=None):
+    def from_subtypes(cls, schema, subtypes, typemods=None, *, name=None):
         if len(subtypes) != 1:
             raise s_err.SchemaError(
                 f'unexpected number of subtypes, expecting 1: {subtypes!r}')
@@ -409,7 +418,8 @@ class Array(Collection):
             element_type = stype
             dimensions = []
 
-        return cls(element_type=element_type, dimensions=dimensions, name=name)
+        return cls.create(schema, element_type=element_type,
+                          dimensions=dimensions, name=name)
 
     def __hash__(self):
         return hash((
@@ -436,16 +446,17 @@ class Tuple(Collection):
     named = so.Field(bool, False, frozen=True)
     element_types = so.Field(dict, coerce=True, frozen=True)
 
-    def __init__(self, *, name=None, id=so.NoDefault,
-                 element_types: dict, **kwargs):
+    @classmethod
+    def create(cls, schema, *, name=None, id=so.NoDefault,
+               element_types: dict, **kwargs):
         element_types = types.MappingProxyType(element_types)
         if id is so.NoDefault:
             id_str = ','.join(
                 f'{n}:{st.id}' for n, st in element_types.items())
             id_str = f'tuple-{id_str}'
             id = uuid.uuid5(TYPE_ID_NAMESPACE, id_str)
-        super().__init__(
-            id=id, name=name, element_types=element_types, **kwargs)
+        return super()._create(
+            schema, id=id, name=name, element_types=element_types, **kwargs)
 
     def is_tuple(self):
         return True
@@ -501,13 +512,14 @@ class Tuple(Collection):
             return []
 
     def derive_subtype(self, schema, *, name: str) -> Type:
-        return Tuple.from_subtypes(
+        return schema, Tuple.from_subtypes(
+            schema,
             self.element_types,
             self.get_typemods(),
             name=name)
 
     @classmethod
-    def from_subtypes(cls, subtypes, typemods=None, *, name: str=None):
+    def from_subtypes(cls, schema, subtypes, typemods=None, *, name: str=None):
         named = False
         if typemods is not None:
             named = typemods.get('named', False)
@@ -519,7 +531,7 @@ class Tuple(Collection):
         else:
             types = subtypes
 
-        return cls(element_types=types, named=named, name=name)
+        return cls.create(schema, element_types=types, named=named, name=name)
 
     def implicitly_castable_to(self, other: Type, schema) -> bool:
         if not other.is_tuple():
@@ -583,7 +595,7 @@ class Tuple(Collection):
         else:
             typemods = None
 
-        return Tuple.from_subtypes(new_types, typemods)
+        return Tuple.from_subtypes(schema, new_types, typemods)
 
     def get_typemods(self):
         return {'named': self.named}
@@ -619,7 +631,7 @@ class Tuple(Collection):
         else:
             typemods = None
 
-        return Tuple.from_subtypes(new_types, typemods)
+        return Tuple.from_subtypes(schema, new_types, typemods)
 
     def _test_polymorphic(self, schema, other: 'Type'):
         if other.is_any():
@@ -643,7 +655,7 @@ class Tuple(Collection):
                 subtypes[st_name] = st._resolve_ref(schema)
 
             return self.__class__.from_subtypes(
-                subtypes, typemods=self.get_typemods())
+                schema, subtypes, typemods=self.get_typemods())
         else:
             return self
 

@@ -17,6 +17,8 @@
 #
 
 
+import typing
+
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import errors as ql_errors
 
@@ -25,6 +27,7 @@ from . import delta as sd
 from . import inheriting
 from . import named
 from . import objects as so
+from . import schema as s_schema
 from . import types as s_types
 
 
@@ -32,16 +35,19 @@ class Node(inheriting.InheritingObject, s_types.Type):
     def material_type(self, schema):
         t = self
         while t.is_view(schema):
-            t = t.bases[0]
+            t = t.get_bases(schema).first(schema)
         return t
 
-    def derive_subtype(self, schema, *, name: str) -> s_types.Type:
-        return type(self).create_with_inheritance(
+    def derive_subtype(
+            self, schema, *,
+            name: str) -> typing.Tuple[s_schema.Schema, s_types.Type]:
+
+        return type(self).create_in_schema_with_inheritance(
             schema, name=name, bases=[self])
 
     def peel_view(self, schema):
         if self.is_view(schema):
-            return self.bases[0]
+            return self.get_bases(schema).first(schema)
         else:
             return self
 
@@ -104,13 +110,17 @@ class NodeCommand(named.NamedObjectCommand):
                     prev.expr, cmd.classname, schema, context)
                 prev_view_types = prev_ir.views.values()
             else:
+                prev_ir = None
                 prev_view_types = []
 
             derived_delta = s_db.AlterDatabase()
 
+            new_schema = ir.schema
+            old_schema = prev_ir.schema if prev_ir is not None else None
+
             adds_mods, dels = so.Object._delta_sets(
                 prev_view_types, view_types,
-                old_schema=schema, new_schema=schema)
+                old_schema=old_schema, new_schema=new_schema)
 
             derived_delta.update(adds_mods)
             derived_delta.update(dels)

@@ -23,7 +23,9 @@ import typing
 
 async def fetch(
         conn: asyncpg.connection.Connection,
-        *, name: str=None) -> typing.List[asyncpg.Record]:
+        *,
+        name: str=None,
+        modules=None) -> typing.List[asyncpg.Record]:
     return await conn.fetch("""
         SELECT
                 a.id                    AS id,
@@ -51,5 +53,7 @@ async def fetch(
             FROM
                 edgedb.constraint a
             WHERE
-                $1::text IS NULL OR a.name LIKE $1::text
-    """, name)
+                ($1::text IS NULL OR a.name LIKE $1::text)
+                AND ($2::text[] IS NULL
+                     OR split_part(a.name, '::', 1) = any($2::text[]))
+    """, name, modules)

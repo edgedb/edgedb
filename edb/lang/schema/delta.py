@@ -40,32 +40,12 @@ def delta_schemas(schema1, schema2, *, include_derived=False):
 
     added_modules = my_modules - other_modules
     dropped_modules = other_modules - my_modules
-    common_modules = my_modules & other_modules
 
     for added_module in added_modules:
-        my_module = schema1.get_module(added_module)
-
         create = modules.CreateModule(classname=added_module)
-
         create.add(AlterObjectProperty(property='name', old_value=None,
                                        new_value=added_module))
-
-        create.add(AlterObjectProperty(property='imports', old_value=None,
-                                       new_value=tuple(my_module.imports)))
         result.add(create)
-
-    for common_module in common_modules:
-        my_module = schema1.get_module(common_module)
-        other_module = schema2.get_module(common_module)
-
-        if my_module.imports != other_module.imports:
-            alter = modules.AlterModule(classname=common_module)
-
-            alter.add(AlterObjectProperty(
-                property='imports',
-                old_value=tuple(other_module.imports),
-                new_value=tuple(my_module.imports)))
-            result.add(alter)
 
     global_adds_mods = []
     global_dels = []
@@ -117,9 +97,6 @@ def delta_module(schema1, schema2, modname):
 
         create.add(AlterObjectProperty(property='name', old_value=None,
                                        new_value=modname))
-
-        create.add(AlterObjectProperty(property='imports', old_value=None,
-                                       new_value=tuple(module1.imports)))
         result.add(create)
 
     for type in schema1.global_dep_order:
@@ -338,7 +315,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         if context is None:
             context = CommandContext()
 
-        with self.new_context(context):
+        with self.new_context(schema, context):
             return self._get_ast(schema, context)
 
     @classmethod
@@ -373,7 +350,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             context_class = cls.get_context_class()
 
             if context_class is not None:
-                with context(context_class(cmd)):
+                with context(context_class(schema, cmd, scls=None)):
                     for subastnode in astnode.commands:
                         subcmd = Command.from_ast(
                             schema, subastnode, context=context)
@@ -411,7 +388,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     def get_context_class(cls):
         return cls._context_class
 
-    def new_context(self, context, scls=_void):
+    def new_context(self, schema, context, scls=_void):
         if context is None:
             context = CommandContext()
 
@@ -419,7 +396,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             scls = getattr(self, 'scls', None)
 
         context_class = self.get_context_class()
-        return context(context_class(self, scls))
+        return context(context_class(schema, self, scls))
 
     def __str__(self):
         return struct.MixedStruct.__str__(self)
@@ -585,11 +562,12 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
 
 
 class ObjectCommandContext(CommandContextToken):
-    def __init__(self, op, scls=None):
+    def __init__(self, schema, op, scls):
         super().__init__(op)
         self.scls = scls
+        self.original_schema = schema
         if scls is not None:
-            self.original_class = scls.copy()
+            _, self.original_class = scls.temp_copy(schema)
         else:
             self.original_class = None
 
@@ -601,8 +579,13 @@ class CreateObject(ObjectCommand):
         schema, props = self._make_constructor_args(schema, context)
 
         metaclass = self.get_schema_metaclass()
-        self.scls = metaclass(
-            **props, _setdefaults_=False, _relaxrequired_=True)
+        schema, self.scls = metaclass.create_in_schema(
+            schema, **props, _setdefaults_=False, _relaxrequired_=True)
+
+        if not props.get('id'):
+            # Record the generated ID.
+            self.add(AlterObjectProperty(
+                property='id', new_value=self.scls.id))
 
         return schema
 
@@ -617,7 +600,7 @@ class CreateObject(ObjectCommand):
 
     def apply(self, schema, context):
         schema = self._create_begin(schema, context)
-        with self.new_context(context):
+        with self.new_context(schema, context):
             schema = self._create_innards(schema, context)
             schema = self._create_finalize(schema, context)
         return schema, self.scls

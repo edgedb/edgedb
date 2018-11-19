@@ -1528,7 +1528,7 @@ def process_set_as_agg_expr(
                         query.sort_clause = []
 
                 if (isinstance(ir_arg.scls, s_scalars.ScalarType) and
-                        ir_arg.scls.bases):
+                        ir_arg.scls.get_bases(argctx.env.schema)):
                     # Cast scalar refs to the base type in aggregate
                     # expressions, since PostgreSQL does not create array
                     # types for custom domains and will fail to process a

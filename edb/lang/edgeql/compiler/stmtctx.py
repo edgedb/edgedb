@@ -135,6 +135,7 @@ def fini_expression(
         scope_tree=ctx.path_scope,
         cardinality=cardinality,
         view_shapes=ctx.class_shapes,
+        schema=ctx.env.schema,
     )
     irutils.infer_type(result, schema=ctx.env.schema)
     return result
@@ -162,8 +163,7 @@ def compile_anchor(
             Object = ctx.env.schema.get('std::Object')
 
             ctx.env.schema, ptrcls = anchor.get_derived(
-                ctx.env.schema, Object, Object,
-                mark_derived=True, add_to_schema=False)
+                ctx.env.schema, Object, Object, mark_derived=True)
 
             path = setgen.extend_path(
                 setgen.class_set(Object, ctx=ctx),
@@ -190,8 +190,7 @@ def compile_anchor(
         else:
             Object = ctx.env.schema.get('std::Object')
             ctx.env.schema, ptrcls = anchor_source.get_derived(
-                ctx.env.schema, Object, Object,
-                mark_derived=True, add_to_schema=False)
+                ctx.env.schema, Object, Object, mark_derived=True)
             path = setgen.extend_path(
                 setgen.class_set(Object, ctx=ctx),
                 ptrcls,

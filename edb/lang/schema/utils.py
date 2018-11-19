@@ -37,16 +37,13 @@ def ast_objref_to_objref(
 
     nqname = node.name
     module = node.module
-    if schema is not None:
-        if module is not None:
-            lname = sn.Name(module=module, name=nqname)
-        else:
-            lname = nqname
-        obj = schema.get(lname, module_aliases=modaliases, default=None)
-        if obj is not None:
-            module = obj.name.module
-    elif modaliases:
-        module = modaliases.get(module)
+    if module is not None:
+        lname = sn.Name(module=module, name=nqname)
+    else:
+        lname = nqname
+    obj = schema.get(lname, module_aliases=modaliases, default=None)
+    if obj is not None:
+        module = obj.name.module
 
     if module is None:
         raise s_err.ItemNotFoundError(
@@ -54,7 +51,11 @@ def ast_objref_to_objref(
             context=node.context
         )
 
-    return so.ObjectRef(classname=sn.Name(module=module, name=nqname))
+    if obj is None:
+        return so.ObjectRef(name=sn.Name(module=module, name=nqname))
+    else:
+        return so.ObjectRef(id=obj.id,
+                            name=sn.Name(module=module, name=nqname))
 
 
 def ast_to_typeref(
@@ -88,7 +89,8 @@ def ast_to_typeref(
                     st, modaliases=modaliases, schema=schema)
 
             try:
-                return coll.from_subtypes(subtypes, {'named': bool(named)})
+                return coll.from_subtypes(
+                    schema, subtypes, {'named': bool(named)})
             except s_err.SchemaError as e:
                 # all errors raised inside are pertaining to subtypes, so
                 # the context should point to the first subtype
@@ -102,7 +104,7 @@ def ast_to_typeref(
                     st, modaliases=modaliases, schema=schema))
 
             try:
-                return coll.from_subtypes(subtypes)
+                return coll.from_subtypes(schema, subtypes)
             except s_err.SchemaError as e:
                 e.set_source_context(node.context)
                 raise e
@@ -117,15 +119,10 @@ def ast_to_typeref(
 
 def typeref_to_ast(schema, t: so.Object) -> ql_ast.TypeName:
     if not isinstance(t, s_types.Collection):
-        if isinstance(t, so.ObjectRef):
-            name = t.classname
-        else:
-            name = t.name
-
         result = ql_ast.TypeName(
             maintype=ql_ast.ObjectRef(
-                module=name.module,
-                name=name.name
+                module=t.name.module,
+                name=t.name.name
             )
         )
     else:
@@ -157,12 +154,12 @@ def is_nontrivial_container(value):
             not isinstance(value, trivial_classes))
 
 
-def get_class_nearest_common_ancestor(classes):
+def get_class_nearest_common_ancestor(schema, classes):
     # First, find the intersection of parents
     classes = list(classes)
-    first = classes[0].get_mro()
+    first = classes[0].compute_mro(schema)
     common = set(first).intersection(
-        *[set(c.get_mro()) for c in classes[1:]])
+        *[set(c.compute_mro(schema)) for c in classes[1:]])
     common = sorted(common, key=lambda i: first.index(i))
     if common:
         return common[0]
@@ -170,11 +167,11 @@ def get_class_nearest_common_ancestor(classes):
         return None
 
 
-def minimize_class_set_by_most_generic(classes):
+def minimize_class_set_by_most_generic(schema, classes):
     """Minimize the given Object set by filtering out all subclasses."""
 
     classes = list(classes)
-    mros = [set(p.get_mro()) for p in classes]
+    mros = [set(p.compute_mro(schema)) for p in classes]
     count = len(classes)
     smap = itertools.starmap
 
@@ -189,11 +186,11 @@ def minimize_class_set_by_most_generic(classes):
     return result
 
 
-def minimize_class_set_by_least_generic(classes):
+def minimize_class_set_by_least_generic(schema, classes):
     """Minimize the given Object set by filtering out all superclasses."""
 
     classes = list(classes)
-    mros = [set(p.get_mro()) for p in classes]
+    mros = [set(p.compute_mro(schema)) for p in classes]
     count = len(classes)
     smap = itertools.starmap
 
@@ -251,7 +248,8 @@ def find_item_suggestions(
     else:
         if modname:
             module = schema.get_module(modname)
-            suggestions.extend(module.get_objects())
+            if module:
+                suggestions.extend(module.get_objects())
 
         if not orig_modname:
             suggestions.extend(schema.get_module('std').get_objects())

@@ -27,6 +27,8 @@ from edb.lang.schema import delta as s_delta
 
 from . import scalars  # NOQA
 from . import attributes  # NOQA
+from . import declarative as s_decl
+from . import delta as sd
 from . import objtypes  # NOQA
 from . import constraints  # NOQA
 from . import functions  # NOQA
@@ -50,6 +52,40 @@ def cmd_from_ddl(stmt, *, context=None, schema, modaliases,
     context.testmode = testmode
 
     cmd = s_delta.Command.from_ast(schema, ddl, context=context)
+    return cmd
+
+
+def compile_migration(cmd, target_schema, current_schema):
+
+    declarations = cmd.get_attribute_value('target')
+    if not declarations:
+        return cmd
+
+    s_decl.load_module_declarations(target_schema, [
+        (cmd.classname.module, declarations)
+    ])
+
+    stdmodules = {'std', 'schema', 'stdattrs', 'stdgraphql'}
+
+    mods = (set(target_schema.modules) - stdmodules)
+    if len(mods) != 1:
+        raise RuntimeError('unexpected delta module structure')
+
+    modname = next(iter(mods))
+
+    diff = sd.delta_module(target_schema, current_schema, modname)
+    migration = list(diff.get_subcommands())
+
+    for op in cmd.get_subcommands(type=sd.AlterObjectProperty):
+        if op.property == 'commands':
+            op.new_value = migration + op.new_value
+            break
+    else:
+        cmd.add(sd.AlterObjectProperty(
+            property='commands',
+            new_value=migration
+        ))
+
     return cmd
 
 

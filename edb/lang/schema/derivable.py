@@ -17,6 +17,8 @@
 #
 
 
+from edb.lang.common import uuidgen
+
 from . import name as sn
 from . import objects as so
 
@@ -26,8 +28,10 @@ class DerivableObjectBase:
     # presumption that the derived names may be different,
     # but base names may be equal.
     #
-    def compare(self, schema, other, context=None):
-        similarity = super().compare(schema, other, context=context)
+    def compare(self, other, *, our_schema, their_schema, context=None):
+        similarity = super().compare(
+            other, our_schema=our_schema,
+            their_schema=their_schema, context=context)
         if self.shortname != other.shortname:
             similarity *= 0.625
 
@@ -45,8 +49,9 @@ class DerivableObjectBase:
         return self.derive_name(source, *qualifiers)
 
     def init_derived(self, schema, source, *qualifiers, as_copy,
-                     merge_bases=None, add_to_schema=False, mark_derived=False,
-                     attrs=None, dctx=None, name=None, **kwargs):
+                     merge_bases=None, replace_original=None,
+                     mark_derived=False, attrs=None, dctx=None,
+                     name=None, **kwargs):
         if name is None:
             derived_name = self.get_derived_name(
                 source, *qualifiers, mark_derived=mark_derived)
@@ -56,14 +61,19 @@ class DerivableObjectBase:
         if attrs is None:
             attrs = {}
         attrs['name'] = derived_name
-        schema, derived = self.copy_with(schema, attrs)
+        if not attrs.get('id'):
+            attrs['id'] = uuidgen.uuid1mc()
 
-        return schema, derived
+        existing_derived = schema.get(derived_name, default=None)
+        if existing_derived is not None and replace_original is not None:
+            schema = schema.mark_as_garbage(existing_derived)
+
+        return self.copy_with(schema, attrs)
 
     def finalize_derived(self, schema, derived, *, merge_bases=None,
-                         replace_original=None, add_to_schema=False,
-                         mark_derived=False, apply_defaults=True,
-                         attrs=None, dctx=None, **kwargs):
+                         replace_original=None, mark_derived=False,
+                         apply_defaults=True, attrs=None, dctx=None,
+                         **kwargs):
 
         if merge_bases:
             schema = derived.acquire_ancestor_inheritance(
@@ -78,38 +88,27 @@ class DerivableObjectBase:
                 'derived_from': self,
             })
 
-        if add_to_schema:
-            existing_derived = schema.get(derived.name, default=None)
-
-            if existing_derived is None:
-                schema = schema.add(derived)
-            elif replace_original is not None:
-                schema = schema.discard(existing_derived)
-                schema = schema.add(derived)
-
         return schema, derived
 
     def derive_copy(self, schema, *qualifiers, merge_bases=None,
-                    replace_original=None, add_to_schema=False,
-                    mark_derived=False, attrs=None, dctx=None,
-                    name=None, **kwargs):
+                    replace_original=None, mark_derived=False, attrs=None,
+                    dctx=None, name=None, **kwargs):
         schema, derived = self.init_derived(
             schema, *qualifiers, name=name,
             as_copy=True, merge_bases=merge_bases,
-            attrs=attrs, add_to_schema=add_to_schema,
-            mark_derived=mark_derived, dctx=dctx, **kwargs)
+            attrs=attrs, mark_derived=mark_derived,
+            dctx=dctx, replace_original=replace_original,
+            **kwargs)
 
         schema, derived = self.finalize_derived(
             schema, derived, merge_bases=merge_bases,
-            add_to_schema=add_to_schema, mark_derived=mark_derived,
-            dctx=dctx)
+            mark_derived=mark_derived, dctx=dctx)
 
         return schema, derived
 
     def derive(self, schema, source, *qualifiers, merge_bases=None,
-               replace_original=None, add_to_schema=False,
-               mark_derived=False, attrs=None, dctx=None,
-               name=None, apply_defaults=True, **kwargs):
+               replace_original=None, mark_derived=False, attrs=None,
+               dctx=None, name=None, apply_defaults=True, **kwargs):
         if not self.generic(schema):
             raise TypeError(
                 'cannot derive from specialized {} {!r}'.format(
@@ -118,13 +117,14 @@ class DerivableObjectBase:
         schema, derived = self.init_derived(
             schema, source, *qualifiers, name=name,
             as_copy=False, merge_bases=merge_bases,
-            attrs=attrs, add_to_schema=add_to_schema,
-            mark_derived=mark_derived, dctx=dctx, **kwargs)
+            attrs=attrs, mark_derived=mark_derived,
+            replace_original=replace_original,
+            dctx=dctx, **kwargs)
 
         schema, derived = self.finalize_derived(
             schema, derived, merge_bases=merge_bases,
-            add_to_schema=add_to_schema, mark_derived=mark_derived,
-            apply_defaults=apply_defaults, dctx=dctx)
+            mark_derived=mark_derived, apply_defaults=apply_defaults,
+            dctx=dctx)
 
         return schema, derived
 

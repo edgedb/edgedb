@@ -72,7 +72,7 @@ def compile_FunctionCall(
         if isinstance(expr.func, str):
             if ctx.func is not None:
                 ctx_func_params = ctx.func.get_params(schema)
-                if ctx_func_params.get_by_name(expr.func):
+                if ctx_func_params.get_by_name(schema, expr.func):
                     raise errors.EdgeQLError(
                         f'parameter `{expr.func}` is not callable',
                         context=expr.context)
@@ -132,7 +132,7 @@ def compile_FunctionCall(
         matched_func_ret_type = matched_call.func.get_return_type(schema)
         is_polymorphic = (
             any(p.get_type(schema).is_polymorphic(schema)
-                for p in matched_func_params) and
+                for p in matched_func_params.objects(schema)) and
             matched_func_ret_type.is_polymorphic(schema)
         )
 

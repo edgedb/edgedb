@@ -173,7 +173,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         query = qlast.SelectQuery(
             result=qlast.Shape(
                 expr=qlast.Path(
-                    steps=[qlast.ObjectRef(name='Query', module='graphql')]
+                    steps=[qlast.ObjectRef(name='Query', module='stdgraphql')]
                 ),
                 elements=[]
             ),

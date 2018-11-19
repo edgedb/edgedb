@@ -21,10 +21,11 @@ import hashlib
 import base64
 import re
 
-from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import links as s_links
 from edb.lang.schema import lproperties as s_props
 from edb.lang.schema import name as s_name
+from edb.lang.schema import objtypes as s_objtypes
+from edb.lang.schema import pointers as s_pointers
 
 from edb.server.pgsql.parser import keywords as pg_keywords
 
@@ -174,9 +175,9 @@ def get_backend_operator_name(name, catenate=False):
 def get_table_name(obj, catenate=True):
     if isinstance(obj, s_objtypes.ObjectType):
         return objtype_name_to_table_name(obj.name, catenate)
-    elif isinstance(obj, s_links.Link):
-        return link_name_to_table_name(obj.name, catenate)
     elif isinstance(obj, s_props.Property):
         return prop_name_to_table_name(obj.name, catenate)
+    elif isinstance(obj, (s_links.Link, s_pointers.PointerLike)):
+        return link_name_to_table_name(obj.name, catenate)
     else:
         raise ValueError(f'cannot determine table for {obj!r}')
