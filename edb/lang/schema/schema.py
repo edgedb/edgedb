@@ -218,8 +218,8 @@ class Schema(TypeContainer):
                 return result
 
         if implicit_builtins:
-            std = self.modules['std']
-            result = getter([std], nqname)
+            std = self._resolve_module('std')
+            result = getter(std, nqname)
             if result is not None:
                 return result
 
