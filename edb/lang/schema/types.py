@@ -176,17 +176,10 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
 class Collection(Type):
     _type = 'collection'
 
-    @classmethod
-    def _create(cls, schema, *, name=None, **kwargs):
-        if name is None:
-            name = s_name.SchemaName(module='std', name='collection')
-            t = super()._create(schema, name=name, **kwargs)
-            subtypes = ",".join(st.name for st in t.get_subtypes())
-            t.name = s_name.SchemaName(
-                module='std', name=f'{t.schema_name}<{subtypes}>')
-            return t
-        else:
-            return super()._create(schema, name=name, **kwargs)
+    name = so.Field(
+        s_name.SchemaName,
+        inheritable=False, compcoef=0.670,
+        frozen=True)
 
     def is_polymorphic(self, schema):
         return any(st.is_polymorphic(schema)
@@ -325,6 +318,12 @@ class Array(Collection):
         if id is so.NoDefault:
             id_str = f'array-{element_type.id}'
             id = uuid.uuid5(TYPE_ID_NAMESPACE, id_str)
+
+        if name is None:
+            name = s_name.SchemaName(
+                module='std',
+                name=f'array<{element_type.name}>')
+
         return super()._create(
             schema, id=id, name=name, element_type=element_type, **kwargs)
 
@@ -449,12 +448,20 @@ class Tuple(Collection):
     @classmethod
     def create(cls, schema, *, name=None, id=so.NoDefault,
                element_types: dict, **kwargs):
+
         element_types = types.MappingProxyType(element_types)
         if id is so.NoDefault:
             id_str = ','.join(
                 f'{n}:{st.id}' for n, st in element_types.items())
             id_str = f'tuple-{id_str}'
             id = uuid.uuid5(TYPE_ID_NAMESPACE, id_str)
+
+        if name is None:
+            st_names = ','.join(st.name for st in element_types.values())
+            name = s_name.SchemaName(
+                module='std',
+                name=f'tuple<{st_names}>')
+
         return super()._create(
             schema, id=id, name=name, element_types=element_types, **kwargs)
 
