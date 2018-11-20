@@ -39,11 +39,11 @@ class DerivableObjectBase:
 
     def derive_name(self, schema, source, *qualifiers):
         name = self.get_specialized_name(
-            self.get_shortname(schema), source.name, *qualifiers)
-        return sn.Name(name=name, module=source.name.module)
+            self.get_shortname(schema), source.get_name(schema), *qualifiers)
+        return sn.Name(name=name, module=source.get_name(schema).module)
 
     def generic(self, schema):
-        return self.get_shortname(schema) == self.name
+        return self.get_shortname(schema) == self.get_name(schema)
 
     def get_derived_name(self, schema, source,
                          *qualifiers, mark_derived=False):

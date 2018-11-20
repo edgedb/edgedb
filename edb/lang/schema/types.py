@@ -167,7 +167,7 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
 
     def __repr__(self):
         return (
-            f'<schema.{self.__class__.__name__} {self.name} at 0x{id(self):x}>'
+            f'<schema.{self.__class__.__name__} {self.id} at 0x{id(self):x}>'
         )
 
     __str__ = __repr__
@@ -180,6 +180,9 @@ class Collection(Type):
         s_name.SchemaName,
         inheritable=False, compcoef=0.670,
         frozen=True)
+
+    def get_name(self, schema):
+        return self.name
 
     def is_polymorphic(self, schema):
         return any(st.is_polymorphic(schema)
@@ -254,7 +257,7 @@ class Collection(Type):
         from . import types as s_types
 
         if isinstance(typeref, so.ObjectRef):
-            eltype = schema.get(typeref.name)
+            eltype = schema.get(typeref.get_name(schema))
         else:
             eltype = typeref
 
@@ -322,7 +325,7 @@ class Array(Collection):
         if name is None:
             name = s_name.SchemaName(
                 module='std',
-                name=f'array<{element_type.name}>')
+                name=f'array<{element_type.get_name(schema)}>')
 
         return super()._create(
             schema, id=id, name=name, element_type=element_type, **kwargs)
@@ -457,7 +460,8 @@ class Tuple(Collection):
             id = uuid.uuid5(TYPE_ID_NAMESPACE, id_str)
 
         if name is None:
-            st_names = ','.join(st.name for st in element_types.values())
+            st_names = ','.join(st.get_name(schema)
+                                for st in element_types.values())
             name = s_name.SchemaName(
                 module='std',
                 name=f'tuple<{st_names}>')

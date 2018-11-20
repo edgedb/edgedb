@@ -214,7 +214,7 @@ class DeclarationLoader:
             cmdcls = s_delta.ObjectCommandMeta.get_command_class_or_die(
                 s_delta.CreateObject, type(obj))
             ctxcls = cmdcls.get_context_class()
-            cmd = cmdcls(classname=obj.name)
+            cmd = cmdcls(classname=obj.get_name(self._schema))
             ctx = ctxcls(self._schema, cmd, obj)
             with dctx(ctx):
                 self._schema = obj.finalize(self._schema, dctx=dctx)
@@ -242,31 +242,38 @@ class DeclarationLoader:
         g = {}
 
         for obj in objects:
-            this_item = g[obj.name] = {'item': obj, 'merge': [], 'deps': []}
+            this_item = g[obj.get_name(self._schema)] = {
+                'item': obj, 'merge': [], 'deps': []
+            }
 
             if depsfn is not None:
                 deps = depsfn(obj)
                 for dep in deps:
-                    this_item['deps'].append(dep.name)
-                    g[dep.name] = {'item': dep, 'merge': [], 'deps': []}
+                    this_item['deps'].append(dep.get_name(self._schema))
+                    g[dep.get_name(self._schema)] = {
+                        'item': dep, 'merge': [], 'deps': []
+                    }
 
             obj_bases = obj.get_bases(self._schema)
             if obj_bases:
-                g[obj.name]['deps'].extend(
-                    b.name for b in obj_bases.objects(self._schema))
+                g[obj.get_name(self._schema)]['deps'].extend(
+                    b.get_name(self._schema)
+                    for b in obj_bases.objects(self._schema))
 
                 for base in obj_bases.objects(self._schema):
-                    if base.name.module != obj.name.module:
-                        g[base.name] = {'item': base, 'merge': [], 'deps': []}
+                    base_name = base.get_name(self._schema)
+                    if base_name.module != obj.get_name(self._schema).module:
+                        g[base_name] = {'item': base, 'merge': [], 'deps': []}
 
         if not g:
             return ordered.OrderedSet()
 
         item = next(iter(g.values()))['item']
-        modname = item.name.module
+        modname = item.get_name(self._schema).module
         objs = topological.sort(g)
         return ordered.OrderedSet(filter(
-            lambda obj: getattr(obj.name, 'module', None) == modname, objs))
+            lambda obj: getattr(obj.get_name(self._schema), 'module', None) ==
+            modname, objs))
 
     def _get_ref_name(self, ref):
         if isinstance(ref, edgeql.ast.ObjectRef):
@@ -317,12 +324,12 @@ class DeclarationLoader:
                                         module_aliases=self._mod_aliases)
                 if base.get_is_final(self._schema):
                     msg = '{!r} is final and cannot be inherited ' \
-                          'from'.format(base.name)
+                          'from'.format(base.get_name(self._schema))
                     raise s_err.SchemaError(msg, context=decl)
 
                 bases.append(base)
 
-        elif obj.name not in type(obj).get_root_classes():
+        elif obj.get_name(self._schema) not in type(obj).get_root_classes():
             # Implicit inheritance from the default base class
             default_base_name = type(obj).get_default_base_name()
             if default_base_name is not None:
@@ -352,7 +359,7 @@ class DeclarationLoader:
 
             self._schema, params = s_func.FuncParameterList.from_ast(
                 self._schema, decl, self._mod_aliases,
-                func_fqname=constraint.name)
+                func_fqname=constraint.get_name(self._schema))
 
             for param in params.objects(self._schema):
                 if param.get_kind(self._schema) is ft.ParameterKind.NAMED_ONLY:
@@ -432,7 +439,8 @@ class DeclarationLoader:
                     # property definition. The only attribute that is used for
                     # global definition is the name.
                     prop_qname = s_name.Name(
-                        name=prop_name, module=source.name.module)
+                        name=prop_name,
+                        module=source.get_name(self._schema).module)
 
                     std_lprop = self._schema.get(
                         s_props.Property.get_default_base_name(),
@@ -447,7 +455,7 @@ class DeclarationLoader:
                 else:
                     prop_qname = s_name.Name(prop_name)
             else:
-                prop_qname = prop_base.name
+                prop_qname = prop_base.get_name(self._schema)
 
             if propdecl.target is not None:
                 prop_target = self._get_ref_type(propdecl.target[0])
@@ -465,7 +473,9 @@ class DeclarationLoader:
                 if not propdef:
                     raise s_err.SchemaError(
                         'link {!r} does not define property '
-                        '{!r}'.format(source.name, prop_qname))
+                        '{!r}'.format(
+                            source.get_name(self._schema),
+                            prop_qname))
 
                 prop_qname = propdef.get_shortname(self._schema)
 
@@ -547,7 +557,7 @@ class DeclarationLoader:
             else:
                 args = []
 
-            modaliases = {None: subject.name.module}
+            modaliases = {None: subject.get_name(self._schema).module}
             self._schema, c, _ = \
                 s_constr.Constraint.create_concrete_constraint(
                     self._schema,
@@ -563,15 +573,16 @@ class DeclarationLoader:
             self._schema = subject.add_constraint(self._schema, c)
 
     def _parse_subject_indexes(self, subject, subjdecl):
-        module_aliases = {None: subject.name.module}
+        module_aliases = {None: subject.get_name(self._schema).module}
 
         for indexdecl in subjdecl.indexes:
             index_name = self._get_ref_name(indexdecl.name)
-            index_name = subject.name + '.' + index_name
+            index_name = subject.get_name(self._schema) + '.' + index_name
             local_name = s_indexes.SourceIndex.get_specialized_name(
-                index_name, subject.name)
+                index_name, subject.get_name(self._schema))
 
-            der_name = s_name.Name(name=local_name, module=subject.name.module)
+            der_name = s_name.Name(
+                name=local_name, module=subject.get_name(self._schema).module)
 
             _, _, index_expr = qlutils.normalize_tree(
                 indexdecl.expression, self._schema,
@@ -607,7 +618,8 @@ class DeclarationLoader:
                         # link definition. The only attribute that is used for
                         # global definition is the name.
                         link_qname = s_name.Name(
-                            name=link_name, module=objtype.name.module)
+                            name=link_name,
+                            module=objtype.get_name(self._schema).module)
 
                         std_link = self._schema.get(
                             s_links.Link.get_default_base_name(),
@@ -622,7 +634,7 @@ class DeclarationLoader:
                     else:
                         link_qname = s_name.Name(link_name)
                 else:
-                    link_qname = link_base.name
+                    link_qname = link_base.get_name(self._schema)
 
                 if linkdecl.expr is not None:
                     # This is a computable, but we cannot interpret
@@ -701,7 +713,9 @@ class DeclarationLoader:
                 prop_name = self._get_ref_name(propdecl.name)
                 generic_prop = self._schema.get(
                     prop_name, module_aliases=self._mod_aliases)
-                spec_prop = link.getptr(self._schema, generic_prop.name)
+                spec_prop = link.getptr(
+                    self._schema,
+                    generic_prop.get_name(self._schema))
 
                 if propdecl.expr is not None:
                     # Computable
@@ -714,7 +728,8 @@ class DeclarationLoader:
                 link_name = self._get_ref_name(linkdecl.name)
                 generic_link = self._schema.get(
                     link_name, module_aliases=self._mod_aliases)
-                spec_link = objtype.getptr(self._schema, generic_link.name)
+                spec_link = objtype.getptr(
+                    self._schema, generic_link.get_name(self._schema))
                 self._parse_subject_constraints(spec_link, linkdecl)
 
     def _normalize_objtype_expressions(self, objtype, typedecl):
@@ -723,7 +738,8 @@ class DeclarationLoader:
             link_name = self._get_ref_name(ptrdecl.name)
             generic_link = self._schema.get(
                 link_name, module_aliases=self._mod_aliases)
-            spec_link = objtype.getptr(self._schema, generic_link.name)
+            spec_link = objtype.getptr(
+                self._schema, generic_link.get_name(self._schema))
 
             if ptrdecl.expr is not None:
                 # Computable
@@ -744,7 +760,7 @@ class DeclarationLoader:
                             self._schema, 'default', default)
 
     def _normalize_ptr_default(self, expr, source, ptr, ptrdecl):
-        module_aliases = {None: source.name.module}
+        module_aliases = {None: source.get_name(self._schema).module}
 
         ir, _, expr_text = qlutils.normalize_tree(
             expr, self._schema,
@@ -761,7 +777,8 @@ class DeclarationLoader:
             raise s_err.SchemaError(
                 'could not determine the result type of the default '
                 'expression on {!s}.{!s}'.format(
-                    source.name, ptr.get_shortname(self._schema)),
+                    source.get_name(self._schema),
+                    ptr.get_shortname(self._schema)),
                 context=expr.context) from e
 
         self._schema = ptr.set_field_value(self._schema, 'default', expr_text)
@@ -820,7 +837,8 @@ class DeclarationLoader:
                     self._schema, ptr.get_target(self._schema)))):
             raise s_err.SchemaError(
                 'default value query must yield a single result of '
-                'type {!r}'.format(ptr.get_target(self._schema).name),
+                'type {!r}'.format(
+                    ptr.get_target(self._schema).get_name(self._schema)),
                 context=expr.context)
 
 

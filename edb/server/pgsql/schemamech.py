@@ -193,7 +193,8 @@ class ConstraintMech:
         if isinstance(subject, s_scalars.ScalarType):
             # Domain constraint, replace <scalar_name> with VALUE
 
-            subject_pg_name = common.edgedb_name_to_pg_name(subject.name)
+            subject_pg_name = common.edgedb_name_to_pg_name(
+                subject.get_name(schema))
 
             for ref in refs:
                 if ref.name != [subject_pg_name]:
@@ -253,7 +254,7 @@ class ConstraintMech:
             link_bias = refs[0][3].table_type == 'link'
         else:
             subject_db_name = common.scalar_name_to_domain_name(
-                subject.name, catenate=False)
+                subject.get_name(schema), catenate=False)
             link_bias = False
 
         exclusive_expr_refs = cls._get_exclusive_refs(ir)
@@ -511,7 +512,7 @@ class TypeMech:
         table = self._table_cache.get(scls)
 
         if table is None:
-            table_name = common.get_table_name(scls, catenate=False)
+            table_name = common.get_table_name(schema, scls, catenate=False)
             table = dbops.Table(table_name)
 
             cols = []

@@ -41,17 +41,7 @@ class PathId:
             self._is_linkprop = initializer._is_linkprop
             self._prefix = initializer._prefix
         elif initializer is not None:
-            if not isinstance(initializer, s_types.Type):
-                raise ValueError(
-                    f'invalid PathId: bad source: {initializer!r}')
-            self._path = (initializer,)
-            if typename is None:
-                typename = initializer.name
-            self._norm_path = (typename,)
-            self._namespace = frozenset(namespace) if namespace else None
-            self._prefix = None
-            self._is_ptr = False
-            self._is_linkprop = False
+            raise TypeError('use PathId.from_type')
         else:
             self._path = ()
             self._norm_path = ()
@@ -59,6 +49,19 @@ class PathId:
             self._prefix = None
             self._is_ptr = False
             self._is_linkprop = False
+
+    @classmethod
+    def from_type(cls, schema, initializer, *, namespace=None, typename=None):
+        pid = cls()
+        if not isinstance(initializer, s_types.Type):
+            raise ValueError(
+                f'invalid PathId: bad source: {initializer!r}')
+        pid._path = (initializer,)
+        if typename is None:
+            typename = initializer.get_name(schema)
+        pid._norm_path = (typename,)
+        pid._namespace = frozenset(namespace) if namespace else None
+        return pid
 
     def __hash__(self):
         return hash((
@@ -226,7 +229,7 @@ class PathId:
         result += f'{path[0].name}'
 
         for i in range(1, len(path) - 1, 2):
-            ptr = s_pointers.Pointer.shortname_from_fullname(path[i][0])
+            ptr_name = s_pointers.Pointer.shortname_from_fullname(path[i][0])
             ptrdir = path[i][1]
             is_lprop = path[i][2]
 
@@ -237,7 +240,7 @@ class PathId:
                 if ptrdir == s_pointers.PointerDirection.Inbound:
                     step += ptrdir
 
-            result += f'{step}{ptr.name}'
+            result += f'{step}{ptr_name.name}'
 
         if self._is_ptr:
             result += '@'
@@ -338,10 +341,12 @@ class PathId:
 
         result = self.__class__()
         result._path = self._path + ((link, direction), target)
-        link_name = link.get_path_id_name(schema) or link.name
+        link_name = link.get_path_id_name(schema) or link.get_name(schema)
         lnk = (link_name, direction, is_linkprop)
         norm_target = target.material_type(schema)
-        result._norm_path = self._norm_path + (lnk, norm_target.name)
+        result._norm_path = (
+            self._norm_path + (lnk, norm_target.get_name(schema))
+        )
         result._is_linkprop = is_linkprop
 
         if ns:

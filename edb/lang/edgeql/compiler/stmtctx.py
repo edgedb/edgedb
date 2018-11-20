@@ -263,7 +263,7 @@ def declare_view(
 
         if cached_view_set is not None:
             subctx.view_scls = cached_view_set.scls
-            view_name = cached_view_set.scls.name
+            view_name = cached_view_set.scls.get_name(ctx.env.schema)
         else:
             if isinstance(alias, s_name.SchemaName):
                 basename = alias
@@ -300,14 +300,15 @@ def declare_view_from_schema(
 
     with ctx.detached() as subctx:
         view_expr = qlparser.parse(viewcls.get_expr(ctx.env.schema))
-        declare_view(view_expr, alias=viewcls.name,
+        viewcls_name = viewcls.get_name(ctx.env.schema)
+        declare_view(view_expr, alias=viewcls_name,
                      fully_detached=True, ctx=subctx)
 
-        vc = subctx.aliased_views[viewcls.name]
+        vc = subctx.aliased_views[viewcls_name]
         ctx.env.schema_view_cache[viewcls] = vc
         ctx.source_map.update(subctx.source_map)
-        ctx.aliased_views[viewcls.name] = subctx.aliased_views[viewcls.name]
-        ctx.view_nodes[vc.name] = vc
+        ctx.aliased_views[viewcls_name] = subctx.aliased_views[viewcls_name]
+        ctx.view_nodes[vc.get_name(ctx.env.schema)] = vc
         ctx.view_sets[vc] = subctx.view_sets[vc]
 
     return vc

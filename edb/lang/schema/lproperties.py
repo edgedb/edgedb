@@ -102,7 +102,7 @@ class Property(pointers.Pointer):
     def is_link_property(self, schema):
         source = self.get_source(schema)
         if source is None:
-            raise ValueError(f'{self.name} is abstract')
+            raise ValueError(f'{self.get_name(schema)} is abstract')
         return isinstance(source, pointers.Pointer)
 
     @classmethod

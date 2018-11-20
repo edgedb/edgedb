@@ -494,7 +494,7 @@ def compile_Tuple(
     ttypes = ttype.element_types
     telems = list(ttypes)
 
-    path_id = irast.PathId(ttype)
+    path_id = irast.PathId.from_type(ctx.env.schema, ttype)
 
     elements = []
 
@@ -638,13 +638,15 @@ def _compile_set_in_singleton_mode(
         elif isinstance(node.scls, s_scalars.ScalarType):
             colref = pgast.ColumnRef(
                 name=[
-                    common.edgedb_name_to_pg_name(node.scls.name)
+                    common.edgedb_name_to_pg_name(
+                        node.scls.get_name(ctx.env.schema))
                 ]
             )
         else:
             colref = pgast.ColumnRef(
                 name=[
-                    common.edgedb_name_to_pg_name(node.scls.name)
+                    common.edgedb_name_to_pg_name(
+                        node.scls.get_name(ctx.env.schema))
                 ]
             )
 

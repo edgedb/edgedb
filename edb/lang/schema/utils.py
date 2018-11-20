@@ -43,7 +43,7 @@ def ast_objref_to_objref(
         lname = nqname
     obj = schema.get(lname, module_aliases=modaliases, default=None)
     if obj is not None:
-        module = obj.name.module
+        module = obj.get_name(schema).module
 
     if module is None:
         raise s_err.ItemNotFoundError(
@@ -121,8 +121,8 @@ def typeref_to_ast(schema, t: so.Object) -> ql_ast.TypeName:
     if not isinstance(t, s_types.Collection):
         result = ql_ast.TypeName(
             maintype=ql_ast.ObjectRef(
-                module=t.name.module,
-                name=t.name.name
+                module=t.get_name(schema).module,
+                name=t.get_name(schema).name
             )
         )
     else:
@@ -294,8 +294,8 @@ def enrich_schema_lookup_error(
         current_module_name = modaliases.get(None)
 
         for suggestion in suggestions:
-            if (suggestion.name.module == 'std' or
-                    suggestion.name.module == current_module_name):
+            if (suggestion.get_name(schema).module == 'std' or
+                    suggestion.get_name(schema).module == current_module_name):
                 names.append(suggestion.get_shortname(schema).name)
             else:
                 names.append(str(suggestion.get_displayname(schema)))

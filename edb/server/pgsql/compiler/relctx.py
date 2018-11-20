@@ -439,7 +439,8 @@ def new_static_class_rvar(
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
     set_rvar = new_root_rvar(ir_set, ctx=ctx)
     clsname = pgast.StringConstant(
-        val=ir_set.rptr.source.scls.material_type(ctx.env.schema).name)
+        val=ir_set.rptr.source.scls.material_type(ctx.env.schema).get_name(
+            ctx.env.schema))
     nameref = dbobj.get_column(
         set_rvar, common.edgedb_name_to_pg_name('schema::name'),
         nullable=False)

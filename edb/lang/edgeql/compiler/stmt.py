@@ -444,7 +444,7 @@ def fini_stmt(
     view_name = parent_ctx.toplevel_result_view_name
     t = irutils.infer_type(irstmt, ctx.env.schema)
 
-    if t.name == view_name:
+    if t.get_name(ctx.env.schema) == view_name:
         # The view statement did contain a view declaration and
         # generated a view class with the requested name.
         view = t

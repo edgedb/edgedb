@@ -187,9 +187,7 @@ class RenameNamedObject(NamedObjectCommand):
         schema = schema.drop_inheritance_cache_for_child(scls)
 
         self.old_name = self.classname
-        schema = schema.delete(scls)
-        scls.name = self.new_name
-        schema = schema.add(scls.name, scls)
+        schema = scls.set_field_value(schema, 'name', self.new_name)
 
         parent_ctx = context.get(sd.CommandContextToken)
         for subop in parent_ctx.op.get_subcommands(type=NamedObjectCommand):

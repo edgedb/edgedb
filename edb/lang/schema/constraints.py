@@ -162,7 +162,8 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
             if not expr_type.issubclass(schema, bool_t):
                 raise s_errors.SchemaDefinitionError(
                     f'{constraint_name} constraint expression expected '
-                    f'to return a bool value, got {expr_type.name.name!r}',
+                    f'to return a bool value, got '
+                    f'{expr_type.get_name(schema).name!r}',
                     context=expr_context
                 )
 
@@ -271,11 +272,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
         subjtitle = subject.get_title(schema)
 
         if not subjtitle:
-            try:
-                subjname = subject.get_shortname(schema)
-            except AttributeError:
-                subjname = subject.name
-
+            subjname = subject.get_shortname(schema)
             subjtitle = subjname.name
 
         formatted = errmsg.format(__subject__=subjtitle)
@@ -344,7 +341,8 @@ class ConsistencySubject(referencing.ReferencingObject):
                     continue
 
                 quals = constraint.get_derived_quals(schema, self)
-                der_name = constraint.get_derived_name(self, *quals)
+                der_name = constraint.get_derived_name(
+                    schema, self, *quals)
 
                 if self.get_own_constraints(schema).has(schema, der_name):
                     # The constraint is declared locally, nothing to do.
@@ -352,7 +350,8 @@ class ConsistencySubject(referencing.ReferencingObject):
 
                 for base in bases:
                     quals = constraint.get_derived_quals(schema, base)
-                    der_name = constraint.get_derived_name(base, *quals)
+                    der_name = constraint.get_derived_name(
+                        schema, base, *quals)
                     constr = all_constraints.get(schema, der_name, None)
                     if (constr is not None and
                             not constr.get_is_abstract(schema)):

@@ -190,7 +190,7 @@ def new_empty_set(schema, *, scls=None, alias):
         path_id_scls = scls
 
     typename = s_name.Name(module='__expr__', name=alias)
-    path_id = irast.PathId(path_id_scls, typename=typename)
+    path_id = irast.PathId.from_type(schema, path_id_scls, typename=typename)
     return irast.EmptySet(path_id=path_id, scls=scls)
 
 
@@ -198,22 +198,25 @@ class TupleIndirectionLink(s_pointers.PointerLike):
     """A Link-alike that can be used in tuple indirection path ids."""
 
     def __init__(self, element_name):
-        self.name = s_name.Name(module='__tuple__', name=str(element_name))
+        self._name = s_name.Name(module='__tuple__', name=str(element_name))
 
     def __hash__(self):
-        return hash((self.__class__, self.name))
+        return hash((self.__class__, self._name))
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
 
-        return self.name == other.name
+        return self._name == other._name
 
     def get_shortname(self, schema):
-        return self.name
+        return self._name
+
+    def get_name(self, schema):
+        return self._name
 
     def get_path_id_name(self, schema):
-        return self.name
+        return self._name
 
     def is_link_property(self, schema):
         return False
@@ -256,8 +259,7 @@ class TypeIndirectionLink(s_pointers.PointerLike):
         self._cardinality = cardinality
         self._optional = optional
 
-    @property
-    def name(self):
+    def get_name(self, schema):
         return self._name
 
     def get_shortname(self, schema):

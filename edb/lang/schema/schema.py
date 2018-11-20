@@ -49,15 +49,15 @@ class Schema(TypeContainer):
         self._garbage = set()
         self.index_by_id = {}
 
-    def add_module(self, class_module) -> 'Schema':
+    def add_module(self, mod) -> 'Schema':
         """Add a module to the schema
 
-        :param Module class_module: A module that should be added
-                                    to the schema.
+        :param Module mod: A module that should be added
+                           to the schema.
         """
 
-        name = class_module.name
-        self.modules[name] = class_module
+        name = mod.get_name(self)
+        self.modules[name] = mod
         self._policy_schema = None
         return self
 
@@ -67,16 +67,16 @@ class Schema(TypeContainer):
     def get_modules(self):
         return self.modules.values()
 
-    def delete_module(self, class_module):
+    def delete_module(self, mod):
         """Remove a module from the schema
 
-        :param class_module: Either a string name of the module or a Module
-                             object that should be dropped from the schema.
+        :param mod: Either a string name of the module or a Module
+                    object that should be dropped from the schema.
         """
-        if isinstance(class_module, str):
-            module_name = class_module
+        if isinstance(mod, str):
+            module_name = mod
         else:
-            module_name = class_module.name
+            module_name = mod.get_name(self)
 
         del self.modules[module_name]
         return self
@@ -86,7 +86,7 @@ class Schema(TypeContainer):
 
         :param Delta delta: Delta object to add to the schema.
         """
-        name = delta.name
+        name = delta.get_name(self)
         self.deltas[name] = delta
         return self
 
@@ -102,22 +102,31 @@ class Schema(TypeContainer):
         if isinstance(delta, str):
             delta_name = delta
         else:
-            delta_name = delta.name
+            delta_name = delta.get_name(self)
 
         del self.deltas[delta_name]
 
         return self
 
-    def add(self, name, obj=None, *, _nameless=False) -> 'Schema':
-        from . import deltas as s_deltas
+    def _rename(self, obj, oldname):
+        # XXX temporary method, will go away when schema.Module
+        # is refactored.
 
-        if obj is None:
-            obj = name
-            name = obj.name
-            import warnings
-            warnings.warn(
-                f'Deprecated call to schema.add()',
-                RuntimeWarning, stacklevel=2)
+        oldmod = self.modules[oldname.module]
+        oldmod.index_by_name.pop(oldname, None)
+        oldmod.index_derived.discard(oldname)
+        oldmod.index_by_type[obj._type].discard(oldname)
+
+        newname = obj.get_name(self)
+        newmod = self.modules[newname.module]
+        newmod.index_by_name[newname] = obj
+        newmod.index_derived.add(newname)
+        newmod.index_by_type[obj._type].add(newname)
+
+        return self
+
+    def add(self, name, obj, *, _nameless=False) -> 'Schema':
+        from . import deltas as s_deltas
 
         if isinstance(obj, s_modules.Module):
             self.modules[name] = obj
@@ -141,7 +150,7 @@ class Schema(TypeContainer):
 
     def mark_as_garbage(self, obj) -> 'Schema':
         try:
-            module = self.modules[obj.name.module]
+            module = self.modules[obj.get_name(self).module]
         except KeyError:
             return
 
@@ -154,7 +163,7 @@ class Schema(TypeContainer):
         self.index_by_id.pop(obj.id, None)
 
         try:
-            module = self.modules[obj.name.module]
+            module = self.modules[obj.get_name(self).module]
         except KeyError:
             return
 
@@ -165,10 +174,11 @@ class Schema(TypeContainer):
         self.index_by_id.pop(obj.id, None)
 
         try:
-            module = self.modules[obj.name.module]
+            module = self.modules[obj.get_name(self).module]
         except KeyError as e:
             raise s_err.SchemaModuleNotFoundError(
-                f'module {obj.name.module} is not in this schema') from e
+                f'module {obj.get_name(self).module} '
+                f'is not in this schema') from e
 
         schema = module._delete(self, obj)
         return schema
@@ -178,9 +188,9 @@ class Schema(TypeContainer):
 
         for item in new_order:
             try:
-                module_order = by_module[item.name.module]
+                module_order = by_module[item.get_name(self).module]
             except KeyError:
-                module_order = by_module[item.name.module] = []
+                module_order = by_module[item.get_name(self).module] = []
             module_order.append(item)
 
         schema = self
@@ -276,7 +286,7 @@ class Schema(TypeContainer):
     def get(self, name, default=_void, *, module_aliases=None, type=None):
         def getter(modules, name):
             for module in modules:
-                result = module.get(name, default=None, type=type)
+                result = module.get(self, name, default=None, type=type)
                 if result is not None:
                     return result
 
@@ -295,14 +305,14 @@ class Schema(TypeContainer):
         return module in self.modules
 
     def drop_inheritance_cache(self, scls) -> 'Schema':
-        self._inheritance_cache.pop(scls.name, None)
+        self._inheritance_cache.pop(scls.get_name(self), None)
         return self
 
     def drop_inheritance_cache_for_child(self, scls) -> 'Schema':
         bases = scls.get_bases(self)
 
         for base in bases.objects(self):
-            self._inheritance_cache.pop(base.name, None)
+            self._inheritance_cache.pop(base.get_name(self), None)
 
         return self
 
@@ -313,13 +323,14 @@ class Schema(TypeContainer):
             children = scls._virtual_children
         except AttributeError:
             try:
-                child_names = self._inheritance_cache[scls.name]
+                child_names = self._inheritance_cache[scls.get_name(self)]
                 raise KeyError
             except KeyError:
                 child_names = self._find_children(scls)
-                self._inheritance_cache[scls.name] = child_names
+                self._inheritance_cache[scls.get_name(self)] = child_names
         else:
-            child_names = [c.material_type(self).name for c in children]
+            child_names = [c.material_type(self).get_name(self)
+                           for c in children]
 
         children = {self.get(n, type=type(scls)) for n in child_names}
 
@@ -334,7 +345,7 @@ class Schema(TypeContainer):
     def _find_children(self, scls):
         flt = lambda p: scls in p.get_bases(self).objects(self)
         it = self.get_objects(type=scls._type)
-        return {c.name for c in filter(flt, it)}
+        return {c.get_name(self) for c in filter(flt, it)}
 
     def get_objects(self, *, type=None, include_derived=False):
         for mod in self.get_modules():
@@ -383,16 +394,16 @@ class SchemaOverlay(Schema):
 
             if obj is None:
                 obj = name
-                name = obj.name
+                name = obj.get_name(self)
                 import warnings
                 warnings.warn(
                     f'Deprecated call to schema.add()',
                     RuntimeWarning, stacklevel=2)
 
-            if obj.name.module not in self.local_modules:
+            if obj.get_name(self).module not in self.local_modules:
                 s_modules.Module.create_in_schema(
                     self,
-                    name=obj.name.module)
+                    name=obj.get_name(self).module)
 
         return super().add(name, obj, _nameless=_nameless)
 

@@ -347,7 +347,8 @@ def compile_IfElse(
     if result is None:
         raise errors.EdgeQLError(
             'if/else clauses must be of related types, got: {}/{}'.format(
-                if_expr_type.name, else_expr_type.name),
+                if_expr_type.get_name(ctx.env.schema),
+                else_expr_type.get_name(ctx.env.schema)),
             context=expr.context)
 
     ifelse = irast.IfElseExpr(
@@ -516,12 +517,13 @@ def _cast_expr(
             # to simplify things on sqlgen side.
             if not isinstance(new_type, s_types.Tuple):
                 raise errors.EdgeQLError(
-                    f'cannot cast tuple to {new_type.name}',
+                    f'cannot cast tuple to '
+                    f'{new_type.get_name(ctx.env.schema)}',
                     context=source_context)
 
             if len(orig_type.element_types) != len(new_type.element_types):
                 raise errors.EdgeQLError(
-                    f'cannot cast to {new_type.name}: '
+                    f'cannot cast to {new_type.get_name(ctx.env.schema)}: '
                     f'number of elements is not the same',
                     context=source_context)
 
@@ -563,7 +565,7 @@ def _cast_expr(
             el_type = ql_type
         elif not isinstance(new_type, s_types.Array):
             raise errors.EdgeQLError(
-                f'cannot cast array to {new_type.name}',
+                f'cannot cast array to {new_type.get_name(ctx.env.schema)}',
                 context=source_context)
         else:
             el_type = ql_type.subtypes[0]
@@ -601,14 +603,16 @@ def compile_TypeFilter(
     arg_type = irutils.infer_type(arg, ctx.env.schema)
     if not isinstance(arg_type, s_objtypes.ObjectType):
         raise errors.EdgeQLError(
-            f'invalid type filter operand: {arg_type.name} '
+            f'invalid type filter operand: '
+            f'{arg_type.get_name(ctx.env.schema)} '
             f'is not an object type',
             context=expr.expr.context)
 
     typ = schemactx.get_schema_type(expr.type.maintype, ctx=ctx)
     if not isinstance(typ, s_objtypes.ObjectType):
         raise errors.EdgeQLError(
-            f'invalid type filter operand: {typ.name} is not an object type',
+            f'invalid type filter operand: '
+            f'{typ.get_name(ctx.env.schema)} is not an object type',
             context=expr.type.context)
 
     return setgen.class_indirection_set(arg, typ, optional=False, ctx=ctx)

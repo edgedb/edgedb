@@ -45,6 +45,9 @@ class Any(PseudoType):
             cls._instance = cls._create(None, name='anytype')
         return cls._instance
 
+    def get_name(self, schema):
+        return self.name
+
     def is_any(self):
         return True
 

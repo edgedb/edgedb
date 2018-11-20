@@ -98,10 +98,6 @@ class NodeCommand(named.NamedObjectCommand):
                                         schema, context)
             rt = irutils.infer_type(ir, schema)
 
-            if rt.is_view(schema):
-                # The expression itself declares a view, use it.
-                rt.name = cmd.classname
-
             view_types = ir.views.values()
 
             if isinstance(astnode, qlast.AlterObjectType):

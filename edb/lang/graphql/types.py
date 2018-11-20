@@ -90,7 +90,7 @@ class GQLCoreSchema:
         self.edb_schema = edb_schema
         # extract and sort modules to have a consistent type ordering
         self.modules = {
-            m.name for m in
+            m.get_name(self.edb_schema) for m in
             self.edb_schema.get_modules()
         } - {'schema', 'stdgraphql'}
         self.modules = list(self.modules)
@@ -136,11 +136,12 @@ class GQLCoreSchema:
                 target = GraphQLList(GraphQLNonNull(el_type))
         elif isinstance(edb_target, ObjectType):
             target = self._gql_interfaces.get(
-                edb_target.name,
-                self._gql_objtypes.get(edb_target.name)
+                edb_target.get_name(self.edb_schema),
+                self._gql_objtypes.get(edb_target.get_name(self.edb_schema))
             )
         else:
-            target = EDB_TO_GQL_SCALARS_MAP.get(edb_target.name.name)
+            target = EDB_TO_GQL_SCALARS_MAP.get(
+                edb_target.get_name(self.edb_schema).name)
 
         return target
 
@@ -197,7 +198,8 @@ class GQLCoreSchema:
                 if target:
                     if isinstance(ptr.get_target(self.edb_schema), ObjectType):
                         args = self._get_args(
-                            ptr.get_target(self.edb_schema).name)
+                            ptr.get_target(self.edb_schema).get_name(
+                                self.edb_schema))
                     else:
                         args = None
 
@@ -336,51 +338,54 @@ class GQLCoreSchema:
 
         # interfaces
         for t in interface_types:
-            short_name = self.get_short_name(t.name)
+            t_name = t.get_name(self.edb_schema)
+            short_name = self.get_short_name(t_name)
             gqltype = GraphQLInterfaceType(
                 name=short_name,
-                fields=partial(self.get_fields, t.name),
+                fields=partial(self.get_fields, t_name),
                 resolve_type=lambda obj, info: obj,
             )
-            self._gql_interfaces[t.name] = gqltype
+            self._gql_interfaces[t_name] = gqltype
 
             # input object types corresponding to this interface
             gqlfiltertype = GraphQLInputObjectType(
                 name='Filter' + short_name,
-                fields=partial(self.get_filter_fields, t.name),
+                fields=partial(self.get_filter_fields, t_name),
             )
-            self._gql_inobjtypes[t.name] = gqlfiltertype
+            self._gql_inobjtypes[t_name] = gqlfiltertype
 
             # ordering input type
             gqlordertype = GraphQLInputObjectType(
                 name='Order' + short_name,
-                fields=partial(self.get_order_fields, t.name),
+                fields=partial(self.get_order_fields, t_name),
             )
-            self._gql_ordertypes[t.name] = gqlordertype
+            self._gql_ordertypes[t_name] = gqlordertype
 
         # object types
         for t in obj_types:
             interfaces = []
+            t_name = t.get_name(self.edb_schema)
 
             # views are currently skipped
             if t.is_view(self.edb_schema):
                 continue
 
-            if t.name in self._gql_interfaces:
-                interfaces.append(self._gql_interfaces[t.name])
+            if t_name in self._gql_interfaces:
+                interfaces.append(self._gql_interfaces[t_name])
 
             for st in t.get_mro(self.edb_schema).objects(self.edb_schema):
                 if (isinstance(st, ObjectType) and
-                        st.name in self._gql_interfaces):
-                    interfaces.append(self._gql_interfaces[st.name])
+                        st.get_name(self.edb_schema) in self._gql_interfaces):
+                    interfaces.append(
+                        self._gql_interfaces[st.get_name(self.edb_schema)])
 
-            short_name = self.get_short_name(t.name)
+            short_name = self.get_short_name(t_name)
             gqltype = GraphQLObjectType(
                 name=short_name + 'Type',
-                fields=partial(self.get_fields, t.name),
+                fields=partial(self.get_fields, t_name),
                 interfaces=interfaces,
             )
-            self._gql_objtypes[t.name] = gqltype
+            self._gql_objtypes[t_name] = gqltype
 
     def get(self, name, *, dummy=False):
         '''Get a special GQL type either by name or based on EdgeDB type.'''
@@ -394,7 +399,8 @@ class GQLCoreSchema:
 
         else:
             edb_base = name
-            name = f'{edb_base.name.module}::{edb_base.name.name}'
+            edb_base_name = edb_base.get_name(self.edb_schema)
+            name = f'{edb_base_name.module}::{edb_base_name.name}'
 
         if not name.startswith('stdgraphql::'):
             if edb_base is None:
@@ -446,9 +452,11 @@ class GQLBaseType(metaclass=GQLTypeMeta):
         if edb_base is None and self.edb_type:
             edb_base = schema.edb_schema.get(self.edb_type)
 
+        edb_base_name = edb_base.get_name(schema)
+
         # __typename
         if name is None:
-            self._name = f'{edb_base.name.module}::{edb_base.name.name}'
+            self._name = f'{edb_base_name.module}::{edb_base_name.name}'
         else:
             self._name = name
         # determine module from name if not already specified
@@ -487,7 +495,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
 
     @property
     def edb_base_name(self):
-        base = self.edb_base.name
+        base = self.edb_base.get_name(self.edb_schema)
         return codegen.generate_source(
             qlast.ObjectRef(
                 module=base.module,

@@ -107,7 +107,7 @@ class Set(Base):
 
     def __repr__(self):
         return \
-            f'<ir.Set \'{self.path_id or self.scls.name}\' at 0x{id(self):x}>'
+            f'<ir.Set \'{self.path_id or self.scls.id}\' at 0x{id(self):x}>'
 
 
 class Command(Base):

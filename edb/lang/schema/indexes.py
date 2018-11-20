@@ -41,7 +41,7 @@ class SourceIndex(inheriting.InheritingObject):
     def __repr__(self):
         cls = self.__class__
         return '<{}.{} {!r} at 0x{:x}>'.format(
-            cls.__module__, cls.__name__, self.name, id(self))
+            cls.__module__, cls.__name__, self.id, id(self))
 
     __str__ = __repr__
 

@@ -141,7 +141,7 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
         schema = super()._create_begin(schema, context)
 
         params: s_func.FuncParameterList = self.scls.get_params(schema)
-        fullname = self.scls.name
+        fullname = self.scls.get_name(schema)
         shortname = Operator.shortname_from_fullname(fullname)
         return_type = self.scls.get_return_type(schema)
         return_typemod = self.scls.get_return_typemod(schema)

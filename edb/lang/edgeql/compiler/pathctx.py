@@ -34,8 +34,10 @@ from . import context
 def get_path_id(scls: s_obj.Object, *,
                 typename: typing.Optional[str]=None,
                 ctx: context.CompilerContext) -> irast.PathId:
-    return irast.PathId(scls, typename=typename,
-                        namespace=ctx.path_id_namespace)
+    return irast.PathId.from_type(
+        ctx.env.schema, scls,
+        typename=typename,
+        namespace=ctx.path_id_namespace)
 
 
 def register_set_in_scope(

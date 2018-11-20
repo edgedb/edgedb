@@ -97,20 +97,6 @@ class IntrospectionMech:
         self.classname_to_table_id_cache.clear()
         self.attribute_link_map_cache.clear()
 
-    def get_type_id(self, objtype):
-        objtype_id = None
-
-        type_cache = self.type_cache
-        if type_cache:
-            objtype_id = type_cache.get(objtype.name)
-
-        if objtype_id is None:
-            msg = 'could not determine backend id for type in this context'
-            details = 'ObjectType: {}'.format(objtype.name)
-            raise s_err.SchemaError(msg, details=details)
-
-        return objtype_id
-
     async def get_type_map(self, force_reload=False):
         if not self.type_cache or force_reload:
             cl_ds = datasources.schema.objtypes
@@ -272,7 +258,7 @@ class IntrospectionMech:
 
         for scalar in schema.get_objects(type='ScalarType'):
             try:
-                basename = basemap[scalar.name]
+                basename = basemap[scalar.get_name(schema)]
             except KeyError:
                 pass
             else:
@@ -285,11 +271,11 @@ class IntrospectionMech:
                     scalar.issubclass(schema, sequence) and
                     not scalar.get_is_abstract(schema)):
                 seq_name = common.scalar_name_to_sequence_name(
-                    scalar.name, catenate=False)
+                    scalar.get_name(schema), catenate=False)
                 if seq_name not in seqs:
                     msg = 'internal metadata incosistency'
                     details = (f'Missing sequence for sequence '
-                               f'scalar {scalar.name}')
+                               f'scalar {scalar.get_name(schema)}')
                     raise s_err.SchemaError(msg, details=details)
                 seen_seqs.add(seq_name)
 
@@ -459,7 +445,7 @@ class IntrospectionMech:
 
         for constraint in schema.get_objects(type='constraint'):
             try:
-                bases = basemap[constraint.name]
+                bases = basemap[constraint.get_name(schema)]
             except KeyError:
                 pass
             else:
@@ -557,7 +543,8 @@ class IntrospectionMech:
 
         for index_data in indexes:
             subj = schema.get(index_data['subject_name'])
-            subj_table_name = common.get_table_name(subj, catenate=False)
+            subj_table_name = common.get_table_name(
+                schema, subj, catenate=False)
             index_name = sn.Name(index_data['name'])
 
             try:
@@ -601,7 +588,7 @@ class IntrospectionMech:
                 'Record for {!r} hosted by {!r} exists, but ' +
                 'the corresponding table column is missing').format(
                     pointer.get_shortname(schema),
-                    pointer.get_source(schema).name)
+                    pointer.get_source(schema).get_name(schema))
             raise s_err.SchemaError(msg, details=details)
 
         return self._get_pointer_column_target(
@@ -701,7 +688,7 @@ class IntrospectionMech:
                     schema, link, None)
 
                 objtype_schema, objtype_table = \
-                    common.objtype_name_to_table_name(source.name,
+                    common.objtype_name_to_table_name(source.get_name(schema),
                                                       catenate=False)
 
             schema = link.set_field_value(schema, 'target', target)
@@ -711,7 +698,7 @@ class IntrospectionMech:
 
         for link in schema.get_objects(type='link'):
             try:
-                bases = basemap[link.name]
+                bases = basemap[link.get_name(schema)]
             except KeyError:
                 pass
             else:
@@ -729,10 +716,11 @@ class IntrospectionMech:
         g = {}
 
         for link in schema.get_objects(type='link'):
-            g[link.name] = {"item": link, "merge": [], "deps": []}
+            g[link.get_name(schema)] = {"item": link, "merge": [], "deps": []}
             link_bases = link.get_bases(schema).objects(schema)
             if link_bases:
-                g[link.name]['merge'].extend(b.name for b in link_bases)
+                g[link.get_name(schema)]['merge'].extend(
+                    b.get_name(schema) for b in link_bases)
 
         topological.normalize(g, merger=s_links.Link.merge, schema=schema)
 
@@ -807,7 +795,7 @@ class IntrospectionMech:
 
         for prop in schema.get_objects(type='link_property'):
             try:
-                bases = basemap[prop.name]
+                bases = basemap[prop.get_name(schema)]
             except KeyError:
                 pass
             else:
@@ -822,10 +810,11 @@ class IntrospectionMech:
         g = {}
 
         for prop in schema.get_objects(type='link_property'):
-            g[prop.name] = {"item": prop, "merge": [], "deps": []}
+            g[prop.get_name(schema)] = {"item": prop, "merge": [], "deps": []}
             prop_bases = prop.get_bases(schema).objects(schema)
             if prop_bases:
-                g[prop.name]['merge'].extend(b.name for b in prop_bases)
+                g[prop.get_name(schema)]['merge'].extend(
+                    b.get_name(schema) for b in prop_bases)
 
         topological.normalize(
             g, merger=s_props.Property.merge, schema=schema)
@@ -943,7 +932,7 @@ class IntrospectionMech:
 
         for objtype in schema.get_objects(type='ObjectType'):
             try:
-                bases = basemap[objtype.name]
+                bases = basemap[objtype.get_name(schema)]
             except KeyError:
                 pass
             else:
@@ -976,10 +965,13 @@ class IntrospectionMech:
         g = {}
         for objtype in schema.get_objects(type='ObjectType',
                                           include_derived=True):
-            g[objtype.name] = {"item": objtype, "merge": [], "deps": []}
+            g[objtype.get_name(schema)] = {
+                "item": objtype, "merge": [], "deps": []
+            }
             objtype_bases = objtype.get_bases(schema).objects(schema)
             if objtype_bases:
-                g[objtype.name]["merge"].extend(b.name for b in objtype_bases)
+                g[objtype.get_name(schema)]["merge"].extend(
+                    b.get_name(schema) for b in objtype_bases)
 
         topological.normalize(
             g, merger=s_objtypes.ObjectType.merge, schema=schema)

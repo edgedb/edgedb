@@ -42,11 +42,12 @@ def range_for_material_objtype(
     from . import pathctx  # XXX: fix cycle
 
     objtype = objtype.material_type(env.schema)
+    objtype_name = objtype.get_name(env.schema)
 
     table_schema_name, table_name = common.objtype_name_to_table_name(
-        objtype.name, catenate=False)
+        objtype_name, catenate=False)
 
-    if objtype.name.module == 'schema':
+    if objtype_name.module == 'schema':
         # Redirect all queries to schema tables to edgedbss
         table_schema_name = 'edgedbss'
 
@@ -59,11 +60,11 @@ def range_for_material_objtype(
     rvar = pgast.RangeVar(
         relation=relation,
         alias=pgast.Alias(
-            aliasname=env.aliases.get(objtype.name.name)
+            aliasname=env.aliases.get(objtype_name.name)
         )
     )
 
-    overlays = env.rel_overlays.get(objtype.name)
+    overlays = env.rel_overlays.get(objtype_name)
     if overlays and include_overlays:
         set_ops = []
 
@@ -156,7 +157,7 @@ def table_from_ptrcls(
         env: context.Environment) -> pgast.RangeVar:
     """Return a Table corresponding to a given Link."""
     table_schema_name, table_name = common.get_table_name(
-        ptrcls, catenate=False)
+        env.schema, ptrcls, catenate=False)
 
     pname = ptrcls.get_shortname(env.schema)
 
@@ -377,7 +378,7 @@ def get_rvar_var(
 def add_rel_overlay(
         scls: s_objtypes.ObjectType, op: str, rel: pgast.BaseRelation, *,
         env: context.Environment) -> None:
-    overlays = env.rel_overlays[scls.name]
+    overlays = env.rel_overlays[scls.get_name(env.schema)]
     overlays.append((op, rel))
 
 

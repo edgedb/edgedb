@@ -137,8 +137,10 @@ class Source(indexes.IndexableSubject):
 
         ptr_names = []
         if not sn.Name.is_qualified(name):
-            ptr_names.append(sn.Name(module=self.name.module, name=name))
-            ptr_names.append(sn.Name(module='std', name=name))
+            ptr_names.append(
+                sn.Name(module=self.get_name(schema).module, name=name))
+            ptr_names.append(
+                sn.Name(module='std', name=name))
         else:
             ptr_names.append(name)
 
@@ -291,7 +293,7 @@ class Source(indexes.IndexableSubject):
                 ptr_target = self
 
             fqname = common_parent.derive_name(
-                schema, ptr_source, ptr_target.name)
+                schema, ptr_source, ptr_target.get_name(schema))
             ptr = schema.get(fqname, default=None)
             if ptr is None:
                 schema, common_parent_spec = common_parent.get_derived(

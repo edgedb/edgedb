@@ -181,16 +181,16 @@ class RebaseNamedObject(named.NamedObjectCommand):
         metaclass = self.get_schema_metaclass()
         scls = schema.get(self.classname, type=metaclass)
         bases = list(scls.get_bases(schema).objects(schema))
-        removed_bases = {b.name for b in self.removed_bases}
+        removed_bases = {b.get_name(schema) for b in self.removed_bases}
         existing_bases = set()
 
         for b in bases:
-            if b.name in removed_bases:
+            if b.get_name(schema) in removed_bases:
                 bases.remove(b)
             else:
-                existing_bases.add(b.name)
+                existing_bases.add(b.get_name(schema))
 
-        index = {b.name: i for i, b in enumerate(bases)}
+        index = {b.get_name(schema): i for i, b in enumerate(bases)}
 
         for new_bases, pos in self.added_bases:
             if isinstance(pos, tuple):
@@ -203,16 +203,16 @@ class RebaseNamedObject(named.NamedObjectCommand):
             else:
                 idx = index[ref]
 
-            bases[idx:idx] = [schema.get(b.name) for b in new_bases
-                              if b.name not in existing_bases]
-            index = {b.name: i for i, b in enumerate(bases)}
+            bases[idx:idx] = [schema.get(b.get_name(schema)) for b in new_bases
+                              if b.get_name(schema) not in existing_bases]
+            index = {b.get_name(schema): i for i, b in enumerate(bases)}
 
         schema = scls.set_field_value(schema, 'bases', bases)
 
         return schema, scls
 
 
-def _merge_mro(obj, mros):
+def _merge_mro(schema, obj, mros):
     result = []
 
     while True:
@@ -227,8 +227,8 @@ def _merge_mro(obj, mros):
             if not tails:
                 break
         else:
-            msg = "Could not find consistent MRO for %s" % obj.name
-            raise schema_error.SchemaError(msg)
+            raise schema_error.SchemaError(
+                f"Could not find consistent MRO for {obj.get_name(schema)}")
 
         result.append(candidate)
 
@@ -246,7 +246,7 @@ def compute_mro(schema, obj):
     for base in bases:
         mros.append(base.compute_mro(schema))
 
-    return _merge_mro(obj, mros)
+    return _merge_mro(schema, obj, mros)
 
 
 def create_virtual_parent(schema, children, *,
@@ -274,10 +274,11 @@ def create_virtual_parent(schema, children, *,
     children = list(_children)
 
     if module_name is None:
-        module_name = children[0].name.module
+        module_name = children[0].get_name(schema).module
 
-    name = sources.Source.gen_virt_parent_name((t.name for t in children),
-                                               module=module_name)
+    name = sources.Source.gen_virt_parent_name(
+        (t.get_name(schema) for t in children),
+        module=module_name)
 
     target = schema.get(name, default=None)
 
@@ -376,7 +377,7 @@ class InheritingObject(derivable.DerivableObject):
                         old_base_names, new_base_names)
 
                     delta.add(rebase(
-                        classname=new.name,
+                        classname=new.get_name(new_schema),
                         metaclass=type(new),
                         removed_bases=removed,
                         added_bases=added,
@@ -431,7 +432,8 @@ class InheritingObject(derivable.DerivableObject):
             if not ancestor.get_is_abstract(schema):
                 return ancestor
 
-        raise ValueError(f'{self.name} has no non-abstract ancestors')
+        raise ValueError(
+            f'{self.get_name(schema)} has no non-abstract ancestors')
 
     def compute_mro(self, schema):
         return compute_mro(schema, self)

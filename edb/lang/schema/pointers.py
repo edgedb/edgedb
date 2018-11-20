@@ -151,7 +151,7 @@ class Pointer(constraints.ConsistencySubject, PointerLike):
 
     def create_common_target(self, schema, targets, minimize_by=False):
         schema, target = inheriting.create_virtual_parent(
-            schema, targets, module_name=self.name.module,
+            schema, targets, module_name=self.get_name(schema).module,
             minimize_by=minimize_by)
 
         schema = target.set_field_value(schema, 'is_derived', True)
@@ -197,9 +197,12 @@ class Pointer(constraints.ConsistencySubject, PointerLike):
             ccn1 = type(t1).__name__
             ccn2 = type(t2).__name__
 
-            detail = (f'[{source.name}].[{pn}] targets {ccn1} "{t1.name}"'
-                      f'while it also targets {ccn2} "{t2.name}"'
-                      'in other parent.')
+            detail = (
+                f'[{source.get_name(schema)}].[{pn}] '
+                f'targets {ccn1} "{t1.get_name(schema)}"'
+                f'while it also targets {ccn2} "{t2.get_name(schema)}"'
+                'in other parent.'
+            )
 
             raise schema_error.SchemaError(
                 f'could not merge "{pn}" pointer: invalid ' +
@@ -211,9 +214,10 @@ class Pointer(constraints.ConsistencySubject, PointerLike):
                 pn = ptr.get_shortname(schema)
                 raise schema_error.SchemaError(
                     f'could not merge {pn!r} pointer: targets conflict',
-                    details=f'({source.name}).({pn}) targets scalar type'
-                            f'{t1.name!r} while it also targets incompatible'
-                            f'scalar type {t2.name!r} in other parent.')
+                    details=f'({source.get_name(schema)}).({pn}) '
+                            f'targets scalar type {t1.get_name(schema)!r} '
+                            f'while it also targets incompatible scalar type '
+                            f'{t2.get_name(schema)!r} in other parent.')
 
             return schema, t1
 
@@ -247,18 +251,19 @@ class Pointer(constraints.ConsistencySubject, PointerLike):
                     pn = ptr.get_displayname(schema)
                     raise schema_error.SchemaError(
                         f'could not merge {pn!r} pointer: targets conflict',
-                        details=f'{source.name}.{pn} targets object'
-                                f' {t2.name!r} which is not related to any of'
-                                f' targets found in other sources being'
-                                f' merged: {t1.name!r}.')
+                        details=f'{source.get_name(schema)}.{pn} targets '
+                                f'object {t2.get_name(schema)!r} which '
+                                f'is not related to any of targets found in '
+                                f'other sources being merged: '
+                                f'{t1.get_name(schema)!r}.')
 
             for tgt1 in tt1:
                 if not any(tgt2.issubclass(schema, tgt1) for tgt2 in tt2):
                     new_targets.append(tgt1)
 
             if len(new_targets) > 1:
-                tnames = (t.name for t in new_targets)
-                module = source.name.module
+                tnames = (t.get_name(schema) for t in new_targets)
+                module = source.get_name(schema).module
                 parent_name = s_objtypes.ObjectType.gen_virt_parent_name(
                     tnames, module)
                 schema, current_target = \
@@ -280,7 +285,7 @@ class Pointer(constraints.ConsistencySubject, PointerLike):
                 ptr = None
 
         if ptr is None:
-            fqname = self.derive_name(schema, source, target.name)
+            fqname = self.derive_name(schema, source, target.get_name(schema))
             ptr = schema.get(fqname, default=None)
             if ptr is None:
                 if self.generic(schema):
@@ -294,7 +299,7 @@ class Pointer(constraints.ConsistencySubject, PointerLike):
     def get_derived_name(self, schema, source, target, *qualifiers,
                          mark_derived=False):
         if mark_derived:
-            fqname = self.derive_name(schema, source, target.name)
+            fqname = self.derive_name(schema, source, target.get_name(schema))
         else:
             fqname = self.derive_name(schema, source)
 
@@ -522,7 +527,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
         )
 
         scope_tree = irast.new_scope_tree()
-        scope_tree.attach_path(irast.PathId(source))
+        scope_tree.attach_path(irast.PathId.from_type(schema, source))
         cardinality = ir_inference.infer_cardinality(
             ir, scope_tree.attach_fence(), schema)
 

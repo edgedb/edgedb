@@ -228,12 +228,9 @@ class Backend:
 
     async def exec_session_state_cmd(self, cmd):
         for alias, module in cmd.modaliases.items():
-            self.modaliases[alias] = module.name
+            self.modaliases[alias] = module.get_name(self.schema)
 
         self.testmode = cmd.testmode
-
-    def get_type_id(self, objtype):
-        return self._intro_mech.get_type_id(objtype)
 
     def _get_collection_type_id(self, coll_type, subtypes, element_names):
         subtypes = (f"{st.type_id}-{st.cardinality}" for st in subtypes)
@@ -244,7 +241,7 @@ class Backend:
 
     def _get_union_type_id(self, union_type):
         base_type_id = ','.join(
-            str(self.get_type_id(c)) for c in union_type.children(self.schema))
+            str(c.id) for c in union_type.children(self.schema))
 
         return uuid.uuid5(types.TYPE_ID_NAMESPACE, base_type_id)
 
@@ -271,7 +268,7 @@ class Backend:
             if mt.get_is_virtual(schema):
                 base_type_id = self._get_union_type_id(mt)
             else:
-                base_type_id = self.get_type_id(mt)
+                base_type_id = mt.id
 
             subtypes = []
             element_names = []
@@ -305,7 +302,7 @@ class Backend:
             # This is a regular type
             subtypes = None
             element_names = None
-            type_id = self.get_type_id(mt)
+            type_id = mt.id
 
         type_desc = TypeDescriptor(
             type_id=type_id, schema_type=mt, subtypes=subtypes,

@@ -35,7 +35,7 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
         deck_ptr = User.getptr(self.schema, 'deck')
         count_prop = deck_ptr.getptr(self.schema, 'count')
 
-        pid_1 = pathid.PathId(User)
+        pid_1 = pathid.PathId.from_type(self.schema, User)
         self.assertEqual(
             str(pid_1),
             '(test::User)')
@@ -87,7 +87,7 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
         deck_ptr = User.getptr(self.schema, 'deck')
         count_prop = deck_ptr.getptr(self.schema, 'count')
 
-        pid_1 = pathid.PathId(User)
+        pid_1 = pathid.PathId.from_type(self.schema, User)
         pid_2 = pid_1.extend(deck_ptr, schema=self.schema)
         ptr_pid = pid_2.ptr_path()
         prop_pid = ptr_pid.extend(count_prop, schema=self.schema)
@@ -109,7 +109,7 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
         count_prop = deck_ptr.getptr(self.schema, 'count')
 
         ns = frozenset(('foo',))
-        pid_1 = pathid.PathId(User, namespace=ns)
+        pid_1 = pathid.PathId.from_type(self.schema, User, namespace=ns)
         pid_2 = pid_1.extend(deck_ptr, schema=self.schema)
         ptr_pid = pid_2.ptr_path()
         prop_pid = ptr_pid.extend(count_prop, schema=self.schema)
@@ -119,7 +119,7 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
         self.assertEqual(ptr_pid.namespace, ns)
         self.assertEqual(prop_pid.namespace, ns)
 
-        pid_1_no_ns = pathid.PathId(User)
+        pid_1_no_ns = pathid.PathId.from_type(self.schema, User)
         self.assertNotEqual(pid_1, pid_1_no_ns)
 
     def test_edgeql_ir_pathid_namespace_02(self):
@@ -134,7 +134,7 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
         ns_1 = frozenset(('foo',))
         ns_2 = frozenset(('bar',))
 
-        pid_1 = pathid.PathId(Card)
+        pid_1 = pathid.PathId.from_type(self.schema, Card)
         pid_2 = pid_1.extend(owners_ptr, ns=ns_1, schema=self.schema)
         pid_2_no_ns = pid_1.extend(owners_ptr, schema=self.schema)
 
