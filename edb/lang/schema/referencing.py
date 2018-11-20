@@ -679,17 +679,19 @@ class ReferencingObject(inheriting.InheritingObject,
                 # the `inherited` keyword if ancestors have
                 # a reference under the same name.
                 raise s_err.SchemaDefinitionError(
-                    f'{self.shortname}: {local.shortname} must be '
+                    f'{self.get_shortname(schema)}: '
+                    f'{local.get_shortname(schema)} must be '
                     f'declared using the `inherited` keyword because '
                     f'it is defined in the following ancestor(s): '
-                    f'{", ".join(a.shortname for a in ancestry)}',
+                    f'{", ".join(a.get_shortname(schema) for a in ancestry)}',
                     context=local.get_sourcectx(schema)
                 )
 
             if (merged is local and local is not None and
                     local.get_declared_inherited(schema)):
                 raise s_err.SchemaDefinitionError(
-                    f'{self.shortname}: {local.shortname} cannot '
+                    f'{self.get_shortname(schema)}: '
+                    f'{local.get_shortname(schema)} cannot '
                     f'be declared `inherited` as there are no ancestors '
                     f'defining it.',
                     context=local.get_sourcectx(schema)

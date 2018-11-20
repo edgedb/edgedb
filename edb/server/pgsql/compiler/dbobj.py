@@ -158,7 +158,7 @@ def table_from_ptrcls(
     table_schema_name, table_name = common.get_table_name(
         ptrcls, catenate=False)
 
-    pname = ptrcls.shortname
+    pname = ptrcls.get_shortname(env.schema)
 
     if pname.module == 'schema':
         # Redirect all queries to schema tables to edgedbss
@@ -188,7 +188,7 @@ def range_for_ptrcls(
     corresponding to a set of specialized links computed from the given
     `ptrcls` taking source inheritance into account.
     """
-    linkname = ptrcls.shortname
+    linkname = ptrcls.get_shortname(env.schema)
     endpoint = ptrcls.get_source(env.schema)
 
     tgt_col = pgtypes.get_pointer_storage_info(
@@ -232,7 +232,7 @@ def range_for_ptrcls(
 
         set_ops.append(('union', qry))
 
-        overlays = env.rel_overlays.get(src_ptrcls.shortname)
+        overlays = env.rel_overlays.get(src_ptrcls.get_shortname(env.schema))
         if overlays and include_overlays:
             for op, cte in overlays:
                 rvar = pgast.RangeVar(
@@ -292,7 +292,7 @@ def range_from_queryset(
         rvar = pgast.RangeSubselect(
             subquery=qry,
             alias=pgast.Alias(
-                aliasname=env.aliases.get(scls.shortname.name)
+                aliasname=env.aliases.get(scls.get_shortname(env.schema).name)
             )
         )
 
@@ -399,7 +399,8 @@ def cols_for_pointer(
 
     if isinstance(pointer, s_links.Link):
         for ptr in pointer.get_pointers(env.schema).objects(env.schema):
-            cols.append(common.edgedb_name_to_pg_name(ptr.shortname))
+            cols.append(
+                common.edgedb_name_to_pg_name(ptr.get_shortname(env.schema)))
     else:
         cols.extend(('std::source', 'std::target'))
 

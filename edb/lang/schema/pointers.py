@@ -61,12 +61,18 @@ def merge_cardinality(target: so.Object, sources: typing.List[so.Object],
                     current_from_source = current_from.get_source(schema)
                     source_source = source.get_source(schema)
 
-                    tgt_repr = (f'{target_source.displayname}.'
-                                f'{target.displayname}')
-                    cf_repr = (f'{current_from_source.displayname}.'
-                               f'{current_from.displayname}')
-                    other_repr = (f'{source_source.displayname}.'
-                                  f'{source.displayname}')
+                    tgt_repr = (
+                        f'{target_source.get_displayname(schema)}.'
+                        f'{target.get_displayname(schema)}'
+                    )
+                    cf_repr = (
+                        f'{current_from_source.get_displayname(schema)}.'
+                        f'{current_from.get_displayname(schema)}'
+                    )
+                    other_repr = (
+                        f'{source_source.get_displayname(schema)}.'
+                        f'{source.get_displayname(schema)}'
+                    )
 
                     raise schema_error.SchemaError(
                         f'cannot redefine the target cardinality of '
@@ -120,16 +126,16 @@ class Pointer(constraints.ConsistencySubject, PointerLike):
         default=None, compcoef=0.833, coerce=True,
         merge_fn=merge_cardinality)
 
-    @property
-    def displayname(self) -> str:
-        return self.shortname.name
+    def get_displayname(self, schema) -> str:
+        return self.get_shortname(schema).name
 
     def material_type(self, schema):
         if self.generic(schema):
             raise ValueError(f'{self!r} is generic')
 
         source = self.get_source(schema)
-        return source.material_type(schema).getptr(schema, self.shortname)
+        return source.material_type(schema).getptr(
+            schema, self.get_shortname(schema))
 
     def get_near_endpoint(self, schema, direction):
         if direction == PointerDirection.Outbound:
@@ -187,7 +193,7 @@ class Pointer(constraints.ConsistencySubject, PointerLike):
                 isinstance(t2, s_scalars.ScalarType)):
             # Targets are not of the same node type
 
-            pn = ptr.shortname
+            pn = ptr.get_shortname(schema)
             ccn1 = type(t1).__name__
             ccn2 = type(t2).__name__
 
@@ -202,7 +208,7 @@ class Pointer(constraints.ConsistencySubject, PointerLike):
         elif isinstance(t1, s_scalars.ScalarType):
             # Targets are both scalars
             if t1 != t2:
-                pn = ptr.shortname
+                pn = ptr.get_shortname(schema)
                 raise schema_error.SchemaError(
                     f'could not merge {pn!r} pointer: targets conflict',
                     details=f'({source.name}).({pn}) targets scalar type'
@@ -238,7 +244,7 @@ class Pointer(constraints.ConsistencySubject, PointerLike):
                     # The link is neither a subclass, nor a superclass
                     # of the previously seen targets, which creates an
                     # unresolvable target requirement conflict.
-                    pn = ptr.displayname
+                    pn = ptr.get_displayname(schema)
                     raise schema_error.SchemaError(
                         f'could not merge {pn!r} pointer: targets conflict',
                         details=f'{source.name}.{pn} targets object'
@@ -267,14 +273,14 @@ class Pointer(constraints.ConsistencySubject, PointerLike):
             return schema, current_target
 
     def get_derived(self, schema, source, target, **kwargs):
-        fqname = self.derive_name(source)
+        fqname = self.derive_name(schema, source)
         ptr = schema.get(fqname, default=None)
         if ptr is not None:
             if ptr.get_target(schema) != target:
                 ptr = None
 
         if ptr is None:
-            fqname = self.derive_name(source, target.name)
+            fqname = self.derive_name(schema, source, target.name)
             ptr = schema.get(fqname, default=None)
             if ptr is None:
                 if self.generic(schema):
@@ -285,12 +291,12 @@ class Pointer(constraints.ConsistencySubject, PointerLike):
 
         return schema, ptr
 
-    def get_derived_name(self, source, target, *qualifiers,
+    def get_derived_name(self, schema, source, target, *qualifiers,
                          mark_derived=False):
         if mark_derived:
-            fqname = self.derive_name(source, target.name)
+            fqname = self.derive_name(schema, source, target.name)
         else:
-            fqname = self.derive_name(source)
+            fqname = self.derive_name(schema, source)
 
         return fqname
 
@@ -331,17 +337,20 @@ class Pointer(constraints.ConsistencySubject, PointerLike):
     def is_pure_computable(self, schema):
         return self.get_computable(schema) and bool(self.get_default(schema))
 
-    def is_id_pointer(self):
-        return self.shortname in {'std::target', 'std::id'}
+    def is_id_pointer(self, schema):
+        return self.get_shortname(schema) in {'std::target', 'std::id'}
 
-    def is_endpoint_pointer(self):
-        return self.shortname in {'std::source', 'std::target'}
+    def is_endpoint_pointer(self, schema):
+        return self.get_shortname(schema) in {'std::source', 'std::target'}
 
-    def is_special_pointer(self):
-        return self.shortname in {'std::source', 'std::target', 'std::id'}
+    def is_special_pointer(self, schema):
+        return self.get_shortname(schema) in {
+            'std::source', 'std::target', 'std::id'
+        }
 
-    def is_protected_pointer(self):
-        return self.is_special_pointer() or self.shortname in {'std::__type__'}
+    def is_protected_pointer(self, schema):
+        return (self.is_special_pointer(schema) or
+                self.get_shortname(schema) in {'std::__type__'})
 
     def generic(self, schema):
         return self.get_source(schema) is None

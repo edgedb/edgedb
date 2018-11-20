@@ -76,12 +76,12 @@ def index_parameters(ql_args: typing.List[qlast.Base], *,
         if variadic and variadic_num == i:
             assert varargs is None
             varargs = []
-            result[p.shortname] = qlast.Array(elements=varargs)
+            result[p.get_shortname(schema)] = qlast.Array(elements=varargs)
 
         if varargs is not None:
             varargs.append(e)
         else:
-            result[p.shortname] = e
+            result[p.get_shortname(schema)] = e
 
     return result
 

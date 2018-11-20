@@ -159,15 +159,16 @@ def compile_func_to_ir(func, schema, *,
     func_params = func.get_params(schema)
     pg_params = s_func.PgParams.from_params(schema, func_params)
     for pi, p in enumerate(pg_params.params):
-        anchors[p.shortname] = irast.Parameter(
-            name=p.shortname, type=p.get_type(schema))
+        p_shortname = p.get_shortname(schema)
+        anchors[p_shortname] = irast.Parameter(
+            name=p_shortname, type=p.get_type(schema))
 
         if p.get_default(schema) is None:
             continue
 
         tree.aliases.append(
             qlast.AliasedExpr(
-                alias=p.shortname,
+                alias=p_shortname,
                 expr=qlast.IfElse(
                     condition=qlast.BinOp(
                         left=qlast.FunctionCall(
@@ -184,7 +185,7 @@ def compile_func_to_ir(func, schema, *,
                         right=qlast.IntegerConstant(value='0'),
                         op=qlast.EQ),
                     if_expr=qlast.Path(
-                        steps=[qlast.ObjectRef(name=p.shortname)]),
+                        steps=[qlast.ObjectRef(name=p_shortname)]),
                     else_expr=qlast._Optional(expr=p.get_ql_default(schema)))))
 
     ir = compile_ast_to_ir(

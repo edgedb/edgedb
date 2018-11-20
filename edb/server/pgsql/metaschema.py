@@ -1604,7 +1604,7 @@ ql = common.quote_literal
 
 
 def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
-    pn = ptr.shortname
+    pn = ptr.get_shortname(schema)
 
     if refdict:
         if (issubclass(mcls, s_inheriting.InheritingObject) or
@@ -2086,7 +2086,7 @@ async def generate_views(conn, schema):
                 else:
                     col_expr = f't.{q(pn.name)}'
 
-                cols.append((col_expr, dbname(ptr.shortname)))
+                cols.append((col_expr, dbname(ptr.get_shortname(schema))))
             else:
                 view = _get_link_view(mcls, schema_cls, field, ptr, refdict,
                                       schema)

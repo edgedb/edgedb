@@ -344,7 +344,8 @@ def infer_pointer_cardinality(
             raise errors.EdgeQLError(
                 f'possibly more than one element returned by an '
                 f'expression for a computable '
-                f'{ptrcls.schema_class_displayname} {ptrcls.displayname!r} '
+                f'{ptrcls.schema_class_displayname} '
+                f'{ptrcls.get_displayname(ctx.env.schema)!r} '
                 f"declared as 'single'",
                 context=source_ctx
             )

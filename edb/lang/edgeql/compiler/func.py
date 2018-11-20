@@ -141,7 +141,7 @@ def compile_FunctionCall(
 
         node = irast.FunctionCall(
             args=args,
-            func_shortname=func.shortname,
+            func_shortname=func.get_shortname(schema),
             func_polymorphic=is_polymorphic,
             func_sql_function=func.get_from_function(schema),
             params_typemods=params_typemods,
@@ -280,10 +280,11 @@ def try_bind_func_args(
 
         pi += 1
 
-        if param.shortname in kwargs:
+        param_shortname = param.get_shortname(schema)
+        if param_shortname in kwargs:
             matched_kwargs += 1
 
-            arg_type, arg_val = kwargs[param.shortname]
+            arg_type, arg_val = kwargs[param_shortname]
             if not _check_type(arg_val, arg_type, param.get_type(schema)):
                 return _NO_MATCH
 
@@ -373,7 +374,8 @@ def try_bind_func_args(
                 if val is not None:
                     continue
 
-                null_args.add(param.shortname)
+                param_shortname = param.get_shortname(schema)
+                null_args.add(param_shortname)
 
                 defaults_mask |= 1 << i
 
@@ -395,7 +397,7 @@ def try_bind_func_args(
                         if resolved_poly_base_type is None:
                             raise errors.EdgeQLError(
                                 f'could not resolve "anytype" type for the '
-                                f'${param.shortname} parameter')
+                                f'${param_shortname} parameter')
                         else:
                             default_type = resolved_poly_base_type
                     else:
@@ -408,7 +410,7 @@ def try_bind_func_args(
                     default = irutils.new_empty_set(
                         schema,
                         scls=default_type,
-                        alias=param.shortname)
+                        alias=param_shortname)
 
                 default = setgen.ensure_set(
                     default,
@@ -526,11 +528,12 @@ def finalize_args(bound_call: BoundCall, *,
 
         if param_mod is not _SET_OF:
             arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
+            param_shortname = param.get_shortname(ctx.env.schema)
             if arg_scope is not None:
                 arg_scope.collapse()
                 pathctx.assign_set_scope(arg, None, ctx=ctx)
             if (param_mod is _OPTIONAL or
-                    param.shortname in bound_call.null_args):
+                    param_shortname in bound_call.null_args):
                 pathctx.register_set_in_scope(arg, ctx=ctx)
                 pathctx.mark_path_as_optional(arg.path_id, ctx=ctx)
 

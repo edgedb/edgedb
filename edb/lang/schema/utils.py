@@ -260,7 +260,7 @@ def find_item_suggestions(
 
     # Compute Levenshtein distance for each suggestion.
     with_distance = [
-        (s, levenshtein.distance(short_name, s.shortname.name))
+        (s, levenshtein.distance(short_name, s.get_shortname(schema).name))
         for s in suggestions
     ]
 
@@ -273,8 +273,8 @@ def find_item_suggestions(
     closest.sort(
         key=lambda s: (
             s[1],
-            not s[0].shortname.name.startswith(short_name),
-            s[0].displayname
+            not s[0].get_shortname(schema).name.startswith(short_name),
+            s[0].get_displayname(schema)
         )
     )
 
@@ -296,9 +296,9 @@ def enrich_schema_lookup_error(
         for suggestion in suggestions:
             if (suggestion.name.module == 'std' or
                     suggestion.name.module == current_module_name):
-                names.append(suggestion.shortname.name)
+                names.append(suggestion.get_shortname(schema).name)
             else:
-                names.append(str(suggestion.displayname))
+                names.append(str(suggestion.get_displayname(schema)))
 
         if name_template is not None:
             names = [name_template.format(name=name) for name in names]

@@ -58,12 +58,18 @@ def merge_actions(target: so.Object, sources: typing.List[so.Object],
                     current_from_source = current_from.get_source(schema)
                     source_source = source.get_source(schema)
 
-                    tgt_repr = (f'{target_source.displayname}.'
-                                f'{target.displayname}')
-                    cf_repr = (f'{current_from_source.displayname}.'
-                               f'{current_from.displayname}')
-                    other_repr = (f'{source_source.displayname}.'
-                                  f'{source.displayname}')
+                    tgt_repr = (
+                        f'{target_source.get_displayname(schema)}.'
+                        f'{target.get_displayname(schema)}'
+                    )
+                    cf_repr = (
+                        f'{current_from_source.get_displayname(schema)}.'
+                        f'{current_from.get_displayname(schema)}'
+                    )
+                    other_repr = (
+                        f'{source_source.get_displayname(schema)}.'
+                        f'{source.get_displayname(schema)}'
+                    )
 
                     raise s_err.SchemaError(
                         f'cannot implicitly resolve the '
@@ -138,7 +144,7 @@ class Link(sources.Source, pointers.Pointer):
 
     def has_user_defined_properties(self, schema):
         return bool([p for p in self.get_pointers(schema).objects(schema)
-                     if not p.is_special_pointer()])
+                     if not p.is_special_pointer(schema)])
 
     def compare(self, other, *, our_schema, their_schema, context=None):
         if not isinstance(other, Link):

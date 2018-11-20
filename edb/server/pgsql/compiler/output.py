@@ -78,7 +78,7 @@ def tuple_var_as_json_object(tvar, *, path_id, env):
             if rptr is None:
                 name = element.path_id.target_name.name
             else:
-                name = rptr.shortname.name
+                name = rptr.get_shortname(env.schema).name
                 if rptr.is_link_property(env.schema):
                     name = '@' + name
             keyvals.append(pgast.StringConstant(val=name))

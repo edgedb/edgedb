@@ -47,7 +47,7 @@ def param_as_str(schema, param):
         ret.append(kind.to_edgeql())
         ret.append(' ')
 
-    ret.append(f'{param.shortname}: ')
+    ret.append(f'{param.get_shortname(schema)}: ')
 
     if typemod is not ft.TypeModifier.SINGLETON:
         ret.append(typemod.to_edgeql())
@@ -94,8 +94,7 @@ class ParameterDesc(typing.NamedTuple):
             default=paramd
         )
 
-    @property
-    def shortname(self):
+    def get_shortname(self, schema):
         return self.name
 
     def get_kind(self, _):
@@ -323,7 +322,7 @@ class FuncParameterList(so.ObjectList, type=Parameter):
 
     def get_by_name(self, schema, name) -> Parameter:
         for param in self.objects(schema):
-            if param.shortname == name:
+            if param.get_shortname(schema) == name:
                 return param
 
     def as_str(self, schema):
@@ -340,7 +339,7 @@ class FuncParameterList(so.ObjectList, type=Parameter):
         named = {}
         for param in self.objects(schema):
             if param.get_kind(schema) is ft.ParameterKind.NAMED_ONLY:
-                named[param.shortname] = param
+                named[param.get_shortname(schema)] = param
 
         return types.MappingProxyType(named)
 
@@ -402,7 +401,7 @@ class CallableObject(so.NamedObject):
 
         def param_is_inherited(schema, func, param):
             qualname = Parameter.get_specialized_name(
-                param.shortname, func.name)
+                param.get_shortname(schema), func.name)
             return qualname != param.name.name
 
         with context(old, new):
@@ -641,7 +640,8 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                     f'cannot create `{signature}` function: '
                     f'overloading another function with different '
                     f'named only parameters: '
-                    f'"{func.shortname}{func_params.as_str(schema)}"',
+                    f'"{func.get_shortname(schema)}'
+                    f'{func_params.as_str(schema)}"',
                     context=self.source_context)
 
             if ((has_polymorphic or func_params.has_polymorphic(schema)) and (
@@ -717,8 +717,8 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                         f'cannot create the `{signature}` function: '
                         f'invalid declaration of parameter ${p.name}: '
                         f'unexpected type of the default expression: '
-                        f'{default_type.displayname}, expected '
-                        f'{p_type.displayname}',
+                        f'{default_type.get_displayname(schema)}, expected '
+                        f'{p_type.get_displayname(schema)}',
                         context=self.source_context)
 
         return schema

@@ -48,7 +48,7 @@ class ObjectType(SourceNode, constraints.ConsistencySubject):
             ptrs = set()
 
             for link in schema.get_objects(type='link'):
-                if (link.shortname.name == name and
+                if (link.get_shortname(schema).name == name and
                         link.get_target(schema) is not None and
                         source.issubclass(schema, link.get_target(schema))):
                     ptrs.add(link)
@@ -60,7 +60,7 @@ class ObjectType(SourceNode, constraints.ConsistencySubject):
             ptrs = set()
 
             for link in schema.get_objects(type='link'):
-                if (link.shortname == name and
+                if (link.get_shortname(schema) == name and
                         link.get_target(schema) is not None and
                         source.issubclass(schema, link.get_target(schema))):
                     ptrs.add(link)

@@ -133,7 +133,7 @@ def get_set_rvar(
         # is free to return something else instead of a range var over
         # stmt.
         stmt = subctx.rel
-        stmt.name = ctx.env.aliases.get(get_set_rel_alias(ir_set))
+        stmt.name = ctx.env.aliases.get(get_set_rel_alias(ir_set, ctx=ctx))
 
         # If ir.Set compilation needs to produce a subquery,
         # make sure it uses the current subrel.  This makes it
@@ -531,11 +531,12 @@ def finalize_optional_rel(
     return SetRVars(main=sub_rvar, new=[sub_rvar])
 
 
-def get_set_rel_alias(ir_set: irast.Set) -> str:
+def get_set_rel_alias(ir_set: irast.Set, *,
+                      ctx: context.CompilerContextLevel) -> str:
     if ir_set.rptr is not None and ir_set.rptr.source.scls is not None:
         alias_hint = '{}_{}'.format(
             ir_set.rptr.source.scls.name.name,
-            ir_set.rptr.ptrcls.shortname.name
+            ir_set.rptr.ptrcls.get_shortname(ctx.env.schema).name
         )
     else:
         if isinstance(ir_set.scls, s_types.Collection):
@@ -574,7 +575,8 @@ def process_set_as_link_property_ref(
     ptr_info = pg_types.get_pointer_storage_info(
         lprop, resolve_type=False, link_bias=False)
 
-    if ptr_info.table_type == 'ObjectType' or lprop.shortname == 'std::target':
+    if (ptr_info.table_type == 'ObjectType' or
+            lprop.get_shortname(ctx.env.schema) == 'std::target'):
         # This is a singleton link property stored in source rel,
         # e.g. @target
         val = pathctx.get_rvar_path_var(
@@ -623,13 +625,16 @@ def process_set_as_path(
 
     # Path is a __type__ reference of a homogeneous set,
     # e.g {1, 2}.__type__.
-    is_static_clsref = (isinstance(ir_source.scls, s_scalars.ScalarType) and
-                        ptrcls.shortname == 'std::__type__')
+    is_static_clsref = (
+        isinstance(ir_source.scls, s_scalars.ScalarType) and
+        ptrcls.get_shortname(ctx.env.schema) == 'std::__type__'
+    )
+
     if is_static_clsref:
         rvar = relctx.new_static_class_rvar(ir_set, ctx=ctx)
         return new_simple_set_rvar(ir_set, rvar, ['value', 'source'])
 
-    if ir_set.path_id.is_type_indirection_path():
+    if ir_set.path_id.is_type_indirection_path(ctx.env.schema):
         get_set_rvar(ir_source, ctx=ctx)
         poly_rvar = relctx.new_poly_rvar(ir_set, ctx=ctx)
         relctx.include_rvar(stmt, poly_rvar, ir_set.path_id, ctx=ctx)
@@ -1225,7 +1230,7 @@ def process_set_as_tuple_indirection(
                 source_type=ir_set.scls, target_type=ir_set.scls, force=True,
                 env=subctx.env)
 
-            index = tuple_set.scls.index_of(ir_set.expr.name)
+            index = tuple_set.scls.index_of(ctx.env.schema, ir_set.expr.name)
             att_idx = pgast.NumericConstant(val=str(index + 1))
 
             set_expr = pgast.FuncCall(

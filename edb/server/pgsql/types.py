@@ -172,7 +172,7 @@ class PointerStorageInfo:
     def _source_table_info(cls, schema, pointer):
         table = common.get_table_name(
             pointer.get_source(schema), catenate=False)
-        ptr_name = pointer.shortname
+        ptr_name = pointer.get_shortname(schema)
         col_name = common.edgedb_name_to_pg_name(ptr_name)
         table_type = 'ObjectType'
 
@@ -208,14 +208,15 @@ class PointerStorageInfo:
         return (
             pointer.singular(schema) and
             pointer.scalar() or
-            pointer.shortname in {
+            pointer.get_shortname(schema) in {
                 'std::__type__',
                 'schema::element_type',
                 'schema::element_types',
                 'schema::key_type',
             } or
-            (pointer.shortname == 'schema::type' and
-                pointer.get_source(schema).shortname != 'schema::Parameter')
+            (pointer.get_shortname(schema) == 'schema::type' and
+                pointer.get_source(schema).get_shortname(schema) !=
+                'schema::Parameter')
         )
 
     @classmethod
@@ -237,7 +238,7 @@ class PointerStorageInfo:
             msg = 'PointerStorageInfo needs a schema to resolve column_type'
             raise ValueError(msg)
 
-        if is_lprop and pointer.shortname == 'std::target':
+        if is_lprop and pointer.get_shortname(schema) == 'std::target':
             # Normalize link@target to link
             pointer = source
             is_lprop = False
@@ -245,11 +246,13 @@ class PointerStorageInfo:
         if isinstance(pointer, irutils.TupleIndirectionLink):
             table = None
             table_type = 'ObjectType'
-            col_name = common.edgedb_name_to_pg_name(pointer.shortname.name)
+            col_name = common.edgedb_name_to_pg_name(
+                pointer.get_shortname(schema).name)
         elif is_lprop:
             table = common.get_table_name(source, catenate=False)
             table_type = 'link'
-            col_name = common.edgedb_name_to_pg_name(pointer.shortname)
+            col_name = common.edgedb_name_to_pg_name(
+                pointer.get_shortname(schema))
         else:
             if isinstance(source, s_scalars.ScalarType):
                 # This is a pseudo-link on an scalar (__type__)

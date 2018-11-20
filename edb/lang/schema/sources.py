@@ -96,19 +96,20 @@ class Source(indexes.IndexableSubject):
                     break
             return result
 
-    def _check_ptr_name_consistency(self, name, ptrs):
+    def _check_ptr_name_consistency(self, schema, name, ptrs):
         if not sn.Name.is_qualified(name) and ptrs:
             ambig = set()
 
             names = {}
 
             for ptr in ptrs:
-                nq_name = ptr.shortname.name
+                ptr_sn = ptr.get_shortname(schema)
+                nq_name = ptr_sn.name
                 fq_name = names.get(nq_name)
 
                 if fq_name is None:
-                    names[nq_name] = ptr.shortname
-                elif fq_name != ptr.shortname:
+                    names[nq_name] = ptr_sn
+                elif fq_name != ptr_sn:
                     ambig.add(ptr)
 
             if ambig:
@@ -123,7 +124,7 @@ class Source(indexes.IndexableSubject):
                 ptrs |= c._getptr_descending(schema, name, resolver)
 
         if _top:
-            self._check_ptr_name_consistency(name, ptrs)
+            self._check_ptr_name_consistency(schema, name, ptrs)
 
         return ptrs
 
@@ -158,7 +159,7 @@ class Source(indexes.IndexableSubject):
             if include_inherited:
                 ptrs = self._getptr_inherited_from(schema, name, resolver)
 
-        self._check_ptr_name_consistency(name, ptrs)
+        self._check_ptr_name_consistency(schema, name, ptrs)
 
         return ptrs
 
@@ -289,7 +290,8 @@ class Source(indexes.IndexableSubject):
                 ptr_source = target
                 ptr_target = self
 
-            fqname = common_parent.derive_name(ptr_source, ptr_target.name)
+            fqname = common_parent.derive_name(
+                schema, ptr_source, ptr_target.name)
             ptr = schema.get(fqname, default=None)
             if ptr is None:
                 schema, common_parent_spec = common_parent.get_derived(

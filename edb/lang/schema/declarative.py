@@ -467,7 +467,7 @@ class DeclarationLoader:
                         'link {!r} does not define property '
                         '{!r}'.format(source.name, prop_qname))
 
-                prop_qname = propdef.shortname
+                prop_qname = propdef.get_shortname(self._schema)
 
             new_props = {
                 'sourcectx': propdecl.context,
@@ -761,7 +761,7 @@ class DeclarationLoader:
             raise s_err.SchemaError(
                 'could not determine the result type of the default '
                 'expression on {!s}.{!s}'.format(
-                    source.name, ptr.shortname),
+                    source.name, ptr.get_shortname(self._schema)),
                 context=expr.context) from e
 
         self._schema = ptr.set_field_value(self._schema, 'default', expr_text)

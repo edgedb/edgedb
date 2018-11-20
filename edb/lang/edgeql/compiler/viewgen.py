@@ -104,7 +104,8 @@ def _process_view(
                 view_rptr=view_rptr, ctx=scopectx))
 
     if is_insert:
-        explicit_ptrs = {ptrcls.shortname for ptrcls in pointers}
+        explicit_ptrs = {ptrcls.get_shortname(ctx.env.schema)
+                         for ptrcls in pointers}
 
         scls_pointers = scls.get_pointers(ctx.env.schema)
         for pn, ptrcls in scls_pointers.items(ctx.env.schema):
@@ -113,9 +114,10 @@ def _process_view(
                     ptrcls.is_pure_computable(ctx.env.schema)):
                 continue
 
+            ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
             default_ql = qlast.ShapeElement(expr=qlast.Path(steps=[
-                qlast.Ptr(ptr=qlast.ObjectRef(name=ptrcls.shortname.name,
-                                              module=ptrcls.shortname.module))
+                qlast.Ptr(ptr=qlast.ObjectRef(name=ptrcls_sn.name,
+                                              module=ptrcls_sn.module))
             ]))
 
             with ctx.newscope(fenced=True) as scopectx:
@@ -332,7 +334,7 @@ def _normalize_view_ptr_expr(
                 ptrsource, ptrname, s_pointers.PointerDirection.Outbound,
                 ctx=ctx)
 
-            ptr_name = ptrcls.shortname
+            ptr_name = ptrcls.get_shortname(ctx.env.schema)
         except errors.EdgeQLReferenceError:
             if is_mutation:
                 raise
@@ -391,7 +393,8 @@ def _normalize_view_ptr_expr(
                 base_ptrcls.get_target(ctx.env.schema), schema=ctx.env.schema):
             # Validate that the insert/update expression is
             # of the correct class.
-            lname = f'({ptrsource.name}).{ptrcls.shortname.name}'
+            ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
+            lname = f'({ptrsource.name}).{ptrcls_sn.name}'
             expected = [repr(str(base_ptrcls.get_target(ctx.env.schema).name))]
             raise edgedb_error.InvalidPointerTargetError(
                 f'invalid target for link {str(lname)!r}: '
@@ -449,12 +452,13 @@ def _normalize_view_ptr_expr(
             ctx.env.schema = ptrcls.set_field_value(
                 ctx.env.schema, 'cardinality', ptr_cardinality)
 
-    if ptrcls.is_protected_pointer() and qlexpr is not None:
+    if ptrcls.is_protected_pointer(ctx.env.schema) and qlexpr is not None:
+        ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
         if is_polymorphic:
-            msg = (f'cannot access {ptrcls.shortname.name} on a polymorphic '
+            msg = (f'cannot access {ptrcls_sn.name} on a polymorphic '
                    f'shape element')
         else:
-            msg = f'cannot assign to {ptrcls.shortname.name}'
+            msg = f'cannot assign to {ptrcls_sn.name}'
         raise errors.EdgeQLError(msg, context=shape_el.context)
 
     return ptrcls
@@ -515,7 +519,8 @@ def _link_has_shape(
         return False
 
     for p in ptrcls.get_pointers(ctx.env.schema).objects(ctx.env.schema):
-        if p.is_special_pointer() or p not in ctx.class_shapes[ptrcls]:
+        if (p.is_special_pointer(ctx.env.schema) or
+                p not in ctx.class_shapes[ptrcls]):
             continue
         else:
             return True
@@ -568,7 +573,7 @@ def _get_shape_configuration(
 
             shape_ptrs.append((path_tip, ptr))
 
-            if source is scls and ptr.is_id_pointer():
+            if source is scls and ptr.is_id_pointer(ctx.env.schema):
                 id_present_in_shape = True
 
     implicit_id = (
@@ -590,7 +595,7 @@ def _get_shape_configuration(
         # We want the id in this shape and it's not already there,
         # so insert it in the first position.
         for ptr in scls.get_pointers(ctx.env.schema).objects(ctx.env.schema):
-            if ptr.is_id_pointer():
+            if ptr.is_id_pointer(ctx.env.schema):
                 ctx.class_shapes[scls].insert(0, ptr)
                 shape_ptrs.insert(0, (ir_set, ptr))
                 break

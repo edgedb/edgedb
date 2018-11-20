@@ -1091,8 +1091,7 @@ class NamedObject(Object):
                 '@'.join(cls.mangle_name(qualifier)
                          for qualifier in qualifiers if qualifier))
 
-    @property
-    def shortname(self) -> sn.Name:
+    def get_shortname(self, schema) -> sn.Name:
         try:
             cached = self._cached_shortname
         except AttributeError:
@@ -1107,12 +1106,8 @@ class NamedObject(Object):
         self._cached_shortname = (self.name, shortname)
         return shortname
 
-    def get_shortname(self, schema) -> sn.Name:
-        return self.shortname
-
-    @property
-    def displayname(self) -> str:
-        return str(self.shortname)
+    def get_displayname(self, schema) -> str:
+        return str(self.get_shortname(schema))
 
     @classmethod
     def delta_properties(cls, delta, old, new, *, context=None,
@@ -1283,10 +1278,10 @@ class ObjectCollection:
                     else:
                         raise
                 else:
-                    result.append(obj.shortname)
+                    result.append(obj.get_shortname(schema))
             else:
                 obj = schema.get_by_id(item_id)
-                result.append(obj.shortname)
+                result.append(obj.get_shortname(schema))
 
         return type(self)._container(result)
 
@@ -1448,7 +1443,7 @@ class ObjectIndexByFullname(ObjectIndexBase,
 
 
 class ObjectIndexByShortname(ObjectIndexBase,
-                             key=lambda schema, o: o.shortname):
+                             key=lambda schema, o: o.get_shortname(schema)):
     pass
 
 

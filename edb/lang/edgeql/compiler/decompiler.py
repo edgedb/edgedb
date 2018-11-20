@@ -76,10 +76,11 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                                  self.context.inline_anchors):
                 rptr = node.rptr
                 ptrcls = rptr.ptrcls
-                pname = ptrcls.shortname
+                pname = ptrcls.get_shortname(self.context.schema)
 
                 if isinstance(rptr.target.scls, s_objtypes.ObjectType):
-                    target = rptr.target.scls.shortname
+                    target = rptr.target.scls.get_shortname(
+                        self.context.schema)
                     target = qlast.TypeName(
                         maintype=qlast.ObjectRef(
                             name=target.name,
@@ -109,8 +110,10 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                 else:
                     step = qlast.ObjectRef(name=node.show_as_anchor)
             else:
-                step = qlast.ObjectRef(name=node.scls.shortname.name,
-                                       module=node.scls.shortname.module)
+                scls_shortname = node.scls.get_shortname(
+                    self.context.schema)
+                step = qlast.ObjectRef(name=scls_shortname.name,
+                                       module=scls_shortname.module)
 
             result.steps.append(step)
             result.steps.extend(reversed(links))
@@ -124,7 +127,7 @@ class IRDecompiler(ast.visitor.NodeVisitor):
             for el in node.shape:
                 rptr = el.rptr
                 ptrcls = rptr.ptrcls
-                pn = ptrcls.shortname
+                pn = ptrcls.get_shortname(self.context.schema)
 
                 pn = qlast.ShapeElement(
                     expr=qlast.Path(

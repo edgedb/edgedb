@@ -390,7 +390,7 @@ class InheritingObject(derivable.DerivableObject):
                      name=None, **kwargs):
         if name is None:
             derived_name = self.get_derived_name(
-                source, *qualifiers, mark_derived=mark_derived)
+                schema, source, *qualifiers, mark_derived=mark_derived)
         else:
             derived_name = name
 

@@ -314,7 +314,7 @@ def process_insert_body(
                     op=ast.ops.EQ,
                     lexpr=pgast.ColumnRef(name=['name']),
                     rexpr=pgast.StringConstant(
-                        val=ir_stmt.subject.scls.shortname)
+                        val=ir_stmt.subject.scls.get_shortname(ctx.env.schema))
                 )
             )
         )
@@ -459,7 +459,7 @@ def insert_value_for_shape_element(
 
     if isinstance(insvalue, pgast.TupleVar):
         for element in insvalue.elements:
-            name = element.path_id.rptr_name()
+            name = element.path_id.rptr_name(ctx.env.schema)
             if name == 'std::target':
                 insvalue = pathctx.get_path_value_var(
                     rel, element.path_id,
@@ -700,7 +700,7 @@ def process_link_update(
     # Record the effect of this removal in the relation overlay
     # context to ensure that the RETURNING clause potentially
     # referencing this link yields the expected results.
-    overlays = ctx.env.rel_overlays[ptrcls.shortname]
+    overlays = ctx.env.rel_overlays[ptrcls.get_shortname(ctx.env.schema)]
     overlays.append(('except', delcte))
     toplevel.ctes.append(delcte)
 
@@ -790,7 +790,7 @@ def process_link_update(
     # Record the effect of this insertion in the relation overlay
     # context to ensure that the RETURNING clause potentially
     # referencing this link yields the expected results.
-    overlays = ctx.env.rel_overlays[ptrcls.shortname]
+    overlays = ctx.env.rel_overlays[ptrcls.get_shortname(ctx.env.schema)]
     overlays.append(('union', updcte))
 
     toplevel.ctes.append(updcte)
@@ -837,7 +837,7 @@ def process_linkprop_update(
 
     targets = []
     for prop_el in ir_expr.shape:
-        ptrname = prop_el.rptr.ptrcls.shortname
+        ptrname = prop_el.rptr.ptrcls.get_shortname(ctx.env.schema)
         with ctx.new() as input_rel_ctx:
             input_rel_ctx.expr_exposed = False
             input_rel = dispatch.compile(prop_el.expr, ctx=input_rel_ctx)
@@ -857,7 +857,7 @@ def process_linkprop_update(
 
     updcte = pgast.CommonTableExpr(
         query=updstmt,
-        name=ctx.env.aliases.get(ptrcls.shortname.name)
+        name=ctx.env.aliases.get(ptrcls.get_shortname(ctx.env.schema).name)
     )
 
     toplevel.ctes.append(updcte)
@@ -944,7 +944,7 @@ def process_link_values(
 
     if shape_tuple is not None:
         for element in shape_tuple.elements:
-            name = element.path_id.rptr_name()
+            name = element.path_id.rptr_name(ctx.env.schema)
             if name is None:
                 name = element.path_id.target_name
             colname = common.edgedb_name_to_pg_name(name)

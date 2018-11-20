@@ -256,10 +256,10 @@ class PathId:
         else:
             return None
 
-    def rptr_name(self):
+    def rptr_name(self, schema):
         rptr = self.rptr()
         if rptr is not None:
-            return rptr.shortname
+            return rptr.get_shortname(schema)
         else:
             return None
 
@@ -405,12 +405,12 @@ class PathId:
     def is_linkprop_path(self):
         return self._is_linkprop
 
-    def is_type_indirection_path(self):
+    def is_type_indirection_path(self, schema):
         rptr = self.rptr()
         if rptr is None:
             return False
         else:
-            return rptr.shortname in (
+            return rptr.get_shortname(schema) in (
                 '__type__::indirection',
                 '__type__::optindirection',
             )

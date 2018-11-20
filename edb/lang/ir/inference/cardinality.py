@@ -212,7 +212,9 @@ def _is_ptr_or_self_ref(
             ir_set.expr is None and
             (ir_set.scls == srccls or (
                 ir_set.rptr is not None and
-                srccls.getptr(schema, ir_set.rptr.ptrcls.shortname) is not None
+                srccls.getptr(
+                    schema,
+                    ir_set.rptr.ptrcls.get_shortname(schema)) is not None
             ))
         )
 
@@ -270,7 +272,7 @@ def _analyse_filter_clause(
 
         for ptr in filtered_ptrs:
             is_unique = (
-                ptr.is_id_pointer() or
+                ptr.is_id_pointer(schema) or
                 any(c.issubclass(schema, exclusive_constr)
                     for c in ptr.get_constraints(schema).objects(schema))
             )

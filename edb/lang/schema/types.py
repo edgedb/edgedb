@@ -474,18 +474,19 @@ class Tuple(Collection):
     def iter_subtypes(self):
         yield from self.element_types.items()
 
-    def normalize_index(self, field: str) -> str:
+    def normalize_index(self, schema, field: str) -> str:
         if self.named and field.isdecimal():
             idx = int(field)
             if idx >= 0 and idx < len(self.element_types):
                 return list(self.element_types.keys())[idx]
             else:
                 raise s_err.ItemNotFoundError(
-                    f'{field} is not a member of {self.displayname}')
+                    f'{field} is not a member of '
+                    f'{self.get_displayname(schema)}')
 
         return field
 
-    def index_of(self, field: str) -> int:
+    def index_of(self, schema, field: str) -> int:
         if field.isdecimal():
             idx = int(field)
             if idx >= 0 and idx < len(self.element_types):
@@ -497,7 +498,7 @@ class Tuple(Collection):
             return list(self.element_types.keys()).index(field)
 
         raise s_err.ItemNotFoundError(
-            f'{field} is not a member of {self.displayname}')
+            f'{field} is not a member of {self.get_displayname(schema)}')
 
     def get_subtype(self, schema, field: str) -> Type:
         # index can be a name or a position
@@ -510,7 +511,7 @@ class Tuple(Collection):
             return self.element_types[field]
 
         raise s_err.ItemNotFoundError(
-            f'{field} is not a member of {self.displayname}')
+            f'{field} is not a member of {self.get_displayname(schema)}')
 
     def get_subtypes(self):
         if self.element_types:

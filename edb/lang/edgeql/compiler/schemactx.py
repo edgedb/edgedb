@@ -190,7 +190,7 @@ def derive_view_name(
         derived_name_quals = (ctx.aliases.get('view'),)
 
     if not derived_name_base:
-        derived_name_base = scls.shortname
+        derived_name_base = scls.get_shortname(ctx.env.schema)
 
     if ctx.derived_target_module:
         derived_name_module = ctx.derived_target_module

@@ -209,8 +209,7 @@ class TupleIndirectionLink(s_pointers.PointerLike):
 
         return self.name == other.name
 
-    @property
-    def shortname(self):
+    def get_shortname(self, schema):
         return self.name
 
     def get_path_id_name(self, schema):
@@ -261,8 +260,7 @@ class TypeIndirectionLink(s_pointers.PointerLike):
     def name(self):
         return self._name
 
-    @property
-    def shortname(self):
+    def get_shortname(self, schema):
         return self._name
 
     def get_path_id_name(self, schema):

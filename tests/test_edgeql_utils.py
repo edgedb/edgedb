@@ -70,7 +70,9 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
         )
 
         if expected_const_type is not None:
-            self.assertEqual(ir.expr.scls.displayname, expected_const_type)
+            self.assertEqual(
+                ir.expr.scls.get_displayname(self.__class__.schema),
+                expected_const_type)
 
     def test_edgeql_utils_normalize_01(self):
         self._assert_normalize_expr(

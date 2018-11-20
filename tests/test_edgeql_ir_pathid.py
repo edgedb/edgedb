@@ -45,7 +45,7 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
 
         self.assertIsNone(pid_1.rptr())
         self.assertIsNone(pid_1.rptr_dir())
-        self.assertIsNone(pid_1.rptr_name())
+        self.assertIsNone(pid_1.rptr_name(self.schema.get))
         self.assertIsNone(pid_1.src_path())
 
         pid_2 = pid_1.extend(deck_ptr, schema=self.schema)
@@ -56,7 +56,7 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
         self.assertEqual(pid_2.rptr(), deck_ptr)
         self.assertEqual(pid_2.rptr_dir(),
                          s_pointers.PointerDirection.Outbound)
-        self.assertEqual(pid_2.rptr_name(), 'test::deck')
+        self.assertEqual(pid_2.rptr_name(self.schema), 'test::deck')
         self.assertEqual(pid_2.src_path(), pid_1)
 
         ptr_pid = pid_2.ptr_path()

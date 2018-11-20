@@ -124,7 +124,8 @@ def evaluate_UnaryOp(
             return evaluate(unop.expr, schema=schema)
 
     raise UnsupportedExpressionError(
-        f'unexpected unary operation: {unop.op} {result_type.displayname}',
+        f'unexpected unary operation: {unop.op} '
+        f'{result_type.get_displayname(schema)}',
         context=unop.context)
 
 

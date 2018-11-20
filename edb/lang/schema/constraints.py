@@ -272,7 +272,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
 
         if not subjtitle:
             try:
-                subjname = subject.shortname
+                subjname = subject.get_shortname(schema)
             except AttributeError:
                 subjname = subject.name
 

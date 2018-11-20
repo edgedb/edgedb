@@ -45,10 +45,12 @@ class Property(pointers.Pointer):
         schema, ptr = super().derive(
             schema, source, target, attrs=attrs, **kwargs)
 
-        if ptr.shortname == 'std::source':
+        ptr_sn = ptr.get_shortname(schema)
+
+        if ptr_sn == 'std::source':
             schema = ptr.set_field_value(
                 schema, 'target', source.get_source(schema))
-        elif ptr.shortname == 'std::target':
+        elif ptr_sn == 'std::target':
             schema = ptr.set_field_value(
                 schema, 'target', source.get_field_value(schema, 'target'))
 
@@ -67,8 +69,8 @@ class Property(pointers.Pointer):
 
         if (not self.generic(our_schema) and
                 not other.generic(their_schema) and
-                self.shortname == 'std::source' and
-                other.shortname == 'std::source'):
+                self.get_shortname(our_schema) == 'std::source' and
+                other.get_shortname(their_schema) == 'std::source'):
             # Make std::source link property ignore differences in its target.
             # This is consistent with skipping the comparison on Pointer.source
             # in general.
@@ -86,7 +88,7 @@ class Property(pointers.Pointer):
 
     @classmethod
     def merge_targets(cls, schema, ptr, t1, t2):
-        if ptr.is_endpoint_pointer():
+        if ptr.is_endpoint_pointer(schema):
             return schema, t1
         else:
             return super().merge_targets(schema, ptr, t1, t2)
@@ -190,7 +192,7 @@ class CreateProperty(PropertyCommand,
                                             types.Collection)):
                 raise s_err.SchemaDefinitionError(
                     f'invalid property target, expected primitive type, '
-                    f'got {target_type.displayname!r}',
+                    f'got {target_type.get_displayname(schema)!r}',
                     context=target.context
                 )
 

@@ -368,10 +368,11 @@ class FunctionCommand:
     def get_table(self, schema):
         return self._table
 
-    def get_pgname(self, func: s_funcs.Function):
+    def get_pgname(self, func: s_funcs.Function, schema):
+        func_sn = func.get_shortname(schema)
         return (
-            common.edgedb_module_name_to_schema_name(func.shortname.module),
-            common.edgedb_name_to_pg_name(func.shortname.name)
+            common.edgedb_module_name_to_schema_name(func_sn.module),
+            common.edgedb_name_to_pg_name(func_sn.name)
         )
 
     def get_pgtype(self, func: s_funcs.Function, obj, schema):
@@ -383,7 +384,7 @@ class FunctionCommand:
         except ValueError:
             raise ql_errors.EdgeQLError(
                 f'could not compile parameter type {obj!r} '
-                f'of function {func.shortname}',
+                f'of function {func.get_shortname(schema)}',
                 context=self.source_context) from None
 
     def compile_default(self, func: s_funcs.Function, default: str, schema):
@@ -401,7 +402,7 @@ class FunctionCommand:
         except Exception as ex:
             raise ql_errors.EdgeQLError(
                 f'could not compile default expression {default!r} '
-                f'of function {func.shortname}: {ex}',
+                f'of function {func.get_shortname(schema)}: {ex}',
                 context=self.source_context) from ex
 
     def compile_args(self, func: s_funcs.Function, schema):
@@ -427,7 +428,7 @@ class FunctionCommand:
             if compile_defaults and param_default is not None:
                 default = self.compile_default(func, param_default, schema)
 
-            args.append((param.shortname, pg_at, default))
+            args.append((param.get_shortname(schema), pg_at, default))
 
         return args
 
@@ -439,7 +440,7 @@ class CreateFunction(FunctionCommand, CreateNamedObject,
         func_return_typemod = func.get_return_typemod(schema)
         func_params = func.get_params(schema)
         return dbops.Function(
-            name=self.get_pgname(func),
+            name=self.get_pgname(func, schema),
             args=self.compile_args(func, schema),
             has_variadic=func_params.find_variadic(schema) is not None,
             set_returning=func_return_typemod is ql_ft.TypeModifier.SET_OF,
@@ -475,7 +476,7 @@ class CreateFunction(FunctionCommand, CreateNamedObject,
             dbf = self.compile_edgeql_function(func, schema)
         else:
             raise ql_errors.EdgeQLError(
-                f'cannot compile function {func.shortname}: '
+                f'cannot compile function {func.get_shortname(schema)}: '
                 f'unsupported language {func_language}',
                 context=self.source_context)
 
@@ -507,7 +508,7 @@ class DeleteFunction(
             variadic = func.get_params(schema).find_variadic(schema)
             self.pgops.add(
                 dbops.DropFunction(
-                    name=self.get_pgname(func),
+                    name=self.get_pgname(func, schema),
                     args=self.compile_args(func, schema),
                     has_variadic=variadic is not None,
                 )
@@ -522,8 +523,9 @@ class OperatorCommand:
     def get_table(self, schema):
         return self._table
 
-    def get_pg_name(self, oper: s_opers.Operator) -> typing.Tuple[str, str]:
-        return common.get_backend_operator_name(oper.shortname)
+    def get_pg_name(self, schema,
+                    oper: s_opers.Operator) -> typing.Tuple[str, str]:
+        return common.get_backend_operator_name(oper.get_shortname(schema))
 
     def get_pg_operands(self, schema, oper: s_opers.Operator):
         left_type = None
@@ -564,13 +566,13 @@ class CreateOperator(OperatorCommand, CreateNamedObject,
         if oper_language is ql_ast.Language.SQL and oper_fromop:
             args = self.get_pg_operands(schema, oper)
             self.pgops.add(dbops.CreateOperatorAlias(
-                name=self.get_pg_name(oper),
+                name=self.get_pg_name(schema, oper),
                 args=args,
                 operator=('pg_catalog', oper_fromop)
             ))
         else:
             raise ql_errors.EdgeQLError(
-                f'cannot create operator {oper.shortname}: '
+                f'cannot create operator {oper.get_shortname(schema)}: '
                 f'only "FROM SQL OPERATOR" operators are currently supported',
                 context=self.source_context)
 
@@ -592,7 +594,7 @@ class DeleteOperator(
 
     def apply(self, schema, context):
         schema, oper = super().apply(schema, context)
-        name = self.get_pg_name(oper)
+        name = self.get_pg_name(schema, oper)
         args = self.get_pg_operands(schema, oper)
         self.pgops.add(dbops.DropOperator(name=name, args=args))
         return schema, oper
@@ -839,7 +841,7 @@ class ScalarTypeMetaCommand(ViewCapableObjectMetaCommand):
 
         for host_class, item_class in users:
             if isinstance(item_class, s_links.Link):
-                name = item_class.shortname
+                name = item_class.get_shortname(schema)
             else:
                 name = item_class.name
 
@@ -1288,10 +1290,10 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
             for base in source.get_bases(schema).objects(schema):
                 for ptr in base.get_pointers(schema).objects(schema):
                     if ptr.scalar():
-                        inherited_aptrs.add(ptr.shortname)
+                        inherited_aptrs.add(ptr.get_shortname(schema))
 
             added_inh_ptrs = inherited_aptrs - {
-                p.shortname
+                p.get_shortname(schema)
                 for p in orig_source.get_pointers(schema).objects(schema)
             }
 
@@ -1783,7 +1785,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
         alter_table = context.get(
             s_objtypes.ObjectTypeCommandContext).op.get_alter_table(
                 context, priority=1)
-        column_name = common.edgedb_name_to_pg_name(ptr.shortname)
+        column_name = common.edgedb_name_to_pg_name(ptr.get_shortname(schema))
 
         if isinstance(new_target, s_scalars.ScalarType):
             target_type = types.pg_type_from_object(schema, new_target)
@@ -1850,7 +1852,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                 alter_table = source_ctx.op.get_alter_table(
                     context, contained=True, priority=3)
                 column_name = common.edgedb_name_to_pg_name(
-                    pointer.shortname)
+                    pointer.get_shortname(schema))
                 alter_table.add_operation(
                     dbops.AlterTableAlterColumnDefault(
                         column_name=column_name, default=new_default))
@@ -1872,7 +1874,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                 type=col_type,
                 required=pointer.get_required(schema),
                 default=default,
-                comment=pointer.shortname)
+                comment=pointer.get_shortname(schema))
         ]
 
     def rename_pointer(self, pointer, schema, context, old_name, new_name):
@@ -2237,7 +2239,7 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
                     ot_ctx = context.get(s_objtypes.ObjectTypeCommandContext)
                     alter_table = ot_ctx.op.get_alter_table(context)
                     column_name = common.edgedb_name_to_pg_name(
-                        link.shortname)
+                        link.get_shortname(schema))
                     alter_table.add_operation(
                         dbops.AlterTableAlterColumnNull(
                             column_name=column_name,
@@ -2259,7 +2261,7 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
                 result, schema=schema)
             objtype = context.get(s_objtypes.ObjectTypeCommandContext)
 
-            name = result.shortname
+            name = result.get_shortname(schema)
 
             if ptr_stor_info.table_type == 'ObjectType':
                 # Only drop the column if the link was not reinherited in the
@@ -2492,7 +2494,8 @@ class AlterProperty(
                 src_ctx = context.get(s_sources.SourceCommandContext)
                 src_op = src_ctx.op
                 alter_table = src_op.get_alter_table(context, priority=5)
-                column_name = common.edgedb_name_to_pg_name(prop.shortname)
+                column_name = common.edgedb_name_to_pg_name(
+                    prop.get_shortname(schema))
                 if prop.get_required(schema):
                     table = src_op._type_mech.get_table(src_ctx.scls, schema)
                     rec = table.record(**{column_name: dbops.Default()})
@@ -2507,7 +2510,7 @@ class AlterProperty(
             new_type = None
             for op in self.get_subcommands(type=sd.AlterObjectProperty):
                 if (op.property == 'target' and
-                        prop.shortname not in
+                        prop.get_shortname(schema) not in
                         {'std::source', 'std::target'}):
                     new_type = op.new_value.name \
                         if op.new_value is not None else None
@@ -2527,7 +2530,7 @@ class AlterProperty(
 class DeleteProperty(
         PropertyMetaCommand, adapts=s_props.DeleteProperty):
     def apply(self, schema, context=None):
-        schema, property = s_props.DeleteProperty.apply(self, schema, context)
+        schema, prop = s_props.DeleteProperty.apply(self, schema, context)
         schema, _ = PropertyMetaCommand.apply(self, schema, context)
 
         link = context.get(s_links.LinkCommandContext)
@@ -2535,7 +2538,8 @@ class DeleteProperty(
         if link:
             alter_table = link.op.get_alter_table(context)
 
-            column_name = common.edgedb_name_to_pg_name(property.shortname)
+            column_name = common.edgedb_name_to_pg_name(
+                prop.get_shortname(schema))
             # We don't really care about the type -- we're dropping the thing
             column_type = 'text'
 
@@ -2546,9 +2550,9 @@ class DeleteProperty(
         table = self.get_table(schema)
         self.pgops.add(
             dbops.Delete(
-                table=table, condition=[('name', str(property.name))]))
+                table=table, condition=[('name', str(prop.name))]))
 
-        return schema, property
+        return schema, prop
 
 
 class UpdateEndpointDeleteActions(MetaCommand):
@@ -2635,7 +2639,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 ''').format(
                     tables=tables,
                     id=common.quote_ident('std::id'),
-                    tgtname=target.displayname,
+                    tgtname=target.get_displayname(schema),
                     near_endpoint=near_endpoint,
                     far_endpoint=far_endpoint,
                 )

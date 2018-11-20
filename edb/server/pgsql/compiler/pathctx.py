@@ -395,7 +395,7 @@ def get_path_output_alias(
         env: context.Environment) -> str:
     rptr = path_id.rptr()
     if rptr is not None:
-        ptrname = rptr.shortname
+        ptrname = rptr.get_shortname(env.schema)
         alias_base = ptrname.name
     elif isinstance(path_id.target, s_types.Collection):
         alias_base = path_id.target.schema_name
@@ -562,7 +562,7 @@ def _get_rel_path_output(
                 f'invalid request for non-scalar path {path_id} {aspect}')
 
         if (path_id == rel.path_id or
-                (rel.path_id.is_type_indirection_path() and
+                (rel.path_id.is_type_indirection_path(env.schema) and
                  path_id == rel.path_id.src_path())):
             path_id = irutils.get_id_path_id(path_id, schema=env.schema)
     else:

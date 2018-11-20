@@ -283,7 +283,7 @@ class Backend:
                     '1' if ptr.singular(self.schema) else '*'
                 )
                 subtypes.append(subdesc)
-                element_names.append(ptr.shortname.name)
+                element_names.append(ptr.get_shortname(schema).name)
 
             t_rptr = t.get_rptr(schema)
             if t_rptr is not None:
@@ -295,7 +295,7 @@ class Backend:
                         '1' if ptr.singular(self.schema) else '*'
                     )
                     subtypes.append(subdesc)
-                    element_names.append(ptr.shortname.name)
+                    element_names.append(ptr.get_shortname(schema).name)
 
             type_id = self._get_collection_type_id(base_type_id, subtypes,
                                                    element_names)

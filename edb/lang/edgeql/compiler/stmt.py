@@ -257,12 +257,14 @@ def compile_InsertQuery(
         subject = dispatch.compile(expr.subject, ctx=ictx)
         if subject.scls.get_is_abstract(ctx.env.schema):
             raise errors.EdgeQLError(
-                f'cannot insert: {subject.scls.displayname} is abstract',
+                f'cannot insert: '
+                f'{subject.scls.get_displayname(ctx.env.schema)} is abstract',
                 context=expr.subject.context)
 
         if subject.scls.is_view(ctx.env.schema):
             raise errors.EdgeQLError(
-                f'cannot insert: {subject.scls.displayname} is a view',
+                f'cannot insert: '
+                f'{subject.scls.get_displayname(ctx.env.schema)} is a view',
                 context=expr.subject.context)
 
         stmt.subject = compile_query_subject(
@@ -380,9 +382,9 @@ def compile_SessionStateDecl(
                                          context=item.context) from e
             else:
                 if not isinstance(testmode, bool):
+                    dispname = testmode_ir.scls.get_displayname(ctx.env.schema)
                     raise errors.EdgeQLError(
-                        f'expected a boolean value, '
-                        f'got {testmode_ir.scls.displayname!r}',
+                        f'expected a boolean value, got {dispname!r}',
                         context=item.context)
         else:
             raise errors.EdgeQLError(

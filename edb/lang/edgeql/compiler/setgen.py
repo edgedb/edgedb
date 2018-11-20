@@ -207,7 +207,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 path_tip = ensure_set(
                     dispatch.compile(step, ctx=subctx), ctx=subctx)
 
-                if path_tip.path_id.is_type_indirection_path():
+                if path_tip.path_id.is_type_indirection_path(ctx.env.schema):
                     scope_set = path_tip.rptr.source
                 else:
                     scope_set = path_tip
@@ -340,14 +340,14 @@ def resolve_ptr(
 
         if ptr is None:
             if isinstance(near_endpoint, s_links.Link):
-                msg = (f'{near_endpoint.displayname} has no property '
-                       f'{pointer_name!r}')
+                msg = (f'{near_endpoint.get_displayname(ctx.env.schema)} '
+                       f'has no property {pointer_name!r}')
                 if target:
                     msg += f'of type {target.name!r}'
 
             elif direction == s_pointers.PointerDirection.Outbound:
-                msg = (f'{near_endpoint.displayname} has no link or property '
-                       f'{pointer_name!r}')
+                msg = (f'{near_endpoint.get_displayname(ctx.env.schema)} '
+                       f'has no link or property {pointer_name!r}')
                 if target:
                     msg += f'of type {target.name!r}'
 
@@ -375,7 +375,7 @@ def resolve_ptr(
         if direction == s_pointers.PointerDirection.Outbound:
             bptr = schemactx.get_schema_ptr(pointer_name, ctx=ctx)
             schema_cls = ctx.env.schema.get('schema::ScalarType')
-            if bptr.shortname == 'std::__type__':
+            if bptr.get_shortname(ctx.env.schema) == 'std::__type__':
                 ctx.env.schema, ptr = bptr.derive(
                     ctx.env.schema, near_endpoint, schema_cls)
 
@@ -465,7 +465,7 @@ def tuple_indirection_set(
     else:
         el_name = ptr_name[1]
 
-    el_norm_name = source.normalize_index(el_name)
+    el_norm_name = source.normalize_index(ctx.env.schema, el_name)
     el_type = source.get_subtype(ctx.env.schema, el_name)
 
     path_id = irutils.tuple_indirection_path_id(
@@ -658,8 +658,9 @@ def computable_ptr_set(
     except KeyError:
         ptrcls_default = ptrcls.get_default(ctx.env.schema)
         if not ptrcls_default:
+            ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
             raise ValueError(
-                f'{ptrcls.shortname!r} is not a computable pointer')
+                f'{ptrcls_sn!r} is not a computable pointer')
 
         if isinstance(ptrcls_default, s_expr.ExpressionText):
             qlexpr = astutils.ensure_qlstmt(qlparser.parse(ptrcls_default))

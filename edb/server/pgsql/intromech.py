@@ -600,13 +600,14 @@ class IntrospectionMech:
             details = (
                 'Record for {!r} hosted by {!r} exists, but ' +
                 'the corresponding table column is missing').format(
-                    pointer.shortname, pointer.get_source(schema).name)
+                    pointer.get_shortname(schema),
+                    pointer.get_source(schema).name)
             raise s_err.SchemaError(msg, details=details)
 
         return self._get_pointer_column_target(
             schema,
             pointer.get_source(schema),
-            pointer.shortname,
+            pointer.get_shortname(schema),
             col)
 
     def _get_pointer_column_target(self, schema, source, pointer_name, col):
