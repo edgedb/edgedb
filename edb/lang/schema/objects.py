@@ -1321,6 +1321,10 @@ class ObjectIndexBase(ObjectCollection, container=tuple):
         cls._key = key
 
     @classmethod
+    def get_key_for(cls, schema, obj):
+        return cls._key(schema, obj)
+
+    @classmethod
     def create(cls, schema, data: typing.Iterable[NamedObject]):
         coll = super().create(schema, data)
         coll._check_duplicates(schema)

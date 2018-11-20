@@ -524,11 +524,11 @@ class AlterTableInheritableConstraintBase(
 
     def alter_constraint(self, old_constraint, new_constraint):
         if old_constraint.is_abstract and not new_constraint.is_abstract:
-            # No longer abstract, create db structures
+            # No longer delegated, create db structures
             self.create_constraint(new_constraint)
 
         elif not old_constraint.is_abstract and new_constraint.is_abstract:
-            # Now abstract, drop db structures
+            # Now delegated, drop db structures
             self.drop_constraint(new_constraint)
 
         else:

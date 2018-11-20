@@ -76,7 +76,8 @@ class AttributeSubject(referencing.ReferencingObject):
         return schema
 
     def del_attribute(self, schema, attribute_name):
-        return self.del_classref(schema, 'attributes', attribute_name)
+        shortname = Attribute.shortname_from_fullname(attribute_name)
+        return self.del_classref(schema, 'attributes', shortname)
 
 
 class AttributeCommandContext(sd.ObjectCommandContext):

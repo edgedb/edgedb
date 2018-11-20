@@ -346,11 +346,18 @@ class Pointer(constraints.ConsistencySubject, PointerLike):
     def generic(self, schema):
         return self.get_source(schema) is None
 
-    def is_exclusive(self, schema):
+    def is_exclusive(self, schema) -> bool:
         if self.generic(schema):
             raise ValueError(f'{self!r} is generic')
 
-        return self.get_constraints(schema).has(schema, 'std::exclusive')
+        exclusive = schema.get('std::exclusive')
+
+        for constr in self.get_constraints(schema).objects(schema):
+            if (constr.issubclass(schema, exclusive) and
+                    not constr.get_subjectexpr(schema)):
+                return True
+
+        return False
 
     def singular(self, schema, direction=PointerDirection.Outbound):
         # Determine the cardinality of a given endpoint set.

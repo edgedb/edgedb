@@ -430,7 +430,7 @@ class IntrospectionMech:
             description = r['description']
             subject = schema.get(r['subject']) if r['subject'] else None
 
-            basemap[name] = bases
+            basemap[name] = r['bases'] or []
 
             if not r['subject']:
                 schema, params = self._decode_func_params(schema, r, param_map)
@@ -447,7 +447,7 @@ class IntrospectionMech:
                 description=description, is_abstract=r['is_abstract'],
                 is_final=r['is_final'], expr=r['expr'],
                 subjectexpr=r['subjectexpr'],
-                localfinalexpr=r['localfinalexpr'], finalexpr=r['finalexpr'],
+                finalexpr=r['finalexpr'],
                 errmessage=r['errmessage'],
                 args=r['args'],
                 return_type=self.unpack_typeref(r['return_type'], schema),

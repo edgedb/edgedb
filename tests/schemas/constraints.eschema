@@ -183,7 +183,7 @@ type AbstractConstraintMixedChild extending AbstractConstraintParent:
 
 type AbstractConstraintPropagated extending AbstractConstraintParent:
     inherited property name -> str:
-        delegated constraint exclusive on (lower(__subject__))
+        delegated constraint exclusive
 
 
 type AbstractConstraintParent3:

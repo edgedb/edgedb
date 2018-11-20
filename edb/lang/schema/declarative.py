@@ -534,70 +534,32 @@ class DeclarationLoader:
         # Perform initial collection of constraints defined in subject context.
         # At this point all referenced constraints should be fully initialized.
 
-        constr = {}
-
         for constrdecl in subjdecl.constraints:
             attrs = {a.name.name: a.value for a in constrdecl.attributes}
             assert 'subject' not in attrs  # TODO: Add proper validation
 
             constr_name = self._get_ref_name(constrdecl.name)
-            constr_base = self._schema.get(constr_name,
-                                           type=s_constr.Constraint,
-                                           module_aliases=self._mod_aliases)
-
-            self._schema, constraint = constr_base.derive(
-                self._schema, subject,
-                replace_original=True,
-                attrs={
-                    'is_abstract': constrdecl.delegated,
-                    'sourcectx': constrdecl.context,
-                })
-
-            self._schema = constraint.acquire_ancestor_inheritance(
-                self._schema)
-
             if constrdecl.args:
-                args = [qlcodegen.generate_source(arg, pretty=False)
-                        for arg in constrdecl.args]
+                args = [
+                    qlcodegen.generate_source(arg, pretty=False)
+                    for arg in constrdecl.args
+                ]
             else:
                 args = []
 
-            subjectexpr = constrdecl.subject
-            if subjectexpr is not None:
-                self._schema = constraint.set_attribute(
+            modaliases = {None: subject.name.module}
+            self._schema, c, _ = \
+                s_constr.Constraint.create_concrete_constraint(
                     self._schema,
-                    'subjectexpr',
-                    s_constr.Constraint.normalize_constraint_expr(
-                        self._schema, {}, subjectexpr, subject=subject,
-                        constraint=constraint),
-                    source_context=constrdecl.subject.context,
+                    subject,
+                    name=constr_name,
+                    is_abstract=constrdecl.delegated,
+                    sourcectx=constrdecl.context,
+                    subjectexpr=constrdecl.subject,
+                    args=args,
+                    modaliases=modaliases,
                 )
 
-            self._schema = s_constr.Constraint.process_specialized_constraint(
-                self._schema, constraint, args)
-
-            # There can be only one specialized constraint per constraint
-            # class per subject. At this point all placeholders have been
-            # folded, so it is possible to merge the constraints consistently
-            # by merging their final exprs.
-            c_base = constraint.get_bases(self._schema).first(self._schema)
-            c_base_name = c_base.name
-            try:
-                prev = constr[c_base_name]
-            except KeyError:
-                constr[c_base_name] = constraint
-            else:
-                self._schema = constraint.merge(prev, schema=self._schema)
-                self._schema = constraint.merge_localexprs(
-                    prev, schema=self._schema)
-                constr[c_base_name] = constraint
-
-        for c in constr.values():
-            # Note that we don't do finalization for the constraint
-            # here, since it's possible that it will be further used
-            # in a merge of it's subject.
-            self._schema = self._schema.discard(c)
-            self._schema.add(c.name, c)
             self._schema = subject.add_constraint(self._schema, c)
 
     def _parse_subject_indexes(self, subject, subjdecl):

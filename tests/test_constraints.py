@@ -387,7 +387,6 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
                           'schemas', 'constraints_migration',
                           'schema.eschema')
 
-    @unittest.expectedFailure
     async def test_constraints_exclusive_migration(self):
         new_schema_f = os.path.join(os.path.dirname(__file__),
                                     'schemas', 'constraints_migration',
@@ -709,8 +708,8 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     },
                     typemod,
                     @value
-                } ORDER BY schema::Constraint.args.num ASC
-            } FILTER .name = 'test::mymax_ext1' ORDER BY .is_abstract;
+                } ORDER BY .num ASC
+            } FILTER .name = 'test::mymax_ext1' AND exists(.subject);
         ''', [[
             {
                 "name": 'test::mymax_ext1',
@@ -725,19 +724,34 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     }
                 ],
             },
+        ]])
+
+        await self.assert_query_result(r'''
+            SELECT schema::Constraint {
+                name,
+                params: {
+                    num,
+                    name,
+                    kind,
+                    type: {
+                        name
+                    },
+                    typemod
+                } ORDER BY .num ASC
+            } FILTER .name = 'test::mymax_ext1' AND NOT exists(.subject);
+        ''', [[
             {
                 "name": 'test::mymax_ext1',
-                "args": [
+                "params": [
                     {
                         "num": 0,
                         "kind": 'POSITIONAL',
                         "name": 'max',
                         "type": {"name": 'std::int64'},
-                        "@value": None,
                         "typemod": 'SINGLETON'
                     }
                 ],
-            }
+            },
         ]])
 
         # making sure the constraint was applied successfully

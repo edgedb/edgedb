@@ -695,7 +695,7 @@ class RenameConstraint(
     def apply(self, schema, context):
         constr_ctx = context.get(s_constr.ConstraintCommandContext)
         assert constr_ctx
-        orig_constraint = constr_ctx.scls
+        orig_constraint = constr_ctx.original_class
         schemac_to_backendc = \
             schemamech.ConstraintMech.schema_constraint_to_backend_constraint
         orig_bconstr = schemac_to_backendc(

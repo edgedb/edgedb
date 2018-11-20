@@ -233,10 +233,9 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
                 # Add the newly created referenced object to the
                 # appropriate refdict in self and all descendants
                 # that don't already have an existing reference.
-                #
-                schema = referrer.add_classref(
-                    schema, refdict.attr, self.scls)
-                refname = self.scls.shortname_from_fullname(self.scls.name)
+                schema = referrer.add_classref(schema, refdict.attr, self.scls)
+                reftype = type(referrer).get_field(refdict.attr).type[0]
+                refname = reftype.get_key_for(schema, self.scls)
                 for child in referrer.descendants(schema):
                     child_local_coll = child.get_field_value(
                         schema, refdict.local_attr)
@@ -255,10 +254,11 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
         referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is not None:
             referrer = referrer_ctx.scls
-            refdict = referrer.__class__.get_refdict_for_class(
-                scls.__class__)
-            schema = referrer.del_classref(
-                schema, refdict.attr, scls.name)
+            referrer_class = type(referrer)
+            refdict = referrer_class.get_refdict_for_class(scls.__class__)
+            reftype = referrer_class.get_field(refdict.attr).type[0]
+            refname = reftype.get_key_for(schema, self.scls)
+            schema = referrer.del_classref(schema, refdict.attr, refname)
 
         return schema
 
@@ -517,16 +517,14 @@ class ReferencingObject(inheriting.InheritingObject,
 
         return schema
 
-    def del_classref(self, schema, collection, obj_name):
+    def del_classref(self, schema, collection, key):
         refdict = type(self).get_refdict(collection)
         attr = refdict.attr
         local_attr = refdict.local_attr
-        refcls = refdict.ref_cls
 
         local_coll = self.get_field_value(schema, local_attr)
         all_coll = self.get_field_value(schema, attr)
 
-        key = refcls.shortname_from_fullname(obj_name)
         is_inherited = any(b.get_field_value(schema, attr).has(schema, key)
                            for b in self.get_bases(schema).objects(schema))
 
@@ -627,7 +625,7 @@ class ReferencingObject(inheriting.InheritingObject,
             local_classrefs = colltype.create_empty()
 
         if classref_keys is None:
-            classref_keys = classrefs.shortnames(schema)
+            classref_keys = classrefs.keys(schema)
 
         for classref_key in classref_keys:
             local = local_classrefs.get(schema, classref_key, None)
@@ -731,7 +729,7 @@ class ReferencingObject(inheriting.InheritingObject,
             replace_original=replace_original,
             merge_bases=merge_bases, **kwargs)
 
-        if as_copy:
+        if as_copy and False:
             schema = derived.rederive_classrefs(
                 schema, mark_derived=mark_derived,
                 replace_original=replace_original)
@@ -828,16 +826,16 @@ class ReferencingObjectCommand(sd.ObjectCommand):
     def _delete_refs(self, schema, context, scls, refdict):
         deleted_refs = set()
 
+        all_refs = set(
+            scls.get_field_value(schema, refdict.local_attr).objects(schema)
+        )
+
         for op in self.get_subcommands(metaclass=refdict.ref_cls):
             schema, deleted_ref = op.apply(schema, context=context)
             deleted_refs.add(deleted_ref)
 
         # Add implicit Delete commands for any local refs not
         # deleted explicitly.
-        all_refs = set(
-            scls.get_field_value(schema, refdict.local_attr).objects(schema)
-        )
-
         for ref in all_refs - deleted_refs:
             del_cmd = sd.ObjectCommandMeta.get_command_class(
                 named.DeleteNamedObject, type(ref))

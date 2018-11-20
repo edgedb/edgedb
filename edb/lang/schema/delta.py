@@ -247,6 +247,14 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         else:
             return None
 
+    def set_attribute_value(self, attr_name, value):
+        for op in self.get_subcommands(type=AlterObjectProperty):
+            if op.property == attr_name:
+                op.new_value = value
+                break
+        else:
+            self.add(AlterObjectProperty(property=attr_name, new_value=value))
+
     def discard_attribute(self, attr_name):
         for op in self.get_subcommands(type=AlterObjectProperty):
             if op.property == attr_name:
