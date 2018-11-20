@@ -338,7 +338,8 @@ class PathId:
 
         result = self.__class__()
         result._path = self._path + ((link, direction), target)
-        lnk = (link.name, direction, is_linkprop)
+        link_name = link.path_id_name or link.name
+        lnk = (link_name, direction, is_linkprop)
         norm_target = target.material_type(schema)
         result._norm_path = self._norm_path + (lnk, norm_target.name)
         result._is_linkprop = is_linkprop

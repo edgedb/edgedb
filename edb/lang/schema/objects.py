@@ -1043,6 +1043,11 @@ class Object(metaclass=ObjectMeta):
 
 class NamedObject(Object):
     name = Field(sn.Name, inheritable=False, compcoef=0.670)
+    # The path_id_name field is solely for the purposes of the compiler
+    # so that this item can act as a transparent proxy for the item
+    # it has been derived from, specifically in path ids.
+    path_id_name = Field(sn.Name, inheritable=False, ephemeral=True,
+                         introspectable=False, default=None)
     title = Field(str, default=None, compcoef=0.909, coerce=True, public=True)
     description = Field(str, default=None, compcoef=0.909, public=True)
 

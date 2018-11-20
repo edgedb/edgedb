@@ -124,6 +124,7 @@ def derive_view(
         derived_name_base: typing.Optional[str]=None,
         is_insert: bool=False,
         is_update: bool=False,
+        attrs: typing.Optional[dict]=None,
         ctx: context.ContextLevel) -> s_obj.Object:
     if source is None:
         source = scls
@@ -136,27 +137,28 @@ def derive_view(
     if isinstance(scls, s_types.Collection):
         ctx.env.schema, derived = scls.derive_subtype(
             ctx.env.schema, name=derived_name)
-    elif scls.generic(ctx.env.schema):
+    else:
+        if scls.name == derived_name:
+            qualifiers = list(qualifiers)
+            qualifiers.append(ctx.aliases.get('d'))
+
         ctx.env.schema, derived = scls.derive(
             ctx.env.schema, source, target, *qualifiers,
             name=derived_name, replace_original=True,
-            mark_derived=True)
-    else:
-        ctx.env.schema, derived = scls.derive_copy(
-            ctx.env.schema, source, target, *qualifiers, name=derived_name,
-            replace_original=True, attrs=dict(bases=[scls]), mark_derived=True)
+            mark_derived=True, attrs=attrs)
 
-        if isinstance(derived, s_sources.Source):
-            scls_pointers = scls.get_pointers(ctx.env.schema)
-            derived_own_pointers = derived.get_own_pointers(ctx.env.schema)
+        if not scls.generic(ctx.env.schema):
+            if isinstance(derived, s_sources.Source):
+                scls_pointers = scls.get_pointers(ctx.env.schema)
+                derived_own_pointers = derived.get_own_pointers(ctx.env.schema)
 
-            for pn, ptr in derived_own_pointers.items(ctx.env.schema):
-                # This is a view of a view.  Make sure query-level
-                # computable expressions for pointers are carried over.
-                src_ptr = scls_pointers.get(ctx.env.schema, pn)
-                computable_data = ctx.source_map.get(src_ptr)
-                if computable_data is not None:
-                    ctx.source_map[ptr] = computable_data
+                for pn, ptr in derived_own_pointers.items(ctx.env.schema):
+                    # This is a view of a view.  Make sure query-level
+                    # computable expressions for pointers are carried over.
+                    src_ptr = scls_pointers.get(ctx.env.schema, pn)
+                    computable_data = ctx.source_map.get(src_ptr)
+                    if computable_data is not None:
+                        ctx.source_map[ptr] = computable_data
 
     if isinstance(derived, s_types.Type):
         if is_insert:

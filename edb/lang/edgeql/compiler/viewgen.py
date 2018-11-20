@@ -153,12 +153,13 @@ def _process_view(
                 # The nested shape is merely selecting the pointer,
                 # so the link class has not been derived.  But for
                 # the purposes of shape tracking, we must derive it
-                # still.  The derived pointer must have the same
-                # name as the original, as this is not a new computable,
-                # and both `Foo.ptr` and `Foo { ptr }` are the same path.
+                # still.  The derived pointer must be treated the same
+                # as the original, as this is not a new computable,
+                # and both `Foo.ptr` and `Foo { ptr }` are the same path,
+                # hence the `transparent` modifier.
                 source = derive_ptrcls(
                     view_rptr, target_scls=view_scls,
-                    inherit_name=True, ctx=ctx)
+                    transparent=True, ctx=ctx)
 
             ctx.class_shapes[source].append(ptrcls)
 
@@ -462,25 +463,27 @@ def _normalize_view_ptr_expr(
 def derive_ptrcls(
         view_rptr: context.ViewRPtr, *,
         target_scls: s_nodes.Node,
-        inherit_name: bool=False,
+        transparent: bool=False,
         ctx: context.ContextLevel) -> s_pointers.Pointer:
 
     if view_rptr.ptrcls is None:
         if view_rptr.base_ptrcls is not None:
-            if inherit_name:
-                derived_name = view_rptr.base_ptrcls.name
-            else:
-                derived_name = schemactx.derive_view_name(
-                    view_rptr.base_ptrcls,
-                    derived_name_base=view_rptr.ptrcls_name,
-                    derived_name_quals=(view_rptr.source.name,),
-                    ctx=ctx)
+            derived_name = schemactx.derive_view_name(
+                view_rptr.base_ptrcls,
+                derived_name_base=view_rptr.ptrcls_name,
+                derived_name_quals=(view_rptr.source.name,),
+                ctx=ctx)
+
+            attrs = {}
+            if transparent:
+                attrs['path_id_name'] = view_rptr.base_ptrcls.name
 
             view_rptr.ptrcls = schemactx.derive_view(
                 view_rptr.base_ptrcls, view_rptr.source, target_scls,
                 derived_name=derived_name,
                 is_insert=view_rptr.is_insert,
                 is_update=view_rptr.is_update,
+                attrs=attrs,
                 ctx=ctx
             )
 
@@ -490,12 +493,15 @@ def derive_ptrcls(
                 'ViewRPtr does not define ptrcls or base_ptrcls')
 
     else:
-        derived_name = view_rptr.ptrcls.name if inherit_name else None
+        attrs = {}
+        if transparent:
+            attrs['path_id_name'] = view_rptr.ptrcls.name
+
         view_rptr.derived_ptrcls = schemactx.derive_view(
             view_rptr.ptrcls, view_rptr.source, target_scls,
-            derived_name=derived_name,
             is_insert=view_rptr.is_insert,
             is_update=view_rptr.is_update,
+            attrs=attrs,
             ctx=ctx
         )
 

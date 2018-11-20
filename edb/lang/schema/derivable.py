@@ -109,10 +109,6 @@ class DerivableObjectBase:
     def derive(self, schema, source, *qualifiers, merge_bases=None,
                replace_original=None, mark_derived=False, attrs=None,
                dctx=None, name=None, apply_defaults=True, **kwargs):
-        if not self.generic(schema):
-            raise TypeError(
-                'cannot derive from specialized {} {!r}'.format(
-                    self.__class__.__name__, self.name))
 
         schema, derived = self.init_derived(
             schema, source, *qualifiers, name=name,
