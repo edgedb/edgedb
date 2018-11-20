@@ -601,14 +601,16 @@ def compile_TypeFilter(
     arg_type = irutils.infer_type(arg, ctx.env.schema)
     if not isinstance(arg_type, s_objtypes.ObjectType):
         raise errors.EdgeQLError(
-            f'invalid type filter operand: {arg_type.name} '
+            f'invalid type filter operand: '
+            f'{arg_type.get_name(ctx.env.schema)} '
             f'is not an object type',
             context=expr.expr.context)
 
     typ = schemactx.get_schema_type(expr.type.maintype, ctx=ctx)
     if not isinstance(typ, s_objtypes.ObjectType):
         raise errors.EdgeQLError(
-            f'invalid type filter operand: {typ.name} is not an object type',
+            f'invalid type filter operand: '
+            f'{typ.get_name(ctx.env.schema)} is not an object type',
             context=expr.type.context)
 
     return setgen.class_indirection_set(arg, typ, optional=False, ctx=ctx)

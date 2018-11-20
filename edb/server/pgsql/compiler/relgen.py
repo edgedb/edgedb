@@ -535,7 +535,7 @@ def get_set_rel_alias(ir_set: irast.Set, *,
                       ctx: context.CompilerContextLevel) -> str:
     if ir_set.rptr is not None and ir_set.rptr.source.scls is not None:
         alias_hint = '{}_{}'.format(
-            ir_set.rptr.source.scls.name.name,
+            ir_set.rptr.source.scls.get_name(ctx.env.schema).name,
             ir_set.rptr.ptrcls.get_shortname(ctx.env.schema).name
         )
     else:

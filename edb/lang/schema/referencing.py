@@ -196,7 +196,7 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
             except s_err.ItemNotFoundError:
                 base_name = sn.Name(name)
             else:
-                base_name = base_ref.name
+                base_name = base_ref.get_name(schema)
 
             pcls = cls.get_schema_metaclass()
             pnn = pcls.get_specialized_name(base_name, referrer_name)
@@ -434,7 +434,8 @@ class ReferencingObject(inheriting.InheritingObject,
             else:
                 full_delta = alter_delta = delta
 
-            idx_key = lambda o: o.name
+            old_idx_key = lambda o: o.get_name(old_schema)
+            new_idx_key = lambda o: o.get_name(new_schema)
 
             for refdict in cls.get_refdicts():
                 local_attr = refdict.local_attr
@@ -442,14 +443,14 @@ class ReferencingObject(inheriting.InheritingObject,
                 if old:
                     oldcoll = old.get_field_value(old_schema, local_attr)
                     oldcoll_idx = ordered.OrderedIndex(
-                        oldcoll.objects(old_schema), key=idx_key)
+                        oldcoll.objects(old_schema), key=old_idx_key)
                 else:
                     oldcoll_idx = {}
 
                 if new:
                     newcoll = new.get_field_value(new_schema, local_attr)
                     newcoll_idx = ordered.OrderedIndex(
-                        newcoll.objects(new_schema), key=idx_key)
+                        newcoll.objects(new_schema), key=new_idx_key)
                 else:
                     newcoll_idx = {}
 
@@ -842,7 +843,7 @@ class ReferencingObjectCommand(sd.ObjectCommand):
             del_cmd = sd.ObjectCommandMeta.get_command_class(
                 named.DeleteNamedObject, type(ref))
 
-            op = del_cmd(classname=ref.name)
+            op = del_cmd(classname=ref.get_name(schema))
             schema, _ = op.apply(schema, context=context)
             self.add(op)
 

@@ -50,10 +50,11 @@ class ConstraintCommon:
         return common.quote_ident(name) if quote else name
 
     def schema_constraint_name(self):
-        return self._constraint.name
+        return self._constraint.get_name(self._schema)
 
     def raw_constraint_name(self):
-        name = '{};{}'.format(self._constraint.name, 'schemaconstr')
+        name = '{};{}'.format(self._constraint.get_name(self._schema),
+                              'schemaconstr')
         return name
 
     def generate_extra(self, block):
@@ -661,12 +662,13 @@ class MappingIndex(dbops.Index):
 
 class MangleExprObjectRefs(dbops.Command):
     def __init__(self, *, scls, field, expr,
-                 conditions=None, neg_conditions=None, priority=0):
+                 conditions=None, neg_conditions=None, priority=0,
+                 schema):
         super().__init__(
             conditions=conditions, neg_conditions=neg_conditions,
             priority=priority)
 
-        self.name = scls.name
+        self.name = scls.get_name(schema)
         self.table = metaschema.get_metaclass_table(scls.__class__)
         self.field = common.edgedb_name_to_pg_name(field)
         self.expr = expr

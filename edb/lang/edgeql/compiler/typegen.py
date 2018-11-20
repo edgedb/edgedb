@@ -40,8 +40,8 @@ def type_to_ql_typeref(t: s_obj.Object, *,
     if not isinstance(t, s_types.Collection):
         result = qlast.TypeName(
             maintype=qlast.ObjectRef(
-                module=t.name.module,
-                name=t.name.name
+                module=t.get_name(ctx.env.schema).module,
+                name=t.get_name(ctx.env.schema).name
             )
         )
     else:
@@ -105,8 +105,9 @@ def _ql_typeref_to_ir_typeref(
             subtype = ql_typeref_to_ir_typeref(subtype, ctx=ctx)
             typ.subtypes.append(subtype)
     else:
+        styp = schemactx.get_schema_type(maintype, ctx=ctx)
         typ = irast.TypeRef(
-            maintype=schemactx.get_schema_type(maintype, ctx=ctx).name,
+            maintype=styp.get_name(ctx.env.schema),
             subtypes=[]
         )
 
@@ -117,7 +118,8 @@ def ql_typeref_to_type(
         ql_t: qlast.TypeName, *,
         ctx: context.ContextLevel) -> s_obj.Object:
     if ql_t.subtypes:
-        coll = s_types.Collection.get_class(ql_t.maintype.name)
+        coll = s_types.Collection.get_class(
+            ql_t.maintype.name)
 
         if issubclass(coll, s_types.Tuple):
             subtypes = collections.OrderedDict()

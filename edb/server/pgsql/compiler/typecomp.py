@@ -41,7 +41,8 @@ def cast(
         force: bool=False,
         env: context.Environment) -> pgast.Base:
 
-    if source_type.name == target_type.name and not force:
+    if (source_type.get_name(env.schema) ==
+            target_type.get_name(env.schema) and not force):
         return node
 
     schema = env.schema
@@ -193,7 +194,8 @@ def cast(
                 expected_json_type = None
             else:
                 raise NotImplementedError(
-                    f'cannot not cast {source_type.name} to {target_type.name}'
+                    f'cannot not cast {source_type.get_name(env.schema)} '
+                    f'to {target_type.get_name(env.schema)}'
                 )
 
             if expected_json_type is not None:
@@ -250,7 +252,8 @@ def cast(
             )
 
     raise NotImplementedError(
-        f'cannot not cast {source_type.name} to {target_type.name}'
+        f'cannot not cast {source_type.get_name(env.schema)} to '
+        f'{target_type.get_name(env.schema)}'
     )
 
 

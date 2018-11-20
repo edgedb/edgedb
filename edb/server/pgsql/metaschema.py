@@ -1597,8 +1597,8 @@ classref_attr_aliases = {
 
 dbname = lambda n: \
     common.quote_ident(common.edgedb_name_to_pg_name(sn.Name(n)))
-tabname = lambda obj: \
-    ('edgedbss', common.get_table_name(obj, catenate=False)[1])
+tabname = lambda schema, obj: \
+    ('edgedbss', common.get_table_name(schema, obj, catenate=False)[1])
 q = common.quote_ident
 ql = common.quote_literal
 
@@ -1844,7 +1844,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                 tgt=dbname(sn.Name('std::target')),
             )
 
-    return dbops.View(name=tabname(ptr), query=link_query)
+    return dbops.View(name=tabname(schema, ptr), query=link_query)
 
 
 def _generate_database_view(schema):
@@ -1860,7 +1860,7 @@ def _generate_database_view(schema):
             datname NOT IN ('postgres', 'template0', 'template1')
     '''
 
-    return dbops.View(name=tabname(Database), query=view_query)
+    return dbops.View(name=tabname(schema, Database), query=view_query)
 
 
 def _lookup_type(qual):
@@ -1926,7 +1926,7 @@ def _generate_type_element_view(schema, type_fields):
             q.name IS NOT NULL
     '''
 
-    return dbops.View(name=tabname(TypeElement), query=view_query)
+    return dbops.View(name=tabname(schema, TypeElement), query=view_query)
 
 
 def _generate_types_views(schema, type_fields):
@@ -1966,7 +1966,7 @@ def _generate_types_views(schema, type_fields):
             q.collection = 'array'
     '''
 
-    views.append(dbops.View(name=tabname(Array), query=view_query))
+    views.append(dbops.View(name=tabname(schema, Array), query=view_query))
 
     view_query = f'''
         WITH
@@ -1987,7 +1987,7 @@ def _generate_types_views(schema, type_fields):
             q.collection = 'tuple'
     '''
 
-    views.append(dbops.View(name=tabname(Tuple), query=view_query))
+    views.append(dbops.View(name=tabname(schema, Tuple), query=view_query))
 
     return views
 
@@ -2110,7 +2110,7 @@ async def generate_views(conn, schema):
                     ON (no.name = cmt.description)
         '''
 
-        view = dbops.View(name=tabname(schema_cls), query=view_query)
+        view = dbops.View(name=tabname(schema, schema_cls), query=view_query)
 
         views[view.name] = view
 
@@ -2125,7 +2125,7 @@ async def generate_views(conn, schema):
     db_view = _generate_database_view(schema)
     views[db_view.name] = db_view
 
-    types_view = views[tabname(schema.get('schema::Type'))]
+    types_view = views[tabname(schema, schema.get('schema::Type'))]
     types_view.query += '\nUNION ALL\n' + '\nUNION ALL\n'.join(f'''
         (
             SELECT

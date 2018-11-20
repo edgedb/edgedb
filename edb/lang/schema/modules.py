@@ -38,7 +38,7 @@ from . import operators as s_opers
 class Module(named.NamedObject):
     # Override 'name' to str type, since modules don't have
     # fully-qualified names.
-    name = so.Field(str)
+    name = so.SchemaField(str)
 
     @classmethod
     def create_in_schema(cls, schema, **kwargs):
@@ -69,31 +69,33 @@ class Module(named.NamedObject):
 
         if (isinstance(obj, inheriting.InheritingObject) and
                 obj.get_is_derived(schema)):
-            self.index_derived.add(obj.name)
+            self.index_derived.add(obj.get_name(schema))
 
         return schema
 
     def _discard(self, schema, obj):
-        existing = self.index_by_name.get(obj.name)
+        existing = self.index_by_name.get(obj.get_name(schema))
         if existing is None:
             return schema
 
-        self._do_delete(existing)
+        self._do_delete(schema, existing)
         return schema
 
     def _delete(self, schema, obj):
-        existing = self.index_by_name.get(obj.name)
+        existing = self.index_by_name.get(obj.get_name(schema))
         if existing is None:
-            err = 'object {!r} is not present in the schema'.format(obj.name)
+            err = 'object {!r} is not present in the schema'.format(
+                obj.get_name(schema))
             raise s_err.ItemNotFoundError(err)
 
-        self._do_delete(existing)
+        self._do_delete(schema, existing)
         return schema
 
-    def _do_delete(self, obj):
-        self.index_by_name.pop(obj.name)
-        self.index_by_type[obj.__class__._type].remove(obj.name)
-        self.index_derived.discard(obj.name)
+    def _do_delete(self, schema, obj):
+        obj_name = obj.get_name(schema)
+        self.index_by_name.pop(obj_name)
+        self.index_by_type[obj.__class__._type].remove(obj_name)
+        self.index_derived.discard(obj_name)
 
     def lookup_qname(self, name):
         return self.index_by_name.get(name)
@@ -104,7 +106,7 @@ class Module(named.NamedObject):
     def get_operators(self, name):
         return self.opers_by_name.get(name)
 
-    def get(self, name, default=s_err.ItemNotFoundError, *,
+    def get(self, schema, name, default=s_err.ItemNotFoundError, *,
             module_aliases=None, type=None,
             implicit_builtins=True):
 
@@ -113,7 +115,8 @@ class Module(named.NamedObject):
         if isinstance(type, tuple):
             for typ in type:
                 try:
-                    scls = self.get(name, module_aliases=module_aliases,
+                    scls = self.get(schema, name,
+                                    module_aliases=module_aliases,
                                     type=typ, default=None)
                 except s_err.SchemaError:
                     pass
@@ -123,7 +126,7 @@ class Module(named.NamedObject):
         else:
             scls = None
 
-            fq_name = '{}::{}'.format(self.name, name)
+            fq_name = '{}::{}'.format(self.get_name(schema), name)
             scls = self.lookup_qname(fq_name)
 
         raise_ = None
@@ -136,7 +139,7 @@ class Module(named.NamedObject):
 
             if raise_:
                 msg = ('reference to non-existent schema item: '
-                       '{}::{}'.format(self.name, name))
+                       '{}::{}'.format(self.get_name(schema), name))
                 if fail_cause is not None:
                     raise default(msg) from fail_cause
                 else:
@@ -168,7 +171,7 @@ class Module(named.NamedObject):
         return scls
 
     def reorder(self, schema, new_order):
-        name_order = [p.name for p in new_order]
+        name_order = [p.get_name(schema) for p in new_order]
 
         def sortkey(item):
             try:

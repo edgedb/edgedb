@@ -172,12 +172,12 @@ def get_backend_operator_name(name, catenate=False):
         return schema, oper_name
 
 
-def get_table_name(obj, catenate=True):
+def get_table_name(schema, obj, catenate=True):
     if isinstance(obj, s_objtypes.ObjectType):
-        return objtype_name_to_table_name(obj.name, catenate)
+        return objtype_name_to_table_name(obj.get_name(schema), catenate)
     elif isinstance(obj, s_props.Property):
-        return prop_name_to_table_name(obj.name, catenate)
+        return prop_name_to_table_name(obj.get_name(schema), catenate)
     elif isinstance(obj, (s_links.Link, s_pointers.PointerLike)):
-        return link_name_to_table_name(obj.name, catenate)
+        return link_name_to_table_name(obj.get_name(schema), catenate)
     else:
         raise ValueError(f'cannot determine table for {obj!r}')

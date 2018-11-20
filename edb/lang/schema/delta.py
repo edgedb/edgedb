@@ -52,9 +52,9 @@ def delta_schemas(schema1, schema2, *, include_derived=False):
 
     for type in schema1.global_dep_order:
         o1 = schema1.get_objects(type=type, include_derived=include_derived)
-        new = ordered.OrderedIndex(o1, key=lambda o: o.name)
+        new = ordered.OrderedIndex(o1, key=lambda o: o.get_name(schema1))
         o2 = schema2.get_objects(type=type, include_derived=include_derived)
-        old = ordered.OrderedIndex(o2, key=lambda o: o.name)
+        old = ordered.OrderedIndex(o2, key=lambda o: o.get_name(schema2))
 
         if type in ('link', 'link_property', 'constraint'):
             new = filter(lambda i: i.generic(schema1), new)
@@ -100,13 +100,16 @@ def delta_module(schema1, schema2, modname):
         result.add(create)
 
     for type in schema1.global_dep_order:
-        new = ordered.OrderedIndex(module1.get_objects(type=type),
-                                   key=lambda o: o.name)
+        new = ordered.OrderedIndex(
+            module1.get_objects(type=type),
+            key=lambda o: o.get_name(schema1))
+
         if module2 is not None:
-            old = ordered.OrderedIndex(module2.get_objects(type=type),
-                                       key=lambda o: o.name)
+            old = ordered.OrderedIndex(
+                module2.get_objects(type=type),
+                key=lambda o: o.get_name(schema2))
         else:
-            old = ordered.OrderedIndex(key=lambda o: o.name)
+            old = ordered.OrderedIndex(key=lambda o: o.get_name(schema2))
 
         if type in ('link', 'link_property', 'constraint'):
             new = filter(lambda i: i.generic(schema1), new)

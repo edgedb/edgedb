@@ -85,7 +85,7 @@ base_type_name_map_r = {
 
 
 def get_scalar_base(schema, scalar):
-    base = base_type_name_map.get(scalar.name)
+    base = base_type_name_map.get(scalar.get_name(schema))
     if base is not None:
         return base
 
@@ -94,14 +94,15 @@ def get_scalar_base(schema, scalar):
             # Check if base is fundamental, if not, then it is
             # another domain.
             try:
-                base = base_type_name_map[ancestor.name]
+                base = base_type_name_map[ancestor.get_name(schema)]
             except KeyError:
-                base = common.scalar_name_to_domain_name(ancestor.name)
+                base = common.scalar_name_to_domain_name(
+                    ancestor.get_name(schema))
 
             return base
 
     raise ValueError(f'cannot determine backend type for scalar type '
-                     f'{scalar.name}')
+                     f'{scalar.get_name(schema)}')
 
 
 def pg_type_from_scalar(
@@ -118,19 +119,19 @@ def pg_type_from_scalar(
         base = get_scalar_base(schema, scalar)
 
     if topbase:
-        column_type = base_type_name_map.get(base.name)
+        column_type = base_type_name_map.get(base.get_name(schema))
         if not column_type:
             base_class = base.get_bases(schema).first(schema)
             column_type = (base_type_name_map[base_class.adapts],)
         else:
             column_type = (column_type,)
     else:
-        column_type = base_type_name_map.get(scalar.name)
+        column_type = base_type_name_map.get(scalar.get_name(schema))
         if column_type:
             column_type = (base,)
         else:
             column_type = common.scalar_name_to_domain_name(
-                scalar.name, catenate=False)
+                scalar.get_name(schema), catenate=False)
 
     return column_type
 
@@ -150,7 +151,7 @@ def pg_type_from_object(
         if obj.is_polymorphic(schema):
             return ('anyarray',)
         else:
-            st = schema.get(obj.element_type.name)
+            st = schema.get(obj.element_type.get_name(schema))
             tp = pg_type_from_scalar(schema, st, topbase=True)
             if len(tp) == 1:
                 return (tp[0] + '[]',)
@@ -171,7 +172,7 @@ class PointerStorageInfo:
     @classmethod
     def _source_table_info(cls, schema, pointer):
         table = common.get_table_name(
-            pointer.get_source(schema), catenate=False)
+            schema, pointer.get_source(schema), catenate=False)
         ptr_name = pointer.get_shortname(schema)
         col_name = common.edgedb_name_to_pg_name(ptr_name)
         table_type = 'ObjectType'
@@ -180,7 +181,8 @@ class PointerStorageInfo:
 
     @classmethod
     def _pointer_table_info(cls, schema, pointer):
-        table = common.get_table_name(pointer, catenate=False)
+        table = common.get_table_name(
+            schema, pointer, catenate=False)
         col_name = 'std::target'
         table_type = 'link'
         col_name = common.edgedb_name_to_pg_name(col_name)
@@ -249,7 +251,8 @@ class PointerStorageInfo:
             col_name = common.edgedb_name_to_pg_name(
                 pointer.get_shortname(schema).name)
         elif is_lprop:
-            table = common.get_table_name(source, catenate=False)
+            table = common.get_table_name(
+                schema, source, catenate=False)
             table_type = 'link'
             col_name = common.edgedb_name_to_pg_name(
                 pointer.get_shortname(schema))
@@ -426,7 +429,7 @@ class TypeDesc:
         if isinstance(value, s_obj.ObjectRef):
             name = value.classname
         elif isinstance(value, s_named.NamedObject):
-            name = value.name
+            name = value.get_name(schema)
         else:
             raise ValueError(
                 'expecting a ObjectRef or a '

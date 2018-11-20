@@ -40,7 +40,7 @@ def amend_empty_set_type(es: irast.EmptySet, t: s_obj.Object, schema) -> None:
     es.scls = t
     alias = es.path_id.target_name.name
     typename = s_name.Name(module='__expr__', name=alias)
-    es.path_id = irast.PathId(t, typename=typename)
+    es.path_id = irast.PathId.from_type(schema, t, typename=typename)
 
 
 def _infer_common_type(irs: typing.List[irast.Base], schema):
@@ -227,7 +227,7 @@ def __infer_binop(ir, schema):
     if result is None:
         raise ql_errors.EdgeQLError(
             f'binary operator `{ir.op.upper()}` is not defined for types '
-            f'{left_type.name} and {right_type.name}',
+            f'{left_type.get_name(schema)} and {right_type.get_name(schema)}',
             context=ir.left.context)
 
     return result
@@ -257,7 +257,7 @@ def __infer_unaryop(ir, schema):
     if result is None:
         raise ql_errors.EdgeQLError(
             f'unary operator `{ir.op.upper()}` is not defined '
-            f'for type {operand_type.name}',
+            f'for type {operand_type.get_name(schema)}',
             context=ir.context)
 
     return result
@@ -273,7 +273,8 @@ def __infer_ifelse(ir, schema):
         else_expr_type = infer_type(ir.else_expr, schema)
         raise ql_errors.EdgeQLError(
             'if/else clauses must be of related types, got: {}/{}'.format(
-                if_expr_type.name, else_expr_type.name),
+                if_expr_type.get_name(schema),
+                else_expr_type.get_name(schema)),
             context=ir.if_expr.context)
 
     return result
@@ -331,7 +332,7 @@ def __infer_slice(ir, schema):
     else:
         # the base type is not valid
         raise ql_errors.EdgeQLError(
-            f'cannot slice {node_type.name}',
+            f'cannot slice {node_type.get_name(schema)}',
             context=ir.start.context)
 
     for index in [ir.start, ir.stop]:
@@ -340,8 +341,9 @@ def __infer_slice(ir, schema):
 
             if not index_type.implicitly_castable_to(int_t, schema):
                 raise ql_errors.EdgeQLError(
-                    f'cannot slice {base_name} by {index_type.name}, '
-                    f'{int_t.name} was expected',
+                    f'cannot slice {base_name} by '
+                    f'{index_type.get_name(schema)}, '
+                    f'{int_t.get_name(schema)} was expected',
                     context=index.context)
 
     return node_type
@@ -363,8 +365,8 @@ def __infer_index(ir, schema):
 
         if not index_type.implicitly_castable_to(int_t, schema):
             raise ql_errors.EdgeQLError(
-                f'cannot index string by {index_type.name}, '
-                f'{int_t.name} was expected',
+                f'cannot index string by {index_type.get_name(schema)}, '
+                f'{int_t.get_name(schema)} was expected',
                 context=ir.index.context)
 
         result = str_t
@@ -373,8 +375,8 @@ def __infer_index(ir, schema):
 
         if not index_type.implicitly_castable_to(int_t, schema):
             raise ql_errors.EdgeQLError(
-                f'cannot index bytes by {index_type.name}, '
-                f'{int_t.name} was expected',
+                f'cannot index bytes by {index_type.get_name(schema)}, '
+                f'{int_t.get_name(schema)} was expected',
                 context=ir.index.context)
 
         result = bytes_t
@@ -385,8 +387,9 @@ def __infer_index(ir, schema):
                 index_type.implicitly_castable_to(str_t, schema)):
 
             raise ql_errors.EdgeQLError(
-                f'cannot index json by {index_type.name}, '
-                f'{int_t.name} or {str_t.name} was expected',
+                f'cannot index json by {index_type.get_name(schema)}, '
+                f'{int_t.get_name(schema)} or '
+                f'{str_t.get_name(schema)} was expected',
                 context=ir.index.context)
 
         result = json_t
@@ -395,21 +398,22 @@ def __infer_index(ir, schema):
 
         if not index_type.implicitly_castable_to(int_t, schema):
             raise ql_errors.EdgeQLError(
-                f'cannot index array by {index_type.name}, '
-                f'{int_t.name} was expected',
+                f'cannot index array by {index_type.get_name(schema)}, '
+                f'{int_t.get_name(schema)} was expected',
                 context=ir.index.context)
 
         result = node_type.element_type
 
     elif (node_type.is_any() or
-            (node_type.is_scalar() and node_type.name == 'std::anyscalar') and
+            (node_type.is_scalar() and
+                node_type.get_name(schema) == 'std::anyscalar') and
             (index_type.implicitly_castable_to(int_t, schema) or
                 index_type.implicitly_castable_to(str_t, schema))):
         result = s_pseudo.Any.create()
 
     else:
         raise ql_errors.EdgeQLError(
-            f'cannot index {node_type.name}',
+            f'cannot index {node_type.get_name(schema)}',
             context=ir.index.context)
 
     return result

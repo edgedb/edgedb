@@ -521,6 +521,9 @@ class Object(metaclass=ObjectMeta):
                 'updates list contains values for non-existant fields: ' +
                 ', '.join(updates.keys() - fields.keys()))
 
+        if 'name' in updates:
+            oldname = self.get_name(schema)
+
         for field_name in updates:
             field = fields[field_name]
             attrname = field._attrname
@@ -533,6 +536,11 @@ class Object(metaclass=ObjectMeta):
                 new_val = self._check_field_type(
                     schema, field, field_name, new_val)
                 self.__dict__[attrname] = new_val
+
+        if 'name' in updates:
+            newname = updates['name']
+            if newname != oldname:
+                schema = schema._rename(self, oldname)
 
         return schema
 
@@ -591,7 +599,7 @@ class Object(metaclass=ObjectMeta):
                     v = tuple(v)
 
             if is_named_class(v):
-                v = v.name
+                v = v.get_name(schema)
 
             criteria.append((f, v))
 
@@ -724,7 +732,7 @@ class Object(metaclass=ObjectMeta):
 
         if old and new:
             try:
-                name = old.name
+                name = old.get_name(old_schema)
             except AttributeError:
                 pass
             else:
@@ -739,7 +747,7 @@ class Object(metaclass=ObjectMeta):
 
         elif not old:
             try:
-                name = new.name
+                name = new.get_name(new_schema)
             except AttributeError:
                 pass
             else:
@@ -754,7 +762,7 @@ class Object(metaclass=ObjectMeta):
 
         else:
             try:
-                name = old.name
+                name = old.get_name(old_schema)
             except AttributeError:
                 pass
             else:
@@ -849,20 +857,21 @@ class Object(metaclass=ObjectMeta):
             probe = next(iter(items))
 
             if isinstance(probe, s_inh.InheritingObject):
-                items_idx = {p.name: p for p in items}
+                items_idx = {p.get_name(schema): p for p in items}
 
                 g = {}
 
                 for x in items:
                     deps = {b for b in x._get_deps(schema) if b in items_idx}
-                    g[x.name] = {'item': x, 'deps': deps}
+                    g[x.get_name(schema)] = {'item': x, 'deps': deps}
 
                 items = topological.sort(g)
 
         return items
 
     def _get_deps(self, schema):
-        return {b.name for b in self.get_bases(schema).objects(schema)}
+        return {b.get_name(schema)
+                for b in self.get_bases(schema).objects(schema)}
 
     @classmethod
     def delta_sets(cls, old, new, result, context=None, *,
@@ -988,8 +997,8 @@ class Object(metaclass=ObjectMeta):
                         new_class.get_bases(new_schema).objects(new_schema)
 
                     bases = (
-                        {b.name for b in old_bases} |
-                        {b.name for b in new_bases}
+                        {b.get_name(old_schema) for b in old_bases} |
+                        {b.get_name(new_schema) for b in new_bases}
                     )
 
                     deps = {b for b in bases if b in altered_idx}
@@ -1043,7 +1052,9 @@ class Object(metaclass=ObjectMeta):
 
 
 class NamedObject(Object):
-    name = Field(sn.Name, inheritable=False, compcoef=0.670)
+    name = SchemaField(
+        sn.Name,
+        inheritable=False, compcoef=0.670)
 
     # The path_id_name field is solely for the purposes of the compiler
     # so that this item can act as a transparent proxy for the item
@@ -1092,19 +1103,7 @@ class NamedObject(Object):
                          for qualifier in qualifiers if qualifier))
 
     def get_shortname(self, schema) -> sn.Name:
-        try:
-            cached = self._cached_shortname
-        except AttributeError:
-            pass
-        else:
-            # `.name` can be overridden at some point, so we
-            # want to guard our cache against that.
-            if cached[0] == self.name:
-                return cached[1]
-
-        shortname = self.shortname_from_fullname(self.name)
-        self._cached_shortname = (self.name, shortname)
-        return shortname
+        return self.shortname_from_fullname(self.get_name(schema))
 
     def get_displayname(self, schema) -> str:
         return str(self.get_shortname(schema))
@@ -1113,8 +1112,8 @@ class NamedObject(Object):
     def delta_properties(cls, delta, old, new, *, context=None,
                          old_schema, new_schema):
         if old and new:
-            if old.name != new.name:
-                delta.add(old.delta_rename(old, new.name,
+            if old.get_name(old_schema) != new.get_name(new_schema):
+                delta.add(old.delta_rename(old, new.get_name(new_schema),
                                            old_schema=old_schema,
                                            new_schema=new_schema))
 
@@ -1129,7 +1128,7 @@ class NamedObject(Object):
         rename_class = sd.ObjectCommandMeta.get_command_class_or_die(
             named.RenameNamedObject, type(obj))
 
-        return rename_class(classname=obj.name,
+        return rename_class(classname=obj.get_name(old_schema),
                             new_name=new_name,
                             metaclass=type(obj))
 
@@ -1143,20 +1142,20 @@ class NamedObject(Object):
         elif ours is not None:
             if type(ours) is not type(theirs):
                 similarity /= 1.4
-            elif ours.name != theirs.name:
+            elif ours.get_name(our_schema) != theirs.get_name(their_schema):
                 similarity /= 1.2
 
         return similarity
 
     def __repr__(self):
         cls = self.__class__
-        return f'<{cls.__module__}.{cls.__name__} "{self.name}" ' \
+        return f'<{cls.__module__}.{cls.__name__} "{self.id}" ' \
                f'at 0x{id(self):x}>'
 
     __str__ = __repr__
 
     def _reduce_to_ref(self, schema):
-        return ObjectRef(name=self.name), self.name
+        return ObjectRef(name=self.get_name(schema)), self.get_name(schema)
 
 
 class ObjectRef(NamedObject):
@@ -1175,16 +1174,19 @@ class ObjectRef(NamedObject):
     def name(self):
         return self._name
 
+    def get_name(self, schema):
+        return self._name
+
     def __repr__(self):
-        return '<ObjectRef "{}" at 0x{:x}>'.format(self.name, id(self))
+        return '<ObjectRef "{}" at 0x{:x}>'.format(self.id, id(self))
 
     __str__ = __repr__
 
     def _reduce_to_ref(self, schema):
-        return self, self.name
+        return self, self.get_name(schema)
 
     def _resolve_ref(self, schema):
-        return schema.get(self.name)
+        return schema.get(self.get_name(schema))
 
 
 class ObjectCollectionDuplicateNameError(Exception):
@@ -1250,17 +1252,17 @@ class ObjectCollection:
         for item_id in self._ids:
             if isinstance(item_id, ObjectRef):
                 try:
-                    obj = schema.get(item_id.name)
+                    obj = schema.get(item_id.get_name(schema))
                 except s_err.ItemNotFoundError:
                     if allow_unresolved:
-                        result.append(item_id.name)
+                        result.append(item_id.get_name(schema))
                     else:
                         raise
                 else:
-                    result.append(obj.name)
+                    result.append(obj.get_name(schema))
             else:
                 obj = schema.get_by_id(item_id)
-                result.append(obj.name)
+                result.append(obj.get_name(schema))
 
         return type(self)._container(result)
 
@@ -1270,11 +1272,12 @@ class ObjectCollection:
         for item_id in self._ids:
             if isinstance(item_id, ObjectRef):
                 try:
-                    obj = schema.get(item_id.name)
+                    obj = schema.get(item_id.get_name(schema))
                 except s_err.ItemNotFoundError:
                     if allow_unresolved:
                         result.append(
-                            NamedObject.shortname_from_fullname(item_id.name))
+                            NamedObject.shortname_from_fullname(
+                                item_id.get_name(schema)))
                     else:
                         raise
                 else:
@@ -1290,7 +1293,7 @@ class ObjectCollection:
 
         for item_id in self._ids:
             if isinstance(item_id, ObjectRef):
-                result.append(schema.get(item_id.name))
+                result.append(schema.get(item_id.get_name(schema)))
             else:
                 result.append(schema.get_by_id(item_id))
 
@@ -1438,7 +1441,7 @@ class ObjectIndexBase(ObjectCollection, container=tuple):
 
 
 class ObjectIndexByFullname(ObjectIndexBase,
-                            key=lambda schema, o: o.name):
+                            key=lambda schema, o: o.get_name(schema)):
     pass
 
 

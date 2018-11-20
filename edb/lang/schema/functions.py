@@ -52,7 +52,7 @@ def param_as_str(schema, param):
     if typemod is not ft.TypeModifier.SINGLETON:
         ret.append(typemod.to_edgeql())
         ret.append(' ')
-    ret.append(param.get_type(schema).name)
+    ret.append(param.get_type(schema).get_name(schema))
 
     if default is not None:
         ret.append(f'={default}')
@@ -97,6 +97,9 @@ class ParameterDesc(typing.NamedTuple):
     def get_shortname(self, schema):
         return self.name
 
+    def get_name(self, schema):
+        return self.name
+
     def get_kind(self, _):
         return self.kind
 
@@ -132,7 +135,7 @@ class ParameterDesc(typing.NamedTuple):
         param_name = sn.Name(
             module=func_fqname.module,
             name=Parameter.get_specialized_name(
-                self.name, func_fqname)
+                self.get_name(schema), func_fqname)
         )
 
         cmd = CreateParameter(classname=param_name)
@@ -162,7 +165,7 @@ class ParameterDesc(typing.NamedTuple):
         param_name = sn.Name(
             module=func_fqname.module,
             name=Parameter.get_specialized_name(
-                self.name, func_fqname)
+                self.get_name(schema), func_fqname)
         )
 
         cmd = DeleteParameter(classname=param_name)
@@ -229,7 +232,7 @@ class Parameter(named.NamedObject):
 
         ir = ql_compiler.compile_ast_fragment_to_ir(
             ql_default, schema,
-            location=f'default of the {self.name} parameter')
+            location=f'default of the {self.get_name(schema)} parameter')
 
         if not irutils.is_const(ir):
             raise ValueError('expression not constant')
@@ -309,7 +312,7 @@ class PgParams(typing.NamedTuple):
             pg_params.append(variadic)
 
         if named:
-            named.sort(key=lambda p: p.name)
+            named.sort(key=lambda p: p.get_name(schema))
             named.extend(pg_params)
             pg_params = named
 
@@ -401,8 +404,8 @@ class CallableObject(so.NamedObject):
 
         def param_is_inherited(schema, func, param):
             qualname = Parameter.get_specialized_name(
-                param.get_shortname(schema), func.name)
-            return qualname != param.name.name
+                param.get_shortname(schema), func.get_name(schema))
+            return qualname != param.get_name(schema).name
 
         with context(old, new):
             delta = super().delta(old, new, context=context,
@@ -471,21 +474,17 @@ class CallableCommand(named.NamedObjectCommand):
         quals = []
         for param in pgp.params:
             pt = param.get_type(schema)
-            if isinstance(pt, so.ObjectRef):
-                quals.append(pt.classname)
-            elif isinstance(pt, s_types.Collection):
+            if isinstance(pt, s_types.Collection):
                 quals.append(pt.schema_name)
                 for st in pt.get_subtypes():
-                    if isinstance(st, so.ObjectRef):
-                        quals.append(st.classname)
-                    else:
-                        quals.append(st.name)
+                    quals.append(st.get_name(schema))
             else:
-                quals.append(pt.name)
+                quals.append(pt.get_name(schema))
 
             pk = param.get_kind(schema)
             if pk is ft.ParameterKind.NAMED_ONLY:
-                quals.append(f'$NO-{param.name}-{pt.name}$')
+                quals.append(
+                    f'$NO-{param.get_name(schema)}-{pt.get_name(schema)}$')
             elif pk is ft.ParameterKind.VARIADIC:
                 quals.append(f'$V$')
 
@@ -650,10 +649,11 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                 func_return_typemod = func.get_return_typemod(schema)
                 raise ql_errors.EdgeQLError(
                     f'cannot create the polymorphic `{signature} -> '
-                    f'{return_typemod.to_edgeql()} {return_type.name}` '
+                    f'{return_typemod.to_edgeql()} '
+                    f'{return_type.get_name(schema)}` '
                     f'function: overloading another function with different '
                     f'return type {func_return_typemod.to_edgeql()} '
-                    f'{func.get_return_type(schema).name}',
+                    f'{func.get_return_type(schema).get_name(schema)}',
                     context=self.source_context)
 
             if func_from_function:
@@ -693,7 +693,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                 raise ql_errors.EdgeQLError(
                     f'cannot create the `{signature}` function: '
                     f'invalid default value {p_default} of parameter '
-                    f'${p.name}: {ex}',
+                    f'${p.get_name(schema)}: {ex}',
                     context=self.source_context)
 
             check_default_type = True
@@ -703,7 +703,8 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                 else:
                     raise ql_errors.EdgeQLError(
                         f'cannot create the `{signature}` function: '
-                        f'polymorphic parameter of type {p_type.name} cannot '
+                        f'polymorphic parameter of type '
+                        f'{p_type.get_name(schema)} cannot '
                         f'have a non-empty default value',
                         context=self.source_context)
             elif (p.get_typemod(schema) is ft.TypeModifier.OPTIONAL and
@@ -715,7 +716,8 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                 if not default_type.assignment_castable_to(p_type, schema):
                     raise ql_errors.EdgeQLError(
                         f'cannot create the `{signature}` function: '
-                        f'invalid declaration of parameter ${p.name}: '
+                        f'invalid declaration of parameter '
+                        f'${p.get_name(schema)}: '
                         f'unexpected type of the default expression: '
                         f'{default_type.get_displayname(schema)}, expected '
                         f'{p_type.get_displayname(schema)}',

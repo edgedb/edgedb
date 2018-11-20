@@ -239,8 +239,8 @@ def _normalize_view_ptr_expr(
             subject=qlast.Path(
                 steps=[
                     qlast.ObjectRef(
-                        name=ptr_target.name.name,
-                        module=ptr_target.name.module)
+                        name=ptr_target.get_name(ctx.env.schema).name,
+                        module=ptr_target.get_name(ctx.env.schema).module)
                 ]
             ),
             shape=shape_el.elements
@@ -344,7 +344,7 @@ def _normalize_view_ptr_expr(
             ptr_module = (
                 ptrname[0] or
                 ctx.derived_target_module or
-                scls.name.module
+                scls.get_name(ctx.env.schema).module
             )
 
             ptr_name = sn.SchemaName(module=ptr_module, name=ptrname[1])
@@ -394,11 +394,14 @@ def _normalize_view_ptr_expr(
             # Validate that the insert/update expression is
             # of the correct class.
             ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
-            lname = f'({ptrsource.name}).{ptrcls_sn.name}'
-            expected = [repr(str(base_ptrcls.get_target(ctx.env.schema).name))]
+            lname = f'({ptrsource.get_name(ctx.env.schema)}).{ptrcls_sn.name}'
+            expected = [
+                repr(str(base_ptrcls.get_target(
+                    ctx.env.schema).get_name(ctx.env.schema)))
+            ]
             raise edgedb_error.InvalidPointerTargetError(
                 f'invalid target for link {str(lname)!r}: '
-                f'{str(ptr_target.name)!r} (expecting '
+                f'{str(ptr_target.get_name(ctx.env.schema))!r} (expecting '
                 f'{" or ".join(expected)})'
             )
 
@@ -420,7 +423,7 @@ def _normalize_view_ptr_expr(
                 # to a nested shape.  Have it reuse the original
                 # pointer name so that in `Foo.ptr.name` and
                 # `Foo { ptr: {name}}` are the same path.
-                derived_name = ptrcls.name
+                derived_name = ptrcls.get_name(ctx.env.schema)
             else:
                 derived_name = None
 
@@ -428,7 +431,8 @@ def _normalize_view_ptr_expr(
                 ptrcls, src_scls, ptr_target,
                 is_insert=is_insert, is_update=is_update,
                 derived_name=derived_name,
-                derived_name_quals=[view_scls.name], ctx=ctx)
+                derived_name_quals=[view_scls.get_name(ctx.env.schema)],
+                ctx=ctx)
 
         if qlexpr is not None:
             ctx.source_map[ptrcls] = (qlexpr, ctx, path_id)
@@ -475,12 +479,15 @@ def derive_ptrcls(
             derived_name = schemactx.derive_view_name(
                 view_rptr.base_ptrcls,
                 derived_name_base=view_rptr.ptrcls_name,
-                derived_name_quals=(view_rptr.source.name,),
+                derived_name_quals=(
+                    view_rptr.source.get_name(ctx.env.schema),
+                ),
                 ctx=ctx)
 
             attrs = {}
             if transparent:
-                attrs['path_id_name'] = view_rptr.base_ptrcls.name
+                attrs['path_id_name'] = view_rptr.base_ptrcls.get_name(
+                    ctx.env.schema)
 
             view_rptr.ptrcls = schemactx.derive_view(
                 view_rptr.base_ptrcls, view_rptr.source, target_scls,
@@ -499,7 +506,7 @@ def derive_ptrcls(
     else:
         attrs = {}
         if transparent:
-            attrs['path_id_name'] = view_rptr.ptrcls.name
+            attrs['path_id_name'] = view_rptr.ptrcls.get_name(ctx.env.schema)
 
         view_rptr.derived_ptrcls = schemactx.derive_view(
             view_rptr.ptrcls, view_rptr.source, target_scls,

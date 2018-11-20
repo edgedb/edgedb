@@ -76,7 +76,7 @@ def get_schema_object(
     except s_err.SchemaError as e:
         raise qlerrors.EdgeQLError(e.args[0], context=srcctx)
 
-    result = ctx.aliased_views.get(scls.name)
+    result = ctx.aliased_views.get(scls.get_name(ctx.env.schema))
     if result is None:
         result = scls
 
@@ -138,7 +138,7 @@ def derive_view(
         ctx.env.schema, derived = scls.derive_subtype(
             ctx.env.schema, name=derived_name)
     else:
-        if scls.name == derived_name:
+        if scls.get_name(ctx.env.schema) == derived_name:
             qualifiers = list(qualifiers)
             qualifiers.append(ctx.aliases.get('d'))
 
@@ -171,11 +171,12 @@ def derive_view(
             ctx.env.schema, 'view_type', vtype)
 
     if (not isinstance(derived, s_types.Collection) and
-            ctx.env.schema.get(derived.name, None) is None):
+            ctx.env.schema.get(
+                derived.get_name(ctx.env.schema), None) is None):
         ctx.env.schema = ctx.env.schema.add(derived)
 
     if isinstance(derived, s_types.Type):
-        ctx.view_nodes[derived.name] = derived
+        ctx.view_nodes[derived.get_name(ctx.env.schema)] = derived
 
     return derived
 

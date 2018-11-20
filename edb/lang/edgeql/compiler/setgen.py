@@ -138,7 +138,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     step, item_types=(s_objtypes.ObjectType,), ctx=ctx)
 
                 if (scls.get_view_type(ctx.env.schema) is not None and
-                        scls.name not in ctx.view_nodes):
+                        scls.get_name(ctx.env.schema) not in ctx.view_nodes):
                     # This is a schema-level view, as opposed to
                     # a WITH-block or inline alias view.
                     scls = stmtctx.declare_view_from_schema(scls, ctx=ctx)
@@ -150,7 +150,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     path_scope = ctx.path_scope_map.get(view_set)
                     extra_scopes[path_tip] = path_scope.copy()
 
-                view_scls = ctx.class_view_overrides.get(scls.name)
+                view_scls = ctx.class_view_overrides.get(
+                    scls.get_name(ctx.env.schema))
                 if view_scls is not None:
                     path_tip.scls = view_scls
 
@@ -167,7 +168,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     ptr_expr.target.maintype, ctx=ctx)
                 if not isinstance(ptr_target, s_objtypes.ObjectType):
                     raise errors.EdgeQLError(
-                        f'invalid type filter operand: {ptr_target.name} '
+                        f'invalid type filter operand: '
+                        f'{ptr_target.get_name(ctx.env.schema)} '
                         f'is not an object type',
                         context=ptr_expr.target.context)
 
@@ -323,7 +325,7 @@ def resolve_ptr(
     if ptr_module:
         pointer = schemactx.get_schema_ptr(
             name=ptr_nqname, module=ptr_module, ctx=ctx)
-        pointer_name = pointer.name
+        pointer_name = pointer.get_name(ctx.env.schema)
     else:
         pointer_name = ptr_nqname
 
@@ -343,18 +345,19 @@ def resolve_ptr(
                 msg = (f'{near_endpoint.get_displayname(ctx.env.schema)} '
                        f'has no property {pointer_name!r}')
                 if target:
-                    msg += f'of type {target.name!r}'
+                    msg += f'of type {target.get_name(ctx.env.schema)!r}'
 
             elif direction == s_pointers.PointerDirection.Outbound:
                 msg = (f'{near_endpoint.get_displayname(ctx.env.schema)} '
                        f'has no link or property {pointer_name!r}')
                 if target:
-                    msg += f'of type {target.name!r}'
+                    msg += f'of type {target.get_name(ctx.env.schema)!r}'
 
             else:
-                path = f'{near_endpoint.name}.{direction}{pointer_name}'
+                nep_name = near_endpoint.get_name(ctx.env.schema)
+                path = f'{nep_name}.{direction}{pointer_name}'
                 if target:
-                    path += f'[IS {target.name}]'
+                    path += f'[IS {target.get_name(ctx.env.schema)}]'
                 msg = f'{path} does not resolve to any known path',
 
             err = errors.EdgeQLReferenceError(msg, context=source_context)
@@ -610,8 +613,9 @@ def ensure_set(
     if (typehint is not None and
             not expr.scls.implicitly_castable_to(typehint, ctx.env.schema)):
         raise errors.EdgeQLError(
-            f'expecting expression of type {typehint.name}, '
-            f'got {expr.scls.name}',
+            f'expecting expression of type '
+            f'{typehint.get_name(ctx.env.schema)}, '
+            f'got {expr.scls.get_name(ctx.env.schema)}',
             context=expr.context
         )
     return expr
@@ -748,7 +752,8 @@ def _get_computable_ctx(
             subctx.modaliases = qlctx.modaliases.copy()
             subctx.aliased_views = qlctx.aliased_views.new_child()
             if source_scls.is_view(ctx.env.schema):
-                subctx.aliased_views[source.scls.name] = None
+                scls_name = source.scls.get_name(ctx.env.schema)
+                subctx.aliased_views[scls_name] = None
             subctx.source_map = qlctx.source_map.copy()
             subctx.view_nodes = qlctx.view_nodes.copy()
             subctx.view_sets = qlctx.view_sets.copy()

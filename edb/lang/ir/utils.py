@@ -190,7 +190,7 @@ def new_empty_set(schema, *, scls=None, alias):
         path_id_scls = scls
 
     typename = s_name.Name(module='__expr__', name=alias)
-    path_id = irast.PathId(path_id_scls, typename=typename)
+    path_id = irast.PathId.from_type(schema, path_id_scls, typename=typename)
     return irast.EmptySet(path_id=path_id, scls=scls)
 
 
@@ -210,6 +210,9 @@ class TupleIndirectionLink(s_pointers.PointerLike):
         return self.name == other.name
 
     def get_shortname(self, schema):
+        return self.name
+
+    def get_name(self, schema):
         return self.name
 
     def get_path_id_name(self, schema):
@@ -258,6 +261,9 @@ class TypeIndirectionLink(s_pointers.PointerLike):
 
     @property
     def name(self):
+        return self._name
+
+    def get_name(self, schema):
         return self._name
 
     def get_shortname(self, schema):

@@ -637,7 +637,8 @@ def process_link_update(
             ],
             where_clause=astutils.new_binop(
                 lexpr=pgast.ColumnRef(name=[ltab_alias, 'name']),
-                rexpr=pgast.StringConstant(val=mptrcls.name),
+                rexpr=pgast.StringConstant(
+                    val=mptrcls.get_name(ctx.env.schema)),
                 op=ast.ops.EQ
             )
         ),
