@@ -31,6 +31,7 @@ unreserved_keywords = frozenset([
     "after",
     "alias",
     "allow",
+    "all",
     "as",
     "asc",
     "assignment",
@@ -86,7 +87,6 @@ unreserved_keywords = frozenset([
 
 
 future_reserved_keywords = frozenset([
-    "all",
     "analyze",
     "anyarray",
     "begin",

@@ -823,7 +823,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             with self.assertRaisesRegex(
                     client_errors.EdgeQLError,
-                    r'"\$parameters" cannot not be used in functions'):
+                    r'"\$parameters" cannot be used in functions'):
                 await self.con.execute("""
                     CREATE FUNCTION test::ddlf_3(
                         a: int64

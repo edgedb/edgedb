@@ -36,13 +36,13 @@ std::array_unpack(array: array<anytype>) -> SET OF anytype
 
 
 CREATE FUNCTION
-std::array_contains(array: array<anytype>, what: anytype) -> std::bool
+std::array_contains(array: array<anytype>, element: anytype) -> std::bool
 {
     FROM SQL $$
     SELECT
         CASE
-            WHEN what IS NULL THEN NULL
-            ELSE array_position("array", what) IS NOT NULL
+            WHEN "element" IS NULL THEN NULL
+            ELSE array_position("array", "element") IS NOT NULL
         END;
     $$;
 };

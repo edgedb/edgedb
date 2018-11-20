@@ -794,8 +794,8 @@ aa';
     @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=17)
     def test_edgeql_syntax_name_08(self):
         """
-        SELECT (event::all);
-        SELECT (all::event);
+        SELECT (event::order);
+        SELECT (order::event);
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=23)
@@ -1357,12 +1357,12 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected 'all'", line=4, col=13)
+                  "Unexpected 'order'", line=4, col=13)
     def test_edgeql_syntax_struct_08(self):
         """
         SELECT (
             # reserved keywords
-            all := 1,
+            order := 1,
             select := 2
         );
         """
@@ -1485,7 +1485,7 @@ aa';
     @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=27)
     def test_edgeql_syntax_path_08(self):
         """
-        SELECT Foo.bar[IS All];
+        SELECT Foo.bar[IS Case];
         """
 
     # This is actually odd, but legal, simply filtering by type a
@@ -2364,12 +2364,12 @@ aa';
         SELECT foo();
         SELECT bar(User.name);
         SELECT baz(User.name, User.age);
-        SELECT lower(User.name);
+        SELECT str_lower(User.name);
         """
 
     def test_edgeql_syntax_function_02(self):
         """
-        SELECT lower(string := User.name);
+        SELECT str_lower(string := User.name);
         SELECT baz(age := User.age, of := User.name, select := 1);
         """
 
@@ -2482,23 +2482,23 @@ aa';
 
     def test_edgeql_syntax_ddl_database_04(self):
         """
-        CREATE DATABASE all;
+        CREATE DATABASE order;
         CREATE DATABASE abstract;
 
 % OK %
 
-        CREATE DATABASE `all`;
+        CREATE DATABASE `order`;
         CREATE DATABASE abstract;
         """
 
     def test_edgeql_syntax_ddl_database_05(self):
         """
-        DROP DATABASE all;
+        DROP DATABASE order;
         DROP DATABASE abstract;
 
 % OK %
 
-        DROP DATABASE `all`;
+        DROP DATABASE `order`;
         DROP DATABASE abstract;
         """
 
@@ -2519,11 +2519,11 @@ aa';
             EXTENDING (delegated, `mytest"baserole"`);
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected 'all'",
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected 'order'",
                   line=2, col=21)
     def test_edgeql_syntax_ddl_role_02(self):
         """
-        CREATE ROLE all;
+        CREATE ROLE order;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected '::'",

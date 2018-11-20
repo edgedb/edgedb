@@ -378,8 +378,17 @@ std::`>` (l: std::float64, r: std::float64) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::decimal, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR r'>';
+std::`>` (l: std::anyreal, r: std::decimal) -> std::bool
+    FROM SQL $$
+        SELECT "l" > "r";
+    $$;
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::decimal, r: std::anyreal) -> std::bool
+    FROM SQL $$
+        SELECT "l" > "r";
+    $$;
 
 
 # GREATER OR EQUAL
@@ -450,8 +459,17 @@ std::`>=` (l: std::float64, r: std::float64) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::decimal, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR r'>=';
+std::`>=` (l: std::anyreal, r: std::decimal) -> std::bool
+    FROM SQL $$
+        SELECT "l" >= "r";
+    $$;
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::decimal, r: std::anyreal) -> std::bool
+    FROM SQL $$
+        SELECT "l" >= "r";
+    $$;
 
 
 # LESS THAN
@@ -522,8 +540,17 @@ std::`<` (l: std::float64, r: std::float64) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::decimal, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR r'<';
+std::`<` (l: std::anyreal, r: std::decimal) -> std::bool
+    FROM SQL $$
+        SELECT "l" < "r";
+    $$;
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::decimal, r: std::anyreal) -> std::bool
+    FROM SQL $$
+        SELECT "l" < "r";
+    $$;
 
 
 # LESS THAN OR EQUAL
@@ -594,8 +621,17 @@ std::`<=` (l: std::float64, r: std::float64) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::decimal, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR r'<=';
+std::`<=` (l: std::anyreal, r: std::decimal) -> std::bool
+    FROM SQL $$
+        SELECT "l" <= "r";
+    $$;
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::decimal, r: std::anyreal) -> std::bool
+    FROM SQL $$
+        SELECT "l" <= "r";
+    $$;
 
 
 # INFIX PLUS

@@ -30,6 +30,7 @@ UNRESERVED_KEYWORD, RESERVED_KEYWORD = keyword_types
 
 unreserved_keywords = frozenset([
     "abstract",
+    "all",
     "as",
     "attribute",
     "constraint",

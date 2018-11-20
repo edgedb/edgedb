@@ -100,7 +100,7 @@ def compile_Parameter(
 
     if ctx.func is not None:
         raise errors.EdgeQLError(
-            f'"$parameters" cannot not be used in functions',
+            f'"$parameters" cannot be used in functions',
             context=expr.context)
 
     return setgen.ensure_set(

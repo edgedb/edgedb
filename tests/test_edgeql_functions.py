@@ -18,10 +18,10 @@
 
 
 import os.path
-import unittest  # NOQA
 
 from edb.client import exceptions as exc
 from edb.server import _testbase as tb
+from edb.tools import test
 
 
 class TestEdgeQLFunctions(tb.QueryTestCase):
@@ -410,7 +410,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [1010, 1020],
         ])
 
-    @unittest.expectedFailure
+    @test.xfail('''
+        Every single line of this test produces the same error:
+
+        UnknownEdgeDBError: a column definition list is required for
+        functions returning "record"
+    ''')
     async def test_edgeql_functions_array_enumerate_03(self):
         await self.assert_query_result(r'''
             SELECT array_enumerate([(x:=1)]).0;
@@ -1239,3 +1244,1147 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ''', [
             {123456789123456789123456789.123456789123456789123456789},
         ])
+
+    async def test_edgeql_functions_len_01(self):
+        await self.assert_query_result(r'''
+            SELECT len('');
+            SELECT len('hello');
+            SELECT len({'hello', 'world'});
+        ''', [
+            [0],
+            [5],
+            [5, 5]
+        ])
+
+    async def test_edgeql_functions_len_02(self):
+        await self.assert_query_result(r'''
+            SELECT len(b'');
+            SELECT len(b'hello');
+            SELECT len({b'hello', b'world'});
+        ''', [
+            [0],
+            [5],
+            [5, 5]
+        ])
+
+    async def test_edgeql_functions_len_03(self):
+        await self.assert_query_result(r'''
+            SELECT len(<array<str>>[]);
+            SELECT len(['hello']);
+            SELECT len(['hello', 'world']);
+            SELECT len([1, 2, 3, 4, 5]);
+            SELECT len({['hello'], ['hello', 'world']});
+        ''', [
+            [0],
+            [1],
+            [2],
+            [5],
+            {1, 2},
+        ])
+
+    async def test_edgeql_functions_min_01(self):
+        await self.assert_query_result(r'''
+            # numbers
+            SELECT min(<int64>{});
+            SELECT min(4);
+            SELECT min({10, 20, -3, 4});
+            SELECT min({10, 2.5, -3.1, 4});
+
+            # strings
+            SELECT min({'10', '20', '-3', '4'});
+            SELECT min({'10', 'hello', 'world', '-3', '4'});
+            SELECT min({'hello', 'world'});
+
+            # arrays
+            SELECT min({[1, 2], [3, 4]});
+            SELECT min({[1, 2], [3, 4], <array<int64>>[]});
+            SELECT min({[1, 2], [1, 0.4]});
+
+            # date and time
+            SELECT <str>min(<datetime>{
+                '2018-05-07T15:01:22.306916-05',
+                '2017-05-07T16:01:22.306916-05',
+                '2017-01-07T11:01:22.306916-05',
+                '2018-01-07T11:12:22.306916-05',
+            });
+            SELECT <str>min(<naive_datetime>{
+                '2018-05-07T15:01:22.306916',
+                '2017-05-07T16:01:22.306916',
+                '2017-01-07T11:01:22.306916',
+                '2018-01-07T11:12:22.306916',
+            });
+            SELECT <str>min(<naive_date>{
+                '2018-05-07',
+                '2017-05-07',
+                '2017-01-07',
+                '2018-01-07',
+            });
+            SELECT <str>min(<naive_time>{
+                '15:01:22',
+                '16:01:22',
+                '11:01:22',
+                '11:12:22',
+            });
+            SELECT <str>min(<timedelta>{
+                '15:01:22',
+                '16:01:22',
+                '11:01:22',
+                '11:12:22',
+            });
+        ''', [
+            [],
+            [4],
+            [-3],
+            [-3.1],
+
+            ['-3'],
+            ['-3'],
+            ['hello'],
+
+            [[1, 2]],
+            [[]],
+            [[1, 0.4]],
+
+            ['2017-01-07T16:01:22.306916+00:00'],
+            ['2017-01-07T11:01:22.306916'],
+            ['2017-01-07'],
+            ['11:01:22'],
+            ['11:01:22'],
+        ])
+
+    async def test_edgeql_functions_min_02(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT min(User.name);
+
+            WITH MODULE test
+            SELECT min(Issue.time_estimate);
+
+            WITH MODULE test
+            SELECT min(<int64>Issue.number);
+        ''', [
+            ['Elvis'],
+            [3000],
+            [1],
+        ])
+
+    async def test_edgeql_functions_max_01(self):
+        await self.assert_query_result(r'''
+            # numbers
+            SELECT max(<int64>{});
+            SELECT max(4);
+            SELECT max({10, 20, -3, 4});
+            SELECT max({10, 2.5, -3.1, 4});
+
+            # strings
+            SELECT max({'10', '20', '-3', '4'});
+            SELECT max({'10', 'hello', 'world', '-3', '4'});
+            SELECT max({'hello', 'world'});
+
+            # arrays
+            SELECT max({[1, 2], [3, 4]});
+            SELECT max({[1, 2], [3, 4], <array<int64>>[]});
+            SELECT max({[1, 2], [1, 0.4]});
+
+            # date and time
+            SELECT <str>max(<datetime>{
+                '2018-05-07T15:01:22.306916-05',
+                '2017-05-07T16:01:22.306916-05',
+                '2017-01-07T11:01:22.306916-05',
+                '2018-01-07T11:12:22.306916-05',
+            });
+            SELECT <str>max(<naive_datetime>{
+                '2018-05-07T15:01:22.306916',
+                '2017-05-07T16:01:22.306916',
+                '2017-01-07T11:01:22.306916',
+                '2018-01-07T11:12:22.306916',
+            });
+            SELECT <str>max(<naive_date>{
+                '2018-05-07',
+                '2017-05-07',
+                '2017-01-07',
+                '2018-01-07',
+            });
+            SELECT <str>max(<naive_time>{
+                '15:01:22',
+                '16:01:22',
+                '11:01:22',
+                '11:12:22',
+            });
+            SELECT <str>max(<timedelta>{
+                '15:01:22',
+                '16:01:22',
+                '11:01:22',
+                '11:12:22',
+            });
+        ''', [
+            [],
+            [4],
+            [20],
+            [10],
+
+            ['4'],
+            ['world'],
+            ['world'],
+
+            [[3, 4]],
+            [[3, 4]],
+            [[1, 2]],
+
+            ['2018-05-07T20:01:22.306916+00:00'],
+            ['2018-05-07T15:01:22.306916'],
+            ['2018-05-07'],
+            ['16:01:22'],
+            ['16:01:22'],
+        ])
+
+    async def test_edgeql_functions_max_02(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT max(User.name);
+
+            WITH MODULE test
+            SELECT max(Issue.time_estimate);
+
+            WITH MODULE test
+            SELECT max(<int64>Issue.number);
+        ''', [
+            ['Yury'],
+            [3000],
+            [4],
+        ])
+
+    async def test_edgeql_functions_all_01(self):
+        await self.assert_query_result(r'''
+            SELECT all(<bool>{});
+            SELECT all({True});
+            SELECT all({False});
+            SELECT all({True, False, True, False});
+
+            SELECT all({1, 2, 3, 4} > 0);
+            SELECT all({1, -2, 3, 4} > 0);
+            SELECT all({0, -1, -2, -3} > 0);
+            # subset evaluation
+            SELECT all({1, -2, 3, 4} IN {-2, -1, 0, 1, 2, 3, 4});
+            SELECT all(<int64>{} IN {-2, -1, 0, 1, 2, 3, 4});
+            SELECT all({1, -2, 3, 4} IN <int64>{});
+            SELECT all(<int64>{} IN <int64>{});
+        ''', [
+            [True],
+            [True],
+            [False],
+            [False],
+
+            [True],
+            [False],
+            [False],
+
+            [True],
+            [True],
+            [False],
+            [True],
+        ])
+
+    async def test_edgeql_functions_all_02(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT all(len(User.name) = 4);
+
+            WITH MODULE test
+            SELECT all(
+                (
+                    FOR I IN {Issue}
+                    UNION EXISTS I.time_estimate
+                )
+            );
+
+            WITH MODULE test
+            SELECT all(Issue.number != '');
+        ''', [
+            [False],
+            [False],
+            [True],
+        ])
+
+    async def test_edgeql_functions_any_01(self):
+        await self.assert_query_result(r'''
+            SELECT any(<bool>{});
+            SELECT any({True});
+            SELECT any({False});
+            SELECT any({True, False, True, False});
+
+            SELECT any({1, 2, 3, 4} > 0);
+            SELECT any({1, -2, 3, 4} > 0);
+            SELECT any({0, -1, -2, -3} > 0);
+            # subset evaluation
+            SELECT any({1, -2, 3, 4} IN {-2, -1, 0, 1, 2, 3, 4});
+            SELECT any(<int64>{} IN {-2, -1, 0, 1, 2, 3, 4});
+            SELECT any({1, -2, 3, 4} IN <int64>{});
+            SELECT any(<int64>{} IN <int64>{});
+        ''', [
+            [False],
+            [True],
+            [False],
+            [True],
+
+            [True],
+            [True],
+            [False],
+
+            [True],
+            [False],
+            [False],
+            [False],
+        ])
+
+    async def test_edgeql_functions_any_02(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT any(len(User.name) = 4);
+
+            WITH MODULE test
+            SELECT any(
+                (
+                    FOR I IN {Issue}
+                    UNION EXISTS I.time_estimate
+                )
+            );
+
+            WITH MODULE test
+            SELECT any(Issue.number != '');
+        ''', [
+            [True],
+            [True],
+            [True],
+        ])
+
+    async def test_edgeql_functions_any_03(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT any(len(User.name) = 4) = NOT all(NOT (len(User.name) = 4));
+
+            WITH MODULE test
+            SELECT any(
+                (
+                    FOR I IN {Issue}
+                    UNION EXISTS I.time_estimate
+                )
+            ) = NOT all(
+                (
+                    FOR I IN {Issue}
+                    UNION NOT EXISTS I.time_estimate
+                )
+            );
+
+            WITH MODULE test
+            SELECT any(Issue.number != '') = NOT all(Issue.number = '');
+        ''', [
+            [True],
+            [True],
+            [True],
+        ])
+
+    async def test_edgeql_functions_round_01(self):
+        await self.assert_query_result(r'''
+            # trivial
+            SELECT round(<float64>{});
+            SELECT round(<float64>1);
+            SELECT round(<decimal>1);
+            SELECT round(<float64>1.2);
+            SELECT round(<float64>-1.2);
+            SELECT round(<decimal>1.2);
+            SELECT round(<decimal>-1.2);
+            # float tie is rounded towards even
+            SELECT round(<float64>-2.5);
+            SELECT round(<float64>-1.5);
+            SELECT round(<float64>-0.5);
+            SELECT round(<float64>0.5);
+            SELECT round(<float64>1.5);
+            SELECT round(<float64>2.5);
+            # decimal tie is rounded away from 0
+            SELECT round(<decimal>-2.5);
+            SELECT round(<decimal>-1.5);
+            SELECT round(<decimal>-0.5);
+            SELECT round(<decimal>0.5);
+            SELECT round(<decimal>1.5);
+            SELECT round(<decimal>2.5);
+        ''', [
+            [],
+            [1],
+            [1],
+            [1],
+            [-1],
+            [1],
+            [-1],
+
+            [-2],
+            [-2],
+            [0],
+            [0],
+            [2],
+            [2],
+
+            [-3],
+            [-2],
+            [-1],
+            [1],
+            [2],
+            [3],
+        ])
+
+    async def test_edgeql_functions_round_02(self):
+        await self.assert_query_result(r'''
+            SELECT round(<float32>1.2) IS float64;
+            SELECT round(<float64>1.2) IS float64;
+            SELECT round(1.2) IS float64;
+            SELECT round(<decimal>1.2) IS decimal;
+            # rounding to a specified decimal place is only defined
+            # for decimals
+            SELECT round(<decimal>1.2, 0) IS decimal;
+        ''', [
+            [True],
+            [True],
+            [True],
+            [True],
+            [True],
+        ])
+
+    async def test_edgeql_functions_round_03(self):
+        await self.assert_query_result(r'''
+            SELECT round(<decimal>123.456, 10);
+            SELECT round(<decimal>123.456, 3);
+            SELECT round(<decimal>123.456, 2);
+            SELECT round(<decimal>123.456, 1);
+            SELECT round(<decimal>123.456, 0);
+            SELECT round(<decimal>123.456, -1);
+            SELECT round(<decimal>123.456, -2);
+            SELECT round(<decimal>123.456, -3);
+        ''', [
+            [123.456],
+            [123.456],
+            [123.46],
+            [123.5],
+            [123],
+            [120],
+            [100],
+            [0],
+        ])
+
+    async def test_edgeql_functions_round_04(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT _ := round(<int64>Issue.number / 2)
+            ORDER BY _;
+
+            WITH MODULE test
+            SELECT _ := round(<decimal>Issue.number / 2)
+            ORDER BY _;
+        ''', [
+            [0, 1, 2, 2],
+            [1, 1, 2, 2],
+        ])
+
+    async def test_edgeql_functions_find_01(self):
+        await self.assert_query_result(r'''
+            SELECT find(<str>{}, <str>{});
+            SELECT find(<str>{}, 'a');
+            SELECT find('qwerty', <str>{});
+            SELECT find('qwerty', '');
+            SELECT find('qwerty', 'q');
+            SELECT find('qwerty', 'qwe');
+            SELECT find('qwerty', 'we');
+            SELECT find('qwerty', 't');
+            SELECT find('qwerty', 'a');
+            SELECT find('qwerty', 'azerty');
+        ''', [
+            {},
+            {},
+            {},
+            {0},
+            {0},
+            {0},
+            {1},
+            {4},
+            {-1},
+            {-1},
+        ])
+
+    async def test_edgeql_functions_find_02(self):
+        await self.assert_query_result(r'''
+            SELECT find(<bytes>{}, <bytes>{});
+            SELECT find(<bytes>{}, b'a');
+            SELECT find(b'qwerty', <bytes>{});
+            SELECT find(b'qwerty', b'');
+            SELECT find(b'qwerty', b'q');
+            SELECT find(b'qwerty', b'qwe');
+            SELECT find(b'qwerty', b'we');
+            SELECT find(b'qwerty', b't');
+            SELECT find(b'qwerty', b'a');
+            SELECT find(b'qwerty', b'azerty');
+        ''', [
+            {},
+            {},
+            {},
+            {0},
+            {0},
+            {0},
+            {1},
+            {4},
+            {-1},
+            {-1},
+        ])
+
+    async def test_edgeql_functions_find_03(self):
+        await self.assert_query_result(r'''
+            SELECT find(<array<str>>{}, <str>{});
+            SELECT find(<array<str>>{}, 'the');
+            SELECT find(['the', 'quick', 'brown', 'fox'], <str>{});
+
+            SELECT find(<array<str>>[], 'the');
+            SELECT find(['the', 'quick', 'brown', 'fox'], 'the');
+            SELECT find(['the', 'quick', 'brown', 'fox'], 'fox');
+            SELECT find(['the', 'quick', 'brown', 'fox'], 'jumps');
+
+            SELECT find(['the', 'quick', 'brown', 'fox',
+                         'jumps', 'over', 'the', 'lazy', 'dog'],
+                        'the');
+            SELECT find(['the', 'quick', 'brown', 'fox',
+                         'jumps', 'over', 'the', 'lazy', 'dog'],
+                        'the', 1);
+        ''', [
+            {},
+            {},
+            {},
+
+            {-1},
+            {0},
+            {3},
+            {-1},
+
+            {0},
+            {6},
+        ])
+
+    async def test_edgeql_functions_str_case_01(self):
+        await self.assert_query_result(r'''
+            SELECT str_lower({'HeLlO', 'WoRlD!'});
+            SELECT str_upper({'HeLlO', 'WoRlD!'});
+            SELECT str_title({'HeLlO', 'WoRlD!'});
+            SELECT str_lower('HeLlO WoRlD!');
+            SELECT str_upper('HeLlO WoRlD!');
+            SELECT str_title('HeLlO WoRlD!');
+        ''', [
+            {'hello', 'world!'},
+            {'HELLO', 'WORLD!'},
+            {'Hello', 'World!'},
+            {'hello world!'},
+            {'HELLO WORLD!'},
+            {'Hello World!'},
+        ])
+
+    async def test_edgeql_functions_str_pad_01(self):
+        await self.assert_query_result(r'''
+            SELECT str_lpad('Hello', 20);
+            SELECT str_lpad('Hello', 20, '>');
+            SELECT str_lpad('Hello', 20, '-->');
+            SELECT str_rpad('Hello', 20);
+            SELECT str_rpad('Hello', 20, '<');
+            SELECT str_rpad('Hello', 20, '<--');
+        ''', [
+            {'               Hello'},
+            {'>>>>>>>>>>>>>>>Hello'},
+            {'-->-->-->-->-->Hello'},
+            {'Hello               '},
+            {'Hello<<<<<<<<<<<<<<<'},
+            {'Hello<--<--<--<--<--'},
+        ])
+
+    async def test_edgeql_functions_str_pad_02(self):
+        await self.assert_query_result(r'''
+            SELECT str_lpad('Hello', 2);
+            SELECT str_lpad('Hello', 2, '>');
+            SELECT str_lpad('Hello', 2, '-->');
+            SELECT str_rpad('Hello', 2);
+            SELECT str_rpad('Hello', 2, '<');
+            SELECT str_rpad('Hello', 2, '<--');
+        ''', [
+            {'He'},
+            {'He'},
+            {'He'},
+            {'He'},
+            {'He'},
+            {'He'},
+        ])
+
+    async def test_edgeql_functions_str_pad_03(self):
+        await self.assert_query_result(r'''
+            WITH l := {0, 2, 10, 20}
+            SELECT len(str_lpad('Hello', l)) = l;
+
+            WITH l := {0, 2, 10, 20}
+            SELECT len(str_rpad('Hello', l)) = l;
+        ''', [
+            [True, True, True, True],
+            [True, True, True, True],
+        ])
+
+    async def test_edgeql_functions_str_trim_01(self):
+        await self.assert_query_result(r'''
+            SELECT str_trim('    Hello    ');
+            SELECT str_ltrim('    Hello    ');
+            SELECT str_rtrim('    Hello    ');
+        ''', [
+            {'Hello'},
+            {'Hello    '},
+            {'    Hello'},
+        ])
+
+    async def test_edgeql_functions_str_trim_02(self):
+        await self.assert_query_result(r'''
+            SELECT str_ltrim('               Hello', ' <->');
+            SELECT str_ltrim('>>>>>>>>>>>>>>>Hello', ' <->');
+            SELECT str_ltrim('-->-->-->-->-->Hello', ' <->');
+            SELECT str_rtrim('Hello               ', ' <->');
+            SELECT str_rtrim('Hello<<<<<<<<<<<<<<<', ' <->');
+            SELECT str_rtrim('Hello<--<--<--<--<--', ' <->');
+            SELECT str_trim('-->-->-->-->-->Hello<--<--<--<--<--', ' <->');
+        ''', [
+            {'Hello'},
+            {'Hello'},
+            {'Hello'},
+            {'Hello'},
+            {'Hello'},
+            {'Hello'},
+            {'Hello'},
+        ])
+
+    async def test_edgeql_functions_str_trim_03(self):
+        await self.assert_query_result(r'''
+            SELECT str_trim(str_lpad('Hello', 20), ' <->');
+            SELECT str_trim(str_lpad('Hello', 20, '>'), ' <->');
+            SELECT str_trim(str_lpad('Hello', 20, '-->'), ' <->');
+            SELECT str_trim(str_rpad('Hello', 20), ' <->');
+            SELECT str_trim(str_rpad('Hello', 20, '<'), ' <->');
+            SELECT str_trim(str_rpad('Hello', 20, '<--'), ' <->');
+        ''', [
+            {'Hello'},
+            {'Hello'},
+            {'Hello'},
+            {'Hello'},
+            {'Hello'},
+            {'Hello'},
+        ])
+
+    async def test_edgeql_functions_math_abs_01(self):
+        await self.assert_query_result(r'''
+            SELECT math::abs(2);
+            SELECT math::abs(-2);
+            SELECT math::abs(2.5);
+            SELECT math::abs(-2.5);
+            SELECT math::abs(<decimal>2.5);
+            SELECT math::abs(<decimal>-2.5);
+        ''', [
+            {2},
+            {2},
+            {2.5},
+            {2.5},
+            {2.5},
+            {2.5},
+        ])
+
+    async def test_edgeql_functions_math_abs_02(self):
+        await self.assert_query_result(r'''
+            SELECT math::abs(<int16>2) IS int16;
+            SELECT math::abs(<int32>2) IS int32;
+            SELECT math::abs(<int64>2) IS int64;
+            SELECT math::abs(<float32>2) IS float32;
+            SELECT math::abs(<float64>2) IS float64;
+            SELECT math::abs(<decimal>2) IS decimal;
+        ''', [
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+        ])
+
+    async def test_edgeql_functions_math_ceil_01(self):
+        await self.assert_query_result(r'''
+            SELECT math::ceil(2);
+            SELECT math::ceil(2.5);
+            SELECT math::ceil(-2.5);
+            SELECT math::ceil(<decimal>2.5);
+            SELECT math::ceil(<decimal>-2.5);
+        ''', [
+            {2},
+            {3},
+            {-2},
+            {3},
+            {-2},
+        ])
+
+    async def test_edgeql_functions_math_ceil_02(self):
+        await self.assert_query_result(r'''
+            SELECT math::ceil(<int16>2) IS float64;
+            SELECT math::ceil(<int32>2) IS float64;
+            SELECT math::ceil(<int64>2) IS float64;
+            SELECT math::ceil(<float32>2.5) IS float64;
+            SELECT math::ceil(<float64>2.5) IS float64;
+            SELECT math::ceil(<decimal>2.5) IS decimal;
+        ''', [
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+        ])
+
+    async def test_edgeql_functions_math_floor_01(self):
+        await self.assert_query_result(r'''
+            SELECT math::floor(2);
+            SELECT math::floor(2.5);
+            SELECT math::floor(-2.5);
+            SELECT math::floor(<decimal>2.5);
+            SELECT math::floor(<decimal>-2.5);
+        ''', [
+            {2},
+            {2},
+            {-3},
+            {2},
+            {-3},
+        ])
+
+    async def test_edgeql_functions_math_floor_02(self):
+        await self.assert_query_result(r'''
+            SELECT math::floor(<int16>2) IS float64;
+            SELECT math::floor(<int32>2) IS float64;
+            SELECT math::floor(<int64>2) IS float64;
+            SELECT math::floor(<float32>2.5) IS float64;
+            SELECT math::floor(<float64>2.5) IS float64;
+            SELECT math::floor(<decimal>2.5) IS decimal;
+        ''', [
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+        ])
+
+    async def test_edgeql_functions_math_log_01(self):
+        await self.assert_query_result(r'''
+            SELECT math::ln({1, 10, 32});
+            SELECT math::lg({1, 10, 32});
+            SELECT math::log(<decimal>{1, 10, 32}, base := <decimal>2);
+        ''', [
+            {0, 2.30258509299405, 3.46573590279973},
+            {0, 1, 1.50514997831991},
+            {0, 3.321928094887362, 5},
+        ])
+
+    async def test_edgeql_functions_math_log_02(self):
+        await self.assert_query_result(r'''
+            SELECT math::ln(<int16>2) IS float64;
+            SELECT math::ln(<int32>2) IS float64;
+            SELECT math::ln(<int64>2) IS float64;
+            SELECT math::ln(<float32>2) IS float64;
+            SELECT math::ln(<float64>2) IS float64;
+            SELECT math::ln(<decimal>2) IS decimal;
+
+            SELECT math::lg(<int16>2) IS float64;
+            SELECT math::lg(<int32>2) IS float64;
+            SELECT math::lg(<int64>2) IS float64;
+            SELECT math::lg(<float32>2) IS float64;
+            SELECT math::lg(<float64>2) IS float64;
+            SELECT math::lg(<decimal>2) IS decimal;
+
+            SELECT math::log(<decimal>2, base := <decimal>1.3) IS decimal;
+        ''', [
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+
+            {True},
+        ])
+
+    async def test_edgeql_functions_math_mean_01(self):
+        await self.assert_query_result(r'''
+            SELECT math::mean(1);
+            SELECT math::mean(1.5);
+            SELECT math::mean({1, 2, 3});
+            SELECT math::mean({1, 2, 3, 4});
+            SELECT math::mean({0.1, 0.2, 0.3});
+            SELECT math::mean({0.1, 0.2, 0.3, 0.4});
+            SELECT math::mean({1, 99999999999999999999999999});
+        ''', [
+            {1.0},
+            {1.5},
+            {2.0},
+            {2.5},
+            {0.2},
+            {0.25},
+            {50000000000000000000000000},
+        ])
+
+    async def test_edgeql_functions_math_mean_02(self):
+        await self.assert_query_result(r'''
+            SELECT math::mean(<int16>2) IS decimal;
+            SELECT math::mean(<int32>2) IS decimal;
+            SELECT math::mean(<int64>2) IS decimal;
+            SELECT math::mean(<float32>2) IS float64;
+            SELECT math::mean(<float64>2) IS float64;
+            SELECT math::mean(<decimal>2) IS decimal;
+        ''', [
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+        ])
+
+    async def test_edgeql_functions_math_mean_03(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE math,
+                A := {1, 3, 1}
+            # the difference between sum and mean * count is due to
+            # rounding errors, but it should be small
+            SELECT abs(sum(A) - count(A) * mean(A)) < 1e-10;
+        ''', [
+            {True},
+        ])
+
+    async def test_edgeql_functions_math_mean_04(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE math,
+                A := <float64>{1, 3, 1}
+            # the difference between sum and mean * count is due to
+            # rounding errors, but it should be small
+            SELECT abs(sum(A) - count(A) * mean(A)) < 1e-10;
+        ''', [
+            {True},
+        ])
+
+    async def test_edgeql_functions_math_mean_05(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE math,
+                A := len(test::Named.name)
+            # the difference between sum and mean * count is due to
+            # rounding errors, but it should be small
+            SELECT abs(sum(A) - count(A) * mean(A)) < 1e-10;
+        ''', [
+            {True},
+        ])
+
+    async def test_edgeql_functions_math_mean_06(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE math,
+                A := <float64>len(test::Named.name)
+            # the difference between sum and mean * count is due to
+            # rounding errors, but it should be small
+            SELECT abs(sum(A) - count(A) * mean(A)) < 1e-10;
+        ''', [
+            {True},
+        ])
+
+    async def test_edgeql_functions_math_mean_07(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE math,
+                A := {3}
+            SELECT mean(A) * count(A);
+        ''', [
+            {3},
+        ])
+
+    async def test_edgeql_functions_math_mean_08(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE math,
+                X := {1, 2, 3, 4}
+            SELECT mean(X) = sum(X) / count(X);
+
+            WITH
+                MODULE math,
+                X := {0.1, 0.2, 0.3, 0.4}
+            SELECT mean(X) = sum(X) / count(X);
+        ''', [
+            {True},
+            {True},
+        ])
+
+    @test.not_implemented(
+        "We don't yet validate that the return cardinality is 1 here")
+    async def test_edgeql_functions_math_mean_09(self):
+        with self.assertRaisesRegex(
+                exc.UnknownEdgeDBError,
+                r"mean in undefined for an empty set"):
+            await self.con.execute(r'''
+                SELECT math::mean(<int64>{});
+            ''')
+
+    async def test_edgeql_functions_math_stddev_01(self):
+        await self.assert_query_result(r'''
+            SELECT math::stddev({1, 1});
+            SELECT math::stddev({1, 1, -1, 1});
+            SELECT math::stddev({1, 2, 3});
+            SELECT math::stddev({0.1, 0.1, -0.1, 0.1});
+            SELECT math::stddev(<decimal>{0.1, 0.2, 0.3});
+        ''', [
+            {0},
+            {1.0},
+            {1.0},
+            {0.1},
+            {0.1},
+        ])
+
+    async def test_edgeql_functions_math_stddev_02(self):
+        await self.assert_query_result(r'''
+            SELECT math::stddev(<int16>{1, 1}) IS decimal;
+            SELECT math::stddev(<int32>{1, 1}) IS decimal;
+            SELECT math::stddev(<int64>{1, 1}) IS decimal;
+            SELECT math::stddev(<float32>{1, 1}) IS float64;
+            SELECT math::stddev(<float64>{1, 1}) IS float64;
+            SELECT math::stddev(<decimal>{1, 1}) IS decimal;
+        ''', [
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+        ])
+
+    @test.not_implemented('''
+        We don't yet validate that the return cardinality is 1 here.
+        Standard deviation is not defined for sets with fewer than 2 elements.
+    ''')
+    async def test_edgeql_functions_math_stddev_03(self):
+        with self.assertRaisesRegex(
+                exc.UnknownEdgeDBError,
+                r"stddev in undefined for input set.+< 2"):
+            await self.con.execute(r'''
+                SELECT math::stddev(<int64>{});
+            ''')
+
+    @test.not_implemented('''
+        We don't yet validate that the return cardinality is 1 here.
+        Standard deviation is not defined for sets with fewer than 2 elements.
+    ''')
+    async def test_edgeql_functions_math_stddev_04(self):
+        with self.assertRaisesRegex(
+                exc.UnknownEdgeDBError,
+                r"stddev in undefined for input set.+< 2"):
+            await self.con.execute(r'''
+                SELECT math::stddev(1);
+            ''')
+
+    async def test_edgeql_functions_math_stddev_pop_01(self):
+        await self.assert_query_result(r'''
+            SELECT math::stddev_pop(1);
+            SELECT math::stddev_pop({1, 1, 1});
+            SELECT math::stddev_pop({1, 2, 1, 2});
+            SELECT math::stddev_pop({0.1, 0.1, 0.1});
+            SELECT math::stddev_pop({0.1, 0.2, 0.1, 0.2});
+        ''', [
+            {0},
+            {0},
+            {0.5},
+            {0},
+            {0.05},
+        ])
+
+    async def test_edgeql_functions_math_stddev_pop_02(self):
+        await self.assert_query_result(r'''
+            SELECT math::stddev_pop(<int16>1) IS decimal;
+            SELECT math::stddev_pop(<int32>1) IS decimal;
+            SELECT math::stddev_pop(<int64>1) IS decimal;
+            SELECT math::stddev_pop(<float32>1) IS float64;
+            SELECT math::stddev_pop(<float64>1) IS float64;
+            SELECT math::stddev_pop(<decimal>1) IS decimal;
+        ''', [
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+        ])
+
+    @test.not_implemented('''
+        We don't yet validate that the return cardinality is 1 here.
+        Population standard deviation is not defined for an empty set.
+    ''')
+    async def test_edgeql_functions_math_stddev_pop_04(self):
+        with self.assertRaisesRegex(
+                exc.UnknownEdgeDBError,
+                r"stddev_pop in undefined for an empty set"):
+            await self.con.execute(r'''
+                SELECT math::stddev_pop(<int64>{});
+            ''')
+
+    async def test_edgeql_functions_math_var_01(self):
+        await self.assert_query_result(r'''
+            SELECT math::var({1, 1});
+            SELECT math::var({1, 1, -1, 1});
+            SELECT math::var({1, 2, 3});
+            SELECT math::var({0.1, 0.1, -0.1, 0.1});
+            SELECT math::var(<decimal>{0.1, 0.2, 0.3});
+        ''', [
+            {0},
+            {1.0},
+            {1.0},
+            {0.01},
+            {0.01},
+        ])
+
+    async def test_edgeql_functions_math_var_02(self):
+        await self.assert_query_result(r'''
+            SELECT math::var(<int16>{1, 1}) IS decimal;
+            SELECT math::var(<int32>{1, 1}) IS decimal;
+            SELECT math::var(<int64>{1, 1}) IS decimal;
+            SELECT math::var(<float32>{1, 1}) IS float64;
+            SELECT math::var(<float64>{1, 1}) IS float64;
+            SELECT math::var(<decimal>{1, 1}) IS decimal;
+        ''', [
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+        ])
+
+    async def test_edgeql_functions_math_var_03(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE math,
+                X := {1, 1}
+            SELECT var(X) = stddev(X) ^ 2;
+
+            WITH
+                MODULE math,
+                X := {1, 1, -1, 1}
+            SELECT var(X) = stddev(X) ^ 2;
+
+            WITH
+                MODULE math,
+                X := {1, 2, 3}
+            SELECT var(X) = stddev(X) ^ 2;
+
+            WITH
+                MODULE math,
+                X := {0.1, 0.1, -0.1, 0.1}
+            SELECT var(X) = stddev(X) ^ 2;
+
+            WITH
+                MODULE math,
+                X := <decimal>{0.1, 0.2, 0.3}
+            SELECT var(X) = stddev(X) ^ 2;
+        ''', [
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+        ])
+
+    @test.not_implemented('''
+        We don't yet validate that the return cardinality is 1 here.
+        Variance is not defined for sets with fewer than 2 elements.
+    ''')
+    async def test_edgeql_functions_math_var_04(self):
+        with self.assertRaisesRegex(
+                exc.UnknownEdgeDBError,
+                r"var in undefined for input set.+< 2"):
+            await self.con.execute(r'''
+                SELECT math::var(<int64>{});
+            ''')
+
+    @test.not_implemented('''
+        We don't yet validate that the return cardinality is 1 here.
+        Variance is not defined for sets with fewer than 2 elements.
+    ''')
+    async def test_edgeql_functions_math_var_05(self):
+        with self.assertRaisesRegex(
+                exc.UnknownEdgeDBError,
+                r"var in undefined for input set.+< 2"):
+            await self.con.execute(r'''
+                SELECT math::var(1);
+            ''')
+
+    async def test_edgeql_functions_math_var_pop_01(self):
+        await self.assert_query_result(r'''
+            SELECT math::var_pop(1);
+            SELECT math::var_pop({1, 1, 1});
+            SELECT math::var_pop({1, 2, 1, 2});
+            SELECT math::var_pop({0.1, 0.1, 0.1});
+            SELECT math::var_pop({0.1, 0.2, 0.1, 0.2});
+        ''', [
+            {0},
+            {0},
+            {0.25},
+            {0},
+            {0.0025},
+        ])
+
+    async def test_edgeql_functions_math_var_pop_02(self):
+        await self.assert_query_result(r'''
+            SELECT math::var_pop(<int16>1) IS decimal;
+            SELECT math::var_pop(<int32>1) IS decimal;
+            SELECT math::var_pop(<int64>1) IS decimal;
+            SELECT math::var_pop(<float32>1) IS float64;
+            SELECT math::var_pop(<float64>1) IS float64;
+            SELECT math::var_pop(<decimal>1) IS decimal;
+        ''', [
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+        ])
+
+    async def test_edgeql_functions_math_var_pop_03(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE math,
+                X := {1, 2, 1, 2}
+            SELECT var_pop(X) = stddev_pop(X) ^ 2;
+
+            WITH
+                MODULE math,
+                X := {0.1, 0.2, 0.1, 0.2}
+            SELECT var_pop(X) = stddev_pop(X) ^ 2;
+        ''', [
+            {True},
+            {True},
+        ])
+
+    @test.not_implemented('''
+        We don't yet validate that the return cardinality is 1 here.
+        Population variance is not defined for an empty set.
+    ''')
+    async def test_edgeql_functions_math_var_pop_04(self):
+        with self.assertRaisesRegex(
+                exc.UnknownEdgeDBError,
+                r"var_pop in undefined for an empty set"):
+            await self.con.execute(r'''
+                SELECT math::var_pop(<int64>{});
+            ''')

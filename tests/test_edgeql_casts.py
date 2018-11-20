@@ -327,7 +327,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             SELECT <str><bool>x = x;
 
             WITH x := {'True', 'False', 'TRUE', 'FALSE'}
-            SELECT <str><bool>x = lower(x);
+            SELECT <str><bool>x = str_lower(x);
         ''', [
             [True, True],
             [False, False, False, False],
@@ -362,7 +362,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 'D4288330-Eea3-11E8-Bc5F-7Faf132B1D84',
                 'D4288330-eea3-11e8-bc5f-7faf132b1d84',
             }
-            SELECT <str><uuid>x = lower(x);
+            SELECT <str><uuid>x = str_lower(x);
         ''', [
             [True],
             [False, False, False],

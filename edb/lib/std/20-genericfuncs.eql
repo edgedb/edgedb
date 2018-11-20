@@ -105,6 +105,111 @@ std::random() -> std::float64
 };
 
 
+# std::min
+# --------
+
+CREATE FUNCTION
+std::min(vals: SET OF anytype) -> anytype
+{
+    FROM SQL FUNCTION 'min';
+};
+
+
+# std::max
+# --------
+
+CREATE FUNCTION
+std::max(vals: SET OF anytype) -> anytype
+{
+    FROM SQL FUNCTION 'max';
+};
+
+
+# std::all
+# --------
+
+CREATE FUNCTION
+std::all(vals: SET OF std::bool) -> std::bool
+{
+    SET initial_value := True;
+    FROM SQL FUNCTION 'bool_and';
+};
+
+
+# std::any
+# --------
+
+CREATE FUNCTION
+std::any(vals: SET OF std::bool) -> std::bool
+{
+    SET initial_value := False;
+    FROM SQL FUNCTION 'bool_or';
+};
+
+
+# std::round
+# ----------
+
+CREATE FUNCTION
+std::round(val: std::decimal) -> std::decimal
+{
+    FROM SQL $$
+    SELECT round("val")
+    $$;
+};
+
+
+CREATE FUNCTION
+std::round(val: std::float64) -> std::float64
+{
+    FROM SQL $$
+    SELECT round("val")
+    $$;
+};
+
+
+CREATE FUNCTION
+std::round(val: std::decimal, d: std::int64) -> std::decimal
+{
+    FROM SQL $$
+    SELECT round("val", "d"::int4)
+    $$;
+};
+
+
+# std::find
+# ---------
+
+CREATE FUNCTION
+std::find(haystack: std::str, needle: std::str) -> std::int32
+{
+    FROM SQL $$
+    SELECT strpos("haystack", "needle") - 1
+    $$;
+};
+
+
+CREATE FUNCTION
+std::find(haystack: std::bytes, needle: std::bytes) -> std::int32
+{
+    FROM SQL $$
+    SELECT position("needle" in "haystack") - 1
+    $$;
+};
+
+
+CREATE FUNCTION
+std::find(haystack: array<anytype>, needle: anytype,
+          from_pos: std::int64=0) -> std::int32
+{
+    FROM SQL $$
+    SELECT COALESCE(
+        array_position("haystack", "needle", ("from_pos" + 1)::int4) - 1,
+        -1)
+    $$;
+};
+
+
 # Generic comparison operators
 # ----------------------------
 

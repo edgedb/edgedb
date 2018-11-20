@@ -17,14 +17,6 @@
 #
 
 
-## String functions
-
-
-CREATE FUNCTION
-std::lower(str: std::str) -> std::str
-    FROM SQL FUNCTION 'lower';
-
-
 ## String operators
 
 CREATE INFIX OPERATOR
@@ -91,3 +83,66 @@ std::`>` (l: std::str, r: std::str) -> std::bool
 CREATE INFIX OPERATOR
 std::`>=` (l: std::str, r: std::str) -> std::bool
     FROM SQL OPERATOR r'>=';
+
+
+## String functions
+
+
+CREATE FUNCTION
+std::str_lower(s: std::str) -> std::str
+{
+    FROM SQL FUNCTION 'lower';
+};
+
+
+CREATE FUNCTION
+std::str_upper(s: std::str) -> std::str
+{
+    FROM SQL FUNCTION 'upper';
+};
+
+
+CREATE FUNCTION
+std::str_title(s: std::str) -> std::str
+{
+    FROM SQL FUNCTION 'initcap';
+};
+
+
+CREATE FUNCTION
+std::str_lpad(s: std::str, n: std::int64, fill: std::str=' ') -> std::str
+{
+    FROM SQL $$
+    SELECT lpad("s", "n"::int4, "fill")
+    $$;
+};
+
+
+CREATE FUNCTION
+std::str_rpad(s: std::str, n: std::int64, fill: std::str=' ') -> std::str
+{
+    FROM SQL $$
+    SELECT rpad("s", "n"::int4, "fill")
+    $$;
+};
+
+
+CREATE FUNCTION
+std::str_ltrim(s: std::str, tr: std::str=' ') -> std::str
+{
+    FROM SQL FUNCTION 'ltrim';
+};
+
+
+CREATE FUNCTION
+std::str_rtrim(s: std::str, tr: std::str=' ') -> std::str
+{
+    FROM SQL FUNCTION 'rtrim';
+};
+
+
+CREATE FUNCTION
+std::str_trim(s: std::str, tr: std::str=' ') -> std::str
+{
+    FROM SQL FUNCTION 'btrim';
+};

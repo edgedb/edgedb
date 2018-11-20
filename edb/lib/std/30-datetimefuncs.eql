@@ -45,7 +45,7 @@ CREATE FUNCTION
 std::datetime_get(dt: std::datetime, el: std::str) -> std::float64
 {
     FROM SQL $$
-    SELECT date_part("el", dt)
+    SELECT date_part("el", "dt")
     $$;
 };
 
@@ -54,7 +54,7 @@ CREATE FUNCTION
 std::datetime_get(dt: std::naive_datetime, el: std::str) -> std::float64
 {
     FROM SQL $$
-    SELECT date_part("el", dt)
+    SELECT date_part("el", "dt")
     $$;
 };
 
@@ -63,7 +63,7 @@ CREATE FUNCTION
 std::time_get(dt: std::naive_time, el: std::str) -> std::float64
 {
     FROM SQL $$
-    SELECT date_part("el", dt)
+    SELECT date_part("el", "dt")
     $$;
 };
 
@@ -72,7 +72,7 @@ CREATE FUNCTION
 std::date_get(dt: std::naive_date, el: std::str) -> std::float64
 {
     FROM SQL $$
-    SELECT date_part("el", dt)
+    SELECT date_part("el", "dt")
     $$;
 };
 
@@ -81,7 +81,7 @@ CREATE FUNCTION
 std::timedelta_get(dt: std::timedelta, el: std::str) -> std::float64
 {
     FROM SQL $$
-    SELECT date_part("el", dt)
+    SELECT date_part("el", "dt")
     $$;
 };
 
@@ -90,7 +90,7 @@ CREATE FUNCTION
 std::datetime_trunc(dt: std::datetime, unit: std::str) -> std::datetime
 {
     FROM SQL $$
-    SELECT date_trunc(unit, dt)
+    SELECT date_trunc("unit", "dt")
     $$;
 };
 
@@ -99,7 +99,7 @@ CREATE FUNCTION
 std::timedelta_trunc(dt: std::timedelta, unit: std::str) -> std::timedelta
 {
     FROM SQL $$
-    SELECT date_trunc(unit, dt)
+    SELECT date_trunc("unit", "dt")
     $$;
 };
 

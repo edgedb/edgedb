@@ -124,7 +124,7 @@ type UniqueName_2_Inherited extending UniqueName_2
 
 type UniqueName_3 extending UniqueName_2:
     inherited property name -> str:
-        constraint exclusive on (lower(__subject__))
+        constraint exclusive on (str_lower(__subject__))
 
 
 type UniqueName_4 extending UniqueName_2_Inherited
@@ -133,7 +133,7 @@ type UniqueName_4 extending UniqueName_2_Inherited
 type MultiConstraint:
     property name -> str:
         constraint exclusive
-        constraint exclusive on (lower(__subject__))
+        constraint exclusive on (str_lower(__subject__))
 
     property m1 -> str
 
@@ -159,7 +159,7 @@ type AbstractConstraintParent:
 
 type AbstractConstraintParent2:
     property name -> str:
-        delegated constraint exclusive on (lower(__subject__))
+        delegated constraint exclusive on (str_lower(__subject__))
 
 
 type AbstractConstraintPureChild extending AbstractConstraintParent
@@ -167,7 +167,7 @@ type AbstractConstraintPureChild extending AbstractConstraintParent
 
 type AbstractConstraintMixedChild extending AbstractConstraintParent:
     inherited property name -> str:
-        constraint exclusive on (lower(__subject__))
+        constraint exclusive on (str_lower(__subject__))
 
 
 type AbstractConstraintPropagated extending AbstractConstraintParent:
@@ -178,7 +178,7 @@ type AbstractConstraintPropagated extending AbstractConstraintParent:
 type AbstractConstraintParent3:
     property name -> str:
         delegated constraint exclusive
-        delegated constraint exclusive on (lower(__subject__))
+        delegated constraint exclusive on (str_lower(__subject__))
 
 
 type AbstractConstraintMultipleParentsFlattening extending AbstractConstraintParent, AbstractConstraintParent2:

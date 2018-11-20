@@ -35,10 +35,10 @@ std::to_str(dt: std::datetime, fmt: OPTIONAL str={}) -> std::str
 {
     FROM SQL $$
     SELECT (
-        CASE WHEN fmt IS NULL THEN
-            trim(to_json(dt)::text, '"')
+        CASE WHEN "fmt" IS NULL THEN
+            trim(to_json("dt")::text, '"')
         ELSE
-            to_char(dt, fmt)
+            to_char("dt", "fmt")
         END
     )
     $$;
@@ -50,10 +50,10 @@ std::to_str(dt: std::naive_datetime, fmt: OPTIONAL str={}) -> std::str
 {
     FROM SQL $$
     SELECT (
-        CASE WHEN fmt IS NULL THEN
-            trim(to_json(dt)::text, '"')
+        CASE WHEN "fmt" IS NULL THEN
+            trim(to_json("dt")::text, '"')
         ELSE
-            to_char(dt, fmt)
+            to_char("dt", "fmt")
         END
     )
     $$;
@@ -65,10 +65,10 @@ std::to_str(d: std::naive_date, fmt: OPTIONAL str={}) -> std::str
 {
     FROM SQL $$
     SELECT (
-        CASE WHEN fmt IS NULL THEN
-            d::text
+        CASE WHEN "fmt" IS NULL THEN
+            "d"::text
         ELSE
-            to_char(d, fmt)
+            to_char("d", "fmt")
         END
     )
     $$;
@@ -86,10 +86,10 @@ std::to_str(nt: std::naive_time, fmt: OPTIONAL str={}) -> std::str
 {
     FROM SQL $$
     SELECT (
-        CASE WHEN fmt IS NULL THEN
-            nt::text
+        CASE WHEN "fmt" IS NULL THEN
+            "nt"::text
         ELSE
-            to_char(date_trunc('day', localtimestamp) + nt, fmt)
+            to_char(date_trunc('day', localtimestamp) + "nt", "fmt")
         END
     )
     $$;
@@ -106,10 +106,10 @@ std::to_str(i: std::int64, fmt: OPTIONAL str={}) -> std::str
 {
     FROM SQL $$
     SELECT (
-        CASE WHEN fmt IS NULL THEN
-            i::text
+        CASE WHEN "fmt" IS NULL THEN
+            "i"::text
         ELSE
-            to_char(i, fmt)
+            to_char("i", "fmt")
         END
     )
     $$;
@@ -121,10 +121,10 @@ std::to_str(f: std::float64, fmt: OPTIONAL str={}) -> std::str
 {
     FROM SQL $$
     SELECT (
-        CASE WHEN fmt IS NULL THEN
-            f::text
+        CASE WHEN "fmt" IS NULL THEN
+            "f"::text
         ELSE
-            to_char(f, fmt)
+            to_char("f", "fmt")
         END
     )
     $$;
@@ -136,10 +136,10 @@ std::to_str(d: std::decimal, fmt: OPTIONAL str={}) -> std::str
 {
     FROM SQL $$
     SELECT (
-        CASE WHEN fmt IS NULL THEN
-            d::text
+        CASE WHEN "fmt" IS NULL THEN
+            "d"::text
         ELSE
-            to_char(d, fmt)
+            to_char("d", "fmt")
         END
     )
     $$;
@@ -155,14 +155,14 @@ std::to_str(json: std::json, fmt: OPTIONAL str={}) -> std::str
 {
     FROM SQL $$
     SELECT (
-        CASE WHEN fmt IS NULL THEN
+        CASE WHEN "fmt" IS NULL THEN
             "json"::text
-        WHEN fmt = 'pretty' THEN
+        WHEN "fmt" = 'pretty' THEN
             jsonb_pretty("json")
         ELSE
             edgedb._raise_specific_exception(
                 'invalid_parameter_value',
-                'format ''' || fmt || ''' is invalid for JSON',
+                'format ''' || "fmt" || ''' is invalid for JSON',
                 NULL,
                 NULL::text
             )
@@ -186,10 +186,10 @@ std::to_datetime(s: std::str, fmt: OPTIONAL str={}) -> std::datetime
 {
     FROM SQL $$
     SELECT (
-        CASE WHEN fmt IS NULL THEN
-            s::timestamptz
+        CASE WHEN "fmt" IS NULL THEN
+            "s"::timestamptz
         ELSE
-            to_timestamp(s, fmt)
+            to_timestamp("s", "fmt")
         END
     )
     $$;
@@ -203,8 +203,8 @@ std::to_datetime(year: std::int64, month: std::int64, day: std::int64,
 {
     FROM SQL $$
     SELECT make_timestamptz(
-        year::int, month::int, day::int,
-        hour::int, min::int, sec
+        "year"::int, "month"::int, "day"::int,
+        "hour"::int, "min"::int, "sec"
     )
     $$;
 };
@@ -218,8 +218,8 @@ std::to_datetime(year: std::int64, month: std::int64, day: std::int64,
 {
     FROM SQL $$
     SELECT make_timestamptz(
-        year::int, month::int, day::int,
-        hour::int, min::int, sec, timezone
+        "year"::int, "month"::int, "day"::int,
+        "hour"::int, "min"::int, "sec", "timezone"
     )
     $$;
 };
@@ -231,10 +231,10 @@ std::to_naive_datetime(s: std::str, fmt: OPTIONAL str={})
 {
     FROM SQL $$
     SELECT (
-        CASE WHEN fmt IS NULL THEN
-            s::timestamp
+        CASE WHEN "fmt" IS NULL THEN
+            "s"::timestamp
         ELSE
-            to_timestamp(s, fmt)::timestamp
+            to_timestamp("s", "fmt")::timestamp
         END
     )
     $$;
@@ -248,8 +248,8 @@ std::to_naive_datetime(year: std::int64, month: std::int64, day: std::int64,
 {
     FROM SQL $$
     SELECT make_timestamp(
-        year::int, month::int, day::int,
-        hour::int, min::int, sec
+        "year"::int, "month"::int, "day"::int,
+        "hour"::int, "min"::int, "sec"
     )
     $$;
 };
@@ -260,10 +260,10 @@ std::to_naive_date(s: std::str, fmt: OPTIONAL str={}) -> std::naive_date
 {
     FROM SQL $$
     SELECT (
-        CASE WHEN fmt IS NULL THEN
-            s::date
+        CASE WHEN "fmt" IS NULL THEN
+            "s"::date
         ELSE
-            to_date(s, fmt)
+            to_date("s", "fmt")
         END
     )
     $$;
@@ -275,7 +275,7 @@ std::to_naive_date(year: std::int64, month: std::int64, day: std::int64)
     -> std::naive_date
 {
     FROM SQL $$
-    SELECT make_date(year::int, month::int, day::int)
+    SELECT make_date("year"::int, "month"::int, "day"::int)
     $$;
 };
 
@@ -285,10 +285,10 @@ std::to_naive_time(s: std::str, fmt: OPTIONAL str={}) -> std::naive_time
 {
     FROM SQL $$
     SELECT (
-        CASE WHEN fmt IS NULL THEN
-            s::time
+        CASE WHEN "fmt" IS NULL THEN
+            "s"::time
         ELSE
-            to_timestamp(s, fmt)::time
+            to_timestamp("s", "fmt")::time
         END
     )
     $$;
@@ -300,7 +300,7 @@ std::to_naive_time(hour: std::int64, min: std::int64, sec: std::float64)
     -> std::naive_time
 {
     FROM SQL $$
-    SELECT make_time(hour::int, min::int, sec)
+    SELECT make_time("hour"::int, "min"::int, "sec")
     $$;
 };
 
@@ -318,13 +318,13 @@ std::to_timedelta(
 {
     FROM SQL $$
     SELECT make_interval(
-        years::int,
-        months::int,
-        weeks::int,
-        days::int,
-        hours::int,
-        mins::int,
-        secs
+        "years"::int,
+        "months"::int,
+        "weeks"::int,
+        "days"::int,
+        "hours"::int,
+        "mins"::int,
+        "secs"
     )
     $$;
 };
@@ -335,10 +335,10 @@ std::to_decimal(s: std::str, fmt: OPTIONAL str={}) -> std::decimal
 {
     FROM SQL $$
     SELECT (
-        CASE WHEN fmt IS NULL THEN
-            s::numeric
+        CASE WHEN "fmt" IS NULL THEN
+            "s"::numeric
         ELSE
-            to_number(s, fmt)
+            to_number("s", "fmt")
         END
     )
     $$;
@@ -350,10 +350,10 @@ std::to_int64(s: std::str, fmt: OPTIONAL str={}) -> std::int64
 {
     FROM SQL $$
     SELECT (
-        CASE WHEN fmt IS NULL THEN
-            s::bigint
+        CASE WHEN "fmt" IS NULL THEN
+            "s"::bigint
         ELSE
-            to_number(s, fmt)::bigint
+            to_number("s", "fmt")::bigint
         END
     )
     $$;
@@ -365,10 +365,10 @@ std::to_int32(s: std::str, fmt: OPTIONAL str={}) -> std::int32
 {
     FROM SQL $$
     SELECT (
-        CASE WHEN fmt IS NULL THEN
-            s::int
+        CASE WHEN "fmt" IS NULL THEN
+            "s"::int
         ELSE
-            to_number(s, fmt)::int
+            to_number("s", "fmt")::int
         END
     )
     $$;
@@ -380,10 +380,10 @@ std::to_int16(s: std::str, fmt: OPTIONAL str={}) -> std::int16
 {
     FROM SQL $$
     SELECT (
-        CASE WHEN fmt IS NULL THEN
-            s::smallint
+        CASE WHEN "fmt" IS NULL THEN
+            "s"::smallint
         ELSE
-            to_number(s, fmt)::smallint
+            to_number("s", "fmt")::smallint
         END
     )
     $$;
@@ -395,10 +395,10 @@ std::to_float64(s: std::str, fmt: OPTIONAL str={}) -> std::float64
 {
     FROM SQL $$
     SELECT (
-        CASE WHEN fmt IS NULL THEN
-            s::float8
+        CASE WHEN "fmt" IS NULL THEN
+            "s"::float8
         ELSE
-            to_number(s, fmt)::float8
+            to_number("s", "fmt")::float8
         END
     )
     $$;
@@ -410,10 +410,10 @@ std::to_float32(s: std::str, fmt: OPTIONAL str={}) -> std::float32
 {
     FROM SQL $$
     SELECT (
-        CASE WHEN fmt IS NULL THEN
-            s::float4
+        CASE WHEN "fmt" IS NULL THEN
+            "s"::float4
         ELSE
-            to_number(s, fmt)::float4
+            to_number("s", "fmt")::float4
         END
     )
     $$;
