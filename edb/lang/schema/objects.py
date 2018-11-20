@@ -317,9 +317,10 @@ class Object(metaclass=ObjectMeta):
     id = Field(uuid.UUID, inheritable=False, frozen=True, simpledelta=False)
     """Unique ID for this schema item."""
 
-    sourcectx = Field(parsing.ParserContext, None, compcoef=None,
-                      inheritable=False, introspectable=False, hashable=False,
-                      ephemeral=True, frozen=True)
+    sourcectx = SchemaField(
+        parsing.ParserContext, None, compcoef=None,
+        inheritable=False, introspectable=False, hashable=False,
+        ephemeral=True, frozen=True)
     """Schema source context for this object"""
 
     def __init__(self, *, _private_init):
@@ -1043,13 +1044,20 @@ class Object(metaclass=ObjectMeta):
 
 class NamedObject(Object):
     name = Field(sn.Name, inheritable=False, compcoef=0.670)
+
     # The path_id_name field is solely for the purposes of the compiler
     # so that this item can act as a transparent proxy for the item
     # it has been derived from, specifically in path ids.
-    path_id_name = Field(sn.Name, inheritable=False, ephemeral=True,
-                         introspectable=False, default=None)
-    title = Field(str, default=None, compcoef=0.909, coerce=True, public=True)
-    description = Field(str, default=None, compcoef=0.909, public=True)
+    path_id_name = SchemaField(
+        sn.Name, inheritable=False, ephemeral=True,
+        introspectable=False, default=None)
+
+    title = SchemaField(
+        str, default=None, compcoef=0.909, coerce=True,
+        public=True)
+
+    description = SchemaField(
+        str, default=None, compcoef=0.909, public=True)
 
     @classmethod
     def create_in_schema(cls, schema, *, _nameless=False, **kwargs):

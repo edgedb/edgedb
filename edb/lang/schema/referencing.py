@@ -683,7 +683,7 @@ class ReferencingObject(inheriting.InheritingObject,
                     f'declared using the `inherited` keyword because '
                     f'it is defined in the following ancestor(s): '
                     f'{", ".join(a.shortname for a in ancestry)}',
-                    context=local.sourcectx
+                    context=local.get_sourcectx(schema)
                 )
 
             if (merged is local and local is not None and
@@ -692,7 +692,7 @@ class ReferencingObject(inheriting.InheritingObject,
                     f'{self.shortname}: {local.shortname} cannot '
                     f'be declared `inherited` as there are no ancestors '
                     f'defining it.',
-                    context=local.sourcectx
+                    context=local.get_sourcectx(schema)
                 )
 
             if merged is not local:

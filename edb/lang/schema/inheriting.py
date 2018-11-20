@@ -321,13 +321,11 @@ class InheritingObject(derivable.DerivableObject):
     bases = so.SchemaField(
         so.ObjectList,
         default=so.ObjectList,
-        coerce=True, inheritable=False, compcoef=0.714,
-        debug_getter=True)
+        coerce=True, inheritable=False, compcoef=0.714)
 
     mro = so.SchemaField(
         so.ObjectList,
-        coerce=True, default=None, hashable=False,
-        debug_getter=True)
+        coerce=True, default=None, hashable=False)
 
     is_abstract = so.SchemaField(
         bool,

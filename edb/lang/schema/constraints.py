@@ -268,7 +268,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
     def format_error_message(self, schema):
         errmsg = self.get_errmessage(schema)
         subject = self.get_subject(schema)
-        subjtitle = subject.title
+        subjtitle = subject.get_title(schema)
 
         if not subjtitle:
             try:
