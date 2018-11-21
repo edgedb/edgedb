@@ -213,6 +213,12 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
         else:
             return self
 
+    def __repr__(self):
+        return (
+            f'<{type(self).__name__} name={self.name!r} '
+            f'type={self.type} {id(self):#x}>'
+        )
+
 
 class SchemaField(Field):
 

@@ -40,6 +40,7 @@ class Schema:
         self._garbage = set()
         self.index_by_id = {}
         self._nameless_ids = {}
+        self.index_by_name = {}
 
     def add_module(self, mod) -> 'Schema':
         """Add a module to the schema
@@ -104,12 +105,18 @@ class Schema:
         # XXX temporary method, will go away when schema.Module
         # is refactored.
 
+        is_nameless = obj.id in self.nameless_ids
+
         oldmod = self.modules[oldname.module]
         oldmod.index_by_name.pop(oldname, None)
+        if not is_nameless:
+            self.index_by_name.pop(oldname, None)
 
         newname = obj.get_name(self)
         newmod = self.modules[newname.module]
         newmod.index_by_name[newname] = obj
+        if not is_nameless:
+            self.index_by_name[newname] = obj
 
         return self
 
@@ -137,6 +144,13 @@ class Schema:
                 raise s_err.SchemaModuleNotFoundError(
                     f'module {name.module!r} is not in this schema') from e
 
+            if name in self.index_by_name:
+                err = f'{name!r} is already present in the schema {self!r}'
+                raise s_err.SchemaError(err)
+
+            assert name == obj.get_name(self)
+            self.index_by_name[name] = obj
+
             return module._add(self, name, obj)
 
     def mark_as_garbage(self, obj) -> 'Schema':
@@ -147,11 +161,13 @@ class Schema:
 
         schema = module._discard(self, obj)
         self._garbage.add(obj.id)
+        self.index_by_name.pop(obj.get_name(self), None)
 
         return schema
 
     def discard(self, obj) -> 'Schema':
         self.index_by_id.pop(obj.id, None)
+        self.index_by_name.pop(obj.get_name(self), None)
 
         if obj.id in self._nameless_ids:
             del self._nameless_ids[obj.id]
@@ -167,6 +183,7 @@ class Schema:
 
     def delete(self, obj) -> 'Schema':
         self.index_by_id.pop(obj.id, None)
+        self.index_by_name.pop(obj.get_name(self), None)
 
         if obj.id in self._nameless_ids:
             del self._nameless_ids[obj.id]
@@ -295,10 +312,23 @@ class Schema:
             else:
                 return default
 
+    def _get_by_name(self, name, *, type=None):
+        if isinstance(type, tuple):
+            for typ in type:
+                scls = self._get_by_name(name, type=typ)
+                if scls is not None:
+                    return scls
+            return None
+
+        scls = self.index_by_name.get(name)
+        if scls is not None and type is not None:
+            if not isinstance(scls, type):
+                return None
+        return scls
+
     def get(self, name, default=_void, *, module_aliases=None, type=None):
         def getter(schema, name):
-            module = schema.get_module(name.module)
-            return module.get(self, name.name, default=None, type=type)
+            return schema._get_by_name(name, type=type)
 
         obj = self._get(name,
                         getter=getter,
@@ -407,6 +437,7 @@ class SchemaOverlay(Schema):
         self._local_index_by_id = {}
         self.index_by_id = collections.ChainMap(self._local_index_by_id,
                                                 schema.index_by_id)
+        self.index_by_name = {}
         self._garbage = set()
         self._policy_schema = None
         self._local_vic = {}
