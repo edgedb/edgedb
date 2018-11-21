@@ -90,8 +90,8 @@ class GQLCoreSchema:
         self.edb_schema = edb_schema
         # extract and sort modules to have a consistent type ordering
         self.modules = {
-            m.get_name(self.edb_schema) for m in
-            self.edb_schema.get_modules()
+            m.get_name(self.edb_schema)
+            for m in self.edb_schema.get_modules()
         } - {'schema', 'stdgraphql'}
         self.modules = list(self.modules)
         self.modules.sort()

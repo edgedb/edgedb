@@ -48,6 +48,7 @@ class Schema(TypeContainer):
         self._inheritance_cache = {}
         self._garbage = set()
         self.index_by_id = {}
+        self.nameless_ids = set()
 
     def add_module(self, mod) -> 'Schema':
         """Add a module to the schema
@@ -128,6 +129,9 @@ class Schema(TypeContainer):
     def add(self, name, obj, *, _nameless=False) -> 'Schema':
         from . import deltas as s_deltas
 
+        if _nameless:
+            self.nameless_ids.add(obj.id)
+
         if isinstance(obj, s_modules.Module):
             self.modules[name] = obj
             return self
@@ -206,12 +210,12 @@ class Schema(TypeContainer):
         if module_name is not None:
             module = self.modules.get(module_name)
             if module is not None:
-                modules.append(module)
+                modules.append((self, module_name))
 
         return modules
 
     def _get(self, name, *, getter, default, module_aliases):
-        name, module, nqname = schema_name.split_name(name)
+        name, module, shortname = schema_name.split_name(name)
         implicit_builtins = module is None
 
         if module_aliases is not None:
@@ -221,26 +225,31 @@ class Schema(TypeContainer):
                 module = fq_module
 
         class_modules = self._resolve_module(module)
-
-        if class_modules:
-            result = getter(class_modules, nqname)
+        for schema, modname in class_modules:
+            lname = schema_name.SchemaName(shortname, modname)
+            result = getter(schema, lname)
             if result is not None:
                 return result
 
         if implicit_builtins:
-            std = self._resolve_module('std')
-            result = getter(std, nqname)
-            if result is not None:
-                return result
+            for schema, modname in self._resolve_module('std'):
+                lname = schema_name.SchemaName(shortname, modname)
+                result = getter(schema, lname)
+                if result is not None:
+                    return result
 
         return default
 
     def get_functions(self, name, default=_void, *, module_aliases=None):
-        def getter(modules, name):
-            for module in modules:
-                result = module.get_functions(name)
-                if result:
-                    return result
+        def getter(schema, name):
+            ret = []
+            for obj in schema.index_by_id.values():
+                if (type(obj)._type == 'function' and
+                        obj.get_shortname(schema) == name and
+                        obj.id not in schema.nameless_ids):
+                    ret.append(obj)
+            if ret:
+                return ret
 
         funcs = self._get(name,
                           getter=getter,
@@ -254,11 +263,15 @@ class Schema(TypeContainer):
             f'reference to a non-existent function: {name}')
 
     def get_operators(self, name, default=_void, *, module_aliases=None):
-        def getter(modules, name):
-            for module in modules:
-                result = module.get_operators(name)
-                if result:
-                    return result
+        def getter(schema, name):
+            ret = []
+            for obj in schema.index_by_id.values():
+                if (type(obj)._type == 'operator' and
+                        obj.get_shortname(schema) == name and
+                        obj.id not in schema.nameless_ids):
+                    ret.append(obj)
+            if ret:
+                return ret
 
         funcs = self._get(name,
                           getter=getter,
@@ -284,11 +297,9 @@ class Schema(TypeContainer):
                 return default
 
     def get(self, name, default=_void, *, module_aliases=None, type=None):
-        def getter(modules, name):
-            for module in modules:
-                result = module.get(self, name, default=None, type=type)
-                if result is not None:
-                    return result
+        def getter(schema, name):
+            module = schema.get_module(name.module)
+            return module.get(self, name.name, default=None, type=type)
 
         obj = self._get(name,
                         getter=getter,
@@ -373,6 +384,7 @@ class SchemaOverlay(Schema):
         self._local_ic = {}
         self._inheritance_cache = collections.ChainMap(
             self._local_ic, schema._inheritance_cache)
+        self.nameless_ids = set()
 
         if extra:
             for n, v in extra.items():
@@ -392,14 +404,6 @@ class SchemaOverlay(Schema):
                 self.local_modules[name] = obj
                 return self
 
-            if obj is None:
-                obj = name
-                name = obj.get_name(self)
-                import warnings
-                warnings.warn(
-                    f'Deprecated call to schema.add()',
-                    RuntimeWarning, stacklevel=2)
-
             if obj.get_name(self).module not in self.local_modules:
                 s_modules.Module.create_in_schema(
                     self,
@@ -409,16 +413,14 @@ class SchemaOverlay(Schema):
 
     def _resolve_module(self, module_name) -> typing.List[s_modules.Module]:
         modules = []
-        if module_name is not None:
-            local_module = self.local_modules.get(module_name)
-            if local_module is not None:
-                modules.append(local_module)
 
-            their_modules = self.schema._resolve_module(module_name)
-            if their_modules:
-                for their_module in their_modules:
-                    if their_module is not local_module:
-                        modules.append(their_module)
+        local_module_name = None
+        if module_name is not None:
+            if module_name in self.local_modules:
+                local_module_name = module_name
+                modules.append((self, local_module_name))
+
+            modules.extend(self.schema._resolve_module(module_name))
 
         return modules
 

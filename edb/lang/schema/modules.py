@@ -26,13 +26,11 @@ from edb.lang.common.ordered import OrderedSet
 from edb.lang.edgeql import ast as qlast
 
 from . import delta as sd
-from . import functions as fu
 from . import error as s_err
 from . import inheriting
 from . import name as sn
 from . import named
 from . import objects as so
-from . import operators as s_opers
 
 
 class Module(named.NamedObject):
@@ -44,8 +42,6 @@ class Module(named.NamedObject):
     def create_in_schema(cls, schema, **kwargs):
         schema, mod = super().create_in_schema(schema, **kwargs)
 
-        mod.funcs_by_name = collections.defaultdict(list)
-        mod.opers_by_name = collections.defaultdict(list)
         mod.index_by_name = collections.OrderedDict()
         mod.index_by_type = {}
         mod.index_derived = set()
@@ -58,11 +54,6 @@ class Module(named.NamedObject):
             raise s_err.SchemaError(err)
 
         self.index_by_name[name] = obj
-
-        if isinstance(obj, fu.Function):
-            self.funcs_by_name[obj.get_shortname(schema).name].append(obj)
-        elif isinstance(obj, s_opers.Operator):
-            self.opers_by_name[obj.get_shortname(schema).name].append(obj)
 
         idx_by_type = self.index_by_type.setdefault(obj._type, OrderedSet())
         idx_by_type.add(name)
@@ -99,12 +90,6 @@ class Module(named.NamedObject):
 
     def lookup_qname(self, name):
         return self.index_by_name.get(name)
-
-    def get_functions(self, name):
-        return self.funcs_by_name.get(name)
-
-    def get_operators(self, name):
-        return self.opers_by_name.get(name)
 
     def get(self, schema, name, default=s_err.ItemNotFoundError, *,
             module_aliases=None, type=None,
