@@ -28,16 +28,7 @@ from . import name as schema_name
 _void = object()
 
 
-class TypeContainer:
-    pass
-
-
-class Schema(TypeContainer):
-    global_dep_order = ('attribute', 'constraint',
-                        'ScalarType', 'link_property',
-                        'link', 'ObjectType')
-
-    """Schema is a collection of ProtoModules."""
+class Schema:
 
     def __init__(self):
         self.modules = collections.OrderedDict()
@@ -48,7 +39,7 @@ class Schema(TypeContainer):
         self._inheritance_cache = {}
         self._garbage = set()
         self.index_by_id = {}
-        self.nameless_ids = set()
+        self._nameless_ids = {}
 
     def add_module(self, mod) -> 'Schema':
         """Add a module to the schema
@@ -115,14 +106,10 @@ class Schema(TypeContainer):
 
         oldmod = self.modules[oldname.module]
         oldmod.index_by_name.pop(oldname, None)
-        oldmod.index_derived.discard(oldname)
-        oldmod.index_by_type[obj._type].discard(oldname)
 
         newname = obj.get_name(self)
         newmod = self.modules[newname.module]
         newmod.index_by_name[newname] = obj
-        newmod.index_derived.add(newname)
-        newmod.index_by_type[obj._type].add(newname)
 
         return self
 
@@ -130,7 +117,7 @@ class Schema(TypeContainer):
         from . import deltas as s_deltas
 
         if _nameless:
-            self.nameless_ids.add(obj.id)
+            self._nameless_ids[obj.id] = True
 
         if isinstance(obj, s_modules.Module):
             self.modules[name] = obj
@@ -166,6 +153,10 @@ class Schema(TypeContainer):
     def discard(self, obj) -> 'Schema':
         self.index_by_id.pop(obj.id, None)
 
+        if obj.id in self._nameless_ids:
+            del self._nameless_ids[obj.id]
+            return self
+
         try:
             module = self.modules[obj.get_name(self).module]
         except KeyError:
@@ -176,6 +167,10 @@ class Schema(TypeContainer):
 
     def delete(self, obj) -> 'Schema':
         self.index_by_id.pop(obj.id, None)
+
+        if obj.id in self._nameless_ids:
+            del self._nameless_ids[obj.id]
+            return self
 
         try:
             module = self.modules[obj.get_name(self).module]
@@ -241,12 +236,14 @@ class Schema(TypeContainer):
         return default
 
     def get_functions(self, name, default=_void, *, module_aliases=None):
+        from . import functions as s_func
+
         def getter(schema, name):
             ret = []
             for obj in schema.index_by_id.values():
-                if (type(obj)._type == 'function' and
+                if (isinstance(obj, s_func.Function) and
                         obj.get_shortname(schema) == name and
-                        obj.id not in schema.nameless_ids):
+                        obj.id not in schema._nameless_ids):
                     ret.append(obj)
             if ret:
                 return ret
@@ -263,12 +260,14 @@ class Schema(TypeContainer):
             f'reference to a non-existent function: {name}')
 
     def get_operators(self, name, default=_void, *, module_aliases=None):
+        from . import operators as s_oper
+
         def getter(schema, name):
             ret = []
             for obj in schema.index_by_id.values():
-                if (type(obj)._type == 'operator' and
+                if (isinstance(obj, s_oper.Operator) and
                         obj.get_shortname(schema) == name and
-                        obj.id not in schema.nameless_ids):
+                        obj.id not in schema._nameless_ids):
                     ret.append(obj)
             if ret:
                 return ret
@@ -355,17 +354,47 @@ class Schema(TypeContainer):
 
     def _find_children(self, scls):
         flt = lambda p: scls in p.get_bases(self).objects(self)
-        it = self.get_objects(type=scls._type)
+        it = self.get_objects(type=type(scls))
         return {c.get_name(self) for c in filter(flt, it)}
 
-    def get_objects(self, *, type=None, include_derived=False):
-        for mod in self.get_modules():
-            for scls in mod.get_objects(type=type,
-                                        include_derived=include_derived):
-                yield scls
+    def get_objects(self, *, modules=None, type=None):
+        return SchemaIterator(self, modules=modules, type=type)
 
     def get_overlay(self, extra=None):
         return SchemaOverlay(self, extra=extra)
+
+
+class SchemaIterator:
+    def __init__(
+            self,
+            schema, *,
+            modules: typing.Optional[typing.Iterable[str]],
+            type=None) -> None:
+
+        filters = [
+            lambda obj:
+                obj.id not in schema._nameless_ids and
+                obj.id not in schema._garbage
+        ]
+
+        if modules is not None:
+            modules = frozenset(modules)
+            filters.append(
+                lambda obj: obj.get_name(schema).module in modules)
+
+        if type is not None:
+            filters.append(
+                lambda obj: isinstance(obj, type))
+
+        self._filters = filters
+        self._schema = schema
+
+    def __iter__(self):
+        filters = self._filters
+
+        for obj in tuple(self._schema.index_by_id.values()):
+            if all(f(obj) for f in filters):
+                yield obj
 
 
 class SchemaOverlay(Schema):
@@ -375,7 +404,9 @@ class SchemaOverlay(Schema):
         self.modules = collections.ChainMap(self.local_modules, schema.modules)
         self.deltas = collections.OrderedDict()
 
-        self.index_by_id = {}
+        self._local_index_by_id = {}
+        self.index_by_id = collections.ChainMap(self._local_index_by_id,
+                                                schema.index_by_id)
         self._garbage = set()
         self._policy_schema = None
         self._local_vic = {}
@@ -384,12 +415,13 @@ class SchemaOverlay(Schema):
         self._local_ic = {}
         self._inheritance_cache = collections.ChainMap(
             self._local_ic, schema._inheritance_cache)
-        self.nameless_ids = set()
+        self._local_nameless_ids = dict()
+        self._nameless_ids = collections.ChainMap(
+            self._local_nameless_ids, schema._nameless_ids)
 
         if extra:
             for n, v in extra.items():
-                if hasattr(v, '_type'):
-                    self.add(n, v)
+                self.add(n, v)
 
     def has_module(self, module):
         return module in self.modules
@@ -423,10 +455,3 @@ class SchemaOverlay(Schema):
             modules.extend(self.schema._resolve_module(module_name))
 
         return modules
-
-    def get_by_id(self, item_id, default=_void):
-        item = self.index_by_id.get(item_id)
-        if item is None:
-            return self.schema.get_by_id(item_id, default=default)
-        else:
-            return item

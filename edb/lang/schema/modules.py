@@ -27,7 +27,6 @@ from edb.lang.edgeql import ast as qlast
 
 from . import delta as sd
 from . import error as s_err
-from . import inheriting
 from . import name as sn
 from . import named
 from . import objects as so
@@ -43,8 +42,6 @@ class Module(named.NamedObject):
         schema, mod = super().create_in_schema(schema, **kwargs)
 
         mod.index_by_name = collections.OrderedDict()
-        mod.index_by_type = {}
-        mod.index_derived = set()
 
         return schema, mod
 
@@ -54,13 +51,6 @@ class Module(named.NamedObject):
             raise s_err.SchemaError(err)
 
         self.index_by_name[name] = obj
-
-        idx_by_type = self.index_by_type.setdefault(obj._type, OrderedSet())
-        idx_by_type.add(name)
-
-        if (isinstance(obj, inheriting.InheritingObject) and
-                obj.get_is_derived(schema)):
-            self.index_derived.add(obj.get_name(schema))
 
         return schema
 
@@ -85,8 +75,6 @@ class Module(named.NamedObject):
     def _do_delete(self, schema, obj):
         obj_name = obj.get_name(schema)
         self.index_by_name.pop(obj_name)
-        self.index_by_type[obj.__class__._type].remove(obj_name)
-        self.index_derived.discard(obj_name)
 
     def lookup_qname(self, name):
         return self.index_by_name.get(name)
@@ -172,47 +160,7 @@ class Module(named.NamedObject):
         self.index_by_name = collections.OrderedDict(
             (name, self.index_by_name[name]) for name in names)
 
-        for typeindex in self.index_by_type.values():
-            sortedindex = sorted(typeindex, key=sortkey)
-            typeindex.clear()
-            typeindex.update(sortedindex)
-
         return schema
-
-    def get_objects(self, *, type=None, include_derived=False):
-        return SchemaIterator(self, type, include_derived=include_derived)
-
-
-class SchemaIterator:
-    def __init__(self, module, type, include_derived=False):
-        self.module = module
-        self.type = type
-        self.include_derived = include_derived
-        self.iter = self._make_iter()
-
-    def _make_iter(self):
-        names = OrderedSet(self.module.index_by_name)
-        if self.type is not None:
-            typ = self.type
-            if isinstance(self.type, so.ObjectMeta):
-                typ = self.type._type
-
-            itertyp = self.module.index_by_type.get(typ)
-            if itertyp:
-                names = itertyp
-            else:
-                names = OrderedSet()
-
-        if not self.include_derived:
-            names = names - self.module.index_derived
-
-        return iter(names)
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        return self.module.index_by_name[next(self.iter)]
 
 
 class ModuleCommandContext(sd.CommandContextToken):

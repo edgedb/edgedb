@@ -32,7 +32,6 @@ from . import utils
 
 
 class Operator(s_func.CallableObject):
-    _type = 'operator'
 
     operator_kind = so.SchemaField(
         ft.OperatorKind, coerce=True, compcoef=0.4)

@@ -38,7 +38,6 @@ from . import types as s_types
 
 class ScalarType(nodes.Node, constraints.ConsistencySubject,
                  attributes.AttributeSubject):
-    _type = 'ScalarType'
 
     default = so.SchemaField(
         expr.ExpressionText, default=None,

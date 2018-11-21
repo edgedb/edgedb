@@ -256,7 +256,7 @@ class IntrospectionMech:
                 **scalar_data
             )
 
-        for scalar in schema.get_objects(type='ScalarType'):
+        for scalar in schema.get_objects(type=s_scalars.ScalarType):
             try:
                 basename = basemap[scalar.get_name(schema)]
             except KeyError:
@@ -266,7 +266,7 @@ class IntrospectionMech:
                     schema, 'bases', [schema.get(sn.Name(basename[0]))])
 
         sequence = schema.get('std::sequence', None)
-        for scalar in schema.get_objects(type='ScalarType'):
+        for scalar in schema.get_objects(type=s_scalars.ScalarType):
             if (sequence is not None and
                     scalar.issubclass(schema, sequence) and
                     not scalar.get_is_abstract(schema)):
@@ -289,7 +289,7 @@ class IntrospectionMech:
         return schema
 
     async def order_scalars(self, schema):
-        for scalar in schema.get_objects(type='ScalarType'):
+        for scalar in schema.get_objects(type=s_scalars.ScalarType):
             schema = scalar.acquire_ancestor_inheritance(schema)
         return schema
 
@@ -443,7 +443,7 @@ class IntrospectionMech:
             if subject:
                 schema = subject.add_constraint(schema, constraint)
 
-        for constraint in schema.get_objects(type='constraint'):
+        for constraint in schema.get_objects(type=s_constr.Constraint):
             try:
                 bases = basemap[constraint.get_name(schema)]
             except KeyError:
@@ -452,7 +452,7 @@ class IntrospectionMech:
                 schema = constraint.set_field_value(
                     schema, 'bases', [schema.get(b) for b in bases])
 
-        for constraint in schema.get_objects(type='constraint'):
+        for constraint in schema.get_objects(type=s_constr.Constraint):
             schema = constraint.acquire_ancestor_inheritance(schema)
 
         return schema
@@ -696,7 +696,7 @@ class IntrospectionMech:
             if source:
                 schema = source.add_pointer(schema, link)
 
-        for link in schema.get_objects(type='link'):
+        for link in schema.get_objects(type=s_links.Link):
             try:
                 bases = basemap[link.get_name(schema)]
             except KeyError:
@@ -707,7 +707,7 @@ class IntrospectionMech:
                     'bases',
                     [schema.get(b) for b in bases])
 
-        for link in schema.get_objects(type='link'):
+        for link in schema.get_objects(type=s_links.Link):
             schema = link.acquire_ancestor_inheritance(schema)
 
         return schema
@@ -715,7 +715,7 @@ class IntrospectionMech:
     async def order_links(self, schema):
         g = {}
 
-        for link in schema.get_objects(type='link'):
+        for link in schema.get_objects(type=s_links.Link):
             g[link.get_name(schema)] = {"item": link, "merge": [], "deps": []}
             link_bases = link.get_bases(schema).objects(schema)
             if link_bases:
@@ -724,7 +724,7 @@ class IntrospectionMech:
 
         topological.normalize(g, merger=s_links.Link.merge, schema=schema)
 
-        for link in schema.get_objects(type='link'):
+        for link in schema.get_objects(type=s_links.Link):
             schema = link.finalize(schema)
 
         return schema
@@ -793,7 +793,7 @@ class IntrospectionMech:
                 schema = prop.acquire_ancestor_inheritance(schema)
                 schema = source.add_pointer(schema, prop)
 
-        for prop in schema.get_objects(type='link_property'):
+        for prop in schema.get_objects(type=s_props.Property):
             try:
                 bases = basemap[prop.get_name(schema)]
             except KeyError:
@@ -809,7 +809,7 @@ class IntrospectionMech:
     async def order_link_properties(self, schema):
         g = {}
 
-        for prop in schema.get_objects(type='link_property'):
+        for prop in schema.get_objects(type=s_props.Property):
             g[prop.get_name(schema)] = {"item": prop, "merge": [], "deps": []}
             prop_bases = prop.get_bases(schema).objects(schema)
             if prop_bases:
@@ -819,7 +819,7 @@ class IntrospectionMech:
         topological.normalize(
             g, merger=s_props.Property.merge, schema=schema)
 
-        for prop in schema.get_objects(type='link_property'):
+        for prop in schema.get_objects(type=s_props.Property):
             schema = prop.finalize(schema)
 
         return schema
@@ -930,7 +930,7 @@ class IntrospectionMech:
                 view_type=objtype['view_type'],
                 expr=objtype['expr'])
 
-        for objtype in schema.get_objects(type='ObjectType'):
+        for objtype in schema.get_objects(type=s_objtypes.BaseObjectType):
             try:
                 bases = basemap[objtype.get_name(schema)]
             except KeyError:
@@ -963,8 +963,7 @@ class IntrospectionMech:
 
     async def order_objtypes(self, schema):
         g = {}
-        for objtype in schema.get_objects(type='ObjectType',
-                                          include_derived=True):
+        for objtype in schema.get_objects(type=s_objtypes.BaseObjectType):
             g[objtype.get_name(schema)] = {
                 "item": objtype, "merge": [], "deps": []
             }
@@ -976,8 +975,7 @@ class IntrospectionMech:
         topological.normalize(
             g, merger=s_objtypes.ObjectType.merge, schema=schema)
 
-        for objtype in schema.get_objects(type='ObjectType',
-                                          include_derived=True):
+        for objtype in schema.get_objects(type=s_objtypes.BaseObjectType):
             schema = objtype.finalize(schema)
 
         return schema

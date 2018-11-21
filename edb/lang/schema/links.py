@@ -85,7 +85,7 @@ def merge_actions(target: so.Object, sources: typing.List[so.Object],
 
 
 class Link(sources.Source, pointers.Pointer):
-    _type = 'link'
+
     schema_class_displayname = 'link'
 
     spectargets = so.SchemaField(

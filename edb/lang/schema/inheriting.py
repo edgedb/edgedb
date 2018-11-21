@@ -160,8 +160,10 @@ class AlterInheritingObject(named.AlterNamedObject, InheritingObjectCommand):
 
 class DeleteInheritingObject(named.DeleteNamedObject, InheritingObjectCommand):
     def _delete_finalize(self, schema, context, scls):
+        bases = scls.get_bases(schema).objects(schema)
         schema = super()._delete_finalize(schema, context, scls)
-        schema = schema.drop_inheritance_cache_for_child(scls)
+        for base in bases:
+            schema = schema.drop_inheritance_cache(base)
         return schema
 
 

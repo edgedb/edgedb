@@ -175,8 +175,6 @@ class ParameterDesc(typing.NamedTuple):
 
 class Parameter(named.NamedObject):
 
-    _type = 'parameter'
-
     num = so.SchemaField(
         int, compcoef=0.4)
 
@@ -546,7 +544,6 @@ class DeleteCallableObject(named.DeleteNamedObject):
 
 
 class Function(CallableObject):
-    _type = 'function'
 
     code = so.SchemaField(
         str, default=None, compcoef=0.4)

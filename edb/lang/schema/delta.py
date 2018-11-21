@@ -25,13 +25,15 @@ from edb.lang.edgeql import ast as qlast
 
 from edb.lang.common import markup, ordered, struct, typed
 
-from . import objects as so
 from . import expr as s_expr
+from . import objects as so
+from . import ordering as s_ordering
 from . import utils
 
 
-def delta_schemas(schema1, schema2, *, include_derived=False):
+def delta_schemas(schema1, schema2):
     from . import modules, objects as so, database
+    from . import derivable
 
     result = database.AlterDatabase()
 
@@ -50,13 +52,13 @@ def delta_schemas(schema1, schema2, *, include_derived=False):
     global_adds_mods = []
     global_dels = []
 
-    for type in schema1.global_dep_order:
-        o1 = schema1.get_objects(type=type, include_derived=include_derived)
+    for type in s_ordering.get_global_dep_order():
+        o1 = schema1.get_objects(type=type)
         new = ordered.OrderedIndex(o1, key=lambda o: o.get_name(schema1))
-        o2 = schema2.get_objects(type=type, include_derived=include_derived)
+        o2 = schema2.get_objects(type=type)
         old = ordered.OrderedIndex(o2, key=lambda o: o.get_name(schema2))
 
-        if type in ('link', 'link_property', 'constraint'):
+        if issubclass(type, derivable.DerivableObject):
             new = filter(lambda i: i.generic(schema1), new)
             old = filter(lambda i: i.generic(schema2), old)
 
@@ -80,6 +82,7 @@ def delta_schemas(schema1, schema2, *, include_derived=False):
 
 def delta_module(schema1, schema2, modname):
     from . import modules, objects as so, database
+    from . import derivable
 
     result = database.AlterDatabase()
 
@@ -87,7 +90,6 @@ def delta_module(schema1, schema2, modname):
         module2 = schema2.get_module(modname)
     except KeyError:
         module2 = None
-    module1 = schema1.get_module(modname)
 
     global_adds_mods = []
     global_dels = []
@@ -99,19 +101,19 @@ def delta_module(schema1, schema2, modname):
                                        new_value=modname))
         result.add(create)
 
-    for type in schema1.global_dep_order:
+    for type in s_ordering.get_global_dep_order():
         new = ordered.OrderedIndex(
-            module1.get_objects(type=type),
+            schema1.get_objects(modules=[modname], type=type),
             key=lambda o: o.get_name(schema1))
 
         if module2 is not None:
             old = ordered.OrderedIndex(
-                module2.get_objects(type=type),
+                schema2.get_objects(modules=[modname], type=type),
                 key=lambda o: o.get_name(schema2))
         else:
             old = ordered.OrderedIndex(key=lambda o: o.get_name(schema2))
 
-        if type in ('link', 'link_property', 'constraint'):
+        if issubclass(type, derivable.DerivableObject):
             new = filter(lambda i: i.generic(schema1), new)
             old = filter(lambda i: i.generic(schema2), old)
 

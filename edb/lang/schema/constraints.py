@@ -38,7 +38,6 @@ from . import utils
 
 
 class Constraint(inheriting.InheritingObject, s_func.CallableObject):
-    _type = 'constraint'
 
     expr = so.SchemaField(
         s_expr.ExpressionText, default=None, compcoef=0.909,

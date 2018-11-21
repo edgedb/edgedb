@@ -46,8 +46,8 @@ from edb.lang.edgeql.parser import parse_fragment
 
 from edb.lang.schema import pointers as s_pointers
 from edb.lang.schema import types as s_types
-from edb.lang.schema.objtypes import ObjectType
-from edb.lang.schema.scalars import ScalarType
+from edb.lang.schema import objtypes as s_objtypes
+from edb.lang.schema import scalars as s_scalars
 
 from . import errors as g_errors
 
@@ -134,7 +134,7 @@ class GQLCoreSchema:
             el_type = self._convert_edb_type(edb_target.element_type)
             if el_type:
                 target = GraphQLList(GraphQLNonNull(el_type))
-        elif isinstance(edb_target, ObjectType):
+        elif isinstance(edb_target, s_objtypes.ObjectType):
             target = self._gql_interfaces.get(
                 edb_target.get_name(self.edb_schema),
                 self._gql_objtypes.get(edb_target.get_name(self.edb_schema))
@@ -196,7 +196,8 @@ class GQLCoreSchema:
                     self.edb_schema, name)
                 target = self._get_target(ptr)
                 if target:
-                    if isinstance(ptr.get_target(self.edb_schema), ObjectType):
+                    if isinstance(ptr.get_target(self.edb_schema),
+                                  s_objtypes.ObjectType):
                         args = self._get_args(
                             ptr.get_target(self.edb_schema).get_name(
                                 self.edb_schema))
@@ -232,7 +233,8 @@ class GQLCoreSchema:
             self.edb_schema, ptr = edb_type.resolve_pointer(
                 self.edb_schema, name)
 
-            if not isinstance(ptr.get_target(self.edb_schema), ScalarType):
+            if not isinstance(ptr.get_target(self.edb_schema),
+                              s_scalars.ScalarType):
                 continue
 
             target = self._convert_edb_type(ptr.get_target(self.edb_schema))
@@ -303,7 +305,8 @@ class GQLCoreSchema:
             self.edb_schema, ptr = edb_type.resolve_pointer(
                 self.edb_schema, name)
 
-            if not isinstance(ptr.get_target(self.edb_schema), ScalarType):
+            if not isinstance(ptr.get_target(self.edb_schema),
+                              s_scalars.ScalarType):
                 continue
 
             target = self._convert_edb_type(ptr.get_target(self.edb_schema))
@@ -324,13 +327,10 @@ class GQLCoreSchema:
         self.define_generic_filter_types()
         self.define_generic_order_types()
 
-        for modname in self.modules:
-            # get all descendants of this abstract type
-            module = self.edb_schema.get_module(modname)
-
-            # every ObjectType is reflected as an interface
-            interface_types += [t for t in module.get_objects()
-                                if isinstance(t, ObjectType)]
+        # Every ObjectType is reflected as an interface.
+        interface_types = list(
+            self.edb_schema.get_objects(modules=self.modules,
+                                        type=s_objtypes.BaseObjectType))
 
         # concrete types are also reflected as Type (with a 'Type' postfix)
         obj_types += [t for t in interface_types
@@ -374,7 +374,7 @@ class GQLCoreSchema:
                 interfaces.append(self._gql_interfaces[t_name])
 
             for st in t.get_mro(self.edb_schema).objects(self.edb_schema):
-                if (isinstance(st, ObjectType) and
+                if (isinstance(st, s_objtypes.ObjectType) and
                         st.get_name(self.edb_schema) in self._gql_interfaces):
                     interfaces.append(
                         self._gql_interfaces[st.get_name(self.edb_schema)])

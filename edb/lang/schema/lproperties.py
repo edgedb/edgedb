@@ -35,7 +35,7 @@ from . import utils
 
 
 class Property(pointers.Pointer):
-    _type = 'link_property'
+
     schema_class_displayname = 'property'
 
     def derive(self, schema, source, target=None, attrs=None, **kwargs):

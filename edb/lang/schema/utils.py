@@ -249,10 +249,10 @@ def find_item_suggestions(
         if modname:
             module = schema.get_module(modname)
             if module:
-                suggestions.extend(module.get_objects())
+                suggestions.extend(schema.get_objects(modules=[modname]))
 
         if not orig_modname:
-            suggestions.extend(schema.get_module('std').get_objects())
+            suggestions.extend(schema.get_objects(modules=['std']))
 
     if item_types:
         suggestions = list(

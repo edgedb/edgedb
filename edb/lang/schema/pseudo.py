@@ -21,7 +21,6 @@ import typing
 
 from . import inheriting
 from . import objects as so
-from . import scalars as s_scalars
 from . import types as s_types
 
 
@@ -55,7 +54,7 @@ class Any(PseudoType):
         return True
 
     def _resolve_polymorphic(self, schema, concrete_type: s_types.Type):
-        if isinstance(concrete_type, s_scalars.ScalarType):
+        if concrete_type.is_scalar():
             return concrete_type.get_topmost_concrete_base(schema)
         return concrete_type
 

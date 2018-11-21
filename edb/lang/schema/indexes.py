@@ -31,7 +31,6 @@ from . import utils as s_utils
 
 
 class SourceIndex(inheriting.InheritingObject):
-    _type = 'index'
 
     subject = so.SchemaField(so.NamedObject)
 

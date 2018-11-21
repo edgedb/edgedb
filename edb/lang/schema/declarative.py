@@ -55,9 +55,9 @@ from . import lproperties as s_props
 from . import modules as s_mod
 from . import name as s_name
 from . import objects as s_obj
+from . import ordering as s_ordering
 from . import pseudo as s_pseudo
 from . import scalars as s_scalars
-from . import schema as s_schema
 from . import types as s_types
 from . import utils as s_utils
 
@@ -81,14 +81,15 @@ class DeclarationLoader:
 
         self._schema, self._module = s_mod.Module.create_in_schema(
             self._schema, name=module_name)
-        module = self._module
         self._mod_aliases[None] = module_name
 
         self._process_imports(decl_ast)
 
-        order = s_schema.Schema.global_dep_order
+        order = s_ordering.get_global_dep_order()
+
         objects = collections.OrderedDict(
-            (t, collections.OrderedDict()) for t in order)
+            (s_objtypes.ObjectType if t is s_objtypes.BaseObjectType else t,
+             collections.OrderedDict()) for t in order)
 
         # First, iterate over all top-level declarations
         # to get a sense of what's in the schema so that
@@ -142,7 +143,7 @@ class DeclarationLoader:
                         self._schema, attr_name, value,
                         source=attrdecl.value.context)
 
-            objects[type(obj)._type][obj] = decl
+            objects[type(obj)][obj] = decl
 
         # Second, process inheritance references.
         chain = itertools.chain.from_iterable
@@ -153,50 +154,65 @@ class DeclarationLoader:
         # Now, with all objects in the declaration in the schema, we can
         # process them in the semantic dependency order.
 
-        self._init_attributes(objects['attribute'])
+        self._init_attributes(objects[s_attrs.Attribute])
 
         # Constraints have no external dependencies, but need to
         # be fully initialized when we get to constraint users below.
-        self._init_constraints(objects['constraint'])
-        constraints = self._sort(module.get_objects(type='constraint'))
+        self._init_constraints(objects[s_constr.Constraint])
+        constraints = self._sort(self._schema.get_objects(
+            modules=[module_name], type=s_constr.Constraint))
         for constraint in constraints:
             self._schema = constraint.finalize(self._schema)
 
         # Ditto for attributes.
-        attributes = self._sort(module.get_objects(type='attribute'))
+        attributes = self._sort(self._schema.get_objects(
+            modules=[module_name], type=s_attrs.Attribute))
 
         # ScalarTypes depend only on constraints and attributes,
         # can process them now.
-        self._init_scalars(objects['ScalarType'])
+        self._init_scalars(objects[s_scalars.ScalarType])
         scalars = self._sort(
-            module.get_objects(type='ScalarType'),
+            self._schema.get_objects(
+                modules=[module_name],
+                type=s_scalars.ScalarType),
             depsfn=self._get_scalar_deps)
 
         # Generic links depend on scalars (via props), constraints
         # and attributes.
-        self._init_links(objects['link'])
+        self._init_links(objects[s_links.Link])
 
         # Finally, we can do the first pass on types
-        self._init_objtypes(objects['ObjectType'])
+        self._init_objtypes(objects[s_objtypes.ObjectType])
 
         # The inheritance merge pass may produce additional objects,
         # thus, it has to be performed in reverse order (mostly).
-        objtypes = self._sort(module.get_objects(type='ObjectType'))
-        links = self._sort(module.get_objects(type='link'))
-        props = self._sort(module.get_objects(type='property'))
-        attrvals = module.get_objects(type='attribute-value')
-        indexes = module.get_objects(type='index')
+        objtypes = self._sort(self._schema.get_objects(
+            modules=[module_name],
+            type=s_objtypes.BaseObjectType))
+        links = self._sort(self._schema.get_objects(
+            modules=[module_name],
+            type=s_links.Link))
+        props = self._sort(self._schema.get_objects(
+            modules=[module_name],
+            type=s_props.Property))
+        attrvals = self._schema.get_objects(
+            modules=[module_name],
+            type=s_attrs.AttributeValue)
+        indexes = self._schema.get_objects(
+            modules=[module_name],
+            type=s_indexes.SourceIndex)
 
-        constraints.update(c for c in module.get_objects(type='constraint')
-                           if c.get_subject(self._schema) is not None)
+        constraints.update(c for c in self._schema.get_objects(
+            modules=[module_name], type=s_constr.Constraint)
+            if c.get_subject(self._schema) is not None)
 
         # Final pass, set empty fields to default values and do
         # other object finalization.
 
-        for link, linkdecl in objects['link'].items():
+        for link, linkdecl in objects[s_links.Link].items():
             self._normalize_link_constraints(link, linkdecl)
 
-        for objtype, objtypedecl in objects['ObjectType'].items():
+        for objtype, objtypedecl in objects[s_objtypes.ObjectType].items():
             self._normalize_objtype_constraints(objtype, objtypedecl)
 
         # Arrange classes in the resulting schema according to determined
@@ -210,7 +226,7 @@ class DeclarationLoader:
 
         dctx = s_delta.CommandContext(declarative=True)
 
-        for obj in module.get_objects():
+        for obj in self._schema.get_objects(modules=[module_name]):
             cmdcls = s_delta.ObjectCommandMeta.get_command_class_or_die(
                 s_delta.CreateObject, type(obj))
             ctxcls = cmdcls.get_context_class()
@@ -221,10 +237,10 @@ class DeclarationLoader:
 
         # Normalization for defaults and other expressions must be
         # *after* finalize() so that all pointers have been inherited.
-        for link, linkdecl in objects['link'].items():
+        for link, linkdecl in objects[s_links.Link].items():
             self._normalize_link_expressions(link, linkdecl)
 
-        for objtype, objtypedecl in objects['ObjectType'].items():
+        for objtype, objtypedecl in objects[s_objtypes.ObjectType].items():
             self._normalize_objtype_expressions(objtype, objtypedecl)
 
     def _process_imports(self, tree):
@@ -409,8 +425,8 @@ class DeclarationLoader:
                 deps.discard(dep)
 
         # Add dependency on all builtin scalars unconditionally
-        std = self._schema.get_module('std')
-        deps.update(std.get_objects(type='ScalarType'))
+        deps.update(self._schema.get_objects(
+            modules=['std'], type=s_scalars.ScalarType))
 
         return deps
 

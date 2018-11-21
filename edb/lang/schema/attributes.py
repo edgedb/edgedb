@@ -31,13 +31,11 @@ from . import utils
 
 
 class Attribute(inheriting.InheritingObject):
-    _type = 'attribute'
 
     type = so.SchemaField(s_types.Type, compcoef=0.909)
 
 
 class AttributeValue(inheriting.InheritingObject):
-    _type = 'attribute-value'
 
     subject = so.SchemaField(
         named.NamedObject, compcoef=1.0, default=None, inheritable=False)

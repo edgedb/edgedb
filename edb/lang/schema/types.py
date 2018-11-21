@@ -174,7 +174,6 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
 
 
 class Collection(Type):
-    _type = 'collection'
 
     name = so.Field(
         s_name.SchemaName,

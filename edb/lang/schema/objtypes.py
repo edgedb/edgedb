@@ -32,12 +32,11 @@ from . import sources
 from . import types as s_types
 
 
-class SourceNode(sources.Source, nodes.Node):
+class BaseObjectType(sources.Source, nodes.Node):
     pass
 
 
-class ObjectType(SourceNode, constraints.ConsistencySubject):
-    _type = 'ObjectType'
+class ObjectType(BaseObjectType, constraints.ConsistencySubject):
 
     def is_object_type(self):
         return True
@@ -47,7 +46,7 @@ class ObjectType(SourceNode, constraints.ConsistencySubject):
         def getptr_from_nqname(cls, schema, source, name):
             ptrs = set()
 
-            for link in schema.get_objects(type='link'):
+            for link in schema.get_objects(type=links.Link):
                 if (link.get_shortname(schema).name == name and
                         link.get_target(schema) is not None and
                         source.issubclass(schema, link.get_target(schema))):
@@ -59,7 +58,7 @@ class ObjectType(SourceNode, constraints.ConsistencySubject):
         def getptr_from_fqname(cls, schema, source, name):
             ptrs = set()
 
-            for link in schema.get_objects(type='link'):
+            for link in schema.get_objects(type=links.Link):
                 if (link.get_shortname(schema) == name and
                         link.get_target(schema) is not None and
                         source.issubclass(schema, link.get_target(schema))):
@@ -78,7 +77,7 @@ class ObjectType(SourceNode, constraints.ConsistencySubject):
         def getptr_inherited_from(cls, source, schema,
                                   base_ptr_class, skip_scalar):
             result = set()
-            for link in schema.get_objects(type='link'):
+            for link in schema.get_objects(type=links.Link):
                 if link.issubclass(schema, base_ptr_class) \
                         and link.get_target(schema) is not None \
                         and (not skip_scalar or not link.scalar()) \
@@ -109,12 +108,12 @@ class ObjectType(SourceNode, constraints.ConsistencySubject):
         return sn.Name(module='std', name='Object')
 
 
-class UnionObjectType(SourceNode,
+class UnionObjectType(BaseObjectType,
                       constraints.ConsistencySubject, s_types.Type):
     pass
 
 
-class DerivedObjectType(SourceNode,
+class DerivedObjectType(BaseObjectType,
                         constraints.ConsistencySubject, s_types.Type):
     pass
 

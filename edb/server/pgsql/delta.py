@@ -805,7 +805,7 @@ class ScalarTypeMetaCommand(ViewCapableObjectMetaCommand):
 
         users = []
 
-        for link in schema.get_objects(type='link'):
+        for link in schema.get_objects(type=s_links.Link):
             if (link.get_target(schema) and
                     link.get_target(schema).get_name(schema) ==
                     scalar.get_name(schema)):
@@ -858,7 +858,7 @@ class ScalarTypeMetaCommand(ViewCapableObjectMetaCommand):
             alter_table.add_operation(alter_type)
             self.pgops.add(alter_table)
 
-        for child_scalar in schema.get_objects(type='ScalarType'):
+        for child_scalar in schema.get_objects(type=s_scalars.ScalarType):
             bases = child_scalar.get_bases(schema).objects(schema)
             scalar_name = scalar.get_name(schema)
             if [b.get_name(schema) for b in bases] == [scalar_name]:
