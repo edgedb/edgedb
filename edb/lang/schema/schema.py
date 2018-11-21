@@ -31,8 +31,8 @@ _void = object()
 class Schema:
 
     def __init__(self):
-        self.modules = collections.OrderedDict()
-        self.deltas = collections.OrderedDict()
+        self.modules = {}
+        self.deltas = {}
 
         self._policy_schema = None
         self._virtual_inheritance_cache = {}
@@ -102,20 +102,9 @@ class Schema:
         return self
 
     def _rename(self, obj, oldname):
-        # XXX temporary method, will go away when schema.Module
-        # is refactored.
-
-        is_nameless = obj.id in self.nameless_ids
-
-        oldmod = self.modules[oldname.module]
-        oldmod.index_by_name.pop(oldname, None)
-        if not is_nameless:
+        if obj.id not in self._nameless_ids:
             self.index_by_name.pop(oldname, None)
-
-        newname = obj.get_name(self)
-        newmod = self.modules[newname.module]
-        newmod.index_by_name[newname] = obj
-        if not is_nameless:
+            newname = obj.get_name(self)
             self.index_by_name[newname] = obj
 
         return self
@@ -139,10 +128,10 @@ class Schema:
             return self
         else:
             try:
-                module = self.modules[name.module]
-            except KeyError as e:
+                self.modules[name.module]
+            except KeyError:
                 raise s_err.SchemaModuleNotFoundError(
-                    f'module {name.module!r} is not in this schema') from e
+                    f'module {name.module!r} is not in this schema') from None
 
             if name in self.index_by_name:
                 err = f'{name!r} is already present in the schema {self!r}'
@@ -151,19 +140,12 @@ class Schema:
             assert name == obj.get_name(self)
             self.index_by_name[name] = obj
 
-            return module._add(self, name, obj)
+            return self
 
     def mark_as_garbage(self, obj) -> 'Schema':
-        try:
-            module = self.modules[obj.get_name(self).module]
-        except KeyError:
-            return
-
-        schema = module._discard(self, obj)
         self._garbage.add(obj.id)
         self.index_by_name.pop(obj.get_name(self), None)
-
-        return schema
+        return self
 
     def discard(self, obj) -> 'Schema':
         self.index_by_id.pop(obj.id, None)
@@ -173,13 +155,7 @@ class Schema:
             del self._nameless_ids[obj.id]
             return self
 
-        try:
-            module = self.modules[obj.get_name(self).module]
-        except KeyError:
-            return
-
-        schema = module._discard(self, obj)
-        return schema
+        return self
 
     def delete(self, obj) -> 'Schema':
         self.index_by_id.pop(obj.id, None)
@@ -190,31 +166,13 @@ class Schema:
             return self
 
         try:
-            module = self.modules[obj.get_name(self).module]
-        except KeyError as e:
+            self.modules[obj.get_name(self).module]
+        except KeyError:
             raise s_err.SchemaModuleNotFoundError(
                 f'module {obj.get_name(self).module} '
-                f'is not in this schema') from e
+                f'is not in this schema') from None
 
-        schema = module._delete(self, obj)
-        return schema
-
-    def reorder(self, new_order) -> 'Schema':
-        by_module = {}
-
-        for item in new_order:
-            try:
-                module_order = by_module[item.get_name(self).module]
-            except KeyError:
-                module_order = by_module[item.get_name(self).module] = []
-            module_order.append(item)
-
-        schema = self
-        for module_name, module_order in by_module.items():
-            module = self.modules[module_name]
-            schema = module.reorder(schema, module_order)
-
-        return schema
+        return self
 
     def _resolve_module(self, module_name) -> typing.List[s_modules.Module]:
         modules = []
@@ -430,9 +388,9 @@ class SchemaIterator:
 class SchemaOverlay(Schema):
     def __init__(self, schema, extra=None):
         self.schema = schema
-        self.local_modules = collections.OrderedDict()
+        self.local_modules = {}
         self.modules = collections.ChainMap(self.local_modules, schema.modules)
-        self.deltas = collections.OrderedDict()
+        self.deltas = {}
 
         self._local_index_by_id = {}
         self.index_by_id = collections.ChainMap(self._local_index_by_id,

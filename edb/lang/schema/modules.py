@@ -17,12 +17,7 @@
 #
 
 
-import builtins
-import collections
-
 from edb.lang.common import struct
-from edb.lang.common.ordered import OrderedSet
-
 from edb.lang.edgeql import ast as qlast
 
 from . import delta as sd
@@ -36,131 +31,6 @@ class Module(named.NamedObject):
     # Override 'name' to str type, since modules don't have
     # fully-qualified names.
     name = so.SchemaField(str)
-
-    @classmethod
-    def create_in_schema(cls, schema, **kwargs):
-        schema, mod = super().create_in_schema(schema, **kwargs)
-
-        mod.index_by_name = collections.OrderedDict()
-
-        return schema, mod
-
-    def _add(self, schema, name, obj):
-        if name in self.index_by_name:
-            err = f'{name!r} is already present in the schema {schema!r}'
-            raise s_err.SchemaError(err)
-
-        self.index_by_name[name] = obj
-
-        return schema
-
-    def _discard(self, schema, obj):
-        existing = self.index_by_name.get(obj.get_name(schema))
-        if existing is None:
-            return schema
-
-        self._do_delete(schema, existing)
-        return schema
-
-    def _delete(self, schema, obj):
-        existing = self.index_by_name.get(obj.get_name(schema))
-        if existing is None:
-            err = 'object {!r} is not present in the schema'.format(
-                obj.get_name(schema))
-            raise s_err.ItemNotFoundError(err)
-
-        self._do_delete(schema, existing)
-        return schema
-
-    def _do_delete(self, schema, obj):
-        obj_name = obj.get_name(schema)
-        self.index_by_name.pop(obj_name)
-
-    def lookup_qname(self, name):
-        return self.index_by_name.get(name)
-
-    def get(self, schema, name, default=s_err.ItemNotFoundError, *,
-            module_aliases=None, type=None,
-            implicit_builtins=True):
-
-        fail_cause = None
-
-        if isinstance(type, tuple):
-            for typ in type:
-                try:
-                    scls = self.get(schema, name,
-                                    module_aliases=module_aliases,
-                                    type=typ, default=None)
-                except s_err.SchemaError:
-                    pass
-                else:
-                    if scls is not None:
-                        return scls
-        else:
-            scls = None
-
-            fq_name = '{}::{}'.format(self.get_name(schema), name)
-            scls = self.lookup_qname(fq_name)
-
-        raise_ = None
-
-        if scls is None:
-            if default is not None:
-                raise_ = (isinstance(default, Exception) or
-                          (isinstance(default, builtins.type) and
-                           issubclass(default, Exception)))
-
-            if raise_:
-                msg = ('reference to non-existent schema item: '
-                       '{}::{}'.format(self.get_name(schema), name))
-                if fail_cause is not None:
-                    raise default(msg) from fail_cause
-                else:
-                    raise default(msg)
-            else:
-                scls = default
-
-        if (type is not None and
-                isinstance(scls, so.Object) and
-                not isinstance(scls, type)):
-            if default is not None:
-                raise_ = (isinstance(default, Exception) or
-                          (isinstance(default, builtins.type) and
-                           issubclass(default, Exception)))
-            if raise_:
-                if isinstance(type, tuple):
-                    typname = ' or '.join(typ.__name__ for typ in type)
-                else:
-                    typname = type.__name__
-
-                msg = '{} exists but is not {}'.format(name, typname)
-
-                if fail_cause is not None:
-                    raise default(msg) from fail_cause
-                else:
-                    raise default(msg)
-            else:
-                scls = default
-        return scls
-
-    def reorder(self, schema, new_order):
-        name_order = [p.get_name(schema) for p in new_order]
-
-        def sortkey(item):
-            try:
-                return name_order.index(item)
-            except ValueError:
-                return -1
-
-        # The new_order may be partial, as the most common source
-        # is schema enumeration, which may filter out certain objects.
-        names = OrderedSet(self.index_by_name)
-        names = OrderedSet(sorted(names, key=sortkey))
-
-        self.index_by_name = collections.OrderedDict(
-            (name, self.index_by_name[name]) for name in names)
-
-        return schema
 
 
 class ModuleCommandContext(sd.CommandContextToken):

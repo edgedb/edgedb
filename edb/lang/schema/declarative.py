@@ -164,18 +164,9 @@ class DeclarationLoader:
         for constraint in constraints:
             self._schema = constraint.finalize(self._schema)
 
-        # Ditto for attributes.
-        attributes = self._sort(self._schema.get_objects(
-            modules=[module_name], type=s_attrs.Attribute))
-
         # ScalarTypes depend only on constraints and attributes,
         # can process them now.
         self._init_scalars(objects[s_scalars.ScalarType])
-        scalars = self._sort(
-            self._schema.get_objects(
-                modules=[module_name],
-                type=s_scalars.ScalarType),
-            depsfn=self._get_scalar_deps)
 
         # Generic links depend on scalars (via props), constraints
         # and attributes.
@@ -183,24 +174,6 @@ class DeclarationLoader:
 
         # Finally, we can do the first pass on types
         self._init_objtypes(objects[s_objtypes.ObjectType])
-
-        # The inheritance merge pass may produce additional objects,
-        # thus, it has to be performed in reverse order (mostly).
-        objtypes = self._sort(self._schema.get_objects(
-            modules=[module_name],
-            type=s_objtypes.BaseObjectType))
-        links = self._sort(self._schema.get_objects(
-            modules=[module_name],
-            type=s_links.Link))
-        props = self._sort(self._schema.get_objects(
-            modules=[module_name],
-            type=s_props.Property))
-        attrvals = self._schema.get_objects(
-            modules=[module_name],
-            type=s_attrs.AttributeValue)
-        indexes = self._schema.get_objects(
-            modules=[module_name],
-            type=s_indexes.SourceIndex)
 
         constraints.update(c for c in self._schema.get_objects(
             modules=[module_name], type=s_constr.Constraint)
@@ -214,15 +187,6 @@ class DeclarationLoader:
 
         for objtype, objtypedecl in objects[s_objtypes.ObjectType].items():
             self._normalize_objtype_constraints(objtype, objtypedecl)
-
-        # Arrange classes in the resulting schema according to determined
-        # topological order.
-        genlinks = [l for l in links if l.generic(self._schema)]
-        speclinks = [l for l in links if not l.generic(self._schema)]
-
-        self._schema = self._schema.reorder(itertools.chain(
-            attributes, attrvals, constraints,
-            scalars, props, indexes, genlinks, objtypes, speclinks))
 
         dctx = s_delta.CommandContext(declarative=True)
 
