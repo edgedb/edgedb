@@ -242,6 +242,7 @@ class SchemaField(Field):
 class ObjectMeta(type):
 
     _schema_metaclasses = []
+    _schema_types = set()
 
     def __new__(mcls, name, bases, clsdict):
         fields = {}
@@ -287,10 +288,19 @@ class ObjectMeta(type):
         fa = '{}.{}_fields'.format(cls.__module__, cls.__name__)
         setattr(cls, fa, myfields)
 
+        non_schema_fields = {field.name for field in fields.values()
+                             if not field.is_schema_field}
+        if non_schema_fields == {'id'} and len(fields) > 1:
+            mcls._schema_types.add(cls)
+
         cls._ref_type = None
         mcls._schema_metaclasses.append(cls)
 
         return cls
+
+    @property
+    def is_schema_object(cls):
+        return cls in ObjectMeta._schema_types
 
     def get_field(cls, name):
         return cls._fields.get(name)
@@ -327,19 +337,67 @@ class Object(metaclass=ObjectMeta):
         pass
 
     @classmethod
-    def _create(cls, schema, *, id=NoDefault, **kwargs) -> 'Object':
-
-        if id is NoDefault:
-            type_id = get_known_type_id(kwargs.get('name'))
+    def _prepare_id(cls, id: typing.Optional[uuid.UUID],
+                    data: dict) -> uuid.UUID:
+        if id is None:
+            type_id = get_known_type_id(data.get('name'))
             if type_id is not None:
                 id = type_id
             else:
                 id = uuidgen.uuid1mc()
+        return id
 
-        kwargs['id'] = id
+    @classmethod
+    def _create_in_schema(cls, schema, *, id=None,
+                          _nameless=False, **data) -> 'Object':
+        if not cls.is_schema_object:
+            raise TypeError(f'{cls.__name__} type cannot be created in schema')
 
         obj = cls(_private_init=True)
-        obj._init_fields(schema, kwargs)
+
+        id = cls._prepare_id(id, data)
+        obj.__dict__['id'] = id
+
+        for field_name, value in data.items():
+            try:
+                field = cls._fields[field_name]
+            except KeyError:
+                raise TypeError(
+                    f'type {cls.__name__} has no schema field for '
+                    f'keyword argument {field_name!r}') from None
+
+            assert field.is_schema_field
+
+            value = obj._check_field_type(schema, field, field.name, value)
+            if value is None:
+                continue
+
+            schema = schema._set_obj_field(id, field.name, value)
+
+        schema.add(obj.get_name(schema), obj, _nameless=_nameless)
+        return schema, obj
+
+    @classmethod
+    def _create(cls, schema, *, id=None, **data) -> 'Object':
+        if cls.is_schema_object:
+            raise TypeError(
+                f'{cls.__name__} type cannot be created outside of a schema')
+
+        obj = cls(_private_init=True)
+
+        id = cls._prepare_id(id, data)
+        obj.__dict__['id'] = id
+
+        for field_name, value in data.items():
+            try:
+                field = cls._fields[field_name]
+            except KeyError:
+                raise TypeError(
+                    f'type {cls.__name__} has no field for '
+                    f'keyword argument {field_name!r}') from None
+
+            assert not field.is_schema_field
+            obj.__dict__[field_name] = value
 
         return obj
 
@@ -370,26 +428,6 @@ class Object(metaclass=ObjectMeta):
             value = self.get_explicit_field_value(schema, field, None)
             if value is not None:
                 yield field, value
-
-    def _init_fields(self, schema, values):
-        for field_name, field in self.__class__._fields.items():
-            if field_name not in values and field.is_schema_field:
-                continue
-
-            value = values.get(field_name)
-            if field.is_schema_field:
-                # values for SchemaFields will not get validated in
-                # __setattr__; do it here.
-                value = self._check_field_type(
-                    schema, field, field.name, value)
-                if value is None:
-                    # SchemaFields do not persist their defaults in
-                    # the __dict__.
-                    continue
-
-                schema = schema._set_obj_field(self.id, field.name, value)
-            else:
-                self.__dict__[field_name] = value
 
     def __setattr__(self, name, value):
         raise RuntimeError(
@@ -519,12 +557,9 @@ class Object(metaclass=ObjectMeta):
                     schema = schema._set_obj_field(
                         self.id, field_name, new_val)
             else:
-                if new_val is None:
-                    self.__dict__.pop(field_name, None)
-                else:
-                    new_val = self._check_field_type(
-                        schema, field, field_name, new_val)
-                    self.__dict__[field_name] = new_val
+                raise RuntimeError(
+                    f'cannot update value for non-schema field '
+                    f'{self}.{field_name}')
 
         if 'name' in updates:
             newname = updates['name']
@@ -1039,9 +1074,7 @@ class NamedObject(Object):
         name = kwargs.get('name')
         if not name:
             raise RuntimeError(f'cannot create {cls} without a name')
-        obj = cls._create(schema, **kwargs)
-        schema.add(name, obj, _nameless=_nameless)
-        return schema, obj
+        return cls._create_in_schema(schema, _nameless=_nameless, **kwargs)
 
     @classmethod
     def mangle_name(cls, name) -> str:

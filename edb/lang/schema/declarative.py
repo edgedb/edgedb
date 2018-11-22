@@ -112,7 +112,7 @@ class DeclarationLoader:
             if hasattr(decl, 'delegated'):
                 objcls_kw['is_abstract'] = decl.delegated
             if hasattr(decl, 'final'):
-                objcls_kw['final'] = decl.final
+                objcls_kw['is_final'] = decl.final
 
             if objcls is s_constr.Constraint:
                 objcls_kw['return_type'] = self._schema.get('std::bool')
