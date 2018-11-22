@@ -63,7 +63,8 @@ def compile_ast_fragment_to_ir(tree,
     ctx = stmtctx.init_context(
         schema=schema, anchors=anchors, modaliases=modaliases)
     ctx.clause = location or 'where'
-    return dispatch.compile(tree, ctx=ctx)
+    ir_set = dispatch.compile(tree, ctx=ctx)
+    return irast.Statement(expr=ir_set, schema=ctx.env.schema)
 
 
 def compile_to_ir(expr,
@@ -127,7 +128,7 @@ def compile_ast_to_ir(tree,
 
 def evaluate_ast_to_python_val(tree, schema, *, modaliases=None) -> object:
     ir = compile_ast_fragment_to_ir(tree, schema, modaliases=modaliases)
-    return ireval.evaluate_to_python_val(ir, schema=schema)
+    return ireval.evaluate_to_python_val(ir.expr, schema=ir.schema)
 
 
 def compile_func_to_ir(func, schema, *,

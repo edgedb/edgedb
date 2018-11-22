@@ -117,7 +117,8 @@ def get_path_var(
     ptrcls = path_id.rptr()
     if ptrcls is not None:
         ptr_info = pg_types.get_pointer_storage_info(
-            ptrcls, resolve_type=False, link_bias=False)
+            ptrcls, resolve_type=False, link_bias=False,
+            schema=env.schema)
         ptr_dir = path_id.rptr_dir()
         is_inbound = ptr_dir == s_pointers.PointerDirection.Inbound
         if is_inbound:
@@ -610,7 +611,8 @@ def _get_rel_path_output(
                 f'could not resolve trailing pointer class for {path_id}')
 
         ptr_info = pg_types.get_pointer_storage_info(
-            ptrcls, resolve_type=False, link_bias=False)
+            ptrcls, resolve_type=False, link_bias=False,
+            schema=env.schema)
 
         result = pgast.ColumnRef(
             name=[ptr_info.column_name],

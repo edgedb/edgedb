@@ -41,6 +41,33 @@ class Schema:
         self.index_by_id = {}
         self._nameless_ids = {}
         self.index_by_name = {}
+        self.data = {}
+
+    def _get_obj_field(self, obj_id, field):
+        try:
+            d = self.data[obj_id]
+        except KeyError:
+            return None
+
+        return d.get(field)
+
+    def _set_obj_field(self, obj_id, field, value):
+        try:
+            d = self.data[obj_id]
+        except KeyError:
+            d = self.data[obj_id] = {}
+
+        d[field] = value
+        return self
+
+    def _unset_obj_field(self, obj_id, field):
+        try:
+            d = self.data[obj_id]
+        except KeyError:
+            return
+
+        d.pop(field, None)
+        return self
 
     def add_module(self, mod) -> 'Schema':
         """Add a module to the schema
@@ -71,7 +98,8 @@ class Schema:
         else:
             module_name = mod.get_name(self)
 
-        del self.modules[module_name]
+        mod = self.modules.pop(module_name)
+        self.data.pop(mod.id, None)
         return self
 
     def _add_delta(self, delta) -> 'Schema':
@@ -97,7 +125,8 @@ class Schema:
         else:
             delta_name = delta.get_name(self)
 
-        del self.deltas[delta_name]
+        d = self.deltas.pop(delta_name)
+        self.data.pop(d.id, None)
 
         return self
 
@@ -151,6 +180,8 @@ class Schema:
         self.index_by_id.pop(obj.id, None)
         self.index_by_name.pop(obj.get_name(self), None)
 
+        self.data.pop(obj.id, None)
+
         if obj.id in self._nameless_ids:
             del self._nameless_ids[obj.id]
             return self
@@ -171,6 +202,8 @@ class Schema:
             raise s_err.SchemaModuleNotFoundError(
                 f'module {obj.get_name(self).module} '
                 f'is not in this schema') from None
+
+        self.data.pop(obj.id, None)
 
         return self
 
@@ -392,6 +425,8 @@ class SchemaOverlay(Schema):
         self.modules = collections.ChainMap(self.local_modules, schema.modules)
         self.deltas = {}
 
+        self.local_data = {}
+
         self._local_index_by_id = {}
         self.index_by_id = collections.ChainMap(self._local_index_by_id,
                                                 schema.index_by_id)
@@ -411,6 +446,39 @@ class SchemaOverlay(Schema):
         if extra:
             for n, v in extra.items():
                 self.add(n, v)
+
+    def _get_obj_field(self, obj_id, field):
+        try:
+            d = self.local_data[obj_id]
+        except KeyError:
+            pass
+        else:
+            val = d.get(field)
+            if val is not None:
+                if val is ...:
+                    return None
+                else:
+                    return val
+
+        return self.schema._get_obj_field(obj_id, field)
+
+    def _set_obj_field(self, obj_id, field, value):
+        try:
+            d = self.local_data[obj_id]
+        except KeyError:
+            d = self.local_data[obj_id] = {}
+
+        d[field] = value
+        return self
+
+    def _unset_obj_field(self, obj_id, field):
+        try:
+            d = self.local_data[obj_id]
+        except KeyError:
+            d = self.local_data[obj_id] = {}
+
+        d[field] = ...
+        return self
 
     def has_module(self, module):
         return module in self.modules

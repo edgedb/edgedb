@@ -371,7 +371,8 @@ class ReferencingObject(inheriting.InheritingObject,
                 updates[local_attr] = None
                 continue
 
-            local_coll = self.get_explicit_field_value(self, local_attr, None)
+            local_coll = self.get_explicit_field_value(
+                schema, local_attr, None)
             if local_coll is None:
                 updates[local_attr] = None
             else:

@@ -368,7 +368,8 @@ def process_insert_body(
                 values.append(pgast.ResTarget(val=insvalue))
 
             ptr_info = pg_types.get_pointer_storage_info(
-                ptrcls, resolve_type=False, link_bias=True)
+                ptrcls, resolve_type=False, link_bias=True,
+                schema=ctx.env.schema)
 
             if ptr_info and ptr_info.table_type == 'link':
                 external_inserts.append((shape_el, props_only))
@@ -531,7 +532,8 @@ def process_update_body(
             props_only = is_props_only_update(shape_el, ctx=scopectx)
 
             ptr_info = pg_types.get_pointer_storage_info(
-                ptrcls, resolve_type=False, link_bias=True)
+                ptrcls, resolve_type=False, link_bias=True,
+                schema=ctx.env.schema)
 
             if ptr_info and ptr_info.table_type == 'link':
                 external_updates.append((shape_el, props_only))

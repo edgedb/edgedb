@@ -177,10 +177,6 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
 
         self.ephemeral = ephemeral
 
-    @property
-    def _attrname(self):
-        return self.name
-
     def copy(self):
         return self.__class__(
             self.type, self.default, coerce=self.coerce,
@@ -202,6 +198,10 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
     @property
     def required(self):
         return True
+
+    @property
+    def is_schema_field(self):
+        return False
 
     def __get__(self, instance, owner):
         if instance is not None:
@@ -229,8 +229,8 @@ class SchemaField(Field):
         return self.default is NoDefault
 
     @property
-    def _attrname(self):
-        return f'_schema_field_{self.name}'
+    def is_schema_field(self):
+        return True
 
     def __get__(self, instance, owner):
         if instance is not None:
@@ -262,7 +262,7 @@ class ObjectMeta(type):
             v.name = k
             myfields[k] = v
 
-            if isinstance(v, SchemaField):
+            if v.is_schema_field:
                 getter_name = f'get_{v.name}'
                 if getter_name in clsdict:
                     raise TypeError(
@@ -373,12 +373,11 @@ class Object(metaclass=ObjectMeta):
 
     def _init_fields(self, schema, values):
         for field_name, field in self.__class__._fields.items():
-            is_schema_field = isinstance(field, SchemaField)
-            if field_name not in values and is_schema_field:
+            if field_name not in values and field.is_schema_field:
                 continue
 
             value = values.get(field_name)
-            if is_schema_field:
+            if field.is_schema_field:
                 # values for SchemaFields will not get validated in
                 # __setattr__; do it here.
                 value = self._check_field_type(
@@ -388,7 +387,9 @@ class Object(metaclass=ObjectMeta):
                     # the __dict__.
                     continue
 
-            self.__dict__[field._attrname] = value
+                schema = schema._set_obj_field(self.id, field.name, value)
+            else:
+                self.__dict__[field_name] = value
 
     def __setattr__(self, name, value):
         raise RuntimeError(
@@ -459,17 +460,25 @@ class Object(metaclass=ObjectMeta):
 
     def get_field_value(self, schema, field_name, *, allow_default=True):
         field = type(self).get_field(field_name)
-        try:
-            return self.__dict__[field._attrname]
-        except KeyError:
-            if allow_default:
-                try:
-                    return self._getdefault(field_name, field)
-                except TypeError:
-                    pass
+
+        if field.is_schema_field:
+            val = schema._get_obj_field(self.id, field_name)
+            if val is not None:
+                return val
+        else:
+            try:
+                return self.__dict__[field_name]
+            except KeyError:
+                pass
+
+        if allow_default:
+            try:
+                return self._getdefault(field_name, field)
+            except TypeError:
+                pass
 
         raise FieldValueNotFoundError(
-            f'{type(self).__name__} object has no field {field_name!r}')
+            f'{self!r} object has no value for field {field_name!r}')
 
     def get_explicit_field_value(self, schema, field_name, default=NoDefault):
         try:
@@ -497,16 +506,25 @@ class Object(metaclass=ObjectMeta):
 
         for field_name in updates:
             field = fields[field_name]
-            attrname = field._attrname
 
             new_val = updates[field_name]
 
-            if new_val is None:
-                self.__dict__.pop(attrname, None)
+            if field.is_schema_field:
+                if new_val is None:
+                    schema = schema._unset_obj_field(
+                        self.id, field_name)
+                else:
+                    new_val = self._check_field_type(
+                        schema, field, field_name, new_val)
+                    schema = schema._set_obj_field(
+                        self.id, field_name, new_val)
             else:
-                new_val = self._check_field_type(
-                    schema, field, field_name, new_val)
-                self.__dict__[attrname] = new_val
+                if new_val is None:
+                    self.__dict__.pop(field_name, None)
+                else:
+                    new_val = self._check_field_type(
+                        schema, field, field_name, new_val)
+                    self.__dict__[field_name] = new_val
 
         if 'name' in updates:
             newname = updates['name']

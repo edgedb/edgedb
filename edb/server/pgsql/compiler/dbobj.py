@@ -193,7 +193,8 @@ def range_for_ptrcls(
     endpoint = ptrcls.get_source(env.schema)
 
     tgt_col = pgtypes.get_pointer_storage_info(
-        ptrcls, resolve_type=False, link_bias=True).column_name
+        ptrcls, resolve_type=False, link_bias=True,
+        schema=env.schema).column_name
 
     cols = [
         'std::source',

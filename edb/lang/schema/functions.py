@@ -218,10 +218,10 @@ class Parameter(named.NamedObject):
             ql_default, schema,
             location=f'default of the {self.get_name(schema)} parameter')
 
-        if not irutils.is_const(ir):
+        if not irutils.is_const(ir.expr):
             raise ValueError('expression not constant')
 
-        return ir
+        return ir.expr
 
     def as_str(self, schema) -> str:
         return param_as_str(schema, self)

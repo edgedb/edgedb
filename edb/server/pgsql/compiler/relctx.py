@@ -296,7 +296,8 @@ def new_root_rvar(
     if ir_set.rptr and ir_set.rptr.is_inbound:
         ptrcls = ir_set.rptr.ptrcls
         ptr_info = pg_types.get_pointer_storage_info(
-            ptrcls, resolve_type=False, link_bias=False)
+            ptrcls, resolve_type=False, link_bias=False,
+            schema=ctx.env.schema)
 
         if ptr_info.table_type == 'ObjectType':
             # Inline link
@@ -330,7 +331,8 @@ def new_pointer_rvar(
     ptrcls = ir_ptr.ptrcls
 
     ptr_info = pg_types.get_pointer_storage_info(
-        ptrcls, resolve_type=False, link_bias=link_bias)
+        ptrcls, resolve_type=False, link_bias=link_bias,
+        schema=ctx.env.schema)
 
     if ptr_info.table_type == 'ObjectType':
         # Inline link
@@ -376,7 +378,8 @@ def _new_mapped_pointer_rvar(
     if isinstance(ptrcls, s_links.Link):
         # XXX: fix this once Properties are Sources
         src_ptr_info = pg_types.get_pointer_storage_info(
-            ptrcls.getptr(ctx.env.schema, 'std::source'), resolve_type=False)
+            ptrcls.getptr(ctx.env.schema, 'std::source'), resolve_type=False,
+            schema=ctx.env.schema)
         src_col = src_ptr_info.column_name
     else:
         src_col = common.edgedb_name_to_pg_name('std::source')
@@ -386,7 +389,8 @@ def _new_mapped_pointer_rvar(
     if isinstance(ptrcls, s_links.Link):
         # XXX: fix this once Properties are Sources
         tgt_ptr_info = pg_types.get_pointer_storage_info(
-            ptrcls.getptr(ctx.env.schema, 'std::target'), resolve_type=False)
+            ptrcls.getptr(ctx.env.schema, 'std::target'), resolve_type=False,
+            schema=ctx.env.schema)
         tgt_col = tgt_ptr_info.column_name
     else:
         tgt_col = common.edgedb_name_to_pg_name('std::target')
@@ -459,7 +463,8 @@ def semi_join(
     rptr = ir_set.rptr
     ptrcls = rptr.ptrcls
     ptr_info = pg_types.get_pointer_storage_info(
-        ptrcls, resolve_type=False, link_bias=False)
+        ptrcls, resolve_type=False, link_bias=False,
+        schema=ctx.env.schema)
     is_inline_ref = ptr_info.table_type == 'ObjectType'
 
     # Target set range.

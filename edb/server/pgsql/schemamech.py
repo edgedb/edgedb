@@ -120,7 +120,7 @@ class ConstraintMech:
 
         for ref, (ptr, src) in ref_ptrs.items():
             ptr_info = types.get_pointer_storage_info(
-                ptr, source=src, resolve_type=False)
+                ptr, source=src, resolve_type=False, schema=schema)
 
             # See if any of the refs are hosted in pointer tables and others
             # are not...
@@ -136,7 +136,8 @@ class ConstraintMech:
             for ref in objtype_biased.copy():
                 ptr, src = ref_ptrs[ref]
                 ptr_info = types.get_pointer_storage_info(
-                    ptr, source=src, resolve_type=False, link_bias=True)
+                    ptr, source=src, resolve_type=False, link_bias=True,
+                    schema=schema)
 
                 if ptr_info.table_type == 'link':
                     link_biased[ref] = ptr_info
@@ -244,7 +245,7 @@ class ConstraintMech:
             anchors={qlast.Subject: subject})
 
         terminal_refs = ir_utils.get_terminal_references(ir.expr.expr.result)
-        ref_tables = cls._get_ref_storage_info(schema, terminal_refs)
+        ref_tables = cls._get_ref_storage_info(ir.schema, terminal_refs)
 
         if len(ref_tables) > 1:
             raise ValueError(
@@ -573,7 +574,7 @@ def ptr_default_to_col_default(schema, ptr, expr):
         return None
 
     sql_expr = compiler.compile_ir_to_sql_tree(
-        ir, schema=schema, singleton_mode=True)
+        ir, schema=ir.schema, singleton_mode=True)
     sql_text = codegen.SQLSourceGenerator.to_source(sql_expr)
 
     return sql_text

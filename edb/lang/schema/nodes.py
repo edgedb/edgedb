@@ -96,7 +96,7 @@ class NodeCommand(named.NamedObjectCommand):
         if view_expr is not None:
             ir = cls._compile_view_expr(view_expr, cmd.classname,
                                         schema, context)
-            rt = irutils.infer_type(ir, schema)
+            rt = irutils.infer_type(ir, ir.schema)
 
             view_types = ir.views.values()
 

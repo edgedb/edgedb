@@ -298,7 +298,7 @@ class PointerStorageInfo:
 
 @functools.lru_cache()
 def get_pointer_storage_info(
-        pointer, *, schema=None, source=None, resolve_type=True,
+        pointer, *, schema, source=None, resolve_type=True,
         link_bias=False):
     assert not pointer.generic(schema), \
         "only specialized pointers can be stored"

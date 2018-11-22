@@ -258,7 +258,7 @@ class NamedObjectMetaCommand(
         updaterec, updates = self.fill_record(schema)
 
         if updaterec:
-            condition = [('name', str(self.scls.get_name(schema)))]
+            condition = [('id', self.scls.id)]
             self.pgops.add(
                 dbops.Update(
                     table=self.get_table(schema),
@@ -280,7 +280,7 @@ class NamedObjectMetaCommand(
         table = self.get_table(schema)
         self.pgops.add(
             dbops.Delete(
-                table=table, condition=[('name', str(scls.get_name(schema)))]))
+                table=table, condition=[('id', scls.id)]))
 
 
 class CreateNamedObject(NamedObjectMetaCommand):
@@ -393,11 +393,11 @@ class FunctionCommand:
             ir = ql_compiler.compile_fragment_to_ir(
                 default, schema, location='parameter-default')
 
-            if not irutils.is_const(ir):
+            if not irutils.is_const(ir.expr):
                 raise ValueError('expression not constant')
 
             sql_tree = compiler.compile_ir_to_sql_tree(
-                ir, schema=schema, singleton_mode=True)
+                ir.expr, schema=ir.schema, singleton_mode=True)
             return codegen.SQLSourceGenerator.to_source(sql_tree)
 
         except Exception as ex:
@@ -457,7 +457,7 @@ class CreateFunction(FunctionCommand, CreateNamedObject,
 
         sql_text, _ = compiler.compile_ir_to_sql(
             body_ir,
-            schema=schema,
+            schema=body_ir.schema,
             ignore_shapes=True,
             use_named_params=True)
 
@@ -594,9 +594,11 @@ class DeleteOperator(
         OperatorCommand, DeleteNamedObject, adapts=s_opers.DeleteOperator):
 
     def apply(self, schema, context):
-        schema, oper = super().apply(schema, context)
+        oper = schema.get(self.classname)
         name = self.get_pg_name(schema, oper)
         args = self.get_pg_operands(schema, oper)
+
+        schema, oper = super().apply(schema, context)
         self.pgops.add(dbops.DropOperator(name=name, args=args))
         return schema, oper
 
@@ -749,8 +751,7 @@ class DeleteConstraint(
         ConstraintCommand, DeleteNamedObject,
         adapts=s_constr.DeleteConstraint):
     def apply(self, schema, context):
-        schema, constraint = super().apply(schema, context)
-
+        constraint = schema.get(self.classname)
         subject = constraint.get_subject(schema)
 
         if subject is not None:
@@ -763,6 +764,7 @@ class DeleteConstraint(
             op.add_command(bconstr.delete_ops())
             self.pgops.add(op)
 
+        schema, _ = super().apply(schema, context)
         return schema, constraint
 
 
@@ -954,7 +956,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         updaterec, updates = self.fill_record(schema)
 
         if updaterec:
-            condition = [('name', str(new_scalar.get_name(schema)))]
+            condition = [('id', new_scalar.id)]
             self.pgops.add(
                 dbops.Update(
                     table=table, record=updaterec, condition=condition))
@@ -1437,7 +1439,7 @@ class CreateSourceIndex(SourceIndexCommand, CreateNamedObject,
             location='selector')
 
         sql_tree = compiler.compile_ir_to_sql_tree(
-            ir, schema=schema, singleton_mode=True)
+            ir.expr, schema=ir.schema, singleton_mode=True)
         sql_expr = codegen.SQLSourceGenerator.to_source(sql_tree)
 
         if isinstance(sql_tree, pg_ast.ImplicitRowExpr):
@@ -1697,7 +1699,7 @@ class AlterObjectType(ObjectTypeMetaCommand,
 
         if updaterec:
             table = self.get_table(schema)
-            condition = [('name', str(objtype.get_name(schema)))]
+            condition = [('id', objtype.id)]
             self.pgops.add(
                 dbops.Update(
                     table=table, record=updaterec, condition=condition))
@@ -1717,15 +1719,17 @@ class DeleteObjectType(ObjectTypeMetaCommand,
     def apply(self, schema, context=None):
         old_table_name = common.objtype_name_to_table_name(
             self.classname, catenate=False)
+        self.scls = objtype = schema.get(self.classname)
 
-        schema, objtype = s_objtypes.DeleteObjectType.apply(
-            self, schema, context)
         schema, _ = ObjectTypeMetaCommand.apply(self, schema, context)
 
         self.delete(schema, context, objtype)
 
         if self.has_table(objtype, schema):
             self.pgops.add(dbops.DropTable(name=old_table_name, priority=3))
+
+        schema, _ = s_objtypes.DeleteObjectType.apply(
+            self, schema, context)
 
         return schema, objtype
 
@@ -1951,7 +1955,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                 for l in src.children(schema):
                     if not l.generic(schema):
                         ptr_stor_info = types.get_pointer_storage_info(
-                            l, resolve_type=False)
+                            l, resolve_type=False, schema=schema)
                         if ptr_stor_info.table_type == 'link':
                             return True
 
@@ -2113,7 +2117,7 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
 
         if not link.generic(schema):
             ptr_stor_info = types.get_pointer_storage_info(
-                link, resolve_type=False)
+                link, resolve_type=False, schema=schema)
 
             if ptr_stor_info.table_type == 'ObjectType':
                 default_value = self.get_pointer_default(link, schema, context)
@@ -2215,8 +2219,8 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
                 table = self.get_table(schema)
                 self.pgops.add(
                     dbops.Update(
-                        table=table, record=rec, condition=[(
-                            'name', str(link.get_name(schema)))], priority=1))
+                        table=table, record=rec,
+                        condition=[('id', link.id)], priority=1))
 
             new_type = None
             for op in self.get_subcommands(type=sd.AlterObjectProperty):
@@ -2265,15 +2269,19 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
 
 class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
     def apply(self, schema, context=None):
-        schema, result = s_links.DeleteLink.apply(self, schema, context)
+        link = schema.get(self.classname)
+
+        old_table_name = common.get_table_name(
+            schema, link, catenate=False)
+
         schema, _ = LinkMetaCommand.apply(self, schema, context)
 
-        if not result.generic(schema):
+        if not link.generic(schema):
+            name = link.get_shortname(schema)
             ptr_stor_info = types.get_pointer_storage_info(
-                result, schema=schema)
-            objtype = context.get(s_objtypes.ObjectTypeCommandContext)
+                link, schema=schema)
 
-            name = result.get_shortname(schema)
+            objtype = context.get(s_objtypes.ObjectTypeCommandContext)
 
             if ptr_stor_info.table_type == 'ObjectType':
                 # Only drop the column if the link was not reinherited in the
@@ -2293,7 +2301,6 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
                     alter_table.add_operation((col, [cond], []))
                     self.pgops.add(alter_table)
 
-        old_table_name = common.get_table_name(schema, result, catenate=False)
         condition = dbops.TableExists(name=old_table_name)
         self.pgops.add(
             dbops.DropTable(name=old_table_name, conditions=[condition]))
@@ -2302,9 +2309,10 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
         self.pgops.add(
             dbops.Delete(
                 table=table,
-                condition=[('name', str(result.get_name(schema)))]))
+                condition=[('id', link.id)]))
 
-        return schema, result
+        schema, _ = s_links.DeleteLink.apply(self, schema, context)
+        return schema, link
 
 
 class PropertyMetaCommand(NamedObjectMetaCommand, PointerMetaCommand):
@@ -2422,7 +2430,7 @@ class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
                 src.op.provide_table(src.scls, schema, context)
 
             ptr_stor_info = types.get_pointer_storage_info(
-                prop, resolve_type=False)
+                prop, resolve_type=False, schema=schema)
 
             if (not isinstance(src.scls, s_objtypes.ObjectType) or
                     ptr_stor_info.table_type == 'ObjectType'):
@@ -2493,8 +2501,8 @@ class AlterProperty(
                 table = self.get_table(schema)
                 self.pgops.add(
                     dbops.Update(
-                        table=table, record=rec, condition=[(
-                            'name', str(prop.get_name(schema)))], priority=1))
+                        table=table, record=rec,
+                        condition=[('id', prop.id)], priority=1))
 
             prop_target = prop.get_target(schema)
             old_prop_target = self.old_prop.get_target(schema)
@@ -2546,6 +2554,10 @@ class AlterProperty(
 class DeleteProperty(
         PropertyMetaCommand, adapts=s_props.DeleteProperty):
     def apply(self, schema, context=None):
+        prop = schema.get(self.classname)
+        column_name = common.edgedb_name_to_pg_name(
+            prop.get_shortname(schema))
+
         schema, prop = s_props.DeleteProperty.apply(self, schema, context)
         schema, _ = PropertyMetaCommand.apply(self, schema, context)
 
@@ -2554,8 +2566,6 @@ class DeleteProperty(
         if link:
             alter_table = link.op.get_alter_table(schema, context)
 
-            column_name = common.edgedb_name_to_pg_name(
-                prop.get_shortname(schema))
             # We don't really care about the type -- we're dropping the thing
             column_type = 'text'
 
@@ -2566,7 +2576,7 @@ class DeleteProperty(
         table = self.get_table(schema)
         self.pgops.add(
             dbops.Delete(
-                table=table, condition=[('name', str(prop.get_name(schema)))]))
+                table=table, condition=[('id', prop.id)]))
 
         return schema, prop
 
@@ -2873,7 +2883,7 @@ class AlterModule(ModuleMetaCommand, adapts=s_mod.AlterModule):
 
         if updaterec:
             table = self.get_table(schema)
-            condition = [('name', str(module.get_name(schema)))]
+            condition = [('id', module.id)]
             self.pgops.add(
                 dbops.Update(
                     table=table, record=updaterec, condition=condition))
@@ -2899,8 +2909,8 @@ class DeleteModule(ModuleMetaCommand, adapts=s_mod.DeleteModule):
                 name=schema_name, conditions={condition}, priority=4))
         cmd.add_command(
             dbops.Delete(
-                table=table, condition=[(
-                    'name', str(module.get_name(schema)))]))
+                table=table,
+                condition=[('id', module.id)]))
 
         self.pgops.add(cmd)
 

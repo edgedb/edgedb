@@ -452,7 +452,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
         if edb_base is None and self.edb_type:
             edb_base = schema.edb_schema.get(self.edb_type)
 
-        edb_base_name = edb_base.get_name(schema)
+        edb_base_name = edb_base.get_name(schema.edb_schema)
 
         # __typename
         if name is None:

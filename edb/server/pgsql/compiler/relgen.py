@@ -573,7 +573,8 @@ def process_set_as_link_property_ref(
 
     lprop = ir_set.rptr.ptrcls
     ptr_info = pg_types.get_pointer_storage_info(
-        lprop, resolve_type=False, link_bias=False)
+        lprop, resolve_type=False, link_bias=False,
+        schema=ctx.env.schema)
 
     if (ptr_info.table_type == 'ObjectType' or
             lprop.get_shortname(ctx.env.schema) == 'std::target'):
@@ -643,7 +644,8 @@ def process_set_as_path(
         return new_simple_set_rvar(ir_set, sub_rvar, ['value', 'source'])
 
     ptr_info = pg_types.get_pointer_storage_info(
-        ptrcls, resolve_type=False, link_bias=False)
+        ptrcls, resolve_type=False, link_bias=False,
+        schema=ctx.env.schema)
 
     # Path is a link property.
     is_linkprop = ptrcls.is_link_property(ctx.env.schema)

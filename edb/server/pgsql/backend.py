@@ -239,9 +239,9 @@ class Backend:
             string_id += f'\x00{":".join(element_names)}'
         return uuid.uuid5(types.TYPE_ID_NAMESPACE, string_id)
 
-    def _get_union_type_id(self, union_type):
+    def _get_union_type_id(self, schema, union_type):
         base_type_id = ','.join(
-            str(c.id) for c in union_type.children(self.schema))
+            str(c.id) for c in union_type.children(schema))
 
         return uuid.uuid5(types.TYPE_ID_NAMESPACE, base_type_id)
 
@@ -266,7 +266,7 @@ class Backend:
             # This is a view
 
             if mt.get_is_virtual(schema):
-                base_type_id = self._get_union_type_id(mt)
+                base_type_id = self._get_union_type_id(schema, mt)
             else:
                 base_type_id = mt.id
 

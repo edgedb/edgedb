@@ -44,17 +44,20 @@ class SchemaDBObject(metaclass=SchemaDBObjectMeta):
 
 
 class ConstraintCommon:
+    def __init__(self, constraint, schema):
+        self._schema_constr_name = constraint.get_name(schema)
+        self._schema_constr_is_delegated = constraint.get_is_abstract(schema)
+
     def constraint_name(self, quote=True):
         name = self.raw_constraint_name()
         name = common.edgedb_name_to_pg_name(name)
         return common.quote_ident(name) if quote else name
 
     def schema_constraint_name(self):
-        return self._constraint.get_name(self._schema)
+        return self._schema_constr_name
 
     def raw_constraint_name(self):
-        name = '{};{}'.format(self._constraint.get_name(self._schema),
-                              'schemaconstr')
+        name = '{};{}'.format(self.schema_constraint_name(), 'schemaconstr')
         return name
 
     def generate_extra(self, block):
@@ -64,16 +67,15 @@ class ConstraintCommon:
 
     @property
     def is_abstract(self):
-        return self._constraint.get_is_abstract(self._schema)
+        return self._schema_constr_is_delegated
 
 
 class SchemaConstraintDomainConstraint(
         ConstraintCommon, dbops.DomainConstraint):
     def __init__(self, domain_name, constraint, exprdata, schema):
-        super().__init__(domain_name)
+        ConstraintCommon.__init__(self, constraint, schema)
+        dbops.DomainConstraint.__init__(self, domain_name)
         self._exprdata = exprdata
-        self._constraint = constraint
-        self._schema = schema
 
     def constraint_code(self, block: dbops.PLBlock) -> str:
         if len(self._exprdata) == 1:
@@ -93,12 +95,11 @@ class SchemaConstraintDomainConstraint(
 class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
     def __init__(self, table_name, *,
                  constraint, exprdata, scope, type, schema):
-        super().__init__(table_name, None)
-        self._constraint = constraint
+        ConstraintCommon.__init__(self, constraint, schema)
+        dbops.TableConstraint.__init__(self, table_name, None)
         self._exprdata = exprdata
         self._scope = scope
         self._type = type
-        self._schema = schema
 
     def constraint_code(self, block: dbops.PLBlock) -> str:
         if self._scope == 'row':
@@ -218,9 +219,9 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         return self._type == 'check'
 
     def __repr__(self):
-        return '<{}.{} {!r}>'.format(
+        return '<{}.{} {!r} at 0x{:x}>'.format(
             self.__class__.__module__, self.__class__.__name__,
-            self._constraint)
+            self.schema_constraint_name(), id(self))
 
 
 class MultiConstraintItem:
