@@ -554,9 +554,6 @@ class Object(metaclass=ObjectMeta):
                 'updates list contains values for non-existant fields: ' +
                 ', '.join(updates.keys() - fields.keys()))
 
-        if 'name' in updates:
-            oldname = self.get_name(schema)
-
         for field_name in updates:
             field = fields[field_name]
 
@@ -575,11 +572,6 @@ class Object(metaclass=ObjectMeta):
                 raise RuntimeError(
                     f'cannot update value for non-schema field '
                     f'{self}.{field_name}')
-
-        if 'name' in updates:
-            newname = updates['name']
-            if newname != oldname:
-                schema = schema._rename(self.id, oldname)
 
         return schema
 

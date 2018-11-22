@@ -67,7 +67,12 @@ def compile_migration(cmd, target_schema, current_schema):
 
     stdmodules = {'std', 'schema', 'stdattrs', 'stdgraphql'}
 
-    mods = (set(target_schema.modules) - stdmodules)
+    mods = (
+        {
+            m.get_name(target_schema) for m in target_schema.get_modules()
+        } -
+        stdmodules
+    )
     if len(mods) != 1:
         raise RuntimeError('unexpected delta module structure')
 
