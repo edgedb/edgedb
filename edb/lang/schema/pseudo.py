@@ -84,8 +84,8 @@ class Any(PseudoType):
 
 class AnyObjectRef(so.ObjectRef):
 
-    def __init__(self, *, id=None, name='anytype'):
-        super().__init__(id=id, name=name)
+    def __init__(self, *, name='anytype'):
+        super().__init__(name=name)
 
     def _resolve_ref(self, schema):
         return Any.create()

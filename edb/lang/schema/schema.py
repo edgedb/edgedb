@@ -34,18 +34,17 @@ class Schema:
         self.modules = {}
         self.deltas = {}
 
-        self._policy_schema = None
-        self._virtual_inheritance_cache = {}
         self._inheritance_cache = {}
         self._garbage = set()
-        self.index_by_id = {}
         self._nameless_ids = {}
-        self.index_by_name = {}
-        self.data = {}
+
+        self.id_to_data = {}
+        self.id_to_type = {}
+        self.name_to_id = {}
 
     def _get_obj_field(self, obj_id, field):
         try:
-            d = self.data[obj_id]
+            d = self.id_to_data[obj_id]
         except KeyError:
             return None
 
@@ -53,39 +52,32 @@ class Schema:
 
     def _set_obj_field(self, obj_id, field, value):
         try:
-            d = self.data[obj_id]
+            d = self.id_to_data[obj_id]
         except KeyError:
-            d = self.data[obj_id] = {}
+            d = self.id_to_data[obj_id] = {}
 
         d[field] = value
         return self
 
     def _unset_obj_field(self, obj_id, field):
         try:
-            d = self.data[obj_id]
+            d = self.id_to_data[obj_id]
         except KeyError:
             return
 
         d.pop(field, None)
         return self
 
-    def add_module(self, mod) -> 'Schema':
-        """Add a module to the schema
-
-        :param Module mod: A module that should be added
-                           to the schema.
-        """
-
-        name = mod.get_name(self)
-        self.modules[name] = mod
-        self._policy_schema = None
-        return self
-
     def get_module(self, module):
-        return self.modules.get(module)
+        obj_id = self.modules.get(module)
+        if obj_id is not None:
+            return s_modules.Module._create_from_id(obj_id)
 
     def get_modules(self):
-        return self.modules.values()
+        for mod_id in self.modules.values():
+            module = self.get_by_id(mod_id)
+            if module is not None:
+                yield module
 
     def delete_module(self, mod):
         """Remove a module from the schema
@@ -98,21 +90,14 @@ class Schema:
         else:
             module_name = mod.get_name(self)
 
-        mod = self.modules.pop(module_name)
-        self.data.pop(mod.id, None)
-        return self
-
-    def _add_delta(self, delta) -> 'Schema':
-        """Add a delta to the schema.
-
-        :param Delta delta: Delta object to add to the schema.
-        """
-        name = delta.get_name(self)
-        self.deltas[name] = delta
+        mod_id = self.modules.pop(module_name)
+        self.id_to_data.pop(mod_id, None)
         return self
 
     def get_delta(self, name):
-        return self.deltas[name]
+        from . import deltas as s_deltas
+        delta_id = self.deltas[name]
+        return s_deltas.Delta._create_from_id(delta_id)
 
     def delete_delta(self, delta) -> 'Schema':
         """Remove the delta from the schema.
@@ -125,62 +110,60 @@ class Schema:
         else:
             delta_name = delta.get_name(self)
 
-        d = self.deltas.pop(delta_name)
-        self.data.pop(d.id, None)
+        delta_id = self.deltas.pop(delta_name)
+        self.id_to_data.pop(delta_id, None)
 
         return self
 
-    def _rename(self, obj, oldname):
-        if obj.id not in self._nameless_ids:
-            self.index_by_name.pop(oldname, None)
-            newname = obj.get_name(self)
-            self.index_by_name[newname] = obj
+    def _rename(self, id, oldname):
+        if id not in self._nameless_ids:
+            self.name_to_id.pop(oldname, None)
+            newname = self.id_to_data[id]['name']
+            self.name_to_id[newname] = id
 
         return self
 
-    def add(self, name, obj, *, _nameless=False) -> 'Schema':
+    def _add(self, id, scls, data, *, _nameless=False) -> 'Schema':
         from . import deltas as s_deltas
 
         if _nameless:
-            self._nameless_ids[obj.id] = True
+            self._nameless_ids[id] = True
 
-        if isinstance(obj, s_modules.Module):
-            self.modules[name] = obj
+        self.id_to_data[id] = data
+        self.id_to_type[id] = scls
+
+        name = data['name']
+
+        if isinstance(scls, s_modules.Module):
+            self.modules[name] = id
             return self
-        elif isinstance(obj, s_deltas.Delta):
-            self._add_delta(obj)
+        elif isinstance(scls, s_deltas.Delta):
+            self.deltas[name] = id
             return self
 
-        self.index_by_id[obj.id] = obj
-
-        if _nameless:
-            return self
-        else:
+        if not _nameless:
             try:
                 self.modules[name.module]
             except KeyError:
                 raise s_err.SchemaModuleNotFoundError(
                     f'module {name.module!r} is not in this schema') from None
 
-            if name in self.index_by_name:
+            if name in self.name_to_id:
                 err = f'{name!r} is already present in the schema {self!r}'
                 raise s_err.SchemaError(err)
 
-            assert name == obj.get_name(self)
-            self.index_by_name[name] = obj
+            self.name_to_id[name] = id
 
-            return self
+        return self
 
     def mark_as_garbage(self, obj) -> 'Schema':
         self._garbage.add(obj.id)
-        self.index_by_name.pop(obj.get_name(self), None)
+        self.name_to_id.pop(obj.get_name(self), None)
         return self
 
     def discard(self, obj) -> 'Schema':
-        self.index_by_id.pop(obj.id, None)
-        self.index_by_name.pop(obj.get_name(self), None)
-
-        self.data.pop(obj.id, None)
+        self.name_to_id.pop(obj.get_name(self), None)
+        self.id_to_data.pop(obj.id, None)
 
         if obj.id in self._nameless_ids:
             del self._nameless_ids[obj.id]
@@ -189,21 +172,19 @@ class Schema:
         return self
 
     def delete(self, obj) -> 'Schema':
-        self.index_by_id.pop(obj.id, None)
-        self.index_by_name.pop(obj.get_name(self), None)
+        data = self.id_to_data.pop(obj.id, None)
+        self.name_to_id.pop(data['name'], None)
 
         if obj.id in self._nameless_ids:
             del self._nameless_ids[obj.id]
             return self
 
         try:
-            self.modules[obj.get_name(self).module]
+            self.modules[data['name'].module]
         except KeyError:
             raise s_err.SchemaModuleNotFoundError(
-                f'module {obj.get_name(self).module} '
+                f'module {data["name"].module} '
                 f'is not in this schema') from None
-
-        self.data.pop(obj.id, None)
 
         return self
 
@@ -211,8 +192,8 @@ class Schema:
         modules = []
 
         if module_name is not None:
-            module = self.modules.get(module_name)
-            if module is not None:
+            module_id = self.modules.get(module_name)
+            if module_id is not None:
                 modules.append((self, module_name))
 
         return modules
@@ -248,7 +229,7 @@ class Schema:
 
         def getter(schema, name):
             ret = []
-            for obj in schema.index_by_id.values():
+            for obj_id, obj in schema.id_to_type.items():
                 if (isinstance(obj, s_func.Function) and
                         obj.get_shortname(schema) == name and
                         obj.id not in schema._nameless_ids):
@@ -272,7 +253,7 @@ class Schema:
 
         def getter(schema, name):
             ret = []
-            for obj in schema.index_by_id.values():
+            for obj_id, obj in schema.id_to_type.items():
                 if (isinstance(obj, s_oper.Operator) and
                         obj.get_shortname(schema) == name and
                         obj.id not in schema._nameless_ids):
@@ -291,13 +272,13 @@ class Schema:
         raise s_err.ItemNotFoundError(
             f'reference to a non-existent operator: {name}')
 
-    def get_by_id(self, item_id, default=_void):
+    def get_by_id(self, obj_id, default=_void):
         try:
-            return self.index_by_id[item_id]
+            return self.id_to_type[obj_id]
         except KeyError:
             if default is _void:
                 raise s_err.ItemNotFoundError(
-                    f'reference to a non-existent schema item: {item_id}'
+                    f'reference to a non-existent schema item: {obj_id}'
                     f' in schema {self!r}'
                 ) from None
             else:
@@ -311,11 +292,15 @@ class Schema:
                     return scls
             return None
 
-        scls = self.index_by_name.get(name)
-        if scls is not None and type is not None:
-            if not isinstance(scls, type):
-                return None
-        return scls
+        obj_id = self.name_to_id.get(name)
+        if obj_id is None:
+            return None
+
+        obj = self.id_to_type[obj_id]
+        if type is not None and not isinstance(obj, type):
+            return None
+
+        return obj
 
     def get(self, name, default=_void, *, module_aliases=None, type=None):
         def getter(schema, name):
@@ -413,7 +398,9 @@ class SchemaIterator:
     def __iter__(self):
         filters = self._filters
 
-        for obj in tuple(self._schema.index_by_id.values()):
+        for obj_id, obj in tuple(self._schema.id_to_type.items()):
+            if isinstance(obj, s_modules.Module):
+                continue
             if all(f(obj) for f in filters):
                 yield obj
 
@@ -425,17 +412,15 @@ class SchemaOverlay(Schema):
         self.modules = collections.ChainMap(self.local_modules, schema.modules)
         self.deltas = {}
 
-        self.local_data = {}
+        self._local_id_to_data = {}
+        self.id_to_data = collections.ChainMap(self._local_id_to_data,
+                                               schema.id_to_data)
+        self._local_id_to_type = {}
+        self.id_to_type = collections.ChainMap(self._local_id_to_type,
+                                               schema.id_to_type)
 
-        self._local_index_by_id = {}
-        self.index_by_id = collections.ChainMap(self._local_index_by_id,
-                                                schema.index_by_id)
-        self.index_by_name = {}
+        self.name_to_id = {}
         self._garbage = set()
-        self._policy_schema = None
-        self._local_vic = {}
-        self._virtual_inheritance_cache = collections.ChainMap(
-            self._local_vic, schema._virtual_inheritance_cache)
         self._local_ic = {}
         self._inheritance_cache = collections.ChainMap(
             self._local_ic, schema._inheritance_cache)
@@ -445,11 +430,11 @@ class SchemaOverlay(Schema):
 
         if extra:
             for n, v in extra.items():
-                self.add(n, v)
+                self._add(n, v)
 
     def _get_obj_field(self, obj_id, field):
         try:
-            d = self.local_data[obj_id]
+            d = self._local_id_to_data[obj_id]
         except KeyError:
             pass
         else:
@@ -464,18 +449,18 @@ class SchemaOverlay(Schema):
 
     def _set_obj_field(self, obj_id, field, value):
         try:
-            d = self.local_data[obj_id]
+            d = self._local_id_to_data[obj_id]
         except KeyError:
-            d = self.local_data[obj_id] = {}
+            d = self._local_id_to_data[obj_id] = {}
 
         d[field] = value
         return self
 
     def _unset_obj_field(self, obj_id, field):
         try:
-            d = self.local_data[obj_id]
+            d = self._local_id_to_data[obj_id]
         except KeyError:
-            d = self.local_data[obj_id] = {}
+            d = self._local_id_to_data[obj_id] = {}
 
         d[field] = ...
         return self
@@ -487,27 +472,27 @@ class SchemaOverlay(Schema):
         yield from self.local_modules.values()
         yield from self.schema.get_modules()
 
-    def add(self, name, obj=None, *, _nameless=False):
+    def _add(self, id, scls, data, *, _nameless=False):
         if not _nameless:
-            if isinstance(obj, s_modules.Module):
-                self.local_modules[name] = obj
+            name = data['name']
+
+            if isinstance(scls, s_modules.Module):
+                self.local_modules[name] = id
                 return self
 
-            if obj.get_name(self).module not in self.local_modules:
+            if name.module not in self.local_modules:
                 s_modules.Module.create_in_schema(
                     self,
-                    name=obj.get_name(self).module)
+                    name=name.module)
 
-        return super().add(name, obj, _nameless=_nameless)
+        return super()._add(id, scls, data, _nameless=_nameless)
 
     def _resolve_module(self, module_name) -> typing.List[s_modules.Module]:
         modules = []
 
-        local_module_name = None
         if module_name is not None:
             if module_name in self.local_modules:
-                local_module_name = module_name
-                modules.append((self, local_module_name))
+                modules.append((self, module_name))
 
             modules.extend(self.schema._resolve_module(module_name))
 

@@ -170,11 +170,6 @@ def derive_view(
         ctx.env.schema = derived.set_field_value(
             ctx.env.schema, 'view_type', vtype)
 
-    if (not isinstance(derived, s_types.Collection) and
-            ctx.env.schema.get(
-                derived.get_name(ctx.env.schema), None) is None):
-        ctx.env.schema = ctx.env.schema.add(derived)
-
     if isinstance(derived, s_types.Type):
         ctx.view_nodes[derived.get_name(ctx.env.schema)] = derived
 

@@ -336,6 +336,14 @@ class Object(metaclass=ObjectMeta):
     def __init__(self, *, _private_init):
         pass
 
+    def __eq__(self, other):
+        if type(self) is not type(other):
+            return NotImplemented
+        return self.id == other.id
+
+    def __hash__(self):
+        return hash((self.id, type(self)))
+
     @classmethod
     def _prepare_id(cls, id: typing.Optional[uuid.UUID],
                     data: dict) -> uuid.UUID:
@@ -348,16 +356,19 @@ class Object(metaclass=ObjectMeta):
         return id
 
     @classmethod
+    def _create_from_id(cls, id):
+        assert id is not None
+        obj = cls(_private_init=True)
+        obj.__dict__['id'] = id
+        return obj
+
+    @classmethod
     def _create_in_schema(cls, schema, *, id=None,
                           _nameless=False, **data) -> 'Object':
         if not cls.is_schema_object:
             raise TypeError(f'{cls.__name__} type cannot be created in schema')
 
-        obj = cls(_private_init=True)
-
-        id = cls._prepare_id(id, data)
-        obj.__dict__['id'] = id
-
+        obj_data = {}
         for field_name, value in data.items():
             try:
                 field = cls._fields[field_name]
@@ -368,14 +379,17 @@ class Object(metaclass=ObjectMeta):
 
             assert field.is_schema_field
 
-            value = obj._check_field_type(schema, field, field.name, value)
+            value = cls._check_field_type(schema, field, field.name, value)
             if value is None:
                 continue
 
-            schema = schema._set_obj_field(id, field.name, value)
+            obj_data[field_name] = value
 
-        schema.add(obj.get_name(schema), obj, _nameless=_nameless)
-        return schema, obj
+        id = cls._prepare_id(id, data)
+        scls = cls._create_from_id(id)
+        schema = schema._add(id, scls, obj_data, _nameless=_nameless)
+
+        return schema, scls
 
     @classmethod
     def _create(cls, schema, *, id=None, **data) -> 'Object':
@@ -433,7 +447,8 @@ class Object(metaclass=ObjectMeta):
         raise RuntimeError(
             f'cannot set value to attribute {self}.{name} directly')
 
-    def _check_field_type(self, schema, field, name, value):
+    @classmethod
+    def _check_field_type(cls, schema, field, name, value):
         if (field.type and value is not None and
                 not isinstance(value, field.type)):
             if field.coerce:
@@ -473,7 +488,7 @@ class Object(metaclass=ObjectMeta):
 
             raise TypeError(
                 '{}.{}.{}: expected {} but got {!r}'.format(
-                    self.__class__.__module__, self.__class__.__name__, name,
+                    cls.__module__, cls.__name__, name,
                     ' or '.join(t.__name__ for t in field.type), value))
 
         return value
@@ -564,7 +579,7 @@ class Object(metaclass=ObjectMeta):
         if 'name' in updates:
             newname = updates['name']
             if newname != oldname:
-                schema = schema._rename(self, oldname)
+                schema = schema._rename(self.id, oldname)
 
         return schema
 
@@ -1157,14 +1172,9 @@ class NamedObject(Object):
 
 class ObjectRef(NamedObject):
 
-    def __init__(self, *, id=None, name: str):
+    def __init__(self, *, name: str):
         super().__init__(_private_init=True)
-        self.__dict__['_id'] = id
         self.__dict__['_name'] = name
-
-    @property
-    def id(self):
-        return self._id
 
     @property
     def name(self):
@@ -1177,6 +1187,14 @@ class ObjectRef(NamedObject):
         return '<ObjectRef "{}" at 0x{:x}>'.format(self._name, id(self))
 
     __str__ = __repr__
+
+    def __eq__(self, other):
+        if type(self) is not type(other):
+            return NotImplemented
+        return self._name == other._name
+
+    def __hash__(self):
+        return hash((self._name, type(self)))
 
     def _reduce_to_ref(self, schema):
         return self, self.get_name(schema)

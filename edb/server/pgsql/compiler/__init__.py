@@ -52,17 +52,13 @@ def compile_ir_to_sql_tree(
         ctx = ctx_stack.current
         expr_is_stmt = isinstance(ir_expr, irast.Statement)
         if expr_is_stmt:
-            views = ir_expr.views
             ctx.scope_map = ir_expr.scope_map
             ctx.scope_tree = ir_expr.scope_tree
             ir_expr = ir_expr.expr
-        else:
-            views = {}
         ctx.env = context.Environment(
             schema=schema, output_format=output_format,
             singleton_mode=singleton_mode,
-            use_named_params=use_named_params,
-            views=views)
+            use_named_params=use_named_params)
         if ignore_shapes:
             ctx.expr_exposed = False
         qtree = dispatch.compile(ir_expr, ctx=ctx)

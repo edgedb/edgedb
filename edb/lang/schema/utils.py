@@ -51,11 +51,7 @@ def ast_objref_to_objref(
             context=node.context
         )
 
-    if obj is None:
-        return so.ObjectRef(name=sn.Name(module=module, name=nqname))
-    else:
-        return so.ObjectRef(id=obj.id,
-                            name=sn.Name(module=module, name=nqname))
+    return so.ObjectRef(name=sn.Name(module=module, name=nqname))
 
 
 def ast_to_typeref(

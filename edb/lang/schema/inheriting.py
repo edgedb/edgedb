@@ -450,13 +450,15 @@ class InheritingObject(derivable.DerivableObject):
 
         if my_vchildren is None:
             mro = self.compute_mro(schema)
+            mro = {o.id for o in mro}
 
-            if parent in mro:
+            if parent.id in mro:
                 return True
             elif isinstance(parent, InheritingObject):
                 vchildren = parent.get__virtual_children(schema)
                 if vchildren:
-                    return bool(set(vchildren.objects(schema)) & set(mro))
+                    return bool(
+                        {o.id for o in vchildren.objects(schema)} & mro)
                 else:
                     return False
             else:
