@@ -234,8 +234,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
         if expr == '__subject__':
             expr_context = sourcectx
         else:
-            expr_context = \
-                constr_base.get_attribute_source_context(schema, 'expr')
+            expr_context = None
 
         if subject is not orig_subject:
             # subject has been redefined

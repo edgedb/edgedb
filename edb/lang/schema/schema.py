@@ -317,9 +317,9 @@ class Schema:
     def _get_descendants(self, scls, *, max_depth=None, depth=0):
         result = set()
 
-        try:
-            children = scls._virtual_children
-        except AttributeError:
+        _virtual_children = scls.get__virtual_children(self)
+
+        if _virtual_children is None:
             try:
                 child_names = self._inheritance_cache[scls.get_name(self)]
                 raise KeyError
@@ -328,7 +328,7 @@ class Schema:
                 self._inheritance_cache[scls.get_name(self)] = child_names
         else:
             child_names = [c.material_type(self).get_name(self)
-                           for c in children]
+                           for c in _virtual_children.objects(self)]
 
         children = {self.get(n, type=type(scls)) for n in child_names}
 

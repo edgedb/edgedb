@@ -17,7 +17,6 @@
 #
 
 
-import copy
 import types
 import typing
 
@@ -192,11 +191,6 @@ class Parameter(named.NamedObject):
     kind = so.SchemaField(
         ft.ParameterKind, coerce=True, compcoef=0.4)
 
-    # Private field for caching default value AST.
-    _ql_default = so.Field(
-        object,
-        default=None, ephemeral=True, introspectable=False, hashable=False)
-
     @classmethod
     def shortname_from_fullname(cls, fullname) -> str:
         parts = str(fullname.name).split('@@', 1)
@@ -208,16 +202,8 @@ class Parameter(named.NamedObject):
             return fullname
 
     def get_ql_default(self, schema):
-        if self._ql_default is None:
-            # Defaults are simple constants, so copying shouldn't
-            # be too slow (certainly faster that parsing).
-
-            from edb.lang.edgeql import parser as ql_parser
-
-            qd = ql_parser.parse_fragment(self.get_default(schema))
-            self._ql_default = qd
-
-        return copy.deepcopy(self._ql_default)
+        from edb.lang.edgeql import parser as ql_parser
+        return ql_parser.parse_fragment(self.get_default(schema))
 
     def get_ir_default(self, *, schema):
         if self.get_default(schema) is None:

@@ -55,10 +55,6 @@ class Source(indexes.IndexableSubject):
         inheritable=False, ephemeral=True, coerce=True,
         default=so.ObjectIndexByShortname)
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self._ro_pointers = None
-
     class PointerResolver:
         @classmethod
         def getptr_from_nqname(cls, schema, source, name):
@@ -324,8 +320,6 @@ class Source(indexes.IndexableSubject):
     def add_pointer(self, schema, pointer, *, replace=False):
         schema = self.add_classref(
             schema, 'pointers', pointer, replace=replace)
-        if pointer.get_readonly(schema) and self._ro_pointers is not None:
-            self._ro_pointers.add(pointer)
         return schema
 
     @classmethod

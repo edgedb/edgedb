@@ -315,7 +315,9 @@ def create_virtual_parent(schema, children, *,
                 name=name, is_abstract=True,
                 is_virtual=True, bases=[base]
             )
-        target._virtual_children = set(children)
+        schema = target.set_field_value(
+            schema, '_virtual_children',
+            so.ObjectList.create(schema, children))
 
     return schema, target
 
@@ -329,6 +331,10 @@ class InheritingObject(derivable.DerivableObject):
     mro = so.SchemaField(
         so.ObjectList,
         coerce=True, default=None, hashable=False)
+
+    _virtual_children = so.SchemaField(
+        so.ObjectList,
+        coerce=True, default=None, ephemeral=True, introspectable=False)
 
     is_abstract = so.SchemaField(
         bool,
@@ -420,8 +426,7 @@ class InheritingObject(derivable.DerivableObject):
                 schema = schema.mark_as_garbage(existing_derived)
 
             schema, derived = type(self).create_in_schema(
-                schema, name=derived_name, **derived_attrs,
-                _setdefaults_=False, _relaxrequired_=True)
+                schema, name=derived_name, **derived_attrs)
 
         return schema, derived
 
@@ -441,21 +446,24 @@ class InheritingObject(derivable.DerivableObject):
         return compute_mro(schema, self)
 
     def _issubclass(self, schema, parent):
-        my_vchildren = getattr(self, '_virtual_children', None)
+        my_vchildren = self.get__virtual_children(schema)
 
         if my_vchildren is None:
             mro = self.compute_mro(schema)
 
             if parent in mro:
                 return True
-            else:
-                vchildren = getattr(parent, '_virtual_children', None)
+            elif isinstance(parent, InheritingObject):
+                vchildren = parent.get__virtual_children(schema)
                 if vchildren:
-                    return bool(set(vchildren) & set(mro))
+                    return bool(set(vchildren.objects(schema)) & set(mro))
                 else:
                     return False
+            else:
+                return False
         else:
-            return all(c._issubclass(schema, parent) for c in my_vchildren)
+            return all(c._issubclass(schema, parent)
+                       for c in my_vchildren.objects(schema))
 
     def issubclass(self, schema, parent):
         if isinstance(parent, tuple):

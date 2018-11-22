@@ -177,8 +177,7 @@ class Collection(Type):
 
     name = so.Field(
         s_name.SchemaName,
-        inheritable=False, compcoef=0.670,
-        frozen=True)
+        inheritable=False, compcoef=0.670)
 
     def get_name(self, schema):
         return self.name
@@ -311,12 +310,12 @@ class Dimensions(typed.FrozenTypedList, type=int):
 
 class Array(Collection):
     schema_name = 'array'
-    element_type = so.Field(so.Object, frozen=True)
-    dimensions = so.Field(Dimensions, [], coerce=True, frozen=True)
+    element_type = so.Field(so.Object)
+    dimensions = so.Field(Dimensions, coerce=True)
 
     @classmethod
     def create(cls, schema, *, name=None,
-               id=so.NoDefault, element_type, **kwargs):
+               id=so.NoDefault, dimensions=None, element_type, **kwargs):
         if id is so.NoDefault:
             id_str = f'array-{element_type.id}'
             id = uuid.uuid5(TYPE_ID_NAMESPACE, id_str)
@@ -326,8 +325,12 @@ class Array(Collection):
                 module='std',
                 name=f'array<{element_type.get_name(schema)}>')
 
+        if dimensions is None:
+            dimensions = []
+
         return super()._create(
-            schema, id=id, name=name, element_type=element_type, **kwargs)
+            schema, id=id, name=name, element_type=element_type,
+            dimensions=dimensions, **kwargs)
 
     def is_array(self):
         return True
@@ -444,12 +447,12 @@ class Array(Collection):
 class Tuple(Collection):
     schema_name = 'tuple'
 
-    named = so.Field(bool, False, frozen=True)
-    element_types = so.Field(dict, coerce=True, frozen=True)
+    named = so.Field(bool)
+    element_types = so.Field(dict, coerce=True)
 
     @classmethod
     def create(cls, schema, *, name=None, id=so.NoDefault,
-               element_types: dict, **kwargs):
+               element_types: dict, named=False, **kwargs):
 
         element_types = types.MappingProxyType(element_types)
         if id is so.NoDefault:
@@ -466,7 +469,8 @@ class Tuple(Collection):
                 name=f'tuple<{st_names}>')
 
         return super()._create(
-            schema, id=id, name=name, element_types=element_types, **kwargs)
+            schema, id=id, name=name, named=named,
+            element_types=element_types, **kwargs)
 
     def is_tuple(self):
         return True

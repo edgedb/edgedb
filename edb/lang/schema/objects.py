@@ -24,7 +24,6 @@ import pathlib
 import re
 import typing
 import uuid
-import warnings
 
 from edb.lang.common import parsing
 from edb.lang.common import persistent_hash as phash
@@ -138,13 +137,12 @@ class NoDefault:
 
 class Field(struct.ProtoField):  # derived from ProtoField for validation
 
-    __slots__ = ('name', 'type', 'default', 'coerce', 'formatters',
-                 'frozen',
+    __slots__ = ('name', 'type', 'coerce', 'formatters',
                  'compcoef', 'inheritable', 'hashable', 'simpledelta',
                  'merge_fn', 'ephemeral', 'introspectable', 'public')
 
-    def __init__(self, type, default=NoDefault, *, coerce=False,
-                 str_formatter=str, repr_formatter=repr, frozen=False,
+    def __init__(self, type, *, coerce=False,
+                 str_formatter=str, repr_formatter=repr,
                  compcoef=None, inheritable=True, hashable=True,
                  simpledelta=True, merge_fn=None, ephemeral=False,
                  introspectable=True, public=False, **kwargs):
@@ -155,9 +153,7 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
             type = (type, )
 
         self.type = type
-        self.default = default
         self.coerce = coerce
-        self.frozen = frozen
         self.public = public
 
         if coerce and len(type) > 1:
@@ -205,7 +201,7 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
 
     @property
     def required(self):
-        return self.default is NoDefault
+        return True
 
     def __get__(self, instance, owner):
         if instance is not None:
@@ -222,11 +218,15 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
 
 class SchemaField(Field):
 
-    __slots__ = ('debug_getter',)
+    __slots__ = ('default',)
 
-    def __init__(self, *args, debug_getter=False, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.debug_getter = debug_getter
+    def __init__(self, type, default=NoDefault, **kwargs):
+        super().__init__(type, **kwargs)
+        self.default = default
+
+    @property
+    def required(self):
+        return self.default is NoDefault
 
     @property
     def _attrname(self):
@@ -234,13 +234,7 @@ class SchemaField(Field):
 
     def __get__(self, instance, owner):
         if instance is not None:
-            if self.debug_getter:
-                warnings.warn(
-                    f'{type(instance).__name__}.{self.name} direct access',
-                    RuntimeWarning, stacklevel=2)
-                return instance.get_field_value(None, self.name)
-            else:
-                raise FieldValueNotFoundError(self.name)
+            raise FieldValueNotFoundError(self.name)
         else:
             return self
 
@@ -320,21 +314,20 @@ class FieldValueNotFoundError(Exception):
 class Object(metaclass=ObjectMeta):
     """Base schema item class."""
 
-    id = Field(uuid.UUID, inheritable=False, frozen=True, simpledelta=False)
+    id = Field(uuid.UUID, inheritable=False, simpledelta=False)
     """Unique ID for this schema item."""
 
     sourcectx = SchemaField(
         parsing.ParserContext, None, compcoef=None,
         inheritable=False, introspectable=False, hashable=False,
-        ephemeral=True, frozen=True)
+        ephemeral=True)
     """Schema source context for this object"""
 
     def __init__(self, *, _private_init):
-        self._attr_source_contexts = {}
+        pass
 
     @classmethod
-    def _create(cls, schema, *, _setdefaults_=True, _relaxrequired_=False,
-                id=NoDefault, **kwargs) -> 'Object':
+    def _create(cls, schema, *, id=NoDefault, **kwargs) -> 'Object':
 
         if id is NoDefault:
             type_id = get_known_type_id(kwargs.get('name'))
@@ -346,27 +339,9 @@ class Object(metaclass=ObjectMeta):
         kwargs['id'] = id
 
         obj = cls(_private_init=True)
-
-        obj._in_init_ = True
-        try:
-            obj._init_fields(schema, _setdefaults_, _relaxrequired_, kwargs)
-        finally:
-            obj._in_init_ = False
+        obj._init_fields(schema, kwargs)
 
         return obj
-
-    def setdefaults(self):
-        """Initialize unset fields with default values."""
-        fields_set = []
-        for field_name, field in self.__class__._fields.items():
-            if isinstance(field, SchemaField):
-                continue
-            value = getattr(self, field_name)
-            if value is None and field.default is not None:
-                value = self._getdefault(field_name, field)
-                setattr(self, field_name, value)
-                fields_set.append(field_name)
-        return fields_set
 
     def _copy_and_replace(self, schema, cls, **replacements):
         args = {}
@@ -396,7 +371,7 @@ class Object(metaclass=ObjectMeta):
             if value is not None:
                 yield field, value
 
-    def _init_fields(self, schema, setdefaults, relaxrequired, values):
+    def _init_fields(self, schema, values):
         for field_name, field in self.__class__._fields.items():
             is_schema_field = isinstance(field, SchemaField)
             if field_name not in values and is_schema_field:
@@ -413,21 +388,11 @@ class Object(metaclass=ObjectMeta):
                     # the __dict__.
                     continue
 
-            if value is None and field.default is not None and setdefaults:
-                value = self._getdefault(field_name, field, relaxrequired)
-
-            setattr(self, field._attrname, value)
+            self.__dict__[field._attrname] = value
 
     def __setattr__(self, name, value):
-        field = self._fields.get(name)
-        if field is not None:
-            if isinstance(field, SchemaField):
-                raise RuntimeError(
-                    f'cannot set value to SchemaField {self}.{name} directly')
-            value = self._check_field_type(None, field, name, value)
-            if field.frozen and not self._in_init_:
-                raise ValueError(f'cannot assign to frozen field {name!r}')
-        super().__setattr__(name, value)
+        raise RuntimeError(
+            f'cannot set value to attribute {self}.{name} directly')
 
     def _check_field_type(self, schema, field, name, value):
         if (field.type and value is not None and
@@ -631,13 +596,8 @@ class Object(metaclass=ObjectMeta):
                     new_value=value,
                     source=source
                 ))
-            if source_context is not None:
-                self._attr_source_contexts[name] = source_context
 
         return schema
-
-    def get_attribute_source_context(self, schema, name):
-        return self._attr_source_contexts.get(name)
 
     def persistent_hash(self, *, schema):
         """Compute object 'snapshot' hash.
@@ -1034,26 +994,6 @@ class Object(metaclass=ObjectMeta):
         return self
 
     def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
-        if not apply_defaults:
-            return schema
-
-        from . import delta as sd
-
-        fields = self.setdefaults()
-        if dctx is not None and fields:
-            for fieldname in fields:
-                field = type(self).get_field(fieldname)
-                if field.ephemeral:
-                    continue
-                val = self.get_explicit_field_value(schema, fieldname, None)
-                if val is None:
-                    continue
-                dctx.current().op.add(sd.AlterObjectProperty(
-                    property=fieldname,
-                    new_value=val,
-                    source='default'
-                ))
-
         return schema
 
 
@@ -1168,9 +1108,8 @@ class ObjectRef(NamedObject):
 
     def __init__(self, *, id=None, name: str):
         super().__init__(_private_init=True)
-
-        self._id = id
-        self._name = name
+        self.__dict__['_id'] = id
+        self.__dict__['_name'] = name
 
     @property
     def id(self):

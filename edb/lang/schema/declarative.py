@@ -105,10 +105,6 @@ class DeclarationLoader:
 
             name = s_name.Name(module=module_name, name=decl.name)
 
-            # Only populate the absolute minimum necessary for
-            # the next steps.  _setdefaults_ and _relaxrequired_  set
-            # to False instruct the object to skip validation for now.
-
             # TODO: refactor this
             objcls_kw = {}
             if hasattr(decl, 'abstract'):
@@ -126,8 +122,6 @@ class DeclarationLoader:
                 self._schema,
                 name=name,
                 sourcectx=decl.context,
-                _setdefaults_=False,
-                _relaxrequired_=True,
                 **objcls_kw,
             )
 

@@ -592,8 +592,7 @@ class CreateObject(ObjectCommand):
         schema, props = self._make_constructor_args(schema, context)
 
         metaclass = self.get_schema_metaclass()
-        schema, self.scls = metaclass.create_in_schema(
-            schema, **props, _setdefaults_=False, _relaxrequired_=True)
+        schema, self.scls = metaclass.create_in_schema(schema, **props)
 
         if not props.get('id'):
             # Record the generated ID.
