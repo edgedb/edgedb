@@ -17,6 +17,10 @@
 #
 
 
+from edb.lang.common import ordered
+from edb.lang.common import topological
+
+
 def get_global_dep_order():
     from . import attributes as s_attr
     from . import constraints as s_constr
@@ -33,3 +37,39 @@ def get_global_dep_order():
         s_links.Link,
         s_objtypes.BaseObjectType,
     )
+
+
+def sort_objects(schema, objects):
+    from . import inheriting
+
+    g = {}
+
+    for obj in sorted(objects, key=lambda o: o.get_name(schema)):
+        g[obj.get_name(schema)] = {
+            'item': obj, 'merge': [], 'deps': []
+        }
+
+        if isinstance(obj, inheriting.InheritingObject):
+            obj_bases = obj.get_bases(schema)
+        else:
+            obj_bases = None
+
+        if obj_bases:
+            g[obj.get_name(schema)]['deps'].extend(
+                b.get_name(schema)
+                for b in obj_bases.objects(schema))
+
+            for base in obj_bases.objects(schema):
+                base_name = base.get_name(schema)
+                if base_name.module != obj.get_name(schema).module:
+                    g[base_name] = {'item': base, 'merge': [], 'deps': []}
+
+    if not g:
+        return ordered.OrderedSet()
+
+    item = next(iter(g.values()))['item']
+    modname = item.get_name(schema).module
+    objs = topological.sort(g)
+    return ordered.OrderedSet(filter(
+        lambda obj: getattr(obj.get_name(schema), 'module', None) ==
+        modname, objs))

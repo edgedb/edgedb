@@ -96,7 +96,7 @@ def compile_FunctionCall(
         fatal_array_check = len(funcs) == 1
         matched_call = _NO_MATCH
 
-        for func in funcs:
+        for func in sorted(funcs, key=lambda f: f.get_name(schema)):
             call = try_bind_func_args(
                 args, kwargs, funcname, func,
                 fatal_array_check=fatal_array_check,

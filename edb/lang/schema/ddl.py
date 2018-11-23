@@ -61,7 +61,7 @@ def compile_migration(cmd, target_schema, current_schema):
     if not declarations:
         return cmd
 
-    s_decl.load_module_declarations(target_schema, [
+    target_schema = s_decl.load_module_declarations(target_schema, [
         (cmd.classname.module, declarations)
     ])
 

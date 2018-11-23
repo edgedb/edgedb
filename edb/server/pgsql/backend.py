@@ -126,7 +126,7 @@ class Backend:
                 result = s_ddl.ddl_text_from_delta(schema, delta)
 
             elif isinstance(delta_cmd, s_deltas.CreateDelta):
-                schema, _ = delta_cmd.apply(schema, context)
+                self.schema, _ = delta_cmd.apply(schema, context)
 
             else:
                 raise RuntimeError(
@@ -178,9 +178,12 @@ class Backend:
             internal_position = getattr(e, 'internal_position', None)
             context = getattr(e, 'context', '')
             if context:
-                pl_func_line = re.match(
-                    r'^PL/pgSQL function inline_code_block line (\d+).*$',
-                    getattr(e, 'context', ''))
+                pl_func_line = re.search(
+                    r'^PL/pgSQL function inline_code_block line (\d+).*',
+                    context, re.M)
+
+                if pl_func_line:
+                    pl_func_line = int(pl_func_line.group(1))
             else:
                 pl_func_line = None
             point = None
@@ -201,9 +204,8 @@ class Backend:
                 text = e.internal_query
 
             elif pl_func_line:
-                line = int(pl_func_line.group(1))
                 point = parser_context.SourcePoint(
-                    line, None, None
+                    pl_func_line, None, None
                 )
                 text = ql_text
 

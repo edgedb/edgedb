@@ -45,6 +45,7 @@ class SchemaDBObject(metaclass=SchemaDBObjectMeta):
 
 class ConstraintCommon:
     def __init__(self, constraint, schema):
+        self._constr_id = constraint.id
         self._schema_constr_name = constraint.get_name(schema)
         self._schema_constr_is_delegated = constraint.get_is_abstract(schema)
 
@@ -57,7 +58,7 @@ class ConstraintCommon:
         return self._schema_constr_name
 
     def raw_constraint_name(self):
-        name = '{};{}'.format(self.schema_constraint_name(), 'schemaconstr')
+        name = '{};{}'.format(self._constr_id, 'schemaconstr')
         return name
 
     def generate_extra(self, block):
@@ -169,12 +170,8 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
     def get_trigger_proc_text(self):
         chunks = []
 
-        if self.is_multiconstraint():
-            constr_name = self.numbered_constraint_name(0)
-            raw_constr_name = self.numbered_constraint_name(0, quote=False)
-        else:
-            constr_name = self.constraint_name()
-            raw_constr_name = self.constraint_name(quote=False)
+        constr_name = self.constraint_name()
+        raw_constr_name = self.constraint_name(quote=False)
 
         errmsg = 'duplicate key value violates unique ' \
                  'constraint {constr}'.format(constr=constr_name)
@@ -531,11 +528,11 @@ class AlterTableInheritableConstraintBase(
 
         elif not old_constraint.is_abstract and new_constraint.is_abstract:
             # Now delegated, drop db structures
-            self.drop_constraint(new_constraint)
+            self.drop_constraint(old_constraint)
 
         else:
             # Some other modification, drop/create
-            self.drop_constraint(new_constraint)
+            self.drop_constraint(old_constraint)
             self.create_constraint(new_constraint)
 
     def drop_constraint(self, constraint):

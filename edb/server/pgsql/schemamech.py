@@ -30,7 +30,6 @@ from edb.lang.schema import scalars as s_scalars
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import error as s_err
 from edb.lang.schema import links as s_links
-from edb.lang.schema import name as sn
 
 from edb.lang.common import ast
 
@@ -45,39 +44,9 @@ from . import codegen
 
 
 class ConstraintMech:
-    def __init__(self):
-        self._constraints_cache = None
-
-    async def init_cache(self, connection):
-        self._constraints_cache = \
-            await self._populate_constraint_cache(connection)
 
     def invalidate_schema_cache(self):
         self._constraints_cache = None
-
-    async def _populate_constraint_cache(self, connection):
-        constraints = {}
-        rows = await introspection.constraints.fetch(
-            connection,
-            schema_pattern='edgedb%', constraint_pattern='%;schemaconstr%')
-        for row in rows:
-            constraints[row['constraint_name']] = row
-
-        return constraints
-
-    async def constraint_name_from_pg_name(self, connection, pg_name):
-        if self._constraints_cache is None:
-            self._constraints_cache = \
-                await self._populate_constraint_cache(connection)
-
-        try:
-            cdata = self._constraints_cache[pg_name]
-        except KeyError:
-            return None
-        else:
-            name = cdata['constraint_description']
-            name, _, _ = name.rpartition(';')
-            return sn.Name(name)
 
     @classmethod
     def _get_exclusive_refs(cls, tree):
@@ -372,7 +341,7 @@ class SchemaTableConstraint:
         constr = deltadbops.SchemaConstraintTableConstraint(
             table_name, constraint=constr._constraint, exprdata=expressions,
             scope=pg_c['scope'], type=pg_c['type'],
-            schema=self._schema)
+            schema=constr._schema)
 
         return constr
 

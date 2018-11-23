@@ -23,9 +23,6 @@ import collections
 import itertools
 import typing
 
-from edb.lang.common import ordered
-from edb.lang.common import topological
-
 from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import codegen as qlcodegen
@@ -148,8 +145,9 @@ class DeclarationLoader:
         # Constraints have no external dependencies, but need to
         # be fully initialized when we get to constraint users below.
         self._init_constraints(objects[s_constr.Constraint])
-        constraints = self._sort(self._schema.get_objects(
-            modules=[module_name], type=s_constr.Constraint))
+        constraints = self._schema.get_objects(
+            modules=[module_name], type=s_constr.Constraint)
+        constraints = s_ordering.sort_objects(self._schema, constraints)
         for constraint in constraints:
             self._schema = constraint.finalize(self._schema)
 
@@ -179,7 +177,10 @@ class DeclarationLoader:
 
         dctx = s_delta.CommandContext(declarative=True)
 
-        for obj in self._schema.get_objects(modules=[module_name]):
+        everything = s_ordering.sort_objects(
+            self._schema, self._schema.get_objects(modules=[module_name]))
+
+        for obj in everything:
             cmdcls = s_delta.ObjectCommandMeta.get_command_class_or_die(
                 s_delta.CreateObject, type(obj))
             ctxcls = cmdcls.get_context_class()
@@ -196,6 +197,8 @@ class DeclarationLoader:
         for objtype, objtypedecl in objects[s_objtypes.ObjectType].items():
             self._normalize_objtype_expressions(objtype, objtypedecl)
 
+        return self._schema
+
     def _process_imports(self, tree):
         for decl in tree.declarations:
             if isinstance(decl, s_ast.Import):
@@ -206,43 +209,6 @@ class DeclarationLoader:
                             context=mod.context)
                     if mod.alias is not None:
                         self._mod_aliases[mod.alias] = mod.module
-
-    def _sort(self, objects, depsfn=None):
-        g = {}
-
-        for obj in objects:
-            this_item = g[obj.get_name(self._schema)] = {
-                'item': obj, 'merge': [], 'deps': []
-            }
-
-            if depsfn is not None:
-                deps = depsfn(obj)
-                for dep in deps:
-                    this_item['deps'].append(dep.get_name(self._schema))
-                    g[dep.get_name(self._schema)] = {
-                        'item': dep, 'merge': [], 'deps': []
-                    }
-
-            obj_bases = obj.get_bases(self._schema)
-            if obj_bases:
-                g[obj.get_name(self._schema)]['deps'].extend(
-                    b.get_name(self._schema)
-                    for b in obj_bases.objects(self._schema))
-
-                for base in obj_bases.objects(self._schema):
-                    base_name = base.get_name(self._schema)
-                    if base_name.module != obj.get_name(self._schema).module:
-                        g[base_name] = {'item': base, 'merge': [], 'deps': []}
-
-        if not g:
-            return ordered.OrderedSet()
-
-        item = next(iter(g.values()))['item']
-        modname = item.get_name(self._schema).module
-        objs = topological.sort(g)
-        return ordered.OrderedSet(filter(
-            lambda obj: getattr(obj.get_name(self._schema), 'module', None) ==
-            modname, objs))
 
     def _get_ref_name(self, ref):
         if isinstance(ref, edgeql.ast.ObjectRef):
@@ -796,7 +762,7 @@ def load_module_declarations(schema, declarations):
     loader = DeclarationLoader(schema)
 
     for module_name, decl_ast in declarations:
-        loader.load_module(module_name, decl_ast)
+        schema = loader.load_module(module_name, decl_ast)
 
     return schema
 
@@ -807,6 +773,6 @@ def parse_module_declarations(schema, declarations):
 
     for module_name, declaration in declarations:
         decl_ast = s_parser.parse(declaration)
-        loader.load_module(module_name, decl_ast)
+        schema = loader.load_module(module_name, decl_ast)
 
     return schema

@@ -139,12 +139,6 @@ class CreateInheritingObject(named.CreateNamedObject, InheritingObjectCommand):
 
         return bases
 
-    def _create_finalize(self, schema, context):
-        schema = super()._create_finalize(schema, context)
-        for base in self.scls.get_bases(schema).objects(schema):
-            schema = schema.drop_inheritance_cache(base)
-        return schema
-
 
 class AlterInheritingObject(named.AlterNamedObject, InheritingObjectCommand):
     def _alter_begin(self, schema, context, scls):
@@ -159,12 +153,7 @@ class AlterInheritingObject(named.AlterNamedObject, InheritingObjectCommand):
 
 
 class DeleteInheritingObject(named.DeleteNamedObject, InheritingObjectCommand):
-    def _delete_finalize(self, schema, context, scls):
-        bases = scls.get_bases(schema).objects(schema)
-        schema = super()._delete_finalize(schema, context, scls)
-        for base in bases:
-            schema = schema.drop_inheritance_cache(base)
-        return schema
+    pass
 
 
 class RebaseNamedObject(named.NamedObjectCommand):
@@ -356,12 +345,6 @@ class InheritingObject(derivable.DerivableObject):
     is_virtual = so.SchemaField(
         bool,
         default=False, compcoef=0.5)
-
-    def merge(self, *objs, schema, dctx=None):
-        schema = super().merge(*objs, schema=schema, dctx=dctx)
-        for obj in objs:
-            schema = schema.drop_inheritance_cache(obj)
-        return schema
 
     @classmethod
     def delta(cls, old, new, *, context, old_schema, new_schema):

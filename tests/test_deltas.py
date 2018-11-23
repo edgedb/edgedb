@@ -343,8 +343,8 @@ test::a -> array<std::int64>;
         self._assert_result(
             result[1],
             '''\
-            CREATE ABSTRACT PROPERTY test::bar;
             CREATE ABSTRACT PROPERTY test::__typename;
+            CREATE ABSTRACT PROPERTY test::bar;
             CREATE ABSTRACT TYPE test::Foo EXTENDING std::Object;
             ALTER TYPE test::Foo {
                 CREATE SINGLE PROPERTY test::bar -> std::str;
@@ -373,8 +373,8 @@ test::a -> array<std::int64>;
         self._assert_result(
             result[1],
             '''\
-            CREATE ABSTRACT PROPERTY test::bar;
             CREATE ABSTRACT PROPERTY test::__typename;
+            CREATE ABSTRACT PROPERTY test::bar;
             CREATE ABSTRACT TYPE test::Foo EXTENDING std::Object;
             ALTER TYPE test::Foo {
                 CREATE SINGLE PROPERTY test::bar -> std::str;

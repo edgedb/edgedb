@@ -34,6 +34,7 @@ RUNTIME_DEPS = [
     'asyncpg',
     'click',
     'graphql-core',
+    'immutables>=0.7',
     'Parsing',
     'prompt_toolkit>=1.0.15,<2.0.0',
     'pygments',

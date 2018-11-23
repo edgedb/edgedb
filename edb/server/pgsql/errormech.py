@@ -20,6 +20,7 @@
 import collections
 import json
 import re
+import uuid
 
 import asyncpg
 
@@ -66,7 +67,6 @@ class ErrorMech:
                 return edgedb_error.EdgeDBBackendError(err.message)
 
         elif isinstance(err, asyncpg.IntegrityConstraintViolationError):
-            connection = intro_mech.connection
             schema = intro_mech.schema
             source = pointer = None
 
@@ -123,14 +123,17 @@ class ErrorMech:
                     err.message, detail=err.detail)
 
             elif error_type == 'constraint':
-                constraint_name = \
-                    await constr_mech.constraint_name_from_pg_name(
-                        connection, err.constraint_name)
-
-                if constraint_name is None:
+                if err.constraint_name is None:
                     return edgedb_error.EdgeDBBackendError(err.message)
 
-                constraint = schema.get(constraint_name)
+                constraint_id, _, _ = err.constraint_name.rpartition(';')
+
+                try:
+                    constraint_id = uuid.UUID(constraint_id)
+                except ValueError:
+                    return edgedb_error.EdgeDBBackendError(err.message)
+
+                constraint = schema.get_by_id(constraint_id)
 
                 return edgedb_error.ConstraintViolationError(
                     constraint.format_error_message(schema))

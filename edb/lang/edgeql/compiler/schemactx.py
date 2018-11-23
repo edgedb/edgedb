@@ -191,7 +191,7 @@ def derive_view_name(
     if ctx.derived_target_module:
         derived_name_module = ctx.derived_target_module
     else:
-        derived_name_module = '__view__'
+        derived_name_module = '__derived__'
 
     derived_sname = stype.get_specialized_name(
         derived_name_base, *derived_name_quals)

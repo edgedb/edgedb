@@ -144,6 +144,6 @@ class Environment:
         self.root_rels = set()
         self.rel_overlays = collections.defaultdict(list)
         self.output_format = output_format
-        self.schema = schema.get_overlay()
+        self.schema = schema
         self.tuple_formats = {}
         self.use_named_params = use_named_params

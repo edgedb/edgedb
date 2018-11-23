@@ -30,6 +30,7 @@ from edb.lang.edgeql import errors
 from edb.lang.ir import ast as irast
 
 from edb.lang.schema import functions as s_func
+from edb.lang.schema import modules as s_mod
 from edb.lang.schema import name as s_name
 from edb.lang.schema import objects as s_obj
 from edb.lang.schema import pointers as s_pointers
@@ -61,8 +62,9 @@ def init_context(
         context.ContextLevel:
     stack = context.CompilerContext()
     ctx = stack.current
+    schema, _ = s_mod.Module.create_in_schema(schema, name='__derived__')
     ctx.env = context.Environment(
-        schema=schema.get_overlay(extra=ctx.view_nodes),
+        schema=schema,
         path_scope=irast.new_scope_tree())
 
     if singletons:
@@ -282,10 +284,10 @@ def declare_view(
             if isinstance(alias, s_name.SchemaName):
                 basename = alias
             else:
-                basename = s_name.SchemaName(module='__view__', name=alias)
+                basename = s_name.SchemaName(module='__derived__', name=alias)
 
             view_name = s_name.SchemaName(
-                module=ctx.derived_target_module or '_',
+                module=ctx.derived_target_module or '__derived__',
                 name=s_obj.NamedObject.get_specialized_name(
                     basename,
                     ctx.aliases.get('w')

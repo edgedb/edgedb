@@ -351,7 +351,7 @@ class CreateReferencedInheritingObject(inheriting.CreateInheritingObject):
 class ReferencingObject(inheriting.InheritingObject,
                         metaclass=ReferencingObjectMeta):
 
-    def copy_with(self, schema, updates, *, _nameless=False):
+    def copy_with(self, schema, updates):
         for refdict in self.__class__.get_refdicts():
             attr = refdict.attr
             local_attr = refdict.local_attr
@@ -378,9 +378,7 @@ class ReferencingObject(inheriting.InheritingObject,
             else:
                 updates[local_attr] = local_coll
 
-        schema, result = super().copy_with(
-            schema, updates, _nameless=_nameless)
-        return schema, result
+        return super().copy_with(schema, updates)
 
     def merge(self, *objs, schema, dctx=None):
         schema = super().merge(*objs, schema=schema, dctx=None)
@@ -667,7 +665,7 @@ class ReferencingObject(inheriting.InheritingObject,
                 # decision to the referenced class here.
                 schema, merged = classrefcls.inherit_pure(
                     schema, item, source=self, dctx=dctx)
-                pure_inheritance = merged is item
+                pure_inheritance = merged == item
 
             else:
                 # Not inherited

@@ -82,7 +82,7 @@ def load_std_schema(
         schema = s_schema.Schema()
 
     for modname in STD_MODULES:
-        load_std_module(schema, modname)
+        schema = load_std_module(schema, modname)
 
     return schema
 

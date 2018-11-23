@@ -17,8 +17,9 @@
 #
 
 
-import collections
 import typing
+
+import immutables as immu
 
 from . import error as s_err
 from . import modules as s_modules
@@ -31,16 +32,52 @@ _void = object()
 class Schema:
 
     def __init__(self):
-        self._modules = {}
-        self._deltas = {}
+        self._modules = immu.Map()
+        self._deltas = immu.Map()
 
-        self._inheritance_cache = {}
-        self._garbage = set()
-        self._nameless_ids = {}
+        self._garbage = immu.Map()
 
-        self._id_to_data = {}
-        self._id_to_type = {}
-        self._name_to_id = {}
+        self._id_to_data = immu.Map()
+        self._id_to_type = immu.Map()
+        self._name_to_id = immu.Map()
+
+    def _replace(self, *, modules=None, deltas=None,
+                 id_to_data=None, id_to_type=None,
+                 name_to_id=None, garbage=None):
+
+        new = Schema.__new__(Schema)
+
+        if modules is None:
+            new._modules = self._modules
+        else:
+            new._modules = modules
+
+        if deltas is None:
+            new._deltas = self._deltas
+        else:
+            new._deltas = deltas
+
+        if id_to_data is None:
+            new._id_to_data = self._id_to_data
+        else:
+            new._id_to_data = id_to_data
+
+        if id_to_type is None:
+            new._id_to_type = self._id_to_type
+        else:
+            new._id_to_type = id_to_type
+
+        if name_to_id is None:
+            new._name_to_id = self._name_to_id
+        else:
+            new._name_to_id = name_to_id
+
+        if garbage is None:
+            new._garbage = self._garbage
+        else:
+            new._garbage = garbage
+
+        return new
 
     def _get_obj_field(self, obj_id, field):
         try:
@@ -52,26 +89,38 @@ class Schema:
 
     def _set_obj_field(self, obj_id, field, value):
         try:
-            d = self._id_to_data[obj_id]
+            data = self._id_to_data[obj_id]
         except KeyError:
-            d = self._id_to_data[obj_id] = {}
+            data = immu.Map()
 
-        if field == 'name' and obj_id not in self._nameless_ids:
-            oldname = d['name']
-            self._name_to_id.pop(oldname)
-            self._name_to_id[value] = obj_id
+        name_to_id = None
+        if field == 'name':
+            old_name = data.get('name')
 
-        d[field] = value
-        return self
+            name_to_id = self._name_to_id
+            if old_name is not None:
+                name_to_id = name_to_id.delete(old_name)
+
+            name_to_id = name_to_id.set(value, obj_id)
+
+        data = data.set(field, value)
+        id_to_data = self._id_to_data.set(obj_id, data)
+
+        return self._replace(name_to_id=name_to_id, id_to_data=id_to_data)
 
     def _unset_obj_field(self, obj_id, field):
         try:
-            d = self._id_to_data[obj_id]
+            data = self._id_to_data[obj_id]
         except KeyError:
-            return
+            return self
 
-        d.pop(field, None)
-        return self
+        try:
+            data = data.delete(field)
+        except KeyError:
+            return self
+
+        id_to_data = self._id_to_data.set(obj_id, data)
+        return self._replace(id_to_data=id_to_data)
 
     def get_module(self, module):
         obj_id = self._modules.get(module)
@@ -95,9 +144,10 @@ class Schema:
         else:
             module_name = mod.get_name(self)
 
-        mod_id = self._modules.pop(module_name)
-        self._id_to_data.pop(mod_id, None)
-        return self
+        mod_id = self._modules[module_name]
+        modules = self._modules.delete(module_name)
+        id_to_data = self._id_to_data.delete(mod_id)
+        return self._replace(modules=modules, id_to_data=id_to_data)
 
     def get_delta(self, name):
         from . import deltas as s_deltas
@@ -115,75 +165,76 @@ class Schema:
         else:
             delta_name = delta.get_name(self)
 
-        delta_id = self._deltas.pop(delta_name)
-        self._id_to_data.pop(delta_id, None)
+        delta_id = self._deltas[delta_name]
+        deltas = self._deltas.delete(delta_name)
+        id_to_data = self._id_to_data.delete(delta_id)
+        return self._replace(deltas=deltas, id_to_data=id_to_data)
 
-        return self
-
-    def _add(self, id, scls, data, *, _nameless=False) -> 'Schema':
+    def _add(self, id, scls, data) -> 'Schema':
         from . import deltas as s_deltas
 
-        if _nameless:
-            self._nameless_ids[id] = True
-
-        self._id_to_data[id] = data
-        self._id_to_type[id] = scls
-
+        name_to_id = None
         name = data['name']
+        data = immu.Map(data)
+
+        id_to_data = self._id_to_data.set(id, data)
+        id_to_type = self._id_to_type.set(id, scls)
 
         if isinstance(scls, s_modules.Module):
-            self._modules[name] = id
-            return self
+            return self._replace(
+                id_to_data=id_to_data,
+                id_to_type=id_to_type,
+                name_to_id=name_to_id,
+                modules=self._modules.set(name, id)
+            )
+
         elif isinstance(scls, s_deltas.Delta):
-            self._deltas[name] = id
-            return self
-
-        if not _nameless:
-            try:
-                self._modules[name.module]
-            except KeyError:
-                raise s_err.SchemaModuleNotFoundError(
-                    f'module {name.module!r} is not in this schema') from None
-
-            if name in self._name_to_id:
-                err = f'{name!r} is already present in the schema {self!r}'
-                raise s_err.SchemaError(err)
-
-            self._name_to_id[name] = id
-
-        return self
-
-    def mark_as_garbage(self, obj) -> 'Schema':
-        self._garbage.add(obj.id)
-        self._name_to_id.pop(obj.get_name(self), None)
-        return self
-
-    def discard(self, obj) -> 'Schema':
-        self._name_to_id.pop(obj.get_name(self), None)
-        self._id_to_data.pop(obj.id, None)
-
-        if obj.id in self._nameless_ids:
-            del self._nameless_ids[obj.id]
-            return self
-
-        return self
-
-    def delete(self, obj) -> 'Schema':
-        data = self._id_to_data.pop(obj.id, None)
-        self._name_to_id.pop(data['name'], None)
-
-        if obj.id in self._nameless_ids:
-            del self._nameless_ids[obj.id]
-            return self
+            return self._replace(
+                id_to_data=id_to_data,
+                id_to_type=id_to_type,
+                name_to_id=name_to_id,
+                deltas=self._deltas.set(name, id)
+            )
 
         try:
-            self._modules[data['name'].module]
+            self._modules[name.module]
         except KeyError:
             raise s_err.SchemaModuleNotFoundError(
-                f'module {data["name"].module} '
+                f'module {name.module!r} is not in this schema') from None
+
+        if name in self._name_to_id:
+            err = f'{name!r} is already present in the schema {self!r}'
+            raise s_err.SchemaError(err)
+
+        name_to_id = self._name_to_id.set(name, id)
+
+        return self._replace(
+            id_to_data=id_to_data,
+            id_to_type=id_to_type,
+            name_to_id=name_to_id,
+        )
+
+    def discard(self, obj) -> 'Schema':
+        name = self._id_to_data[obj.id]['name']
+
+        name_to_id = self._name_to_id.delete(name)
+        id_to_data = self._id_to_data.delete(obj.id)
+
+        return self._replace(
+            name_to_id=name_to_id,
+            id_to_data=id_to_data,
+        )
+
+    def delete(self, obj) -> 'Schema':
+        name = self._id_to_data[obj.id]['name']
+        try:
+            self._modules[name.module]
+        except KeyError:
+            raise s_err.SchemaModuleNotFoundError(
+                f'module {name.module} '
                 f'is not in this schema') from None
 
-        return self
+        return self.discard(obj)
 
     def _resolve_module(self, module_name) -> typing.List[s_modules.Module]:
         modules = []
@@ -228,8 +279,7 @@ class Schema:
             ret = []
             for obj_id, obj in schema._id_to_type.items():
                 if (isinstance(obj, s_func.Function) and
-                        obj.get_shortname(schema) == name and
-                        obj.id not in schema._nameless_ids):
+                        obj.get_shortname(schema) == name):
                     ret.append(obj)
             if ret:
                 return ret
@@ -252,8 +302,7 @@ class Schema:
             ret = []
             for obj_id, obj in schema._id_to_type.items():
                 if (isinstance(obj, s_oper.Operator) and
-                        obj.get_shortname(schema) == name and
-                        obj.id not in schema._nameless_ids):
+                        obj.get_shortname(schema) == name):
                     ret.append(obj)
             if ret:
                 return ret
@@ -317,30 +366,13 @@ class Schema:
     def has_module(self, module):
         return module in self._modules
 
-    def drop_inheritance_cache(self, scls) -> 'Schema':
-        self._inheritance_cache.pop(scls.get_name(self), None)
-        return self
-
-    def drop_inheritance_cache_for_child(self, scls) -> 'Schema':
-        bases = scls.get_bases(self)
-
-        for base in bases.objects(self):
-            self._inheritance_cache.pop(base.get_name(self), None)
-
-        return self
-
     def _get_descendants(self, scls, *, max_depth=None, depth=0):
         result = set()
 
         _virtual_children = scls.get__virtual_children(self)
 
         if _virtual_children is None:
-            try:
-                child_names = self._inheritance_cache[scls.get_name(self)]
-                raise KeyError
-            except KeyError:
-                child_names = self._find_children(scls)
-                self._inheritance_cache[scls.get_name(self)] = child_names
+            child_names = self._find_children(scls)
         else:
             child_names = [c.material_type(self).get_name(self)
                            for c in _virtual_children.objects(self)]
@@ -363,8 +395,15 @@ class Schema:
     def get_objects(self, *, modules=None, type=None):
         return SchemaIterator(self, modules=modules, type=type)
 
-    def get_overlay(self, extra=None):
-        return SchemaOverlay(self, extra=extra)
+    def mark_as_garbage(self, obj) -> 'Schema':
+        garbage = self._garbage.set(obj.id, True)
+
+        name = obj.get_name(self)
+        name_to_id = self._name_to_id
+        if name in self._name_to_id:
+            name_to_id = name_to_id.delete(name)
+
+        return self._replace(garbage=garbage, name_to_id=name_to_id)
 
 
 class SchemaIterator:
@@ -376,7 +415,6 @@ class SchemaIterator:
 
         filters = [
             lambda obj:
-                obj.id not in schema._nameless_ids and
                 obj.id not in schema._garbage
         ]
 
@@ -400,98 +438,3 @@ class SchemaIterator:
                 continue
             if all(f(obj) for f in filters):
                 yield obj
-
-
-class SchemaOverlay(Schema):
-    def __init__(self, schema, extra=None):
-        self.schema = schema
-        self.local_modules = {}
-        self._modules = collections.ChainMap(self.local_modules,
-                                             schema._modules)
-        self._deltas = {}
-
-        self._local_id_to_data = {}
-        self._id_to_data = collections.ChainMap(self._local_id_to_data,
-                                                schema._id_to_data)
-        self._local_id_to_type = {}
-        self._id_to_type = collections.ChainMap(self._local_id_to_type,
-                                                schema._id_to_type)
-
-        self._name_to_id = {}
-        self._garbage = set()
-        self._local_ic = {}
-        self._inheritance_cache = collections.ChainMap(
-            self._local_ic, schema._inheritance_cache)
-        self._local_nameless_ids = dict()
-        self._nameless_ids = collections.ChainMap(
-            self._local_nameless_ids, schema._nameless_ids)
-
-        if extra:
-            for n, v in extra.items():
-                self._add(n, v)
-
-    def _get_obj_field(self, obj_id, field):
-        try:
-            d = self._local_id_to_data[obj_id]
-        except KeyError:
-            pass
-        else:
-            val = d.get(field)
-            if val is not None:
-                if val is ...:
-                    return None
-                else:
-                    return val
-
-        return self.schema._get_obj_field(obj_id, field)
-
-    def _set_obj_field(self, obj_id, field, value):
-        try:
-            d = self._local_id_to_data[obj_id]
-        except KeyError:
-            d = self._local_id_to_data[obj_id] = {}
-
-        d[field] = value
-        return self
-
-    def _unset_obj_field(self, obj_id, field):
-        try:
-            d = self._local_id_to_data[obj_id]
-        except KeyError:
-            d = self._local_id_to_data[obj_id] = {}
-
-        d[field] = ...
-        return self
-
-    def has_module(self, module):
-        return module in self._modules
-
-    def get_modules(self):
-        yield from self.local_modules.values()
-        yield from self.schema.get_modules()
-
-    def _add(self, id, scls, data, *, _nameless=False):
-        if not _nameless:
-            name = data['name']
-
-            if isinstance(scls, s_modules.Module):
-                self.local_modules[name] = id
-                return self
-
-            if name.module not in self.local_modules:
-                s_modules.Module.create_in_schema(
-                    self,
-                    name=name.module)
-
-        return super()._add(id, scls, data, _nameless=_nameless)
-
-    def _resolve_module(self, module_name) -> typing.List[s_modules.Module]:
-        modules = []
-
-        if module_name is not None:
-            if module_name in self.local_modules:
-                modules.append((self, module_name))
-
-            modules.extend(self.schema._resolve_module(module_name))
-
-        return modules

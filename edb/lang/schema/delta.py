@@ -53,10 +53,11 @@ def delta_schemas(schema1, schema2):
     global_dels = []
 
     for type in s_ordering.get_global_dep_order():
-        o1 = schema1.get_objects(type=type)
-        new = ordered.OrderedIndex(o1, key=lambda o: o.get_name(schema1))
-        o2 = schema2.get_objects(type=type)
-        old = ordered.OrderedIndex(o2, key=lambda o: o.get_name(schema2))
+        new = s_ordering.sort_objects(
+            schema1, schema1.get_objects(type=type))
+
+        old = s_ordering.sort_objects(
+            schema2, schema2.get_objects(type=type))
 
         if issubclass(type, derivable.DerivableObject):
             new = filter(lambda i: i.generic(schema1), new)
@@ -102,16 +103,14 @@ def delta_module(schema1, schema2, modname):
         result.add(create)
 
     for type in s_ordering.get_global_dep_order():
-        new = ordered.OrderedIndex(
-            schema1.get_objects(modules=[modname], type=type),
-            key=lambda o: o.get_name(schema1))
+        new = s_ordering.sort_objects(
+            schema1, schema1.get_objects(modules=[modname], type=type))
 
         if module2 is not None:
-            old = ordered.OrderedIndex(
-                schema2.get_objects(modules=[modname], type=type),
-                key=lambda o: o.get_name(schema2))
+            old = s_ordering.sort_objects(
+                schema2, schema2.get_objects(modules=[modname], type=type))
         else:
-            old = ordered.OrderedIndex(key=lambda o: o.get_name(schema2))
+            old = set()
 
         if issubclass(type, derivable.DerivableObject):
             new = filter(lambda i: i.generic(schema1), new)
@@ -579,10 +578,6 @@ class ObjectCommandContext(CommandContextToken):
         super().__init__(op)
         self.scls = scls
         self.original_schema = schema
-        if scls is not None:
-            _, self.original_class = scls.temp_copy(schema)
-        else:
-            self.original_class = None
 
 
 class CreateObject(ObjectCommand):

@@ -115,7 +115,6 @@ class IntrospectionMech:
 
     async def _init_introspection_cache(self):
         await self._type_mech.init_cache(self.connection)
-        await self._constr_mech.init_cache(self.connection)
         self.domain_to_scalar_map = await self._init_scalar_map_cache()
         # ObjectType map needed early for type filtering operations
         # in schema queries
@@ -722,9 +721,9 @@ class IntrospectionMech:
                 g[link.get_name(schema)]['merge'].extend(
                     b.get_name(schema) for b in link_bases)
 
-        topological.normalize(g, merger=s_links.Link.merge, schema=schema)
+        links = topological.sort(g)
 
-        for link in schema.get_objects(type=s_links.Link):
+        for link in links:
             schema = link.finalize(schema)
 
         return schema
@@ -816,10 +815,9 @@ class IntrospectionMech:
                 g[prop.get_name(schema)]['merge'].extend(
                     b.get_name(schema) for b in prop_bases)
 
-        topological.normalize(
-            g, merger=s_props.Property.merge, schema=schema)
+        props = topological.sort(g)
 
-        for prop in schema.get_objects(type=s_props.Property):
+        for prop in props:
             schema = prop.finalize(schema)
 
         return schema
@@ -972,10 +970,8 @@ class IntrospectionMech:
                 g[objtype.get_name(schema)]["merge"].extend(
                     b.get_name(schema) for b in objtype_bases)
 
-        topological.normalize(
-            g, merger=s_objtypes.ObjectType.merge, schema=schema)
-
-        for objtype in schema.get_objects(type=s_objtypes.BaseObjectType):
+        objtypes = topological.sort(g)
+        for objtype in objtypes:
             schema = objtype.finalize(schema)
 
         return schema

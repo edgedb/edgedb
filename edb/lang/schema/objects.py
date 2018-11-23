@@ -363,8 +363,7 @@ class Object(metaclass=ObjectMeta):
         return obj
 
     @classmethod
-    def _create_in_schema(cls, schema, *, id=None,
-                          _nameless=False, **data) -> 'Object':
+    def _create_in_schema(cls, schema, *, id=None, **data) -> 'Object':
         if not cls.is_schema_object:
             raise TypeError(f'{cls.__name__} type cannot be created in schema')
 
@@ -387,7 +386,7 @@ class Object(metaclass=ObjectMeta):
 
         id = cls._prepare_id(id, data)
         scls = cls._create_from_id(id)
-        schema = schema._add(id, scls, obj_data, _nameless=_nameless)
+        schema = schema._add(id, scls, obj_data)
 
         return schema, scls
 
@@ -575,7 +574,7 @@ class Object(metaclass=ObjectMeta):
 
         return schema
 
-    def copy_with(self, schema, updates: dict, *, _nameless=False):
+    def copy_with(self, schema, updates: dict):
         fields = type(self)._fields
 
         if updates.keys() - fields.keys():
@@ -597,11 +596,7 @@ class Object(metaclass=ObjectMeta):
                     continue
                 new[field_name] = val
 
-        return type(self).create_in_schema(schema, **new, _nameless=_nameless)
-
-    def temp_copy(self, schema):
-        new_id = uuidgen.uuid1mc()
-        return self.copy_with(schema, updates={'id': new_id}, _nameless=True)
+        return type(self).create_in_schema(schema, **new)
 
     def is_type(self):
         return False
@@ -1077,11 +1072,11 @@ class NamedObject(Object):
         str, default=None, compcoef=0.909, public=True)
 
     @classmethod
-    def create_in_schema(cls, schema, *, _nameless=False, **kwargs):
+    def create_in_schema(cls, schema, **kwargs):
         name = kwargs.get('name')
         if not name:
             raise RuntimeError(f'cannot create {cls} without a name')
-        return cls._create_in_schema(schema, _nameless=_nameless, **kwargs)
+        return cls._create_in_schema(schema, **kwargs)
 
     @classmethod
     def mangle_name(cls, name) -> str:

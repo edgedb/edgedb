@@ -53,7 +53,7 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
     def setUpClass(cls):
         super().setUpClass()
         cls.schema = s_std.load_std_schema()
-        s_decl.parse_module_declarations(
+        cls.schema = s_decl.parse_module_declarations(
             cls.schema, [('test', cls.SCHEMA)])
 
     def _assert_normalize_expr(self, text, expected,

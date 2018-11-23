@@ -697,27 +697,9 @@ class CreateConstraint(
 class RenameConstraint(
         ConstraintCommand, RenameNamedObject,
         adapts=s_constr.RenameConstraint):
-    def apply(self, schema, context):
-        constr_ctx = context.get(s_constr.ConstraintCommandContext)
-        assert constr_ctx
-        orig_constraint = constr_ctx.original_class
-        schemac_to_backendc = \
-            schemamech.ConstraintMech.schema_constraint_to_backend_constraint
-        orig_bconstr = schemac_to_backendc(
-            orig_constraint.get_subject(schema), orig_constraint, schema)
-
-        schema, constraint = super().apply(schema, context)
-
-        subject = constraint.get_subject(schema)
-
-        if subject is not None:
-            bconstr = schemac_to_backendc(subject, constraint, schema)
-
-            op = dbops.CommandGroup(priority=1)
-            op.add_command(bconstr.rename_ops(orig_bconstr))
-            self.pgops.add(op)
-
-        return schema, constraint
+    # Constraints are created using the ID in the backend,
+    # so there is nothing special we need to do here.
+    pass
 
 
 class AlterConstraint(
@@ -729,6 +711,13 @@ class AlterConstraint(
         subject = constraint.get_subject(schema)
         ctx = context.get(s_constr.ConstraintCommandContext)
 
+        subcommands = list(self.get_subcommands())
+        if (not subcommands or
+                isinstance(subcommands[0], s_constr.RenameConstraint)):
+            # This is a pure rename, so everything had been handled by
+            # RenameConstraint above.
+            return schema
+
         if subject is not None:
             schemac_to_backendc = \
                 schemamech.ConstraintMech.\
@@ -736,9 +725,10 @@ class AlterConstraint(
 
             bconstr = schemac_to_backendc(subject, constraint, schema)
 
-            orig_constraint = ctx.original_class
+            orig_schema = ctx.original_schema
             orig_bconstr = schemac_to_backendc(
-                orig_constraint.get_subject(schema), orig_constraint, schema)
+                constraint.get_subject(orig_schema),
+                constraint, orig_schema)
 
             op = dbops.CommandGroup(priority=1)
             op.add_command(bconstr.alter_ops(orig_bconstr))
@@ -947,8 +937,8 @@ class RebaseScalarType(ScalarTypeMetaCommand,
 
 class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
     def apply(self, schema, context=None):
+        orig_schema = schema
         table = self.get_table(schema)
-        schema, old_scalar = schema.get(self.classname).temp_copy(schema)
         schema, new_scalar = s_scalars.AlterScalarType.apply(
             self, schema, context)
         schema, _ = ScalarTypeMetaCommand.apply(self, schema, context)
@@ -962,16 +952,17 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                     table=table, record=updaterec, condition=condition))
 
         self.alter_scalar(
-            self, schema, context, old_scalar, new_scalar, updates=updates)
+            self, schema, orig_schema,
+            context, new_scalar, updates=updates)
 
         return schema, new_scalar
 
     @classmethod
     def alter_scalar(
-            cls, op, schema, context, old_scalar, new_scalar, in_place=True,
+            cls, op, schema, orig_schema, context, new_scalar, in_place=True,
             updates=None):
 
-        old_base = types.get_scalar_base(schema, old_scalar)
+        old_base = types.get_scalar_base(orig_schema, new_scalar)
         base = types.get_scalar_base(schema, new_scalar)
 
         domain_name = common.scalar_name_to_domain_name(
@@ -1160,13 +1151,13 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
 
         return source, pointer
 
-    def adjust_pointer_storage(self, orig_pointer, pointer, schema, context):
+    def adjust_pointer_storage(self, pointer, schema, orig_schema, context):
         old_ptr_stor_info = types.get_pointer_storage_info(
-            orig_pointer, schema=schema)
+            pointer, schema=orig_schema)
         new_ptr_stor_info = types.get_pointer_storage_info(
             pointer, schema=schema)
 
-        old_target = orig_pointer.get_target(schema)
+        old_target = pointer.get_target(orig_schema)
         new_target = pointer.get_target(schema)
 
         source_ctx = context.get(s_objtypes.ObjectTypeCommandContext)
@@ -1214,7 +1205,7 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
                         (dbops.AlterTableAddColumn(newcol), None, (cond, )))
                 else:
                     otabname = common.get_table_name(
-                        schema, orig_pointer, catenate=False)
+                        orig_schema, pointer, catenate=False)
                     pat = self.get_alter_table(
                         schema, context, manual=True, table_name=otabname)
 
@@ -1257,20 +1248,24 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
                             common.qname(*new_type))
                         alter_table.add_operation(alter_type)
 
-    def apply_base_delta(self, orig_source, source, schema, context):
+    def apply_base_delta(
+            self, source, orig_schema, schema, context):
         db_ctx = context.get(s_db.DatabaseCommandContext)
-        schema = orig_source.set_field_value(
-            schema, 'bases',
-            [db_ctx.op._renames.get(b, b)
-             for b in orig_source.get_bases(schema).objects(schema)]
-        )
+        renames = db_ctx.op._renames
 
-        orig_bases = {b.get_name(schema)
-                      for b in orig_source.get_bases(schema).objects(schema)}
-        new_bases = {b.get_name(schema)
-                     for b in source.get_bases(schema).objects(schema)}
+        orig_bases = [
+            b.get_name(orig_schema)
+            for b in source.get_bases(orig_schema).objects(orig_schema)
+        ]
 
-        dropped_bases = orig_bases - new_bases
+        orig_bases = [renames.get(b, b) for b in orig_bases]
+
+        new_bases = [
+            b.get_name(schema)
+            for b in source.get_bases(schema).objects(schema)
+        ]
+
+        dropped_bases = set(orig_bases) - set(new_bases)
 
         if isinstance(source, s_objtypes.ObjectType):
             nameconv = common.objtype_name_to_table_name
@@ -1287,9 +1282,6 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
         if (isinstance(source, s_objtypes.ObjectType) or
                 source_ctx.op.has_table(source, schema)):
 
-            schema = source.acquire_ancestor_inheritance(schema)
-            schema = orig_source.acquire_ancestor_inheritance(schema)
-
             created_ptrs = set()
             for ptr in source_ctx.op.get_subcommands(type=ptr_cmd):
                 created_ptrs.add(ptr.classname)
@@ -1303,7 +1295,7 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
 
             added_inh_ptrs = inherited_aptrs - {
                 p.get_shortname(schema)
-                for p in orig_source.get_pointers(schema).objects(schema)
+                for p in source.get_pointers(orig_schema).objects(orig_schema)
             }
 
             ptrs = source.get_pointers(schema)
@@ -1340,7 +1332,7 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
                         parent_name=parent_table_name)
                     alter_table_drop_parent.add_operation(op)
 
-                orig_ptrs = orig_source.get_pointers(schema)
+                orig_ptrs = source.get_pointers(orig_schema)
                 dropped_ptrs = (
                     set(orig_ptrs.shortnames(schema)) -
                     set(ptrs.shortnames(schema))
@@ -1374,14 +1366,7 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
                             alter_table_drop_ptr.add_command(
                                 (op, (cond, ), ()))
 
-            current_bases = [
-                b.get_name(schema)
-                for b in orig_source.get_bases(schema).objects(schema)
-                if b.get_name(schema) not in dropped_bases
-            ]
-
-            new_bases = [b.get_name(schema)
-                         for b in source.get_bases(schema).objects(schema)]
+            current_bases = [b for b in orig_bases if b not in dropped_bases]
 
             unchanged_order = list(
                 itertools.takewhile(
@@ -1469,13 +1454,13 @@ class RenameSourceIndex(SourceIndexCommand, RenameNamedObject,
         if not subject:
             subject = context.get(s_objtypes.ObjectTypeCommandContext)
         orig_table_name = common.get_table_name(
-            schema, subject.original_class, catenate=False)
+            subject.original_schema, index, catenate=False)
 
         index_ctx = context.get(s_indexes.SourceIndexCommandContext)
         new_index_name = '{}_reg_idx'.format(index.get_name(schema))
 
-        orig_idx = index_ctx.original_class
-        orig_idx_name = '{}_reg_idx'.format(orig_idx.get_name(schema))
+        orig_schema = index_ctx.original_schema
+        orig_idx_name = '{}_reg_idx'.format(index.get_name(orig_schema))
         orig_pg_idx = dbops.Index(
             name=orig_idx_name, table_name=orig_table_name, inherit=True,
             metadata={'schemaname': index.get_name(schema)})
@@ -1636,7 +1621,8 @@ class RenameObjectType(ObjectTypeMetaCommand,
         db_ctx = context.get(s_db.DatabaseCommandContext)
         assert db_ctx
 
-        db_ctx.op._renames[objtype.original_class] = scls
+        orig_name = scls.get_name(objtype.original_schema)
+        db_ctx.op._renames[orig_name] = scls.get_name(schema)
 
         objtype.op.attach_alter_table(context)
 
@@ -1679,9 +1665,9 @@ class RebaseObjectType(ObjectTypeMetaCommand,
         if self.has_table(result, schema):
             objtype_ctx = context.get(s_objtypes.ObjectTypeCommandContext)
             source = objtype_ctx.scls
-            orig_source = objtype_ctx.original_class
+            orig_schema = objtype_ctx.original_schema
             schema = self.apply_base_delta(
-                orig_source, source, schema, context)
+                source, orig_schema, schema, context)
 
         return schema, result
 
@@ -1753,7 +1739,9 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             if objtype:
                 return objtype
 
-    def record_metadata(self, pointer, old_pointer, schema, context):
+    def record_metadata(self, pointer, schema, orig_schema, context):
+        old_pointer = orig_schema.get_by_id(pointer.id, None)
+
         rec, updates = self.fill_record(
             schema, use_defaults=old_pointer is None)
 
@@ -1772,7 +1760,8 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
         return rec, updates
 
     def alter_host_table_column(
-            self, old_ptr, ptr, schema, context, old_type, new_type):
+            self, ptr, schema, orig_schema,
+            context, old_type, new_type):
 
         dropped_scalar = None
 
@@ -1789,7 +1778,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             elif isinstance(op, s_scalars.DeleteScalarType):
                 if op.classname == old_type:
                     # The former target scalar might as well have been dropped
-                    dropped_scalar = op.old_class
+                    dropped_scalar = orig_schema.get(op.classname)
 
         old_target = schema.get(old_type, dropped_scalar)
         assert old_target
@@ -2094,6 +2083,7 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
     def apply(self, schema, context=None):
         # Need to do this early, since potential table alters triggered by
         # sub-commands need this.
+        orig_schema = schema
         schema, link = s_links.CreateLink.apply(self, schema, context)
         self.table_name = common.get_table_name(schema, link, catenate=False)
         schema, _ = LinkMetaCommand.apply(self, schema, context)
@@ -2112,7 +2102,7 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
         self.provide_table(link, schema, context)
 
         objtype = context.get(s_objtypes.ObjectTypeCommandContext)
-        rec, updates = self.record_metadata(link, None, schema, context)
+        rec, updates = self.record_metadata(link, schema, orig_schema, context)
         self.updates = updates
 
         if not link.generic(schema):
@@ -2192,25 +2182,24 @@ class RebaseLink(LinkMetaCommand, adapts=s_links.RebaseLink):
         link_ctx = context.get(s_links.LinkCommandContext)
         source = link_ctx.scls
 
-        orig_source = link_ctx.original_class
-
         if self.has_table(source, schema):
+            orig_schema = link_ctx.original_schema
             schema = self.apply_base_delta(
-                orig_source, source, schema, context)
+                source, orig_schema, schema, context)
 
         return schema, result
 
 
 class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
     def apply(self, schema, context=None):
-        schema, old_link = schema.get(self.classname).temp_copy(schema)
-        self.old_link = old_link
+        orig_schema = schema
         schema, link = s_links.AlterLink.apply(self, schema, context)
         schema, _ = LinkMetaCommand.apply(self, schema, context)
 
-        with context(s_links.LinkCommandContext(schema, self, link)):
+        with context(s_links.LinkCommandContext(schema, self, link)) as ctx:
+            ctx.original_schema = orig_schema
             rec, updates = self.record_metadata(
-                link, old_link, schema, context)
+                link, schema, orig_schema, context)
             self.updates = updates
 
             self.provide_table(link, schema, context)
@@ -2237,15 +2226,15 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
             self.attach_alter_table(context)
 
             if not link.generic(schema):
-                self.adjust_pointer_storage(old_link, link, schema, context)
+                self.adjust_pointer_storage(link, schema, orig_schema, context)
 
                 old_ptr_stor_info = types.get_pointer_storage_info(
-                    old_link, schema=schema)
+                    link, schema=orig_schema)
                 ptr_stor_info = types.get_pointer_storage_info(
                     link, schema=schema)
 
                 link_required = link.get_required(schema)
-                old_link_required = self.old_link.get_required(schema)
+                old_link_required = link.get_required(orig_schema)
 
                 if (old_ptr_stor_info.table_type == 'ObjectType' and
                         ptr_stor_info.table_type == 'ObjectType' and
@@ -2414,6 +2403,7 @@ class PropertyMetaCommand(NamedObjectMetaCommand, PointerMetaCommand):
 
 class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
     def apply(self, schema, context):
+        orig_schema = schema
         schema, prop = s_props.CreateProperty.apply(self, schema, context)
         schema, _ = PropertyMetaCommand.apply(self, schema, context)
 
@@ -2422,7 +2412,8 @@ class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
         self.provide_table(prop, schema, context)
 
         with context(s_props.PropertyCommandContext(schema, self, prop)):
-            rec, updates = self.record_metadata(prop, None, schema, context)
+            rec, updates = self.record_metadata(
+                prop, schema, orig_schema, context)
             self.updates = updates
 
         if src and self.has_table(src.scls, schema):
@@ -2483,16 +2474,16 @@ class RenameProperty(
 class AlterProperty(
         PropertyMetaCommand, adapts=s_props.AlterProperty):
     def apply(self, schema, context=None):
-        metaclass = self.get_schema_metaclass()
-        schema, old_prop = \
-            schema.get(self.classname, type=metaclass).temp_copy(schema)
-        self.old_prop = old_prop
+        orig_schema = schema
         schema, prop = s_props.AlterProperty.apply(self, schema, context)
         schema, _ = PropertyMetaCommand.apply(self, schema, context)
 
-        with context(s_props.PropertyCommandContext(schema, self, prop)):
+        with context(
+                s_props.PropertyCommandContext(schema, self, prop)) as ctx:
+            ctx.original_schema = orig_schema
+
             rec, updates = self.record_metadata(
-                prop, old_prop, schema, context)
+                prop, schema, orig_schema, context)
             self.updates = updates
 
             self.provide_table(prop, schema, context)
@@ -2505,10 +2496,10 @@ class AlterProperty(
                         condition=[('id', prop.id)], priority=1))
 
             prop_target = prop.get_target(schema)
-            old_prop_target = self.old_prop.get_target(schema)
+            old_prop_target = prop.get_target(orig_schema)
 
             prop_required = prop.get_required(schema)
-            old_prop_required = self.old_prop.get_required(schema)
+            old_prop_required = prop.get_required(orig_schema)
 
             if (isinstance(prop_target, s_scalars.ScalarType) and
                     isinstance(old_prop_target, s_scalars.ScalarType) and
@@ -2544,7 +2535,7 @@ class AlterProperty(
 
             if new_type:
                 self.alter_host_table_column(
-                    old_prop, prop, schema, context, old_type, new_type)
+                    prop, schema, orig_schema, context, old_type, new_type)
 
             self.alter_pointer_default(prop, schema, context)
 

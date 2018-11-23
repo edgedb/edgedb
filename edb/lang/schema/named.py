@@ -183,9 +183,6 @@ class RenameNamedObject(NamedObjectCommand):
                                          self.classname, self.new_name)
 
     def _rename_begin(self, schema, context, scls):
-        schema = schema.drop_inheritance_cache(scls)
-        schema = schema.drop_inheritance_cache_for_child(scls)
-
         self.old_name = self.classname
         schema = scls.set_field_value(schema, 'name', self.new_name)
 
@@ -411,10 +408,7 @@ class AlterNamedObject(CreateOrAlterNamedObject, sd.AlterObject):
         scls = schema.get(self.classname, type=metaclass)
         self.scls = scls
 
-        with self.new_context(schema, context) as ctx:
-            ctx.original_schema = schema
-            _, ctx.original_class = scls.temp_copy(schema)
-
+        with self.new_context(schema, context):
             schema = self._alter_begin(schema, context, scls)
             schema = self._alter_innards(schema, context, scls)
             schema = self._alter_finalize(schema, context, scls)
@@ -437,11 +431,8 @@ class DeleteNamedObject(NamedObjectCommand, sd.DeleteObject):
         metaclass = self.get_schema_metaclass()
         scls = schema.get(self.classname, type=metaclass)
         self.scls = scls
-        self.old_class = scls
 
-        with self.new_context(schema, context) as ctx:
-            ctx.original_class = scls
-
+        with self.new_context(schema, context):
             schema = self._delete_begin(schema, context, scls)
             schema = self._delete_innards(schema, context, scls)
             schema = self._delete_finalize(schema, context, scls)

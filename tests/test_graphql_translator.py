@@ -85,7 +85,7 @@ class TranslatorTest(tb.BaseSyntaxTest, metaclass=BaseSchemaTestMeta):
         super().setUpClass()
         cls.schema = s_std.load_std_schema()
         cls.schema = s_std.load_graphql_schema(cls.schema)
-        s_decl.parse_module_declarations(cls.schema, cls._decls)
+        cls.schema = s_decl.parse_module_declarations(cls.schema, cls._decls)
 
     def run_test(self, *, source, spec, expected=None):
         debug = bool(os.environ.get('DEBUG_GRAPHQL'))
