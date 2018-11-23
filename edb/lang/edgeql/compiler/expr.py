@@ -40,6 +40,7 @@ from edb.lang.edgeql import errors
 from . import astutils
 from . import context
 from . import dispatch
+from . import inference
 from . import pathctx
 from . import setgen
 from . import schemactx
@@ -70,6 +71,16 @@ def compile_Path(
     return setgen.compile_path(expr, ctx=ctx)
 
 
+def make_binop(
+        left,
+        right,
+        op, *,
+        ctx: context.ContextLevel) -> irast.BinOp:
+    binop = irast.BinOp(left=left, right=right, op=op)
+    binop.stype = inference.infer_type(binop, env=ctx.env)
+    return binop
+
+
 @dispatch.compile.register(qlast.BinOp)
 def compile_BinOp(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
@@ -86,7 +97,7 @@ def compile_BinOp(
     else:
         left = dispatch.compile(expr.left, ctx=ctx)
         right = dispatch.compile(expr.right, ctx=ctx)
-        op_node = irast.BinOp(left=left, right=right, op=expr.op)
+        op_node = make_binop(left=left, right=right, op=expr.op, ctx=ctx)
 
     if try_folding:
         folded = try_fold_binop(op_node, ctx=ctx)
@@ -100,7 +111,6 @@ def compile_BinOp(
 def compile_IsOp(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
     op_node = compile_type_check_op(expr, ctx=ctx)
-
     folded = try_fold_binop(op_node, ctx=ctx)
     if folded is not None:
         return folded
@@ -118,7 +128,7 @@ def compile_Parameter(
             context=expr.context)
 
     return setgen.ensure_set(
-        irast.Parameter(type=None, name=expr.name), ctx=ctx)
+        irast.Parameter(stype=None, name=expr.name), ctx=ctx)
 
 
 @dispatch.compile.register(qlast.DetachedExpr)
@@ -198,7 +208,7 @@ def compile_BaseConstant(
         raise RuntimeError(f'unexpected constant type: {type(expr)}')
 
     ct = ctx.env.schema.get(std_type)
-    return setgen.generated_set(node_cls(value=value, type=ct), ctx=ctx)
+    return setgen.generated_set(node_cls(value=value, stype=ct), ctx=ctx)
 
 
 def try_fold_binop(
@@ -241,16 +251,18 @@ def try_fold_associative_binop(
         if isinstance(other_const.expr, irast.BaseConstant):
             try:
                 new_const = ireval.evaluate(
-                    irast.BinOp(op=op, left=other_const, right=my_const),
+                    make_binop(op=op, left=other_const,
+                               right=my_const, ctx=ctx),
                     schema=ctx.env.schema,
                 )
             except ireval.UnsupportedExpressionError:
                 pass
             else:
-                folded_binop = irast.BinOp(
+                folded_binop = make_binop(
                     left=setgen.ensure_set(new_const, ctx=ctx),
                     right=other_binop_node,
-                    op=op)
+                    op=op,
+                    ctx=ctx)
 
                 folded = setgen.ensure_set(folded_binop, ctx=ctx)
 
@@ -282,12 +294,22 @@ def compile_TupleElement(
     return element
 
 
+def make_tuple(
+        elements: typing.List[irast.TupleElement], *,
+        named: bool,
+        ctx: context.ContextLevel) -> irast.Tuple:
+
+    tup = irast.Tuple(elements=elements, named=named)
+    tup.stype = inference.infer_type(tup, env=ctx.env)
+    return tup
+
+
 @dispatch.compile.register(qlast.NamedTuple)
 def compile_NamedTuple(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     elements = [dispatch.compile(e, ctx=ctx) for e in expr.elements]
-    return setgen.generated_set(
-        irast.Tuple(elements=elements, named=True), ctx=ctx)
+    tup = make_tuple(elements, named=True, ctx=ctx)
+    return setgen.generated_set(tup, ctx=ctx)
 
 
 @dispatch.compile.register(qlast.Tuple)
@@ -302,7 +324,8 @@ def compile_Tuple(
         )
         elements.append(element)
 
-    return setgen.generated_set(irast.Tuple(elements=elements), ctx=ctx)
+    tup = make_tuple(elements, named=False, ctx=ctx)
+    return setgen.generated_set(tup, ctx=ctx)
 
 
 @dispatch.compile.register(qlast.Array)
@@ -311,7 +334,7 @@ def compile_Array(
     elements = [dispatch.compile(e, ctx=ctx) for e in expr.elements]
     # check that none of the elements are themselves arrays
     for el, expr_el in zip(elements, expr.elements):
-        if isinstance(irutils.infer_type(el, ctx.env.schema), s_types.Array):
+        if isinstance(inference.infer_type(el, ctx.env), s_types.Array):
             raise errors.EdgeQLError(
                 f'nested arrays are not supported',
                 context=expr_el.context)
@@ -338,8 +361,8 @@ def compile_IfElse(
             dispatch.compile(ql_else_expr, ctx=scopectx),
             ctx=scopectx)
 
-    if_expr_type = irutils.infer_type(if_expr, ctx.env.schema)
-    else_expr_type = irutils.infer_type(else_expr, ctx.env.schema)
+    if_expr_type = inference.infer_type(if_expr, ctx.env)
+    else_expr_type = inference.infer_type(else_expr, ctx.env)
 
     result = s_utils.get_class_nearest_common_ancestor(
         ctx.env.schema, [if_expr_type, else_expr_type])
@@ -424,14 +447,18 @@ def compile_Coalesce(
             with newctx.new() as nestedscopectx:
                 with nestedscopectx.newscope(fenced=True) as fencectx:
                     rarg = setgen.scoped_set(
-                        dispatch.compile(rarg_ql, ctx=fencectx), ctx=fencectx)
+                        dispatch.compile(rarg_ql, ctx=fencectx),
+                        force_reassign=True, ctx=fencectx)
 
                 coalesce = irast.Coalesce(left=larg, right=rarg)
                 larg = setgen.generated_set(coalesce, ctx=nestedscopectx)
 
+            stmtctx.get_expr_cardinality_later(
+                target=coalesce, field='right_card', irexpr=rarg, ctx=ctx)
+
         # Make sure any empty set types are properly resolved
         # before entering them into the scope tree.
-        irutils.infer_type(larg, schema=ctx.env.schema)
+        inference.infer_type(larg, env=ctx.env)
 
         pathctx.register_set_in_scope(leftmost_arg, ctx=ctx)
         pathctx.mark_path_as_optional(leftmost_arg.path_id, ctx=ctx)
@@ -470,7 +497,7 @@ def _cast_expr(
         source_context: parsing.ParserContext,
         ctx: context.ContextLevel) -> irast.Base:
     try:
-        orig_type = irutils.infer_type(ir_expr, ctx.env.schema)
+        orig_type = inference.infer_type(ir_expr, ctx.env)
     except errors.EdgeQLError:
         # It is possible that the source expression is unresolved
         # if the expr is an empty set (or a coalesce of empty sets).
@@ -499,7 +526,7 @@ def _cast_expr(
                     ir_expr.path_id, n, orig_type.element_types[n],
                     schema=ctx.env.schema)
 
-                val_type = irutils.infer_type(val, ctx.env.schema)
+                val_type = inference.infer_type(val, ctx.env)
                 # Element cast
                 val = _cast_expr(ql_type, val, ctx=ctx,
                                  source_context=source_context)
@@ -507,7 +534,9 @@ def _cast_expr(
                 elements.append(irast.TupleElement(name=n, val=val))
 
             new_tuple = setgen.ensure_set(
-                irast.Tuple(named=orig_type.named, elements=elements), ctx=ctx)
+                make_tuple(elements, named=orig_type.named, ctx=ctx),
+                ctx=ctx
+            )
 
             return setgen.ensure_set(
                 irast.TypeCast(expr=new_tuple, type=new_typeref), ctx=ctx)
@@ -542,7 +571,7 @@ def _cast_expr(
                     ir_expr.path_id, n, orig_type.element_types[n],
                     schema=ctx.env.schema)
 
-                val_type = irutils.infer_type(val, ctx.env.schema)
+                val_type = inference.infer_type(val, ctx.env)
                 new_el_name = new_names[i]
                 if val_type != new_type.element_types[new_el_name]:
                     # Element cast
@@ -551,12 +580,12 @@ def _cast_expr(
 
                 elements.append(irast.TupleElement(name=new_el_name, val=val))
 
-            return irast.Tuple(named=new_type.named, elements=elements)
+            return make_tuple(named=new_type.named, elements=elements, ctx=ctx)
 
     elif isinstance(ir_expr, irast.EmptySet):
         # For the common case of casting an empty set, we simply
         # generate a new EmptySet node of the requested type.
-        return irutils.new_empty_set(ctx.env.schema, scls=new_type,
+        return irutils.new_empty_set(ctx.env.schema, stype=new_type,
                                      alias=ir_expr.path_id.target_name.name)
 
     elif (isinstance(ir_expr, irast.Set) and
@@ -600,7 +629,7 @@ def compile_TypeFilter(
             dispatch.compile(expr.expr, ctx=scopectx),
             ctx=scopectx)
 
-    arg_type = irutils.infer_type(arg, ctx.env.schema)
+    arg_type = inference.infer_type(arg, ctx.env)
     if not isinstance(arg_type, s_objtypes.ObjectType):
         raise errors.EdgeQLError(
             f'invalid type filter operand: '
@@ -653,7 +682,7 @@ def compile_type_check_op(
         expr: qlast.IsOp, *, ctx: context.ContextLevel) -> irast.TypeCheckOp:
     # <Expr> IS <TypeExpr>
     left = dispatch.compile(expr.left, ctx=ctx)
-    ltype = irutils.infer_type(left, ctx.env.schema)
+    ltype = inference.infer_type(left, ctx.env)
     left = setgen.ptr_step_set(
         left, source=ltype, ptr_name=('std', '__type__'),
         direction=s_pointers.PointerDirection.Outbound,
@@ -678,8 +707,8 @@ def compile_set_op(
             dispatch.compile(expr.right, ctx=scopectx),
             ctx=scopectx)
 
-    left_type = irutils.infer_type(left, schema=ctx.env.schema)
-    right_type = irutils.infer_type(right, schema=ctx.env.schema)
+    left_type = inference.infer_type(left, ctx.env)
+    right_type = inference.infer_type(right, ctx.env)
 
     if left_type != right_type and isinstance(left_type, s_types.Collection):
         common_type = left_type.find_common_implicitly_castable_type(
@@ -745,7 +774,7 @@ def compile_equivalence_op(
 
     # Make sure any empty set types are properly resolved
     # before entering them into the scope tree.
-    irutils.infer_type(result, schema=ctx.env.schema)
+    inference.infer_type(result, ctx.env)
 
     pathctx.register_set_in_scope(left, ctx=ctx)
     pathctx.mark_path_as_optional(left.path_id, ctx=ctx)
@@ -763,7 +792,7 @@ def compile_membership_op(
         right = setgen.scoped_set(
             dispatch.compile(expr.right, ctx=scopectx), ctx=scopectx)
 
-    op_node = irast.BinOp(left=left, right=right, op=expr.op)
+    op_node = make_binop(left=left, right=right, op=expr.op, ctx=ctx)
     return setgen.generated_set(op_node, ctx=ctx)
 
 

@@ -90,13 +90,10 @@ class NodeCommand(named.NamedObjectCommand):
 
     @classmethod
     def _handle_view_op(cls, schema, cmd, astnode, context):
-        from edb.lang.ir import utils as irutils
-
         view_expr = cls._maybe_get_view_expr(astnode)
         if view_expr is not None:
             ir = cls._compile_view_expr(view_expr, cmd.classname,
                                         schema, context)
-            rt = irutils.infer_type(ir, ir.schema)
 
             view_types = ir.views.values()
 
@@ -121,7 +118,7 @@ class NodeCommand(named.NamedObjectCommand):
             derived_delta.update(adds_mods)
             derived_delta.update(dels)
 
-            if rt.is_view(schema):
+            if ir.stype.is_view(schema):
                 for op in list(derived_delta.get_subcommands()):
                     if op.classname == cmd.classname:
                         for subop in op.get_subcommands():

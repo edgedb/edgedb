@@ -19,8 +19,6 @@
 
 from edb.lang.edgeql import ast as qlast
 
-from edb.lang.ir import utils as irutils
-
 from . import scalars as s_scalars
 from . import attributes
 from . import objtypes as s_objtypes
@@ -55,7 +53,7 @@ class ViewCommand(nodes.NodeCommand, context_class=ViewCommandContext):
         if isinstance(astnode, qlast.CreateView):
             expr = cls._get_view_expr(astnode)
             ir = cls._compile_view_expr(expr, classname, schema, context)
-            scls = irutils.infer_type(ir, schema)
+            scls = ir.stype
         else:
             scls = schema.get(classname)
 

@@ -28,7 +28,6 @@ from edb.lang.edgeql import errors
 from edb.lang.edgeql.parser.grammar import lexutils as ql_lexutils
 
 from edb.lang.ir import ast as irast
-from edb.lang.ir import utils as irutils
 
 from edb.lang.schema import schema as s_schema
 from edb.lang.schema import scalars as s_scalars
@@ -50,7 +49,9 @@ def evaluate_to_python_val(
 
 
 @functools.singledispatch
-def evaluate(ir: irast.Base, schema: s_schema.Schema) -> irast.BaseConstant:
+def evaluate(
+        ir: irast.Base,
+        schema: s_schema.Schema) -> irast.BaseConstant:
     raise UnsupportedExpressionError(
         f'no static IR evaluation handler for {ir.__class__}')
 
@@ -80,15 +81,13 @@ def evaluate_BinOp(
 
     real_t = schema.get('std::anyreal')
 
-    result_type = irutils.infer_type(binop, schema)
     folded = None
     op = binop.op
 
-    # Left and right nodes are constants.
     if isinstance(op, ast.ops.ComparisonOperator):
         folded = evaluate_comparison_binop(binop, schema=schema)
 
-    elif result_type.issubclass(schema, real_t):
+    elif binop.stype.issubclass(schema, real_t):
         folded = evaluate_arithmetic_binop(binop, schema=schema)
 
     else:
@@ -106,7 +105,7 @@ def evaluate_UnaryOp(
     real_t = schema.get('std::anyreal')
     int_t = schema.get('std::anyint')
 
-    result_type = unop.expr.scls
+    result_type = unop.expr.stype
 
     if (result_type.issubclass(schema, real_t) and
             unop.op in (ast.ops.UMINUS, ast.ops.UPLUS)):
@@ -116,10 +115,10 @@ def evaluate_UnaryOp(
 
             if result_type.issubclass(schema, int_t):
                 return irast.IntegerConstant(
-                    value=str(op_val), type=result_type)
+                    value=str(op_val), stype=result_type)
             else:
                 return irast.FloatConstant(
-                    value=str(op_val), type=result_type)
+                    value=str(op_val), stype=result_type)
         else:
             return evaluate(unop.expr, schema=schema)
 
@@ -158,7 +157,7 @@ def evaluate_comparison_binop(
 
     return irast.BooleanConstant(
         value='true' if value else 'false',
-        type=schema.get('std::bool')
+        stype=schema.get('std::bool')
     )
 
 
@@ -175,8 +174,8 @@ def evaluate_arithmetic_binop(
     real_t = schema.get('std::anyreal')
     int_t = schema.get('std::anyint')
 
-    left_type = irutils.infer_type(left, schema)
-    right_type = irutils.infer_type(right, schema)
+    left_type = left.stype
+    right_type = right.stype
 
     if (not left_type.issubclass(schema, real_t) or
             not right_type.issubclass(schema, real_t)):
@@ -205,9 +204,9 @@ def evaluate_arithmetic_binop(
             context=binop.context)
 
     if result_type.issubclass(schema, int_t):
-        return irast.IntegerConstant(value=str(value), type=result_type)
+        return irast.IntegerConstant(value=str(value), stype=result_type)
     else:
-        return irast.FloatConstant(value=str(value), type=result_type)
+        return irast.FloatConstant(value=str(value), stype=result_type)
 
 
 @functools.singledispatch
@@ -223,7 +222,7 @@ def int_const_to_python(
         ir: irast.IntegerConstant,
         schema: s_schema.Schema) -> object:
 
-    if ir.type.get_name(schema) == 'std::decimal':
+    if ir.stype.get_name(schema) == 'std::decimal':
         return decimal.Decimal(ir.value)
     else:
         return int(ir.value)
@@ -234,7 +233,7 @@ def float_const_to_python(
         ir: irast.FloatConstant,
         schema: s_schema.Schema) -> object:
 
-    if ir.type.get_name(schema) == 'std::decimal':
+    if ir.stype.get_name(schema) == 'std::decimal':
         return decimal.Decimal(ir.value)
     else:
         return float(ir.value)

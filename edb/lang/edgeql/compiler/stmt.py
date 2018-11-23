@@ -39,6 +39,7 @@ from . import astutils
 from . import clauses
 from . import context
 from . import dispatch
+from . import inference
 from . import pathctx
 from . import setgen
 from . import viewgen
@@ -97,7 +98,7 @@ def compile_SelectQuery(
             if ctx.toplevel_result_view_name:
                 alias = ctx.aliases.get('expr')
                 stmt.result.path_id = setgen.get_expression_path_id(
-                    stmt.result.scls, alias, ctx=ctx)
+                    stmt.result.stype, alias, ctx=ctx)
 
             stmt.offset = clauses.compile_limit_offset_clause(
                 expr.offset, ctx=sctx)
@@ -255,16 +256,16 @@ def compile_InsertQuery(
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
-        if subject.scls.get_is_abstract(ctx.env.schema):
+        if subject.stype.get_is_abstract(ctx.env.schema):
             raise errors.EdgeQLError(
                 f'cannot insert: '
-                f'{subject.scls.get_displayname(ctx.env.schema)} is abstract',
+                f'{subject.stype.get_displayname(ctx.env.schema)} is abstract',
                 context=expr.subject.context)
 
-        if subject.scls.is_view(ctx.env.schema):
+        if subject.stype.is_view(ctx.env.schema):
             raise errors.EdgeQLError(
                 f'cannot insert: '
-                f'{subject.scls.get_displayname(ctx.env.schema)} is a view',
+                f'{subject.stype.get_displayname(ctx.env.schema)} is a view',
                 context=expr.subject.context)
 
         stmt.subject = compile_query_subject(
@@ -277,7 +278,7 @@ def compile_InsertQuery(
             ctx=ictx)
 
         stmt.result = setgen.class_set(
-            stmt.subject.scls.material_type(ctx.env.schema),
+            stmt.subject.stype.material_type(ctx.env.schema),
             path_id=stmt.subject.path_id, ctx=ctx)
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
@@ -293,7 +294,7 @@ def compile_UpdateQuery(
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
-        subj_type = irutils.infer_type(subject, ictx.env.schema)
+        subj_type = inference.infer_type(subject, ictx.env)
         if not isinstance(subj_type, s_objtypes.ObjectType):
             raise errors.EdgeQLError(
                 f'cannot update non-ObjectType objects',
@@ -310,7 +311,7 @@ def compile_UpdateQuery(
             ctx=ictx)
 
         stmt.result = setgen.class_set(
-            stmt.subject.scls.material_type(ctx.env.schema),
+            stmt.subject.stype.material_type(ctx.env.schema),
             path_id=stmt.subject.path_id, ctx=ctx)
 
         stmt.where = clauses.compile_where_clause(
@@ -333,7 +334,7 @@ def compile_DeleteQuery(
             subject = setgen.scoped_set(
                 dispatch.compile(expr.subject, ctx=scopectx), ctx=scopectx)
 
-        subj_type = irutils.infer_type(subject, ictx.env.schema)
+        subj_type = inference.infer_type(subject, ictx.env)
         if not isinstance(subj_type, s_objtypes.ObjectType):
             raise errors.EdgeQLError(
                 f'cannot delete non-ObjectType objects',
@@ -344,7 +345,7 @@ def compile_DeleteQuery(
             subject, shape=None, result_alias=expr.subject_alias, ctx=ictx)
 
         stmt.result = setgen.class_set(
-            stmt.subject.scls.material_type(ctx.env.schema),
+            stmt.subject.stype.material_type(ctx.env.schema),
             path_id=stmt.subject.path_id, ctx=ctx)
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
@@ -382,7 +383,8 @@ def compile_SessionStateDecl(
                                          context=item.context) from e
             else:
                 if not isinstance(testmode, bool):
-                    dispname = testmode_ir.scls.get_displayname(ctx.env.schema)
+                    dispname = testmode_ir.stype.get_displayname(
+                        ctx.env.schema)
                     raise errors.EdgeQLError(
                         f'expected a boolean value, got {dispname!r}',
                         context=item.context)
@@ -402,8 +404,9 @@ def compile_SessionStateDecl(
 def compile_Shape(
         shape: qlast.Shape, *, ctx: context.ContextLevel) -> irast.Base:
     expr = setgen.ensure_set(dispatch.compile(shape.expr, ctx=ctx), ctx=ctx)
-    expr.scls = viewgen.process_view(
-        scls=expr.scls, path_id=expr.path_id, elements=shape.elements, ctx=ctx)
+    expr.stype = viewgen.process_view(
+        stype=expr.stype, path_id=expr.path_id,
+        elements=shape.elements, ctx=ctx)
 
     return expr
 
@@ -415,7 +418,8 @@ def init_stmt(
     ctx.stmt = irstmt
     if ctx.toplevel_stmt is None:
         parent_ctx.toplevel_stmt = ctx.toplevel_stmt = irstmt
-        parent_ctx.path_scope = ctx.path_scope = irast.new_scope_tree()
+        if parent_ctx.path_scope is None:
+            parent_ctx.path_scope = ctx.path_scope = irast.new_scope_tree()
     else:
         ctx.path_scope = parent_ctx.path_scope.attach_fence()
 
@@ -442,7 +446,7 @@ def fini_stmt(
         parent_ctx: context.ContextLevel) -> irast.Set:
 
     view_name = parent_ctx.toplevel_result_view_name
-    t = irutils.infer_type(irstmt, ctx.env.schema)
+    t = inference.infer_type(irstmt, ctx.env)
 
     if t.get_name(ctx.env.schema) == view_name:
         # The view statement did contain a view declaration and
@@ -462,7 +466,7 @@ def fini_stmt(
 
     if view is not None:
         parent_ctx.view_sets[view] = result
-        result.scls = view
+        result.stype = view
 
     return result
 
@@ -535,7 +539,7 @@ def compile_result_clause(
 
             if astutils.is_ql_empty_set(result_expr):
                 expr = irutils.new_empty_set(
-                    sctx.env.schema, scls=target_t,
+                    sctx.env.schema, stype=target_t,
                     alias=ctx.aliases.get('e'))
             else:
                 with sctx.new() as exprctx:
@@ -546,7 +550,7 @@ def compile_result_clause(
         else:
             if astutils.is_ql_empty_set(result_expr):
                 expr = irutils.new_empty_set(
-                    sctx.env.schema, scls=sctx.empty_result_type_hint,
+                    sctx.env.schema, stype=sctx.empty_result_type_hint,
                     alias=ctx.aliases.get('e'))
             else:
                 expr = setgen.ensure_set(
@@ -613,24 +617,24 @@ def compile_query_subject(
             view_name = result_alias
 
         view_scls = viewgen.process_view(
-            scls=expr.scls, path_id=expr.path_id,
+            stype=expr.stype, path_id=expr.path_id,
             elements=shape, view_rptr=view_rptr,
             view_name=view_name, is_insert=is_insert,
             is_update=is_update, ctx=ctx)
 
     if need_rptr_derivation and view_rptr.ptrcls is None:
-        target = view_scls if view_scls is not None else expr.scls
+        target = view_scls if view_scls is not None else expr.stype
         viewgen.derive_ptrcls(view_rptr, target_scls=target, ctx=ctx)
 
     if view_scls is not None:
-        expr.scls = view_scls
+        expr.stype = view_scls
 
-    if compile_views and expr.scls is not None:
+    if compile_views and expr.stype is not None:
         rptr = view_rptr.rptr if view_rptr is not None else None
         viewgen.compile_view_shapes(expr, rptr=rptr, ctx=ctx)
 
     if (shape is not None or view_scls is not None) and len(expr.path_id) == 1:
-        ctx.class_view_overrides[expr.path_id.target_name] = expr.scls
+        ctx.class_view_overrides[expr.path_id.target_name] = expr.stype
 
     return expr
 

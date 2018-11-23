@@ -61,7 +61,7 @@ def get_schema_object(
             return result
 
     try:
-        scls = ctx.env.schema.get(
+        stype = ctx.env.schema.get(
             name=name, module_aliases=ctx.modaliases,
             type=item_types)
 
@@ -76,9 +76,9 @@ def get_schema_object(
     except s_err.SchemaError as e:
         raise qlerrors.EdgeQLError(e.args[0], context=srcctx)
 
-    result = ctx.aliased_views.get(scls.get_name(ctx.env.schema))
+    result = ctx.aliased_views.get(stype.get_name(ctx.env.schema))
     if result is None:
-        result = scls
+        result = stype
 
     return result
 
@@ -116,7 +116,7 @@ def resolve_schema_name(
 
 
 def derive_view(
-        scls: s_obj.Object, source: typing.Optional[s_nodes.Node]=None,
+        stype: s_obj.Object, source: typing.Optional[s_nodes.Node]=None,
         target: typing.Optional[s_nodes.Node]=None,
         *qualifiers,
         derived_name: typing.Optional[sn.SchemaName]=None,
@@ -127,29 +127,29 @@ def derive_view(
         attrs: typing.Optional[dict]=None,
         ctx: context.ContextLevel) -> s_obj.Object:
     if source is None:
-        source = scls
+        source = stype
 
-    if derived_name is None and (ctx.derived_target_module or source is scls):
+    if derived_name is None and (ctx.derived_target_module or source is stype):
         derived_name = derive_view_name(
-            scls=scls, derived_name_quals=derived_name_quals,
+            stype=stype, derived_name_quals=derived_name_quals,
             derived_name_base=derived_name_base, ctx=ctx)
 
-    if isinstance(scls, s_types.Collection):
-        ctx.env.schema, derived = scls.derive_subtype(
+    if isinstance(stype, s_types.Collection):
+        ctx.env.schema, derived = stype.derive_subtype(
             ctx.env.schema, name=derived_name)
     else:
-        if scls.get_name(ctx.env.schema) == derived_name:
+        if stype.get_name(ctx.env.schema) == derived_name:
             qualifiers = list(qualifiers)
             qualifiers.append(ctx.aliases.get('d'))
 
-        ctx.env.schema, derived = scls.derive(
+        ctx.env.schema, derived = stype.derive(
             ctx.env.schema, source, target, *qualifiers,
             name=derived_name, replace_original=True,
             mark_derived=True, attrs=attrs)
 
-        if not scls.generic(ctx.env.schema):
+        if not stype.generic(ctx.env.schema):
             if isinstance(derived, s_sources.Source):
-                scls_pointers = scls.get_pointers(ctx.env.schema)
+                scls_pointers = stype.get_pointers(ctx.env.schema)
                 derived_own_pointers = derived.get_own_pointers(ctx.env.schema)
 
                 for pn, ptr in derived_own_pointers.items(ctx.env.schema):
@@ -177,7 +177,7 @@ def derive_view(
 
 
 def derive_view_name(
-        scls: s_obj.Object,
+        stype: s_obj.Object,
         derived_name_quals: typing.Optional[typing.Sequence[str]]=(),
         derived_name_base: typing.Optional[str]=None, *,
         ctx: context.ContextLevel) -> sn.Name:
@@ -186,14 +186,14 @@ def derive_view_name(
         derived_name_quals = (ctx.aliases.get('view'),)
 
     if not derived_name_base:
-        derived_name_base = scls.get_shortname(ctx.env.schema)
+        derived_name_base = stype.get_shortname(ctx.env.schema)
 
     if ctx.derived_target_module:
         derived_name_module = ctx.derived_target_module
     else:
         derived_name_module = '__view__'
 
-    derived_sname = scls.get_specialized_name(
+    derived_sname = stype.get_specialized_name(
         derived_name_base, *derived_name_quals)
 
     return sn.SchemaName(module=derived_name_module, name=derived_sname)

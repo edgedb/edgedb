@@ -146,7 +146,7 @@ def range_for_set(
         include_overlays: bool=True,
         env: context.Environment) -> pgast.BaseRangeVar:
     rvar = range_for_objtype(
-        ir_set.scls, ir_set.path_id,
+        ir_set.stype, ir_set.path_id,
         include_overlays=include_overlays, env=env)
 
     return rvar
@@ -273,7 +273,7 @@ def range_for_pointer(
 
 def range_from_queryset(
         set_ops: typing.Sequence[typing.Tuple[str, pgast.BaseRelation]],
-        scls: s_obj.Object, *,
+        stype: s_obj.Object, *,
         env: context.Environment) -> pgast.BaseRangeVar:
     if len(set_ops) > 1:
         # More than one class table, generate a UNION/EXCEPT clause.
@@ -294,7 +294,7 @@ def range_from_queryset(
         rvar = pgast.RangeSubselect(
             subquery=qry,
             alias=pgast.Alias(
-                aliasname=env.aliases.get(scls.get_shortname(env.schema).name)
+                aliasname=env.aliases.get(stype.get_shortname(env.schema).name)
             )
         )
 
@@ -377,9 +377,9 @@ def get_rvar_var(
 
 
 def add_rel_overlay(
-        scls: s_objtypes.ObjectType, op: str, rel: pgast.BaseRelation, *,
+        stype: s_objtypes.ObjectType, op: str, rel: pgast.BaseRelation, *,
         env: context.Environment) -> None:
-    overlays = env.rel_overlays[scls.get_name(env.schema)]
+    overlays = env.rel_overlays[stype.get_name(env.schema)]
     overlays.append((op, rel))
 
 

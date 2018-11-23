@@ -78,8 +78,8 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                 ptrcls = rptr.ptrcls
                 pname = ptrcls.get_shortname(self.context.schema)
 
-                if isinstance(rptr.target.scls, s_objtypes.ObjectType):
-                    target = rptr.target.scls.get_shortname(
+                if isinstance(rptr.target.stype, s_objtypes.ObjectType):
+                    target = rptr.target.stype.get_shortname(
                         self.context.schema)
                     target = qlast.TypeName(
                         maintype=qlast.ObjectRef(
@@ -110,7 +110,7 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                 else:
                     step = qlast.ObjectRef(name=node.show_as_anchor)
             else:
-                scls_shortname = node.scls.get_shortname(
+                scls_shortname = node.stype.get_shortname(
                     self.context.schema)
                 step = qlast.ObjectRef(name=scls_shortname.name,
                                        module=scls_shortname.module)

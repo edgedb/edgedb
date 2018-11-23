@@ -31,8 +31,6 @@ from edb.lang.schema import sources as s_sources  # NOQA
 from edb.lang.schema import types as s_types  # NOQA
 
 from . import ast as irast
-from .inference import amend_empty_set_type  # NOQA
-from .inference import infer_type  # NOQA
 
 
 def get_source_references(ir):
@@ -41,7 +39,7 @@ def get_source_references(ir):
     flt = lambda n: isinstance(n, irast.Set) and n.expr is None
     ir_sets = ast.find_children(ir, flt)
     for ir_set in ir_sets:
-        result.add(ir_set.scls)
+        result.add(ir_set.stype)
 
     return result
 
@@ -183,15 +181,15 @@ def is_simple_wrapper(ir_expr):
     )
 
 
-def new_empty_set(schema, *, scls=None, alias):
-    if scls is None:
+def new_empty_set(schema, *, stype=None, alias):
+    if stype is None:
         path_id_scls = s_pseudo.Any.create()
     else:
-        path_id_scls = scls
+        path_id_scls = stype
 
     typename = s_name.Name(module='__expr__', name=alias)
     path_id = irast.PathId.from_type(schema, path_id_scls, typename=typename)
-    return irast.EmptySet(path_id=path_id, scls=scls)
+    return irast.EmptySet(path_id=path_id, stype=stype)
 
 
 class TupleIndirectionLink(s_pointers.PointerLike):
@@ -321,3 +319,15 @@ def get_source_context_as_json(expr: irast.Base) -> typing.Optional[str]:
         details = None
 
     return details
+
+
+def typeref_to_type(schema, typeref: irast.TypeRef) -> s_types.Type:
+
+    if typeref.subtypes:
+        coll = s_types.Collection.get_class(typeref.maintype)
+        result = coll.from_subtypes(
+            schema, [typeref_to_type(schema, t) for t in typeref.subtypes])
+    else:
+        result = schema.get(typeref.maintype)
+
+    return result

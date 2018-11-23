@@ -166,10 +166,10 @@ def fini_dml_stmt(
     # context to ensure that the RETURNING clause potentially
     # referencing this class yields the expected results.
     if isinstance(ir_stmt, irast.InsertStmt):
-        dbobj.add_rel_overlay(ir_stmt.subject.scls, 'union', dml_cte,
+        dbobj.add_rel_overlay(ir_stmt.subject.stype, 'union', dml_cte,
                               env=ctx.env)
     elif isinstance(ir_stmt, irast.DeleteStmt):
-        dbobj.add_rel_overlay(ir_stmt.subject.scls, 'except', dml_cte,
+        dbobj.add_rel_overlay(ir_stmt.subject.stype, 'except', dml_cte,
                               env=ctx.env)
 
     if parent_ctx.toplevel_stmt is wrapper:
@@ -314,7 +314,8 @@ def process_insert_body(
                     op=ast.ops.EQ,
                     lexpr=pgast.ColumnRef(name=['name']),
                     rexpr=pgast.StringConstant(
-                        val=ir_stmt.subject.scls.get_shortname(ctx.env.schema))
+                        val=ir_stmt.subject.stype.get_shortname(
+                            ctx.env.schema))
                 )
             )
         )
@@ -619,7 +620,7 @@ def process_link_update(
                                   s_scalars.ScalarType)
 
     path_id = rptr.source.path_id.extend(
-        ptrcls, rptr.direction, rptr.target.scls,
+        ptrcls, rptr.direction, rptr.target.stype,
         schema=ctx.env.schema)
 
     # The links in the dml class shape have been derived,

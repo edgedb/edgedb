@@ -70,7 +70,7 @@ def compile_shape(
             is_singleton = ptrcls.singular(ctx.env.schema, ptrdir)
 
             if (irutils.is_subquery_set(el) or
-                    isinstance(el.scls, s_objtypes.ObjectType) or
+                    isinstance(el.stype, s_objtypes.ObjectType) or
                     not is_singleton or
                     not ptrcls.get_required(ctx.env.schema)):
                 wrapper = relgen.set_as_subquery(

@@ -144,7 +144,7 @@ def compile_GroupStmt(
             # object in each partition if GROUP BY input is
             # a ObjectType, otherwise we generate the id using
             # row_number().
-            if isinstance(stmt.subject.scls, s_objtypes.ObjectType):
+            if isinstance(stmt.subject.stype, s_objtypes.ObjectType):
                 first_val = pathctx.get_path_identity_var(
                     gquery, stmt.subject.path_id, env=ctx.env)
             else:

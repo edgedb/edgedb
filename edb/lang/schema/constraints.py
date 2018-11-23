@@ -140,14 +140,13 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
             tree, schema, modaliases=module_aliases,
             anchors={qlast.Subject: subject}, inline_anchors=inline_anchors)
 
-        return edgeql_tree.result, ir.expr.expr.result
+        return edgeql_tree.result, ir
 
     @classmethod
     def normalize_constraint_expr(
             cls, schema, module_aliases, expr, *,
             subject=None, constraint_name, expr_context=None,
             enforce_boolean=False):
-        from edb.lang.ir import utils as irutils
 
         if subject is None:
             subject = cls._dummy_subject(schema)
@@ -157,7 +156,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject):
 
         if enforce_boolean:
             bool_t = schema.get('std::bool')
-            expr_type = irutils.infer_type(ir_result, schema)
+            expr_type = ir_result.stype
             if not expr_type.issubclass(schema, bool_t):
                 raise s_errors.SchemaDefinitionError(
                     f'{constraint_name} constraint expression expected '

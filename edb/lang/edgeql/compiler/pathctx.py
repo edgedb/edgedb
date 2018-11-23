@@ -31,11 +31,11 @@ from edb.lang.edgeql import errors
 from . import context
 
 
-def get_path_id(scls: s_obj.Object, *,
+def get_path_id(stype: s_obj.Object, *,
                 typename: typing.Optional[str]=None,
                 ctx: context.CompilerContext) -> irast.PathId:
     return irast.PathId.from_type(
-        ctx.env.schema, scls,
+        ctx.env.schema, stype,
         typename=typename,
         namespace=ctx.path_id_namespace)
 

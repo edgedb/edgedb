@@ -221,7 +221,7 @@ class Parameter(named.NamedObject):
         if not irutils.is_const(ir.expr):
             raise ValueError('expression not constant')
 
-        return ir.expr
+        return ir
 
     def as_str(self, schema) -> str:
         return param_as_str(schema, self)
@@ -681,7 +681,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
 
             check_default_type = True
             if p_type.is_polymorphic(schema):
-                if irutils.is_empty(ir_default):
+                if irutils.is_empty(ir_default.expr):
                     check_default_type = False
                 else:
                     raise ql_errors.EdgeQLError(
@@ -691,11 +691,11 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                         f'have a non-empty default value',
                         context=self.source_context)
             elif (p.get_typemod(schema) is ft.TypeModifier.OPTIONAL and
-                    irutils.is_empty(ir_default)):
+                    irutils.is_empty(ir_default.expr)):
                 check_default_type = False
 
             if check_default_type:
-                default_type = irutils.infer_type(ir_default, schema)
+                default_type = ir_default.stype
                 if not default_type.assignment_castable_to(p_type, schema):
                     raise ql_errors.EdgeQLError(
                         f'cannot create the `{signature}` function: '

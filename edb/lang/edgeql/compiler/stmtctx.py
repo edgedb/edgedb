@@ -28,8 +28,6 @@ from edb.lang.common import parsing
 from edb.lang.edgeql import errors
 
 from edb.lang.ir import ast as irast
-from edb.lang.ir import inference as irinference
-from edb.lang.ir import utils as irutils
 
 from edb.lang.schema import functions as s_func
 from edb.lang.schema import name as s_name
@@ -44,6 +42,7 @@ from edb.lang.edgeql import parser as qlparser
 from . import astutils
 from . import context
 from . import dispatch
+from . import inference
 from . import pathctx
 from . import setgen
 
@@ -54,6 +53,7 @@ def init_context(
         func: typing.Optional[s_func.Function]=None,
         modaliases: typing.Optional[typing.Dict[str, str]]=None,
         anchors: typing.Optional[typing.Dict[str, s_obj.Object]]=None,
+        singletons: typing.Optional[typing.Iterable[s_types.Type]]=None,
         security_context: typing.Optional[str]=None,
         derived_target_module: typing.Optional[str]=None,
         result_view_name: typing.Optional[str]=None,
@@ -62,7 +62,19 @@ def init_context(
     stack = context.CompilerContext()
     ctx = stack.current
     ctx.env = context.Environment(
-        schema=schema.get_overlay(extra=ctx.view_nodes))
+        schema=schema.get_overlay(extra=ctx.view_nodes),
+        path_scope=irast.new_scope_tree())
+
+    if singletons:
+        # The caller wants us to treat these type references
+        # as singletons for the purposes of the overall expression
+        # cardinality inference, so we set up the scope tree in
+        # the necessary fashion.
+        for singleton in singletons:
+            path_id = pathctx.get_path_id(singleton, ctx=ctx)
+            ctx.env.path_scope.attach_path(path_id)
+
+        ctx.path_scope = ctx.env.path_scope.attach_fence()
 
     if modaliases:
         ctx.modaliases.update(modaliases)
@@ -101,7 +113,7 @@ def fini_expression(
             if node.path_id.namespace:
                 node.path_id = node.path_id.strip_weak_namespaces()
 
-        cardinality = irinference.infer_cardinality(
+        cardinality = inference.infer_cardinality(
             ir, scope_tree=ctx.path_scope, schema=ctx.env.schema)
     else:
         cardinality = irast.Cardinality.ONE
@@ -128,16 +140,18 @@ def fini_expression(
                     'target',
                     vlprop_target.material_type(ctx.env.schema))
 
+    expr_type = inference.infer_type(ir, ctx.env)
+
     result = irast.Statement(
         expr=ir,
         views=ctx.view_nodes,
         source_map=ctx.source_map,
         scope_tree=ctx.path_scope,
         cardinality=cardinality,
+        stype=expr_type,
         view_shapes=ctx.class_shapes,
         schema=ctx.env.schema,
     )
-    irutils.infer_type(result, schema=ctx.env.schema)
     return result
 
 
@@ -262,8 +276,8 @@ def declare_view(
             subctx.stmt = ctx.stmt.parent_stmt
 
         if cached_view_set is not None:
-            subctx.view_scls = cached_view_set.scls
-            view_name = cached_view_set.scls.get_name(ctx.env.schema)
+            subctx.view_scls = cached_view_set.stype
+            view_name = cached_view_set.stype.get_name(ctx.env.schema)
         else:
             if isinstance(alias, s_name.SchemaName):
                 basename = alias
@@ -284,7 +298,7 @@ def declare_view(
         # The view path id _itself_ should not be in the nested namespace.
         view_set.path_id = view_set.path_id.replace_namespace(
             ctx.path_id_namespace)
-        ctx.aliased_views[alias] = view_set.scls
+        ctx.aliased_views[alias] = view_set.stype
         ctx.path_scope_map[view_set] = subctx.path_scope
         ctx.expr_view_cache[expr, alias] = view_set
 
@@ -322,7 +336,7 @@ def infer_expr_cardinality(
     scope = pathctx.get_set_scope(ir_set=irexpr, ctx=ctx)
     if scope is None:
         scope = ctx.path_scope
-    return irinference.infer_cardinality(
+    return inference.infer_cardinality(
         irexpr, scope_tree=scope, schema=ctx.env.schema)
 
 
@@ -421,7 +435,7 @@ def enforce_singleton_now(
     scope = pathctx.get_set_scope(ir_set=irexpr, ctx=ctx)
     if scope is None:
         scope = ctx.path_scope
-    cardinality = irinference.infer_cardinality(
+    cardinality = inference.infer_cardinality(
         irexpr, scope_tree=scope, schema=ctx.env.schema)
     if cardinality != irast.Cardinality.ONE:
         raise errors.EdgeQLError(

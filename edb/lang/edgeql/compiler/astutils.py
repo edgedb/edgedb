@@ -40,21 +40,6 @@ def extend_qlbinop(binop, *exprs, op=ast.ops.AND):
     return binop
 
 
-def extend_irbinop(binop, *exprs, op=ast.ops.AND):
-    exprs = list(exprs)
-    binop = binop or exprs.pop(0)
-
-    for expr in exprs:
-        if expr is not binop:
-            binop = irast.BinOp(
-                left=binop,
-                right=expr,
-                op=op
-            )
-
-    return binop
-
-
 def ensure_qlstmt(expr):
     if not isinstance(expr, qlast.Statement):
         expr = qlast.SelectQuery(

@@ -124,7 +124,7 @@ def compile_Parameter(
             result = pgast.ParamRef(number=index)
 
     return typecomp.cast(
-        result, source_type=expr.type, target_type=expr.type,
+        result, source_type=expr.stype, target_type=expr.stype,
         ir_expr=expr, force=True, env=ctx.env)
 
 
@@ -135,7 +135,7 @@ def compile_RawStringConstant(
 
     return typecomp.cast(
         pgast.StringConstant(val=expr.value),
-        source_type=expr.type, target_type=expr.type,
+        source_type=expr.stype, target_type=expr.stype,
         ir_expr=expr, force=True, env=ctx.env)
 
 
@@ -146,7 +146,7 @@ def compile_StringConstant(
 
     return typecomp.cast(
         pgast.EscapedStringConstant(val=expr.value),
-        source_type=expr.type, target_type=expr.type,
+        source_type=expr.stype, target_type=expr.stype,
         ir_expr=expr, force=True, env=ctx.env)
 
 
@@ -165,7 +165,7 @@ def compile_IntegerConstant(
 
     return typecomp.cast(
         pgast.NumericConstant(val=expr.value),
-        source_type=expr.type, target_type=expr.type,
+        source_type=expr.stype, target_type=expr.stype,
         ir_expr=expr, force=True, env=ctx.env)
 
 
@@ -176,7 +176,7 @@ def compile_FloatConstant(
 
     return typecomp.cast(
         pgast.NumericConstant(val=expr.value),
-        source_type=expr.type, target_type=expr.type,
+        source_type=expr.stype, target_type=expr.stype,
         ir_expr=expr, force=True, env=ctx.env)
 
 
@@ -187,7 +187,7 @@ def compile_BooleanConstant(
 
     return typecomp.cast(
         pgast.BooleanConstant(val=expr.value),
-        source_type=expr.type, target_type=expr.type,
+        source_type=expr.stype, target_type=expr.stype,
         ir_expr=expr, force=True, env=ctx.env)
 
 
@@ -197,7 +197,7 @@ def compile_TypeCast(
         ctx: context.CompilerContextLevel) -> pgast.Base:
     pg_expr = dispatch.compile(expr.expr, ctx=ctx)
 
-    target_type = _infer_type(expr, ctx=ctx)
+    target_type = irutils.typeref_to_type(ctx.env.schema, expr.type)
 
     if (isinstance(expr.expr, irast.EmptySet) or
             (isinstance(expr.expr, irast.Array) and
@@ -489,8 +489,8 @@ def compile_TupleIndirection(
 
 @dispatch.compile.register(irast.Tuple)
 def compile_Tuple(
-        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
-    ttype = _infer_type(expr, ctx=ctx)
+        expr: irast.Tuple, *, ctx: context.CompilerContextLevel) -> pgast.Base:
+    ttype = expr.stype
     ttypes = ttype.element_types
     telems = list(ttypes)
 
@@ -635,18 +635,18 @@ def _compile_set_in_singleton_mode(
                 ptrcls, schema=ctx.env.schema, resolve_type=False)
 
             colref = pgast.ColumnRef(name=[ptr_stor_info.column_name])
-        elif isinstance(node.scls, s_scalars.ScalarType):
+        elif isinstance(node.stype, s_scalars.ScalarType):
             colref = pgast.ColumnRef(
                 name=[
                     common.edgedb_name_to_pg_name(
-                        node.scls.get_name(ctx.env.schema))
+                        node.stype.get_name(ctx.env.schema))
                 ]
             )
         else:
             colref = pgast.ColumnRef(
                 name=[
                     common.edgedb_name_to_pg_name(
-                        node.scls.get_name(ctx.env.schema))
+                        node.stype.get_name(ctx.env.schema))
                 ]
             )
 
@@ -654,6 +654,7 @@ def _compile_set_in_singleton_mode(
 
 
 def _infer_type(
-        expr: irast.Base, *,
+        expr: irast.Set, *,
         ctx: context.CompilerContextLevel) -> s_obj.Object:
-    return irutils.infer_type(expr, schema=ctx.env.schema)
+    assert isinstance(expr, irast.Set)
+    return expr.stype

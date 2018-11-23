@@ -37,6 +37,7 @@ from edb.lang.edgeql import parser as qlparser
 from . import astutils
 from . import context
 from . import dispatch
+from . import inference
 from . import pathctx
 from . import setgen
 from . import typegen
@@ -146,14 +147,14 @@ def compile_FunctionCall(
             func_sql_function=func.get_from_function(schema),
             params_typemods=params_typemods,
             context=expr.context,
-            type=matched_call.return_type,
+            stype=matched_call.return_type,
             typemod=matched_call.func.get_return_typemod(schema),
             has_empty_variadic=matched_call.has_empty_variadic,
             variadic_param_type=variadic_param_type,
         )
 
         if matched_func_initial_value is not None:
-            rtype = irutils.infer_type(node, schema)
+            rtype = inference.infer_type(node, env=fctx.env)
             iv_ql = qlast.TypeCast(
                 expr=qlparser.parse_fragment(matched_func_initial_value),
                 type=typegen.type_to_ql_typeref(rtype, ctx=ctx)
@@ -237,7 +238,7 @@ def try_bind_func_args(
                 bytes_t = schema.get('std::bytes')
                 args = [
                     setgen.ensure_set(
-                        irast.BytesConstant(value='\x00', type=bytes_t),
+                        irast.BytesConstant(value='\x00', stype=bytes_t),
                         typehint=bytes_t,
                         ctx=ctx)
                 ]
@@ -409,7 +410,7 @@ def try_bind_func_args(
                 if has_inlined_defaults:
                     default = irutils.new_empty_set(
                         schema,
-                        scls=default_type,
+                        stype=default_type,
                         alias=param_shortname)
 
                 default = setgen.ensure_set(
@@ -437,7 +438,7 @@ def try_bind_func_args(
         bound_param_args.insert(
             0,
             (None, setgen.ensure_set(
-                irast.BytesConstant(value=bm.decode('ascii'), type=bytes_t),
+                irast.BytesConstant(value=bm.decode('ascii'), stype=bytes_t),
                 typehint=bytes_t, ctx=ctx)))
 
     return_type = func.get_return_type(schema)
@@ -486,7 +487,7 @@ def compile_call_args(
     for ai, arg in enumerate(expr.args):
         arg_ir = compile_call_arg(arg, ctx=ctx)
 
-        arg_type = irutils.infer_type(arg_ir, ctx.env.schema)
+        arg_type = inference.infer_type(arg_ir, ctx.env)
         if arg_type is None:
             raise errors.EdgeQLError(
                 f'could not resolve the type of positional argument '
@@ -498,7 +499,7 @@ def compile_call_args(
     for aname, arg in expr.kwargs.items():
         arg_ir = compile_call_arg(arg, ctx=ctx)
 
-        arg_type = irutils.infer_type(arg_ir, ctx.env.schema)
+        arg_type = inference.infer_type(arg_ir, ctx.env)
         if arg_type is None:
             raise errors.EdgeQLError(
                 f'could not resolve the type of named argument '

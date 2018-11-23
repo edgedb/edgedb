@@ -24,7 +24,6 @@ import functools
 import typing
 
 from edb.lang.ir import ast as irast
-from edb.lang.ir import utils as irutils
 
 from edb.lang.schema import links as s_links
 from edb.lang.schema import name as sn
@@ -41,6 +40,7 @@ from edb.lang.common import exceptions as edgedb_error
 from . import astutils
 from . import context
 from . import dispatch
+from . import inference
 from . import pathctx
 from . import schemactx
 from . import setgen
@@ -49,7 +49,7 @@ from . import stmtctx
 
 def process_view(
         *,
-        scls: s_nodes.Node,
+        stype: s_nodes.Node,
         path_id: irast.PathId,
         elements: typing.List[qlast.ShapeElement],
         view_rptr: typing.Optional[context.ViewRPtr]=None,
@@ -67,7 +67,7 @@ def process_view(
         scopectx.path_scope.attach_path(path_id)
 
         view_scls = _process_view(
-            scls=scls, path_id=path_id, elements=elements,
+            stype=stype, path_id=path_id, elements=elements,
             view_rptr=view_rptr, view_name=view_name,
             is_insert=is_insert, is_update=is_update,
             ctx=scopectx
@@ -80,7 +80,7 @@ def process_view(
 
 def _process_view(
         *,
-        scls: s_nodes.Node,
+        stype: s_nodes.Node,
         path_id: irast.PathId,
         elements: typing.List[qlast.ShapeElement],
         view_rptr: typing.Optional[context.ViewRPtr]=None,
@@ -89,7 +89,7 @@ def _process_view(
         is_update: bool=False,
         ctx: context.CompilerContext) -> s_nodes.Node:
     view_scls = schemactx.derive_view(
-        scls, is_insert=is_insert, is_update=is_update,
+        stype, is_insert=is_insert, is_update=is_update,
         derived_name=view_name, ctx=ctx)
     is_mutation = is_insert or is_update
     is_defining_shape = ctx.expr_exposed or is_mutation
@@ -107,7 +107,7 @@ def _process_view(
         explicit_ptrs = {ptrcls.get_shortname(ctx.env.schema)
                          for ptrcls in pointers}
 
-        scls_pointers = scls.get_pointers(ctx.env.schema)
+        scls_pointers = stype.get_pointers(ctx.env.schema)
         for pn, ptrcls in scls_pointers.items(ctx.env.schema):
             if (not ptrcls.get_default(ctx.env.schema) or
                     pn in explicit_ptrs or
@@ -135,7 +135,7 @@ def _process_view(
             break
 
     if lprops_only:
-        view_scls = scls
+        view_scls = stype
 
     for ptrcls in pointers:
         if ptrcls.is_link_property(ctx.env.schema):
@@ -166,7 +166,7 @@ def _process_view(
             ctx.class_shapes[source].append(ptrcls)
 
     if (view_rptr is not None and view_rptr.derived_ptrcls is not None and
-            view_scls is not scls):
+            view_scls is not stype):
         ctx.env.schema = view_scls.set_field_value(
             ctx.env.schema, 'rptr', view_rptr.derived_ptrcls)
 
@@ -187,8 +187,8 @@ def _normalize_view_ptr_expr(
     # Pointers may be qualified by the explicit source
     # class, which is equivalent to Expr[IS Type].
     is_polymorphic = isinstance(steps[0], qlast.TypeExpr)
-    scls = view_scls.peel_view(ctx.env.schema)
-    ptrsource = scls
+    stype = view_scls.peel_view(ctx.env.schema)
+    ptrsource = stype
     qlexpr = None
 
     if is_polymorphic:
@@ -209,7 +209,7 @@ def _normalize_view_ptr_expr(
                     'in top level shape', context=lexpr.context)
             if view_rptr.ptrcls is None:
                 derive_ptrcls(view_rptr, target_scls=view_scls, ctx=ctx)
-            ptrsource = scls = view_rptr.ptrcls
+            ptrsource = stype = view_rptr.ptrcls
         source = qlast.Source()
     else:
         raise RuntimeError(
@@ -299,12 +299,12 @@ def _normalize_view_ptr_expr(
                             'in nested UPDATE shapes', context=subel.context)
 
                 ptr_target = _process_view(
-                    scls=ptr_target, path_id=sub_path_id,
+                    stype=ptr_target, path_id=sub_path_id,
                     view_rptr=sub_view_rptr,
                     elements=shape_el.elements, is_update=True, ctx=ctx)
             else:
                 ptr_target = _process_view(
-                    scls=ptr_target, path_id=sub_path_id,
+                    stype=ptr_target, path_id=sub_path_id,
                     view_rptr=sub_view_rptr,
                     elements=shape_el.elements, ctx=ctx)
 
@@ -344,7 +344,7 @@ def _normalize_view_ptr_expr(
             ptr_module = (
                 ptrname[0] or
                 ctx.derived_target_module or
-                scls.get_name(ctx.env.schema).module
+                stype.get_name(ctx.env.schema).module
             )
 
             ptr_name = sn.SchemaName(module=ptr_module, name=ptrname[1])
@@ -384,7 +384,7 @@ def _normalize_view_ptr_expr(
 
         ptr_cardinality = None
 
-        ptr_target = irutils.infer_type(irexpr, ctx.env.schema)
+        ptr_target = inference.infer_type(irexpr, ctx.env)
         if ptr_target is None:
             msg = 'cannot determine expression result type'
             raise errors.EdgeQLError(msg, context=shape_el.context)
@@ -545,7 +545,7 @@ def _get_shape_configuration(
     """Return a list of (source_set, ptrcls) pairs as a shape for a given set.
     """
 
-    scls = ir_set.scls
+    stype = ir_set.stype
 
     sources = []
     link_view = False
@@ -561,7 +561,7 @@ def _get_shape_configuration(
     )
 
     if is_objtype or not link_view:
-        sources.append(scls)
+        sources.append(stype)
 
     if link_view:
         sources.append(rptr.ptrcls)
@@ -580,7 +580,7 @@ def _get_shape_configuration(
 
             shape_ptrs.append((path_tip, ptr))
 
-            if source is scls and ptr.is_id_pointer(ctx.env.schema):
+            if source is stype and ptr.is_id_pointer(ctx.env.schema):
                 id_present_in_shape = True
 
     implicit_id = (
@@ -601,9 +601,9 @@ def _get_shape_configuration(
     if implicit_id and not id_present_in_shape:
         # We want the id in this shape and it's not already there,
         # so insert it in the first position.
-        for ptr in scls.get_pointers(ctx.env.schema).objects(ctx.env.schema):
+        for ptr in stype.get_pointers(ctx.env.schema).objects(ctx.env.schema):
             if ptr.is_id_pointer(ctx.env.schema):
-                ctx.class_shapes[scls].insert(0, ptr)
+                ctx.class_shapes[stype].insert(0, ptr)
                 shape_ptrs.insert(0, (ir_set, ptr))
                 break
 
@@ -626,9 +626,9 @@ def _compile_view_shapes_in_set(
         parent_view_type: typing.Optional[s_types.ViewType]=None,
         ctx: context.ContextLevel) -> None:
 
-    scls = ir_set.scls
+    stype = ir_set.stype
 
-    is_mutation = scls.get_view_type(ctx.env.schema) in (
+    is_mutation = stype.get_view_type(ctx.env.schema) in (
         s_types.ViewType.Update, s_types.ViewType.Insert)
 
     shape_ptrs = _get_shape_configuration(
@@ -669,7 +669,7 @@ def _compile_view_shapes_in_set(
                 scopectx.path_scope = element_scope
                 compile_view_shapes(
                     element,
-                    parent_view_type=scls.get_view_type(ctx.env.schema),
+                    parent_view_type=stype.get_view_type(ctx.env.schema),
                     ctx=scopectx)
 
             ir_set.shape.append(element)

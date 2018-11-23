@@ -210,7 +210,7 @@ def _is_ptr_or_self_ref(
         return (
             isinstance(srccls, s_objtypes.ObjectType) and
             ir_set.expr is None and
-            (ir_set.scls == srccls or (
+            (ir_set.stype == srccls or (
                 ir_set.rptr is not None and
                 srccls.getptr(
                     schema,
@@ -235,18 +235,18 @@ def _extract_filters(
 
             if op_card == MANY:
                 pass
-            elif _is_ptr_or_self_ref(expr.left, result_set.scls, schema):
+            elif _is_ptr_or_self_ref(expr.left, result_set.stype, schema):
                 if infer_cardinality(expr.right, scope_tree, schema) == ONE:
-                    if expr.left.scls == result_set.scls:
+                    if expr.left.stype == result_set.stype:
                         ptr_filters.append(
-                            expr.left.scls.getptr(schema, 'std::id'))
+                            expr.left.stype.getptr(schema, 'std::id'))
                     else:
                         ptr_filters.append(expr.left.rptr.ptrcls)
-            elif _is_ptr_or_self_ref(expr.right, result_set.scls, schema):
+            elif _is_ptr_or_self_ref(expr.right, result_set.stype, schema):
                 if infer_cardinality(expr.left, scope_tree, schema) == ONE:
-                    if expr.right.scls == result_set.scls:
+                    if expr.right.stype == result_set.stype:
                         ptr_filters.append(
-                            expr.right.scls.getptr(schema, 'std::id'))
+                            expr.right.stype.getptr(schema, 'std::id'))
                     else:
                         ptr_filters.append(expr.right.rptr.ptrcls)
 

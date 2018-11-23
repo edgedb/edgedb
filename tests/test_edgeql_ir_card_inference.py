@@ -23,9 +23,9 @@ import textwrap
 from edb.lang import _testbase as tb
 
 from edb.lang.edgeql import compiler
+from edb.lang.edgeql.compiler import inference
 
 from edb.lang.ir import ast as irast
-from edb.lang.ir import inference as irinference
 
 
 class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
@@ -37,7 +37,7 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
     def run_test(self, *, source, spec, expected):
         ir = compiler.compile_to_ir(source, self.schema)
 
-        cardinality = irinference.infer_cardinality(
+        cardinality = inference.infer_cardinality(
             ir, scope_tree=ir.scope_tree, schema=self.schema)
         expected_cardinality = irast.Cardinality(
             textwrap.dedent(expected).strip(' \n'))

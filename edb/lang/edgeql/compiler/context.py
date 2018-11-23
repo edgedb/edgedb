@@ -78,11 +78,15 @@ class Environment:
     schema: s_schema.Schema
     """A Schema instance to use for class resolution."""
 
+    path_scope: irast.ScopeTreeNode
+    """Overrall expression path scope tree."""
+
     schema_view_cache: typing.Dict[s_nodes.Node, s_nodes.Node]
     """Type cache used by schema-level views."""
 
-    def __init__(self, *, schema):
+    def __init__(self, *, schema, path_scope):
         self.schema = schema
+        self.path_scope = path_scope
         self.schema_view_cache = {}
 
 
@@ -353,7 +357,7 @@ class ContextLevel(compiler.ContextLevel):
             if mode in {ContextSwitchMode.NEWFENCE_TEMP,
                         ContextSwitchMode.NEWSCOPE_TEMP}:
                 if prevlevel.path_scope is None:
-                    prevlevel.path_scope = irast.new_scope_tree()
+                    prevlevel.path_scope = self.env.path_scope
 
                 self.path_scope = prevlevel.path_scope.copy()
                 self.path_scope_is_temp = True
@@ -361,14 +365,14 @@ class ContextLevel(compiler.ContextLevel):
             if mode in {ContextSwitchMode.NEWFENCE,
                         ContextSwitchMode.NEWFENCE_TEMP}:
                 if prevlevel.path_scope is None:
-                    prevlevel.path_scope = irast.new_scope_tree()
+                    prevlevel.path_scope = self.env.path_scope
 
                 self.path_scope = prevlevel.path_scope.attach_fence()
 
             if mode in {ContextSwitchMode.NEWSCOPE,
                         ContextSwitchMode.NEWSCOPE_TEMP}:
                 if prevlevel.path_scope is None:
-                    prevlevel.path_scope = irast.new_scope_tree()
+                    prevlevel.path_scope = self.env.path_scope
 
                 self.path_scope = prevlevel.path_scope.attach_branch()
 

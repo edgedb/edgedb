@@ -286,7 +286,7 @@ def new_empty_rvar(
 def new_root_rvar(
         ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
-    if not isinstance(ir_set.scls, s_objtypes.ObjectType):
+    if not isinstance(ir_set.stype, s_objtypes.ObjectType):
         raise ValueError('cannot create root rvar for non-object path')
 
     set_rvar = dbobj.range_for_set(ir_set, env=ctx.env)
@@ -443,7 +443,7 @@ def new_static_class_rvar(
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
     set_rvar = new_root_rvar(ir_set, ctx=ctx)
     clsname = pgast.StringConstant(
-        val=ir_set.rptr.source.scls.material_type(ctx.env.schema).get_name(
+        val=ir_set.rptr.source.stype.material_type(ctx.env.schema).get_name(
             ctx.env.schema))
     nameref = dbobj.get_column(
         set_rvar, common.edgedb_name_to_pg_name('schema::name'),

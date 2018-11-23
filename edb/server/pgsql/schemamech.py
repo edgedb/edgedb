@@ -115,7 +115,7 @@ class ConstraintMech:
                         # for the purposes of constraint expr compilation.
                         src = src.get_bases(schema).first(schema)
                 else:
-                    src = ref.rptr.source.scls
+                    src = ref.rptr.source.stype
                 ref_ptrs[ref] = (ptr, src)
 
         for ref, (ptr, src) in ref_ptrs.items():

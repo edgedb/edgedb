@@ -34,6 +34,7 @@ from edb.lang.ir import staeval as ireval
 
 from .decompiler import decompile_ir  # NOQA
 from . import dispatch
+from . import inference
 from . import stmtctx
 
 from . import expr as _expr_compiler  # NOQA
@@ -64,7 +65,15 @@ def compile_ast_fragment_to_ir(tree,
         schema=schema, anchors=anchors, modaliases=modaliases)
     ctx.clause = location or 'where'
     ir_set = dispatch.compile(tree, ctx=ctx)
-    return irast.Statement(expr=ir_set, schema=ctx.env.schema)
+    try:
+        result_type = inference.infer_type(ir_set, ctx.env)
+    except ql_errors.EdgeQLError:
+        # Not all fragments can be resolved into a concrete type,
+        # that's OK.
+        result_type = None
+
+    return irast.Statement(expr=ir_set, schema=ctx.env.schema,
+                           stype=result_type)
 
 
 def compile_to_ir(expr,
@@ -92,6 +101,7 @@ def compile_ast_to_ir(tree,
                       schema,
                       *,
                       anchors=None,
+                      singletons=None,
                       func=None,
                       security_context=None,
                       derived_target_module=None,
@@ -105,9 +115,9 @@ def compile_ast_to_ir(tree,
         debug.dump(tree)
 
     ctx = stmtctx.init_context(
-        schema=schema, anchors=anchors, modaliases=modaliases,
-        security_context=security_context, func=func,
-        derived_target_module=derived_target_module,
+        schema=schema, anchors=anchors, singletons=singletons,
+        modaliases=modaliases, security_context=security_context,
+        func=func, derived_target_module=derived_target_module,
         result_view_name=result_view_name,
         implicit_id_in_shapes=implicit_id_in_shapes)
 
@@ -155,14 +165,14 @@ def compile_func_to_ir(func, schema, *,
         anchors = {}
 
     anchors['__defaults_mask__'] = irast.Parameter(
-        name='__defaults_mask__', type=schema.get('std::bytes'))
+        name='__defaults_mask__', stype=schema.get('std::bytes'))
 
     func_params = func.get_params(schema)
     pg_params = s_func.PgParams.from_params(schema, func_params)
     for pi, p in enumerate(pg_params.params):
         p_shortname = p.get_shortname(schema)
         anchors[p_shortname] = irast.Parameter(
-            name=p_shortname, type=p.get_type(schema))
+            name=p_shortname, stype=p.get_type(schema))
 
         if p.get_default(schema) is None:
             continue

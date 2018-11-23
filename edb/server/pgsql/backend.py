@@ -317,7 +317,8 @@ class Backend:
                 output_format=None, timer=None):
         tuples = {}
         type_desc = self._describe_type(
-            query_ir.schema, query_ir.expr.scls, query_ir.view_shapes, tuples)
+            query_ir.schema, query_ir.stype,
+            query_ir.view_shapes, tuples)
 
         output_desc = OutputDescriptor(
             type_desc=type_desc, tuple_registry=tuples)

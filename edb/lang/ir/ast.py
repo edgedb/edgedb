@@ -96,7 +96,7 @@ class Set(Base):
 
     path_id: PathId
     path_scope_id: int
-    scls: s_types.Type
+    stype: s_types.Type
     source: Base
     view_source: Base
     expr: Base
@@ -107,7 +107,7 @@ class Set(Base):
 
     def __repr__(self):
         return \
-            f'<ir.Set \'{self.path_id or self.scls.id}\' at 0x{id(self):x}>'
+            f'<ir.Set \'{self.path_id or self.stype.id}\' at 0x{id(self):x}>'
 
 
 class Command(Base):
@@ -120,6 +120,7 @@ class Statement(Command):
     views: typing.Dict[sn.Name, s_types.Type]
     params: typing.Dict[str, s_types.Type]
     cardinality: Cardinality
+    stype: s_types.Type
     view_shapes: typing.Dict[so.Object, typing.List[s_pointers.Pointer]]
     schema: s_schema.Schema
     scope_tree: ScopeTreeNode
@@ -141,11 +142,11 @@ class EmptySet(Set):
 class BaseConstant(Expr):
 
     value: str
-    type: s_types.Type
+    stype: s_types.Type
 
-    def __init__(self, *args, type, **kwargs):
-        super().__init__(*args, type=type, **kwargs)
-        if self.type is None:
+    def __init__(self, *args, stype, **kwargs):
+        super().__init__(*args, stype=stype, **kwargs)
+        if self.stype is None:
             raise ValueError('cannot create irast.Constant without a type')
         if self.value is None:
             raise ValueError('cannot create irast.Constant without a value')
@@ -178,7 +179,7 @@ class BytesConstant(BaseConstant):
 class Parameter(Base):
 
     name: str
-    type: s_types.Type
+    stype: s_types.Type
 
 
 class TupleElement(Base):
@@ -190,6 +191,7 @@ class TupleElement(Base):
 class Tuple(Expr):
     named: bool = False
     elements: typing.List[TupleElement]
+    stype: s_types.Type
 
 
 class Array(Expr):
@@ -259,6 +261,8 @@ class Coalesce(Base):
     left: Set
     right: Set
 
+    right_card: Cardinality
+
 
 class SortExpr(Base):
 
@@ -301,7 +305,7 @@ class FunctionCall(Expr):
     # Return type and typemod.  In bodies of polymorphic functions
     # the return type can be polymorphic; in queries the return
     # type will be a concrete schema type.
-    type: s_types.Type
+    stype: s_types.Type
     typemod: ft.TypeModifier
 
     agg_sort: typing.List[SortExpr]

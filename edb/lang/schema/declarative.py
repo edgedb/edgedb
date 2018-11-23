@@ -23,7 +23,6 @@ import collections
 import itertools
 import typing
 
-from edb.lang.common import ast
 from edb.lang.common import ordered
 from edb.lang.common import topological
 
@@ -34,10 +33,6 @@ from edb.lang.edgeql import functypes as ft
 from edb.lang.edgeql import utils as qlutils
 
 from edb.lang.edgeql.parser.grammar import lexutils as ql_lexutils
-
-from edb.lang.ir import ast as ir_ast
-from edb.lang.ir import inference as ir_inference
-from edb.lang.ir import utils as ir_utils
 
 from . import ast as s_ast
 from . import parser as s_parser
@@ -739,21 +734,10 @@ class DeclarationLoader:
         ir, _, expr_text = qlutils.normalize_tree(
             expr, self._schema,
             modaliases=module_aliases,
-            anchors={qlast.Source: source})
+            anchors={qlast.Source: source},
+            singletons=[source])
 
-        self_set = ast.find_children(
-            ir, lambda n: getattr(n, 'anchor', None) == qlast.Source,
-            terminate_early=True)
-
-        try:
-            expr_type = ir_utils.infer_type(ir, self._schema)
-        except edgeql.EdgeQLError as e:
-            raise s_err.SchemaError(
-                'could not determine the result type of the default '
-                'expression on {!s}.{!s}'.format(
-                    source.get_name(self._schema),
-                    ptr.get_shortname(self._schema)),
-                context=expr.context) from e
+        expr_type = ir.stype
 
         self._schema = ptr.set_field_value(self._schema, 'default', expr_text)
 
@@ -785,17 +769,8 @@ class DeclarationLoader:
                 self._schema = tgt_prop.set_field_value(
                     self._schema, 'target', expr_type)
 
-            scope_tree_root = ir_ast.new_scope_tree()
-            if self_set is not None:
-                scope_tree_root.attach_path(self_set.path_id)
-                scope_tree = scope_tree_root.attach_fence()
-            else:
-                scope_tree = scope_tree_root
-
             self._schema = ptr.set_field_value(
-                self._schema,
-                'cardinality',
-                ir_inference.infer_cardinality(ir, scope_tree, self._schema))
+                self._schema, 'cardinality', ir.cardinality)
 
             if ptrdecl.cardinality is not ptr.get_cardinality(self._schema):
                 if ptrdecl.cardinality is qlast.Cardinality.ONE:
