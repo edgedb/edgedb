@@ -1034,8 +1034,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_module_01(self):
         with self.assertRaisesRegex(
                 client_errors.SchemaError,
-                r"module 'spam' already exists",
-                position=20):
+                r"'spam' is already present in the schema"):
 
             await self.query('''\
                 CREATE MODULE spam;

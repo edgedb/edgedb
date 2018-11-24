@@ -44,6 +44,7 @@ from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import codegen
 from edb.lang.edgeql.parser import parse_fragment
 
+from edb.lang.schema import modules as s_mod
 from edb.lang.schema import pointers as s_pointers
 from edb.lang.schema import types as s_types
 from edb.lang.schema import objtypes as s_objtypes
@@ -91,7 +92,7 @@ class GQLCoreSchema:
         # extract and sort modules to have a consistent type ordering
         self.modules = {
             m.get_name(self.edb_schema)
-            for m in self.edb_schema.get_modules()
+            for m in self.edb_schema.get_objects(type=s_mod.Module)
         } - {'schema', 'stdgraphql'}
         self.modules = list(self.modules)
         self.modules.sort()

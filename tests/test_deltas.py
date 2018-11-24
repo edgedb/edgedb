@@ -361,13 +361,13 @@ test::a -> array<std::int64>;
     async def test_delta_ddlgen_04(self):
         result = await self.con.execute("""
             # setup delta
-            CREATE MIGRATION test::d3 TO eschema $$
+            CREATE MIGRATION test::d4 TO eschema $$
                 abstract type Foo:
                     property bar -> str
                     property __typename := __source__.__type__.name
             $$;
 
-            GET MIGRATION test::d3;
+            GET MIGRATION test::d4;
         """)
 
         self._assert_result(

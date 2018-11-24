@@ -114,15 +114,18 @@ class Backend:
         context = sd.CommandContext()
         result = None
 
-        with context(s_deltas.DeltaCommandContext(delta_cmd)):
+        if isinstance(delta_cmd, s_deltas.CreateDelta):
+            delta = None
+        else:
+            delta = schema.get(delta_cmd.classname)
+
+        with context(s_deltas.DeltaCommandContext(schema, delta_cmd, delta)):
             if isinstance(delta_cmd, s_deltas.CommitDelta):
-                delta = schema.get_delta(delta_cmd.classname)
                 ddl_plan = s_db.AlterDatabase()
                 ddl_plan.update(delta.get_commands(schema))
                 await self.run_ddl_command(ddl_plan)
 
             elif isinstance(delta_cmd, s_deltas.GetDelta):
-                delta = schema.get_delta(delta_cmd.classname)
                 result = s_ddl.ddl_text_from_delta(schema, delta)
 
             elif isinstance(delta_cmd, s_deltas.CreateDelta):

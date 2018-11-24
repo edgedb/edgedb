@@ -21,7 +21,6 @@ from edb.lang.common import struct
 from edb.lang.edgeql import ast as qlast
 
 from . import delta as sd
-from . import error as s_err
 from . import name as sn
 from . import named
 from . import objects as so
@@ -33,10 +32,8 @@ class Module(named.NamedObject):
     name = so.SchemaField(str)
 
 
-class ModuleCommandContext(sd.CommandContextToken):
-    def __init__(self, schema, op, module):
-        super().__init__(op)
-        self.module = module
+class ModuleCommandContext(sd.ObjectCommandContext):
+    pass
 
 
 class ModuleCommand(named.NamedObjectCommand, schema_metaclass=Module,
@@ -58,33 +55,10 @@ class ModuleCommand(named.NamedObjectCommand, schema_metaclass=Module,
 class CreateModule(named.CreateNamedObject, ModuleCommand):
     astnode = qlast.CreateModule
 
-    def apply(self, schema, context):
-        props = self.get_struct_properties(schema)
-        metaclass = self.get_schema_metaclass()
-        if schema.get_module(self.classname) is not None:
-            raise s_err.SchemaError(
-                f'module {self.classname!r} already exists',
-                context=self.source_context)
-        return metaclass.create_in_schema(schema, **props)
-
 
 class AlterModule(named.CreateOrAlterNamedObject, ModuleCommand):
     astnode = qlast.AlterModule
 
-    def apply(self, schema, context):
-        self.module = schema.get_module(self.classname)
-
-        props = self.get_struct_properties(schema)
-        for name, value in props.items():
-            setattr(self.module, name, value)
-
-        return schema, self.module
-
 
 class DeleteModule(ModuleCommand):
     astnode = qlast.DropModule
-
-    def apply(self, schema, context):
-        self.module = schema.get_module(self.classname)
-        schema = schema.delete_module(self.module)
-        return schema, self.module

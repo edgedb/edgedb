@@ -82,25 +82,15 @@ def delta_schemas(schema1, schema2):
 
 
 def delta_module(schema1, schema2, modname):
-    from . import modules, objects as so, database
+    from . import objects as so, database
     from . import derivable
 
     result = database.AlterDatabase()
 
-    try:
-        module2 = schema2.get_module(modname)
-    except KeyError:
-        module2 = None
+    module2 = schema2.get(modname, None)
 
     global_adds_mods = []
     global_dels = []
-
-    if module2 is None:
-        create = modules.CreateModule(classname=modname)
-
-        create.add(AlterObjectProperty(property='name', old_value=None,
-                                       new_value=modname))
-        result.add(create)
 
     for type in s_ordering.get_global_dep_order():
         new = s_ordering.sort_objects(

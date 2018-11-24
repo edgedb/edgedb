@@ -243,7 +243,7 @@ def find_item_suggestions(
         suggestions.extend(collection)
     else:
         if modname:
-            module = schema.get_module(modname)
+            module = schema.get(modname, None)
             if module:
                 suggestions.extend(schema.get_objects(modules=[modname]))
 

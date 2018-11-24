@@ -26,6 +26,7 @@ from edb.lang.ir import ast as irast
 from edb.lang.ir import staeval as ireval
 from edb.lang.ir import utils as irutils
 
+from edb.lang.schema import error as s_err
 from edb.lang.schema import links as s_links
 from edb.lang.schema import lproperties as s_props
 from edb.lang.schema import objtypes as s_objtypes
@@ -364,8 +365,8 @@ def compile_SessionStateDecl(
     for item in decl.items:
         if isinstance(item, qlast.ModuleAliasDecl):
             try:
-                module = ctx.env.schema.get_module(item.module)
-            except LookupError:
+                module = ctx.env.schema.get(item.module)
+            except s_err.ItemNotFoundError:
                 raise errors.EdgeQLError(
                     f'module {item.module!r} does not exist',
                     context=item.context

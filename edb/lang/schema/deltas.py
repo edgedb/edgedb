@@ -43,7 +43,7 @@ class Delta(named.NamedObject):
         coerce=True, inheritable=False, introspectable=False)
 
 
-class DeltaCommandContext(sd.CommandContextToken):
+class DeltaCommandContext(sd.ObjectCommandContext):
     pass
 
 
@@ -67,39 +67,20 @@ class CreateDelta(named.CreateNamedObject, DeltaCommand):
 
         return cmd
 
-    def apply(self, schema, context):
-        props = self.get_struct_properties(schema)
-        metaclass = self.get_schema_metaclass()
-        return metaclass.create_in_schema(schema, **props)
-
 
 class AlterDelta(named.CreateOrAlterNamedObject, DeltaCommand):
     astnode = qlast.AlterDelta
 
-    def apply(self, schema, context):
-        delta = schema.get_delta(self.classname)
-
-        props = self.get_struct_properties(schema)
-        for name, value in props.items():
-            setattr(delta, name, value)
-
-        return schema, delta
-
 
 class DeleteDelta(DeltaCommand):
     astnode = qlast.DropDelta
-
-    def apply(self, schema, context):
-        delta = schema.get_delta(self.classname)
-        schema = schema.delete_delta(delta)
-        return schema, delta
 
 
 class CommitDelta(DeltaCommand):
     astnode = qlast.CommitDelta
 
     def apply(self, schema, context):
-        delta = schema.get_delta(self.classname)
+        delta = schema.get(self.classname)
         for cmd in delta.get_commands(schema):
             schema, _ = cmd.apply(schema, context)
 
@@ -110,5 +91,5 @@ class GetDelta(DeltaCommand):
     astnode = qlast.GetDelta
 
     def apply(self, schema, context):
-        delta = schema.get_delta(self.classname)
+        delta = schema.get(self.classname)
         return schema, delta

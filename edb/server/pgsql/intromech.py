@@ -209,6 +209,7 @@ class IntrospectionMech:
         for module in modules.values():
             schema, mod = s_mod.Module.create_in_schema(
                 schema,
+                id=module['id'],
                 name=module['name'])
 
         return schema
