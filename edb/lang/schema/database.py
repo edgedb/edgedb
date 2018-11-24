@@ -21,11 +21,9 @@ from edb.lang.common import struct
 from edb.lang.edgeql import ast as qlast
 
 from . import delta as sd
-from . import links as s_links
 from . import modules
 from . import named
 from . import objects as so
-from . import objtypes as s_objtypes
 
 
 class Database(named.NamedObject):
@@ -71,19 +69,6 @@ class AlterDatabase(DatabaseCommand):
                 if not isinstance(op, (modules.CreateModule,
                                        modules.AlterModule)):
                     schema, _ = op.apply(schema, context)
-
-            for link in schema.get_objects(type=s_links.Link):
-                link_target = link.get_target(schema)
-                if link_target and not isinstance(link_target, so.Object):
-                    schema = link.set_field_value(
-                        schema, 'target', schema.get(link_target))
-
-                schema = link.acquire_ancestor_inheritance(schema)
-                schema = link.finalize(schema)
-
-            for objtype in schema.get_objects(type=s_objtypes.BaseObjectType):
-                schema = objtype.acquire_ancestor_inheritance(schema)
-                schema = objtype.finalize(schema)
 
         return schema, None
 

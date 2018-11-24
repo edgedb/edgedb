@@ -29,10 +29,7 @@ from . import utils
 
 
 class InheritingObjectCommand(named.NamedObjectCommand):
-    def _create_finalize(self, schema, context):
-        schema = self.scls.acquire_ancestor_inheritance(schema, dctx=context)
-        schema = self.scls.update_descendants(schema)
-        return super()._create_finalize(schema, context)
+    pass
 
 
 def delta_bases(old_bases, new_bases):
@@ -88,6 +85,11 @@ class AlterInherit(sd.Command):
 
 
 class CreateInheritingObject(named.CreateNamedObject, InheritingObjectCommand):
+    def _create_finalize(self, schema, context):
+        schema = self.scls.acquire_ancestor_inheritance(schema, dctx=context)
+        schema = self.scls.update_descendants(schema)
+        return super()._create_finalize(schema, context)
+
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
@@ -151,9 +153,17 @@ class AlterInheritingObject(named.AlterNamedObject, InheritingObjectCommand):
 
         return schema
 
+    def _alter_finalize(self, schema, context, scls):
+        schema = self.scls.acquire_ancestor_inheritance(schema, dctx=context)
+        schema = self.scls.update_descendants(schema)
+        return super()._alter_finalize(schema, context, scls)
+
 
 class DeleteInheritingObject(named.DeleteNamedObject, InheritingObjectCommand):
-    pass
+
+    def _delete_finalize(self, schema, context, scls):
+        schema = self.scls.update_descendants(schema)
+        return super()._delete_finalize(schema, context, scls)
 
 
 class RebaseNamedObject(named.NamedObjectCommand):

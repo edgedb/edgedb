@@ -768,7 +768,7 @@ class ReferencingObject(inheriting.InheritingObject,
         return schema
 
 
-class ReferencingObjectCommand(sd.ObjectCommand):
+class ReferencingObjectCommand(inheriting.InheritingObjectCommand):
     def _apply_fields_ast(self, schema, context, node):
         super()._apply_fields_ast(schema, context, node)
 
