@@ -271,7 +271,7 @@ class ObjectMeta(type):
                         f'{getter_name}() is already defined')
                 clsdict[getter_name] = (
                     lambda self, schema, *, _fn=v.name:
-                        self.get_field_value(schema, _fn)
+                        self._get_schema_field_value(schema, _fn)
                 )
 
         cls = super().__new__(mcls, name, bases, clsdict)
@@ -510,20 +510,15 @@ class Object(metaclass=ObjectMeta):
             value = field.default
         return value
 
-    def get_field_value(self, schema, field_name, *, allow_default=True):
-        field = type(self).get_field(field_name)
-
-        if field.is_schema_field:
-            val = schema._get_obj_field(self.id, field_name)
-            if val is not None:
-                return val
-        else:
-            try:
-                return self.__dict__[field_name]
-            except KeyError:
-                pass
+    def _get_schema_field_value(self, schema, field_name, *,
+                                allow_default=True):
+        val = schema._get_obj_field(self.id, field_name)
+        if val is not None:
+            return val
 
         if allow_default:
+            field = type(self).get_field(field_name)
+
             try:
                 return self._getdefault(field_name, field)
             except TypeError:
@@ -532,15 +527,43 @@ class Object(metaclass=ObjectMeta):
         raise FieldValueNotFoundError(
             f'{self!r} object has no value for field {field_name!r}')
 
+    def get_field_value(self, schema, field_name, *, allow_default=True):
+        field = type(self).get_field(field_name)
+
+        if field.is_schema_field:
+            return self._get_schema_field_value(
+                schema, field_name, allow_default=allow_default)
+        else:
+            try:
+                return self.__dict__[field_name]
+            except KeyError:
+                pass
+
+        raise FieldValueNotFoundError(
+            f'{self!r} object has no value for field {field_name!r}')
+
     def get_explicit_field_value(self, schema, field_name, default=NoDefault):
-        try:
-            return self.get_field_value(
-                schema, field_name, allow_default=False)
-        except FieldValueNotFoundError:
-            if default is NoDefault:
-                raise
-            else:
+        field = type(self).get_field(field_name)
+
+        if field.is_schema_field:
+            val = schema._get_obj_field(self.id, field_name)
+            if val is not None:
+                return val
+            elif default is not NoDefault:
                 return default
+            else:
+                raise FieldValueNotFoundError(
+                    f'{self!r} object has no value for field {field_name!r}')
+
+        else:
+            try:
+                return self.__dict__[field_name]
+            except KeyError:
+                if default is not NoDefault:
+                    return default
+
+            raise FieldValueNotFoundError(
+                f'{self!r} object has no value for field {field_name!r}')
 
     def set_field_value(self, schema, name, value):
         return self.update(schema, {name: value})
