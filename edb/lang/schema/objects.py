@@ -19,6 +19,7 @@
 
 import collections
 import collections.abc
+import functools
 import itertools
 import pathlib
 import re
@@ -1110,6 +1111,7 @@ class NamedObject(Object):
         return name.replace('|', '::')
 
     @classmethod
+    @functools.lru_cache(4096)
     def shortname_from_fullname(cls, fullname) -> sn.Name:
         parts = str(fullname.name).split('@@', 1)
         if len(parts) == 2:
