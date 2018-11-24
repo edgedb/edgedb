@@ -198,6 +198,17 @@ class AstValueTest(BaseDocTest):
             self.assertEqual(var.value.value, val)
 
 
+_std_schema = None
+
+
+def _load_std_schema():
+    global _std_schema
+    if _std_schema is None:
+        _std_schema = s_std.load_std_schema()
+        _std_schema = s_std.load_graphql_schema(_std_schema)
+    return _std_schema
+
+
 class BaseEdgeQLCompilerTest(BaseDocTest):
     SCHEMA = None
 
@@ -210,11 +221,7 @@ class BaseEdgeQLCompilerTest(BaseDocTest):
         script = cls.get_schema_script()
         statements = edgeql.parse_block(script)
 
-        current_schema = s_std.load_std_schema()
-        current_schema = s_std.load_graphql_schema(current_schema)
-
-        target_schema = s_std.load_std_schema()
-        target_schema = s_std.load_graphql_schema(target_schema)
+        current_schema = target_schema = _load_std_schema()
 
         for stmt in statements:
             if isinstance(stmt, qlast.CreateDelta):
@@ -262,8 +269,12 @@ class BaseEdgeQLCompilerTest(BaseDocTest):
                 module_name = (m.group(1) or 'test').lower().replace(
                     '__', '.')
 
-                with open(val, 'r') as sf:
-                    schema = sf.read()
+                if '\n' in val:
+                    # Inline schema source
+                    schema = val
+                else:
+                    with open(val, 'r') as sf:
+                        schema = sf.read()
 
                 if module_name != 'test':
                     script += f'\nCREATE MODULE {module_name};'
@@ -277,8 +288,7 @@ class BaseEdgeQLCompilerTest(BaseDocTest):
 
 class BaseSchemaTest(BaseDocTest):
     def load_schema(self, source):
-        schema = s_std.load_std_schema()
-        schema = s_std.load_graphql_schema(schema)
+        schema = _load_std_schema()
         return s_decl.parse_module_declarations(schema, [('test', source)])
 
     def run_test(self, *, source, spec, expected=None):

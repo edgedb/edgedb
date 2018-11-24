@@ -21,13 +21,11 @@ import textwrap
 
 from edb.lang.edgeql import parser as eql_parser
 from edb.lang.edgeql import utils as eql_utils
-from edb.lang.schema import declarative as s_decl
-from edb.lang.schema import std as s_std
 
 from edb.lang import _testbase as tb
 
 
-class TestEdgeQLUtils(tb.BaseSyntaxTest):
+class TestEdgeQLUtils(tb.BaseEdgeQLCompilerTest):
     SCHEMA = r"""
         abstract type NamedObject:
             required property name -> str
@@ -48,13 +46,6 @@ class TestEdgeQLUtils(tb.BaseSyntaxTest):
             required property score -> float64
             link profile -> Profile
     """
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.schema = s_std.load_std_schema()
-        cls.schema = s_decl.parse_module_declarations(
-            cls.schema, [('test', cls.SCHEMA)])
 
     def _assert_normalize_expr(self, text, expected,
                                expected_const_type=None, *,
