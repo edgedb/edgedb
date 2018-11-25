@@ -36,6 +36,7 @@ from . import indexes  # NOQA
 from . import links  # NOQA
 from . import lproperties  # NOQA
 from . import modules  # NOQA
+from . import std  # NOQA
 from . import views  # NOQA
 
 
@@ -65,8 +66,7 @@ def compile_migration(cmd, target_schema, current_schema):
         (cmd.classname.module, declarations)
     ])
 
-    stdmodules = {'std', 'schema', 'stdattrs', 'stdgraphql'}
-
+    stdmodules = std.STD_MODULES
     moditems = target_schema.get_objects(type=modules.Module)
     modnames = {m.get_name(target_schema) for m in moditems} - stdmodules
     if len(modnames) != 1:

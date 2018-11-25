@@ -23,7 +23,9 @@ import typing
 
 async def fetch(
         conn: asyncpg.connection.Connection, *,
-        name: str=None, modules=None) -> typing.List[asyncpg.Record]:
+        name: str=None,
+        modules=None,
+        exclude_modules=None) -> typing.List[asyncpg.Record]:
     return await conn.fetch("""
         SELECT
                 a.id                    AS id,
@@ -38,12 +40,16 @@ async def fetch(
                 ($1::text IS NULL OR a.name LIKE $1::text)
                 AND ($2::text[] IS NULL
                      OR split_part(a.name, '::', 1) = any($2::text[]))
-    """, name, modules)
+                AND ($3::text[] IS NULL
+                     OR split_part(a.name, '::', 1) != all($3::text[]))
+    """, name, modules, exclude_modules)
 
 
 async def fetch_values(
         conn: asyncpg.connection.Connection, *,
-        name: str=None, modules=None) -> typing.List[asyncpg.Record]:
+        name: str=None,
+        modules=None,
+        exclude_modules=None) -> typing.List[asyncpg.Record]:
     return await conn.fetch("""
         SELECT
                 a.id                        AS id,
@@ -59,4 +65,6 @@ async def fetch_values(
                 ($1::text IS NULL OR a.name LIKE $1::text)
                 AND ($2::text[] IS NULL
                      OR split_part(a.name, '::', 1) = any($2::text[]))
-    """, name, modules)
+                AND ($3::text[] IS NULL
+                     OR split_part(a.name, '::', 1) != all($3::text[]))
+    """, name, modules, exclude_modules)

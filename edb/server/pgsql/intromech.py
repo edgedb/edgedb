@@ -58,7 +58,6 @@ from . import types
 class IntrospectionMech:
 
     def __init__(self, connection):
-        self.schema = None
         self._constr_mech = schemamech.ConstraintMech()
 
         self.parser = parser.PgSQLParser()
@@ -67,30 +66,33 @@ class IntrospectionMech:
 
         self.connection = connection
 
-    def invalidate_cache(self):
-        self.schema = None
-        self._constr_mech.invalidate_schema_cache()
+    async def readschema(self, *, schema=None, modules=None,
+                         exclude_modules=None):
+        if schema is None:
+            schema = so.Schema()
 
-    async def getschema(self):
-        if self.schema is None:
-            self.schema = await self.readschema()
-
-        return self.schema
-
-    async def readschema(self, modules=None):
-        schema = so.Schema()
-
-        schema = await self.read_modules(schema, only_modules=modules)
-        schema = await self.read_scalars(schema, only_modules=modules)
-        schema = await self.read_attributes(schema, only_modules=modules)
-        schema = await self.read_objtypes(schema, only_modules=modules)
-        schema = await self.read_links(schema, only_modules=modules)
-        schema = await self.read_link_properties(schema, only_modules=modules)
-        schema = await self.read_attribute_values(schema, only_modules=modules)
-        schema = await self.read_operators(schema, only_modules=modules)
-        schema = await self.read_functions(schema, only_modules=modules)
-        schema = await self.read_constraints(schema, only_modules=modules)
-        schema = await self.read_indexes(schema, only_modules=modules)
+        schema = await self.read_modules(
+            schema, only_modules=modules, exclude_modules=exclude_modules)
+        schema = await self.read_scalars(
+            schema, only_modules=modules, exclude_modules=exclude_modules)
+        schema = await self.read_attributes(
+            schema, only_modules=modules, exclude_modules=exclude_modules)
+        schema = await self.read_objtypes(
+            schema, only_modules=modules, exclude_modules=exclude_modules)
+        schema = await self.read_links(
+            schema, only_modules=modules, exclude_modules=exclude_modules)
+        schema = await self.read_link_properties(
+            schema, only_modules=modules, exclude_modules=exclude_modules)
+        schema = await self.read_attribute_values(
+            schema, only_modules=modules, exclude_modules=exclude_modules)
+        schema = await self.read_operators(
+            schema, only_modules=modules, exclude_modules=exclude_modules)
+        schema = await self.read_functions(
+            schema, only_modules=modules, exclude_modules=exclude_modules)
+        schema = await self.read_constraints(
+            schema, only_modules=modules, exclude_modules=exclude_modules)
+        schema = await self.read_indexes(
+            schema, only_modules=modules, exclude_modules=exclude_modules)
 
         schema = await self.order_attributes(schema)
         schema = await self.order_scalars(schema)
@@ -102,7 +104,7 @@ class IntrospectionMech:
 
         return schema
 
-    async def read_modules(self, schema, only_modules):
+    async def read_modules(self, schema, only_modules, exclude_modules):
         schemas = await introspection.schemas.fetch(
             self.connection, schema_pattern='edgedb_%')
         schemas = {
@@ -111,7 +113,8 @@ class IntrospectionMech:
         }
 
         modules = await datasources.schema.modules.fetch(
-            self.connection, only_modules)
+            self.connection, modules=only_modules,
+            exclude_modules=exclude_modules)
 
         modules = [
             {'id': m['id'], 'name': m['name']}
@@ -131,7 +134,7 @@ class IntrospectionMech:
         extra_schemas = schemas - recorded_schemas - {'edgedb', 'edgedbss'}
         missing_schemas = recorded_schemas - schemas
 
-        if extra_schemas and not only_modules:
+        if extra_schemas and not only_modules and not exclude_modules:
             msg = 'internal metadata incosistency'
             details = 'Extraneous data schemas exist: {}'.format(
                 ', '.join('"%s"' % s for s in extra_schemas))
@@ -145,7 +148,7 @@ class IntrospectionMech:
 
         return schema
 
-    async def read_scalars(self, schema, only_modules):
+    async def read_scalars(self, schema, only_modules, exclude_modules):
         seqs = await introspection.sequences.fetch(
             self.connection,
             schema_pattern='edgedb%', sequence_pattern='%_sequence')
@@ -154,7 +157,8 @@ class IntrospectionMech:
         seen_seqs = set()
 
         scalar_list = await datasources.schema.scalars.fetch(
-            self.connection, only_modules)
+            self.connection, modules=only_modules,
+            exclude_modules=exclude_modules)
 
         basemap = {}
 
@@ -210,7 +214,7 @@ class IntrospectionMech:
                 seen_seqs.add(seq_name)
 
         extra_seqs = set(seqs) - seen_seqs
-        if extra_seqs and not only_modules:
+        if extra_seqs and not only_modules and not exclude_modules:
             msg = 'internal metadata incosistency'
             details = 'Extraneous sequences exist: {}'.format(
                 ', '.join(common.qname(*t) for t in extra_seqs))
@@ -244,14 +248,16 @@ class IntrospectionMech:
         else:
             return schema, []
 
-    async def read_operators(self, schema, only_modules):
+    async def read_operators(self, schema, only_modules, exclude_modules):
         self._operator_commutators.clear()
 
         ds = datasources.schema
         func_list = await ds.operators.fetch(
-            self.connection, only_modules)
+            self.connection, modules=only_modules,
+            exclude_modules=exclude_modules)
         param_list = await ds.functions.fetch_params(
-            self.connection, only_modules)
+            self.connection, modules=only_modules,
+            exclude_modules=exclude_modules)
         param_map = {p['name']: p for p in param_list}
 
         for row in func_list:
@@ -288,10 +294,14 @@ class IntrospectionMech:
         self._operator_commutators.clear()
         return schema
 
-    async def read_functions(self, schema, only_modules):
+    async def read_functions(self, schema, only_modules, exclude_modules):
         ds = datasources.schema.functions
-        func_list = await ds.fetch(self.connection, only_modules)
-        param_list = await ds.fetch_params(self.connection, only_modules)
+        func_list = await ds.fetch(
+            self.connection, modules=only_modules,
+            exclude_modules=exclude_modules)
+        param_list = await ds.fetch_params(
+            self.connection, modules=only_modules,
+            exclude_modules=exclude_modules)
         param_map = {p['name']: p for p in param_list}
 
         for row in func_list:
@@ -320,14 +330,16 @@ class IntrospectionMech:
     async def order_functions(self, schema):
         return schema
 
-    async def read_constraints(self, schema, only_modules):
+    async def read_constraints(self, schema, only_modules, exclude_modules):
         ds = datasources.schema
         constraints_list = await ds.constraints.fetch(
-            self.connection, modules=only_modules)
+            self.connection, modules=only_modules,
+            exclude_modules=exclude_modules)
         constraints_list = collections.OrderedDict(
             (sn.Name(r['name']), r) for r in constraints_list)
         param_list = await ds.functions.fetch_params(
-            self.connection, modules=only_modules)
+            self.connection, modules=only_modules,
+            exclude_modules=exclude_modules)
         param_map = {p['name']: p for p in param_list}
 
         basemap = {}
@@ -455,7 +467,7 @@ class IntrospectionMech:
         for idx_data in indexes:
             yield dbops.Index.from_introspection(table_name, idx_data)
 
-    async def read_indexes(self, schema, only_modules):
+    async def read_indexes(self, schema, only_modules, exclude_modules):
         pg_index_data = await introspection.tables.fetch_indexes(
             self.connection,
             schema_pattern='edgedb%', index_pattern='%_reg_idx')
@@ -469,7 +481,9 @@ class IntrospectionMech:
                 )
 
         ds = datasources.schema.indexes
-        indexes = await ds.fetch(self.connection, modules=only_modules)
+        indexes = await ds.fetch(
+            self.connection, modules=only_modules,
+            exclude_modules=exclude_modules)
 
         for index_data in indexes:
             subj = schema.get(index_data['subject_name'])
@@ -495,7 +509,7 @@ class IntrospectionMech:
 
             schema = subj.add_index(schema, index)
 
-        if pg_indexes and not only_modules:
+        if pg_indexes and not only_modules and not exclude_modules:
             details = f'Extraneous PostgreSQL indexes found: {pg_indexes!r}'
             raise s_err.SchemaError(
                 'internal metadata inconsistency',
@@ -503,14 +517,15 @@ class IntrospectionMech:
 
         return schema
 
-    async def read_links(self, schema, only_modules):
+    async def read_links(self, schema, only_modules, exclude_modules):
         link_tables = await introspection.tables.fetch_tables(
             self.connection,
             schema_pattern='edgedb%', table_pattern='%_link')
         link_tables = {(t['schema'], t['name']): t for t in link_tables}
 
         links_list = await datasources.schema.links.fetch(
-            self.connection, modules=only_modules)
+            self.connection, modules=only_modules,
+            exclude_modules=exclude_modules)
         links_list = collections.OrderedDict((sn.Name(r['name']), r)
                                              for r in links_list)
 
@@ -615,9 +630,11 @@ class IntrospectionMech:
 
         return schema
 
-    async def read_link_properties(self, schema, only_modules):
+    async def read_link_properties(
+            self, schema, only_modules, exclude_modules):
         link_props = await datasources.schema.links.fetch_properties(
-            self.connection, modules=only_modules)
+            self.connection, modules=only_modules,
+            exclude_modules=exclude_modules)
         link_props = collections.OrderedDict((sn.Name(r['name']), r)
                                              for r in link_props)
         basemap = {}
@@ -705,9 +722,10 @@ class IntrospectionMech:
 
         return schema
 
-    async def read_attributes(self, schema, only_modules):
+    async def read_attributes(self, schema, only_modules, exclude_modules):
         attributes = await datasources.schema.attributes.fetch(
-            self.connection, modules=only_modules)
+            self.connection, modules=only_modules,
+            exclude_modules=exclude_modules)
 
         for r in attributes:
             name = sn.Name(r['name'])
@@ -724,9 +742,11 @@ class IntrospectionMech:
     async def order_attributes(self, schema):
         return schema
 
-    async def read_attribute_values(self, schema, only_modules):
+    async def read_attribute_values(
+            self, schema, only_modules, exclude_modules):
         attributes = await datasources.schema.attributes.fetch_values(
-            self.connection, modules=only_modules)
+            self.connection, modules=only_modules,
+            exclude_modules=exclude_modules)
 
         for r in attributes:
             name = sn.Name(r['name'])
@@ -746,9 +766,10 @@ class IntrospectionMech:
 
         return schema
 
-    async def read_objtypes(self, schema, only_modules):
+    async def read_objtypes(self, schema, only_modules, exclude_modules):
         objtype_list = await datasources.schema.objtypes.fetch(
-            self.connection, modules=only_modules)
+            self.connection, modules=only_modules,
+            exclude_modules=exclude_modules)
         objtype_list = collections.OrderedDict((sn.Name(row['name']), row)
                                                for row in objtype_list)
 

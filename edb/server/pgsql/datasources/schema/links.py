@@ -22,8 +22,10 @@ import typing
 
 
 async def fetch(
-        conn: asyncpg.connection.Connection, *,
-        modules=None) -> typing.List[asyncpg.Record]:
+        conn: asyncpg.connection.Connection,
+        *,
+        modules=None,
+        exclude_modules=None) -> typing.List[asyncpg.Record]:
     return await conn.fetch("""
         SELECT
                 l.id,
@@ -46,16 +48,20 @@ async def fetch(
             FROM
                 edgedb.link l
             WHERE
-                $1::text[] IS NULL
-                OR split_part(l.name, '::', 1) = any($1::text[])
+                ($1::text[] IS NULL
+                 OR split_part(l.name, '::', 1) = any($1::text[]))
+                AND ($2::text[] IS NULL
+                     OR split_part(l.name, '::', 1) != all($2::text[]))
             ORDER BY
                 l.name LIKE 'std::%' DESC, l.id, l.target NULLS FIRST
-    """, modules)
+    """, modules, exclude_modules)
 
 
 async def fetch_properties(
-        conn: asyncpg.connection.Connection, *,
-        modules=None) -> typing.List[asyncpg.Record]:
+        conn: asyncpg.connection.Connection,
+        *,
+        modules=None,
+        exclude_modules=None) -> typing.List[asyncpg.Record]:
     return await conn.fetch("""
         SELECT
                 p.id                    AS id,
@@ -82,8 +88,10 @@ async def fetch_properties(
             FROM
                 edgedb.Property p
             WHERE
-                $1::text[] IS NULL
-                OR split_part(p.name, '::', 1) = any($1::text[])
+                ($1::text[] IS NULL
+                 OR split_part(p.name, '::', 1) = any($1::text[]))
+                AND ($2::text[] IS NULL
+                     OR split_part(p.name, '::', 1) != all($2::text[]))
             ORDER BY
                 p.id, p.target NULLS FIRST
-    """, modules)
+    """, modules, exclude_modules)

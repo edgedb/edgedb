@@ -22,8 +22,10 @@ import typing
 
 
 async def fetch(
-        conn: asyncpg.connection.Connection, *,
-        modules=None) -> typing.List[asyncpg.Record]:
+        conn: asyncpg.connection.Connection,
+        *,
+        modules=None,
+        exclude_modules=None) -> typing.List[asyncpg.Record]:
     return await conn.fetch("""
         SELECT
                 c.id AS id,
@@ -38,14 +40,18 @@ async def fetch(
             FROM
                 edgedb.ObjectType c
             WHERE
-                $1::text[] IS NULL
-                OR split_part(c.name, '::', 1) = any($1::text[])
-    """, modules)
+                ($1::text[] IS NULL
+                 OR split_part(c.name, '::', 1) = any($1::text[]))
+                AND ($2::text[] IS NULL
+                     OR split_part(c.name, '::', 1) != all($2::text[]))
+    """, modules, exclude_modules)
 
 
 async def fetch_derived(
-        conn: asyncpg.connection.Connection, *,
-        modules=None) -> typing.List[asyncpg.Record]:
+        conn: asyncpg.connection.Connection,
+        *,
+        modules=None,
+        exclude_modules=None) -> typing.List[asyncpg.Record]:
     return await conn.fetch("""
         SELECT
                 c.id AS id,
@@ -60,6 +66,8 @@ async def fetch_derived(
             FROM
                 edgedb.DerivedObjectType c
             WHERE
-                $1::text[] IS NULL
-                OR split_part(c.name, '::', 1) = any($1::text[])
-    """, modules)
+                ($1::text[] IS NULL
+                 OR split_part(c.name, '::', 1) = any($1::text[]))
+                AND ($2::text[] IS NULL
+                     OR split_part(c.name, '::', 1) != all($2::text[]))
+    """, modules, exclude_modules)

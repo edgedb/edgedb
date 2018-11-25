@@ -30,7 +30,8 @@ from . import schema as s_schema
 
 
 LIB_ROOT = pathlib.Path(stdlib.__path__[0])
-STD_MODULES = ['std', 'schema']
+STD_LIB = ['std', 'schema']
+STD_MODULES = {'std', 'schema', 'stdattrs', 'stdgraphql'}
 
 
 def std_module_to_ddl(
@@ -81,7 +82,7 @@ def load_std_schema(
     if schema is None:
         schema = s_schema.Schema()
 
-    for modname in STD_MODULES:
+    for modname in STD_LIB:
         schema = load_std_module(schema, modname)
 
     return schema

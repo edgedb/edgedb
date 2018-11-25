@@ -41,9 +41,6 @@ from . import codegen
 
 class ConstraintMech:
 
-    def invalidate_schema_cache(self):
-        self._constraints_cache = None
-
     @classmethod
     def _get_exclusive_refs(cls, tree):
         # Check if the expression is

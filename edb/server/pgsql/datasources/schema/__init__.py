@@ -23,8 +23,6 @@ from . import functions  # NOQA
 from . import indexes  # NOQA
 from . import links  # NOQA
 from . import modules  # NOQA
-from . import objects  # NOQA
 from . import objtypes  # NOQA
 from . import operators  # NOQA
 from . import scalars  # NOQA
-from . import views  # NOQA

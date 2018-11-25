@@ -31,6 +31,8 @@ from edb.lang.schema import delta as sd
 from edb.lang.schema import database as s_db
 from edb.lang.schema import ddl as s_ddl
 from edb.lang.schema import deltas as s_deltas
+from edb.lang.schema import schema as s_schema
+from edb.lang.schema import std as s_std
 from edb.lang.schema import types as s_types
 
 from edb.server import query as backend_query
@@ -73,6 +75,8 @@ class OutputDescriptor:
 
 class Backend:
 
+    std_schema = None
+
     def __init__(self, connection):
         self.schema = None
         self.modaliases = {None: 'default'}
@@ -85,7 +89,12 @@ class Backend:
 
     async def getschema(self):
         if self.schema is None:
-            self.schema = await self._intro_mech.getschema()
+            cls = type(self)
+            if cls.std_schema is None:
+                cls.std_schema = await self._intro_mech.readschema(
+                    modules=s_std.STD_MODULES)
+            self.schema = await self._intro_mech.readschema(
+                schema=cls.std_schema, exclude_modules=s_std.STD_MODULES)
 
         return self.schema
 
@@ -110,7 +119,7 @@ class Backend:
         return schema, delta
 
     async def run_delta_command(self, delta_cmd):
-        schema = await self.getschema()
+        schema = self.schema
         context = sd.CommandContext()
         result = None
 
@@ -138,7 +147,7 @@ class Backend:
         return result
 
     async def run_ddl_command(self, ddl_plan):
-        schema = await self.getschema()
+        schema = self.schema
 
         if debug.flags.delta_plan_input:
             debug.header('Delta Plan Input')
@@ -221,12 +230,6 @@ class Backend:
 
         else:
             self.schema = schema
-
-        finally:
-            self.invalidate_schema_cache()
-
-    def invalidate_schema_cache(self):
-        self._intro_mech.invalidate_cache()
 
     async def exec_session_state_cmd(self, cmd):
         for alias, module in cmd.modaliases.items():
@@ -346,9 +349,7 @@ class Backend:
         if not declarations:
             return cmd
 
-        stdmodules = {'std', 'schema', 'stdattrs'}
-
-        target = await self._intro_mech.readschema(stdmodules)
+        target = await self._intro_mech.readschema(modules=s_std.STD_MODULES)
 
         return s_ddl.compile_migration(cmd, target, self.schema)
 
@@ -374,13 +375,16 @@ class Backend:
                 'there is no transaction in progress')
         transaction, self.schema = self.transactions.pop()
         await transaction.rollback()
-        self.invalidate_schema_cache()
 
 
-async def open_database(pgconn):
+async def open_database(pgconn, *, bootstrap=False):
     bk = Backend(pgconn)
     pgconn.add_log_listener(pg_log_listener)
-    await bk.getschema()
+    if not bootstrap:
+        await bk.getschema()
+    else:
+        bk.schema = s_schema.Schema()
+
     return bk
 
 

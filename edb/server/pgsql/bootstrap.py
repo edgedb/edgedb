@@ -163,9 +163,9 @@ async def _ensure_meta_schema(conn):
 
 async def _init_stdlib(conn):
 
-    bk = await backend.open_database(conn)
+    bk = await backend.open_database(conn, bootstrap=True)
 
-    for modname in s_std.STD_MODULES + ['stdgraphql']:
+    for modname in s_std.STD_LIB + ['stdgraphql']:
         logger.info(f'Bootstrapping {modname} module...')
 
         modaliases = {}
@@ -180,27 +180,23 @@ async def _init_stdlib(conn):
 
     await metaschema.generate_views(conn, bk.schema)
 
-
-async def _run_script(script, conn, cluster, loop):
-    protocol = edgedb_protocol.Protocol(cluster, loop=loop)
-    protocol.backend = await backend.open_database(conn)
-    await protocol._run_script(script)
+    return bk
 
 
-async def _init_defaults(conn, cluster, loop):
+async def _init_defaults(protocol):
     script = f'''
         CREATE MODULE default;
     '''
 
-    await _run_script(script, conn, cluster, loop)
+    await protocol._run_script(script)
 
 
-async def _populate_data(conn, cluster, loop):
+async def _populate_data(protocol):
     script = f'''
         INSERT stdgraphql::Query;
     '''
 
-    await _run_script(script, conn, cluster, loop)
+    await protocol._run_script(script)
 
 
 async def _ensure_edgedb_database(conn, database, owner, *, cluster, loop):
@@ -247,9 +243,10 @@ async def bootstrap(cluster, args, loop=None):
 
             try:
                 await _ensure_meta_schema(conn)
-                await _init_stdlib(conn)
-                await _init_defaults(conn, cluster, loop)
-                await _populate_data(conn, cluster, loop)
+                protocol = edgedb_protocol.Protocol(cluster, loop=loop)
+                protocol.backend = await _init_stdlib(conn)
+                await _init_defaults(protocol)
+                await _populate_data(protocol)
             finally:
                 await conn.close()
 
