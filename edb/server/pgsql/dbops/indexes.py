@@ -375,7 +375,7 @@ class DDLTriggerCreateTable(
 
 class DDLTriggerAlterTable(
         ddl.DDLTrigger, tables.AlterTableDDLTriggerMixin, DDLTriggerBase):
-    operations = tables.AlterTable,
+    operations = (tables.AlterTableAddParent, tables.AlterTableDropParent)
 
     @classmethod
     def generate_after(cls, block, op):
