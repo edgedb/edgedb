@@ -17,7 +17,6 @@
 #
 
 
-import collections
 import difflib
 import os
 import re
@@ -28,8 +27,6 @@ from edb.lang import _testbase as tb
 from edb.lang import graphql as edge_graphql
 from edb.lang import edgeql as edge_edgeql
 from edb.lang.graphql.errors import GraphQLCoreError
-from edb.lang.schema import declarative as s_decl
-from edb.lang.schema import std as s_std
 
 
 def with_variables(**kwargs):
@@ -53,39 +50,9 @@ def translate_only(func):
     return func
 
 
-class BaseSchemaTestMeta(tb.DocTestMeta):
-    @classmethod
-    def __prepare__(mcls, name, bases, **kwargs):
-        return collections.OrderedDict()
-
-    def __new__(mcls, name, bases, dct):
-        decls = []
-
-        for name, val in dct.items():
-            m = re.match(r'^SCHEMA(?:_(\w+))?', name)
-            if m:
-                module_name = (m.group(1) or 'test').lower().replace(
-                    '__', '.')
-
-                with open(val, 'r') as sf:
-                    schema_text = sf.read()
-                    decls.append((module_name, schema_text))
-
-        dct['_decls'] = decls
-
-        return super().__new__(mcls, name, bases, dct)
-
-
-class TranslatorTest(tb.BaseSyntaxTest, metaclass=BaseSchemaTestMeta):
+class TranslatorTest(tb.BaseEdgeQLCompilerTest, tb.BaseSyntaxTest):
     re_filter = re.compile(r'''[\s,;]+''')
     re_eql_filter = re.compile(r'''(\#.*?\n)''')
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.schema = s_std.load_std_schema()
-        cls.schema = s_std.load_graphql_schema(cls.schema)
-        cls.schema = s_decl.parse_module_declarations(cls.schema, cls._decls)
 
     def run_test(self, *, source, spec, expected=None):
         debug = bool(os.environ.get('DEBUG_GRAPHQL'))
