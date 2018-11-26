@@ -259,7 +259,6 @@ setup(
         'console_scripts': [
             'edgedb = edb.repl:main',
             'edgedb-server = edb.server.main:main',
-            'edgedb-ctl = edb.server.ctl:main',
         ]
     },
     install_requires=RUNTIME_DEPS,

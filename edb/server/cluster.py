@@ -270,7 +270,8 @@ class Cluster:
 
         if init.returncode != 0:
             raise ClusterError(
-                f'edgedb-ctl init failed with exit code {init.returncode}')
+                f'edgedb-server --bootstrap failed with '
+                f'exit code {init.returncode}')
 
     async def _edgedb_template_exists(self, conn):
         st = await conn.prepare(
