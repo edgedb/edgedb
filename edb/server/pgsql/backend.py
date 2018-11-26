@@ -17,6 +17,7 @@
 #
 
 
+import asyncio
 import collections
 import logging
 import re
@@ -76,6 +77,7 @@ class OutputDescriptor:
 class Backend:
 
     std_schema = None
+    std_schema_lock = asyncio.Lock()
 
     def __init__(self, connection):
         self.schema = None
@@ -91,8 +93,10 @@ class Backend:
         if self.schema is None:
             cls = type(self)
             if cls.std_schema is None:
-                cls.std_schema = await self._intro_mech.readschema(
-                    modules=s_std.STD_MODULES)
+                async with self.std_schema_lock:
+                    if cls.std_schema is None:
+                        cls.std_schema = await self._intro_mech.readschema(
+                            modules=s_std.STD_MODULES)
             self.schema = await self._intro_mech.readschema(
                 schema=cls.std_schema, exclude_modules=s_std.STD_MODULES)
 
