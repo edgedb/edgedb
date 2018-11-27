@@ -77,7 +77,7 @@ class OutputDescriptor:
 class Backend:
 
     std_schema = None
-    std_schema_lock = asyncio.Lock()
+    std_schema_lock = None
 
     def __init__(self, connection):
         self.schema = None
@@ -93,7 +93,9 @@ class Backend:
         if self.schema is None:
             cls = type(self)
             if cls.std_schema is None:
-                async with self.std_schema_lock:
+                if cls.std_schema_lock is None:
+                    cls.std_schema_lock = asyncio.Lock()
+                async with cls.std_schema_lock:
                     if cls.std_schema is None:
                         cls.std_schema = await self._intro_mech.readschema(
                             modules=s_std.STD_MODULES)
