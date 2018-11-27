@@ -1881,8 +1881,8 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
 
     def rename_pointer(self, pointer, schema, context, old_name, new_name):
         if context:
-            old_name = pointer.shortname_from_fullname(old_name)
-            new_name = pointer.shortname_from_fullname(new_name)
+            old_name = sn.shortname_from_fullname(old_name)
+            new_name = sn.shortname_from_fullname(new_name)
 
             host = self.get_host(schema, context)
 

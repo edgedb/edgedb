@@ -288,7 +288,7 @@ def declare_view(
 
             view_name = s_name.SchemaName(
                 module=ctx.derived_target_module or '__derived__',
-                name=s_obj.NamedObject.get_specialized_name(
+                name=s_name.get_specialized_name(
                     basename,
                     ctx.aliases.get('w')
                 )

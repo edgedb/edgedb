@@ -17,6 +17,8 @@
 #
 
 
+import functools
+
 from .error import SchemaNameError
 
 
@@ -81,3 +83,27 @@ def split_name(name):
         nqname = name
 
     return name, module, nqname
+
+
+def mangle_name(name) -> str:
+    return name.replace('::', '|')
+
+
+def unmangle_name(name) -> str:
+    return name.replace('|', '::')
+
+
+@functools.lru_cache(4096)
+def shortname_from_fullname(fullname) -> SchemaName:
+    parts = str(fullname.name).split('@@', 1)
+    if len(parts) == 2:
+        return SchemaName(unmangle_name(parts[0]))
+    else:
+        return SchemaName(fullname)
+
+
+def get_specialized_name(basename, *qualifiers) -> str:
+    return (mangle_name(basename) +
+            '@@' +
+            '@'.join(mangle_name(qualifier)
+                     for qualifier in qualifiers if qualifier))

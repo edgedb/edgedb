@@ -86,7 +86,7 @@ class SourceIndexCommand(referencing.ReferencedObjectCommand,
         parent_ctx = context.get(sd.CommandContextToken)
         subject_name = parent_ctx.op.classname
 
-        idx_name = SourceIndex.get_specialized_name(
+        idx_name = sn.get_specialized_name(
             sn.Name(name=astnode.name.name, module=subject_name),
             subject_name
         )

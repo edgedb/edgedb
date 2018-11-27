@@ -198,9 +198,7 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
             else:
                 base_name = base_ref.get_name(schema)
 
-            pcls = cls.get_schema_metaclass()
-            pnn = pcls.get_specialized_name(base_name, referrer_name)
-
+            pnn = sn.get_specialized_name(base_name, referrer_name)
             name = sn.Name(name=pnn, module=referrer_name.module)
 
         return name
@@ -273,7 +271,7 @@ class ReferencedInheritingObjectCommand(
         if referrer_ctx is not None and not attrs.get('is_derived'):
             mcls = self.get_schema_metaclass()
             referrer = referrer_ctx.scls
-            basename = mcls.shortname_from_fullname(self.classname)
+            basename = sn.shortname_from_fullname(self.classname)
             base = schema.get(basename, type=mcls)
             schema, self.scls = base.derive(schema, referrer, attrs=attrs,
                                             init_props=False)
@@ -297,7 +295,7 @@ class CreateReferencedInheritingObject(inheriting.CreateInheritingObject):
             except s_err.ItemNotFoundError:
                 # Certain concrete items, like pointers create
                 # abstract parents implicitly.
-                nname = objcls.shortname_from_fullname(cmd.classname)
+                nname = sn.shortname_from_fullname(cmd.classname)
                 base = so.ObjectRef(
                     name=sn.Name(
                         module=nname.module,

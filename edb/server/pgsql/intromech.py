@@ -348,7 +348,7 @@ class IntrospectionMech:
             bases = tuple()
 
             if r['subject']:
-                bases = (s_constr.Constraint.shortname_from_fullname(name), )
+                bases = (sn.shortname_from_fullname(name), )
             elif r['bases']:
                 bases = tuple(sn.Name(b) for b in r['bases'])
             elif name != 'std::constraint':
@@ -535,7 +535,7 @@ class IntrospectionMech:
             bases = tuple()
 
             if r['source']:
-                bases = (s_links.Link.shortname_from_fullname(name), )
+                bases = (sn.shortname_from_fullname(name), )
             elif r['bases']:
                 bases = tuple(sn.Name(b) for b in r['bases'])
             elif name != 'std::link':
@@ -644,7 +644,7 @@ class IntrospectionMech:
             bases = ()
 
             if r['source']:
-                bases = (s_props.Property.shortname_from_fullname(name), )
+                bases = (sn.shortname_from_fullname(name), )
             elif r['bases']:
                 bases = tuple(sn.Name(b) for b in r['bases'])
             elif name != 'std::property':

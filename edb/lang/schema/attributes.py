@@ -74,7 +74,7 @@ class AttributeSubject(referencing.ReferencingObject):
         return schema
 
     def del_attribute(self, schema, attribute_name):
-        shortname = Attribute.shortname_from_fullname(attribute_name)
+        shortname = sn.shortname_from_fullname(attribute_name)
         return self.del_classref(schema, 'attributes', shortname)
 
 
@@ -155,7 +155,7 @@ class AttributeValueCommand(sd.ObjectCommand, schema_metaclass=AttributeValue,
         parent_ctx = context.get(sd.CommandContextToken)
         subject_name = parent_ctx.op.classname
 
-        pnn = AttributeValue.get_specialized_name(
+        pnn = sn.get_specialized_name(
             sn.Name(propname), subject_name
         )
 
@@ -198,7 +198,7 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedObject):
                 schema, astnode, context)
 
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        propname = AttributeValue.shortname_from_fullname(cmd.classname)
+        propname = sn.shortname_from_fullname(cmd.classname)
 
         val = astnode.value
         if isinstance(val, qlast.BaseConstant):
@@ -255,8 +255,7 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedObject):
                          "AttributeSubject context"
 
         with context(AttributeValueCommandContext(self, None)):
-            name = AttributeValue.shortname_from_fullname(
-                self.classname)
+            name = sn.shortname_from_fullname(self.classname)
             attrs = attrsubj.scls.get_own_attributes(schema)
             attribute = attrs.get(schema, name, None)
             if attribute is None:

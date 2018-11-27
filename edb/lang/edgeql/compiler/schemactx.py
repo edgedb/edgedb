@@ -193,7 +193,7 @@ def derive_view_name(
     else:
         derived_name_module = '__derived__'
 
-    derived_sname = stype.get_specialized_name(
+    derived_sname = sn.get_specialized_name(
         derived_name_base, *derived_name_quals)
 
     return sn.SchemaName(module=derived_name_module, name=derived_sname)

@@ -456,7 +456,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
                 base = next(iter(bases.objects(schema)))
             except schema_error.ItemNotFoundError:
                 base = None
-                base_name = Pointer.shortname_from_fullname(self.classname)
+                base_name = sn.shortname_from_fullname(self.classname)
 
             if base is None:
                 cls = self.get_schema_metaclass()

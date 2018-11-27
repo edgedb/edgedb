@@ -85,14 +85,13 @@ class OperatorCommand(s_func.CallableCommand,
 
         return sn.Name(
             module=name.module,
-            name=Operator.get_specialized_name(name, *quals))
+            name=sn.get_specialized_name(name, *quals))
 
     def _qualify_operator_refs(
             self, schema, kind: ft.OperatorKind,
             params: typing.List[s_func.ParameterDesc], context):
 
-        self_shortname = named.NamedObject.shortname_from_fullname(
-            self.classname)
+        self_shortname = sn.shortname_from_fullname(self.classname)
         commutator = self.get_attribute_value('commutator')
         if commutator is None:
             return
@@ -125,7 +124,7 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
     def _create_begin(self, schema, context):
 
         fullname = self.classname
-        shortname = Operator.shortname_from_fullname(fullname)
+        shortname = sn.shortname_from_fullname(fullname)
         cp = self._get_param_desc_from_delta(schema, self)
         signature = f'{shortname}({", ".join(p.as_str(schema) for p in cp)})'
 
@@ -141,7 +140,7 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
 
         params: s_func.FuncParameterList = self.scls.get_params(schema)
         fullname = self.scls.get_name(schema)
-        shortname = Operator.shortname_from_fullname(fullname)
+        shortname = sn.shortname_from_fullname(fullname)
         return_type = self.scls.get_return_type(schema)
         return_typemod = self.scls.get_return_typemod(schema)
 

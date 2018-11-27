@@ -67,13 +67,9 @@ class NamedObjectCommand(sd.ObjectCommand):
         return self.__class__.astnode
 
     def _get_ast(self, schema, context):
-        metaclass = self.get_schema_metaclass()
         astnode = self._get_ast_node(context)
         if isinstance(self.classname, sn.Name):
-            if hasattr(metaclass, 'shortname_from_fullname'):
-                nname = metaclass.shortname_from_fullname(self.classname)
-            else:
-                nname = self.classname
+            nname = sn.shortname_from_fullname(self.classname)
             name = qlast.ObjectRef(module=nname.module, name=nname.name)
         else:
             name = qlast.ObjectRef(module='', name=self.classname)
@@ -212,12 +208,8 @@ class RenameNamedObject(NamedObjectCommand):
 
     def _get_ast(self, schema, context):
         astnode = self._get_ast_node(context)
-        metaclass = self.get_schema_metaclass()
 
-        if hasattr(metaclass, 'shortname_from_fullname'):
-            new_name = metaclass.shortname_from_fullname(self.new_name)
-        else:
-            new_name = self.new_name
+        new_name = sn.shortname_from_fullname(self.new_name)
 
         if new_name != self.new_name:
             # Derived name

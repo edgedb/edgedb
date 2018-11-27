@@ -117,7 +117,7 @@ class ParameterDesc(typing.NamedTuple):
     @classmethod
     def from_create_delta(cls, schema, cmd):
         props = cmd.get_struct_properties(schema)
-        props['name'] = Parameter.shortname_from_fullname(props['name'])
+        props['name'] = Parameter.paramname_from_fullname(props['name'])
         return cls(
             num=props['num'],
             name=props['name'],
@@ -133,7 +133,7 @@ class ParameterDesc(typing.NamedTuple):
 
         param_name = sn.Name(
             module=func_fqname.module,
-            name=Parameter.get_specialized_name(
+            name=sn.get_specialized_name(
                 self.get_name(schema), func_fqname)
         )
 
@@ -163,7 +163,7 @@ class ParameterDesc(typing.NamedTuple):
 
         param_name = sn.Name(
             module=func_fqname.module,
-            name=Parameter.get_specialized_name(
+            name=sn.get_specialized_name(
                 self.get_name(schema), func_fqname)
         )
 
@@ -192,14 +192,18 @@ class Parameter(named.NamedObject):
         ft.ParameterKind, coerce=True, compcoef=0.4)
 
     @classmethod
-    def shortname_from_fullname(cls, fullname) -> str:
+    def paramname_from_fullname(cls, fullname):
         parts = str(fullname.name).split('@@', 1)
         if len(parts) == 2:
-            return cls.unmangle_name(parts[0])
+            return sn.unmangle_name(parts[0])
         elif '::' in fullname:
             return sn.Name(fullname).name
         else:
             return fullname
+
+    def get_shortname(self, schema) -> str:
+        fullname = self.get_name(schema)
+        return self.paramname_from_fullname(fullname)
 
     def get_ql_default(self, schema):
         from edb.lang.edgeql import parser as ql_parser
@@ -351,7 +355,7 @@ class FuncParameterList(so.ObjectList, type=Parameter):
 
             param_name = sn.Name(
                 module=func_fqname.module,
-                name=Parameter.get_specialized_name(
+                name=sn.get_specialized_name(
                     param.name, func_fqname)
             )
 
@@ -387,7 +391,7 @@ class CallableObject(so.NamedObject):
         context = context or so.ComparisonContext()
 
         def param_is_inherited(schema, func, param):
-            qualname = Parameter.get_specialized_name(
+            qualname = sn.get_specialized_name(
                 param.get_shortname(schema), func.get_name(schema))
             return qualname != param.get_name(schema).name
 
@@ -570,7 +574,7 @@ class FunctionCommand(CallableCommand,
 
         return sn.Name(
             module=name.module,
-            name=Function.get_specialized_name(name, *quals))
+            name=sn.get_specialized_name(name, *quals))
 
 
 class CreateFunction(CreateCallableObject, FunctionCommand):
@@ -580,7 +584,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
         from edb.lang.ir import utils as irutils
 
         fullname = self.classname
-        shortname = Function.shortname_from_fullname(fullname)
+        shortname = sn.shortname_from_fullname(fullname)
         cp = self._get_param_desc_from_delta(schema, self)
         signature = f'{shortname}({", ".join(p.as_str(schema) for p in cp)})'
 

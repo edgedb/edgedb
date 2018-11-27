@@ -340,8 +340,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
             )
 
             base_prop_name = sn.Name('std::source')
-            s_name = lproperties.Property.get_specialized_name(
-                base_prop_name, cmd.classname)
+            s_name = sn.get_specialized_name(base_prop_name, cmd.classname)
             src_prop_name = sn.Name(name=s_name,
                                     module=cmd.classname.module)
 
@@ -387,8 +386,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
             cmd.add(src_prop)
 
             base_prop_name = sn.Name('std::target')
-            s_name = lproperties.Property.get_specialized_name(
-                base_prop_name, cmd.classname)
+            s_name = sn.get_specialized_name(base_prop_name, cmd.classname)
             tgt_prop_name = sn.Name(name=s_name,
                                     module=cmd.classname.module)
 

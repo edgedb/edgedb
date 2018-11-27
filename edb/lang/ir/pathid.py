@@ -16,10 +16,10 @@
 # limitations under the License.
 #
 
-
-from edb.lang.schema import scalars as s_scalars
+from edb.lang.schema import name as sn
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import pointers as s_pointers
+from edb.lang.schema import scalars as s_scalars
 from edb.lang.schema import types as s_types
 
 
@@ -195,7 +195,7 @@ class PathId:
             if debug:
                 ptr = path[i][0]
             else:
-                ptr = s_pointers.Pointer.shortname_from_fullname(path[i][0])
+                ptr = sn.shortname_from_fullname(path[i][0])
             ptrdir = path[i][1]
             is_lprop = path[i][2]
             tgt = path[i + 1]
@@ -229,7 +229,7 @@ class PathId:
         result += f'{path[0].name}'
 
         for i in range(1, len(path) - 1, 2):
-            ptr_name = s_pointers.Pointer.shortname_from_fullname(path[i][0])
+            ptr_name = sn.shortname_from_fullname(path[i][0])
             ptrdir = path[i][1]
             is_lprop = path[i][2]
 

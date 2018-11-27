@@ -513,7 +513,7 @@ class DeclarationLoader:
         for indexdecl in subjdecl.indexes:
             index_name = self._get_ref_name(indexdecl.name)
             index_name = subject.get_name(self._schema) + '.' + index_name
-            local_name = s_indexes.SourceIndex.get_specialized_name(
+            local_name = s_name.get_specialized_name(
                 index_name, subject.get_name(self._schema))
 
             der_name = s_name.Name(

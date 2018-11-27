@@ -19,7 +19,6 @@
 
 import collections
 import collections.abc
-import functools
 import itertools
 import pathlib
 import re
@@ -1102,32 +1101,8 @@ class NamedObject(Object):
             raise RuntimeError(f'cannot create {cls} without a name')
         return cls._create_in_schema(schema, **kwargs)
 
-    @classmethod
-    def mangle_name(cls, name) -> str:
-        return name.replace('::', '|')
-
-    @classmethod
-    def unmangle_name(cls, name) -> str:
-        return name.replace('|', '::')
-
-    @classmethod
-    @functools.lru_cache(4096)
-    def shortname_from_fullname(cls, fullname) -> sn.Name:
-        parts = str(fullname.name).split('@@', 1)
-        if len(parts) == 2:
-            return sn.Name(cls.unmangle_name(parts[0]))
-        else:
-            return sn.Name(fullname)
-
-    @classmethod
-    def get_specialized_name(cls, basename, *qualifiers) -> str:
-        return (cls.mangle_name(basename) +
-                '@@' +
-                '@'.join(cls.mangle_name(qualifier)
-                         for qualifier in qualifiers if qualifier))
-
     def get_shortname(self, schema) -> sn.Name:
-        return self.shortname_from_fullname(self.get_name(schema))
+        return sn.shortname_from_fullname(self.get_name(schema))
 
     def get_displayname(self, schema) -> str:
         return str(self.get_shortname(schema))
@@ -1302,7 +1277,7 @@ class ObjectCollection:
                 except s_err.ItemNotFoundError:
                     if allow_unresolved:
                         result.append(
-                            NamedObject.shortname_from_fullname(
+                            sn.shortname_from_fullname(
                                 item_id.get_name(schema)))
                     else:
                         raise

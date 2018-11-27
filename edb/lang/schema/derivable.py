@@ -38,7 +38,7 @@ class DerivableObjectBase:
         return similarity
 
     def derive_name(self, schema, source, *qualifiers):
-        name = self.get_specialized_name(
+        name = sn.get_specialized_name(
             self.get_shortname(schema), source.get_name(schema), *qualifiers)
         return sn.Name(name=name, module=source.get_name(schema).module)
 
