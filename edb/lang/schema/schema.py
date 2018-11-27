@@ -17,13 +17,16 @@
 #
 
 
+import functools
 import typing
 
 import immutables as immu
 
 from . import error as s_err
+from . import functions as s_func
 from . import modules as s_modules
-from . import name as schema_name
+from . import name as sn
+from . import operators as s_oper
 
 
 _void = object()
@@ -36,10 +39,12 @@ class Schema:
         self._garbage = immu.Map()
         self._id_to_data = immu.Map()
         self._id_to_type = immu.Map()
+        self._shortname_to_id = immu.Map()
         self._name_to_id = immu.Map()
 
     def _replace(self, *, id_to_data=None, id_to_type=None,
-                 name_to_id=None, modules=None, garbage=None):
+                 name_to_id=None, shortname_to_id=None,
+                 modules=None, garbage=None):
         new = Schema.__new__(Schema)
 
         if modules is None:
@@ -62,6 +67,11 @@ class Schema:
         else:
             new._name_to_id = name_to_id
 
+        if shortname_to_id is None:
+            new._shortname_to_id = self._shortname_to_id
+        else:
+            new._shortname_to_id = shortname_to_id
+
         if garbage is None:
             new._garbage = self._garbage
         else:
@@ -69,15 +79,41 @@ class Schema:
 
         return new
 
-    def _update_obj_name(self, obj_id, old_name, new_name):
+    def _update_obj_name(self, obj_id, scls, old_name, new_name):
         name_to_id = self._name_to_id
+        shortname_to_id = self._shortname_to_id
+        stype = type(scls)
+
+        has_sn_cache = issubclass(stype, (s_func.Function, s_oper.Operator))
+
         if old_name is not None:
             name_to_id = name_to_id.delete(old_name)
+            if has_sn_cache:
+                old_shortname = sn.shortname_from_fullname(old_name)
+                sn_key = (stype, old_shortname)
+
+                new_ids = shortname_to_id[sn_key] - {obj_id}
+                if new_ids:
+                    shortname_to_id = shortname_to_id.set(
+                        sn_key, new_ids)
+                else:
+                    shortname_to_id = shortname_to_id.delete(sn_key)
 
         if new_name is not None:
             name_to_id = name_to_id.set(new_name, obj_id)
+            if has_sn_cache:
+                new_shortname = sn.shortname_from_fullname(new_name)
+                sn_key = (stype, new_shortname)
 
-        return name_to_id
+                try:
+                    ids = shortname_to_id[sn_key]
+                except KeyError:
+                    ids = frozenset()
+
+                shortname_to_id = shortname_to_id.set(
+                    sn_key, ids | {obj_id})
+
+        return name_to_id, shortname_to_id
 
     def _update_obj(self, obj_id, updates):
         try:
@@ -86,11 +122,15 @@ class Schema:
             data = immu.Map()
 
         name_to_id = None
+        shortname_to_id = None
         with data.mutate() as mm:
             for field, value in updates.items():
                 if field == 'name':
-                    name_to_id = self._update_obj_name(
-                        obj_id, mm.get('name'), value)
+                    name_to_id, shortname_to_id = self._update_obj_name(
+                        obj_id,
+                        self._id_to_type[obj_id],
+                        mm.get('name'),
+                        value)
 
                 if value is None:
                     mm.pop(field, None)
@@ -100,7 +140,9 @@ class Schema:
             new_data = mm.finish()
 
         id_to_data = self._id_to_data.set(obj_id, new_data)
-        return self._replace(name_to_id=name_to_id, id_to_data=id_to_data)
+        return self._replace(name_to_id=name_to_id,
+                             shortname_to_id=shortname_to_id,
+                             id_to_data=id_to_data)
 
     def _get_obj_field(self, obj_id, field):
         try:
@@ -121,14 +163,21 @@ class Schema:
             raise s_err.SchemaError(err) from None
 
         name_to_id = None
+        shortname_to_id = None
         if field == 'name':
             old_name = data.get('name')
-            name_to_id = self._update_obj_name(obj_id, old_name, value)
+            name_to_id, shortname_to_id = self._update_obj_name(
+                obj_id,
+                self._id_to_type[obj_id],
+                old_name,
+                value)
 
         data = data.set(field, value)
         id_to_data = self._id_to_data.set(obj_id, data)
 
-        return self._replace(name_to_id=name_to_id, id_to_data=id_to_data)
+        return self._replace(name_to_id=name_to_id,
+                             shortname_to_id=shortname_to_id,
+                             id_to_data=id_to_data)
 
     def _unset_obj_field(self, obj_id, field):
         try:
@@ -137,9 +186,14 @@ class Schema:
             return self
 
         name_to_id = None
+        shortname_to_id = None
         name = data.get('name')
         if field == 'name' and name is not None:
-            name_to_id = self._update_obj_name(obj_id, name, None)
+            name_to_id, shortname_to_id = self._update_obj_name(
+                obj_id,
+                self._id_to_type[obj_id],
+                name,
+                None)
             data = data.delete(field)
         else:
             try:
@@ -148,7 +202,9 @@ class Schema:
                 return self
 
         id_to_data = self._id_to_data.set(obj_id, data)
-        return self._replace(name_to_id=name_to_id, id_to_data=id_to_data)
+        return self._replace(name_to_id=name_to_id,
+                             shortname_to_id=shortname_to_id,
+                             id_to_data=id_to_data)
 
     def _add(self, id, scls, data) -> 'Schema':
         name = data['name']
@@ -159,10 +215,14 @@ class Schema:
 
         data = immu.Map(data)
 
+        name_to_id, shortname_to_id = self._update_obj_name(
+            id, scls, None, name)
+
         updates = dict(
             id_to_data=self._id_to_data.set(id, data),
             id_to_type=self._id_to_type.set(id, scls),
-            name_to_id=self._update_obj_name(id, None, name),
+            name_to_id=name_to_id,
+            shortname_to_id=shortname_to_id,
         )
 
         if isinstance(scls, s_modules.Module):
@@ -181,8 +241,12 @@ class Schema:
 
         name = data['name']
 
+        name_to_id, shortname_to_id = self._update_obj_name(
+            obj.id, self._id_to_type[obj.id], name, None)
+
         updates = dict(
-            name_to_id=self._name_to_id.delete(name),
+            name_to_id=name_to_id,
+            shortname_to_id=shortname_to_id,
             id_to_data=self._id_to_data.delete(obj.id),
             id_to_type=self._id_to_type.delete(obj.id),
         )
@@ -202,7 +266,7 @@ class Schema:
         return self._delete(obj)
 
     def _get(self, name, *, getter, default, module_aliases):
-        name, module, shortname = schema_name.split_name(name)
+        name, module, shortname = sn.split_name(name)
         implicit_builtins = module is None
 
         if module_aliases is not None:
@@ -211,7 +275,7 @@ class Schema:
                 module = fq_module
 
         if module is not None:
-            fqname = schema_name.SchemaName(shortname, module)
+            fqname = sn.SchemaName(shortname, module)
             result = getter(self, fqname)
             if result is not None:
                 return result
@@ -223,7 +287,7 @@ class Schema:
                 return result
 
         if implicit_builtins:
-            fqname = schema_name.SchemaName(shortname, 'std')
+            fqname = sn.SchemaName(shortname, 'std')
             result = getter(self, fqname)
             if result is not None:
                 return result
@@ -231,19 +295,8 @@ class Schema:
         return default
 
     def get_functions(self, name, default=_void, *, module_aliases=None):
-        from . import functions as s_func
-
-        def getter(schema, name):
-            ret = []
-            for obj_id, obj in schema._id_to_type.items():
-                if (isinstance(obj, s_func.Function) and
-                        obj.get_shortname(schema) == name):
-                    ret.append(obj)
-            if ret:
-                return ret
-
         funcs = self._get(name,
-                          getter=getter,
+                          getter=_get_functions,
                           module_aliases=module_aliases,
                           default=default)
 
@@ -254,19 +307,8 @@ class Schema:
             f'reference to a non-existent function: {name}')
 
     def get_operators(self, name, default=_void, *, module_aliases=None):
-        from . import operators as s_oper
-
-        def getter(schema, name):
-            ret = []
-            for obj_id, obj in schema._id_to_type.items():
-                if (isinstance(obj, s_oper.Operator) and
-                        obj.get_shortname(schema) == name):
-                    ret.append(obj)
-            if ret:
-                return ret
-
         funcs = self._get(name,
-                          getter=getter,
+                          getter=_get_operators,
                           module_aliases=module_aliases,
                           default=default)
 
@@ -397,3 +439,21 @@ class SchemaIterator:
         for obj_id, obj in index.items():
             if all(f(obj) for f in filters):
                 yield obj
+
+
+@functools.lru_cache()
+def _get_functions(schema, name):
+    objids = schema._shortname_to_id.get((s_func.Function, name))
+    if objids is None:
+        return
+    return tuple(schema._id_to_type[oid] for oid in objids
+                 if oid not in schema._garbage)
+
+
+@functools.lru_cache()
+def _get_operators(schema, name):
+    objids = schema._shortname_to_id.get((s_oper.Operator, name))
+    if objids is None:
+        return
+    return tuple(schema._id_to_type[oid] for oid in objids
+                 if oid not in schema._garbage)
