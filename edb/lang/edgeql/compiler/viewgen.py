@@ -423,15 +423,15 @@ def _normalize_view_ptr_expr(
                 # to a nested shape.  Have it reuse the original
                 # pointer name so that in `Foo.ptr.name` and
                 # `Foo { ptr: {name}}` are the same path.
-                derived_name = ptrcls.get_name(ctx.env.schema)
+                path_id_name = ptrcls.get_name(ctx.env.schema)
             else:
-                derived_name = None
+                path_id_name = None
 
             ptrcls = schemactx.derive_view(
                 ptrcls, src_scls, ptr_target,
                 is_insert=is_insert, is_update=is_update,
-                derived_name=derived_name,
                 derived_name_quals=[view_scls.get_name(ctx.env.schema)],
+                attrs=dict(path_id_name=path_id_name),
                 ctx=ctx)
 
         if qlexpr is not None:

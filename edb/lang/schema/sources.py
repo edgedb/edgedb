@@ -300,20 +300,11 @@ class Source(indexes.IndexableSubject):
                 if len(ptrs) == 1:
                     ptr = common_parent_spec
                 else:
-                    schema, ptr = common_parent_spec.derive_copy(
+                    schema, ptr = common_parent_spec.derive(
                         schema, merge_bases=list(ptrs),
                         source=ptr_source, target=ptr_target,
                         mark_derived=True
                     )
-
-                    mapping = None
-                    for base in ptrs:
-                        if mapping is None:
-                            mapping = base.mapping
-                        else:
-                            mapping |= base.mapping
-
-                    ptr.mapping = mapping
 
         return schema, ptr
 

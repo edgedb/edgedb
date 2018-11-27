@@ -61,15 +61,23 @@ class DerivableObjectBase:
 
         if attrs is None:
             attrs = {}
-        attrs['name'] = derived_name
-        if not attrs.get('id'):
-            attrs['id'] = uuidgen.uuid1mc()
 
-        existing_derived = schema.get(derived_name, default=None)
-        if existing_derived is not None and replace_original is not None:
-            schema = schema.mark_as_garbage(existing_derived)
+        existing = schema.get(derived_name, None)
 
-        return self.copy_with(schema, attrs)
+        if existing is not None and replace_original:
+            derived = existing
+            schema = derived.update(schema, attrs)
+        else:
+            attrs['name'] = derived_name
+            if not attrs.get('id'):
+                attrs['id'] = uuidgen.uuid1mc()
+
+            fvals = dict(self.get_fields_values(schema))
+            fvals.update(attrs)
+
+            schema, derived = type(self).create_in_schema(schema, **fvals)
+
+        return schema, derived
 
     def finalize_derived(self, schema, derived, *, merge_bases=None,
                          replace_original=None, mark_derived=False,

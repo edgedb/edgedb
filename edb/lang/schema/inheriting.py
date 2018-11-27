@@ -22,7 +22,7 @@ from edb.lang.edgeql import ast as qlast
 
 from . import delta as sd
 from . import derivable
-from . import error as schema_error
+from . import error as s_err
 from . import objects as so
 from . import named
 from . import utils
@@ -228,7 +228,7 @@ def _merge_mro(schema, obj, mros):
             if not tails:
                 break
         else:
-            raise schema_error.SchemaError(
+            raise s_err.SchemaError(
                 f"Could not find consistent MRO for {obj.get_name(schema)}")
 
         result.append(candidate)
@@ -292,19 +292,19 @@ def create_virtual_parent(schema, children, *,
     for target in children:
         if isinstance(target, s_scalars.ScalarType):
             if seen_objtypes:
-                raise schema_error.SchemaError(
+                raise s_err.SchemaError(
                     'cannot mix scalars and objects in link target list')
             seen_scalars = True
         else:
             if seen_scalars:
-                raise schema_error.SchemaError(
+                raise s_err.SchemaError(
                     'cannot mix scalars and objects in link target list')
             seen_objtypes = True
 
     if seen_scalars and len(children) > 1:
         target = utils.get_class_nearest_common_ancestor(schema, children)
         if target is None:
-            raise schema_error.SchemaError(
+            raise s_err.SchemaError(
                 'cannot set multiple scalar children for a link')
     else:
         base = schema.get(s_objtypes.ObjectType.get_default_base_name())
@@ -404,6 +404,10 @@ class InheritingObject(derivable.DerivableObject):
                 replace_original=replace_original, **kwargs)
 
         else:
+            if self.get_name(schema) == derived_name:
+                raise s_err.SchemaError(
+                    f'cannot derive {self!r}({derived_name}) from itself')
+
             derived_attrs = {}
 
             if attrs is not None:
@@ -413,10 +417,6 @@ class InheritingObject(derivable.DerivableObject):
                 derived_attrs['bases'] = [self]
 
             derived_attrs.pop('name', None)
-
-            existing_derived = schema.get(derived_name, default=None)
-            if existing_derived is not None and replace_original is not None:
-                schema = schema.mark_as_garbage(existing_derived)
 
             schema, derived = type(self).create_in_schema(
                 schema, name=derived_name, **derived_attrs)
@@ -432,7 +432,7 @@ class InheritingObject(derivable.DerivableObject):
             if not ancestor.get_is_abstract(schema):
                 return ancestor
 
-        raise ValueError(
+        raise s_err.SchemaError(
             f'{self.get_name(schema)} has no non-abstract ancestors')
 
     def compute_mro(self, schema):

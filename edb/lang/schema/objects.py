@@ -414,28 +414,6 @@ class Object(metaclass=ObjectMeta):
 
         return obj
 
-    def _copy_and_replace(self, schema, cls, **replacements):
-        args = {}
-        for field in cls._fields.values():
-            try:
-                v = self.get_field_value(
-                    None, field.name, allow_default=False)  # XXX
-            except FieldValueNotFoundError:
-                pass
-            else:
-                args[field.name] = v
-
-        if replacements:
-            args.update(replacements)
-
-        return cls.create_in_schema(schema, **args)
-
-    def copy_with_class(self, schema, cls):
-        return self._copy_and_replace(schema, cls)
-
-    def copy(self, schema):
-        return self.copy_with_class(schema, type(self))
-
     def get_fields_values(self, schema):
         for field in self.__class__._fields:
             value = self.get_explicit_field_value(schema, field, None)
@@ -590,30 +568,6 @@ class Object(metaclass=ObjectMeta):
                 updates[field_name] = new_val
 
         return schema._update_obj(self.__dict__['id'], updates)
-
-    def copy_with(self, schema, updates: dict):
-        fields = type(self)._fields
-
-        if updates.keys() - fields.keys():
-            raise RuntimeError(
-                'updates list contains values for non-existant fields: ' +
-                ', '.join(updates.keys() - fields.keys()))
-
-        new = {}
-        for field_name, field in fields.items():
-            if field_name in updates:
-                new_val = updates[field_name]
-                if new_val is None:
-                    continue
-                else:
-                    new[field_name] = new_val
-            else:
-                val = self.get_explicit_field_value(schema, field_name, None)
-                if val is None:
-                    continue
-                new[field_name] = val
-
-        return type(self).create_in_schema(schema, **new)
 
     def is_type(self):
         return False

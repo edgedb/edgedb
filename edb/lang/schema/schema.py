@@ -36,7 +36,6 @@ class Schema:
 
     def __init__(self):
         self._modules = immu.Map()
-        self._garbage = immu.Map()
         self._id_to_data = immu.Map()
         self._id_to_type = immu.Map()
         self._shortname_to_id = immu.Map()
@@ -44,7 +43,7 @@ class Schema:
 
     def _replace(self, *, id_to_data=None, id_to_type=None,
                  name_to_id=None, shortname_to_id=None,
-                 modules=None, garbage=None):
+                 modules=None):
         new = Schema.__new__(Schema)
 
         if modules is None:
@@ -71,11 +70,6 @@ class Schema:
             new._shortname_to_id = self._shortname_to_id
         else:
             new._shortname_to_id = shortname_to_id
-
-        if garbage is None:
-            new._garbage = self._garbage
-        else:
-            new._garbage = garbage
 
         return new
 
@@ -395,16 +389,6 @@ class Schema:
     def get_objects(self, *, modules=None, type=None):
         return SchemaIterator(self, modules=modules, type=type)
 
-    def mark_as_garbage(self, obj) -> 'Schema':
-        garbage = self._garbage.set(obj.id, True)
-
-        name = obj.get_name(self)
-        name_to_id = self._name_to_id
-        if name in self._name_to_id:
-            name_to_id = name_to_id.delete(name)
-
-        return self._replace(garbage=garbage, name_to_id=name_to_id)
-
 
 class SchemaIterator:
     def __init__(
@@ -413,10 +397,7 @@ class SchemaIterator:
             modules: typing.Optional[typing.Iterable[str]],
             type=None) -> None:
 
-        filters = [
-            lambda obj:
-                obj.id not in schema._garbage
-        ]
+        filters = []
 
         if type is not None:
             filters.append(
@@ -446,8 +427,7 @@ def _get_functions(schema, name):
     objids = schema._shortname_to_id.get((s_func.Function, name))
     if objids is None:
         return
-    return tuple(schema._id_to_type[oid] for oid in objids
-                 if oid not in schema._garbage)
+    return tuple(schema._id_to_type[oid] for oid in objids)
 
 
 @functools.lru_cache()
@@ -455,5 +435,4 @@ def _get_operators(schema, name):
     objids = schema._shortname_to_id.get((s_oper.Operator, name))
     if objids is None:
         return
-    return tuple(schema._id_to_type[oid] for oid in objids
-                 if oid not in schema._garbage)
+    return tuple(schema._id_to_type[oid] for oid in objids)

@@ -159,8 +159,7 @@ def derive_view(
 
         ctx.env.schema, derived = stype.derive(
             ctx.env.schema, source, target, *qualifiers,
-            name=derived_name, replace_original=True,
-            mark_derived=True, attrs=attrs)
+            name=derived_name, mark_derived=True, attrs=attrs)
 
         if not stype.generic(ctx.env.schema):
             if isinstance(derived, s_sources.Source):

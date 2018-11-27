@@ -349,35 +349,6 @@ class CreateReferencedInheritingObject(inheriting.CreateInheritingObject):
 class ReferencingObject(inheriting.InheritingObject,
                         metaclass=ReferencingObjectMeta):
 
-    def copy_with(self, schema, updates):
-        for refdict in self.__class__.get_refdicts():
-            attr = refdict.attr
-            local_attr = refdict.local_attr
-
-            all_coll = self.get_explicit_field_value(schema, attr, None)
-            if all_coll is None:
-                updates[attr] = None
-                updates[local_attr] = None
-                continue
-
-            all_coll_copy = all_coll
-
-            if all_coll_copy:
-                updates[attr] = all_coll_copy
-            else:
-                updates[attr] = None
-                updates[local_attr] = None
-                continue
-
-            local_coll = self.get_explicit_field_value(
-                schema, local_attr, None)
-            if local_coll is None:
-                updates[local_attr] = None
-            else:
-                updates[local_attr] = local_coll
-
-        return super().copy_with(schema, updates)
-
     def merge(self, *objs, schema, dctx=None):
         schema = super().merge(*objs, schema=schema, dctx=None)
 
@@ -643,12 +614,15 @@ class ReferencingObject(inheriting.InheritingObject,
 
             inherited = list(ancestry.values())
 
+            if not inherited and local is None:
+                continue
+
             pure_inheritance = False
 
             if local and inherited:
-                schema, merged = local.derive_copy(
-                    schema, self, merge_bases=inherited,
-                    replace_original=local, dctx=dctx)
+                schema = local.acquire_ancestor_inheritance(schema, inherited)
+                schema = local.finalize(schema, bases=inherited)
+                merged = local
 
             elif len(inherited) > 1:
                 base = inherited[0].get_bases(schema).first(schema)
@@ -664,13 +638,13 @@ class ReferencingObject(inheriting.InheritingObject,
                 # decision to the referenced class here.
                 schema, merged = classrefcls.inherit_pure(
                     schema, item, source=self, dctx=dctx)
-                pure_inheritance = merged == item
+                pure_inheritance = schema is local_schema
 
             else:
                 # Not inherited
                 merged = local
 
-            if (local is not None and local is not merged and
+            if (local is not None and inherited and not pure_inheritance and
                     requires_explicit_inherit and
                     not local.get_declared_inherited(local_schema) and
                     dctx is not None and dctx.declarative):
@@ -686,8 +660,7 @@ class ReferencingObject(inheriting.InheritingObject,
                     context=local.get_sourcectx(local_schema)
                 )
 
-            if (merged is local and local is not None and
-                    local.get_declared_inherited(local_schema)):
+            if not inherited and local.get_declared_inherited(local_schema):
                 raise s_err.SchemaDefinitionError(
                     f'{self.get_shortname(schema)}: '
                     f'{local.get_shortname(local_schema)} cannot '
@@ -696,7 +669,7 @@ class ReferencingObject(inheriting.InheritingObject,
                     context=local.get_sourcectx(local_schema)
                 )
 
-            if merged is not local:
+            if inherited:
                 if not pure_inheritance:
                     if dctx is not None:
                         delta = merged.delta(local, merged,
@@ -716,53 +689,6 @@ class ReferencingObject(inheriting.InheritingObject,
             attr: classrefs,
             local_attr: local_classrefs
         })
-
-        return schema
-
-    def init_derived(self, schema, source, *qualifiers, as_copy,
-                     merge_bases=None, mark_derived=False,
-                     replace_original=None,
-                     attrs=None, dctx=None, **kwargs):
-
-        schema, derived = super().init_derived(
-            schema, source, *qualifiers, as_copy=as_copy,
-            mark_derived=mark_derived, attrs=attrs, dctx=dctx,
-            replace_original=replace_original,
-            merge_bases=merge_bases, **kwargs)
-
-        if as_copy and False:
-            schema = derived.rederive_classrefs(
-                schema, mark_derived=mark_derived,
-                replace_original=replace_original)
-
-        return schema, derived
-
-    def rederive_classrefs(self, schema, *, mark_derived=False,
-                           replace_original=None, dctx=None):
-        for refdict in self.__class__.get_refdicts():
-            attr = refdict.attr
-            local_attr = refdict.local_attr
-            all_coll = self.get_field_value(schema, attr)
-            local_coll = self.get_field_value(schema, local_attr)
-
-            for pn, p in local_coll.items(schema):
-                schema, obj = p.derive_copy(
-                    schema,
-                    self,
-                    mark_derived=mark_derived,
-                    replace_original=replace_original,
-                    dctx=dctx)
-
-                schema, local_coll = local_coll.update(
-                    schema, [obj])
-
-            schema, all_coll = all_coll.update(
-                schema, local_coll.objects(schema))
-
-            schema = self.update(schema, {
-                attr: all_coll,
-                local_attr: local_coll
-            })
 
         return schema
 
