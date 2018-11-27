@@ -44,6 +44,12 @@ class Any(PseudoType):
     def get_name(self, schema):
         return self.name
 
+    def get__virtual_children(self, schema):
+        return None
+
+    def get_bases(self, schema):
+        return so.ObjectList.create_empty()
+
     def is_any(self):
         return True
 

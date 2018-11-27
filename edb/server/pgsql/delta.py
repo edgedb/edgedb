@@ -495,17 +495,18 @@ class DeleteFunction(
         FunctionCommand, DeleteNamedObject, adapts=s_funcs.DeleteFunction):
 
     def apply(self, schema, context):
+        orig_schema = schema
         schema, func = super().apply(schema, context)
 
-        if func.get_code(schema):
+        if func.get_code(orig_schema):
             # An EdgeQL or a SQL function
             # (not just an alias to a SQL function).
 
-            variadic = func.get_params(schema).find_variadic(schema)
+            variadic = func.get_params(orig_schema).find_variadic(orig_schema)
             self.pgops.add(
                 dbops.DropFunction(
-                    name=self.get_pgname(func, schema),
-                    args=self.compile_args(func, schema),
+                    name=self.get_pgname(func, orig_schema),
+                    args=self.compile_args(func, orig_schema),
                     has_variadic=variadic is not None,
                 )
             )
@@ -1029,7 +1030,7 @@ class DeleteScalarType(ScalarTypeMetaCommand,
                 table=table, condition=[(
                     'name', str(self.classname))]))
 
-        if self.is_sequence(schema, scalar):
+        if self.is_sequence(orig_schema, scalar):
             seq_name = common.get_backend_name(
                 orig_schema, scalar, catenate=False, aspect='sequence')
             self.pgops.add(dbops.DropSequence(name=seq_name))

@@ -134,6 +134,21 @@ def derive_view(
             stype=stype, derived_name_quals=derived_name_quals,
             derived_name_base=derived_name_base, ctx=ctx)
 
+    if isinstance(stype, s_types.Type):
+        if is_insert:
+            vtype = s_types.ViewType.Insert
+        elif is_update:
+            vtype = s_types.ViewType.Update
+        else:
+            vtype = s_types.ViewType.Select
+
+        if attrs is None:
+            attrs = {}
+        else:
+            attrs = dict(attrs)
+
+        attrs['view_type'] = vtype
+
     if isinstance(stype, s_types.Collection):
         ctx.env.schema, derived = stype.derive_subtype(
             ctx.env.schema, name=derived_name)
@@ -159,16 +174,6 @@ def derive_view(
                     computable_data = ctx.source_map.get(src_ptr)
                     if computable_data is not None:
                         ctx.source_map[ptr] = computable_data
-
-    if isinstance(derived, s_types.Type):
-        if is_insert:
-            vtype = s_types.ViewType.Insert
-        elif is_update:
-            vtype = s_types.ViewType.Update
-        else:
-            vtype = s_types.ViewType.Select
-        ctx.env.schema = derived.set_field_value(
-            ctx.env.schema, 'view_type', vtype)
 
     if isinstance(derived, s_types.Type):
         ctx.view_nodes[derived.get_name(ctx.env.schema)] = derived

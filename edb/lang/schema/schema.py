@@ -106,7 +106,9 @@ class Schema:
         try:
             d = self._id_to_data[obj_id]
         except KeyError:
-            return None
+            err = (f'cannot get {field!r} value: item {str(obj_id)!r} '
+                   f'is not present in the schema {self!r}')
+            raise s_err.SchemaError(err) from None
 
         return d.get(field)
 
@@ -114,7 +116,9 @@ class Schema:
         try:
             data = self._id_to_data[obj_id]
         except KeyError:
-            data = immu.Map()
+            err = (f'cannot set {field!r} value: item {str(obj_id)!r} '
+                   f'is not present in the schema {self!r}')
+            raise s_err.SchemaError(err) from None
 
         name_to_id = None
         if field == 'name':

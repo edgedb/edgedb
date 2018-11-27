@@ -61,7 +61,9 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
     rptr = so.SchemaField(
         so.Object, default=None, compcoef=0.909)
 
-    def derive_subtype(self, schema, *, name: str) -> 'Type':
+    def derive_subtype(
+            self, schema, *, name: str,
+            attrs: typing.Optional[typing.Mapping]=None) -> 'Type':
         raise NotImplementedError
 
     def is_type(self):
@@ -179,8 +181,26 @@ class Collection(Type):
         s_name.SchemaName,
         inheritable=False, compcoef=0.670)
 
+    view_type = so.Field(
+        ViewType, default=None, ephemeral=True)
+
+    expr = so.Field(
+        s_expr.ExpressionText, default=None, ephemeral=True)
+
+    rptr = so.Field(
+        so.Object, default=None, ephemeral=True)
+
     def get_name(self, schema):
         return self.name
+
+    def get_view_type(self, schema):
+        return self.view_type
+
+    def get_expr(self, schema):
+        return self.expr
+
+    def get_rptr(self, schema):
+        return self.rptr
 
     def is_polymorphic(self, schema):
         return any(st.is_polymorphic(schema)
@@ -338,12 +358,15 @@ class Array(Collection):
     def get_container(self):
         return tuple
 
-    def derive_subtype(self, schema, *, name: str) -> Type:
+    def derive_subtype(
+            self, schema, *, name: str,
+            attrs: typing.Optional[typing.Mapping]=None) -> Type:
         return schema, Array.from_subtypes(
             schema,
             [self.element_type],
             self.get_typemods(),
-            name=name)
+            name=name,
+            **(attrs or {}))
 
     def get_subtypes(self):
         return (self.element_type,)
@@ -526,15 +549,19 @@ class Tuple(Collection):
         else:
             return []
 
-    def derive_subtype(self, schema, *, name: str) -> Type:
+    def derive_subtype(
+            self, schema, *, name: str,
+            attrs: typing.Optional[typing.Mapping]=None) -> Type:
         return schema, Tuple.from_subtypes(
             schema,
             self.element_types,
             self.get_typemods(),
-            name=name)
+            name=name,
+            **(attrs or {}))
 
     @classmethod
-    def from_subtypes(cls, schema, subtypes, typemods=None, *, name: str=None):
+    def from_subtypes(cls, schema, subtypes, typemods=None, *,
+                      name: str=None, **kwargs):
         named = False
         if typemods is not None:
             named = typemods.get('named', False)
@@ -546,7 +573,8 @@ class Tuple(Collection):
         else:
             types = subtypes
 
-        return cls.create(schema, element_types=types, named=named, name=name)
+        return cls.create(schema, element_types=types, named=named,
+                          name=name, **kwargs)
 
     def implicitly_castable_to(self, other: Type, schema) -> bool:
         if not other.is_tuple():

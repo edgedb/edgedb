@@ -627,6 +627,7 @@ class ReferencingObject(inheriting.InheritingObject,
 
         for classref_key in classref_keys:
             local = local_classrefs.get(schema, classref_key, None)
+            local_schema = schema
 
             inherited = []
             for b in bases:
@@ -671,28 +672,28 @@ class ReferencingObject(inheriting.InheritingObject,
 
             if (local is not None and local is not merged and
                     requires_explicit_inherit and
-                    not local.get_declared_inherited(schema) and
+                    not local.get_declared_inherited(local_schema) and
                     dctx is not None and dctx.declarative):
                 # locally defined references *must* use
                 # the `inherited` keyword if ancestors have
                 # a reference under the same name.
                 raise s_err.SchemaDefinitionError(
                     f'{self.get_shortname(schema)}: '
-                    f'{local.get_shortname(schema)} must be '
+                    f'{local.get_shortname(local_schema)} must be '
                     f'declared using the `inherited` keyword because '
                     f'it is defined in the following ancestor(s): '
                     f'{", ".join(a.get_shortname(schema) for a in ancestry)}',
-                    context=local.get_sourcectx(schema)
+                    context=local.get_sourcectx(local_schema)
                 )
 
             if (merged is local and local is not None and
-                    local.get_declared_inherited(schema)):
+                    local.get_declared_inherited(local_schema)):
                 raise s_err.SchemaDefinitionError(
                     f'{self.get_shortname(schema)}: '
-                    f'{local.get_shortname(schema)} cannot '
+                    f'{local.get_shortname(local_schema)} cannot '
                     f'be declared `inherited` as there are no ancestors '
                     f'defining it.',
-                    context=local.get_sourcectx(schema)
+                    context=local.get_sourcectx(local_schema)
                 )
 
             if merged is not local:
@@ -700,7 +701,7 @@ class ReferencingObject(inheriting.InheritingObject,
                     if dctx is not None:
                         delta = merged.delta(local, merged,
                                              context=None,
-                                             old_schema=schema,
+                                             old_schema=local_schema,
                                              new_schema=schema)
                         if delta.has_subcommands():
                             dctx.current().op.add(delta)

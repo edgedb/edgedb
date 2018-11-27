@@ -286,7 +286,7 @@ class Backend:
                 subdesc = self._describe_type(
                     schema, ptr.get_target(schema), view_shapes, _tuples)
                 subdesc.cardinality = (
-                    '1' if ptr.singular(self.schema) else '*'
+                    '1' if ptr.singular(schema) else '*'
                 )
                 subtypes.append(subdesc)
                 element_names.append(ptr.get_shortname(schema).name)
@@ -298,7 +298,7 @@ class Backend:
                     subdesc = self._describe_type(
                         schema, ptr.get_target(schema), view_shapes, _tuples)
                     subdesc.cardinality = (
-                        '1' if ptr.singular(self.schema) else '*'
+                        '1' if ptr.singular(schema) else '*'
                     )
                     subtypes.append(subdesc)
                     element_names.append(ptr.get_shortname(schema).name)

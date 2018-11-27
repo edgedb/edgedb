@@ -626,11 +626,6 @@ def _compile_view_shapes_in_set(
         parent_view_type: typing.Optional[s_types.ViewType]=None,
         ctx: context.ContextLevel) -> None:
 
-    stype = ir_set.stype
-
-    is_mutation = stype.get_view_type(ctx.env.schema) in (
-        s_types.ViewType.Update, s_types.ViewType.Insert)
-
     shape_ptrs = _get_shape_configuration(
         ir_set, rptr=rptr, parent_view_type=parent_view_type, ctx=ctx)
 
@@ -649,6 +644,11 @@ def _compile_view_shapes_in_set(
                 pathctx.register_set_in_scope(ir_set, ctx=scopectx)
         else:
             pathctx.register_set_in_scope(ir_set, ctx=ctx)
+
+        stype = ir_set.stype
+
+        is_mutation = stype.get_view_type(ctx.env.schema) in (
+            s_types.ViewType.Update, s_types.ViewType.Insert)
 
         for path_tip, ptr in shape_ptrs:
             element = setgen.extend_path(

@@ -40,10 +40,12 @@ class Node(inheriting.InheritingObject, s_types.Type):
 
     def derive_subtype(
             self, schema, *,
-            name: str) -> typing.Tuple[s_schema.Schema, s_types.Type]:
+            name: str,
+            attrs: typing.Optional[typing.Mapping]=None
+    ) -> typing.Tuple[s_schema.Schema, s_types.Type]:
 
         return type(self).create_in_schema_with_inheritance(
-            schema, name=name, bases=[self])
+            schema, name=name, bases=[self], **attrs)
 
     def peel_view(self, schema):
         if self.is_view(schema):
@@ -118,7 +120,7 @@ class NodeCommand(named.NamedObjectCommand):
             derived_delta.update(adds_mods)
             derived_delta.update(dels)
 
-            if ir.stype.is_view(schema):
+            if ir.stype.is_view(ir.schema):
                 for op in list(derived_delta.get_subcommands()):
                     if op.classname == cmd.classname:
                         for subop in op.get_subcommands():
