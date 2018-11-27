@@ -104,13 +104,19 @@ class Schema:
         except KeyError:
             return self
 
-        try:
+        name_to_id = None
+        name = data.get('name')
+        if field == 'name' and name is not None:
+            name_to_id = self._name_to_id.delete(name)
             data = data.delete(field)
-        except KeyError:
-            return self
+        else:
+            try:
+                data = data.delete(field)
+            except KeyError:
+                return self
 
         id_to_data = self._id_to_data.set(obj_id, data)
-        return self._replace(id_to_data=id_to_data)
+        return self._replace(name_to_id=name_to_id, id_to_data=id_to_data)
 
     def _add(self, id, scls, data) -> 'Schema':
         name = data['name']
