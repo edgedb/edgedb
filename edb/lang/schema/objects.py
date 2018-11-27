@@ -20,10 +20,10 @@
 import collections
 import collections.abc
 import itertools
-import pathlib
-import re
 import typing
 import uuid
+
+from edb import errors
 
 from edb.lang.common import markup
 from edb.lang.common import ordered
@@ -34,40 +34,21 @@ from edb.lang.common import typed
 from edb.lang.common import uuidgen
 
 from . import abc as s_abc
-from . import error as s_err
 from . import name as sn
+from . import _types
 
 
-_TYPE_IDS = None
+def get_known_type_id(typename, default=...):
+    try:
+        return _types.TYPE_IDS[typename]
+    except KeyError:
+        pass
 
+    if default is ...:
+        raise errors.SchemaError(
+            f'failed to lookup named type id for {typename!r}')
 
-def load_type_ids():
-    import edb.api
-
-    types = pathlib.Path(edb.api.__path__[0]) / 'types.txt'
-    typeids = {}
-
-    with open(types, 'rt') as f:
-        for line in f:
-            if line.startswith('#'):
-                continue
-            line = line.strip()
-            if not line:
-                continue
-            parts = re.split(r'\s+', line)
-            id, name = parts[:2]
-            typeids[name] = uuid.UUID(id)
-
-    return typeids
-
-
-def get_known_type_id(typename):
-    global _TYPE_IDS
-
-    if _TYPE_IDS is None:
-        _TYPE_IDS = load_type_ids()
-
-    return _TYPE_IDS.get(typename)
+    return default
 
 
 def default_field_merge(target: 'Object', sources: typing.List['Object'],
@@ -486,7 +467,7 @@ class Object(s_abc.Object, metaclass=ObjectMeta):
     def _prepare_id(cls, id: typing.Optional[uuid.UUID],
                     data: dict) -> uuid.UUID:
         if id is None:
-            type_id = get_known_type_id(data.get('name'))
+            type_id = get_known_type_id(data.get('name'), None)
             if type_id is not None:
                 id = type_id
             else:
@@ -718,7 +699,7 @@ class Object(s_abc.Object, metaclass=ObjectMeta):
                     not isinstance(self, obj.__class__)):
                 msg = "cannot merge instances of %s and %s" % \
                     (obj.__class__.__name__, self.__class__.__name__)
-                raise s_err.SchemaError(msg)
+                raise errors.SchemaError(msg)
 
         for field_name in self.inheritable_fields():
             field = self.__class__.get_field(field_name)
@@ -1372,7 +1353,7 @@ class ObjectCollection:
             if isinstance(item_id, ObjectRef):
                 try:
                     obj = item_id._resolve_ref(schema)
-                except s_err.ItemNotFoundError:
+                except errors.InvalidReferenceError:
                     if allow_unresolved:
                         result.append(item_id.get_name(schema))
                     else:

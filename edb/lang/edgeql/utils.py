@@ -21,12 +21,12 @@ import copy
 import itertools
 import typing
 
+from edb import errors
 from edb.lang.common import ast
 
 from . import ast as qlast
 from . import codegen
 from . import compiler
-from . import errors
 from . import parser
 
 
@@ -51,7 +51,7 @@ class ParameterInliner(ast.NodeTransformer):
         return arg
 
     def visit_Parameter(self, node):
-        raise errors.EdgeQLDefinitionError(
+        raise errors.InvalidConstraintDefinitionError(
             f'dollar-prefixed "$parameters" are not supported in constraints')
 
 

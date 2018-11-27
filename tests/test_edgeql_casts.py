@@ -21,7 +21,8 @@ import itertools
 import os.path
 import unittest  # NOQA
 
-from edb.client import exceptions as exc
+import edgedb
+
 from edb.server import _testbase as tb
 
 
@@ -57,110 +58,112 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'casts_setup.eql')
 
+    ISOLATED_METHODS = False
+
     # NOTE: nothing can be cast into bytes
 
     async def test_edgeql_casts_bytes_01(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot cast'):
-            await self.con.execute("""
+                edgedb.QueryError, r'cannot cast'):
+            await self.query("""
                 SELECT <bytes>True;
             """)
 
     async def test_edgeql_casts_bytes_02(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot cast'):
-            await self.con.execute("""
+                edgedb.QueryError, r'cannot cast'):
+            await self.query("""
                 SELECT <bytes>uuid_generate_v1mc();
             """)
 
     async def test_edgeql_casts_bytes_03(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot cast'):
-            await self.con.execute("""
+                edgedb.QueryError, r'cannot cast'):
+            await self.query("""
                 SELECT <bytes>'Hello';
             """)
 
     async def test_edgeql_casts_bytes_04(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot cast'):
-            await self.con.execute("""
+                edgedb.QueryError, r'cannot cast'):
+            await self.query("""
                 SELECT <bytes>to_json('1');
             """)
 
     async def test_edgeql_casts_bytes_05(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot cast'):
-            await self.con.execute("""
+                edgedb.QueryError, r'cannot cast'):
+            await self.query("""
                 SELECT <bytes>datetime_current();
             """)
 
     async def test_edgeql_casts_bytes_06(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot cast'):
-            await self.con.execute("""
+                edgedb.QueryError, r'cannot cast'):
+            await self.query("""
                 SELECT <bytes>to_naive_datetime('2018-05-07T20:01:22.306916');
             """)
 
     async def test_edgeql_casts_bytes_07(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot cast'):
-            await self.con.execute("""
+                edgedb.QueryError, r'cannot cast'):
+            await self.query("""
                 SELECT <bytes>to_naive_date('2018-05-07');
             """)
 
     async def test_edgeql_casts_bytes_08(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot cast'):
-            await self.con.execute("""
+                edgedb.QueryError, r'cannot cast'):
+            await self.query("""
                 SELECT <bytes>to_naive_time('20:01:22.306916');
             """)
 
     async def test_edgeql_casts_bytes_09(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot cast'):
-            await self.con.execute("""
+                edgedb.QueryError, r'cannot cast'):
+            await self.query("""
                 SELECT <bytes>to_timedelta(hours:=20);
             """)
 
     async def test_edgeql_casts_bytes_10(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot cast'):
-            await self.con.execute("""
+                edgedb.QueryError, r'cannot cast'):
+            await self.query("""
                 SELECT <bytes>to_int16('2');
             """)
 
     async def test_edgeql_casts_bytes_11(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot cast'):
-            await self.con.execute("""
+                edgedb.QueryError, r'cannot cast'):
+            await self.query("""
                 SELECT <bytes>to_int32('2');
             """)
 
     async def test_edgeql_casts_bytes_12(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot cast'):
-            await self.con.execute("""
+                edgedb.QueryError, r'cannot cast'):
+            await self.query("""
                 SELECT <bytes>to_int64('2');
             """)
 
     async def test_edgeql_casts_bytes_13(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot cast'):
-            await self.con.execute("""
+                edgedb.QueryError, r'cannot cast'):
+            await self.query("""
                 SELECT <bytes>to_float32('2');
             """)
 
     async def test_edgeql_casts_bytes_14(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot cast'):
-            await self.con.execute("""
+                edgedb.QueryError, r'cannot cast'):
+            await self.query("""
                 SELECT <bytes>to_float64('2');
             """)
 
     async def test_edgeql_casts_bytes_15(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot cast'):
-            await self.con.execute("""
+                edgedb.QueryError, r'cannot cast'):
+            await self.query("""
                 SELECT <bytes>to_decimal('2');
             """)
 
@@ -783,30 +786,30 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         ])
 
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError, r"integer out of range"):
+                edgedb.NumericOutOfRangeError, r"integer out of range"):
             async with self.con.transaction():
-                await self.con.execute("""
+                await self.query("""
                     SELECT <int32><float32><int32>2147483647;
                 """)
 
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError, r"integer out of range"):
+                edgedb.NumericOutOfRangeError, r"integer out of range"):
             async with self.con.transaction():
-                await self.con.execute("""
+                await self.query("""
                     SELECT <int32><float32><int32>2147483646;
                 """)
 
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError, r"integer out of range"):
+                edgedb.NumericOutOfRangeError, r"integer out of range"):
             async with self.con.transaction():
-                await self.con.execute("""
+                await self.query("""
                     SELECT <int32><float32><int32>2147483645;
                 """)
 
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError, r"integer out of range"):
+                edgedb.NumericOutOfRangeError, r"integer out of range"):
             async with self.con.transaction():
-                await self.con.execute("""
+                await self.query("""
                     SELECT <int32><float32><int32>2147483638;
                 """)
 
@@ -840,65 +843,65 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     # casting into an abstract scalar should be illegal
     async def test_edgeql_casts_illegal_01(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r"cannot cast into generic.*'anytype'"):
-            await self.con.execute("""
+                edgedb.QueryError, r"cannot cast into generic.*'anytype'"):
+            await self.query("""
                 SELECT <anytype>123;
             """)
 
     async def test_edgeql_casts_illegal_02(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r"cannot cast into generic.*anyscalar'"):
-            await self.con.execute("""
+                edgedb.QueryError, r"cannot cast into generic.*anyscalar'"):
+            await self.query("""
                 SELECT <anyscalar>123;
             """)
 
     async def test_edgeql_casts_illegal_03(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r"cannot cast into generic.*anyreal'"):
-            await self.con.execute("""
+                edgedb.QueryError, r"cannot cast into generic.*anyreal'"):
+            await self.query("""
                 SELECT <anyreal>123;
             """)
 
     async def test_edgeql_casts_illegal_04(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r"cannot cast into generic.*anyint'"):
-            await self.con.execute("""
+                edgedb.QueryError, r"cannot cast into generic.*anyint'"):
+            await self.query("""
                 SELECT <anyint>123;
             """)
 
     async def test_edgeql_casts_illegal_05(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot cast.*'):
-            await self.con.execute("""
+                edgedb.QueryError, r'cannot cast.*'):
+            await self.query("""
                 SELECT <anyfloat>123;
             """)
 
     async def test_edgeql_casts_illegal_06(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r"cannot cast into generic.*sequence'"):
-            await self.con.execute("""
+                edgedb.QueryError, r"cannot cast into generic.*sequence'"):
+            await self.query("""
                 SELECT <sequence>123;
             """)
 
     async def test_edgeql_casts_illegal_07(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r"cannot cast into generic.*anytype'"):
-            await self.con.execute("""
+                edgedb.QueryError, r"cannot cast into generic.*anytype'"):
+            await self.query("""
                 SELECT <array<anytype>>[123];
             """)
 
     async def test_edgeql_casts_illegal_08(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r"cannot cast into generic.*'anytype'"):
-            await self.con.execute("""
+                edgedb.QueryError, r"cannot cast into generic.*'anytype'"):
+            await self.query("""
                 SELECT <tuple<int64, anytype>>(123, 123);
             """)
 
     async def test_edgeql_casts_illegal_09(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"cannot cast.*std::Object.*use.*IS schema::Object.*"):
-            await self.con.execute("""
+            await self.query("""
                 SELECT <schema::Object>std::Object;
             """)
 

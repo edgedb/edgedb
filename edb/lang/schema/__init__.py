@@ -17,7 +17,6 @@
 #
 
 
-from .error import SchemaError, SchemaNameError  # NOQA
 from .name import SchemaName  # NOQA
 
 from .objects import Object, ObjectMeta  # NOQA

@@ -19,15 +19,15 @@
 
 import hashlib
 
+from edb import errors
+
 from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import errors as ql_errors
 from edb.lang.edgeql import functypes as ft
 
 from . import abc as s_abc
 from . import attributes
 from . import delta as sd
-from . import error as s_errors
 from . import expr as s_expr
 from . import functions as s_func
 from . import inheriting
@@ -159,7 +159,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
             bool_t = schema.get('std::bool')
             expr_type = ir_result.stype
             if not expr_type.issubclass(schema, bool_t):
-                raise s_errors.SchemaDefinitionError(
+                raise errors.InvalidConstraintDefinitionError(
                     f'{constraint_name} constraint expression expected '
                     f'to return a bool value, got '
                     f'{expr_type.get_name(schema).name!r}',
@@ -184,7 +184,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
         if subjectexpr is None:
             subjectexpr = base_subjectexpr
         elif base_subjectexpr is not None and subjectexpr != base_subjectexpr:
-            raise s_errors.InvalidConstraintDefinitionError(
+            raise errors.InvalidConstraintDefinitionError(
                 'subjectexpr is already defined for ' +
                 f'{str(name)!r}')
 
@@ -194,7 +194,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
 
         expr = constr_base.get_field_value(schema, 'expr')
         if not expr:
-            raise s_errors.InvalidConstraintDefinitionError(
+            raise errors.InvalidConstraintDefinitionError(
                 f'missing constraint expression in {name!r}')
 
         expr_ql = edgeql_parser.parse(expr, module_aliases)
@@ -404,7 +404,7 @@ class ConstraintCommand(
         # check that 'subject' and 'subjectexpr' are not set as attributes
         for command in astnode.commands:
             if cls._is_special_name(command.name):
-                raise s_errors.SchemaDefinitionError(
+                raise errors.InvalidConstraintDefinitionError(
                     f'{command.name.name} is not a valid constraint attribute',
                     context=command.context)
 
@@ -508,13 +508,13 @@ class CreateConstraint(ConstraintCommand,
 
             for param in params:
                 if param.get_kind(schema) is ft.ParameterKind.NAMED_ONLY:
-                    raise ql_errors.EdgeQLError(
+                    raise errors.InvalidConstraintDefinitionError(
                         'named only parameters are not allowed '
                         'in this context',
                         context=astnode.context)
 
                 if param.get_default(schema) is not None:
-                    raise ql_errors.EdgeQLError(
+                    raise errors.InvalidConstraintDefinitionError(
                         'constraints do not support parameters '
                         'with defaults',
                         context=astnode.context)

@@ -25,7 +25,7 @@ from edb.lang.common import parsing, context
 
 from edb.lang.edgeql import ast as qlast
 
-from ...errors import EdgeQLSyntaxError
+from edb.errors import EdgeQLSyntaxError
 
 from . import keywords
 from . import lexutils

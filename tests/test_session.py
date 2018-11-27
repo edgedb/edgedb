@@ -17,7 +17,8 @@
 #
 
 
-from edb.client import exceptions as err
+import edgedb
+
 from edb.server import _testbase as tb
 
 
@@ -76,7 +77,7 @@ class TestSession(tb.QueryTestCase):
 
     async def test_session_set_command_02(self):
         with self.assertRaisesRegex(
-                err.EdgeQLError,
+                edgedb.QueryError,
                 'reference to a non-existent schema item: User'):
             await self.assert_query_result("""
                 SET MODULE foo;
@@ -102,16 +103,6 @@ class TestSession(tb.QueryTestCase):
 
             [['entity', 'user']]
         ])
-
-    async def test_session_set_command_04(self):
-        with self.assertRaisesRegex(
-                err.EdgeQLError,
-                'expression aliases in SET are not supported yet'):
-            await self.assert_query_result("""
-                SET CONFIG foo := 1 + 1;
-            """, [
-                None,
-            ])
 
     async def test_session_set_command_05(self):
         # Check that local WITH overrides the session level setting.

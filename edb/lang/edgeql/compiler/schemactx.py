@@ -22,10 +22,11 @@
 
 import typing
 
+from edb import errors
+
 from edb.lang.common import parsing
 
 from edb.lang.schema import abc as s_abc
-from edb.lang.schema import error as s_err
 from edb.lang.schema import name as sn
 from edb.lang.schema import nodes as s_nodes
 from edb.lang.schema import objects as s_obj
@@ -36,7 +37,6 @@ from edb.lang.schema import types as s_types
 from edb.lang.schema import utils as s_utils
 
 from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import errors as qlerrors
 
 from . import context
 
@@ -69,16 +69,11 @@ def get_schema_object(
             name=name, module_aliases=ctx.modaliases,
             type=item_types)
 
-    except s_err.ItemNotFoundError as e:
-        qlerror = qlerrors.EdgeQLError(e.args[0], context=srcctx)
+    except errors.QueryError as e:
         s_utils.enrich_schema_lookup_error(
-            qlerror, name, modaliases=ctx.modaliases, schema=ctx.env.schema,
+            e, name, modaliases=ctx.modaliases, schema=ctx.env.schema,
             item_types=item_types)
-
-        raise qlerror from e
-
-    except s_err.SchemaError as e:
-        raise qlerrors.EdgeQLError(e.args[0], context=srcctx) from e
+        raise
 
     result = ctx.aliased_views.get(stype.get_name(ctx.env.schema))
     if result is None:

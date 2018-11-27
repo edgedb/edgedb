@@ -22,13 +22,13 @@ from edb.server import _testbase as tb
 
 class TestDatabase(tb.ConnectedTestCase):
     async def test_database_create01(self):
-        await self.con.execute('CREATE DATABASE mytestdb;')
+        await self.con._legacy_execute('CREATE DATABASE mytestdb;')
 
         try:
             conn = await self.cluster.connect(
                 user='edgedb', database='mytestdb')
 
-            conn.close()
+            await conn.close()
 
         finally:
-            await self.con.execute('DROP DATABASE mytestdb;')
+            await self.con._legacy_execute('DROP DATABASE mytestdb;')

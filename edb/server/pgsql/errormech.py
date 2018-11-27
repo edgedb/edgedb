@@ -24,7 +24,8 @@ import uuid
 
 import asyncpg
 
-from edb.lang.common import exceptions as edgedb_error
+from edb import errors
+
 from edb.lang.schema import name as sn
 from edb.lang.schema import objtypes as s_objtypes
 
@@ -61,12 +62,12 @@ class ErrorMech:
             if pointer_name is not None:
                 pname = f'{source_name}.{pointer_name}'
 
-                return edgedb_error.MissingRequiredPointerError(
+                return errors.MissingRequiredError(
                     'missing value for required property {}'.format(pname),
                     source_name=source_name, pointer_name=pointer_name)
 
             else:
-                return edgedb_error.EdgeDBBackendError(err.message)
+                return errors.InternalServerError(err.message)
 
         elif isinstance(err, asyncpg.IntegrityConstraintViolationError):
             source = pointer = None
@@ -83,11 +84,11 @@ class ErrorMech:
                     error_type = type
                     break
             else:
-                return edgedb_error.EdgeDBBackendError(err.message)
+                return errors.InternalServerError(err.message)
 
             if error_type == 'cardinality':
                 err = 'cardinality violation'
-                errcls = edgedb_error.PointerCardinalityViolationError
+                errcls = errors.CardinalityViolationError
                 return errcls(err, source=source, pointer=pointer)
 
             elif error_type == 'link_target':
@@ -117,32 +118,32 @@ class ErrorMech:
                 else:
                     msg = 'invalid target for link'
 
-                return edgedb_error.InvalidPointerTargetError(msg)
+                return errors.UnknownLinkError(msg)
 
             elif error_type == 'link_target_del':
-                return edgedb_error.ConstraintViolationError(
+                return errors.ConstraintViolationError(
                     err.message, detail=err.detail)
 
             elif error_type == 'constraint':
                 if err.constraint_name is None:
-                    return edgedb_error.EdgeDBBackendError(err.message)
+                    return errors.InternalServerError(err.message)
 
                 constraint_id, _, _ = err.constraint_name.rpartition(';')
 
                 try:
                     constraint_id = uuid.UUID(constraint_id)
                 except ValueError:
-                    return edgedb_error.EdgeDBBackendError(err.message)
+                    return errors.InternalServerError(err.message)
 
                 constraint = schema.get_by_id(constraint_id)
 
-                return edgedb_error.ConstraintViolationError(
+                return errors.ConstraintViolationError(
                     constraint.format_error_message(schema))
 
             elif error_type == 'id':
                 msg = 'unique link constraint violation'
-                errcls = edgedb_error.UniqueConstraintViolationError
+                errcls = errors.ConstraintViolationError
                 return errcls(msg=msg)
 
         else:
-            return edgedb_error.EdgeDBBackendError(err.message)
+            return errors.InternalServerError(err.message)

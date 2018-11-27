@@ -19,19 +19,20 @@
 
 import unittest  # NOQA
 
-from edb.client import exceptions as client_errors
+import edgedb
+
 from edb.server import _testbase as tb
 
 
 class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_01(self):
-        await self.con.execute("""
+        await self.query("""
             CREATE ABSTRACT LINK test::test_link;
         """)
 
     async def test_edgeql_ddl_02(self):
-        await self.con.execute("""
+        await self.query("""
             CREATE ABSTRACT LINK test::test_object_link {
                 CREATE PROPERTY test::test_link_prop -> std::int64;
             };
@@ -46,14 +47,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         """)
 
     async def test_edgeql_ddl_03(self):
-        await self.con.execute("""
+        await self.query("""
             CREATE ABSTRACT LINK test::test_object_link_prop {
                 CREATE PROPERTY test::link_prop1 -> std::str;
             };
         """)
 
     async def test_edgeql_ddl_04(self):
-        await self.con.execute("""
+        await self.query("""
             CREATE TYPE test::A;
             CREATE TYPE test::B EXTENDING test::A;
 
@@ -70,7 +71,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         """)
 
     async def test_edgeql_ddl_type_05(self):
-        await self.con.execute("""
+        await self.query("""
             CREATE TYPE test::A5;
             CREATE TYPE test::Object5 {
                 CREATE REQUIRED LINK test::a -> test::A5;
@@ -109,7 +110,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }],
         ])
 
-        await self.con.execute("""
+        await self.query("""
             ALTER TYPE test::Object5 {
                 ALTER LINK test::a DROP REQUIRED;
             };
@@ -151,7 +152,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ])
 
     async def test_edgeql_ddl_type_06(self):
-        await self.con.execute("""
+        await self.query("""
             CREATE TYPE test::A6;
             CREATE TYPE test::Object6 {
                 CREATE SINGLE LINK test::a -> test::A6;
@@ -190,7 +191,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }],
         ])
 
-        await self.con.execute("""
+        await self.query("""
             ALTER TYPE test::Object6 {
                 ALTER LINK test::a SET MULTI;
             };
@@ -232,10 +233,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ])
 
     async def test_edgeql_ddl_05(self):
-        with self.assertRaisesRegex(client_errors.EdgeQLError,
+        with self.assertRaisesRegex(edgedb.DuplicateFunctionDefinitionError,
                                     r'cannot create.*test::my_lower.*func'):
 
-            await self.con.execute("""
+            await self.query("""
                 CREATE FUNCTION test::my_lower(s: std::str) -> std::str
                     FROM SQL FUNCTION 'lower';
 
@@ -246,14 +247,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
-        await self.con.execute("""
+        await self.query("""
             DROP FUNCTION test::my_lower(s: std::str);
         """)
 
-        with self.assertRaisesRegex(client_errors.EdgeQLError,
+        with self.assertRaisesRegex(edgedb.DuplicateFunctionDefinitionError,
                                     r'cannot create.*test::my_lower.*func'):
 
-            await self.con.execute("""
+            await self.query("""
                 CREATE FUNCTION test::my_lower(s: SET OF anytype)
                     -> std::str {
                     FROM SQL FUNCTION 'count';
@@ -264,14 +265,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     FROM SQL FUNCTION 'lower';
             """)
 
-        await self.con.execute("""
+        await self.query("""
             DROP FUNCTION test::my_lower(s: anytype);
         """)
 
     async def test_edgeql_ddl_06(self):
         long_func_name = 'my_sql_func5_' + 'abc' * 50
 
-        await self.con.execute(f"""
+        await self.query(f"""
             CREATE FUNCTION test::my_sql_func1()
                 -> std::str
                 FROM SQL $$
@@ -327,7 +328,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [16],
         ])
 
-        await self.con.execute(f"""
+        await self.query(f"""
             DROP FUNCTION test::my_sql_func1();
             DROP FUNCTION test::my_sql_func2(foo: std::str);
             DROP FUNCTION test::my_sql_func4(VARIADIC s: std::str);
@@ -337,9 +338,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         """)
 
     async def test_edgeql_ddl_07(self):
-        with self.assertRaisesRegex(client_errors.EdgeQLError,
+        with self.assertRaisesRegex(edgedb.InvalidFunctionDefinitionError,
                                     r'invalid default value'):
-            await self.con.execute(f"""
+            await self.query(f"""
                 CREATE FUNCTION test::broken_sql_func1(
                     a: std::int64=(SELECT schema::ObjectType))
                 -> std::str
@@ -349,7 +350,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             """)
 
     async def test_edgeql_ddl_08(self):
-        await self.con.execute(f"""
+        await self.query(f"""
             CREATE FUNCTION test::my_edgeql_func1()
                 -> std::str
                 FROM EdgeQL $$
@@ -389,7 +390,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [[42, 1, 2, 3]]
         ])
 
-        await self.con.execute(f"""
+        await self.query(f"""
             DROP FUNCTION test::my_edgeql_func1();
             DROP FUNCTION test::my_edgeql_func2(s: std::str);
             DROP FUNCTION test::my_edgeql_func3(s: std::int64);
@@ -397,7 +398,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         """)
 
     async def test_edgeql_ddl_09(self):
-        await self.con.execute("""
+        await self.query("""
             CREATE FUNCTION test::attr_func_1() -> std::str {
                 SET ATTRIBUTE description := 'hello';
                 FROM EdgeQL "SELECT '1'";
@@ -418,12 +419,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }],
         ])
 
-        await self.con.execute("""
+        await self.query("""
             DROP FUNCTION test::attr_func_1();
         """)
 
     async def test_edgeql_ddl_10(self):
-        await self.con.execute("""
+        await self.query("""
             CREATE FUNCTION test::int_func_1() -> std::int64 {
                 FROM EdgeQL "SELECT 1";
             };
@@ -436,7 +437,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ])
 
     async def test_edgeql_ddl_11(self):
-        await self.con.execute(r"""
+        await self.query(r"""
             CREATE TYPE test::TestContainerLinkObjectType {
                 CREATE PROPERTY test::test_array_link -> array<std::str>;
                 # FIXME: for now dimention specs on the array are
@@ -448,9 +449,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_12(self):
         with self.assertRaisesRegex(
-                client_errors.EdgeQLError,
+                edgedb.EdgeQLSyntaxError,
                 r"Unexpected '`__subject__`'"):
-            await self.con.execute(r"""
+            await self.query(r"""
                 CREATE TYPE test::TestBadContainerLinkObjectType {
                     CREATE PROPERTY test::foo -> std::str {
                         CREATE CONSTRAINT expression
@@ -461,9 +462,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_13(self):
         with self.assertRaisesRegex(
-                client_errors.EdgeQLError,
+                edgedb.InvalidReferenceError,
                 'reference to a non-existent schema item: self'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 CREATE TYPE test::TestBadContainerLinkObjectType {
                     CREATE PROPERTY test::foo -> std::str {
                         CREATE CONSTRAINT expression ON (`self` = 'foo');
@@ -473,7 +474,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_ddl_14(self):
-        await self.con.execute("""
+        await self.query("""
             CREATE TYPE test::TestSelfLink1 {
                 CREATE PROPERTY test::foo1 -> std::str;
                 CREATE PROPERTY test::bar1 -> std::str {
@@ -498,7 +499,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ])
 
     async def test_edgeql_ddl_15(self):
-        await self.con.execute(r"""
+        await self.query(r"""
             CREATE TYPE test::TestSelfLink2 {
                 CREATE PROPERTY test::foo2 -> std::str;
                 CREATE MULTI PROPERTY test::bar2 -> std::str {
@@ -539,8 +540,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_16(self):
         # XXX: not sure what the error would say exactly, but
         # cardinality should be an issue here
-        with self.assertRaisesRegex(client_errors.EdgeQLError):
-            await self.con.execute(r"""
+        with self.assertRaisesRegex(edgedb.QueryError):
+            await self.query(r"""
                 CREATE TYPE test::TestSelfLink3 {
                     CREATE PROPERTY test::foo3 -> std::str;
                     CREATE PROPERTY test::bar3 -> std::str {
@@ -552,7 +553,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_ddl_17(self):
-        await self.con.execute("""
+        await self.query("""
             CREATE TYPE test::TestSelfLink4 {
                 CREATE PROPERTY test::__typename4 -> std::str {
                     SET default := __source__.__type__.name;
@@ -573,7 +574,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ])
 
     async def test_edgeql_ddl_18(self):
-        await self.con.execute("""
+        await self.query("""
             CREATE MODULE foo;
             CREATE MODULE bar;
 
@@ -615,7 +616,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ])
 
     async def test_edgeql_ddl_19(self):
-        await self.con.execute("""
+        await self.query("""
             SET MODULE test;
 
             CREATE TYPE ActualType {
@@ -680,9 +681,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_bad_01(self):
         with self.assertRaisesRegex(
-                client_errors.SchemaError,
+                edgedb.InvalidReferenceError,
                 r'unqualified name and no default module set'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 CREATE TYPE test::Foo {
                     CREATE PROPERTY test::bar -> array;
                 };
@@ -690,9 +691,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_bad_02(self):
         with self.assertRaisesRegex(
-                client_errors.SchemaError,
+                edgedb.InvalidReferenceError,
                 r'unqualified name and no default module set'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 CREATE TYPE test::Foo {
                     CREATE PROPERTY test::bar -> tuple;
                 };
@@ -700,9 +701,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_bad_03(self):
         with self.assertRaisesRegex(
-                client_errors.SchemaError,
+                edgedb.SchemaError,
                 r'unexpected number of subtypes, expecting 1'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 CREATE TYPE test::Foo {
                     CREATE PROPERTY test::bar -> array<int64, int64, int64>;
                 };
@@ -710,9 +711,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_bad_04(self):
         with self.assertRaisesRegex(
-                client_errors.SchemaError,
+                edgedb.UnsupportedFeatureError,
                 r'nested arrays are not supported'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 CREATE TYPE test::Foo {
                     CREATE PROPERTY test::bar -> array<array<int64>>;
                 };
@@ -720,10 +721,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_bad_05(self):
         with self.assertRaisesRegex(
-                client_errors.SchemaError,
+                edgedb.EdgeQLSyntaxError,
                 r'mixing named and unnamed tuple declaration is not '
                 r'supported'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 CREATE TYPE test::Foo {
                     CREATE PROPERTY test::bar -> tuple<int64, foo:int64>;
                 };
@@ -731,9 +732,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_bad_06(self):
         with self.assertRaisesRegex(
-                client_errors.SchemaError,
+                edgedb.SchemaError,
                 r'unexpected number of subtypes, expecting 1'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 CREATE TYPE test::Foo {
                     CREATE PROPERTY test::bar -> array<>;
                 };
@@ -741,17 +742,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_link_bad_01(self):
         with self.assertRaisesRegex(
-                client_errors.SchemaError,
+                edgedb.SchemaDefinitionError,
                 f'link or property name length exceeds the maximum'):
-            await self.con.execute("""
+            await self.query("""
                 CREATE ABSTRACT LINK test::f123456789_123456789_123456789_\
 123456789_123456789_123456789_123456789_123456789;
             """)
 
         with self.assertRaisesRegex(
-                client_errors.SchemaError,
+                edgedb.SchemaDefinitionError,
                 f'link or property name length exceeds the maximum'):
-            await self.con.execute("""
+            await self.query("""
                 CREATE TYPE test::Foo {
                     CREATE LINK test::f123456789_123456789_123456789_\
 123456789_123456789_123456789_123456789_123456789 -> test::Foo;
@@ -760,17 +761,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_prop_bad_01(self):
         with self.assertRaisesRegex(
-                client_errors.SchemaError,
+                edgedb.SchemaDefinitionError,
                 f'link or property name length exceeds the maximum'):
-            await self.con.execute("""
+            await self.query("""
                 CREATE ABSTRACT PROPERTY test::f123456789_123456789_123456789_\
 123456789_123456789_123456789_123456789_123456789;
             """)
 
         with self.assertRaisesRegex(
-                client_errors.SchemaError,
+                edgedb.SchemaDefinitionError,
                 f'link or property name length exceeds the maximum'):
-            await self.con.execute("""
+            await self.query("""
                 CREATE TYPE test::Foo {
                     CREATE PROPERTY test::f123456789_123456789_123456789_\
 123456789_123456789_123456789_123456789_123456789 -> std::str;
@@ -779,10 +780,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_function_bad_01(self):
         with self.assertRaisesRegex(
-                client_errors.EdgeQLError,
+                edgedb.InvalidFunctionDefinitionError,
                 r'cannot create.*test::my_agg.*function:.+anytype.+cannot '
                 r'have a non-empty default'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 CREATE FUNCTION test::my_agg(
                         s: anytype = [1]) -> array<anytype>
                     FROM SQL FUNCTION "my_agg";
@@ -790,103 +791,57 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_function_bad_02(self):
         with self.assertRaisesRegex(
-                client_errors.EdgeQLError,
+                edgedb.InvalidFunctionDefinitionError,
                 r'invalid declaration.*unexpected type of the default'):
 
-            await self.con.execute("""
+            await self.query("""
                 CREATE FUNCTION test::ddlf_1(s: std::str = 1) -> std::str
                     FROM EdgeQL $$ SELECT "1" $$;
             """)
 
     async def test_edgeql_ddl_28(self):
-        try:
-            await self.con.execute("""
+        await self.query("""
+            CREATE FUNCTION test::ddlf_2(
+                NAMED ONLY a: int64,
+                NAMED ONLY b: int64
+            ) -> std::str
+                FROM EdgeQL $$ SELECT "1" $$;
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.DuplicateFunctionDefinitionError,
+                r'already defined'):
+
+            await self.query("""
                 CREATE FUNCTION test::ddlf_2(
-                    NAMED ONLY a: int64,
-                    NAMED ONLY b: int64
+                    NAMED ONLY b: int64,
+                    NAMED ONLY a: int64 = 1
                 ) -> std::str
                     FROM EdgeQL $$ SELECT "1" $$;
             """)
 
-            with self.assertRaisesRegex(
-                    client_errors.EdgeQLError,
-                    r'already defined'):
+        await self.query("""
+            CREATE FUNCTION test::ddlf_2(
+                NAMED ONLY b: str,
+                NAMED ONLY a: int64
+            ) -> std::str
+                FROM EdgeQL $$ SELECT "2" $$;
+        """)
 
-                await self.con.execute("""
-                    CREATE FUNCTION test::ddlf_2(
-                        NAMED ONLY b: int64,
-                        NAMED ONLY a: int64 = 1
-                    ) -> std::str
-                        FROM EdgeQL $$ SELECT "1" $$;
-                """)
-
-            await self.con.execute("""
-                CREATE FUNCTION test::ddlf_2(
-                    NAMED ONLY b: str,
-                    NAMED ONLY a: int64
-                ) -> std::str
-                    FROM EdgeQL $$ SELECT "2" $$;
-            """)
-
-            await self.assert_query_result(r'''
-                SELECT test::ddlf_2(a:=1, b:=1);
-                SELECT test::ddlf_2(a:=1, b:='a');
-            ''', [
-                ['1'],
-                ['2'],
-            ])
-
-        finally:
-            await self.con.execute("""
-                DROP FUNCTION test::ddlf_2(
-                    NAMED ONLY a: int64,
-                    NAMED ONLY b: int64
-                );
-
-                DROP FUNCTION test::ddlf_2(
-                    NAMED ONLY b: str,
-                    NAMED ONLY a: int64
-                );
-            """)
-
-    @unittest.expectedFailure
-    async def test_edgeql_ddl_29(self):
-        try:
-            await self.con.execute('START TRANSACTION;')
-
-            with self.assertRaises(client_errors.EdgeQLError):
-                await self.con.execute("""
-                    CREATE FUNCTION test::ddlf_2(
-                        a: int64
-                    ) -> int64  # should be "decimal", and we want
-                                # EdgeDB to complain about that.
-                        FROM EdgeQL $$ SELECT sum({a}) $$;
-                """)
-        finally:
-            await self.con.execute('ROLLBACK;')
-
-    async def test_edgeql_ddl_30(self):
-        try:
-            await self.con.execute('START TRANSACTION;')
-
-            with self.assertRaisesRegex(
-                    client_errors.EdgeQLError,
-                    r'"\$parameters" cannot be used in functions'):
-                await self.con.execute("""
-                    CREATE FUNCTION test::ddlf_3(
-                        a: int64
-                    ) -> int64
-                        FROM EdgeQL $$ SELECT $a $$;
-                """)
-        finally:
-            await self.con.execute('ROLLBACK;')
+        await self.assert_query_result(r'''
+            SELECT test::ddlf_2(a:=1, b:=1);
+            SELECT test::ddlf_2(a:=1, b:='a');
+        ''', [
+            ['1'],
+            ['2'],
+        ])
 
     async def test_edgeql_ddl_31(self):
         with self.assertRaisesRegex(
-                client_errors.EdgeQLError,
+                edgedb.QueryError,
                 r'parameter `sum` is not callable'):
 
-            await self.con.execute('''
+            await self.query('''
                 CREATE FUNCTION test::ddlf_4(
                     sum: int64
                 ) -> int64
@@ -896,7 +851,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ''')
 
     async def test_edgeql_ddl_32(self):
-        await self.con.execute(r'''
+        await self.query(r'''
             CREATE FUNCTION test::ddlf_5_1() -> str
                 FROM EdgeQL $$
                     SELECT '\u0062'
@@ -924,7 +879,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 [r'\u0062'],
             ])
         finally:
-            await self.con.execute("""
+            await self.query("""
                 DROP FUNCTION test::ddlf_5_1();
                 DROP FUNCTION test::ddlf_5_2();
                 DROP FUNCTION test::ddlf_5_3();
@@ -932,11 +887,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_33(self):
         with self.assertRaisesRegex(
-                client_errors.EdgeQLError,
+                edgedb.DuplicateFunctionDefinitionError,
                 r'cannot create.*test::ddlf_6\(a: std::int64\).*'
                 r'function with the same signature is already defined'):
 
-            await self.con.execute(r'''
+            await self.query(r'''
                 CREATE FUNCTION test::ddlf_6(a: int64) -> int64
                     FROM EdgeQL $$ SELECT 11 $$;
 
@@ -944,29 +899,25 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     FROM EdgeQL $$ SELECT 11 $$;
             ''')
 
-        await self.con.execute("""
-            DROP FUNCTION test::ddlf_6(a: int64);
-        """)
-
     async def test_edgeql_ddl_34(self):
         with self.assertRaisesRegex(
-                client_errors.EdgeQLError,
+                edgedb.UnsupportedFeatureError,
                 r'cannot create.*test::ddlf_7\(a: SET OF std::int64\).*'
                 r'SET OF parameters in user-defined EdgeQL functions are '
                 r'not supported'):
 
-            await self.con.execute(r'''
+            await self.query(r'''
                 CREATE FUNCTION test::ddlf_7(a: SET OF int64) -> int64
                     FROM EdgeQL $$ SELECT 11 $$;
             ''')
 
-        with self.assertRaises(client_errors.SchemaError):
-            await self.con.execute("""
+        with self.assertRaises(edgedb.InvalidReferenceError):
+            await self.query("""
                 DROP FUNCTION test::ddlf_7(a: SET OF int64);
             """)
 
     async def test_edgeql_ddl_35(self):
-        await self.con.execute(r'''
+        await self.query(r'''
             CREATE FUNCTION test::ddlf_8(
                     a: int64, NAMED ONLY f: int64) -> int64
                 FROM EdgeQL $$ SELECT 11 $$;
@@ -985,18 +936,18 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 [12],
             ])
         finally:
-            await self.con.execute("""
+            await self.query("""
                 DROP FUNCTION test::ddlf_8(a: int64, NAMED ONLY f: int64);
                 DROP FUNCTION test::ddlf_8(a: int32, NAMED ONLY f: str);
             """)
 
     async def test_edgeql_ddl_36(self):
         with self.assertRaisesRegex(
-                client_errors.EdgeQLError,
+                edgedb.InvalidFunctionDefinitionError,
                 r'cannot create.*test::ddlf_9.*NAMED ONLY h:.*'
                 r'different named only parameters'):
 
-            await self.con.execute(r'''
+            await self.query(r'''
                 CREATE FUNCTION test::ddlf_9(
                         a: int64, NAMED ONLY f: int64) -> int64
                     FROM EdgeQL $$ SELECT 11 $$;
@@ -1006,17 +957,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     FROM EdgeQL $$ SELECT 12 $$;
             ''')
 
-        await self.con.execute("""
-            DROP FUNCTION test::ddlf_9(a: int64, NAMED ONLY f: int64);
-        """)
-
     async def test_edgeql_ddl_37(self):
         with self.assertRaisesRegex(
-                client_errors.EdgeQLError,
+                edgedb.InvalidFunctionDefinitionError,
                 r'cannot create the polymorphic.*test::ddlf_10.*'
                 r'function with different return type'):
 
-            await self.con.execute(r'''
+            await self.query(r'''
                 CREATE FUNCTION test::ddlf_10(
                         a: anytype, b: int64) -> OPTIONAL int64
                     FROM EdgeQL $$ SELECT 11 $$;
@@ -1025,17 +972,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     FROM EdgeQL $$ SELECT '12' $$;
             ''')
 
-        await self.con.execute("""
-            DROP FUNCTION test::ddlf_10(a: anytype, b: int64);
-        """)
-
     async def test_edgeql_ddl_38(self):
         with self.assertRaisesRegex(
-                client_errors.EdgeQLError,
+                edgedb.InvalidFunctionDefinitionError,
                 r'cannot create.*test::ddlf_11.*'
                 r'overloading "FROM SQL FUNCTION"'):
 
-            await self.con.execute(r'''
+            await self.query(r'''
                 CREATE FUNCTION test::ddlf_11(str: std::str) -> int64
                     FROM SQL FUNCTION 'whatever';
 
@@ -1043,45 +986,45 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     FROM SQL FUNCTION 'whatever2';
             ''')
 
-        await self.con.execute("""
+        await self.query("""
             DROP FUNCTION test::ddlf_11(str: std::str);
         """)
 
     async def test_edgeql_ddl_39(self):
         with self.assertRaisesRegex(
-                client_errors.EdgeQLError,
+                edgedb.InvalidFunctionDefinitionError,
                 r'cannot create.*test::ddlf_12.*'
                 r'function returns a generic type but has no '
                 r'generic parameters'):
 
-            await self.con.execute(r'''
+            await self.query(r'''
                 CREATE FUNCTION test::ddlf_12(str: std::str) -> anytype
                     FROM EdgeQL $$ SELECT 1 $$;
             ''')
 
     async def test_edgeql_ddl_40(self):
         with self.assertRaisesRegex(
-                client_errors.SchemaError,
+                edgedb.InvalidReferenceError,
                 r'reference to a non-existent schema item: std::anytype'):
 
-            await self.con.execute(r'''
+            await self.query(r'''
                 CREATE FUNCTION test::ddlf_13(f: std::anytype) -> int64
                     FROM EdgeQL $$ SELECT 1 $$;
             ''')
 
     async def test_edgeql_ddl_41(self):
         with self.assertRaisesRegex(
-                client_errors.EdgeQLError,
+                edgedb.InvalidFunctionDefinitionError,
                 r'functions can only contain one statement'):
 
-            await self.con.execute(r'''
+            await self.query(r'''
                 CREATE FUNCTION test::ddlf_14(f: int64) -> int64
                     FROM EdgeQL $$ SELECT 1; SELECT f; $$;
             ''')
 
     async def test_edgeql_ddl_module_01(self):
         with self.assertRaisesRegex(
-                client_errors.SchemaError,
+                edgedb.SchemaError,
                 r"'spam' is already present in the schema"):
 
             await self.query('''\
@@ -1327,7 +1270,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_property_computable_bad_01(self):
         with self.assertRaisesRegex(
-                client_errors.SchemaError,
+                edgedb.InvalidPropertyTargetError,
                 r"invalid property target, expected.*, got 'std::Object'"):
             await self.query('''\
                 CREATE TYPE test::CompPropBad;
@@ -1337,7 +1280,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ''')
 
     async def test_edgeql_ddl_attribute_01(self):
-        await self.con.execute("""
+        await self.query("""
             CREATE ABSTRACT ATTRIBUTE test::attr1;
 
             CREATE SCALAR TYPE test::TestAttrType1 EXTENDING std::str {
@@ -1360,7 +1303,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [{"attributes": [{"name": "test::attr1", "@value": "aaaa"}]}]
         ])
 
-        await self.con.execute("""
+        await self.query("""
             CREATE MIGRATION test::mig1 TO eschema $$
             abstract attribute attr2
 
@@ -1387,7 +1330,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ])
 
     async def test_edgeql_ddl_attribute_02(self):
-        await self.con.execute("""
+        await self.query("""
             CREATE ABSTRACT ATTRIBUTE test::attr1;
 
             CREATE TYPE test::TestAttrType2 {
@@ -1395,7 +1338,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.con.execute("""
+        await self.query("""
             CREATE MIGRATION test::mig1 TO eschema $$
             abstract attribute attr2
 
@@ -1422,7 +1365,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ])
 
     async def test_edgeql_ddl_attribute_03(self):
-        await self.con.execute("""
+        await self.query("""
             CREATE ABSTRACT ATTRIBUTE test::noninh;
             CREATE ABSTRACT INHERITABLE ATTRIBUTE test::inh;
 
@@ -1469,10 +1412,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_anytype_01(self):
         with self.assertRaisesRegex(
-                client_errors.SchemaError,
+                edgedb.InvalidPropertyTargetError,
                 r"invalid property target"):
 
-            await self.con.execute("""
+            await self.query("""
                 CREATE ABSTRACT LINK test::test_object_link_prop {
                     CREATE PROPERTY test::link_prop1 -> anytype;
                 };
@@ -1480,10 +1423,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_anytype_02(self):
         with self.assertRaisesRegex(
-                client_errors.SchemaError,
+                edgedb.InvalidLinkTargetError,
                 r"invalid link target"):
 
-            await self.con.execute("""
+            await self.query("""
                 CREATE TYPE test::AnyObject2 {
                     CREATE LINK test::a -> anytype;
                 };
@@ -1491,10 +1434,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_anytype_03(self):
         with self.assertRaisesRegex(
-                client_errors.SchemaError,
+                edgedb.InvalidPropertyTargetError,
                 r"invalid property target"):
 
-            await self.con.execute("""
+            await self.query("""
                 CREATE TYPE test::AnyObject3 {
                     CREATE PROPERTY test::a -> anytype;
                 };
@@ -1502,10 +1445,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_anytype_04(self):
         with self.assertRaisesRegex(
-                client_errors.SchemaError,
+                edgedb.InvalidPropertyTargetError,
                 r"invalid property target"):
 
-            await self.con.execute("""
+            await self.query("""
                 CREATE TYPE test::AnyObject4 {
                     CREATE PROPERTY test::a -> anyscalar;
                 };
@@ -1513,10 +1456,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_anytype_05(self):
         with self.assertRaisesRegex(
-                client_errors.SchemaError,
+                edgedb.InvalidPropertyTargetError,
                 r"invalid property target"):
 
-            await self.con.execute("""
+            await self.query("""
                 CREATE TYPE test::AnyObject5 {
                     CREATE PROPERTY test::a -> anyint;
                 };
@@ -1524,10 +1467,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_anytype_06(self):
         with self.assertRaisesRegex(
-                client_errors.SchemaError,
+                edgedb.SchemaError,
                 r"'anytype' cannot be a parent type"):
 
-            await self.con.execute("""
+            await self.query("""
                 CREATE TYPE test::AnyObject6 EXTENDING anytype {
                     CREATE REQUIRED LINK test::a -> test::AnyObject6;
                     CREATE REQUIRED PROPERTY test::b -> str;
@@ -1536,10 +1479,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_extending_01(self):
         with self.assertRaisesRegex(
-                client_errors.SchemaError,
+                edgedb.SchemaError,
                 r"Could not find consistent MRO for test::Merged1"):
 
-            await self.con.execute(r"""
+            await self.query(r"""
                 CREATE TYPE test::ExtA1;
                 CREATE TYPE test::ExtB1;
                 # create two types with incompatible linearized bases
@@ -1550,7 +1493,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             """)
 
     async def test_edgeql_ddl_extending_02(self):
-        await self.con.execute(r"""
+        await self.query(r"""
             CREATE TYPE test::ExtA2;
             # Create two types with a different position of Object
             # in the bases. This doesn't impact the linearized
@@ -1564,7 +1507,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_extending_03(self):
         # Check that the mro is recomputed properly on rebase.
-        await self.con.execute(r"""
+        await self.query(r"""
             CREATE TYPE test::ExtA3;
             CREATE TYPE test::ExtB3 EXTENDING test::ExtA3;
             CREATE TYPE test::ExtC3 EXTENDING test::ExtB3;
@@ -1577,7 +1520,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             {'std::Object', 'test::ExtA3', 'test::ExtB3'}
         ])
 
-        await self.con.execute(r"""
+        await self.query(r"""
             ALTER TYPE test::ExtB3 DROP EXTENDING test::ExtA3;
         """)
 

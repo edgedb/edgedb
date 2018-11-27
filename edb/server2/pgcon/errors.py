@@ -17,30 +17,9 @@
 #
 
 
-"""IR Compiler Exceptions."""
+class BackendError(Exception):
 
-
-from edb.lang.common import markup
-from edb.server.pgsql import exceptions as pg_errors
-
-
-class IRCompilerError(pg_errors.BackendError):
-    pass
-
-
-class IRCompilerInternalError(IRCompilerError):
-    pass
-
-
-class IRCompilerErrorContext(markup.MarkupExceptionContext):
-    title = 'EdgeDB PgSQL IR Compiler Error Context'
-
-    def __init__(self, tree):
-        super().__init__()
-        self.tree = tree
-
-    @classmethod
-    def as_markup(cls, self, *, ctx):
-        tree = markup.serialize(self.tree, ctx=ctx)
-        return markup.elements.lang.ExceptionContext(
-            title=self.title, body=[tree])
+    def __init__(self, *, fields):
+        msg = fields.get('M', f'error code {fields["C"]}')
+        self.fields = fields
+        super().__init__(msg)

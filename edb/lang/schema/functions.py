@@ -20,8 +20,9 @@
 import types
 import typing
 
+from edb import errors
+
 from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import errors as ql_errors
 from edb.lang.edgeql import codegen
 from edb.lang.edgeql import functypes as ft
 
@@ -603,7 +604,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
 
         func = schema.get(fullname, None)
         if func:
-            raise ql_errors.EdgeQLError(
+            raise errors.DuplicateFunctionDefinitionError(
                 f'cannot create the `{signature}` function: '
                 f'a function with the same signature '
                 f'is already defined',
@@ -624,26 +625,26 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
         # i.e. when populating std library, etc.
         if not context.stdmode and not context.testmode:
             if has_polymorphic or polymorphic_return_type:
-                raise ql_errors.EdgeQLError(
+                raise errors.InvalidFunctionDefinitionError(
                     f'cannot create `{signature}` function: '
                     f'generic types are not supported in '
                     f'user-defined functions',
                     context=self.source_context)
             elif from_function:
-                raise ql_errors.EdgeQLError(
+                raise errors.InvalidFunctionDefinitionError(
                     f'cannot create `{signature}` function: '
                     f'"FROM SQL FUNCTION" is not supported in '
                     f'user-defined functions',
                     context=self.source_context)
             elif language != qlast.Language.EdgeQL:
-                raise ql_errors.EdgeQLError(
+                raise errors.InvalidFunctionDefinitionError(
                     f'cannot create `{signature}` function: '
                     f'"FROM {language}" is not supported in '
                     f'user-defined functions',
                     context=self.source_context)
 
         if polymorphic_return_type and not has_polymorphic:
-            raise ql_errors.EdgeQLError(
+            raise errors.InvalidFunctionDefinitionError(
                 f'cannot create `{signature}` function: '
                 f'function returns a generic type but has no '
                 f'generic parameters',
@@ -658,7 +659,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
             func_from_function = func.get_from_function(schema)
 
             if func_named_only.keys() != named_only.keys():
-                raise ql_errors.EdgeQLError(
+                raise errors.InvalidFunctionDefinitionError(
                     f'cannot create `{signature}` function: '
                     f'overloading another function with different '
                     f'named only parameters: '
@@ -670,7 +671,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                     func.get_return_typemod(schema) != return_typemod)):
 
                 func_return_typemod = func.get_return_typemod(schema)
-                raise ql_errors.EdgeQLError(
+                raise errors.InvalidFunctionDefinitionError(
                     f'cannot create the polymorphic `{signature} -> '
                     f'{return_typemod.to_edgeql()} '
                     f'{return_type.get_name(schema)}` '
@@ -686,7 +687,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
             if (from_function != has_from_function or
                     any(f.get_from_function(schema) != has_from_function
                         for f in overloaded_funcs)):
-                raise ql_errors.EdgeQLError(
+                raise errors.InvalidFunctionDefinitionError(
                     f'cannot create the `{signature}` function: '
                     f'overloading "FROM SQL FUNCTION" functions is '
                     f'allowed only when all functions point to the same '
@@ -696,7 +697,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
         if (language == qlast.Language.EdgeQL and
                 any(p.get_typemod(schema) is ft.TypeModifier.SET_OF
                     for p in params.objects(schema))):
-            raise ql_errors.EdgeQLError(
+            raise errors.UnsupportedFeatureError(
                 f'cannot create the `{signature}` function: '
                 f'SET OF parameters in user-defined EdgeQL functions are '
                 f'not supported',
@@ -713,7 +714,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
             try:
                 ir_default = p.get_ir_default(schema=schema)
             except Exception as ex:
-                raise ql_errors.EdgeQLError(
+                raise errors.InvalidFunctionDefinitionError(
                     f'cannot create the `{signature}` function: '
                     f'invalid default value {p_default} of parameter '
                     f'${p.get_name(schema)}: {ex}',
@@ -724,7 +725,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                 if irutils.is_empty(ir_default.expr):
                     check_default_type = False
                 else:
-                    raise ql_errors.EdgeQLError(
+                    raise errors.InvalidFunctionDefinitionError(
                         f'cannot create the `{signature}` function: '
                         f'polymorphic parameter of type '
                         f'{p_type.get_name(schema)} cannot '
@@ -737,7 +738,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
             if check_default_type:
                 default_type = ir_default.stype
                 if not default_type.assignment_castable_to(p_type, schema):
-                    raise ql_errors.EdgeQLError(
+                    raise errors.InvalidFunctionDefinitionError(
                         f'cannot create the `{signature}` function: '
                         f'invalid declaration of parameter '
                         f'${p.get_name(schema)}: '

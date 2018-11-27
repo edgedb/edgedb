@@ -23,4 +23,4 @@ from edb.server import _testbase as tb
 class TestConnect(tb.ClusterTestCase):
     async def test_connect_1(self):
         conn = await self.cluster.connect(user='edgedb')
-        conn.close()
+        await conn.close()

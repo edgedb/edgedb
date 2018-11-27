@@ -19,12 +19,11 @@
 
 import re
 
+from edb import errors
+
 from edb.lang import _testbase as tb
 from edb.lang.graphql import generate_source as gql_to_source
 from edb.lang.graphql.parser import parser as gql_parser
-from edb.lang.graphql.parser.errors import (GraphQLParserError,
-                                            GraphQLUniquenessError,
-                                            InvalidStringTokenError)
 
 
 class GraphQLSyntaxTest(tb.BaseSyntaxTest):
@@ -41,92 +40,92 @@ class TestGraphQLParser(GraphQLSyntaxTest):
     def test_graphql_syntax_empty01(self):
         """"""
 
-    @tb.must_fail(GraphQLParserError, 'Unexpected', line=1, col=1)
+    @tb.must_fail(errors.GraphQLSyntaxError, 'Unexpected', line=1, col=1)
     def test_graphql_syntax_empty02(self):
         """\v"""
 
-    @tb.must_fail(GraphQLParserError, 'Unexpected', line=1, col=1)
+    @tb.must_fail(errors.GraphQLSyntaxError, 'Unexpected', line=1, col=1)
     def test_graphql_syntax_empty03(self):
         """\f"""
 
-    @tb.must_fail(GraphQLParserError, 'Unexpected', line=1, col=1)
+    @tb.must_fail(errors.GraphQLSyntaxError, 'Unexpected', line=1, col=1)
     def test_graphql_syntax_empty04(self):
         """\xa0"""
 
-    @tb.must_fail(GraphQLParserError, 'Unexpected', line=2, col=1)
+    @tb.must_fail(errors.GraphQLSyntaxError, 'Unexpected', line=2, col=1)
     def test_graphql_syntax_empty05(self):
         """\r\n;"""
 
-    @tb.must_fail(GraphQLParserError, line=1, col=2)
+    @tb.must_fail(errors.GraphQLSyntaxError, line=1, col=2)
     def test_graphql_syntax_empty06(self):
         '''"'''
 
-    @tb.must_fail(GraphQLParserError, line=2, col=10)
+    @tb.must_fail(errors.GraphQLSyntaxError, line=2, col=10)
     def test_graphql_syntax_empty07(self):
         """
         "
         "
         """
 
-    @tb.must_fail(GraphQLParserError, 'Unexpected token', line=1, col=1)
+    @tb.must_fail(errors.GraphQLSyntaxError, 'Unexpected token', line=1, col=1)
     def test_graphql_syntax_empty08(self):
         """..."""
 
-    @tb.must_fail(InvalidStringTokenError, line=2, col=22)
+    @tb.must_fail(errors.GraphQLSyntaxError, line=2, col=22)
     def test_graphql_syntax_string01(self):
         """
         { field(arg:"\b") }
         """
 
-    @tb.must_fail(InvalidStringTokenError, line=2, col=22)
+    @tb.must_fail(errors.GraphQLSyntaxError, line=2, col=22)
     def test_graphql_syntax_string02(self):
         R"""
         { field(arg:"\x") }
         """
 
-    @tb.must_fail(InvalidStringTokenError, line=2, col=22)
+    @tb.must_fail(errors.GraphQLSyntaxError, line=2, col=22)
     def test_graphql_syntax_string03(self):
         R"""
         { field(arg:"\u1") }
         """
 
-    @tb.must_fail(InvalidStringTokenError, line=2, col=22)
+    @tb.must_fail(errors.GraphQLSyntaxError, line=2, col=22)
     def test_graphql_syntax_string04(self):
         R"""
         { field(arg:"\u0XX1") }
         """
 
-    @tb.must_fail(InvalidStringTokenError, line=2, col=22)
+    @tb.must_fail(errors.GraphQLSyntaxError, line=2, col=22)
     def test_graphql_syntax_string05(self):
         R"""
         { field(arg:"\uXXXX") }
         """
 
-    @tb.must_fail(InvalidStringTokenError, line=2, col=25)
+    @tb.must_fail(errors.GraphQLSyntaxError, line=2, col=25)
     def test_graphql_syntax_string06(self):
         R"""
         { field(arg:"foo\uFXXX") }
         """
 
-    @tb.must_fail(InvalidStringTokenError, line=2, col=22)
+    @tb.must_fail(errors.GraphQLSyntaxError, line=2, col=22)
     def test_graphql_syntax_string07(self):
         R"""
         { field(arg:"\uXXXF") }
         """
 
-    @tb.must_fail(GraphQLParserError, 'Unexpected', line=2, col=34)
+    @tb.must_fail(errors.GraphQLSyntaxError, 'Unexpected', line=2, col=34)
     def test_graphql_syntax_string08(self):
         R"""
         { field(arg:"\uFEFF\n") };
         """
 
-    @tb.must_fail(GraphQLParserError, line=2, col=29)
+    @tb.must_fail(errors.GraphQLSyntaxError, line=2, col=29)
     def test_graphql_syntax_string09(self):
         """
         { field(arg:"foo') }
         """
 
-    @tb.must_fail(GraphQLParserError, line=3, col=23)
+    @tb.must_fail(errors.GraphQLSyntaxError, line=3, col=23)
     def test_graphql_syntax_string10(self):
         r"""
         { field(
@@ -148,7 +147,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         { field(arg: "\\\\x") }
         """
 
-    @tb.must_fail(InvalidStringTokenError, line=2, col=25)
+    @tb.must_fail(errors.GraphQLSyntaxError, line=2, col=25)
     def test_graphql_syntax_string13(self):
         r"""
         { field(arg: "\\\x") }
@@ -172,7 +171,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         {id, name, description}
         """
 
-    @tb.must_fail(GraphQLParserError, 'short form is not allowed here',
+    @tb.must_fail(errors.GraphQLSyntaxError, 'short form is not allowed here',
                   line=2, col=9)
     def test_graphql_syntax_short03(self):
         """
@@ -180,7 +179,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         {name}
         """
 
-    @tb.must_fail(GraphQLParserError, 'short form is not allowed here',
+    @tb.must_fail(errors.GraphQLSyntaxError, 'short form is not allowed here',
                   line=3, col=9)
     def test_graphql_syntax_short04(self):
         """
@@ -188,7 +187,8 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         {name}
         """
 
-    @tb.must_fail(GraphQLParserError, 'Unexpected token', line=2, col=18)
+    @tb.must_fail(errors.GraphQLSyntaxError,
+                  'Unexpected token', line=2, col=18)
     def test_graphql_syntax_short05(self):
         """
         { field: {} }
@@ -328,26 +328,28 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(GraphQLParserError, 'Unexpected token', line=3, col=28)
+    @tb.must_fail(errors.GraphQLSyntaxError,
+                  'Unexpected token', line=3, col=28)
     def test_graphql_syntax_fragment05(self):
         """
         { ...MissingOn }
         fragment MissingOn Type {name}
         """
 
-    @tb.must_fail(GraphQLParserError, 'undefined fragment', line=2, col=10)
+    @tb.must_fail(errors.GraphQLSyntaxError,
+                  'undefined fragment', line=2, col=10)
     def test_graphql_syntax_fragment06(self):
         """
         {...Missing}
         """
 
-    @tb.must_fail(GraphQLParserError, 'unused fragment', line=2, col=9)
+    @tb.must_fail(errors.GraphQLSyntaxError, 'unused fragment', line=2, col=9)
     def test_graphql_syntax_fragment07(self):
         """
         fragment Missing on Type {name}
         """
 
-    @tb.must_fail(GraphQLParserError, 'cycle in fragment definitions',
+    @tb.must_fail(errors.GraphQLSyntaxError, 'cycle in fragment definitions',
                   line=2, col=9)
     def test_graphql_syntax_fragment08(self):
         """
@@ -358,7 +360,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         {... cyclceFrag}
         """
 
-    @tb.must_fail(GraphQLParserError, 'cycle in fragment definitions',
+    @tb.must_fail(errors.GraphQLSyntaxError, 'cycle in fragment definitions',
                   line=2, col=9)
     def test_graphql_syntax_fragment09(self):
         """
@@ -373,7 +375,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         {... cyclceFrag}
         """
 
-    @tb.must_fail(GraphQLParserError, 'cycle in fragment definitions',
+    @tb.must_fail(errors.GraphQLSyntaxError, 'cycle in fragment definitions',
                   line=2, col=9)
     def test_graphql_syntax_fragment10(self):
         """
@@ -427,31 +429,32 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(GraphQLParserError, 'Unexpected token', line=2, col=23)
+    @tb.must_fail(errors.GraphQLSyntaxError,
+                  'Unexpected token', line=2, col=23)
     def test_graphql_syntax_query05(self):
         r"""
         query myquery on type { field }
         """
 
-    @tb.must_fail(GraphQLParserError, 'Unexpected', line=2, col=32)
+    @tb.must_fail(errors.GraphQLSyntaxError, 'Unexpected', line=2, col=32)
     def test_graphql_syntax_query06(self):
         r"""
         query myquery { field };
         """
 
-    @tb.must_fail(GraphQLParserError, 'Unexpected', line=2, col=25)
+    @tb.must_fail(errors.GraphQLSyntaxError, 'Unexpected', line=2, col=25)
     def test_graphql_syntax_query07(self):
         r"""
         query myQuery { \a }
         """
 
-    @tb.must_fail(GraphQLParserError, 'Unexpected token', line=2, col=9)
+    @tb.must_fail(errors.GraphQLSyntaxError, 'Unexpected token', line=2, col=9)
     def test_graphql_syntax_query08(self):
         """
         notanoperation Foo { field }
         """
 
-    @tb.must_fail(GraphQLUniquenessError,
+    @tb.must_fail(errors.GraphQLSyntaxError,
                   r'operation with name \S+ already exists',
                   line=3, col=9)
     def test_graphql_syntax_query09(self):
@@ -460,7 +463,8 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         query myQuery { id }
         """
 
-    @tb.must_fail(GraphQLParserError, 'unnamed operation is not allowed here',
+    @tb.must_fail(errors.GraphQLSyntaxError,
+                  'unnamed operation is not allowed here',
                   line=2, col=9)
     def test_graphql_syntax_query10(self):
         """
@@ -501,7 +505,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(GraphQLUniquenessError, 'operation', line=3, col=9)
+    @tb.must_fail(errors.GraphQLSyntaxError, 'operation', line=3, col=9)
     def test_graphql_syntax_mutation04(self):
         """
         mutation myQuery { id }
@@ -516,7 +520,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(GraphQLUniquenessError, 'operation', line=3, col=9)
+    @tb.must_fail(errors.GraphQLSyntaxError, 'operation', line=3, col=9)
     def test_graphql_syntax_subscription02(self):
         """
         mutation myQuery { id }
@@ -718,7 +722,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(GraphQLParserError, r"undefined variable '\$var'",
+    @tb.must_fail(errors.GraphQLSyntaxError, r"undefined variable '\$var'",
                   line=2, col=45)
     def test_graphql_syntax_values17(self):
         r"""
@@ -734,7 +738,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(GraphQLParserError, 'Unexpected', line=3, col=49)
+    @tb.must_fail(errors.GraphQLSyntaxError, 'Unexpected', line=3, col=49)
     def test_graphql_syntax_values19(self):
         r"""
         {
@@ -742,7 +746,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(GraphQLParserError, 'Unexpected', line=3, col=49)
+    @tb.must_fail(errors.GraphQLSyntaxError, 'Unexpected', line=3, col=49)
     def test_graphql_syntax_values20(self):
         r"""
         {
@@ -750,7 +754,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(GraphQLParserError, 'Unexpected', line=3, col=49)
+    @tb.must_fail(errors.GraphQLSyntaxError, 'Unexpected', line=3, col=49)
     def test_graphql_syntax_values21(self):
         r"""
         {
@@ -795,7 +799,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(GraphQLParserError, r"undefined variable '\$var'",
+    @tb.must_fail(errors.GraphQLSyntaxError, r"undefined variable '\$var'",
                   line=3, col=49)
     def test_graphql_syntax_scope01(self):
         r"""
@@ -814,7 +818,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(GraphQLParserError, r"undefined variable '\$bad'",
+    @tb.must_fail(errors.GraphQLSyntaxError, r"undefined variable '\$bad'",
                   line=3, col=46)
     def test_graphql_syntax_scope03(self):
         r"""
@@ -828,7 +832,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(GraphQLParserError, r"undefined variable '\$bad'",
+    @tb.must_fail(errors.GraphQLSyntaxError, r"undefined variable '\$bad'",
                   line=10, col=53)
     def test_graphql_syntax_scope04(self):
         r"""
@@ -866,7 +870,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(GraphQLParserError, r"undefined variable '\$bad'",
+    @tb.must_fail(errors.GraphQLSyntaxError, r"undefined variable '\$bad'",
                   line=10, col=53)
     def test_graphql_syntax_scope06(self):
         r"""
@@ -1074,37 +1078,42 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         query H { ...someFragment @null }
         """
 
-    @tb.must_fail(GraphQLParserError, 'Unexpected token', line=2, col=21)
+    @tb.must_fail(errors.GraphQLSyntaxError,
+                  'Unexpected token', line=2, col=21)
     def test_graphql_syntax_names12(self):
         r"""
         { ... on on on {id} }
         """
 
-    @tb.must_fail(GraphQLParserError, 'Unexpected token', line=2, col=18)
+    @tb.must_fail(errors.GraphQLSyntaxError,
+                  'Unexpected token', line=2, col=18)
     def test_graphql_syntax_names13(self):
         r"""
         fragment on on on {id}
         """
 
-    @tb.must_fail(GraphQLParserError, 'Unexpected token', line=2, col=18)
+    @tb.must_fail(errors.GraphQLSyntaxError,
+                  'Unexpected token', line=2, col=18)
     def test_graphql_syntax_names14(self):
         r"""
         { ... on }
         """
 
-    @tb.must_fail(GraphQLUniquenessError, 'variabledefinition', line=2, col=32)
+    @tb.must_fail(errors.GraphQLSyntaxError,
+                  'variabledefinition', line=2, col=32)
     def test_graphql_syntax_names15(self):
         r"""
         query myQuery($x: Int, $x: Int) { id }
         """
 
-    @tb.must_fail(GraphQLUniquenessError, 'variabledefinition', line=2, col=32)
+    @tb.must_fail(errors.GraphQLSyntaxError,
+                  'variabledefinition', line=2, col=32)
     def test_graphql_syntax_names16(self):
         r"""
         query myQuery($x: Int, $x: Float) { id }
         """
 
-    @tb.must_fail(GraphQLUniquenessError, 'argument', line=3, col=23)
+    @tb.must_fail(errors.GraphQLSyntaxError, 'argument', line=3, col=23)
     def test_graphql_syntax_names17(self):
         r"""
         {
@@ -1112,7 +1121,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(GraphQLUniquenessError, 'argument', line=3, col=23)
+    @tb.must_fail(errors.GraphQLSyntaxError, 'argument', line=3, col=23)
     def test_graphql_syntax_names18(self):
         r"""
         {

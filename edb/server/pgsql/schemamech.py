@@ -19,6 +19,8 @@
 
 import itertools
 
+from edb import errors
+
 from edb.lang.ir import ast as irast
 from edb.lang.ir import astexpr as irastexpr
 from edb.lang.ir import utils as ir_utils
@@ -26,7 +28,6 @@ from edb.lang.edgeql import compiler as ql_compiler
 from edb.lang.edgeql import ast as qlast
 
 from edb.lang.schema import scalars as s_scalars
-from edb.lang.schema import error as s_err
 
 from edb.lang.common import ast
 
@@ -392,7 +393,7 @@ class SchemaTableConstraint:
 def ptr_default_to_col_default(schema, ptr, expr):
     try:
         ir = ql_compiler.compile_to_ir(expr, schema)
-    except s_err.SchemaError:
+    except errors.SchemaError:
         # Referene errors mean that is is a non-constant default
         # referring to a not-yet-existing objects.
         return None

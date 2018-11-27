@@ -23,6 +23,8 @@
 import functools
 import typing
 
+from edb import errors
+
 from edb.lang.ir import ast as irast
 
 from edb.lang.schema import links as s_links
@@ -33,9 +35,6 @@ from edb.lang.schema import sources as s_sources
 from edb.lang.schema import types as s_types
 
 from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import errors
-
-from edb.lang.common import exceptions as edgedb_error
 
 from . import astutils
 from . import context
@@ -214,7 +213,7 @@ def _normalize_view_ptr_expr(
         is_linkprop = lexpr.type == 'property'
         if is_linkprop:
             if view_rptr is None:
-                raise errors.EdgeQLError(
+                raise errors.QueryError(
                     'invalid reference to link property '
                     'in top level shape', context=lexpr.context)
             if view_rptr.ptrcls is None:
@@ -305,7 +304,7 @@ def _normalize_view_ptr_expr(
                         subel.expr.steps[0].type == 'property'
                     )
                     if not is_prop:
-                        raise errors.EdgeQLError(
+                        raise errors.QueryError(
                             'only references to link properties are allowed '
                             'in nested UPDATE shapes', context=subel.context)
 
@@ -348,7 +347,7 @@ def _normalize_view_ptr_expr(
                 ctx=ctx)
 
             ptr_name = ptrcls.get_shortname(ctx.env.schema)
-        except errors.EdgeQLReferenceError:
+        except errors.InvalidReferenceError:
             if is_mutation:
                 raise
 
@@ -399,7 +398,7 @@ def _normalize_view_ptr_expr(
         ptr_target = inference.infer_type(irexpr, ctx.env)
         if ptr_target is None:
             msg = 'cannot determine expression result type'
-            raise errors.EdgeQLError(msg, context=shape_el.context)
+            raise errors.QueryError(msg, context=shape_el.context)
 
         if is_mutation and not ptr_target.assignment_castable_to(
                 base_ptrcls.get_target(ctx.env.schema), schema=ctx.env.schema):
@@ -411,8 +410,15 @@ def _normalize_view_ptr_expr(
                 repr(str(base_ptrcls.get_target(
                     ctx.env.schema).get_name(ctx.env.schema)))
             ]
-            raise edgedb_error.InvalidPointerTargetError(
-                f'invalid target for link {str(lname)!r}: '
+
+            if ptrcls.is_property(ctx.env.schema):
+                ercls = errors.InvalidPropertyTargetError
+                ptrkind = 'property'
+            else:
+                ercls = errors.InvalidLinkTargetError
+                ptrkind = 'link'
+            raise ercls(
+                f'invalid target for {ptrkind} {str(lname)!r}: '
                 f'{str(ptr_target.get_name(ctx.env.schema))!r} (expecting '
                 f'{" or ".join(expected)})'
             )
@@ -475,7 +481,7 @@ def _normalize_view_ptr_expr(
                    f'shape element')
         else:
             msg = f'cannot assign to {ptrcls_sn.name}'
-        raise errors.EdgeQLError(msg, context=shape_el.context)
+        raise errors.QueryError(msg, context=shape_el.context)
 
     return ptrcls
 

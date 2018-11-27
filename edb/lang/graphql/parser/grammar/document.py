@@ -19,20 +19,29 @@
 
 import re
 
+from edb import errors
+
 from edb.lang.common import parsing
 from edb.lang.graphql import ast as gqlast
-from edb.lang.graphql.parser.errors import (GraphQLParserError,
-                                            GraphQLUniquenessError,
-                                            InvalidStringTokenError)
 
 from .tokens import *  # NOQA
 from . import keywords
 
 
+def non_unique_error(node, entity=None):
+    if entity is None:
+        entity = node.__class__.__name__.lower()
+
+    return errors.GraphQLSyntaxError(
+        f"{entity} with name {node.name!r} already exists",
+        context=node.context)
+
+
 def check_const(expr):
     if isinstance(expr, gqlast.Variable):
-        raise GraphQLParserError.from_parsed(
-            'unexpected variable, must be a constant value', expr)
+        raise errors.GraphQLSyntaxError(
+            'unexpected variable, must be a constant value',
+            context=expr.context)
     elif isinstance(expr, gqlast.ListLiteral):
         for val in expr.value:
             check_const(val)
@@ -114,7 +123,7 @@ class StringLiteral(Nonterm):
             context.start.column += invalid.end() - len(inv)
             context.end.line = context.start.line
             context.end.column = context.start.column + len(inv)
-            raise InvalidStringTokenError(
+            raise errors.GraphQLSyntaxError(
                 f"invalid {invalid.group()!r} within string token",
                 context=context)
 
@@ -208,8 +217,7 @@ class Document(Nonterm):
                     if defn.name not in opnames:
                         opnames.add(defn.name)
                     else:
-                        raise GraphQLUniquenessError.from_ast(defn,
-                                                              'operation')
+                        raise non_unique_error(defn, 'operation')
 
                 elif (short is None and
                         defn.type is None and
@@ -223,21 +231,23 @@ class Document(Nonterm):
                 if defn.name not in fragnames:
                     fragnames.add(defn.name)
                 else:
-                    raise GraphQLUniquenessError.from_ast(defn, 'fragment')
+                    raise non_unique_error(defn, 'fragment')
 
         if len(kids[0].val) - len(fragnames) > 1:
             if short is not None:
                 # we have more than one query definition, so short
                 # form is not allowed
                 #
-                raise GraphQLParserError.from_parsed(
-                    'short form is not allowed here', short)
+                raise errors.GraphQLSyntaxError(
+                    'short form is not allowed here',
+                    context=short.context)
             elif unnamed is not None:
                 # we have more than one query definition, so unnamed operations
                 # are not allowed
                 #
-                raise GraphQLParserError.from_parsed(
-                    'unnamed operation is not allowed here', unnamed)
+                raise errors.GraphQLSyntaxError(
+                    'unnamed operation is not allowed here',
+                    context=unnamed.context)
 
         self.val = gqlast.Document(definitions=kids[0].val)
 
@@ -380,7 +390,7 @@ class Arguments(Nonterm):
             if arg.name not in argnames:
                 argnames.add(arg.name)
             else:
-                raise GraphQLUniquenessError.from_ast(arg)
+                raise non_unique_error(arg)
 
 
 class Argument(Nonterm):
@@ -441,7 +451,7 @@ class Variables(Nonterm):
             if var.name not in variables:
                 variables.add(var.name)
             else:
-                raise GraphQLUniquenessError.from_ast(var)
+                raise non_unique_error(var)
 
 
 class Variable(Nonterm):

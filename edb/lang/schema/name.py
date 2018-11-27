@@ -19,7 +19,7 @@
 
 import functools
 
-from .error import SchemaNameError
+from edb import errors
 
 
 class SchemaName(str):
@@ -42,7 +42,7 @@ class SchemaName(str):
                 if not module:
                     err = 'improperly formed name: ' \
                           'module is not specified: {}'.format(name)
-                    raise SchemaNameError(err)
+                    raise errors.InvalidReferenceError(err)
                 else:
                     _module = module
 

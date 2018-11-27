@@ -20,7 +20,8 @@
 import os.path
 import unittest
 
-from edb.client import exceptions as exc
+import edgedb
+
 from edb.server import _testbase as tb
 from edb.tools import test
 
@@ -48,10 +49,10 @@ class TestExpressions(tb.QueryTestCase):
             [],
         ])
 
-        with self.assertRaisesRegex(exc.EdgeQLError,
+        with self.assertRaisesRegex(edgedb.QueryError,
                                     r'could not determine expression type'):
 
-            await self.con.execute("""
+            await self.query("""
                 SELECT {};
             """)
 
@@ -64,10 +65,10 @@ class TestExpressions(tb.QueryTestCase):
             [0],
         ])
 
-        with self.assertRaisesRegex(exc.EdgeQLError,
+        with self.assertRaisesRegex(edgedb.QueryError,
                                     r'could not determine expression type'):
 
-            await self.con.execute("""
+            await self.query("""
                 SELECT count({});
             """)
 
@@ -226,19 +227,19 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_op_08(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"operator '-' cannot .* 'std::str'"):
 
-            await self.con.execute("""
+            await self.query("""
                 SELECT -'aaa';
             """)
 
     async def test_edgeql_expr_op_09(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"operator 'NOT' cannot .* 'std::str'"):
 
-            await self.con.execute("""
+            await self.query("""
                 SELECT NOT 'aaa';
             """)
 
@@ -401,8 +402,8 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
         # overflow is expected for float64, but would not happen for decimal
-        with self.assertRaisesRegex(exc.UnknownEdgeDBError, 'overflow'):
-            await self.con.execute(r"""
+        with self.assertRaisesRegex(edgedb.NumericOutOfRangeError, 'overflow'):
+            await self.query(r"""
                 SELECT (10 + math::floor(random()))^309;
             """)
 
@@ -418,9 +419,9 @@ class TestExpressions(tb.QueryTestCase):
             # operation is expected to be invalid
             for binop in [op, not_op]:
                 query = f"""SELECT {left} {binop} {right};"""
-                with self.assertRaisesRegex(exc.EdgeQLError, result,
+                with self.assertRaisesRegex(edgedb.QueryError, result,
                                             msg=query):
-                    await self.con.execute(query)
+                    await self.query(query)
 
     # type casts for literals help recovering type info for tests
     unorderable = [
@@ -527,10 +528,10 @@ class TestExpressions(tb.QueryTestCase):
                         await self.assert_query_result(query, [{True}])
                     else:
                         # every combination except for bool OP bool is invalid
-                        with self.assertRaisesRegex(exc.EdgeQLError,
+                        with self.assertRaisesRegex(edgedb.QueryError,
                                                     expected_error_msg,
                                                     msg=query):
-                            await self.con.execute(query)
+                            await self.query(query)
 
     async def test_edgeql_expr_valid_bool_02(self):
         expected_error_msg = 'cannot be applied to operands'
@@ -542,10 +543,10 @@ class TestExpressions(tb.QueryTestCase):
                 await self.assert_query_result(query, [{False}])
             else:
                 # every other scalar must produce an error
-                with self.assertRaisesRegex(exc.EdgeQLError,
+                with self.assertRaisesRegex(edgedb.QueryError,
                                             expected_error_msg,
                                             msg=query):
-                    await self.con.execute(query)
+                    await self.query(query)
 
     async def test_edgeql_expr_valid_setbool_01(self):
         # Use scalar combinations with IN and NOT IN. The expressions
@@ -609,10 +610,10 @@ class TestExpressions(tb.QueryTestCase):
             for right in self.nonnumeric:
                 query = f"""SELECT {left} UNION {right};"""
                 # every combination must produce an error
-                with self.assertRaisesRegex(exc.EdgeQLError,
+                with self.assertRaisesRegex(edgedb.QueryError,
                                             expected_error_msg,
                                             msg=query):
-                    await self.con.execute(query)
+                    await self.query(query)
 
     async def test_edgeql_expr_valid_setop_03(self):
         # UNION all non-decimal numerics with each other
@@ -663,10 +664,10 @@ class TestExpressions(tb.QueryTestCase):
 
                 else:
                     # every other combination must produce an error
-                    with self.assertRaisesRegex(exc.EdgeQLError,
+                    with self.assertRaisesRegex(edgedb.QueryError,
                                                 expected_error_msg,
                                                 msg=query):
-                        await self.con.execute(query)
+                        await self.query(query)
 
     async def test_edgeql_expr_valid_setop_05(self):
         # decimals are tricky because integers implicitly cast into
@@ -677,10 +678,10 @@ class TestExpressions(tb.QueryTestCase):
             for right in self.nonnumeric:
                 query = f"""SELECT {left} UNION {right};"""
                 # every combination must produce an error
-                with self.assertRaisesRegex(exc.EdgeQLError,
+                with self.assertRaisesRegex(edgedb.QueryError,
                                             expected_error_msg,
                                             msg=query):
-                    await self.con.execute(query)
+                    await self.query(query)
 
     async def test_edgeql_expr_valid_setop_06(self):
         # decimals are tricky because integers implicitly cast into
@@ -692,10 +693,10 @@ class TestExpressions(tb.QueryTestCase):
                 query = f"""SELECT count({left} UNION {right});"""
                 if right.startswith('<float'):
                     # decimal UNION float is illegal
-                    with self.assertRaisesRegex(exc.EdgeQLError,
+                    with self.assertRaisesRegex(edgedb.QueryError,
                                                 expected_error_msg,
                                                 msg=query):
-                        await self.con.execute(query)
+                        await self.query(query)
                 else:
                     # decimals and integers can be UNIONed in any
                     # combination
@@ -714,10 +715,10 @@ class TestExpressions(tb.QueryTestCase):
                 await self.assert_query_result(query, [[1]])
             else:
                 # every other combination must produce an error
-                with self.assertRaisesRegex(exc.EdgeQLError,
+                with self.assertRaisesRegex(edgedb.QueryError,
                                             expected_error_msg,
                                             msg=query):
-                    await self.con.execute(query)
+                    await self.query(query)
 
     # Operator '??' should work just like UNION in terms of types.
     # Operator A IF C ELSE B should work exactly like A UNION B in
@@ -733,10 +734,10 @@ class TestExpressions(tb.QueryTestCase):
                 for op in ['??', 'IF random() > 0.5 ELSE']:
                     query = f"""SELECT {left} {op} {right};"""
                     # every combination must produce an error
-                    with self.assertRaisesRegex(exc.EdgeQLError,
+                    with self.assertRaisesRegex(edgedb.QueryError,
                                                 expected_error_msg,
                                                 msg=query):
-                        await self.con.execute(query)
+                        await self.query(query)
 
     async def test_edgeql_expr_valid_setop_09(self):
         # test all non-decimal numerics with each other
@@ -789,10 +790,10 @@ class TestExpressions(tb.QueryTestCase):
 
                     else:
                         # every other combination must produce an error
-                        with self.assertRaisesRegex(exc.EdgeQLError,
+                        with self.assertRaisesRegex(edgedb.QueryError,
                                                     expected_error_msg,
                                                     msg=query):
-                            await self.con.execute(query)
+                            await self.query(query)
 
     async def test_edgeql_expr_valid_setop_11(self):
         # decimals are tricky because integers implicitly cast into
@@ -804,10 +805,10 @@ class TestExpressions(tb.QueryTestCase):
                 for op in ['??', 'IF random() > 0.5 ELSE']:
                     query = f"""SELECT {left} {op} {right};"""
                     # every combination must produce an error
-                    with self.assertRaisesRegex(exc.EdgeQLError,
+                    with self.assertRaisesRegex(edgedb.QueryError,
                                                 expected_error_msg,
                                                 msg=query):
-                        await self.con.execute(query)
+                        await self.query(query)
 
     async def test_edgeql_expr_valid_setop_12(self):
         # decimals are tricky because integers implicitly cast into
@@ -820,10 +821,10 @@ class TestExpressions(tb.QueryTestCase):
                     query = f"""SELECT {left} {op} {right};"""
                     if right.startswith('<float'):
                         # decimal combined with float is illegal
-                        with self.assertRaisesRegex(exc.EdgeQLError,
+                        with self.assertRaisesRegex(edgedb.QueryError,
                                                     expected_error_msg,
                                                     msg=query):
-                            await self.con.execute(query)
+                            await self.query(query)
                     else:
                         # decimals and integers can be UNIONed in any
                         # combination
@@ -846,10 +847,10 @@ class TestExpressions(tb.QueryTestCase):
         # unary minus should not work for other scalars
         for right in scalars[:-7]:
             query = f"""SELECT -{right};"""
-            with self.assertRaisesRegex(exc.EdgeQLError,
+            with self.assertRaisesRegex(edgedb.QueryError,
                                         expected_error_msg,
                                         msg=query):
-                await self.con.execute(query)
+                await self.query(query)
 
     # NOTE: Generalized Binop `+` and `-` rules:
     #
@@ -890,10 +891,10 @@ class TestExpressions(tb.QueryTestCase):
                 for op in ['+', '-', '*', '/', '//', '%', '^']:
                     query = f"""SELECT {left} {op} {right};"""
                     # every other combination must produce an error
-                    with self.assertRaisesRegex(exc.EdgeQLError,
+                    with self.assertRaisesRegex(edgedb.QueryError,
                                                 expected_error_msg,
                                                 msg=query):
-                        await self.con.execute(query)
+                        await self.query(query)
 
     async def test_edgeql_expr_valid_arithmetic_04(self):
         # Tests (2), (3), (4) - various date/time with non-date/time
@@ -910,10 +911,10 @@ class TestExpressions(tb.QueryTestCase):
                 for op in ['+', '-', '*', '/', '//', '%', '^']:
                     query = f"""SELECT {left} {op} {right};"""
                     # every other combination must produce an error
-                    with self.assertRaisesRegex(exc.EdgeQLError,
+                    with self.assertRaisesRegex(edgedb.QueryError,
                                                 expected_error_msg,
                                                 msg=query):
-                        await self.con.execute(query)
+                        await self.query(query)
 
     async def test_edgeql_expr_valid_arithmetic_05(self):
         # Tests (2) - various date/time combinations.
@@ -938,10 +939,10 @@ class TestExpressions(tb.QueryTestCase):
                         [[True]])
                 else:
                     # every other combination must produce an error
-                    with self.assertRaisesRegex(exc.EdgeQLError,
+                    with self.assertRaisesRegex(edgedb.QueryError,
                                                 expected_error_msg,
                                                 msg=query):
-                        await self.con.execute(query)
+                        await self.query(query)
 
     async def test_edgeql_expr_valid_arithmetic_06(self):
         # Tests (3), (4) - various date/time combinations.
@@ -966,10 +967,10 @@ class TestExpressions(tb.QueryTestCase):
                         [[True]])
                 else:
                     # every other combination must produce an error
-                    with self.assertRaisesRegex(exc.EdgeQLError,
+                    with self.assertRaisesRegex(edgedb.QueryError,
                                                 expected_error_msg,
                                                 msg=query):
-                        await self.con.execute(query)
+                        await self.query(query)
 
     async def test_edgeql_expr_valid_arithmetic_07(self):
         # various date/time combinations don't define '*', '/', '//',
@@ -982,10 +983,10 @@ class TestExpressions(tb.QueryTestCase):
                 for op in ['*', '/', '//', '%', '^']:
                     query = f"""SELECT count({left} {op} {right});"""
                     # every combination must produce an error
-                    with self.assertRaisesRegex(exc.EdgeQLError,
+                    with self.assertRaisesRegex(edgedb.QueryError,
                                                 expected_error_msg,
                                                 msg=query):
-                        await self.con.execute(query)
+                        await self.query(query)
 
     async def test_edgeql_expr_valid_arithmetic_08(self):
         # Test (5) - decimal is incompatible with everything except integers
@@ -1002,10 +1003,10 @@ class TestExpressions(tb.QueryTestCase):
                 else:
                     # every other combination must produce an error
                     query = f"""SELECT {left} {op} {right};"""
-                    with self.assertRaisesRegex(exc.EdgeQLError,
+                    with self.assertRaisesRegex(edgedb.QueryError,
                                                 expected_error_msg,
                                                 msg=query):
-                        await self.con.execute(query)
+                        await self.query(query)
 
     async def test_edgeql_expr_valid_arithmetic_09(self):
         # Test (5) '+', '-', '*' for non-decimals. These operators are
@@ -1098,10 +1099,10 @@ class TestExpressions(tb.QueryTestCase):
                 await self.assert_query_result(query, [[True]], msg=query)
             else:
                 query = f"""SELECT sum({val});"""
-                with self.assertRaisesRegex(exc.EdgeQLError,
+                with self.assertRaisesRegex(edgedb.QueryError,
                                             expected_error_msg,
                                             msg=query):
-                    await self.con.execute(query)
+                    await self.query(query)
 
     async def test_edgeql_expr_bytes_op_01(self):
         await self.assert_query_result(r'''
@@ -1126,7 +1127,7 @@ class TestExpressions(tb.QueryTestCase):
         ]
 
         for case in cases:
-            await self.con.execute('''
+            await self.query('''
                 WITH MODULE test
                 SELECT
                     Issue {
@@ -1149,8 +1150,8 @@ class TestExpressions(tb.QueryTestCase):
         # syntactically legal (see test_edgeql_syntax_constants_09),
         # but will fail to resolve to anything.
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'could not resolve partial path'):
-            await self.con.execute(r"""
+                edgedb.QueryError, r'could not resolve partial path'):
+            await self.query(r"""
                 SELECT .1;
             """)
 
@@ -1159,9 +1160,9 @@ class TestExpressions(tb.QueryTestCase):
         # prefix `Issue` with `Issue.owner` which is defined in an
         # outer scope.
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"'Issue.number' changes the interpretation of 'Issue'"):
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH MODULE test
                 SELECT Issue.owner
                 FILTER Issue.number > '2';
@@ -1172,9 +1173,9 @@ class TestExpressions(tb.QueryTestCase):
         # prefix `Issue` with `Issue.id` which is defined in an outer
         # scope.
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"'Issue.number' changes the interpretation of 'Issue'"):
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH MODULE test
                 SELECT Issue.id
                 FILTER Issue.number > '2';
@@ -1185,9 +1186,9 @@ class TestExpressions(tb.QueryTestCase):
         # prefix `Issue` with `Issue.owner` which is defined in an
         # outer scope.
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"'Issue.number' changes the interpretation of 'Issue'"):
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH MODULE test
                 SELECT Issue.owner {
                     foo := Issue.number
@@ -1200,9 +1201,9 @@ class TestExpressions(tb.QueryTestCase):
         # prefix `Issue` with `Issue.owner` which is defined in an
         # outer scope.
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"'Issue.number' changes the interpretation of 'Issue'"):
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH MODULE test
                 FOR x IN {'Elvis', 'Yury'}
                 UNION (
@@ -1217,9 +1218,9 @@ class TestExpressions(tb.QueryTestCase):
         # prefix `Issue` with `Issue.owner` which is defined in an
         # outer scope.
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"'Issue.number' changes the interpretation of 'Issue'"):
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH MODULE test
                 UPDATE Issue.owner
                 FILTER Issue.number > '2'
@@ -1232,9 +1233,9 @@ class TestExpressions(tb.QueryTestCase):
         # `Issue` in SET is illegal because it shares a prefix `Issue`
         # with `Issue.related_to` which is defined in an outer scope.
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"'Issue' changes the interpretation of 'Issue'"):
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH MODULE test
                 UPDATE Issue.related_to
                 SET {
@@ -1243,7 +1244,7 @@ class TestExpressions(tb.QueryTestCase):
             """)
 
     async def test_edgeql_expr_polymorphic_01(self):
-        await self.con.execute(r"""
+        await self.query(r"""
             WITH MODULE test
             SELECT Text {
                 [IS Issue].number,
@@ -1255,7 +1256,7 @@ class TestExpressions(tb.QueryTestCase):
             };
         """)
 
-        await self.con.execute(r"""
+        await self.query(r"""
             WITH MODULE test
             SELECT Owned {
                 [IS Named].name
@@ -1283,10 +1284,10 @@ class TestExpressions(tb.QueryTestCase):
         # testing precedence of casting vs. multiplication
         #
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"operator '\*' cannot .* 'std::str' and 'std::int64'"):
 
-            await self.con.execute("""
+            await self.query("""
                 SELECT <std::str>123 * 2;
             """)
 
@@ -1346,9 +1347,9 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_cast_08(self):
-        with self.assertRaisesRegex(exc.EdgeQLError,
+        with self.assertRaisesRegex(edgedb.QueryError,
                                     r'cannot cast.*tuple.*to.*array.*'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 SELECT <array<int64>>(123, 11);
             """)
 
@@ -1434,11 +1435,11 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r'if/else clauses must be of related types, '
                 r'got: std::int64/std::str'):
 
-            await self.con.execute("""
+            await self.query("""
                 SELECT 3 / (2 IF FALSE ELSE '1');
             """)
 
@@ -1499,7 +1500,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_implicit_cast_08(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, 'could not determine expression type'):
+                edgedb.QueryError, 'could not determine expression type'):
             await self.query(r'''
                 SELECT {1.0, <decimal>2.0};
             ''')
@@ -1619,26 +1620,26 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_array_02(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'could not determine array type'):
+                edgedb.QueryError, r'could not determine array type'):
 
-            await self.con.execute("""
+            await self.query("""
                 SELECT [1, '1'];
             """)
 
     async def test_edgeql_expr_array_03(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot index array by.*str'):
+                edgedb.QueryError, r'cannot index array by.*str'):
 
-            await self.con.execute("""
+            await self.query("""
                 SELECT [1, 2]['1'];
             """)
 
     async def test_edgeql_expr_array_04(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r'could not determine type of empty array'):
 
-            await self.con.execute("""
+            await self.query("""
                 SELECT [];
             """)
 
@@ -1653,7 +1654,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_array_concat_02(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"operator '\+\+' cannot.*int64.*str"):
 
             await self.query('''
@@ -1700,30 +1701,30 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_array_10(self):
-        with self.assertRaisesRegex(exc.EdgeQLError, 'nested array'):
-            await self.con.execute(r'''
+        with self.assertRaisesRegex(edgedb.QueryError, 'nested array'):
+            await self.query(r'''
                 SELECT [[1, 2], [3, 4]];
             ''')
 
     async def test_edgeql_expr_array_11(self):
-        with self.assertRaisesRegex(exc.EdgeQLError, 'nested array'):
-            await self.con.execute(r'''
+        with self.assertRaisesRegex(edgedb.QueryError, 'nested array'):
+            await self.query(r'''
                 SELECT [array_agg({1, 2})];
             ''')
 
     async def test_edgeql_expr_array_12(self):
         with self.assertRaisesRegex(
-                exc.SchemaError,
+                edgedb.UnsupportedFeatureError,
                 r"nested arrays are not supported"):
-            await self.con.execute(r'''
+            await self.query(r'''
                 SELECT array_agg([1, 2, 3]);
             ''')
 
     async def test_edgeql_expr_array_13(self):
         with self.assertRaisesRegex(
-                exc.SchemaError,
+                edgedb.UnsupportedFeatureError,
                 r"nested arrays are not supported"):
-            await self.con.execute(r'''
+            await self.query(r'''
                 SELECT array_agg(array_agg({1, 2 ,3}));
             ''')
 
@@ -1739,61 +1740,61 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_array_15(self):
         with self.assertRaisesRegex(
                 # FIXME: possibly a different error should be used here
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r'array index 10 is out of bounds'):
-            await self.con.execute("""
+            await self.query("""
                 SELECT [1, 2, 3][10];
             """)
 
     async def test_edgeql_expr_array_16(self):
         with self.assertRaisesRegex(
                 # FIXME: possibly a different error should be used here
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r'array index -10 is out of bounds'):
-            await self.con.execute("""
+            await self.query("""
                 SELECT [1, 2, 3][-10];
             """)
 
     async def test_edgeql_expr_array_17(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot index array by.*float'):
+                edgedb.QueryError, r'cannot index array by.*float'):
 
-            await self.con.execute("""
+            await self.query("""
                 SELECT [1, 2][1.0];
             """)
 
     async def test_edgeql_expr_array_18(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot slice array by.*float'):
+                edgedb.QueryError, r'cannot slice array by.*float'):
 
-            await self.con.execute("""
+            await self.query("""
                 SELECT [1, 2][1.0:3];
             """)
 
     async def test_edgeql_expr_array_19(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot slice array by.*str'):
+                edgedb.QueryError, r'cannot slice array by.*str'):
 
-            await self.con.execute("""
+            await self.query("""
                 SELECT [1, 2][1:'3'];
             """)
 
     async def test_edgeql_expr_array_20(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r'cannot index array by std::float64'):
 
-            await self.con.execute("""
+            await self.query("""
                 SELECT [1, 2][2^40];
             """)
 
     async def test_edgeql_expr_array_21(self):
         # it should be technically possible to infer the type of the array
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r'could not determine type of empty array'):
 
-            await self.con.execute("""
+            await self.query("""
                 SELECT {[1, 2], []};
             """)
 
@@ -1869,51 +1870,51 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_string_02(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot index string by.*str'):
+                edgedb.QueryError, r'cannot index string by.*str'):
 
-            await self.con.execute("""
+            await self.query("""
                 SELECT '123'['1'];
             """)
 
     async def test_edgeql_expr_string_03(self):
         with self.assertRaisesRegex(
                 # FIXME: possibly a different error should be used here
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r'string index 10 is out of bounds'):
-            await self.con.execute("""
+            await self.query("""
                 SELECT '123'[10];
             """)
 
     async def test_edgeql_expr_string_04(self):
         with self.assertRaisesRegex(
                 # FIXME: possibly a different error should be used here
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r'string index -10 is out of bounds'):
-            await self.con.execute("""
+            await self.query("""
                 SELECT '123'[-10];
             """)
 
     async def test_edgeql_expr_string_05(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot index string by.*float'):
+                edgedb.QueryError, r'cannot index string by.*float'):
 
-            await self.con.execute("""
+            await self.query("""
                 SELECT '123'[-1.0];
             """)
 
     async def test_edgeql_expr_string_06(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot slice string by.*float'):
+                edgedb.QueryError, r'cannot slice string by.*float'):
 
-            await self.con.execute("""
+            await self.query("""
                 SELECT '123'[1.0:];
             """)
 
     async def test_edgeql_expr_string_07(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot slice string by.*str'):
+                edgedb.QueryError, r'cannot slice string by.*str'):
 
-            await self.con.execute("""
+            await self.query("""
                 SELECT '123'[:'1'];
             """)
 
@@ -1974,9 +1975,9 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_tuple_03(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"operator '=' cannot"):
-            await self.con.execute(r"""
+            await self.query(r"""
                 SELECT (1, 'foo') = ('1', 'foo');
             """)
 
@@ -2015,9 +2016,9 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_tuple_07(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"operator '!=' cannot"):
-            await self.con.execute(r"""
+            await self.query(r"""
                 SELECT (a := 1, b := 'foo') != (b := 'foo', a := 1);
             """)
 
@@ -2030,10 +2031,10 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_tuple_09(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"operator '\+'.*cannot.*tuple<.*>' and 'std::int64'"):
 
-            await self.con.execute(r'''
+            await self.query(r'''
                 SELECT (spam := 1, ham := 2) + 1;
             ''')
 
@@ -2267,8 +2268,8 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_cannot_assign_dunder_type_01(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot assign to __type__'):
-            await self.con.execute(r"""
+                edgedb.QueryError, r'cannot assign to __type__'):
+            await self.query(r"""
                 SELECT test::Text {
                     __type__ := 42
                 };
@@ -2276,8 +2277,8 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_cannot_assign_id_01(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot assign to id'):
-            await self.con.execute(r"""
+                edgedb.QueryError, r'cannot assign to id'):
+            await self.query(r"""
                 SELECT test::Text {
                     id := <uuid>'77841036-8e35-49ce-b509-2cafa0c25c4f'
                 };
@@ -2502,7 +2503,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_setop_08(self):
-        res = await self.con.execute('''
+        res = await self.query('''
             WITH MODULE schema
             SELECT ObjectType;
 
@@ -2520,7 +2521,7 @@ class TestExpressions(tb.QueryTestCase):
         self.assert_data_shape(separate, union)
 
     async def test_edgeql_expr_setop_09(self):
-        res = await self.con.execute('''
+        res = await self.query('''
             SELECT _ := DISTINCT {[1, 2], [1, 2], [2, 3]} ORDER BY _;
         ''')
         self.assert_data_shape(res, [
@@ -2528,7 +2529,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_setop_10(self):
-        res = await self.con.execute('''
+        res = await self.query('''
             SELECT _ := DISTINCT {(1, 2), (2, 3), (1, 2)} ORDER BY _;
             SELECT _ := DISTINCT {(a := 1, b := 2),
                                   (a := 2, b := 3),
@@ -2541,7 +2542,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_setop_11(self):
-        res = await self.con.execute('''
+        res = await self.query('''
             WITH
                 MODULE schema,
                 C := (SELECT ObjectType
@@ -2565,7 +2566,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_cardinality_01(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
                 position=39):
@@ -2577,7 +2578,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_cardinality_02(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
                 position=30):
@@ -2589,7 +2590,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_cardinality_03(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
                 position=30):
@@ -2601,7 +2602,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_cardinality_04(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
                 position=46):
@@ -2613,7 +2614,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_cardinality_05(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
                 position=53):
@@ -2625,7 +2626,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_cardinality_06(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
                 position=50):
@@ -2637,7 +2638,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_cardinality_07(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
                 position=48):
@@ -2649,7 +2650,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_type_filter_01(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r'invalid type filter operand: std::int64 is not '
                 r'an object type',
                 position=7):
@@ -2660,7 +2661,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_type_filter_02(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r'invalid type filter operand: std::str is not an object type',
                 position=17):
 
@@ -2670,7 +2671,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_type_filter_03(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r'invalid type filter operand: '
                 r'std::uuid is not an object type',
                 position=20):
@@ -2681,25 +2682,25 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_comparison_01(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"operator '=' cannot.*tuple.*and.*array<std::int64>"):
-            await self.con.execute(r'''
+            await self.query(r'''
                 SELECT (1, 2) = [1, 2];
             ''')
 
     async def test_edgeql_expr_comparison_02(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"operator '=' cannot.* 'std::int64' and.*array<std::int64>"):
-            await self.con.execute(r'''
+            await self.query(r'''
                 SELECT {1, 2} = [1, 2];
             ''')
 
     async def test_edgeql_expr_comparison_03(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"operator '=' cannot.*'std::int64' and.*tuple.*"):
-            await self.con.execute(r'''
+            await self.query(r'''
                 SELECT {1, 2} = (1, 2);
             ''')
 

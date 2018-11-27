@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2008-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,33 +17,6 @@
 #
 
 
-from edb.lang.common.exceptions import EdgeDBError, EdgeDBSyntaxError
-from edb.lang.common.parsing import ParserError
-
-
-class SchemaSyntaxError(ParserError, EdgeDBSyntaxError):
-    pass
-
-
-class SchemaError(EdgeDBError):
-    code = '32000'
-
-
-class SchemaNameError(SchemaError):
-    pass
-
-
-class SchemaModuleNotFoundError(SchemaError):
-    pass
-
-
-class ItemNotFoundError(SchemaError):
-    pass
-
-
-class SchemaDefinitionError(SchemaError):
-    code = '32100'
-
-
-class InvalidConstraintDefinitionError(SchemaDefinitionError):
-    code = '32101'
+# DO NOT ADD ANYTHING TO THIS FILE:
+# we might want to make "edb" a namespace
+# package at some point.

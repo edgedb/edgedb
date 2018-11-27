@@ -19,8 +19,9 @@
 
 import typing
 
+from edb import errors
+
 from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import errors as ql_errors
 
 from . import delta as sd
 from . import inheriting
@@ -90,8 +91,8 @@ class NodeCommand(sd.ObjectCommand):
     def _get_view_expr(cls, astnode):
         expr = cls._maybe_get_view_expr(astnode)
         if expr is None:
-            raise ql_errors.EdgeQLError(
-                f'Missing required view expression', context=astnode.context)
+            raise errors.InvalidViewDefinitionError(
+                f'missing required view expression', context=astnode.context)
         return expr
 
     @classmethod
@@ -104,7 +105,8 @@ class NodeCommand(sd.ObjectCommand):
                 expr = qlast.SelectQuery(result=expr)
             ir = qlcompiler.compile_ast_to_ir(
                 expr, schema, derived_target_module=classname.module,
-                result_view_name=classname, modaliases=context.modaliases)
+                result_view_name=classname, modaliases=context.modaliases,
+                schema_view_mode=True)
             context.cache_value((expr, classname), ir)
 
         return ir

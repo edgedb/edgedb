@@ -23,13 +23,13 @@ import sys
 import types
 import typing
 
+from edb.errors import EdgeQLSyntaxError
+
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import functypes as ft
 
 from edb.lang.common import parsing, context
 from edb.lang.common.parsing import ListNonterm
-
-from ...errors import EdgeQLSyntaxError
 
 from .expressions import Nonterm
 from . import tokens

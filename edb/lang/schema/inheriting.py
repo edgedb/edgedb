@@ -20,10 +20,11 @@
 from edb.lang.common import struct
 from edb.lang.edgeql import ast as qlast
 
+from edb import errors
+
 from . import abc as s_abc
 from . import delta as sd
 from . import derivable
-from . import error as s_err
 from . import objects as so
 from . import utils
 
@@ -132,7 +133,7 @@ class CreateInheritingObject(InheritingObjectCommand, sd.CreateObject):
         for base in bases.objects(schema):
             if base.is_type() and base.contains_any():
                 base_type_name = base.get_displayname(schema)
-                raise s_err.SchemaError(
+                raise errors.SchemaError(
                     f"{base_type_name!r} cannot be a parent type")
 
         mcls = cls.get_schema_metaclass()
@@ -280,7 +281,7 @@ def _merge_mro(schema, obj, mros):
             if not tails:
                 break
         else:
-            raise s_err.SchemaError(
+            raise errors.SchemaError(
                 f"Could not find consistent MRO for {obj.get_name(schema)}")
 
         result.append(candidate)
@@ -344,19 +345,19 @@ def create_virtual_parent(schema, children, *,
     for target in children:
         if isinstance(target, s_abc.ScalarType):
             if seen_objtypes:
-                raise s_err.SchemaError(
+                raise errors.SchemaError(
                     'cannot mix scalars and objects in link target list')
             seen_scalars = True
         else:
             if seen_scalars:
-                raise s_err.SchemaError(
+                raise errors.SchemaError(
                     'cannot mix scalars and objects in link target list')
             seen_objtypes = True
 
     if seen_scalars and len(children) > 1:
         target = utils.get_class_nearest_common_ancestor(schema, children)
         if target is None:
-            raise s_err.SchemaError(
+            raise errors.SchemaError(
                 'cannot set multiple scalar children for a link')
     else:
         base = schema.get(s_objtypes.ObjectType.get_default_base_name())
@@ -581,7 +582,7 @@ class InheritingObject(derivable.DerivableObject):
                 # locally defined references *must* use
                 # the `inherited` keyword if ancestors have
                 # a reference under the same name.
-                raise s_err.SchemaDefinitionError(
+                raise errors.SchemaDefinitionError(
                     f'{self.get_shortname(schema)}: '
                     f'{local.get_shortname(local_schema)} must be '
                     f'declared using the `inherited` keyword because '
@@ -591,7 +592,7 @@ class InheritingObject(derivable.DerivableObject):
                 )
 
             if not inherited and local.get_declared_inherited(local_schema):
-                raise s_err.SchemaDefinitionError(
+                raise errors.SchemaDefinitionError(
                     f'{self.get_shortname(schema)}: '
                     f'{local.get_shortname(local_schema)} cannot '
                     f'be declared `inherited` as there are no ancestors '
@@ -641,7 +642,7 @@ class InheritingObject(derivable.DerivableObject):
 
         else:
             if self.get_name(schema) == derived_name:
-                raise s_err.SchemaError(
+                raise errors.SchemaError(
                     f'cannot derive {self!r}({derived_name}) from itself')
 
             derived_attrs = {}
@@ -668,7 +669,7 @@ class InheritingObject(derivable.DerivableObject):
             if not ancestor.get_is_abstract(schema):
                 return ancestor
 
-        raise s_err.SchemaError(
+        raise errors.SchemaError(
             f'{self.get_name(schema)} has no non-abstract ancestors')
 
     def compute_mro(self, schema):

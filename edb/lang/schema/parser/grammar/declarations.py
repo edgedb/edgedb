@@ -29,7 +29,7 @@ from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
 from edb.lang.schema import ast as esast
 
-from ...error import SchemaSyntaxError
+from edb.errors import SchemaSyntaxError, EdgeQLSyntaxError
 
 from . import keywords
 from . import tokens
@@ -56,7 +56,7 @@ class PointerSpec(typing.NamedTuple):
 def parse_edgeql(expr: str, ctx, *, offset_column=0, indent=0):
     try:
         node = edgeql.parse(expr)
-    except parsing.ParserError as err:
+    except EdgeQLSyntaxError as err:
         context.rebase_context(
             ctx, get_context(err, parsing.ParserContext),
             offset_column=offset_column, indent=indent)

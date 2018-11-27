@@ -24,6 +24,8 @@ import contextlib
 import copy
 import typing
 
+from edb import errors
+
 from edb.lang.common import parsing
 
 from edb.lang.ir import ast as irast
@@ -41,7 +43,6 @@ from edb.lang.schema import types as s_types
 from edb.lang.schema import utils as s_utils
 
 from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import errors
 from edb.lang.edgeql import parser as qlparser
 
 from . import astutils
@@ -108,8 +109,9 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         if ctx.partial_path_prefix is not None:
             path_tip = ctx.partial_path_prefix
         else:
-            raise errors.EdgeQLError('could not resolve partial path ',
-                                     context=expr.context)
+            raise errors.QueryError(
+                'could not resolve partial path ',
+                context=expr.context)
 
     extra_scopes = {}
     computables = []
@@ -174,7 +176,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 ptr_target = schemactx.get_schema_type(
                     ptr_expr.target.maintype, ctx=ctx)
                 if not isinstance(ptr_target, s_objtypes.ObjectType):
-                    raise errors.EdgeQLError(
+                    raise errors.QueryError(
                         f'invalid type filter operand: '
                         f'{ptr_target.get_name(ctx.env.schema)} '
                         f'is not an object type',
@@ -359,7 +361,7 @@ def resolve_ptr(
                     path += f'[IS {target.get_displayname(ctx.env.schema)}]'
                 msg = f'{path!r} does not resolve to any known path'
 
-            err = errors.EdgeQLReferenceError(msg, context=source_context)
+            err = errors.InvalidReferenceError(msg, context=source_context)
 
             if direction == s_pointers.PointerDirection.Outbound:
                 near_enpoint_pointers = near_endpoint.get_pointers(
@@ -384,7 +386,7 @@ def resolve_ptr(
     if ptr is None:
         # Reference to a property on non-object
         msg = 'invalid property reference on a primitive type expression'
-        raise errors.EdgeQLReferenceError(msg, context=source_context)
+        raise errors.InvalidReferenceError(msg, context=source_context)
 
     return ptr
 
@@ -610,7 +612,7 @@ def ensure_set(
 
     if (typehint is not None and
             not expr.stype.implicitly_castable_to(typehint, ctx.env.schema)):
-        raise errors.EdgeQLError(
+        raise errors.QueryError(
             f'expecting expression of type '
             f'{typehint.get_name(ctx.env.schema)}, '
             f'got {expr.stype.get_name(ctx.env.schema)}',

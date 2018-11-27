@@ -913,7 +913,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_tuple_01(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             WITH MODULE test
             SELECT Item {
                 n1 := (Item.name,),
@@ -957,7 +957,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_01(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             WITH MODULE test
             SELECT Item {
                 n1 := [Item.name],
@@ -1007,7 +1007,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_02(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             WITH MODULE test
             SELECT Item {
                 n1 := [Item.name],
@@ -1057,7 +1057,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_03(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             WITH MODULE test
             SELECT Item {
                 name,
@@ -1090,7 +1090,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_04(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             WITH MODULE test
             SELECT Item {
                 name,
@@ -1123,7 +1123,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_05(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             WITH MODULE test
             SELECT Item {
                 name,
@@ -1160,7 +1160,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_06(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             WITH MODULE test
             SELECT Item {
                 name,
@@ -1198,7 +1198,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_07(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             WITH MODULE test
             SELECT Item {
                 name,
@@ -1237,7 +1237,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_08(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             WITH MODULE test
             SELECT Item {
                 name,

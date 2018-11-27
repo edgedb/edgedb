@@ -17,12 +17,13 @@
 #
 
 
+from edb import errors
+
 from edb.lang.common import debug, parsing
 from edb.lang.common.ast import NodeVisitor
 from edb.lang.graphql import ast as gqlast
 
 from .grammar import lexer
-from .errors import GraphQLParserError
 
 
 class Validator(NodeVisitor):
@@ -45,7 +46,7 @@ class Validator(NodeVisitor):
             cycle = self.detect_cycle(frag.name, {frag.name})
             if cycle:
                 cycle.reverse()
-                raise GraphQLParserError(
+                raise errors.GraphQLSyntaxError(
                     f'cycle in fragment definitions: {cycle}',
                     context=frag.context)
 
@@ -59,7 +60,7 @@ class Validator(NodeVisitor):
                 try:
                     frag = self._fragments[fragname]
                 except KeyError:
-                    raise GraphQLParserError(
+                    raise errors.GraphQLSyntaxError(
                         f"undefined fragment {fragname!r} used in operation",
                         context=spread.context)
                 op['all_spreads'] |= frag['all_spreads']
@@ -86,7 +87,7 @@ class Validator(NodeVisitor):
                 op_str += f"at {octx_start.line}, {octx_start.column}"
 
                 uctx_start = uvar.context.start
-                raise GraphQLParserError(
+                raise errors.GraphQLSyntaxError(
                     f"operation {op_str} uses an undefined variable " +
                     f"{uvar.value!r} at " +
                     f"{uctx_start.line}, {uctx_start.column}",
@@ -96,7 +97,7 @@ class Validator(NodeVisitor):
         #
         for frag in fragnodes:
             if not self._fragments[frag.name].get('used_in_spead'):
-                raise GraphQLParserError(
+                raise errors.GraphQLSyntaxError(
                     f"unused fragment definition {frag.name!r}",
                     context=frag.context)
 
@@ -155,13 +156,13 @@ class GraphQLParser(parsing.Parser):
         return lexer.GraphQLLexer()
 
     def get_exception(self, native_err, context, token=None):
-        if isinstance(native_err, GraphQLParserError):
+        if isinstance(native_err, errors.GraphQLSyntaxError):
             return native_err
         elif isinstance(native_err, lexer.UnterminatedStringError):
             # update the context
             context.start.line = native_err.line
             context.start.column = native_err.col
-        return GraphQLParserError(native_err.args[0], context=context)
+        return errors.GraphQLSyntaxError(native_err.args[0], context=context)
 
     def process_lex_token(self, mod, tok):
         if tok.type in {'NL', 'WS', 'COMMENT', 'COMMA'}:

@@ -23,11 +23,12 @@ import types
 import typing
 import uuid
 
+from edb import errors
+
 from edb.lang.common import typed
 
 from . import abc as s_abc
 from . import derivable
-from . import error as s_err
 from . import expr as s_expr
 from . import name as s_name
 from . import objects as so
@@ -171,6 +172,15 @@ class Type(so.Object, derivable.DerivableObjectBase, s_abc.Type):
     def find_common_implicitly_castable_type(
             self, other: 'Type', schema) -> typing.Optional['Type']:
         return
+
+    def explicitly_castable_to(self, other: 'Type', schema) -> bool:
+        if self.implicitly_castable_to(other, schema):
+            return True
+
+        if self.assignment_castable_to(other, schema):
+            return True
+
+        return False
 
     def material_type(self, schema):
         # When self is a view, this returns the material type
@@ -333,7 +343,7 @@ class Collection(Type, s_abc.Collection):
         elif schema_name == 'tuple':
             return Tuple
         else:
-            raise s_err.SchemaError(
+            raise errors.SchemaError(
                 'unknown collection type: {!r}'.format(schema_name))
 
     @classmethod
@@ -484,12 +494,13 @@ class Array(Collection, s_abc.Array):
     @classmethod
     def from_subtypes(cls, schema, subtypes, typemods=None, *, name=None):
         if len(subtypes) != 1:
-            raise s_err.SchemaError(
+            raise errors.SchemaError(
                 f'unexpected number of subtypes, expecting 1: {subtypes!r}')
         stype = subtypes[0]
 
         if isinstance(stype, Array):
-            raise s_err.SchemaError(f'nested arrays are not supported')
+            raise errors.UnsupportedFeatureError(
+                f'nested arrays are not supported')
 
         if typemods:
             dimensions = typemods[0]
@@ -589,7 +600,7 @@ class Tuple(Collection, s_abc.Tuple):
             if idx >= 0 and idx < len(self.element_types):
                 return list(self.element_types.keys())[idx]
             else:
-                raise s_err.ItemNotFoundError(
+                raise errors.InvalidReferenceError(
                     f'{field} is not a member of '
                     f'{self.get_displayname(schema)}')
 
@@ -606,7 +617,7 @@ class Tuple(Collection, s_abc.Tuple):
         elif self.named and field in self.element_types:
             return list(self.element_types.keys()).index(field)
 
-        raise s_err.ItemNotFoundError(
+        raise errors.InvalidReferenceError(
             f'{field} is not a member of {self.get_displayname(schema)}')
 
     def get_subtype(self, schema, field: str) -> Type:
@@ -619,7 +630,7 @@ class Tuple(Collection, s_abc.Tuple):
         elif self.named and field in self.element_types:
             return self.element_types[field]
 
-        raise s_err.ItemNotFoundError(
+        raise errors.InvalidReferenceError(
             f'{field} is not a member of {self.get_displayname(schema)}')
 
     def get_subtypes(self):

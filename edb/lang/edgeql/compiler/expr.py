@@ -22,6 +22,8 @@
 
 import typing
 
+from edb import errors
+
 from edb.lang.edgeql import functypes as ft
 
 from edb.lang.ir import ast as irast
@@ -33,7 +35,6 @@ from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import pointers as s_pointers
 
 from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import errors
 
 from . import astutils
 from . import cast
@@ -98,12 +99,13 @@ def compile_Parameter(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
 
     if ctx.func is not None:
-        raise errors.EdgeQLError(
+        raise errors.QueryError(
             f'"$parameters" cannot be used in functions',
             context=expr.context)
 
+    pt = ctx.env.query_parameters.get(expr.name)
     return setgen.ensure_set(
-        irast.Parameter(stype=None, name=expr.name), ctx=ctx)
+        irast.Parameter(stype=pt, name=expr.name), ctx=ctx)
 
 
 @dispatch.compile.register(qlast.DetachedExpr)
@@ -321,7 +323,7 @@ def compile_Array(
     # check that none of the elements are themselves arrays
     for el, expr_el in zip(elements, expr.elements):
         if isinstance(inference.infer_type(el, ctx.env), s_abc.Array):
-            raise errors.EdgeQLError(
+            raise errors.QueryError(
                 f'nested arrays are not supported',
                 context=expr_el.context)
     return setgen.generated_set(
@@ -355,7 +357,7 @@ def compile_IfElse(
     # make sure that the condition is actually boolean
     bool_t = ctx.env.schema.get('std::bool')
     if not cond_expr_type.issubclass(ctx.env.schema, bool_t):
-        raise errors.EdgeQLError(
+        raise errors.QueryError(
             'if/else condition must be of type {}, got: {}'.format(
                 bool_t.get_displayname(ctx.env.schema),
                 cond_expr_type.get_displayname(ctx.env.schema)),
@@ -365,7 +367,7 @@ def compile_IfElse(
         else_expr_type, schema=ctx.env.schema)
 
     if result is None:
-        raise errors.EdgeQLError(
+        raise errors.QueryError(
             'if/else clauses must be of related types, got: {}/{}'.format(
                 if_expr_type.get_displayname(ctx.env.schema),
                 else_expr_type.get_displayname(ctx.env.schema)),
@@ -448,6 +450,37 @@ def compile_TypeCast(
     if (isinstance(expr.expr, qlast.Array) and not expr.expr.elements and
             target_typeref.maintype == 'array'):
         ir_expr = irast.Array()
+
+    elif isinstance(expr.expr, qlast.Parameter):
+        pt = typegen.ql_typeref_to_type(expr.type, ctx=ctx)
+        param_name = expr.expr.name
+        if param_name not in ctx.env.query_parameters:
+            if ctx.env.query_parameters:
+                first_key: str = next(iter(ctx.env.query_parameters))
+                if first_key.isdecimal():
+                    if not param_name.isdecimal():
+                        raise errors.QueryError(
+                            f'expected a positional argument',
+                            context=expr.expr.context)
+                else:
+                    if param_name.isdecimal():
+                        raise errors.QueryError(
+                            f'expected a named argument',
+                            context=expr.expr.context)
+            ctx.env.query_parameters[param_name] = pt
+        else:
+            param_first_type = ctx.env.query_parameters[param_name]
+            if not param_first_type.explicitly_castable_to(pt, ctx.env.schema):
+                raise errors.QueryError(
+                    f'cannot cast '
+                    f'{param_first_type.get_displayname(ctx.env.schema)} to '
+                    f'{pt.get_displayname(ctx.env.schema)}',
+                    context=expr.expr.context)
+
+        param = irast.Parameter(
+            stype=pt, name=param_name, context=expr.expr.context)
+        return setgen.ensure_set(param, ctx=ctx)
+
     else:
         with ctx.new() as subctx:
             # We use "exposed" mode in case this is a type of a cast
@@ -474,7 +507,7 @@ def compile_TypeFilter(
 
     arg_type = inference.infer_type(arg, ctx.env)
     if not isinstance(arg_type, s_objtypes.ObjectType):
-        raise errors.EdgeQLError(
+        raise errors.QueryError(
             f'invalid type filter operand: '
             f'{arg_type.get_displayname(ctx.env.schema)} '
             f'is not an object type',
@@ -482,7 +515,7 @@ def compile_TypeFilter(
 
     typ = schemactx.get_schema_type(expr.type.maintype, ctx=ctx)
     if not isinstance(typ, s_objtypes.ObjectType):
-        raise errors.EdgeQLError(
+        raise errors.QueryError(
             f'invalid type filter operand: '
             f'{typ.get_displayname(ctx.env.schema)} is not an object type',
             context=expr.type.context)
@@ -558,7 +591,7 @@ def compile_set_op(
             right_type, ctx.env.schema)
 
         if common_type is None:
-            raise errors.EdgeQLError(
+            raise errors.QueryError(
                 f'could not determine type of a set',
                 context=expr.context)
 

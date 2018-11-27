@@ -23,8 +23,9 @@ import typing
 
 import immutables as immu
 
+from edb import errors
+
 from . import casts as s_casts
-from . import error as s_err
 from . import functions as s_func
 from . import modules as s_modules
 from . import name as sn
@@ -112,7 +113,7 @@ class Schema:
 
         if new_name is not None:
             if new_name in name_to_id:
-                raise s_err.SchemaError(
+                raise errors.SchemaError(
                     f'name {new_name!r} is already in the schema')
             name_to_id = name_to_id.set(new_name, obj_id)
             if has_sn_cache:
@@ -170,7 +171,7 @@ class Schema:
         except KeyError:
             err = (f'cannot get {field!r} value: item {str(obj_id)!r} '
                    f'is not present in the schema {self!r}')
-            raise s_err.SchemaError(err) from None
+            raise errors.SchemaError(err) from None
 
         return d.get(field)
 
@@ -180,7 +181,7 @@ class Schema:
         except KeyError:
             err = (f'cannot set {field!r} value: item {str(obj_id)!r} '
                    f'is not present in the schema {self!r}')
-            raise s_err.SchemaError(err) from None
+            raise errors.SchemaError(err) from None
 
         name_to_id = None
         shortname_to_id = None
@@ -321,7 +322,7 @@ class Schema:
         name = data['name']
 
         if name in self._name_to_id:
-            raise s_err.SchemaError(
+            raise errors.SchemaError(
                 f'{type(scls).__name__} {name!r} is already present '
                 f'in the schema {self!r}')
 
@@ -341,7 +342,7 @@ class Schema:
         if isinstance(scls, s_modules.Module):
             updates['modules'] = self._modules.set(name, id)
         elif name.module not in self._modules:
-            raise s_err.SchemaModuleNotFoundError(
+            raise errors.UnknownModuleError(
                 f'module {name.module!r} is not in this schema')
 
         return self._replace(**updates)
@@ -349,7 +350,7 @@ class Schema:
     def _delete(self, obj):
         data = self._id_to_data.get(obj.id)
         if data is None:
-            raise s_err.ItemNotFoundError(
+            raise errors.InvalidReferenceError(
                 f'cannot delete {obj!r}: not in this schema')
 
         name = data['name']
@@ -421,7 +422,7 @@ class Schema:
         if funcs is not _void:
             return funcs
 
-        raise s_err.ItemNotFoundError(
+        raise errors.InvalidReferenceError(
             f'reference to a non-existent function: {name}')
 
     def get_operators(self, name, default=_void, *, module_aliases=None):
@@ -433,7 +434,7 @@ class Schema:
         if funcs is not _void:
             return funcs
 
-        raise s_err.ItemNotFoundError(
+        raise errors.InvalidReferenceError(
             f'reference to a non-existent operator: {name}')
 
     @functools.lru_cache()
@@ -509,7 +510,7 @@ class Schema:
             return self._id_to_type[obj_id]
         except KeyError:
             if default is _void:
-                raise s_err.ItemNotFoundError(
+                raise errors.InvalidReferenceError(
                     f'reference to a non-existent schema item: {obj_id}'
                     f' in schema {self!r}'
                 ) from None
@@ -546,7 +547,7 @@ class Schema:
         if obj is not _void:
             return obj
 
-        raise s_err.ItemNotFoundError(
+        raise errors.InvalidReferenceError(
             f'reference to a non-existent schema item: {name}')
 
     def has_module(self, module):

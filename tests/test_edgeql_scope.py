@@ -20,7 +20,8 @@
 import os.path
 import unittest  # NOQA
 
-from edb.client import exceptions as exc
+import edgedb
+
 from edb.server import _testbase as tb
 
 
@@ -93,7 +94,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
 
     async def test_edgeql_scope_tuple_03(self):
         # get the User names and ids
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             WITH MODULE test
             SELECT User {
                 name,
@@ -1224,7 +1225,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
 
     async def test_edgeql_scope_detached_02(self):
         # calculate some useful base expression
-        names = await self.con.execute(r"""
+        names = await self.query(r"""
             WITH MODULE test
             SELECT User.name ++ <str>count(User.deck);
         """)
@@ -1292,9 +1293,9 @@ class TestEdgeQLScope(tb.QueryTestCase):
         # Natural, but incorrect way of getting a bunch of friends
         # filtered by @nickname.
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"'User' changes the interpretation of 'User'"):
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH MODULE test
                 SELECT User.friends
                 FILTER User.friends@nickname = 'Firefighter';
@@ -1303,9 +1304,9 @@ class TestEdgeQLScope(tb.QueryTestCase):
         # The above query is illegal, but the reason why may be
         # more obvious with the equivalent query below.
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"'User' changes the interpretation of 'User'"):
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH MODULE test
                 SELECT User.friends
                 FILTER (
@@ -1437,7 +1438,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
         ])
 
     async def test_edgeql_scope_detached_07(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             WITH MODULE test
             SELECT User {
                 name,
@@ -1464,7 +1465,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
         ''', lambda x: x['name'], res)
 
     async def test_edgeql_scope_detached_08(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             WITH MODULE test
             SELECT User {
                 name,
@@ -1492,9 +1493,9 @@ class TestEdgeQLScope(tb.QueryTestCase):
 
     async def test_edgeql_scope_detached_09(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'only singletons are allowed'):
+                edgedb.QueryError, r'only singletons are allowed'):
 
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH MODULE test
                 SELECT DETACHED User {name}
                 # a subtle error

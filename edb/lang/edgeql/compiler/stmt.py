@@ -22,11 +22,12 @@
 
 import typing
 
+from edb import errors
+
 from edb.lang.ir import ast as irast
 from edb.lang.ir import staeval as ireval
 from edb.lang.ir import utils as irutils
 
-from edb.lang.schema import error as s_err
 from edb.lang.schema import links as s_links
 from edb.lang.schema import lproperties as s_props
 from edb.lang.schema import objtypes as s_objtypes
@@ -34,7 +35,6 @@ from edb.lang.schema import name as s_name
 from edb.lang.schema import types as s_types
 
 from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import errors
 
 from . import astutils
 from . import clauses
@@ -189,7 +189,7 @@ def compile_ForQuery(
 def compile_GroupQuery(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
 
-    raise errors.EdgeQLSyntaxError(
+    raise errors.UnsupportedFeatureError(
         "'GROUP' statement is not currently implemented",
         context=expr.context)
 
@@ -258,13 +258,13 @@ def compile_InsertQuery(
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
         if subject.stype.get_is_abstract(ctx.env.schema):
-            raise errors.EdgeQLError(
+            raise errors.QueryError(
                 f'cannot insert: '
                 f'{subject.stype.get_displayname(ctx.env.schema)} is abstract',
                 context=expr.subject.context)
 
         if subject.stype.is_view(ctx.env.schema):
-            raise errors.EdgeQLError(
+            raise errors.QueryError(
                 f'cannot insert: '
                 f'{subject.stype.get_shortname(ctx.env.schema)} is a view',
                 context=expr.subject.context)
@@ -297,7 +297,7 @@ def compile_UpdateQuery(
         subject = dispatch.compile(expr.subject, ctx=ictx)
         subj_type = inference.infer_type(subject, ictx.env)
         if not isinstance(subj_type, s_objtypes.ObjectType):
-            raise errors.EdgeQLError(
+            raise errors.QueryError(
                 f'cannot update non-ObjectType objects',
                 context=expr.subject.context
             )
@@ -337,7 +337,7 @@ def compile_DeleteQuery(
 
         subj_type = inference.infer_type(subject, ictx.env)
         if not isinstance(subj_type, s_objtypes.ObjectType):
-            raise errors.EdgeQLError(
+            raise errors.QueryError(
                 f'cannot delete non-ObjectType objects',
                 context=expr.subject.context
             )
@@ -366,8 +366,8 @@ def compile_SetSessionState(
         if isinstance(item, qlast.SessionSettingModuleDecl):
             try:
                 module = ctx.env.schema.get(item.module)
-            except s_err.ItemNotFoundError:
-                raise errors.EdgeQLError(
+            except errors.InvalidReferenceError:
+                raise errors.QueryError(
                     f'module {item.module!r} does not exist',
                     context=item.context
                 )
@@ -381,17 +381,17 @@ def compile_SetSessionState(
                 testmode = ireval.evaluate_to_python_val(
                     testmode_ir, schema=ctx.env.schema)
             except ireval.StaticEvaluationError as e:
-                raise errors.EdgeQLError('invalid SET expression',
-                                         context=item.context) from e
+                raise errors.QueryError('invalid SET expression',
+                                        context=item.context) from e
             else:
                 if not isinstance(testmode, bool):
                     dispname = testmode_ir.stype.get_displayname(
                         ctx.env.schema)
-                    raise errors.EdgeQLError(
+                    raise errors.QueryError(
                         f'expected a boolean value, got {dispname!r}',
                         context=item.context)
         else:
-            raise errors.EdgeQLError(
+            raise errors.QueryError(
                 f'expression aliases in SET are not supported yet',
                 context=item.context
             )

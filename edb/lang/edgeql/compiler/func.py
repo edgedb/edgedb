@@ -22,6 +22,8 @@
 
 import typing
 
+from edb import errors
+
 from edb.lang.ir import ast as irast
 from edb.lang.ir import utils as irutils
 
@@ -29,7 +31,6 @@ from edb.lang.schema import name as sn
 from edb.lang.schema import types as s_types
 
 from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import errors
 from edb.lang.edgeql import functypes as ft
 from edb.lang.edgeql import parser as qlparser
 
@@ -54,7 +55,7 @@ def compile_FunctionCall(
         if ctx.func is not None:
             ctx_func_params = ctx.func.get_params(env.schema)
             if ctx_func_params.get_by_name(env.schema, expr.func):
-                raise errors.EdgeQLError(
+                raise errors.QueryError(
                     f'parameter `{expr.func}` is not callable',
                     context=expr.context)
 
@@ -65,18 +66,18 @@ def compile_FunctionCall(
     funcs = env.schema.get_functions(funcname, module_aliases=ctx.modaliases)
 
     if funcs is None:
-        raise errors.EdgeQLError(
+        raise errors.QueryError(
             f'could not resolve function name {funcname}',
             context=expr.context)
 
     args, kwargs = compile_call_args(expr, funcname, ctx=ctx)
     matched = polyres.find_callable(funcs, args=args, kwargs=kwargs, ctx=ctx)
     if not matched:
-        raise errors.EdgeQLError(
+        raise errors.QueryError(
             f'could not find a function variant {funcname}',
             context=expr.context)
     elif len(matched) > 1:
-        raise errors.EdgeQLError(
+        raise errors.QueryError(
             f'function {funcname} is not unique',
             context=expr.context)
     else:
@@ -135,7 +136,7 @@ def compile_operator(
     opers = env.schema.get_operators(op_name, module_aliases=ctx.modaliases)
 
     if opers is None:
-        raise errors.EdgeQLError(
+        raise errors.QueryError(
             f'no operator matches the given name and argument types',
             context=qlexpr.context)
 
@@ -155,7 +156,7 @@ def compile_operator(
 
         arg_type = inference.infer_type(arg_ir, ctx.env)
         if arg_type is None:
-            raise errors.EdgeQLError(
+            raise errors.QueryError(
                 f'could not resolve the type of operand '
                 f'#{ai} of {op_name}',
                 context=qlarg.context)
@@ -181,7 +182,7 @@ def compile_operator(
             )
 
         if not matched:
-            raise errors.EdgeQLError(
+            raise errors.QueryError(
                 f'operator {str(op_name)!r} cannot be applied to '
                 f'operands of type {types}',
                 context=qlexpr.context)
@@ -190,7 +191,7 @@ def compile_operator(
                 f'`{m.func.get_display_signature(ctx.env.schema)}`'
                 for m in matched
             )
-            raise errors.EdgeQLError(
+            raise errors.QueryError(
                 f'operator {str(op_name)!r} is ambiguous for '
                 f'operands of type {types}',
                 hint=f'Possible variants: {detail}.',
@@ -278,7 +279,7 @@ def compile_call_args(
 
         arg_type = inference.infer_type(arg_ir, ctx.env)
         if arg_type is None:
-            raise errors.EdgeQLError(
+            raise errors.QueryError(
                 f'could not resolve the type of positional argument '
                 f'#{ai} of function {funcname}',
                 context=arg.context)
@@ -290,7 +291,7 @@ def compile_call_args(
 
         arg_type = inference.infer_type(arg_ir, ctx.env)
         if arg_type is None:
-            raise errors.EdgeQLError(
+            raise errors.QueryError(
                 f'could not resolve the type of named argument '
                 f'${aname} of function {funcname}',
                 context=arg.context)

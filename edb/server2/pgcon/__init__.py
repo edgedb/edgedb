@@ -17,26 +17,6 @@
 #
 
 
-from edb.lang.common.parsing import ParserError
-from edb.lang.graphql.errors import GraphQLError
+from .pgcon import connect
 
-
-class GraphQLParserError(GraphQLError, ParserError):
-    @classmethod
-    def from_parsed(cls, msg, node):
-        return GraphQLParserError(msg.format(node), context=node.context)
-
-
-class GraphQLUniquenessError(GraphQLParserError):
-    @classmethod
-    def from_ast(cls, node, entity=None):
-        if entity is None:
-            entity = node.__class__.__name__.lower()
-
-        return GraphQLUniquenessError(
-            f"{entity} with name {node.name!r} already exists",
-            context=node.context)
-
-
-class InvalidStringTokenError(GraphQLParserError):
-    pass
+__all__ = ('connect',)

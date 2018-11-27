@@ -32,6 +32,7 @@ from edb.lang.ir import ast as irast
 from edb.lang.schema import functions as s_func
 from edb.lang.schema import name as s_name
 from edb.lang.schema import nodes as s_nodes
+from edb.lang.schema import objects as s_obj
 from edb.lang.schema import pointers as s_pointers
 from edb.lang.schema import schema as s_schema
 from edb.lang.schema import types as s_types
@@ -84,10 +85,19 @@ class Environment:
     schema_view_cache: typing.Dict[s_nodes.Node, s_nodes.Node]
     """Type cache used by schema-level views."""
 
-    def __init__(self, *, schema, path_scope):
+    query_parameters: typing.Dict[str, s_obj.Object]
+    """A mapping of query parameters to their types.  Gets populated during
+    the compilation."""
+
+    schema_view_mode: bool
+    """Use material types for pointer targets in schema views."""
+
+    def __init__(self, *, schema, path_scope, schema_view_mode: bool=False):
         self.schema = schema
         self.path_scope = path_scope
         self.schema_view_cache = {}
+        self.query_parameters = {}
+        self.schema_view_mode = schema_view_mode
 
 
 class ContextLevel(compiler.ContextLevel):

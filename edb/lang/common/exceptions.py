@@ -17,7 +17,6 @@
 #
 
 
-import collections
 import sys
 
 
@@ -26,7 +25,7 @@ def _get_contexts(ex, *, auto_init=False):
         return ex.__sx_error_contexts__
     except AttributeError:
         if auto_init:
-            cs = ex.__sx_error_contexts__ = collections.OrderedDict()
+            cs = ex.__sx_error_contexts__ = {}
             return cs
         else:
             return {}
@@ -76,21 +75,13 @@ class EdgeDBErrorMeta(type):
     _error_map = {}
 
     def __new__(mcls, name, bases, dct):
-        global __all__
-
         cls = super().__new__(mcls, name, bases, dct)
-        if cls.__module__ == 'edb.server.exceptions':
-            __all__ += (name, )
 
         code = dct.get('code')
         if code is not None:
             mcls._error_map[code] = cls
 
         return cls
-
-    @classmethod
-    def get_error_for_code(mcls, code):
-        return mcls._error_map.get(code, EdgeDBError)
 
 
 class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):

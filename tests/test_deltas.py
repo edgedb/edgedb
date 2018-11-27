@@ -22,14 +22,15 @@ import os.path
 import textwrap
 import unittest  # NOQA
 
-from edb.client import exceptions
+import edgedb
+
 from edb.server import _testbase as tb
 
 
 class TestDeltas(tb.DDLTestCase):
 
     async def test_delta_simple_01(self):
-        result = await self.con.execute("""
+        result = await self.query("""
             # setup delta
             #
             CREATE MIGRATION test::d1 TO eschema $$
@@ -82,7 +83,7 @@ class TestDeltas(tb.DDLTestCase):
     async def test_delta_drop_01(self):
         # Check that constraints defined on scalars being dropped are
         # dropped.
-        result = await self.con.execute("""
+        result = await self.query("""
             CREATE SCALAR TYPE test::a1 EXTENDING std::str;
 
             ALTER SCALAR TYPE test::a1 {
@@ -123,7 +124,7 @@ class TestDeltas(tb.DDLTestCase):
     async def test_delta_drop_02(self):
         # Check that links defined on types being dropped are
         # dropped.
-        result = await self.con.execute("""
+        result = await self.query("""
             CREATE TYPE test::C1 {
                 CREATE PROPERTY test::l1 -> std::str {
                     SET ATTRIBUTE description := 'test_delta_drop_02_link';
@@ -158,7 +159,7 @@ class TestDeltas(tb.DDLTestCase):
         ])
 
     async def test_delta_unicode_01(self):
-        result = await self.con.execute(r"""
+        result = await self.query(r"""
             # setup delta
             CREATE MIGRATION test::u1 TO eschema $$
                 type Пример:
@@ -202,12 +203,12 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
         with open(schema_f) as f:
             schema = f.read()
 
-        await self.con.execute(f'''
+        await self.query(f'''
             CREATE MIGRATION test::d_links01_0 TO eschema $${schema}$$;
             COMMIT MIGRATION test::d_links01_0;
             ''')
 
-        await self.con.execute('''
+        await self.query('''
             INSERT test::Target1 {
                 name := 'Target1_linkinh_2'
             };
@@ -230,13 +231,13 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
         ''')
 
         with self.assertRaisesRegex(
-                exceptions.InvalidPointerTargetError,
+                edgedb.InvalidLinkTargetError,
                 r"invalid target for link '\(test::ObjectType01\)\.target': "
                 r"'test::Target0' \(expecting 'test::Target1'\)"):
             # Target0 is not allowed to be targeted by ObjectType01, since
             # ObjectType01 inherits from ObjectType1 which requires more
             # specific Target1.
-            await self.con.execute('''
+            await self.query('''
                 INSERT test::ObjectType01 {
                     target := (
                         SELECT
@@ -254,7 +255,7 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
         with open(schema_f) as f:
             schema = f.read()
 
-        await self.con.execute(f'''
+        await self.query(f'''
             CREATE MIGRATION test::d_links01_1 TO eschema $${schema}$$;
             COMMIT MIGRATION test::d_links01_1;
             ''')
@@ -275,7 +276,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                 f'\nDIFF:\n{diff}')
 
     async def test_delta_ddlgen_01(self):
-        result = await self.con.execute("""
+        result = await self.query("""
             # setup delta
             #
             CREATE MIGRATION test::d1 TO eschema $$
@@ -293,7 +294,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
         """)
 
         self._assert_result(
-            result[1],
+            result[1][0],
             '''\
 CREATE ABSTRACT PROPERTY test::lang;
 CREATE ABSTRACT PROPERTY test::name;
@@ -319,7 +320,7 @@ ALTER TYPE test::NamedObject {
         )
 
     async def test_delta_ddlgen_02(self):
-        result = await self.con.execute("""
+        result = await self.query("""
             # setup delta
             #
             CREATE MIGRATION test::d2 TO eschema $$
@@ -331,7 +332,7 @@ ALTER TYPE test::NamedObject {
         """)
 
         self._assert_result(
-            result[1],
+            result[1][0],
             '''\
 CREATE ABSTRACT PROPERTY test::a;
 CREATE TYPE test::NamedObject EXTENDING std::Object;
@@ -341,7 +342,7 @@ test::a -> array<std::int64>;
         )
 
     async def test_delta_ddlgen_03(self):
-        result = await self.con.execute("""
+        result = await self.query("""
             # setup delta
             CREATE MIGRATION test::d3 TO eschema $$
                 abstract type Foo:
@@ -353,7 +354,7 @@ test::a -> array<std::int64>;
         """)
 
         self._assert_result(
-            result[1],
+            result[1][0],
             '''\
             CREATE ABSTRACT PROPERTY test::__typename;
             CREATE ABSTRACT PROPERTY test::bar;
@@ -371,7 +372,7 @@ test::a -> array<std::int64>;
         )
 
     async def test_delta_ddlgen_04(self):
-        result = await self.con.execute("""
+        result = await self.query("""
             # setup delta
             CREATE MIGRATION test::d4 TO eschema $$
                 abstract type Foo:
@@ -383,7 +384,7 @@ test::a -> array<std::int64>;
         """)
 
         self._assert_result(
-            result[1],
+            result[1][0],
             '''\
             CREATE ABSTRACT PROPERTY test::__typename;
             CREATE ABSTRACT PROPERTY test::bar;
@@ -401,7 +402,7 @@ test::a -> array<std::int64>;
         )
 
     async def test_delta_ddlgen_05(self):
-        result = await self.con.execute("""
+        result = await self.query("""
             # setup delta
             #
             CREATE MIGRATION test::d5 TO eschema $$
@@ -414,7 +415,7 @@ test::a -> array<std::int64>;
         """)
 
         self._assert_result(
-            result[1],
+            result[1][0],
             '''\
 CREATE ABSTRACT PROPERTY test::a2;
 CREATE TYPE test::NamedObject2 EXTENDING std::Object;
@@ -427,9 +428,9 @@ test::a2 -> array<std::int64> {
 
     async def test_delta_ddlgen_06(self):
         with self.assertRaisesRegex(
-                exceptions.SchemaError, r"unexpected field aaa"):
+                edgedb.SchemaError, r"unexpected field aaa"):
 
-            await self.con.execute("""
+            await self.query("""
                 CREATE MIGRATION test::d5 TO eschema $$
                     type NamedObject2:
                         property a2 -> array<int64>:

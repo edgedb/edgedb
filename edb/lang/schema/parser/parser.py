@@ -16,16 +16,17 @@
 # limitations under the License.
 #
 
+from edb import errors
 
+from edb.lang.common import exceptions
 from edb.lang.common import parsing
 from edb.lang.common.lexer import LexError
-from edb.lang.schema.error import SchemaSyntaxError
 from .grammar import lexer
 
 
 class EdgeSchemaParser(parsing.Parser):
     def get_exception(self, native_err, context, token=None):
-        if isinstance(native_err, SchemaSyntaxError):
+        if isinstance(native_err, errors.SchemaSyntaxError):
             return native_err
 
         elif isinstance(native_err, LexError):
@@ -34,10 +35,17 @@ class EdgeSchemaParser(parsing.Parser):
             context.start.line = native_err.line
             context.start.column = native_err.col
 
+        if isinstance(native_err, errors.EdgeQLSyntaxError):
+            # This means that we tried to parse something using the
+            # EdgeQL parser, in which case the context of the error
+            # should be properly rebased and we should use it instead.
+            context = exceptions.get_context(
+                native_err, parsing.ParserContext)
+
         msg = native_err.args[0]
         if token and token.type == 'BADLINECONT':
             context.start.column += 1
-            return SchemaSyntaxError(
+            return errors.SchemaSyntaxError(
                 'Unexpected character after line continuation '
                 'character',
                 context=context)
@@ -45,7 +53,9 @@ class EdgeSchemaParser(parsing.Parser):
         # if the error is about unexpected <$> token, convert the text to be
         # referencing <NL> token
         elif msg == 'Unexpected token: <$>':
-            return SchemaSyntaxError('Unexpected end of line', context=context)
+            return errors.SchemaSyntaxError(
+                'Unexpected end of line',
+                context=context)
 
         else:
             if msg.startswith('Unexpected token: '):
@@ -64,7 +74,7 @@ class EdgeSchemaParser(parsing.Parser):
                 else:
                     msg = f'Unexpected {token.text!r}'
 
-        return SchemaSyntaxError(msg, context=context)
+        return errors.SchemaSyntaxError(msg, context=context)
 
     def get_parser_spec_module(self):
         from .grammar import declarations

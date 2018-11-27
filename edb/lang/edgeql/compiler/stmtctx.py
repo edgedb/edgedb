@@ -23,9 +23,9 @@
 import functools
 import typing
 
-from edb.lang.common import parsing
+from edb import errors
 
-from edb.lang.edgeql import errors
+from edb.lang.common import parsing
 
 from edb.lang.ir import ast as irast
 
@@ -59,6 +59,7 @@ def init_context(
         security_context: typing.Optional[str]=None,
         derived_target_module: typing.Optional[str]=None,
         result_view_name: typing.Optional[str]=None,
+        schema_view_mode: bool=False,
         implicit_id_in_shapes: bool=False) -> \
         context.ContextLevel:
     stack = context.CompilerContext()
@@ -67,7 +68,8 @@ def init_context(
         schema, _ = s_mod.Module.create_in_schema(schema, name='__derived__')
     ctx.env = context.Environment(
         schema=schema,
-        path_scope=irast.new_scope_tree())
+        path_scope=irast.new_scope_tree(),
+        schema_view_mode=schema_view_mode)
 
     if singletons:
         # The caller wants us to treat these type references
@@ -122,32 +124,35 @@ def fini_expression(
     else:
         cardinality = irast.Cardinality.ONE
 
-    for view in ctx.view_nodes.values():
-        if not hasattr(view, 'get_own_pointers'):  # duck check
-            continue
-
-        view_own_pointers = view.get_own_pointers(ctx.env.schema)
-        for vptr in view_own_pointers.objects(ctx.env.schema):
-            ctx.env.schema = vptr.set_field_value(
-                ctx.env.schema,
-                'target',
-                vptr.get_target(ctx.env.schema).material_type(ctx.env.schema))
-
-            if not hasattr(vptr, 'get_own_pointers'):
+    if ctx.env.schema_view_mode:
+        for view in ctx.view_nodes.values():
+            if not hasattr(view, 'get_own_pointers'):  # duck check
                 continue
 
-            vptr_own_pointers = vptr.get_own_pointers(ctx.env.schema)
-            for vlprop in vptr_own_pointers.objects(ctx.env.schema):
-                vlprop_target = vlprop.get_target(ctx.env.schema)
-                ctx.env.schema = vlprop.set_field_value(
+            view_own_pointers = view.get_own_pointers(ctx.env.schema)
+            for vptr in view_own_pointers.objects(ctx.env.schema):
+                ctx.env.schema = vptr.set_field_value(
                     ctx.env.schema,
                     'target',
-                    vlprop_target.material_type(ctx.env.schema))
+                    vptr.get_target(ctx.env.schema).material_type(
+                        ctx.env.schema))
+
+                if not hasattr(vptr, 'get_own_pointers'):
+                    continue
+
+                vptr_own_pointers = vptr.get_own_pointers(ctx.env.schema)
+                for vlprop in vptr_own_pointers.objects(ctx.env.schema):
+                    vlprop_target = vlprop.get_target(ctx.env.schema)
+                    ctx.env.schema = vlprop.set_field_value(
+                        ctx.env.schema,
+                        'target',
+                        vlprop_target.material_type(ctx.env.schema))
 
     expr_type = inference.infer_type(ir, ctx.env)
 
     result = irast.Statement(
         expr=ir,
+        params=ctx.env.query_parameters,
         views=ctx.view_nodes,
         source_map=ctx.source_map,
         scope_tree=ctx.path_scope,
@@ -361,7 +366,7 @@ def infer_pointer_cardinality(
         elif inferred_card is not specified_card:
             # Specified cardinality is ONE, but we inferred MANY, this
             # is an error.
-            raise errors.EdgeQLError(
+            raise errors.QueryError(
                 f'possibly more than one element returned by an '
                 f'expression for a computable '
                 f'{ptrcls.schema_class_displayname} '
@@ -443,7 +448,7 @@ def enforce_singleton_now(
     cardinality = inference.infer_cardinality(
         irexpr, scope_tree=scope, schema=ctx.env.schema)
     if cardinality != irast.Cardinality.ONE:
-        raise errors.EdgeQLError(
+        raise errors.QueryError(
             'possibly more than one element returned by an expression '
             'where only singletons are allowed',
             context=irexpr.context)

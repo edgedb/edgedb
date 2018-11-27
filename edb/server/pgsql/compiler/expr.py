@@ -21,6 +21,8 @@
 
 import typing
 
+from edb import errors
+
 from edb.lang.edgeql import functypes as ql_ft
 
 from edb.lang.ir import ast as irast
@@ -103,7 +105,7 @@ def _compile_set_impl(
 @dispatch.compile.register(irast.Parameter)
 def compile_Parameter(
         expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
-    if expr.name.isnumeric():
+    if expr.name.isdecimal():
         index = int(expr.name) + 1
         result = pgast.ParamRef(number=index)
     else:
@@ -255,7 +257,8 @@ def compile_IndexIndirection(
     # line, column and filename are captured here to be used with the
     # error message
     srcctx = pgast.StringConstant(
-        val=irutils.get_source_context_as_json(expr.index))
+        val=irutils.get_source_context_as_json(expr.index,
+                                               errors.InvalidValueError))
 
     with ctx.new() as subctx:
         subctx.expr_exposed = False

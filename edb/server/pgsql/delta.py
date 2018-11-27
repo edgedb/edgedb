@@ -23,9 +23,10 @@ import json
 import textwrap
 import typing
 
+from edb import errors
+
 from edb.lang.edgeql import ast as ql_ast
 from edb.lang.edgeql import compiler as ql_compiler
-from edb.lang.edgeql import errors as ql_errors
 from edb.lang.edgeql import functypes as ql_ft
 
 from edb.lang.schema import attributes as s_attrs
@@ -371,7 +372,7 @@ class FunctionCommand:
         try:
             return types.pg_type_from_object(schema, obj)
         except ValueError:
-            raise ql_errors.EdgeQLError(
+            raise errors.QueryError(
                 f'could not compile parameter type {obj!r} '
                 f'of function {func.get_shortname(schema)}',
                 context=self.source_context) from None
@@ -389,7 +390,7 @@ class FunctionCommand:
             return codegen.SQLSourceGenerator.to_source(sql_tree)
 
         except Exception as ex:
-            raise ql_errors.EdgeQLError(
+            raise errors.QueryError(
                 f'could not compile default expression {default!r} '
                 f'of function {func.get_shortname(schema)}: {ex}',
                 context=self.source_context) from ex
@@ -464,7 +465,7 @@ class CreateFunction(FunctionCommand, CreateObject,
         elif func_language is ql_ast.Language.EdgeQL:
             dbf = self.compile_edgeql_function(func, schema)
         else:
-            raise ql_errors.EdgeQLError(
+            raise errors.QueryError(
                 f'cannot compile function {func.get_shortname(schema)}: '
                 f'unsupported language {func_language}',
                 context=self.source_context)
@@ -652,7 +653,7 @@ class CreateOperator(OperatorCommand, CreateObject,
             pass
 
         else:
-            raise ql_errors.EdgeQLError(
+            raise errors.QueryError(
                 f'cannot create operator {oper.get_shortname(schema)}: '
                 f'only "FROM SQL" and "FROM SQL OPERATOR" operators '
                 f'are currently supported',
@@ -731,7 +732,7 @@ class CreateCast(CastCommand, CreateObject,
             pass
 
         else:
-            raise ql_errors.EdgeQLError(
+            raise errors.QueryError(
                 f'cannot create cast: '
                 f'only "FROM SQL" and "FROM SQL FUNCTION" casts '
                 f'are currently supported',

@@ -20,8 +20,10 @@
 import re
 import unittest  # NoQA
 
+from edb import errors
+
 from edb.lang import _testbase as tb
-from edb.lang.schema import generate_source as eschema_to_source, error
+from edb.lang.schema import generate_source as eschema_to_source
 from edb.lang.schema.parser import parser as eschema_parser
 
 
@@ -73,7 +75,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
 \t      required property bar -> str
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   "Tabs used after spaces", line=2)
     def test_eschema_syntax_tabs_03(self):
         """
@@ -84,7 +86,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         \t\trequired property bar -> str
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   "Inconsistent indentation", line=3)
     def test_eschema_syntax_tabs_04(self):
         """
@@ -95,7 +97,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
 \t\t\t    required property bar -> str
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   "Inconsistent indentation", line=5)
     def test_eschema_syntax_tabs_05(self):
         """
@@ -106,7 +108,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
 \t          required property bar -> str
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   "Unexpected indentation level decrease", line=6)
     def test_eschema_syntax_tabs_06(self):
         """
@@ -136,7 +138,7 @@ type LogEntry extending OwnedObject, Text:
 \t\ttitle := 'Start Date'
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   "Inconsistent indentation", line=6)
     def test_eschema_syntax_tabs_09(self):
         """
@@ -214,7 +216,7 @@ type Issue extending `foo.bar`::NamedObject, OwnedObject, Text:
     property due_date -> datetime
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   "illegal definition", line=4, col=9)
     def test_eschema_syntax_type_08(self):
         """
@@ -241,7 +243,7 @@ type `Log-Entry` extending OwnedObject, Text:
     required link attachment -> Post, File, User
         """
 
-    @tb.must_fail(error.SchemaSyntaxError, "Unexpected 'Commit'",
+    @tb.must_fail(errors.SchemaSyntaxError, "Unexpected 'Commit'",
                   line=2, col=6)
     def test_eschema_syntax_type_11(self):
         """
@@ -249,28 +251,28 @@ type Commit:
     required property name -> std::str
         """
 
-    @tb.must_fail(error.SchemaSyntaxError, line=2, col=14)
+    @tb.must_fail(errors.SchemaSyntaxError, line=2, col=14)
     def test_eschema_syntax_type_12(self):
         """
         type __Foo__:
             required property name -> std::str
         """
 
-    @tb.must_fail(error.SchemaSyntaxError, line=2, col=14)
+    @tb.must_fail(errors.SchemaSyntaxError, line=2, col=14)
     def test_eschema_syntax_type_13(self):
         """
         type `__Foo__`:
             required property name -> std::str
         """
 
-    @tb.must_fail(error.SchemaSyntaxError, line=3, col=31)
+    @tb.must_fail(errors.SchemaSyntaxError, line=3, col=31)
     def test_eschema_syntax_type_14(self):
         """
         type __Foo:
             required property __name__ -> std::str
         """
 
-    @tb.must_fail(error.SchemaSyntaxError, line=3, col=31)
+    @tb.must_fail(errors.SchemaSyntaxError, line=3, col=31)
     def test_eschema_syntax_type_15(self):
         """
         type `__Foo`:
@@ -302,7 +304,7 @@ type Commit:
                 on target delete deferred restrict
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   "more than one 'on target delete' specification",
                   line=5, col=17)
     def test_eschema_syntax_type_18(self):
@@ -313,7 +315,7 @@ type Commit:
                 on target delete delete source
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   "Unexpected end of line", line=4, col=38)
     def test_eschema_syntax_type_19(self):
         # testing bugs due to incorrect indentation
@@ -324,7 +326,7 @@ type Commit:
     1, 2, 3)
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   "Unterminated string '", line=4, col=38)
     def test_eschema_syntax_type_20(self):
         # testing bugs due to incorrect indentation
@@ -335,7 +337,7 @@ type Commit:
                 1, 2, 3')
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   r"Unterminated string \$\$some_func\(", line=5, col=21)
     def test_eschema_syntax_type_21(self):
         # testing bugs due to incorrect indentation
@@ -424,7 +426,7 @@ abstract link foobar:
     index prop on (self@foo)
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   r'illegal definition', line=3, col=5)
     def test_eschema_syntax_index_03(self):
         """
@@ -503,7 +505,7 @@ type LogEntry extending    OwnedObject,    Text:
                title := 'Start Date'
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   r"Unexpected '\\'",
                   line=5, col=28)
     def test_eschema_syntax_ws_06(self):
@@ -528,7 +530,7 @@ type LogEntry extending    OwnedObject,    Text:
         scalar type newScalarType1 extending str#:
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   r"Unexpected indentation level increase", line=7, col=13)
     def test_eschema_syntax_ws_09(self):
         # There is no ":" at the end of the type declaration, so
@@ -644,7 +646,7 @@ scalar type basic extending int:
     default := 2
         """
 
-    @tb.must_fail(error.SchemaSyntaxError, r"Unexpected ':='",
+    @tb.must_fail(errors.SchemaSyntaxError, r"Unexpected ':='",
                   line=3, col=35)
     def test_eschema_syntax_scalar_09(self):
         """
@@ -681,7 +683,7 @@ abstract constraint max(param:anytype) on (()):
 
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   r"only concrete constraints can be delegated",
                   line=2, col=1)
     def test_eschema_syntax_constraint_02(self):
@@ -719,7 +721,7 @@ abstract constraint maxldistance extending max, distance:
     errmessage := '{subject} must be no longer than {$param} meters.'
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   r"missing type declaration.*`param`",
                   line=2, col=31)
     def test_eschema_syntax_constraint_06(self):
@@ -727,7 +729,7 @@ abstract constraint maxldistance extending max, distance:
 abstract constraint maxlength(param) extending max, length
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   r"only top-level constraints declarations can be abstract",
                   line=3, col=5)
     def test_eschema_syntax_constraint_07(self):
@@ -743,7 +745,7 @@ abstract constraint foo(param:Foo) on (len(__subject__.bar)) extending max:
     errmessage := 'bar must be no more than {$param}.'
         """
 
-    @tb.must_fail(error.SchemaSyntaxError, r"Unexpected 'constraint'",
+    @tb.must_fail(errors.SchemaSyntaxError, r"Unexpected 'constraint'",
                   line=2, col=1)
     def test_eschema_syntax_constraint_09(self):
         """
@@ -785,7 +787,7 @@ abstract property bar extending foo:
     title := 'Another property'
         """
 
-    @tb.must_fail(error.SchemaSyntaxError, r"Unexpected 'property'",
+    @tb.must_fail(errors.SchemaSyntaxError, r"Unexpected 'property'",
                   line=2, col=1)
     def test_eschema_syntax_property_05(self):
         """
@@ -840,7 +842,7 @@ abstract link coollink:
 
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   r'link properties cannot be "required".', line=3, col=13)
     def test_eschema_syntax_link_06(self):
         """
@@ -880,14 +882,14 @@ abstract link coollink:
 abstract link coollink
         """
 
-    @tb.must_fail(error.SchemaSyntaxError, r"Unexpected 'link'",
+    @tb.must_fail(errors.SchemaSyntaxError, r"Unexpected 'link'",
                   line=2, col=1)
     def test_eschema_syntax_link_11(self):
         """
 link foo
         """
 
-    @tb.must_fail(error.SchemaSyntaxError, r"Unexpected '::'",
+    @tb.must_fail(errors.SchemaSyntaxError, r"Unexpected '::'",
                   line=3, col=13)
     def test_eschema_syntax_link_12(self):
         """
@@ -947,7 +949,7 @@ type Foo:
             property text -> str
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   r"Unexpected '\.'", line=4, col=33)
     def test_eschema_syntax_import_07(self):
         """
@@ -957,7 +959,7 @@ type Foo:
             property text -> str
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   r"Unexpected '\.'", line=4, col=34)
     def test_eschema_syntax_import_08(self):
         """
@@ -1018,7 +1020,7 @@ type Foo:
                 SELECT blarg
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   "unexpected 'initial_value' in function definition",
                   line=3, col=13)
     def test_eschema_syntax_function_06(self):
@@ -1069,7 +1071,7 @@ type Foo:
             from edgeql function: some_other_func
         """
 
-    @tb.must_fail(error.SchemaSyntaxError, r"Unexpected '\)'",
+    @tb.must_fail(errors.SchemaSyntaxError, r"Unexpected '\)'",
                   line=2, col=42)
     def test_eschema_syntax_function_12(self):
         """
@@ -1085,7 +1087,7 @@ type Foo:
             from edgeql function: some_other_func
         """
 
-    @tb.must_fail(error.SchemaSyntaxError, r"Unexpected '\)'",
+    @tb.must_fail(errors.SchemaSyntaxError, r"Unexpected '\)'",
                   line=4, col=24)
     def test_eschema_syntax_function_14(self):
         r"""
@@ -1117,7 +1119,7 @@ type Foo:
             from edgeql function: some_other_func
         """
 
-    @tb.must_fail(error.SchemaSyntaxError, r"Unexpected end of line",
+    @tb.must_fail(errors.SchemaSyntaxError, r"Unexpected end of line",
                   line=4, col=44)
     def test_eschema_syntax_function_17(self):
         """
@@ -1212,14 +1214,14 @@ type Foo:
         abstract inheritable attribute foo extending bar
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   r"Unexpected 'extending'", line=2, col=41)
     def test_eschema_syntax_attribute_14(self):
         """
         abstract attribute as extending extending foo
         """
 
-    @tb.must_fail(error.SchemaSyntaxError, r"Unexpected 'attribute'",
+    @tb.must_fail(errors.SchemaSyntaxError, r"Unexpected 'attribute'",
                   line=2, col=1)
     def test_eschema_syntax_attribute_15(self):
         """
@@ -1410,7 +1412,7 @@ attribute foo;
         abstract attribute foobar
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   r"Unexpected '2'",
                   line=3, col=9)
     def test_eschema_syntax_eol_09(self):
@@ -1419,7 +1421,7 @@ attribute foo;
         2 foobar std::str
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   r"Unexpected character after line continuation character",
                   line=2, col=24)
     def test_eschema_syntax_eol_10(self):
@@ -1431,7 +1433,7 @@ attribute foo;
             required link owner -> User
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   r"Unexpected character after line continuation character",
                   line=2, col=29)
     def test_eschema_syntax_eol_11(self):
@@ -1441,7 +1443,7 @@ attribute foo;
         foobar std::str
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
+    @tb.must_fail(errors.SchemaSyntaxError,
                   "Illegal line continuation", line=3)
     def test_eschema_syntax_eol_12(self):
         r"""

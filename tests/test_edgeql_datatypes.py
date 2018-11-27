@@ -4,7 +4,7 @@
 # Copyright 2012-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
+# you may not use this file exceptionsept in compliance with the License.
 # You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
@@ -17,8 +17,9 @@
 #
 
 
+import edgedb
+
 from edb.server import _testbase as tb
-from edb.client import exceptions as exc
 
 
 class TestEdgeQLDT(tb.QueryTestCase):
@@ -53,10 +54,10 @@ class TestEdgeQLDT(tb.QueryTestCase):
         ])
 
         with self.assertRaisesRegex(
-            exc.EdgeQLError,
+                edgedb.QueryError,
                 "operator '-' cannot be applied.*timedelta.*datetime"):
 
-            await self.con.execute("""
+            await self.query("""
                 SELECT <timedelta>'1 day' - <datetime>'2017-10-10';
             """)
 

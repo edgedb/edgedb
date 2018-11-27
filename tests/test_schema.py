@@ -17,9 +17,10 @@
 #
 
 
+from edb import errors
+
 from edb.lang import _testbase as tb
 
-from edb.lang.schema import error as s_err
 from edb.lang.schema import links as s_links
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import pointers as s_pointers
@@ -37,7 +38,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
                     constraint exclusive
         """
 
-    @tb.must_fail(s_err.SchemaError,
+    @tb.must_fail(errors.SchemaDefinitionError,
                   'test::name must be declared using the `inherited` keyword',
                   position=178)
     def test_schema_inherited_02(self):
@@ -51,7 +52,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
                     constraint exclusive
         """
 
-    @tb.must_fail(s_err.SchemaError,
+    @tb.must_fail(errors.SchemaDefinitionError,
                   'test::name cannot be declared `inherited`',
                   position=46)
     def test_schema_inherited_03(self):
@@ -60,7 +61,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
                 inherited property name -> str
         """
 
-    @tb.must_fail(s_err.SchemaError,
+    @tb.must_fail(errors.InvalidLinkTargetError,
                   'invalid link target, expected object type, got ScalarType',
                   position=54)
     def test_schema_bad_link_01(self):
@@ -69,7 +70,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
                 link foo -> str
         """
 
-    @tb.must_fail(s_err.SchemaError,
+    @tb.must_fail(errors.InvalidLinkTargetError,
                   'invalid link target, expected object type, got ScalarType',
                   position=51)
     def test_schema_bad_link_02(self):
@@ -78,7 +79,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
                 link foo := 1 + 1
         """
 
-    @tb.must_fail(s_err.SchemaError,
+    @tb.must_fail(errors.SchemaDefinitionError,
                   'link or property name length exceeds the maximum.*',
                   position=42)
     def test_schema_bad_link_03(self):
@@ -88,7 +89,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 _123456789_123456789_123456789 -> Object
         """
 
-    @tb.must_fail(s_err.SchemaError,
+    @tb.must_fail(errors.InvalidPropertyTargetError,
                   'invalid property target, expected primitive type, '
                   'got ObjectType',
                   position=58)
@@ -98,7 +99,7 @@ _123456789_123456789_123456789 -> Object
                 property foo -> Object
         """
 
-    @tb.must_fail(s_err.SchemaError,
+    @tb.must_fail(errors.InvalidPropertyTargetError,
                   'invalid property target, expected primitive type, '
                   'got ObjectType',
                   position=55)
@@ -108,7 +109,7 @@ _123456789_123456789_123456789 -> Object
                 property foo := (SELECT Object)
         """
 
-    @tb.must_fail(s_err.SchemaError,
+    @tb.must_fail(errors.SchemaDefinitionError,
                   'link or property name length exceeds the maximum.*',
                   position=42)
     def test_schema_bad_prop_03(self):
@@ -118,7 +119,7 @@ _123456789_123456789_123456789 -> Object
 _123456789_123456789_123456789 -> str
         """
 
-    @tb.must_fail(s_err.SchemaError,
+    @tb.must_fail(errors.InvalidReferenceError,
                   'reference to a non-existent schema item: int',
                   position=58,
                   hint='did you mean one of these: int16, int32, int64?')

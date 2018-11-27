@@ -21,6 +21,8 @@ import pathlib
 import typing
 
 from edb import lib as stdlib
+from edb import errors
+
 from edb.lang import edgeql
 from edb.lang import schema
 from edb.lang.common import devmode
@@ -28,7 +30,6 @@ from edb.lang.edgeql import compiler as qlcompiler
 from edb.lang.schema import delta as s_delta
 
 from . import ddl as s_ddl
-from . import error as s_err
 from . import schema as s_schema
 
 
@@ -57,7 +58,7 @@ def get_std_module_text(modname: str) -> str:
     else:
         module_path = module_path.with_suffix('.eql')
         if not module_path.exists():
-            raise s_err.SchemaError(f'std module not found: {modname}')
+            raise errors.SchemaError(f'std module not found: {modname}')
         module_files.append(module_path)
 
     module_files.sort(key=lambda p: p.name)

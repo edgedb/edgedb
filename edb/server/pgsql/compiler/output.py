@@ -354,7 +354,7 @@ def top_output_as_value(
             )
 
         new_val = pgast.FuncCall(
-            name=('json_agg',),
+            name=('jsonb_agg',),
             args=[pgast.ColumnRef(name=[stmt_res.name])]
         )
 

@@ -19,7 +19,8 @@
 
 import uuid
 
-from edb.client import exceptions as exc
+import edgedb
+
 from edb.server import _testbase as tb
 
 
@@ -38,9 +39,8 @@ class TestDelete(tb.QueryTestCase):
 
     async def test_edgeql_delete_bad01(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
-                r'cannot delete non-ObjectType object',
-                position=7):
+                edgedb.QueryError,
+                r'cannot delete non-ObjectType object'):
 
             await self.query('''\
                 DELETE 42;
@@ -49,11 +49,11 @@ class TestDelete(tb.QueryTestCase):
 
     async def test_edgeql_delete_simple01(self):
         # ensure a clean slate, not part of functionality testing
-        await self.con.execute(r"""
+        await self.query(r"""
             DELETE test::DeleteTest;
         """)
 
-        result = await self.con.execute(r"""
+        result = await self.query(r"""
             INSERT test::DeleteTest {
                 name := 'delete-test'
             };
@@ -67,7 +67,7 @@ class TestDelete(tb.QueryTestCase):
         ])
 
     async def test_edgeql_delete_simple02(self):
-        result = await self.con.execute(r"""
+        result = await self.query(r"""
             SELECT(INSERT test::DeleteTest {
                 name := 'delete-test1'
             });
@@ -117,7 +117,7 @@ class TestDelete(tb.QueryTestCase):
         ])
 
     async def test_edgeql_delete_returning01(self):
-        result = await self.con.execute(r"""
+        result = await self.query(r"""
             SELECT(INSERT test::DeleteTest {
                 name := 'delete-test1'
             });
@@ -137,7 +137,7 @@ class TestDelete(tb.QueryTestCase):
 
         id1 = result[0][0]['id']
 
-        del_result = await self.con.execute(r"""
+        del_result = await self.query(r"""
             WITH MODULE test
             SELECT (DELETE (SELECT DeleteTest
                     FILTER DeleteTest.name = 'delete-test1'));

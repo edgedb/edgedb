@@ -20,6 +20,8 @@
 import functools
 import typing
 
+from edb import errors
+
 from edb.lang.schema import abc as s_abc
 from edb.lang.schema import inheriting as s_inh
 from edb.lang.schema import name as s_name
@@ -28,8 +30,6 @@ from edb.lang.schema import pseudo as s_pseudo
 from edb.lang.schema import scalars as s_scalars
 from edb.lang.schema import types as s_types
 from edb.lang.schema import utils as s_utils
-
-from edb.lang.edgeql import errors as ql_errors
 
 from edb.lang.ir import ast as irast
 
@@ -45,7 +45,7 @@ def amend_empty_set_type(es: irast.EmptySet, t: s_obj.Object, schema) -> None:
 
 def _infer_common_type(irs: typing.List[irast.Base], env):
     if not irs:
-        raise ql_errors.EdgeQLError(
+        raise errors.QueryError(
             'cannot determine common type of an empty set',
             context=irs[0].context)
 
@@ -71,12 +71,12 @@ def _infer_common_type(irs: typing.List[irast.Base], env):
         types.append(t)
 
     if seen_coll + seen_scalar + seen_object > 1:
-        raise ql_errors.EdgeQLError(
+        raise errors.QueryError(
             'cannot determine common type',
             context=irs[0].context)
 
     if not types:
-        raise ql_errors.EdgeQLError(
+        raise errors.QueryError(
             'cannot determine common type of an empty set',
             context=irs[0].context)
 
@@ -142,7 +142,7 @@ def __infer_const_or_param(ir, env):
 def __infer_coalesce(ir, env):
     result = _infer_common_type([ir.left, ir.right], env)
     if result is None:
-        raise ql_errors.EdgeQLError(
+        raise errors.QueryError(
             'coalescing operator must have operands of related types',
             context=ir.context)
 
@@ -184,7 +184,7 @@ def _infer_binop_args(left, right, env):
         right_type = None
 
     if left_type is None and right_type is None:
-        raise ql_errors.EdgeQLError(
+        raise errors.QueryError(
             'cannot determine the type of an empty set',
             context=left.context)
     elif left_type is None:
@@ -211,7 +211,7 @@ def __infer_ifelse(ir, env):
     if result is None:
         if_expr_type = infer_type(ir.if_expr, env)
         else_expr_type = infer_type(ir.else_expr, env)
-        raise ql_errors.EdgeQLError(
+        raise errors.QueryError(
             'if/else clauses must be of related types, got: {}/{}'.format(
                 if_expr_type.get_name(env.schema),
                 else_expr_type.get_name(env.schema)),
@@ -262,7 +262,7 @@ def __infer_typecast(ir, env):
 
     # is_polymorphic is synonymous to get_is_abstract for scalars
     if stype.is_polymorphic(env.schema):
-        raise ql_errors.EdgeQLError(
+        raise errors.QueryError(
             f'cannot cast into generic type '
             f'{stype.get_displayname(env.schema)!r}',
             context=ir.context)
@@ -296,7 +296,7 @@ def __infer_slice(ir, env):
         base_name = 'anytype'
     else:
         # the base type is not valid
-        raise ql_errors.EdgeQLError(
+        raise errors.QueryError(
             f'cannot slice {node_type.get_name(env.schema)}',
             context=ir.start.context)
 
@@ -305,7 +305,7 @@ def __infer_slice(ir, env):
             index_type = infer_type(index, env)
 
             if not index_type.implicitly_castable_to(int_t, env.schema):
-                raise ql_errors.EdgeQLError(
+                raise errors.QueryError(
                     f'cannot slice {base_name} by '
                     f'{index_type.get_name(env.schema)}, '
                     f'{int_t.get_name(env.schema)} was expected',
@@ -329,7 +329,7 @@ def __infer_index(ir, env):
     if node_type.issubclass(env.schema, str_t):
 
         if not index_type.implicitly_castable_to(int_t, env.schema):
-            raise ql_errors.EdgeQLError(
+            raise errors.QueryError(
                 f'cannot index string by {index_type.get_name(env.schema)}, '
                 f'{int_t.get_name(env.schema)} was expected',
                 context=ir.index.context)
@@ -339,7 +339,7 @@ def __infer_index(ir, env):
     elif node_type.issubclass(env.schema, bytes_t):
 
         if not index_type.implicitly_castable_to(int_t, env.schema):
-            raise ql_errors.EdgeQLError(
+            raise errors.QueryError(
                 f'cannot index bytes by {index_type.get_name(env.schema)}, '
                 f'{int_t.get_name(env.schema)} was expected',
                 context=ir.index.context)
@@ -351,7 +351,7 @@ def __infer_index(ir, env):
         if not (index_type.implicitly_castable_to(int_t, env.schema) or
                 index_type.implicitly_castable_to(str_t, env.schema)):
 
-            raise ql_errors.EdgeQLError(
+            raise errors.QueryError(
                 f'cannot index json by {index_type.get_name(env.schema)}, '
                 f'{int_t.get_name(env.schema)} or '
                 f'{str_t.get_name(env.schema)} was expected',
@@ -362,7 +362,7 @@ def __infer_index(ir, env):
     elif isinstance(node_type, s_abc.Array):
 
         if not index_type.implicitly_castable_to(int_t, env.schema):
-            raise ql_errors.EdgeQLError(
+            raise errors.QueryError(
                 f'cannot index array by {index_type.get_name(env.schema)}, '
                 f'{int_t.get_name(env.schema)} was expected',
                 context=ir.index.context)
@@ -377,7 +377,7 @@ def __infer_index(ir, env):
         result = s_pseudo.Any.create()
 
     else:
-        raise ql_errors.EdgeQLError(
+        raise errors.QueryError(
             f'cannot index {node_type.get_name(env.schema)}',
             context=ir.index.context)
 
@@ -391,10 +391,10 @@ def __infer_array(ir, env):
     elif ir.elements:
         element_type = _infer_common_type(ir.elements, env)
         if element_type is None:
-            raise ql_errors.EdgeQLError('could not determine array type',
-                                        context=ir.context)
+            raise errors.QueryError('could not determine array type',
+                                    context=ir.context)
     else:
-        raise ql_errors.EdgeQLError(
+        raise errors.QueryError(
             'could not determine type of empty array',
             context=ir.context)
 
@@ -413,8 +413,8 @@ def __infer_struct_indirection(ir, env):
     struct_type = infer_type(ir.expr, env)
     result = struct_type.get_subtype(env.schema, ir.name)
     if result is None:
-        raise ql_errors.EdgeQLError('could not determine struct element type',
-                                    context=ir.context)
+        raise errors.QueryError('could not determine struct element type',
+                                context=ir.context)
 
     return result
 
@@ -430,13 +430,14 @@ def infer_type(ir: irast.Base, env: context.Environment):
     if (result is not None and
             not isinstance(result, (s_obj.Object, s_obj.ObjectMeta))):
 
-        raise ql_errors.EdgeQLError(
+        raise errors.QueryError(
             f'infer_type({ir!r}) retured {result!r} instead of a Object',
             context=ir.context)
 
     if result is None:
-        raise ql_errors.EdgeQLError('could not determine expression type',
-                                    context=ir.context)
+        raise errors.QueryError(
+            'could not determine expression type',
+            context=ir.context)
 
     ir._inferred_type_ = result
     return result

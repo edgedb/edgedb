@@ -21,11 +21,12 @@ import collections
 import itertools
 import typing
 
+from edb import errors
+
 from edb.lang.common import levenshtein
 from edb.lang.edgeql import ast as ql_ast
 
 from . import abc as s_abc
-from . import error as s_err
 from . import name as sn
 from . import objects as so
 from . import types as s_types
@@ -47,7 +48,7 @@ def ast_objref_to_objref(
         module = obj.get_name(schema).module
 
     if module is None:
-        raise s_err.ItemNotFoundError(
+        raise errors.InvalidReferenceError(
             f'unqualified name and no default module set',
             context=node.context
         )
@@ -76,7 +77,7 @@ def ast_to_typeref(
                     type_name = str(si)
 
                 if named is not None and unnamed is not None:
-                    raise s_err.ItemNotFoundError(
+                    raise errors.EdgeQLSyntaxError(
                         f'mixing named and unnamed tuple declaration '
                         f'is not supported',
                         context=node.subtypes[0].context,
@@ -88,7 +89,7 @@ def ast_to_typeref(
             try:
                 return coll.from_subtypes(
                     schema, subtypes, {'named': bool(named)})
-            except s_err.SchemaError as e:
+            except errors.SchemaError as e:
                 # all errors raised inside are pertaining to subtypes, so
                 # the context should point to the first subtype
                 e.set_source_context(node.subtypes[0].context)
@@ -102,7 +103,7 @@ def ast_to_typeref(
 
             try:
                 return coll.from_subtypes(schema, subtypes)
-            except s_err.SchemaError as e:
+            except errors.SchemaError as e:
                 e.set_source_context(node.context)
                 raise e
 

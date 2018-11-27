@@ -19,8 +19,9 @@
 
 import os.path
 
+import edgedb
+
 from edb.server import _testbase as tb
-from edb.client import exceptions as exc
 from edb.tools import test
 
 
@@ -415,7 +416,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_computable_15(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"possibly more than one element returned by an expression "
                 r"for a computable property 'foo' declared as 'single'",
                 position=103):
@@ -651,7 +652,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         # Make sure that the __type__ attribute gets the same object
         # as a direct schema::ObjectType query. As long as this is true,
         # we can test the schema separately without any other data.
-        res1 = await self.con.execute(r'''
+        res1 = await self.query(r'''
             WITH MODULE test
             SELECT User {
                 __type__: {
@@ -661,7 +662,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             } LIMIT 1;
         ''')
 
-        res2 = await self.con.execute(r'''
+        res2 = await self.query(r'''
             WITH MODULE schema
             SELECT `ObjectType` {
                 name,
@@ -834,11 +835,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_limit_06(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed'):
 
-            await self.con.execute("""
+            await self.query("""
                 WITH MODULE test
                 SELECT
                     User { name }
@@ -847,11 +848,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_limit_07(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed'):
 
-            await self.con.execute("""
+            await self.query("""
                 WITH MODULE test
                 SELECT
                     User { name }
@@ -943,9 +944,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         # protected property such as `id` on it as that would be
         # equivalent to re-writing it.
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r'cannot access id on a polymorphic shape element'):
-            await self.con.execute(r'''
+            await self.query(r'''
                 WITH MODULE test
                 SELECT User {
                     [IS Named].id,
@@ -958,9 +959,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         # protected link such as `__type__` on it as that would be
         # equivalent to re-writing it.
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r'cannot access __type__ on a polymorphic shape element'):
-            await self.con.execute(r'''
+            await self.query(r'''
                 WITH MODULE test
                 SELECT User {
                     [IS Named].__type__: {
@@ -1327,7 +1328,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_setops_02(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             WITH
                 MODULE test,
                 Obj := (SELECT Issue UNION Comment)
@@ -1632,9 +1633,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     @test.not_implemented('union types are not implemented')
     async def test_edgeql_select_setops_14(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r'.*.>\(number\) does not resolve to any known path'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 # The computable in the view is omitted from the duck
                 # type of the UNION because <str> is not compatible
                 # with <int64>.
@@ -1647,9 +1648,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     @test.not_implemented('union types are not implemented')
     async def test_edgeql_select_setops_15(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r'.*.>\(number\) does not resolve to any known path'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 # The computable in the view is omitted from the duck
                 # type of the UNION because <str> is not compatible
                 # with <int64>.
@@ -1713,11 +1714,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_order_04(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed'):
 
-            await self.con.execute("""
+            await self.query("""
                 WITH MODULE test
                 SELECT
                     User { name }
@@ -1786,7 +1787,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_func_05(self):
-        await self.con.execute(r'''
+        await self.query(r'''
             CREATE FUNCTION test::concat1(VARIADIC s: anytype) -> std::str
                 FROM SQL FUNCTION 'concat';
         ''')
@@ -1813,26 +1814,26 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]}]
         ])
 
-        with self.assertRaisesRegex(exc.EdgeQLError,
+        with self.assertRaisesRegex(edgedb.QueryError,
                                     'could not find a function variant'):
-            await self.con.execute("SELECT test::concat1('aaa', 'bbb', 2);")
+            await self.query("SELECT test::concat1('aaa', 'bbb', 2);")
 
-        await self.con.execute(r'''
+        await self.query(r'''
             DROP FUNCTION test::concat1(VARIADIC s: anytype);
         ''')
 
     async def test_edgeql_select_func_06(self):
-        await self.con.execute(r'''
+        await self.query(r'''
             CREATE FUNCTION test::concat2(VARIADIC s: std::str) -> std::str
                 FROM SQL FUNCTION 'concat';
         ''')
 
-        with self.assertRaisesRegex(exc.EdgeQLError,
+        with self.assertRaisesRegex(edgedb.QueryError,
                                     'could not find a function'):
-            await self.con.execute(r'SELECT test::concat2(123);')
+            await self.query(r'SELECT test::concat2(123);')
 
     async def test_edgeql_select_func_07(self):
-        await self.con.execute(r'''
+        await self.query(r'''
             CREATE FUNCTION test::concat3(sep: OPTIONAL std::str,
                                           VARIADIC s: std::str)
                     -> std::str
@@ -1894,13 +1895,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         ])
 
-        with self.assertRaisesRegex(exc.EdgeQLError,
+        with self.assertRaisesRegex(edgedb.QueryError,
                                     'could not find a function'):
-            await self.con.execute(r'SELECT test::concat3(123);')
+            await self.query(r'SELECT test::concat3(123);')
 
-        with self.assertRaisesRegex(exc.EdgeQLError,
+        with self.assertRaisesRegex(edgedb.QueryError,
                                     'could not find a function'):
-            await self.con.execute(r'SELECT test::concat3("a", 123);')
+            await self.query(r'SELECT test::concat3("a", 123);')
 
         await self.assert_query_result(r'''
             SELECT test::concat3('|', '1', '2');
@@ -1908,7 +1909,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['1|2'],
         ])
 
-        await self.con.execute(r'''
+        await self.query(r'''
             DROP FUNCTION test::concat3(sep: std::str, VARIADIC s: std::str);
         ''')
 
@@ -1923,16 +1924,16 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [4],
         ])
 
-        time = (await self.con.execute(
+        time = (await self.query(
             'SELECT <naive_time>"13:24:55";'))[0][0]
         self.assertRegex(time, r'\d+:\d+:\d+')
 
-        date = (await self.con.execute(
+        date = (await self.query(
             'SELECT <naive_date>"2000-11-23";'))[0][0]
         self.assertRegex(date, r'\d+-\d+-\d+')
 
     async def test_edgeql_select_func_09(self):
-        await self.con.execute('''
+        await self.query('''
             CREATE FUNCTION test::my_edgeql_func1(s: std::str) -> std::str
                 FROM EdgeQL $$
                     SELECT 'str=' ++ s
@@ -1945,7 +1946,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['str=111'],
         ])
 
-        await self.con.execute('''
+        await self.query('''
             DROP FUNCTION test::my_edgeql_func1(s: std::str);
         ''')
 
@@ -2230,10 +2231,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_coalesce_02(self):
-        with self.assertRaisesRegex(exc.EdgeQLError,
+        with self.assertRaisesRegex(edgedb.QueryError,
                                     'coalescing .* operands of related types'):
 
-            await self.con.execute(r'''
+            await self.query(r'''
                 WITH MODULE test
                 SELECT Issue{
                     kind := Issue.priority.name ?? 1
@@ -2241,7 +2242,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_select_coalesce_03(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2257,7 +2258,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         issues_h, issues_n = res
 
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2476,7 +2477,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_or_01(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2492,7 +2493,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         issues_h, issues_l = res
 
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2820,9 +2821,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_empty_05(self):
-        with self.assertRaisesRegex(exc.EdgeQLError,
+        with self.assertRaisesRegex(edgedb.QueryError,
                                     r'could not determine expression type'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH MODULE test
                 SELECT Issue {
                     number,
@@ -3381,7 +3382,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_view_indirection_04(self):
-        result = await self.con.execute(r"""
+        result = await self.query(r"""
             # Reference a constant expression in a view.
             WITH MODULE test,
                 U := (
@@ -4023,10 +4024,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_if_else_03(self):
-        with self.assertRaisesRegex(exc.EdgeQLError,
+        with self.assertRaisesRegex(edgedb.QueryError,
                                     r'if/else clauses .* related types'):
 
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH MODULE test
                 SELECT Issue {
                     foo := 'bar' IF Issue.number = '1' ELSE 123
@@ -4164,18 +4165,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ]])
 
     async def test_edgeql_partial_05(self):
-        with self.assertRaisesRegex(exc.EdgeQLError,
+        with self.assertRaisesRegex(edgedb.QueryError,
                                     'invalid property reference on a '
                                     'primitive type expression'):
-            await self.con.execute('''
+            await self.query('''
                 WITH MODULE test
                 SELECT Issue.number FILTER .number > '1';
             ''')
 
     async def test_edgeql_partial_06(self):
-        with self.assertRaisesRegex(exc.EdgeQLError,
+        with self.assertRaisesRegex(edgedb.QueryError,
                                     'could not resolve partial path'):
-            await self.con.execute('''
+            await self.query('''
                 WITH
                     MODULE test
                 SELECT
@@ -4351,42 +4352,40 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_bad_reference_01(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r'reference to a non-existent schema item: Usr.*',
-                position=57,
                 hint="did you mean one of these: User, URL?"):
 
-            await self.con.execute("""
+            await self.query("""
                 WITH MODULE test
                 SELECT Usr;
             """)
 
     async def test_edgeql_select_bad_reference_02(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"test::User has no link or property 'nam'",
-                position=61,
                 hint="did you mean 'name'?"):
 
-            await self.con.execute("""
+            await self.query("""
                 WITH MODULE test
                 SELECT User.nam;
             """)
 
     async def test_edgeql_select_precedence_01(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot index.*int'):
+                edgedb.QueryError, r'cannot index.*int'):
 
-            await self.con.execute("""
+            await self.query("""
                 # index access is higher precedence than cast
                 SELECT <str>1[0];
             """)
 
     async def test_edgeql_select_precedence_02(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot index.*int'):
+                edgedb.QueryError, r'cannot index.*int'):
 
-            await self.con.execute("""
+            await self.query("""
                 WITH MODULE test
                 # index access is higher precedence than cast
                 SELECT <str>Issue.time_estimate[0];
@@ -4563,13 +4562,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_is_08(self):
-        await self.con.execute(r'''
+        await self.query(r'''
             SELECT 5.5 IS anyfloat;
         ''')
 
     @test.xfail('IS is currently broken for pseudo types')
     async def test_edgeql_select_is_09(self):
-        await self.con.execute(r'''
+        await self.query(r'''
             SELECT test::Issue.time_estimate IS anytype LIMIT 1;
         ''', [
             [True]
@@ -4577,7 +4576,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     @test.xfail('IS is currently broken for collection types')
     async def test_edgeql_select_is_10(self):
-        await self.con.execute(r'''
+        await self.query(r'''
             SELECT [5] IS (array<anytype>);
         ''', [
             [True]
@@ -4585,7 +4584,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     @test.xfail('IS is currently broken for collection types')
     async def test_edgeql_select_is_11(self):
-        await self.con.execute(r'''
+        await self.query(r'''
             SELECT (5, 'hello') IS (tuple<anytype, str>);
         ''', [
             [True]

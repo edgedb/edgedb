@@ -427,7 +427,7 @@ class TestIntrospection(tb.QueryTestCase):
 
     async def test_edgeql_introspection_meta_01(self):
         # make sure that ALL schema Objects are std::Objects
-        res = await self.con.execute(r"""
+        res = await self.query(r"""
             WITH MODULE schema
             SELECT count(Object);
 
@@ -460,7 +460,7 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_meta_03(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             WITH MODULE schema
             SELECT `Type`;
         ''')
@@ -476,7 +476,7 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_count_01(self):
-        await self.con.execute(r"""
+        await self.query(r"""
             WITH MODULE test
             INSERT Priority {
                 name := 'High'
@@ -544,7 +544,7 @@ class TestIntrospection(tb.QueryTestCase):
             ]
         ])
 
-        await self.con.execute(r"""
+        await self.query(r"""
             DELETE test::Priority;
             DELETE test::Status;
             DELETE test::User;

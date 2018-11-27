@@ -20,8 +20,9 @@
 import os.path
 import unittest
 
+import edgedb
+
 from edb.server import _testbase as tb
-from edb.client import exceptions as exc
 
 
 class TestUpdate(tb.QueryTestCase):
@@ -36,7 +37,7 @@ class TestUpdate(tb.QueryTestCase):
         self.loop.run_until_complete(self._setup_objects())
 
     async def _setup_objects(self):
-        res = await self.con.execute(r"""
+        res = await self.query(r"""
             WITH MODULE test
             SELECT UpdateTest {
                 id,
@@ -220,7 +221,7 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_returning_02(self):
         orig1, orig2, orig3 = self.original
 
-        res = await self.con.execute(r"""
+        res = await self.query(r"""
             WITH MODULE test
             SELECT (
                 UPDATE UpdateTest
@@ -335,7 +336,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     async def test_edgeql_update_generic_01(self):
-        status = await self.con.execute(r"""
+        status = await self.query(r"""
             WITH MODULE test
             SELECT Status{id}
             FILTER Status.name = 'Open';
@@ -1227,9 +1228,9 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_empty_02(self):
         with self.assertRaisesRegex(
-                exc.InvalidPointerTargetError,
-                r"invalid target for link.*std::int64.*expecting 'std::str'"):
-            await self.con.execute(r"""
+                edgedb.InvalidPropertyTargetError,
+                r"invalid target for property.*std::int64.*expecting .*str'"):
+            await self.query(r"""
                 # just clear all the comments
                 WITH MODULE test
                 UPDATE UpdateTest
@@ -1240,9 +1241,9 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_empty_03(self):
         with self.assertRaisesRegex(
-                exc.MissingRequiredPointerError,
+                edgedb.MissingRequiredError,
                 r"missing value for required property"):
-            await self.con.execute(r"""
+            await self.query(r"""
                 # just clear all the comments
                 WITH MODULE test
                 UPDATE UpdateTest
@@ -1269,10 +1270,10 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_empty_05(self):
         with self.assertRaisesRegex(
-                exc.InvalidPointerTargetError,
+                edgedb.InvalidLinkTargetError,
                 r"invalid target for link.*std::Object.*"
                 r"expecting 'test::Status'"):
-            await self.con.execute(r"""
+            await self.query(r"""
                 # just clear all the statuses
                 WITH MODULE test
                 UPDATE UpdateTest

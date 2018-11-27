@@ -17,8 +17,8 @@
 #
 
 
-from edb.lang.common.exceptions import InternalError
+from edb import errors
 
 
-class DaemonError(InternalError):
+class DaemonError(errors.InternalServerError):
     pass

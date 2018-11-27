@@ -19,10 +19,11 @@
 
 import asyncpg
 
+from edb import errors
+
 from edb.lang.ir import ast as irast
 from edb.lang.schema import delta as s_delta
 from edb.lang.schema import deltas as s_deltas
-from edb.lang.common import exceptions
 from edb.server import query as edgedb_query
 
 from . import planner
@@ -49,7 +50,7 @@ async def execute_plan(plan, protocol):
                 await backend.rollback_transaction()
 
             else:
-                raise exceptions.InternalError(
+                raise errors.InternalServerError(
                     'unexpected transaction statement: {!r}'.format(plan))
 
         elif isinstance(plan, edgedb_query.Query):
@@ -62,7 +63,7 @@ async def execute_plan(plan, protocol):
             await backend.exec_session_state_cmd(plan)
 
         else:
-            raise exceptions.InternalError(
+            raise errors.InternalServerError(
                 'unexpected plan: {!r}'.format(plan))
 
     except asyncpg.PostgresError as e:

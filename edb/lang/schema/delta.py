@@ -20,14 +20,14 @@
 import base64
 import collections.abc
 
+from edb import errors
+
 from edb.lang.common import adapter
 from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import errors as ql_errors
 
 from edb.lang.common import markup, ordered, struct, typed
 
-from . import error as s_err
 from . import expr as s_expr
 from . import name as sn
 from . import objects as so
@@ -230,7 +230,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         for op in self.get_subcommands(type=AlterObjectProperty):
             field = metaclass.get_field(op.property)
             if field is None:
-                raise RuntimeError(
+                raise errors.SchemaDefinitionError(
                     f'got AlterObjectProperty command for '
                     f'invalid field: {metaclass.__name__}.{op.property}')
 
@@ -598,7 +598,7 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
         module = context.modaliases.get(astnode.name.module,
                                         astnode.name.module)
         if module is None:
-            raise s_err.SchemaDefinitionError(
+            raise errors.SchemaDefinitionError(
                 f'unqualified name and no default module set',
                 context=astnode.name.context
             )
@@ -687,7 +687,7 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
                 shortname = modname = self.classname
 
             if modname in s_schema.STD_MODULES:
-                raise ql_errors.EdgeQLError(
+                raise errors.SchemaDefinitionError(
                     f'cannot {self._delta_action} `{shortname}`: '
                     f'module {modname} is read-only',
                     context=self.source_context)
@@ -1144,15 +1144,17 @@ class AlterObjectProperty(Command):
         parent_op = parent_ctx.op
         field = parent_op.get_schema_metaclass().get_field(propname)
         if field is None:
-            raise edgeql.EdgeQLError(f'{propname!r} is not a valid field',
-                                     context=astnode.context)
+            raise errors.SchemaDefinitionError(
+                f'{propname!r} is not a valid field',
+                context=astnode.context)
 
         if not (isinstance(astnode, qlast.SetInternalField)
                 or field.allow_ddl_set
                 or context.stdmode
                 or context.testmode):
-            raise edgeql.EdgeQLError(f'{propname!r} is not a valid field',
-                                     context=astnode.context)
+            raise errors.SchemaDefinitionError(
+                f'{propname!r} is not a valid field',
+                context=astnode.context)
 
         if astnode.as_expr:
             new_value = s_expr.ExpressionText(

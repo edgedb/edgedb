@@ -16,6 +16,40 @@
 # limitations under the License.
 #
 
+
+# Types encoding in EdgeDB binary protocol:
+#
+#    set:           <type=0> <uuid> <pos>
+#
+#    shape:         <type=1> <uuid>
+#                            <record-desc 2 ctrl bits + 14 int bits> - TODO
+#                            <count> [<flags> <str> <pos>]+
+#
+#                   -- where <flags> is 1 byte;
+#                      * 1 << 0 bit: the field wasn't explicitly requested
+#                                    (e.g. "id" or "__type__")
+#                      * 1 << 1 bit: the field is a link property
+#
+#    base scalar:   <type=2> <uuid>
+#
+#    scalar:        <type=3> <uuid> <pos>
+#
+#    tuple:         <type=4> <uuid> <count> [<pos>]*
+#
+#    namedtuple:    <type=5> <uuid> <count> [<str> <pos>]+
+#
+#    array:         <type=6> <uuid> <pos>
+#
+# where:
+#
+#    <pos>         2 bytes (uint16) position of the type in the description
+#    <type>        1 byte  (uint8)
+#    <count>       2 bytes (uint16)
+#    <str>         2 bytes (uint16) length; followed by chars
+
+
+# Base scalar types:
+
 00000000-0000-0000-0000-000000000001 anytype
 00000000-0000-0000-0000-000000000002 anytuple
 

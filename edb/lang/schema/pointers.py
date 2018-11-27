@@ -23,11 +23,12 @@ from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
 from edb.lang.common import enum
 
+from edb import errors
+
 from . import abc as s_abc
 from . import attributes
 from . import constraints
 from . import delta as sd
-from . import error as schema_error
 from . import expr as sexpr
 from . import inheriting
 from . import name as sn
@@ -78,7 +79,7 @@ def merge_cardinality(target: so.Object, sources: typing.List[so.Object],
                         f'{source.get_displayname(schema)}'
                     )
 
-                    raise schema_error.SchemaError(
+                    raise errors.SchemaError(
                         f'cannot redefine the target cardinality of '
                         f'{tgt_repr!r}: it is defined '
                         f'as {current.as_ptr_qual()!r} in {cf_repr!r} and '
@@ -211,7 +212,7 @@ class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
                 'in other parent.'
             )
 
-            raise schema_error.SchemaError(
+            raise errors.SchemaError(
                 f'could not merge "{pn}" pointer: invalid ' +
                 'target type mix', details=detail)
 
@@ -219,7 +220,7 @@ class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
             # Targets are both scalars
             if t1 != t2:
                 pn = ptr.get_shortname(schema)
-                raise schema_error.SchemaError(
+                raise errors.SchemaError(
                     f'could not merge {pn!r} pointer: targets conflict',
                     details=f'({source.get_name(schema)}).({pn}) '
                             f'targets scalar type {t1.get_name(schema)!r} '
@@ -256,7 +257,7 @@ class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
                     # of the previously seen targets, which creates an
                     # unresolvable target requirement conflict.
                     pn = ptr.get_displayname(schema)
-                    raise schema_error.SchemaError(
+                    raise errors.SchemaError(
                         f'could not merge {pn!r} pointer: targets conflict',
                         details=f'{source.get_name(schema)}.{pn} targets '
                                 f'object {t2.get_name(schema)!r} which '
@@ -360,6 +361,9 @@ class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
             'std::source', 'std::target', 'std::id'
         }
 
+    def is_property(self, schema):
+        raise NotImplementedError
+
     def is_protected_pointer(self, schema):
         return (self.is_special_pointer(schema) or
                 self.get_shortname(schema) in {'std::__type__'})
@@ -432,7 +436,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
         name = super()._classname_from_ast(schema, astnode, context)
         shortname = sn.shortname_from_fullname(name)
         if len(shortname.name) > MAX_NAME_LENGTH:
-            raise schema_error.SchemaError(
+            raise errors.SchemaDefinitionError(
                 f'link or property name length exceeds the maximum of '
                 f'{MAX_NAME_LENGTH} characters',
                 context=astnode.context)
@@ -473,7 +477,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
 
             try:
                 base = next(iter(bases.objects(schema)))
-            except schema_error.ItemNotFoundError:
+            except errors.InvalidReferenceError:
                 base = None
                 base_name = sn.shortname_from_fullname(self.classname)
 
@@ -507,7 +511,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
 
         source = schema.get(source_name, default=None)
         if source is None:
-            raise schema_error.SchemaDefinitionError(
+            raise errors.SchemaDefinitionError(
                 f'cannot define link/property computables in CREATE TYPE',
                 hint='Perform a CREATE TYPE without the link '
                      'followed by ALTER TYPE defining the computable',

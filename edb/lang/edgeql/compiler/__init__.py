@@ -20,7 +20,8 @@
 """EdgeQL to IR compiler."""
 
 
-from edb.lang.edgeql import errors as ql_errors
+from edb import errors
+
 from edb.lang.edgeql import parser as ql_parser
 
 from edb.lang.common import debug
@@ -67,7 +68,7 @@ def compile_ast_fragment_to_ir(tree,
     ir_set = dispatch.compile(tree, ctx=ctx)
     try:
         result_type = inference.infer_type(ir_set, ctx.env)
-    except ql_errors.EdgeQLError:
+    except errors.QueryError:
         # Not all fragments can be resolved into a concrete type,
         # that's OK.
         result_type = None
@@ -107,7 +108,8 @@ def compile_ast_to_ir(tree,
                       derived_target_module=None,
                       result_view_name=None,
                       modaliases=None,
-                      implicit_id_in_shapes=False):
+                      implicit_id_in_shapes=False,
+                      schema_view_mode=False):
     """Compile given EdgeQL AST into EdgeDB IR."""
 
     if debug.flags.edgeql_compile:
@@ -119,10 +121,23 @@ def compile_ast_to_ir(tree,
         modaliases=modaliases, security_context=security_context,
         func=func, derived_target_module=derived_target_module,
         result_view_name=result_view_name,
-        implicit_id_in_shapes=implicit_id_in_shapes)
+        implicit_id_in_shapes=implicit_id_in_shapes,
+        schema_view_mode=schema_view_mode)
 
     ir_set = dispatch.compile(tree, ctx=ctx)
     ir_expr = stmtctx.fini_expression(ir_set, ctx=ctx)
+
+    if ctx.env.query_parameters:
+        first_argname = next(iter(ctx.env.query_parameters))
+        if first_argname.isdecimal():
+            args_decnames = {int(arg) for arg in ctx.env.query_parameters}
+            args_tpl = set(range(len(ctx.env.query_parameters)))
+            if args_decnames != args_tpl:
+                missing_args = args_tpl - args_decnames
+                missing_args_repr = ', '.join(f'${a}' for a in missing_args)
+                raise errors.QueryError(
+                    f'missing {missing_args_repr} positional argument'
+                    f'{"s" if len(missing_args) > 1 else ""}')
 
     if debug.flags.edgeql_compile:
         debug.header('Scope Tree')
@@ -154,7 +169,7 @@ def compile_func_to_ir(func, schema, *,
 
     trees = ql_parser.parse_block(func.get_code(schema) + ';')
     if len(trees) != 1:
-        raise ql_errors.EdgeQLError(
+        raise errors.InvalidFunctionDefinitionError(
             'functions can only contain one statement')
 
     tree = trees[0]

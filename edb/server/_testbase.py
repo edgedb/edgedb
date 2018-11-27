@@ -29,6 +29,8 @@ import re
 import textwrap
 import unittest
 
+import edgedb
+
 from edb import client as edgedb_client
 from edb.client import connect_utils
 from edb.server import cluster as edgedb_cluster
@@ -97,7 +99,7 @@ class TestCaseMeta(type(unittest.TestCase)):
             mcls.add_method(methname, ns, meth)
 
         cls = super().__new__(mcls, name, bases, ns)
-        if hasattr(cls, 'get_database_name'):
+        if not ns.get('BASE_TEST_CLASS') and hasattr(cls, 'get_database_name'):
             dbname = cls.get_database_name()
 
             if name in mcls._database_names:
@@ -175,6 +177,9 @@ def _shutdown_cluster(cluster, *, destroy=True):
 
 
 class ClusterTestCase(TestCase):
+
+    BASE_TEST_CLASS = True
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -194,16 +199,25 @@ class RollbackChanges:
 
 
 class ConnectedTestCase(ClusterTestCase):
+
+    BASE_TEST_CLASS = True
+
+    @classmethod
+    def connect(cls, loop, cluster, database=None):
+        conargs = cluster.get_connect_args().copy()
+        conargs.update(dict(
+            user='edgedb', database=database, port=conargs['port'] + 1))
+        return loop.run_until_complete(edgedb.connect(**conargs))
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.con = cls.loop.run_until_complete(
-            cls.cluster.connect(user='edgedb'))
+        cls.con = cls.connect(cls.loop, cls.cluster)
 
     @classmethod
     def tearDownClass(cls):
         try:
-            cls.con.close()
+            cls.loop.run_until_complete(cls.con.close())
             # Give event loop another iteration so that connection
             # transport has a chance to properly close.
             cls.loop.run_until_complete(asyncio.sleep(0))
@@ -231,18 +245,21 @@ class DatabaseTestCase(ConnectedTestCase):
     # library (e.g. declaring casts).
     INTERNAL_TESTMODE = True
 
+    BASE_TEST_CLASS = True
+
     def setUp(self):
         if self.INTERNAL_TESTMODE:
             self.loop.run_until_complete(
-                self.con.execute('SET CONFIG __internal_testmode := true;'))
+                self.con._legacy_execute(
+                    'SET CONFIG __internal_testmode := true;'))
 
         if self.ISOLATED_METHODS:
             self.loop.run_until_complete(
-                self.con.execute('START TRANSACTION;'))
+                self.con._legacy_execute('START TRANSACTION;'))
 
         if self.SETUP_METHOD:
             self.loop.run_until_complete(
-                self.con.execute(self.SETUP_METHOD))
+                self.con._legacy_execute(self.SETUP_METHOD))
 
         super().setUp()
 
@@ -250,12 +267,12 @@ class DatabaseTestCase(ConnectedTestCase):
         try:
             if self.TEARDOWN_METHOD:
                 self.loop.run_until_complete(
-                    self.con.execute(self.TEARDOWN_METHOD))
+                    self.con._legacy_execute(self.TEARDOWN_METHOD))
         finally:
             try:
                 if self.ISOLATED_METHODS:
                     self.loop.run_until_complete(
-                        self.con.execute('ROLLBACK;'))
+                        self.con._legacy_execute('ROLLBACK;'))
             finally:
                 super().tearDown()
 
@@ -267,16 +284,14 @@ class DatabaseTestCase(ConnectedTestCase):
 
         if not os.environ.get('EDGEDB_TEST_CASES_SET_UP'):
             script = f'CREATE DATABASE {dbname};'
-            cls.loop.run_until_complete(cls.admin_conn.execute(script))
+            cls.loop.run_until_complete(cls.admin_conn._legacy_execute(script))
 
-        cls.con = cls.loop.run_until_complete(
-            cls.cluster.connect(
-                database=dbname, user='edgedb'))
+        cls.con = cls.connect(cls.loop, cls.cluster, database=dbname)
 
         if not os.environ.get('EDGEDB_TEST_CASES_SET_UP'):
             script = cls.get_setup_script()
             if script:
-                cls.loop.run_until_complete(cls.con.execute(script))
+                cls.loop.run_until_complete(cls.con._legacy_execute(script))
 
     @classmethod
     def get_database_name(cls):
@@ -340,9 +355,10 @@ class DatabaseTestCase(ConnectedTestCase):
 
         try:
             if script:
-                cls.loop.run_until_complete(cls.con.execute(script))
+                cls.loop.run_until_complete(
+                    cls.con._legacy_execute(script))
         finally:
-            cls.con.close()
+            cls.loop.run_until_complete(cls.con.close())
             cls.con = cls.admin_conn
 
             try:
@@ -350,7 +366,12 @@ class DatabaseTestCase(ConnectedTestCase):
                     dbname = cls.get_database_name()
                     script = f'DROP DATABASE {dbname};'
 
-                    cls.loop.run_until_complete(cls.admin_conn.execute(script))
+                    cls.loop.run_until_complete(
+                        cls.admin_conn._legacy_execute(script))
+
+                cls.loop.run_until_complete(
+                    cls.con.close())
+
             finally:
                 super().tearDownClass()
 
@@ -380,18 +401,25 @@ class Error:
 
 
 class BaseQueryTestCase(DatabaseTestCase):
+
+    BASE_TEST_CLASS = True
+
     async def query(self, query):
         query = textwrap.dedent(query)
-        return await self.con.execute(query)
+        return await self.con._legacy_execute(query)
+
+    async def graphql_query(self, query):
+        query = textwrap.dedent(query)
+        return await self.con._legacy_execute(query, graphql=True)
 
     async def assert_query_result(self, query, result, *, msg=None):
-        res = await self.con.execute(query)
+        res = await self.con._legacy_execute(query)
         self.assert_data_shape(res, result, message=msg)
         return res
 
     async def assert_sorted_query_result(self, query, key, result, *,
                                          msg=None):
-        res = await self.con.execute(query)
+        res = await self.con._legacy_execute(query)
         # sort the query result by using the supplied key
         for r in res:
             # don't bother sorting empty things
@@ -551,9 +579,12 @@ class DDLTestCase(BaseQueryTestCase):
 class NonIsolatedDDLTestCase(DDLTestCase):
     ISOLATED_METHODS = False
 
+    BASE_TEST_CLASS = True
+
 
 class QueryTestCase(BaseQueryTestCase):
-    pass
+
+    BASE_TEST_CLASS = True
 
 
 def get_test_cases_setup(cases):
@@ -637,14 +668,14 @@ async def _setup_database(dbname, setup_script, conn_args):
         database=edgedb_defines.EDGEDB_SUPERUSER_DB, **conn_args)
 
     try:
-        await admin_conn.execute(f'CREATE DATABASE {dbname};')
+        await admin_conn._legacy_execute(f'CREATE DATABASE {dbname};')
     finally:
-        admin_conn.close()
+        await admin_conn.close()
 
     dbconn = await edgedb_client.connect(database=dbname, **conn_args)
     try:
-        await dbconn.execute(setup_script)
+        await dbconn._legacy_execute(setup_script)
     finally:
-        dbconn.close()
+        await dbconn.close()
 
     return dbname

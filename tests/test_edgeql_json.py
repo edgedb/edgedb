@@ -21,7 +21,8 @@ import json
 import os.path
 import unittest  # NOQA
 
-from edb.client import exceptions as exc
+import edgedb
+
 from edb.server import _testbase as tb
 
 
@@ -31,6 +32,8 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'json_setup.eql')
+
+    ISOLATED_METHODS = False
 
     async def test_edgeql_json_cast_01(self):
         await self.assert_query_result("""
@@ -191,18 +194,18 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_accessor_04(self):
         with self.assertRaisesRegex(
                 # FIXME: maybe a different error type should be used here
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r'json index 10 is out of bounds'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 SELECT (to_json('[1, "a", 3]'))[10];
             """)
 
     async def test_edgeql_json_accessor_05(self):
         with self.assertRaisesRegex(
                 # FIXME: maybe a different error type should be used here
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r'json index -10 is out of bounds'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 SELECT (to_json('[1, "a", 3]'))[-10];
             """)
 
@@ -210,18 +213,18 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 # FIXME: a different error should be used here, this
                 # one leaks postgres types
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r'cannot index json array by text'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 SELECT (to_json('[1, "a", 3]'))['1'];
             """)
 
     async def test_edgeql_json_accessor_07(self):
         with self.assertRaisesRegex(
                 # FIXME: maybe a different error type should be used here
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r"json index 'c' is out of bounds"):
-            await self.con.execute(r"""
+            await self.query(r"""
                 SELECT (to_json('{"a": 1, "b": null}'))["c"];
             """)
 
@@ -229,9 +232,9 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 # FIXME: a different error should be used here, this
                 # one leaks postgres types
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r'cannot index json object by integer'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 SELECT (to_json('{"a": 1, "b": null}'))[0];
             """)
 
@@ -239,9 +242,9 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 # FIXME: a different error should be used here, this
                 # one leaks postgres types
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r'cannot index json null'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 SELECT (to_json('null'))[0];
             """)
 
@@ -249,9 +252,9 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 # FIXME: a different error should be used here, this
                 # one leaks postgres types
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r'cannot index json boolean'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 SELECT (to_json('true'))[0];
             """)
 
@@ -259,18 +262,18 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 # FIXME: a different error should be used here, this
                 # one leaks postgres types
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r'cannot index json number'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 SELECT (to_json('123'))[0];
             """)
 
     async def test_edgeql_json_accessor_12(self):
         with self.assertRaisesRegex(
                 # FIXME: currently JSON strings cannot be indexed or sliced
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r'cannot index json string'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 SELECT (to_json('"qwerty"'))[0];
             """)
 
@@ -291,9 +294,9 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_accessor_14(self):
         with self.assertRaisesRegex(
                 # FIXME: maybe a different error type should be used here
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r'json index 10 is out of bounds'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH
                     MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -303,9 +306,9 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_accessor_15(self):
         with self.assertRaisesRegex(
                 # FIXME: maybe a different error type should be used here
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r'json index -10 is out of bounds'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH
                     MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -316,9 +319,9 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 # FIXME: a different error should be used here, this
                 # one leaks postgres types
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r'cannot index json array by text'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH
                     MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -328,9 +331,9 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_accessor_17(self):
         with self.assertRaisesRegex(
                 # FIXME: maybe a different error type should be used here
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r"json index 'c' is out of bounds"):
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH
                     MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -341,9 +344,9 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 # FIXME: a different error should be used here, this
                 # one leaks postgres types
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r'cannot index json object by integer'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH
                     MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -354,9 +357,9 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 # FIXME: a different error should be used here, this
                 # one leaks postgres types
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r'cannot index json null'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH
                     MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -367,9 +370,9 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 # FIXME: a different error should be used here, this
                 # one leaks postgres types
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r'cannot index json boolean'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH
                     MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -380,9 +383,9 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 # FIXME: a different error should be used here, this
                 # one leaks postgres types
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r'cannot index json number'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH
                     MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -392,9 +395,9 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_accessor_22(self):
         with self.assertRaisesRegex(
                 # FIXME: currently JSON strings cannot be indexed or sliced
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r'cannot index json string'):
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH
                     MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -482,18 +485,18 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_array_unpack_02(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"operator 'IN' cannot.*'std::json' and 'std::int64'"):
-            await self.con.execute(r'''
+            await self.query(r'''
                 SELECT json_array_unpack(to_json('[2,3,4]')) IN
                     {2, 3, 4};
             ''')
 
     async def test_edgeql_json_array_unpack_03(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"operator 'IN' cannot.*'std::json' and 'std::str'"):
-            await self.con.execute(r'''
+            await self.query(r'''
                 SELECT json_array_unpack(to_json('[2,3,4]')) IN
                     {'2', '3', '4'};
             ''')
@@ -511,9 +514,9 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_array_unpack_05(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"operator '=' cannot.*'std::json' and 'std::int64'"):
-            await self.con.execute(r'''
+            await self.query(r'''
                 WITH
                     MODULE test,
                     JT0 := (SELECT JSONTest FILTER .number = 0)
@@ -601,9 +604,9 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 # FIXME: a different error should be used here, this
                 # one leaks postgres types
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r'cannot call jsonb_each on a non-object'):
-            await self.con.execute(r'''
+            await self.query(r'''
                 WITH
                     MODULE test,
                     JT0 := (SELECT JSONTest FILTER .number = 0)
@@ -1009,17 +1012,17 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_slice_03(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot slice json array by.*str'):
+                edgedb.QueryError, r'cannot slice json array by.*str'):
 
-            await self.con.execute(r"""
+            await self.query(r"""
                 SELECT to_json('[1, "a", 3, null]')[:'1'];
             """)
 
     async def test_edgeql_json_bytes_cast_01(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot cast.*bytes.*to.*json.*'):
+                edgedb.QueryError, r'cannot cast.*bytes.*to.*json.*'):
 
-            await self.con.execute(r"""
+            await self.query(r"""
                 SELECT <json>b'foo';
             """)
 
@@ -1173,41 +1176,41 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_str_function_02(self):
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r"format 'foo' is invalid for JSON"):
             async with self.con.transaction():
-                await self.con.execute(r'''
+                await self.query(r'''
                     SELECT to_str(<json>[1, 2, 3, 4], 'foo');
                 ''')
 
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r"format '' is invalid for JSON"):
             async with self.con.transaction():
-                await self.con.execute(r'''
+                await self.query(r'''
                     SELECT to_str(<json>[1, 2, 3, 4], '');
                 ''')
 
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r"format 'PRETTY' is invalid for JSON"):
             async with self.con.transaction():
-                await self.con.execute(r'''
+                await self.query(r'''
                     SELECT to_str(<json>[1, 2, 3, 4], 'PRETTY');
                 ''')
 
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r"format 'Pretty' is invalid for JSON"):
             async with self.con.transaction():
-                await self.con.execute(r'''
+                await self.query(r'''
                     SELECT to_str(<json>[1, 2, 3, 4], 'Pretty');
                 ''')
 
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError,
+                edgedb.InternalServerError,
                 r"format 'p' is invalid for JSON"):
             async with self.con.transaction():
-                await self.con.execute(r'''
+                await self.query(r'''
                     SELECT to_str(<json>[1, 2, 3, 4], 'p');
                 ''')

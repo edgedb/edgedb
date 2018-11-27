@@ -22,12 +22,13 @@ from graphql import graphql as gql_proc, GraphQLString, GraphQLID
 import json
 import re
 
+from edb import errors
+
 from edb.lang import edgeql
 from edb.lang.common import ast
 from edb.lang.common import typeutils
 from edb.lang.edgeql import ast as qlast
 from edb.lang.graphql import ast as gqlast, parser as gqlparser
-from edb.lang.schema import error as s_error
 
 from . import types as gt
 from . import errors as g_errors
@@ -62,7 +63,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         try:
             return self._context.gqlcore.get(name)
 
-        except s_error.SchemaError:
+        except errors.SchemaError:
             if context:
                 raise g_errors.GraphQLValidationError(
                     f"{name!r} does not exist in the schema",
@@ -72,7 +73,7 @@ class GraphQLTranslator(ast.NodeVisitor):
     def get_field_type(self, base, name, *, args=None, context=None):
         try:
             target = base.get_field_type(name, args)
-        except s_error.SchemaError:
+        except errors.SchemaError:
             if not context:
                 raise
             target = None

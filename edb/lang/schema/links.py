@@ -21,9 +21,10 @@ import typing
 
 from edb.lang.edgeql import ast as qlast
 
+from edb import errors
+
 from . import constraints
 from . import delta as sd
-from . import error as s_err
 from . import indexes
 from . import inheriting
 from . import lproperties
@@ -69,7 +70,7 @@ def merge_actions(target: so.Object, sources: typing.List[so.Object],
                         f'{source.get_displayname(schema)}'
                     )
 
-                    raise s_err.SchemaError(
+                    raise errors.SchemaError(
                         f'cannot implicitly resolve the '
                         f'`on target delete` action for '
                         f'{tgt_repr!r}: it is defined as {current} in '
@@ -135,6 +136,9 @@ class Link(sources.Source, pointers.Pointer):
         return schema, ptr
 
     def is_link_property(self, schema):
+        return False
+
+    def is_property(self, schema):
         return False
 
     def scalar(self):
@@ -324,7 +328,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                     target_type = utils.resolve_typeref(target, schema=schema)
 
                 if not isinstance(target_type, s_objtypes.ObjectType):
-                    raise s_err.SchemaDefinitionError(
+                    raise errors.InvalidLinkTargetError(
                         f'invalid link target, expected object type, got '
                         f'{target_type.__class__.__name__}',
                         context=astnode.target.context

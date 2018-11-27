@@ -23,6 +23,8 @@ import collections
 import itertools
 import typing
 
+from edb import errors
+
 from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import codegen as qlcodegen
@@ -38,7 +40,6 @@ from . import attributes as s_attrs
 from . import delta as s_delta
 from . import objtypes as s_objtypes
 from . import constraints as s_constr
-from . import error as s_err
 from . import expr as s_expr
 from . import functions as s_func
 from . import indexes as s_indexes
@@ -115,7 +116,7 @@ class DeclarationLoader:
 
             if issubclass(objcls, s_pointers.Pointer):
                 if len(decl.name) > s_pointers.MAX_NAME_LENGTH:
-                    raise s_err.SchemaError(
+                    raise errors.SchemaDefinitionError(
                         f'link or property name length exceeds the maximum of '
                         f'{s_pointers.MAX_NAME_LENGTH} characters',
                         context=decl.context)
@@ -205,7 +206,7 @@ class DeclarationLoader:
             if isinstance(decl, s_ast.Import):
                 for mod in decl.modules:
                     if not self._schema.has_module(mod.module):
-                        raise s_err.SchemaError(
+                        raise errors.SchemaError(
                             'cannot find module {!r}'.format(mod.module),
                             context=mod.context)
                     if mod.alias is not None:
@@ -226,7 +227,7 @@ class DeclarationLoader:
         try:
             obj = self._schema.get(
                 clsname, type=item_type, module_aliases=self._mod_aliases)
-        except s_err.ItemNotFoundError as e:
+        except errors.InvalidReferenceError as e:
             s_utils.enrich_schema_lookup_error(
                 e, clsname, modaliases=self._mod_aliases,
                 schema=self._schema, item_types=(item_type,))
@@ -245,7 +246,7 @@ class DeclarationLoader:
             try:
                 typ = self._schema.get(
                     clsname, module_aliases=self._mod_aliases)
-            except s_err.ItemNotFoundError as e:
+            except errors.InvalidReferenceError as e:
                 s_utils.enrich_schema_lookup_error(
                     e, clsname, modaliases=self._mod_aliases,
                     schema=self._schema, item_types=(s_types.Type,))
@@ -275,7 +276,7 @@ class DeclarationLoader:
                 if base.get_is_final(self._schema):
                     msg = '{!r} is final and cannot be inherited ' \
                           'from'.format(base.get_name(self._schema))
-                    raise s_err.SchemaError(msg, context=decl)
+                    raise errors.SchemaError(msg, context=decl)
 
                 bases.append(base)
 
@@ -313,13 +314,13 @@ class DeclarationLoader:
 
             for param in params.objects(self._schema):
                 if param.get_kind(self._schema) is ft.ParameterKind.NAMED_ONLY:
-                    raise s_err.SchemaDefinitionError(
+                    raise errors.InvalidConstraintDefinitionError(
                         'named only parameters are not allowed '
                         'in this context',
                         context=decl.context)
 
                 if param.get_default(self._schema) is not None:
-                    raise s_err.SchemaDefinitionError(
+                    raise errors.InvalidConstraintDefinitionError(
                         'constraints do not support parameters '
                         'with defaults',
                         context=decl.context)
@@ -370,7 +371,7 @@ class DeclarationLoader:
         for propdecl in sourcedecl.properties:
             prop_name = self._get_ref_name(propdecl.name)
             if len(prop_name) > s_pointers.MAX_NAME_LENGTH:
-                raise s_err.SchemaError(
+                raise errors.SchemaDefinitionError(
                     f'link or property name length exceeds the maximum of '
                     f'{s_pointers.MAX_NAME_LENGTH} characters',
                     context=propdecl.context)
@@ -384,8 +385,8 @@ class DeclarationLoader:
             if prop_base is None:
                 if not source.generic(self._schema):
                     # Only generic links can implicitly define properties
-                    raise s_err.SchemaError('reference to an undefined '
-                                            'property {!r}'.format(prop_name))
+                    raise errors.SchemaDefinitionError(
+                        f'reference to an undefined property {prop_name!r}')
 
                 # The link property has not been defined globally.
                 if not s_name.Name.is_qualified(prop_name):
@@ -415,7 +416,7 @@ class DeclarationLoader:
                 prop_target = self._get_ref_type(propdecl.target[0])
                 if not isinstance(prop_target, (s_scalars.ScalarType,
                                                 s_types.Collection)):
-                    raise s_err.SchemaDefinitionError(
+                    raise errors.InvalidPropertyTargetError(
                         f'invalid property target, expected primitive type, '
                         f'got {prop_target.__class__.__name__}',
                         context=propdecl.target[0].context
@@ -425,7 +426,7 @@ class DeclarationLoader:
                 link_base = source.get_bases(self._schema).first(self._schema)
                 propdef = link_base.getptr(self._schema, prop_qname.name)
                 if not propdef:
-                    raise s_err.SchemaError(
+                    raise errors.SchemaError(
                         'link {!r} does not define property '
                         '{!r}'.format(
                             source.get_name(self._schema),
@@ -470,7 +471,7 @@ class DeclarationLoader:
                 attrdecl.value, self._schema, modaliases=self._mod_aliases)
 
             if not isinstance(value, str):
-                raise s_err.SchemaError(
+                raise errors.SchemaDefinitionError(
                     'attribute value is not a string',
                     context=attrdecl.value.context)
 
@@ -486,7 +487,7 @@ class DeclarationLoader:
 
             attrfield = fields.get(fieldname)
             if attrfield is None or not attrfield.allow_ddl_set:
-                raise s_err.SchemaError(
+                raise errors.SchemaError(
                     f'unexpected field {fieldname}',
                     context=field_decl.context)
 
@@ -571,7 +572,7 @@ class DeclarationLoader:
             for linkdecl in objtypedecl.links:
                 link_name = self._get_ref_name(linkdecl.name)
                 if len(link_name) > s_pointers.MAX_NAME_LENGTH:
-                    raise s_err.SchemaError(
+                    raise errors.SchemaDefinitionError(
                         f'link or property name length exceeds the maximum of '
                         f'{s_pointers.MAX_NAME_LENGTH} characters',
                         context=linkdecl.context)
@@ -627,7 +628,7 @@ class DeclarationLoader:
 
                 if (not target.is_any() and
                         not isinstance(target, s_objtypes.ObjectType)):
-                    raise s_err.SchemaDefinitionError(
+                    raise errors.InvalidLinkTargetError(
                         f'invalid link target, expected object type, got '
                         f'{target.__class__.__name__}',
                         context=linkdecl.target[0].context
@@ -748,7 +749,7 @@ class DeclarationLoader:
 
             if isinstance(ptr, s_links.Link):
                 if not isinstance(expr_type, s_objtypes.ObjectType):
-                    raise s_err.SchemaDefinitionError(
+                    raise errors.InvalidLinkTargetError(
                         f'invalid link target, expected object type, got '
                         f'{expr_type.__class__.__name__}',
                         context=ptrdecl.expr.context
@@ -756,7 +757,7 @@ class DeclarationLoader:
             else:
                 if not isinstance(expr_type, (s_scalars.ScalarType,
                                               s_types.Collection)):
-                    raise s_err.SchemaDefinitionError(
+                    raise errors.InvalidPropertyTargetError(
                         f'invalid property target, expected primitive type, '
                         f'got {expr_type.__class__.__name__}',
                         context=ptrdecl.expr.context
@@ -772,7 +773,7 @@ class DeclarationLoader:
 
             if ptrdecl.cardinality is not ptr.get_cardinality(self._schema):
                 if ptrdecl.cardinality is qlast.Cardinality.ONE:
-                    raise s_err.SchemaError(
+                    raise errors.SchemaError(
                         f'computable expression possibly returns more than '
                         f'one value, but the {ptr.schema_class_displayname!r} '
                         f'is declared as "single"',
@@ -782,7 +783,7 @@ class DeclarationLoader:
                 (ptr.get_target(self._schema) is not None and
                  not expr_type.issubclass(
                     self._schema, ptr.get_target(self._schema)))):
-            raise s_err.SchemaError(
+            raise errors.SchemaError(
                 'default value query must yield a single result of '
                 'type {!r}'.format(
                     ptr.get_target(self._schema).get_name(self._schema)),

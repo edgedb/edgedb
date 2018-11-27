@@ -16,9 +16,8 @@
 # limitations under the License.
 #
 
-
+from edb import errors
 from edb.lang.common import debug, parsing
-from edb.lang.edgeql.errors import EdgeQLSyntaxError
 
 from .grammar import lexer
 
@@ -30,7 +29,7 @@ class EdgeQLParserBase(parsing.Parser):
     def get_exception(self, native_err, context, token=None):
         msg = native_err.args[0]
 
-        if isinstance(native_err, EdgeQLSyntaxError):
+        if isinstance(native_err, errors.EdgeQLSyntaxError):
             return native_err
         else:
             if msg.startswith('Unexpected token: '):
@@ -45,7 +44,7 @@ class EdgeQLParserBase(parsing.Parser):
                 else:
                     msg = f'Unexpected {token.text!r}'
 
-        return EdgeQLSyntaxError(msg, context=context, token=token)
+        return errors.EdgeQLSyntaxError(msg, context=context, token=token)
 
     def get_lexer(self):
         return lexer.EdgeQLLexer()

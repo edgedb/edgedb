@@ -20,6 +20,8 @@
 import json
 import typing
 
+from edb import errors
+
 from edb.lang.common import ast
 
 from edb.lang.edgeql import functypes as ft
@@ -345,12 +347,15 @@ def type_indirection_path_id(path_id, target_type, *, optional: bool,
     )
 
 
-def get_source_context_as_json(expr: irast.Base) -> typing.Optional[str]:
+def get_source_context_as_json(
+        expr: irast.Base,
+        exctype=errors.InternalServerError) -> typing.Optional[str]:
     if expr.context:
         details = json.dumps({
             'line': expr.context.start.line,
             'column': expr.context.start.column,
             'name': expr.context.name,
+            'code': exctype.get_code(),
         })
 
     else:

@@ -17,8 +17,10 @@
 #
 
 
+import edgedb
+
 from edb.server import _testbase as tb
-from edb.client import exceptions
+from edb.tools import test
 
 
 class TestTransactions(tb.QueryTestCase):
@@ -27,6 +29,8 @@ class TestTransactions(tb.QueryTestCase):
             CREATE PROPERTY test::name -> std::str;
         };
     """
+
+    ISOLATED_METHODS = False
 
     async def test_transaction_regular_01(self):
         self.assertIsNone(self.con._top_xact)
@@ -42,7 +46,7 @@ class TestTransactions(tb.QueryTestCase):
                 # '.commit()' from within an 'async with' block.
                 self.assertIsNone(with_tr)
 
-                await self.con.execute('''
+                await self.query('''
                     INSERT test::TransactionTest {
                         name := 'Test Transaction'
                     };
@@ -52,7 +56,7 @@ class TestTransactions(tb.QueryTestCase):
 
         self.assertIsNone(self.con._top_xact)
 
-        result = await self.con.execute('''
+        result = await self.query('''
             SELECT
                 test::TransactionTest
             FILTER
@@ -61,6 +65,7 @@ class TestTransactions(tb.QueryTestCase):
 
         self.assertEqual(result[0], [])
 
+    @test.not_implemented('savepoints are not supported yet')
     async def test_transaction_nested_01(self):
         self.assertIsNone(self.con._top_xact)
         tr = self.con.transaction()
@@ -73,7 +78,7 @@ class TestTransactions(tb.QueryTestCase):
                 async with self.con.transaction():
                     self.assertIs(self.con._top_xact, tr)
 
-                    await self.con.execute('''
+                    await self.query('''
                         INSERT test::TransactionTest {
                             name := 'TXTEST 1'
                         };
@@ -87,7 +92,7 @@ class TestTransactions(tb.QueryTestCase):
 
                         self.assertIs(self.con._top_xact, tr)
 
-                        await self.con.execute('''
+                        await self.query('''
                             INSERT test::TransactionTest {
                                 name := 'TXTEST 2'
                             };
@@ -95,7 +100,7 @@ class TestTransactions(tb.QueryTestCase):
 
                         1 / 0
 
-                result = await self.con.execute('''
+                result = await self.query('''
                     SELECT
                         test::TransactionTest {
                             name
@@ -114,7 +119,7 @@ class TestTransactions(tb.QueryTestCase):
 
         self.assertIs(self.con._top_xact, None)
 
-        result = await self.con.execute('''
+        result = await self.query('''
             SELECT
                 test::TransactionTest {
                     name
@@ -126,6 +131,7 @@ class TestTransactions(tb.QueryTestCase):
         recs = result[0]
         self.assertEqual(len(recs), 0)
 
+    @test.not_implemented('savepoints are not supported yet')
     async def test_transaction_nested_02(self):
         await self.assert_query_result(r"""
             # test some explicit nested transactions without errors
@@ -136,16 +142,16 @@ class TestTransactions(tb.QueryTestCase):
                 INSERT test::TransactionTest{name:='q2'};
                 SELECT test::TransactionTest.name;
 
-                START TRANSACTION;
+                DECLARE SAVEPOINT f1;
                     INSERT test::TransactionTest{name:='w1'};
                     SELECT test::TransactionTest.name;
-                ROLLBACK;
+                RESTORE SAVEPOINT f1;
                 SELECT test::TransactionTest.name;
 
-                START TRANSACTION;
+                DECLARE SAVEPOINT f2;
                     INSERT test::TransactionTest{name:='e1'};
                     SELECT test::TransactionTest.name;
-                COMMIT;
+                RELEASE SAVEPOINT f2;
                 SELECT test::TransactionTest.name;
 
             ROLLBACK;
@@ -177,17 +183,17 @@ class TestTransactions(tb.QueryTestCase):
         self.assertIsNone(self.con._top_xact)
 
         tr = self.con.transaction()
-        with self.assertRaisesRegex(exceptions.InterfaceError,
+        with self.assertRaisesRegex(edgedb.InterfaceError,
                                     'cannot start; .* already started'):
             async with tr:
                 await tr.start()
 
         self.assertTrue(repr(tr).startswith(
-            '<edb.Transaction state:rolledback'))
+            '<edgedb.transaction.Transaction state:rolledback'))
 
         self.assertIsNone(self.con._top_xact)
 
-        with self.assertRaisesRegex(exceptions.InterfaceError,
+        with self.assertRaisesRegex(edgedb.InterfaceError,
                                     'cannot start; .* already rolled back'):
             async with tr:
                 pass
@@ -195,7 +201,7 @@ class TestTransactions(tb.QueryTestCase):
         self.assertIsNone(self.con._top_xact)
 
         tr = self.con.transaction()
-        with self.assertRaisesRegex(exceptions.InterfaceError,
+        with self.assertRaisesRegex(edgedb.InterfaceError,
                                     'cannot manually commit.*async with'):
             async with tr:
                 await tr.commit()
@@ -203,7 +209,7 @@ class TestTransactions(tb.QueryTestCase):
         self.assertIsNone(self.con._top_xact)
 
         tr = self.con.transaction()
-        with self.assertRaisesRegex(exceptions.InterfaceError,
+        with self.assertRaisesRegex(edgedb.InterfaceError,
                                     'cannot manually rollback.*async with'):
             async with tr:
                 await tr.rollback()
@@ -211,7 +217,7 @@ class TestTransactions(tb.QueryTestCase):
         self.assertIsNone(self.con._top_xact)
 
         tr = self.con.transaction()
-        with self.assertRaisesRegex(exceptions.InterfaceError,
+        with self.assertRaisesRegex(edgedb.InterfaceError,
                                     'cannot enter context:.*async with'):
             async with tr:
                 async with tr:

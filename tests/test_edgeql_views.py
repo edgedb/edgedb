@@ -62,7 +62,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_views_basic_02(self):
-        await self.con.execute('''
+        await self.query('''
             CREATE VIEW test::expert_map := (
                 SELECT {
                     ('Alice', 'pro'),
@@ -88,7 +88,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_views_basic_03(self):
-        await self.con.execute('''
+        await self.query('''
             CREATE VIEW test::scores := (
                 SELECT {
                     (name := 'Alice', score := 100, games := 10),
@@ -436,7 +436,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
         ])
 
     async def test_edgeql_views_if_else_03(self):
-        res = await self.con.execute(r"""
+        res = await self.query(r"""
             # get the data that this test relies upon in a format
             # that's easy to analyze
             WITH MODULE test

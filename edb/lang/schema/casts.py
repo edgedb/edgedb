@@ -20,8 +20,9 @@
 import functools
 import typing
 
+from edb import errors
+
 from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import errors as ql_errors
 
 from . import abc as s_abc
 from . import attributes
@@ -169,7 +170,7 @@ class CastCommand(sd.ObjectCommand,
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         if not context.stdmode and not context.testmode:
-            raise ql_errors.EdgeQLError(
+            raise errors.UnsupportedFeatureError(
                 'user-defined casts are not supported',
                 context=astnode.context
             )
@@ -207,7 +208,7 @@ class CreateCast(CastCommand, sd.CreateObject):
             from_type = self.get_attribute_value('from_type')
             to_type = self.get_attribute_value('to_type')
 
-            raise ql_errors.EdgeQLError(
+            raise errors.DuplicateCastDefinitionError(
                 f'a cast from {from_type.get_displayname(schema)!r}'
                 f'to {to_type.get_displayname(schema)!r} is already defined',
                 context=self.source_context)

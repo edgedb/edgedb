@@ -18,8 +18,8 @@
 
 
 import asyncio
+import contextlib
 import getpass
-import ipaddress
 import logging
 import os
 import os.path
@@ -27,12 +27,17 @@ import setproctitle
 import signal
 import socket
 import sys
+import tempfile
+
+import uvloop
 
 import click
 from asyncpg import cluster as pg_cluster
 
 from edb.lang.common import devmode
 from edb.lang.common import exceptions
+
+from .. import server2
 
 from . import cluster as edgedb_cluster
 from . import daemon
@@ -51,6 +56,28 @@ def abort(msg, *args):
 
 def terminate_server(server, loop):
     loop.stop()
+
+
+@contextlib.contextmanager
+def _runstate_dir(path):
+    if path is None:
+        path = '/run'
+        if not os.path.isdir(path):
+            path = '/var/run'
+    if not os.path.isdir(path):
+        abort(f'{path!r} is not a valid path; please point '
+              f'--runstate-dir to a valid directory')
+        return
+
+    try:
+        with tempfile.TemporaryDirectory(prefix='edgedb-', dir=path) as td:
+            yield td
+    except PermissionError as ex:
+        if not devmode.is_in_dev_mode():
+            abort(f'no permissions to write to {path!r} directory: {str(ex)}')
+            return
+        with tempfile.TemporaryDirectory(prefix='edgedb-') as td:
+            yield td
 
 
 def _init_cluster(cluster, args):
@@ -88,7 +115,7 @@ def _sd_notify(message):
         sd_sock.close()
 
 
-def _run_server(cluster, args):
+def _run_server(cluster, args, runstate_dir):
     loop = asyncio.get_event_loop()
     srv = None
 
@@ -111,7 +138,21 @@ def _run_server(cluster, args):
         # Notify systemd that we've started up.
         _sd_notify('READY=1')
 
-        loop.run_forever()
+        ss = server2.Server(
+            loop=loop,
+            cluster=cluster,
+            runstate_dir=runstate_dir,
+            max_backend_connections=args['max_backend_connections'])
+        ss.add_binary_interface(args['bind_address'], args['port'] + 1)
+        loop.run_until_complete(ss.start())
+        logger.info(
+            'Serving EDGE on %s:%s',
+            args['bind_address'], args['port'] + 1)
+
+        try:
+            loop.run_forever()
+        finally:
+            loop.run_until_complete(ss.stop())
 
     except KeyboardInterrupt:
         logger.info('Shutting down.')
@@ -143,6 +184,7 @@ def run_server(args):
                 'log_disconnections': 'yes',
                 'log_min_messages': 'INFO',
                 'client_min_messages': 'INFO',
+                'listen_addresses': '',  # we use Unix sockets
             }
 
             if args['timezone']:
@@ -161,11 +203,6 @@ def run_server(args):
                 cluster.reset_hba()
                 cluster.add_hba_entry(
                     type='local',
-                    database='all', user='all',
-                    auth_method='trust'
-                )
-                cluster.add_hba_entry(
-                    type='local', address=ipaddress.ip_network('127.0.0.0/24'),
                     database='all', user='all',
                     auth_method='trust'
                 )
@@ -193,7 +230,8 @@ def run_server(args):
         if args['bootstrap']:
             _init_cluster(cluster, args)
         else:
-            _run_server(cluster, args)
+            with _runstate_dir(args['runstate_dir']) as rsdir:
+                _run_server(cluster, args, rsdir)
 
     except BaseException:
         if pg_cluster_init_by_us and not _server_initialized:
@@ -252,9 +290,17 @@ def run_server(args):
     '--daemon-user', type=int)
 @click.option(
     '--daemon-group', type=int)
+@click.option(
+    '--runstate-dir', type=str, default=None,
+    help=('directory where UNIX sockets will be created '
+          '("/run" on Linux by default)'))
+@click.option(
+    '--max-backend-connections', type=int, default=100)
 def main(**kwargs):
     logsetup.setup_logging(kwargs['log_level'], kwargs['log_to'])
     exceptions.install_excepthook()
+
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
     if kwargs['background']:
         daemon_opts = {'detach_process': True}

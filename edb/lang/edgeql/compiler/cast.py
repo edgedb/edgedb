@@ -22,6 +22,8 @@
 
 import typing
 
+from edb import errors
+
 from edb.lang.common import parsing
 
 from edb.lang.ir import ast as irast
@@ -31,7 +33,6 @@ from edb.lang.schema import casts as s_casts
 from edb.lang.schema import functions as s_func
 from edb.lang.schema import types as s_types
 
-from edb.lang.edgeql import errors
 from edb.lang.edgeql import functypes as ft
 
 from . import astutils
@@ -67,7 +68,7 @@ def compile_cast(
         # Object types cannot be cast between themselves,
         # as cast is a _constructor_ operation, and the only
         # valid way to construct an object is to INSERT it.
-        raise errors.EdgeQLError(
+        raise errors.QueryError(
             f'cannot cast object type '
             f'{orig_stype.get_displayname(ctx.env.schema)!r} '
             f'to {new_stype.get_displayname(ctx.env.schema)!r}, use '
@@ -123,7 +124,7 @@ def _compile_cast(
     cast = _find_cast(orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
     if cast is None:
-        raise errors.EdgeQLError(
+        raise errors.QueryError(
             f'cannot cast '
             f'{orig_stype.get_displayname(ctx.env.schema)!r} to '
             f'{new_stype.get_displayname(ctx.env.schema)!r}',
@@ -237,7 +238,7 @@ def _find_cast(
     if len(matched) == 1:
         return matched[0].func._cast
     elif len(matched) > 1:
-        raise errors.EdgeQLError(
+        raise errors.QueryError(
             f'cannot unambiguously cast '
             f'{orig_stype.get_displayname(ctx.env.schema)!r} '
             f'to {new_stype.get_displayname(ctx.env.schema)!r}',
@@ -288,13 +289,13 @@ def _cast_tuple(
             new_tuple, direct_cast, orig_stype, new_stype, ctx=ctx)
 
     if not new_stype.is_tuple():
-        raise errors.EdgeQLError(
+        raise errors.QueryError(
             f'cannot cast {orig_stype.get_displayname(ctx.env.schema)!r} '
             f'to {new_stype.get_displayname(ctx.env.schema)!r}',
             context=srcctx)
 
     if len(orig_stype.element_types) != len(new_stype.element_types):
-        raise errors.EdgeQLError(
+        raise errors.QueryError(
             f'cannot cast {orig_stype.get_displayname(ctx.env.schema)!r} '
             f'to {new_stype.get_displayname(ctx.env.schema)!r}: ',
             f'the number of elements is not the same',
@@ -342,7 +343,7 @@ def _cast_array(
 
     if direct_cast is None:
         if not new_stype.is_array():
-            raise errors.EdgeQLError(
+            raise errors.QueryError(
                 f'cannot cast {orig_stype.get_displayname(ctx.env.schema)!r} '
                 f'to {new_stype.get_displayname(ctx.env.schema)!r}',
                 context=srcctx)
@@ -354,7 +355,7 @@ def _cast_array(
 
     el_cast = _find_cast(orig_el_type, el_type, srcctx=srcctx, ctx=ctx)
     if el_cast is None:
-        raise errors.EdgeQLError(
+        raise errors.QueryError(
             f'cannot cast {orig_stype.get_displayname(ctx.env.schema)!r} '
             f'to {new_stype.get_displayname(ctx.env.schema)!r}',
             context=srcctx) from None
@@ -365,7 +366,7 @@ def _cast_array(
             ir_set, direct_cast, orig_stype, new_stype, ctx=ctx)
     else:
         # Functional cast, need to apply element-wise.
-        raise errors.EdgeQLError(
+        raise errors.QueryError(
             f'cannot cast {orig_stype.get_displayname(ctx.env.schema)!r} '
             f'to {new_stype.get_displayname(ctx.env.schema)!r}: '
             f'non-trivial array casts are not implemented',
@@ -386,7 +387,7 @@ def _cast_array_literal(
 
     if direct_cast is None:
         if not new_stype.is_array():
-            raise errors.EdgeQLError(
+            raise errors.QueryError(
                 f'cannot cast {orig_stype.get_displayname(ctx.env.schema)!r} '
                 f'to {new_stype.get_displayname(ctx.env.schema)!r}',
                 context=srcctx) from None

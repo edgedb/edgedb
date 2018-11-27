@@ -19,8 +19,9 @@
 
 from edb.lang.edgeql import ast as qlast
 
+from edb import errors
+
 from . import delta as sd
-from . import error as s_err
 from . import inheriting
 from . import objects as so
 from . import name as sn
@@ -65,7 +66,7 @@ class ReferencedObjectCommand(sd.ObjectCommand,
                 base_ref = utils.ast_to_typeref(
                     qlast.TypeName(maintype=astnode.name),
                     modaliases=context.modaliases, schema=schema)
-            except s_err.ItemNotFoundError:
+            except errors.InvalidReferenceError:
                 base_name = sn.Name(name)
             else:
                 base_name = base_ref.get_name(schema)
@@ -171,7 +172,7 @@ class CreateReferencedInheritingObject(inheriting.CreateInheritingObject):
                 base = utils.ast_to_typeref(
                     qlast.TypeName(maintype=astnode.name),
                     modaliases=context.modaliases, schema=schema)
-            except s_err.ItemNotFoundError:
+            except errors.InvalidReferenceError:
                 # Certain concrete items, like pointers create
                 # abstract parents implicitly.
                 nname = sn.shortname_from_fullname(cmd.classname)

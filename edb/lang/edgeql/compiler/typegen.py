@@ -23,6 +23,8 @@
 import collections
 import typing
 
+from edb import errors
+
 from edb.lang.ir import ast as irast
 
 from edb.lang.schema import abc as s_abc
@@ -30,7 +32,6 @@ from edb.lang.schema import objects as s_obj
 from edb.lang.schema import types as s_types
 
 from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import errors
 
 from . import context
 from . import schemactx
@@ -96,7 +97,7 @@ def _ql_typeexpr_to_ir_typeref(
             return (_ql_typeexpr_to_ir_typeref(ql_t.left, ctx=ctx) +
                     _ql_typeexpr_to_ir_typeref(ql_t.right, ctx=ctx))
 
-        raise errors.EdgeQLSyntaxError(
+        raise errors.UnsupportedFeatureError(
             f'type operator {ql_t.op!r} is not implemented',
             context=ql_t.context)
 

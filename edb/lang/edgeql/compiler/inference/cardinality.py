@@ -20,7 +20,8 @@
 import functools
 import typing
 
-from edb.lang.edgeql import errors as ql_errors
+from edb import errors
+
 from edb.lang.edgeql import functypes as ql_ft
 
 from edb.lang.schema import objtypes as s_objtypes
@@ -380,7 +381,7 @@ def infer_cardinality(ir, scope_tree, schema):
     result = _infer_cardinality(ir, scope_tree, schema)
 
     if result not in {ONE, MANY}:
-        raise ql_errors.EdgeQLError(
+        raise errors.QueryError(
             'could not determine the cardinality of '
             'set produced by expression',
             context=ir.context)

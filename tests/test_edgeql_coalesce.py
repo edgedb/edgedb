@@ -1092,7 +1092,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_wrapping_optional(self):
-        await self.con.execute(r'''
+        await self.query(r'''
             CREATE FUNCTION test::optfunc(
                     a: std::str, b: OPTIONAL std::str) -> std::str
                 FROM EdgeQL $$

@@ -22,11 +22,11 @@
 
 import typing
 
+from edb import errors
+
 from edb.lang.ir import ast as irast
 
 from edb.lang.schema import objects as s_obj
-
-from edb.lang.edgeql import errors
 
 from . import context
 

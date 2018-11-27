@@ -21,7 +21,8 @@ import os.path
 import unittest  # NOQA
 import uuid
 
-from edb.client import exceptions as exc
+import edgedb
+
 from edb.server import _testbase as tb
 
 
@@ -34,13 +35,13 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_fail_1(self):
         err = 'missing value for required property ' + \
               'test::InsertTest.l2'
-        with self.assertRaisesRegex(exc.MissingRequiredPointerError, err):
-            await self.con.execute('''
+        with self.assertRaisesRegex(edgedb.MissingRequiredError, err):
+            await self.query('''
                 INSERT test::InsertTest;
             ''')
 
     async def test_edgeql_insert_simple_01(self):
-        result = await self.con.execute(r"""
+        result = await self.query(r"""
             INSERT test::InsertTest {
                 name := 'insert simple 01',
                 l2 := 0,
@@ -99,7 +100,7 @@ class TestInsert(tb.QueryTestCase):
         ])
 
     async def test_edgeql_insert_simple_02(self):
-        res = await self.con.execute('''
+        res = await self.query('''
             WITH MODULE test
             INSERT DefaultTest1 { foo := '02' };
 
@@ -117,7 +118,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
     async def test_edgeql_insert_simple_03(self):
-        res = await self.con.execute('''
+        res = await self.query('''
             INSERT test::DefaultTest1 { num := 100 };
 
             WITH MODULE test
@@ -142,7 +143,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
     async def test_edgeql_insert_nested_01(self):
-        res = await self.con.execute('''
+        res = await self.query('''
             INSERT test::Subordinate {
                 name := 'subtest 1'
             };
@@ -184,7 +185,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
     async def test_edgeql_insert_nested_02(self):
-        res = await self.con.execute('''
+        res = await self.query('''
             WITH MODULE test
             INSERT Subordinate {
                 name := 'subtest 3'
@@ -232,7 +233,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
     async def test_edgeql_insert_nested_03(self):
-        res = await self.con.execute('''
+        res = await self.query('''
             WITH MODULE test
             INSERT InsertTest {
                 name := 'insert nested 3',
@@ -262,7 +263,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
     async def test_edgeql_insert_nested_04(self):
-        res = await self.con.execute('''
+        res = await self.query('''
             WITH MODULE test
             INSERT InsertTest {
                 name := 'insert nested 4',
@@ -295,7 +296,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
     async def test_edgeql_insert_nested_05(self):
-        res = await self.con.execute('''
+        res = await self.query('''
             INSERT test::Subordinate {
                 name := 'only subordinate'
             };
@@ -336,7 +337,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
     async def test_edgeql_insert_returning_01(self):
-        res = await self.con.execute('''
+        res = await self.query('''
             WITH MODULE test
             INSERT DefaultTest1 {
                 foo := 'ret1',
@@ -368,7 +369,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
     async def test_edgeql_insert_returning_02(self):
-        res = await self.con.execute('''
+        res = await self.query('''
             WITH MODULE test
             SELECT (INSERT DefaultTest1 {
                 foo := 'ret1',
@@ -402,7 +403,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
     async def test_edgeql_insert_returning_03(self):
-        res = await self.con.execute('''
+        res = await self.query('''
             INSERT test::Subordinate {
                 name := 'sub returning 3'
             };
@@ -477,7 +478,7 @@ class TestInsert(tb.QueryTestCase):
         ])
 
     async def test_edgeql_insert_for_01(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             WITH MODULE test
             FOR x IN {3, 5, 7, 2}
             UNION (INSERT InsertTest {
@@ -548,7 +549,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
     async def test_edgeql_insert_for_02(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             # create 10 DefaultTest3 objects, each object is defined
             # as having a randomly generated value for 'foo'
             WITH MODULE test
@@ -569,7 +570,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
     async def test_edgeql_insert_for_03(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             # Create 5 DefaultTest4 objects. The default value for
             # 'bar' is technically evaluated for each object, but
             # because it is deterministic it will be same for all 5
@@ -588,7 +589,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
     async def test_edgeql_insert_default_01(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             # create 10 DefaultTest3 objects, each object is defined
             # as having a randomly generated value for 'foo'
             INSERT test::DefaultTest3;
@@ -617,7 +618,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
     async def test_edgeql_insert_default_02(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             # by default the 'bar' value is simply going to be "indexing" the
             # created objects
             INSERT test::DefaultTest4;
@@ -646,7 +647,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
     async def test_edgeql_insert_default_03(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             # by default the 'bar' value is simply going to be "indexing" the
             # created objects
             INSERT test::DefaultTest4 { bar:= 10 };
@@ -669,7 +670,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
     async def test_edgeql_insert_default_04(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             # by default the 'bar' value is simply going to be "indexing" the
             # created objects
             INSERT test::DefaultTest4;
@@ -699,7 +700,7 @@ class TestInsert(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_insert_as_expr_01(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             # insert several objects, then annotate one of the inserted batch
             WITH MODULE test
             FOR x IN {(
@@ -767,7 +768,7 @@ class TestInsert(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_insert_polymorphic_01(self):
-        res = await self.con.execute(r'''
+        res = await self.query(r'''
             WITH MODULE test
             INSERT Directive {
                 args: {
@@ -891,9 +892,9 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_empty_02(self):
         with self.assertRaisesRegex(
-                exc.InvalidPointerTargetError,
+                edgedb.InvalidPropertyTargetError,
                 r"invalid target.*std::datetime.*expecting 'std::int64'"):
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH MODULE test
                 INSERT InsertTest {
                     l1 := <datetime>{},
@@ -903,9 +904,9 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_empty_03(self):
         with self.assertRaisesRegex(
-                exc.MissingRequiredPointerError,
+                edgedb.MissingRequiredError,
                 r"missing value for required property"):
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH MODULE test
                 INSERT InsertTest {
                     l2 := {},
@@ -935,10 +936,10 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_empty_05(self):
         with self.assertRaisesRegex(
-                exc.InvalidPointerTargetError,
+                edgedb.InvalidLinkTargetError,
                 r"invalid target for link.*std::Object.*"
                 r"expecting 'test::Subordinate'"):
-            await self.con.execute(r"""
+            await self.query(r"""
                 WITH MODULE test
                 INSERT InsertTest {
                     l2 := 99,
@@ -948,7 +949,7 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_abstract(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"cannot insert: std::Object is abstract",
                 position=7):
             await self.query("""\
@@ -956,12 +957,12 @@ class TestInsert(tb.QueryTestCase):
             """)
 
     async def test_edgeql_insert_view(self):
-        await self.con.execute('''
+        await self.query('''
             CREATE VIEW test::Foo := (SELECT test::InsertTest);
         ''')
 
         with self.assertRaisesRegex(
-                exc.EdgeQLError,
+                edgedb.QueryError,
                 r"cannot insert: test::Foo is a view",
                 position=7):
             await self.query("""\

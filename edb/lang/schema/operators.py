@@ -19,8 +19,9 @@
 
 import typing
 
+from edb import errors
+
 from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import errors as ql_errors
 from edb.lang.edgeql import functypes as ft
 
 from . import abc as s_abc
@@ -87,7 +88,7 @@ class OperatorCommand(s_func.CallableCommand,
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         if not context.stdmode and not context.testmode:
-            raise ql_errors.EdgeQLError(
+            raise errors.UnsupportedFeatureError(
                 'user-defined operators are not supported',
                 context=astnode.context
             )
@@ -129,7 +130,7 @@ class OperatorCommand(s_func.CallableCommand,
                     commutator.classname = oper.name
                     break
             else:
-                raise ql_errors.EdgeQLError(
+                raise errors.QueryError(
                     f'operator {commutator.classname} {params.as_str(schema)} '
                     f'does not exist',
                     context=self.source_context,
@@ -148,7 +149,7 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
 
         func = schema.get(fullname, None)
         if func:
-            raise ql_errors.EdgeQLError(
+            raise errors.InvalidOperatorDefinitionError(
                 f'cannot create the `{signature}` operator: '
                 f'an operator with the same signature '
                 f'is already defined',
@@ -167,7 +168,7 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
         for oper in schema.get_operators(shortname, ()):
             oper_return_typemod = oper.get_return_typemod(schema)
             if oper_return_typemod != return_typemod:
-                raise ql_errors.EdgeQLError(
+                raise errors.DuplicateOperatorDefinitionError(
                     f'cannot create the `{get_signature()} -> '
                     f'{return_typemod.to_edgeql()} {return_type.name}` '
                     f'operator: overloading another operator with different '

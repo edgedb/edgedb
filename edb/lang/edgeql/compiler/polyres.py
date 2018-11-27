@@ -22,13 +22,14 @@
 
 import typing
 
+from edb import errors
+
 from edb.lang.ir import ast as irast
 from edb.lang.ir import utils as irutils
 
 from edb.lang.schema import functions as s_func
 from edb.lang.schema import types as s_types
 
-from edb.lang.edgeql import errors
 from edb.lang.edgeql import functypes as ft
 
 from . import context
@@ -150,7 +151,7 @@ def try_bind_call_args(
 
         else:
             if arg_type.is_polymorphic(schema):
-                raise errors.EdgeQLError(
+                raise errors.QueryError(
                     f'a polymorphic argument in a non-polymorphic function',
                     context=arg.context)
 
@@ -370,7 +371,7 @@ def try_bind_call_args(
 
                     if param_type.is_any():
                         if resolved_poly_base_type is None:
-                            raise errors.EdgeQLError(
+                            raise errors.QueryError(
                                 f'could not resolve "anytype" type for the '
                                 f'${param_shortname} parameter')
                         else:

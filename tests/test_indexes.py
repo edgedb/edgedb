@@ -23,7 +23,7 @@ from edb.server import _testbase as tb
 class TestIndexes(tb.DDLTestCase):
 
     async def test_index_01(self):
-        result = await self.con.execute("""
+        result = await self.query("""
             # setup delta
             #
             CREATE MIGRATION test::d1 TO eschema $$

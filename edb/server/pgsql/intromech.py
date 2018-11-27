@@ -22,6 +22,8 @@
 import collections
 import json
 
+from edb import errors
+
 from edb.lang.common import topological
 
 from edb.lang import schema as so
@@ -32,7 +34,6 @@ from edb.lang.schema import casts as s_casts
 from edb.lang.schema import scalars as s_scalars
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import constraints as s_constr
-from edb.lang.schema import error as s_err
 from edb.lang.schema import expr as s_expr
 from edb.lang.schema import functions as s_funcs
 from edb.lang.schema import indexes as s_indexes
@@ -78,11 +79,11 @@ class IntrospectionMech:
                 schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_scalars(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
-            schema = await self.read_casts(
-                schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_attributes(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_objtypes(
+                schema, only_modules=modules, exclude_modules=exclude_modules)
+            schema = await self.read_casts(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_links(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
@@ -143,13 +144,13 @@ class IntrospectionMech:
             msg = 'internal metadata incosistency'
             details = 'Extraneous data schemas exist: {}'.format(
                 ', '.join('"%s"' % s for s in extra_schemas))
-            raise s_err.SchemaError(msg, details=details)
+            raise errors.SchemaError(msg, details=details)
 
         if missing_schemas:
             msg = 'internal metadata incosistency'
             details = 'Missing schemas for modules: {}'.format(
                 ', '.join('{!r}'.format(s) for s in missing_schemas))
-            raise s_err.SchemaError(msg, details=details)
+            raise errors.SchemaError(msg, details=details)
 
         return schema
 
@@ -213,7 +214,7 @@ class IntrospectionMech:
                     msg = 'internal metadata incosistency'
                     details = (f'Missing sequence for sequence '
                                f'scalar {scalar.get_name(schema)}')
-                    raise s_err.SchemaError(msg, details=details)
+                    raise errors.SchemaError(msg, details=details)
                 seen_seqs.add(seq_name)
 
         extra_seqs = set(seqs) - seen_seqs
@@ -221,7 +222,7 @@ class IntrospectionMech:
             msg = 'internal metadata incosistency'
             details = 'Extraneous sequences exist: {}'.format(
                 ', '.join(common.qname(*t) for t in extra_seqs))
-            raise s_err.SchemaError(msg, details=details)
+            raise errors.SchemaError(msg, details=details)
 
         return schema
 
@@ -316,7 +317,6 @@ class IntrospectionMech:
                 'from_type': self.unpack_typeref(row['from_type'], schema),
                 'to_type': self.unpack_typeref(row['to_type'], schema),
                 'language': row['language'],
-                'return_typemod': row['return_typemod'],
                 'from_cast': row['from_cast'],
                 'from_function': row['from_function'],
                 'from_expr': row['from_expr'],
@@ -460,6 +460,9 @@ class IntrospectionMech:
         elif t['maintype'] == 'anytype':
             scls = s_pseudo.Any.create()
 
+        elif t['maintype'] == 'anytuple':
+            scls = s_pseudo.AnyTuple.create()
+
         else:
             scls = schema.get(t['maintype'])
 
@@ -526,7 +529,7 @@ class IntrospectionMech:
             try:
                 pg_indexes.remove((subj_table_name, index_name))
             except KeyError:
-                raise s_err.SchemaError(
+                raise errors.SchemaError(
                     'internal metadata inconsistency',
                     details=f'Index {index_name} is defined in schema, but'
                             f'the corresponding PostgreSQL index is missing.'
@@ -543,7 +546,7 @@ class IntrospectionMech:
 
         if pg_indexes and not only_modules and not exclude_modules:
             details = f'Extraneous PostgreSQL indexes found: {pg_indexes!r}'
-            raise s_err.SchemaError(
+            raise errors.SchemaError(
                 'internal metadata inconsistency',
                 details=details)
 

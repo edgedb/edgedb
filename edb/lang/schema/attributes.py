@@ -20,11 +20,11 @@
 
 import typing
 
+from edb import errors
+
 from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import errors as qlerrors
 
 from . import delta as sd
-from . import error as s_err
 from . import inheriting
 from . import name as sn
 from . import objects as so
@@ -181,9 +181,9 @@ class AttributeValueCommand(sd.ObjectCommand, schema_metaclass=AttributeValue,
 
         try:
             attr = schema.get(propname, module_aliases=context.modaliases)
-        except s_err.ItemNotFoundError as e:
-            raise qlerrors.EdgeQLReferenceError(
-                str(e), context=astnode.context) from e
+        except errors.InvalidReferenceError as e:
+            raise errors.InvalidReferenceError(
+                str(e), context=astnode.context) from None
 
         parent_ctx = context.get(sd.CommandContextToken)
         subject_name = parent_ctx.op.classname

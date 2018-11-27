@@ -24,6 +24,8 @@ import pickle
 import re
 import uuid
 
+from edb import errors
+
 from edb.lang.common import context as parser_context
 from edb.lang.common import debug
 from edb.lang.common import devmode
@@ -259,7 +261,7 @@ class Backend:
             if isinstance(plan, (s_db.CreateDatabase, s_db.DropDatabase)):
                 if (current_block is not None and
                         not isinstance(current_block, dbops.SQLBlock)):
-                    raise exceptions.EdgeQLError(
+                    raise errors.QueryError(
                         'cannot mix DATABASE commands with regular DDL '
                         'commands in a single block')
                 if current_block is None:
@@ -268,7 +270,7 @@ class Backend:
             else:
                 if (current_block is not None and
                         not isinstance(current_block, dbops.PLTopBlock)):
-                    raise exceptions.EdgeQLError(
+                    raise errors.QueryError(
                         'cannot mix DATABASE commands with regular DDL '
                         'commands in a single block')
                 if current_block is None:
@@ -473,14 +475,14 @@ class Backend:
 
     async def commit_transaction(self):
         if not self.transactions:
-            raise exceptions.NoActiveTransactionError(
+            raise errors.TransactionError(
                 'there is no transaction in progress')
         transaction, _ = self.transactions.pop()
         await transaction.commit()
 
     async def rollback_transaction(self):
         if not self.transactions:
-            raise exceptions.NoActiveTransactionError(
+            raise errors.TransactionError(
                 'there is no transaction in progress')
         transaction, self.schema = self.transactions.pop()
         await transaction.rollback()
