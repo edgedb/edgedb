@@ -566,36 +566,30 @@ class Object(metaclass=ObjectMeta):
                 f'{self!r} object has no value for field {field_name!r}')
 
     def set_field_value(self, schema, name, value):
-        return self.update(schema, {name: value})
+        field = type(self)._fields[name]
+        assert field.is_schema_field
+
+        if value is None:
+            return schema._unset_obj_field(self.id, name)
+        else:
+            value = self._check_field_type(schema, field, name, value)
+            return schema._set_obj_field(self.__dict__['id'], name, value)
 
     def update(self, schema, updates: dict):
         fields = type(self)._fields
 
-        if updates.keys() - fields.keys():
-            raise RuntimeError(
-                'updates list contains values for non-existant fields: ' +
-                ', '.join(updates.keys() - fields.keys()))
-
+        updates = updates.copy()
         for field_name in updates:
             field = fields[field_name]
+            assert field.is_schema_field
 
             new_val = updates[field_name]
+            if new_val is not None:
+                new_val = self._check_field_type(
+                    schema, field, field_name, new_val)
+                updates[field_name] = new_val
 
-            if field.is_schema_field:
-                if new_val is None:
-                    schema = schema._unset_obj_field(
-                        self.id, field_name)
-                else:
-                    new_val = self._check_field_type(
-                        schema, field, field_name, new_val)
-                    schema = schema._set_obj_field(
-                        self.id, field_name, new_val)
-            else:
-                raise RuntimeError(
-                    f'cannot update value for non-schema field '
-                    f'{self}.{field_name}')
-
-        return schema
+        return schema._update_obj(self.__dict__['id'], updates)
 
     def copy_with(self, schema, updates: dict):
         fields = type(self)._fields

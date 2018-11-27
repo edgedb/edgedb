@@ -69,6 +69,39 @@ class Schema:
 
         return new
 
+    def _update_obj_name(self, obj_id, old_name, new_name):
+        name_to_id = self._name_to_id
+        if old_name is not None:
+            name_to_id = name_to_id.delete(old_name)
+
+        if new_name is not None:
+            name_to_id = name_to_id.set(new_name, obj_id)
+
+        return name_to_id
+
+    def _update_obj(self, obj_id, updates):
+        try:
+            data = self._id_to_data[obj_id]
+        except KeyError:
+            data = immu.Map()
+
+        name_to_id = None
+        with data.mutate() as mm:
+            for field, value in updates.items():
+                if field == 'name':
+                    name_to_id = self._update_obj_name(
+                        obj_id, mm.get('name'), value)
+
+                if value is None:
+                    mm.pop(field, None)
+                else:
+                    mm[field] = value
+
+            new_data = mm.finish()
+
+        id_to_data = self._id_to_data.set(obj_id, new_data)
+        return self._replace(name_to_id=name_to_id, id_to_data=id_to_data)
+
     def _get_obj_field(self, obj_id, field):
         try:
             d = self._id_to_data[obj_id]
@@ -86,12 +119,7 @@ class Schema:
         name_to_id = None
         if field == 'name':
             old_name = data.get('name')
-
-            name_to_id = self._name_to_id
-            if old_name is not None:
-                name_to_id = name_to_id.delete(old_name)
-
-            name_to_id = name_to_id.set(value, obj_id)
+            name_to_id = self._update_obj_name(obj_id, old_name, value)
 
         data = data.set(field, value)
         id_to_data = self._id_to_data.set(obj_id, data)
@@ -107,7 +135,7 @@ class Schema:
         name_to_id = None
         name = data.get('name')
         if field == 'name' and name is not None:
-            name_to_id = self._name_to_id.delete(name)
+            name_to_id = self._update_obj_name(obj_id, name, None)
             data = data.delete(field)
         else:
             try:
@@ -130,7 +158,7 @@ class Schema:
         updates = dict(
             id_to_data=self._id_to_data.set(id, data),
             id_to_type=self._id_to_type.set(id, scls),
-            name_to_id=self._name_to_id.set(name, id),
+            name_to_id=self._update_obj_name(id, None, name),
         )
 
         if isinstance(scls, s_modules.Module):
