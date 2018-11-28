@@ -2,4 +2,4 @@
 
 set -e -x
 
-edb test -j3 --output-format=simple
+edb test -j2 --output-format=simple
