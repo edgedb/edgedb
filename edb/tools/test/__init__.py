@@ -19,14 +19,12 @@
 
 import multiprocessing
 import os
-import pathlib
 import platform
 import sys
 import unittest
 
 import click
 
-import edb
 from edb.tools import edbcommands
 
 from . import loader
