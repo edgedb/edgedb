@@ -126,8 +126,22 @@ def cast(
 
     else:
         # `target_type` is not a collection.
-        if (source_type.issubclass(env.schema,
-                                   (datetime_t, naive_datetime_t)) and
+
+        # Check "if (target_type is bytes) XOR (source_type is bytes)"
+        if ((target_type.issubclass(env.schema, bytes_t) or
+             source_type.issubclass(env.schema, bytes_t)) and not
+            (target_type.issubclass(env.schema, bytes_t) and
+                source_type.issubclass(env.schema, bytes_t))):
+            # We can only cast bytes into bytes, no other bytes cast is
+            # legal. So we filter them out here as opposed to handling
+            # bytes in each other typecast specially.
+            raise NotImplementedError(
+                f'cannot cast {source_type.get_name(env.schema)} to '
+                f'{target_type.get_name(env.schema)}'
+            )
+
+        elif (source_type.issubclass(
+                env.schema, (datetime_t, naive_datetime_t)) and
                 target_type.issubclass(env.schema, str_t)):
             # Normalize [naive] datetime to text conversion to have
             # the same format as one would get by serializing to JSON.
@@ -198,10 +212,11 @@ def cast(
             elif target_type.issubclass(env.schema, json_t):
                 expected_json_type = None
             else:
-                raise NotImplementedError(
-                    f'cannot not cast {source_type.get_name(env.schema)} '
-                    f'to {target_type.get_name(env.schema)}'
-                )
+                # For any other type we want to reverse the casting
+                # logic from that type to JSON. This means that we are
+                # expecting JSON value to be a JSON string
+                # representation of the target type.
+                expected_json_type = 'string'
 
             if expected_json_type is not None:
                 if ir_expr is not None:
@@ -241,8 +256,6 @@ def cast(
             )
 
         elif target_type.issubclass(env.schema, json_t):
-            if source_type.issubclass(env.schema, bytes_t):
-                raise TypeError('cannot cast bytes to json')
             return pgast.FuncCall(
                 name=('to_jsonb',), args=[node])
         else:
@@ -257,7 +270,7 @@ def cast(
             )
 
     raise NotImplementedError(
-        f'cannot not cast {source_type.get_name(env.schema)} to '
+        f'cannot cast {source_type.get_name(env.schema)} to '
         f'{target_type.get_name(env.schema)}'
     )
 

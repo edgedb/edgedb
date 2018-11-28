@@ -1,0 +1,48 @@
+#
+# This source file is part of the EdgeDB open source project.
+#
+# Copyright 2018-present MagicStack Inc. and the EdgeDB authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+
+type Test:
+    property p_bool -> bool
+    property p_str -> str
+    property p_datetime -> datetime
+    property p_naive_datetime -> naive_datetime
+    property p_naive_date -> naive_date
+    property p_naive_time -> naive_time
+    property p_timedelta -> timedelta
+    property p_int16 -> int16
+    property p_int32 -> int32
+    property p_int64 -> int64
+    property p_float32 -> float32
+    property p_float64 -> float64
+    property p_decimal -> decimal
+
+type JSONTest:
+    property j_bool -> json
+    property j_str -> json
+    property j_datetime -> json
+    property j_naive_datetime -> json
+    property j_naive_date -> json
+    property j_naive_time -> json
+    property j_timedelta -> json
+    property j_int16 -> json
+    property j_int32 -> json
+    property j_int64 -> json
+    property j_float32 -> json
+    property j_float64 -> json
+    property j_decimal -> json

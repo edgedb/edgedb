@@ -1916,7 +1916,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_func_08(self):
         await self.assert_query_result(r'''
             SELECT len('111');
-            SELECT len(<std::bytes>'abcdef');
+            SELECT len(b'abcdef');
             SELECT len([1, 2, 3, 4]);
         ''', [
             [3],
