@@ -26,7 +26,7 @@ class TestDatabase(tb.ConnectedTestCase):
 
         try:
             conn = await self.cluster.connect(
-                user='edgedb', database='mytestdb', loop=self.loop)
+                user='edgedb', database='mytestdb')
 
             conn.close()
 

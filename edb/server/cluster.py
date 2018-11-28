@@ -166,15 +166,14 @@ class Cluster:
         try:
             conn = loop.run_until_complete(
                 self._pg_cluster.connect(
-                    user=self._pg_superuser, database='template1', timeout=5,
-                    loop=loop))
+                    user=self._pg_superuser, database='template1', timeout=5))
 
             db_exists = loop.run_until_complete(
                 self._edgedb_template_exists(conn))
         finally:
             if conn is not None:
                 conn.terminate()
-            loop.run_until_complete(asyncio.sleep(0, loop=loop))
+            loop.run_until_complete(asyncio.sleep(0))
             loop.close()
             if initially_stopped:
                 self._pg_cluster.stop()
@@ -193,14 +192,11 @@ class Cluster:
     def get_data_dir(self):
         return self._data_dir
 
-    async def connect(self, loop=None, **kwargs):
-        if loop is None:
-            loop = asyncio.get_event_loop()
-
+    async def connect(self, **kwargs):
         connect_args = self.get_connect_args().copy()
         connect_args.update(kwargs)
 
-        return await edgedb_client.connect(loop=loop, **connect_args)
+        return await edgedb_client.connect(**connect_args)
 
     def init(self, *, server_settings={}):
         cluster_status = self.get_status()
@@ -289,7 +285,7 @@ class Cluster:
                     continue
                 else:
                     tr.close()
-                    loop.run_until_complete(asyncio.sleep(0, loop=loop))
+                    loop.run_until_complete(asyncio.sleep(0))
                     break
             else:
                 raise ClusterError(

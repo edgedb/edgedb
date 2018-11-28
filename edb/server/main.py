@@ -65,7 +65,7 @@ def _init_cluster(cluster, args):
     }
 
     loop.run_until_complete(backend.bootstrap(
-        cluster, bootstrap_args, loop=loop))
+        cluster, bootstrap_args))
 
     global _server_initialized
     _server_initialized = True

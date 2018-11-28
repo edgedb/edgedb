@@ -26,7 +26,6 @@ from . import defines
 from .exceptions import *  # NOQA
 from . import exceptions
 from . import protocol as edgedb_protocol
-from .future import create_future
 from . import transaction
 
 
@@ -81,12 +80,8 @@ async def connect(*,
                   host=None, port=None,
                   user=None, password=None,
                   database=None,
-                  loop=None,
                   timeout=60,
                   retry_on_failure=False):
-
-    if loop is None:
-        loop = asyncio.get_event_loop()
 
     # On env-var -> connection parameter conversion read here:
     # https://www.postgresql.org/docs/current/static/libpq-envars.html
@@ -119,13 +114,14 @@ async def connect(*,
 
     budget = timeout
     time_between_tries = 0.1
+    loop = asyncio.get_running_loop()
 
     while budget >= 0:
         start = time.monotonic()
 
         last_ex = None
         for h in host:
-            connected = create_future(loop)
+            connected = loop.create_future()
 
             if h.startswith('/'):
                 # UNIX socket name
@@ -143,8 +139,7 @@ async def connect(*,
                     h, port)
 
             try:
-                tr, pr = await asyncio.wait_for(
-                    conn, timeout=budget, loop=loop)
+                tr, pr = await asyncio.wait_for(conn, timeout=budget)
             except (OSError, asyncio.TimeoutError) as ex:
                 last_ex = ex
             else:

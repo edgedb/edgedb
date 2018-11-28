@@ -24,7 +24,6 @@ import struct
 
 
 from . import exceptions
-from .future import create_future
 
 
 class ConnectionState(enum.Enum):
@@ -102,7 +101,7 @@ class Protocol(asyncio.Protocol):
     def _new_waiter(self):
         if self._waiter is not None:
             raise RuntimeError('another operation is in progress')
-        self._waiter = create_future(self._loop)
+        self._waiter = self._loop.create_future()
 
     def send_message(self, message):
         self._new_waiter()

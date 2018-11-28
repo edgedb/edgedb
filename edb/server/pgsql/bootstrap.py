@@ -17,6 +17,7 @@
 #
 
 
+import asyncio
 import logging
 
 from edb.lang.common import debug
@@ -186,7 +187,7 @@ async def _populate_data(protocol):
     await protocol._run_script(script)
 
 
-async def _ensure_edgedb_database(conn, database, owner, *, cluster, loop):
+async def _ensure_edgedb_database(conn, database, owner, *, cluster):
     result = await _get_db_info(conn, database)
     if not result:
         logger.info(
@@ -205,9 +206,7 @@ async def _ensure_edgedb_database(conn, database, owner, *, cluster, loop):
             reassign.generate(block)
 
             dbconn = await cluster.connect(
-                loop=loop, database=database,
-                user=edgedb_defines.EDGEDB_SUPERUSER
-            )
+                database=database, user=edgedb_defines.EDGEDB_SUPERUSER)
 
             try:
                 await _execute_block(dbconn, block)
@@ -215,8 +214,8 @@ async def _ensure_edgedb_database(conn, database, owner, *, cluster, loop):
                 await dbconn.close()
 
 
-async def bootstrap(cluster, args, loop=None):
-    pgconn = await cluster.connect(loop=loop)
+async def bootstrap(cluster, args):
+    pgconn = await cluster.connect()
 
     try:
         await _ensure_edgedb_user(pgconn, edgedb_defines.EDGEDB_SUPERUSER,
@@ -225,11 +224,12 @@ async def bootstrap(cluster, args, loop=None):
 
         if need_meta_bootstrap:
             conn = await cluster.connect(
-                loop=loop, database=edgedb_defines.EDGEDB_TEMPLATE_DB,
+                database=edgedb_defines.EDGEDB_TEMPLATE_DB,
                 user=edgedb_defines.EDGEDB_SUPERUSER)
 
             try:
                 await _ensure_meta_schema(conn)
+                loop = asyncio.get_running_loop()
                 protocol = edgedb_protocol.Protocol(cluster, loop=loop)
                 protocol.backend = await _init_stdlib(cluster, conn)
                 await _init_defaults(protocol)
@@ -240,7 +240,7 @@ async def bootstrap(cluster, args, loop=None):
         await _ensure_edgedb_database(
             pgconn, edgedb_defines.EDGEDB_SUPERUSER_DB,
             edgedb_defines.EDGEDB_SUPERUSER,
-            cluster=cluster, loop=loop)
+            cluster=cluster)
         await _ensure_edgedb_template_not_connectable(pgconn)
 
         await _ensure_edgedb_user(
@@ -248,7 +248,7 @@ async def bootstrap(cluster, args, loop=None):
 
         await _ensure_edgedb_database(
             pgconn, args['default_database'], args['default_database_user'],
-            cluster=cluster, loop=loop)
+            cluster=cluster)
 
     finally:
         await pgconn.close()

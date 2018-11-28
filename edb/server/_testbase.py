@@ -113,7 +113,7 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
     @classmethod
     def setUpClass(cls):
         loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(None)
+        asyncio.set_event_loop(loop)
         cls.loop = loop
 
     @classmethod
@@ -198,7 +198,7 @@ class ConnectedTestCase(ClusterTestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.con = cls.loop.run_until_complete(
-            cls.cluster.connect(user='edgedb', loop=cls.loop))
+            cls.cluster.connect(user='edgedb'))
 
     @classmethod
     def tearDownClass(cls):
@@ -206,7 +206,7 @@ class ConnectedTestCase(ClusterTestCase):
             cls.con.close()
             # Give event loop another iteration so that connection
             # transport has a chance to properly close.
-            cls.loop.run_until_complete(asyncio.sleep(0, loop=cls.loop))
+            cls.loop.run_until_complete(asyncio.sleep(0))
             cls.con = None
         finally:
             super().tearDownClass()
@@ -266,7 +266,7 @@ class DatabaseTestCase(ConnectedTestCase):
 
         cls.con = cls.loop.run_until_complete(
             cls.cluster.connect(
-                database=dbname, user='edgedb', loop=cls.loop))
+                database=dbname, user='edgedb'))
 
         if not os.environ.get('EDGEDB_TEST_CASES_SET_UP'):
             script = cls.get_setup_script()
@@ -598,31 +598,29 @@ def shutdown_worker_servers(servers, *, destroy=True):
 
 
 def setup_test_cases(cases, conns):
-    loop = asyncio.get_event_loop()
-
     setup = get_test_cases_setup(cases)
 
-    tasks = []
+    async def _run():
+        tasks = []
 
-    if len(conns) == 1:
-        # Special case for --jobs=1
-        for case, dbname, setup_script in setup:
-            loop.run_until_complete(_setup_database(
-                dbname, setup_script, conns[0]))
-    else:
-        ci = 0
-        for case, dbname, setup_script in setup:
-            conn_args = conns[ci]
-            task = loop.create_task(
-                _setup_database(dbname, setup_script, conn_args))
-            tasks.append(task)
-            ci += 1
-            if ci == len(conns):
-                ci = 0
+        if len(conns) == 1:
+            # Special case for --jobs=1
+            for case, dbname, setup_script in setup:
+                await _setup_database(dbname, setup_script, conns[0])
+        else:
+            ci = 0
+            for case, dbname, setup_script in setup:
+                conn_args = conns[ci]
+                task = asyncio.create_task(
+                    _setup_database(dbname, setup_script, conn_args))
+                tasks.append(task)
+                ci += 1
+                if ci == len(conns):
+                    ci = 0
 
-        loop.run_until_complete(asyncio.gather(*tasks))
+            await asyncio.gather(*tasks)
 
-    return
+    return asyncio.run(_run())
 
 
 async def _setup_database(dbname, setup_script, conn_args):

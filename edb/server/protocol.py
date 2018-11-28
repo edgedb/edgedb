@@ -122,7 +122,7 @@ class Protocol(asyncio.Protocol):
 
             fut = self._loop.create_task(
                 self._pg_cluster.connect(
-                    database=database, user=user, loop=self._loop))
+                    database=database, user=user))
 
             fut.add_done_callback(self._on_pg_connect)
 
