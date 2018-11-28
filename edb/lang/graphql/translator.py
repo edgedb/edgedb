@@ -96,7 +96,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         gqlresult = gql_proc(
             self._context.gqlcore._gql_schema,
             self._context.query,
-            variable_values={
+            variables={
                 name[1:]: val.value
                 for name, val in self._context.variables.items()
             },
