@@ -495,6 +495,15 @@ class Tuple(Collection):
             schema, id=id, name=name, named=named,
             element_types=element_types, **kwargs)
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['element_types'] = dict(state['element_types'])
+        return state
+
+    def __setstate__(self, state):
+        state['element_types'] = types.MappingProxyType(state['element_types'])
+        self.__dict__.update(state)
+
     def is_tuple(self):
         return True
 

@@ -17,21 +17,31 @@
 #
 
 
+import hashlib
+import os
 import pathlib
+import pickle
+import tempfile
 import typing
 
 from edb import lib as stdlib
 from edb.lang import edgeql
+from edb.lang import schema
 from edb.lang.edgeql import ast as qlast
+from edb.lang.edgeql import compiler as qlcompiler
 
 from . import ddl as s_ddl
 from . import error as s_err
 from . import schema as s_schema
 
 
+SCHEMA_ROOT = pathlib.Path(schema.__path__[0])
 LIB_ROOT = pathlib.Path(stdlib.__path__[0])
+QL_COMPILER_ROOT = pathlib.Path(qlcompiler.__path__[0])
+
 STD_LIB = ['std', 'schema']
 STD_MODULES = {'std', 'schema', 'stdattrs', 'stdgraphql'}
+CACHED_SCHEMA = LIB_ROOT / '.schema.pickle'
 
 
 def std_module_to_ddl(
@@ -77,13 +87,34 @@ def load_std_module(
     return schema
 
 
-def load_std_schema(
-        schema: typing.Optional[s_schema.Schema]=None) -> s_schema.Schema:
-    if schema is None:
-        schema = s_schema.Schema()
+def load_std_schema() -> s_schema.Schema:
+    std_dirs_hash = hash_std_dirs()
+    if CACHED_SCHEMA.exists():
+        with open(CACHED_SCHEMA, 'rb') as f:
+            src_hash = f.read(16)
+            if src_hash == std_dirs_hash:
+                schema = pickle.loads(f.read())
+                return schema
 
+    schema = s_schema.Schema()
     for modname in STD_LIB:
         schema = load_std_module(schema, modname)
+
+    pickled_schema = pickle.dumps(schema)
+    try:
+        with tempfile.NamedTemporaryFile(
+                mode='wb', dir=CACHED_SCHEMA.parent, delete=False) as f:
+            f.write(std_dirs_hash)
+            f.write(pickled_schema)
+    except Exception:
+        try:
+            os.unlink(f.name)
+        except OSError:
+            pass
+        finally:
+            raise
+    else:
+        os.rename(f.name, CACHED_SCHEMA)
 
     return schema
 
@@ -94,3 +125,32 @@ def load_graphql_schema(
         schema = s_schema.Schema()
 
     return load_std_module(schema, 'stdgraphql')
+
+
+def hash_std_dirs():
+    return _hash_dirs(
+        (SCHEMA_ROOT, '.py'),
+        (QL_COMPILER_ROOT, '.py'),
+        (LIB_ROOT, '.eql'),
+    )
+
+
+def _hash_dirs(*dirs: typing.Tuple[str, str]) -> bytes:
+    def hash_dir(dirname, ext, paths):
+        with os.scandir(dirname) as it:
+            for entry in it:
+                if entry.is_file() and entry.name.endswith(ext):
+                    paths.append(entry.path)
+                elif entry.is_dir():
+                    hash_dir(entry.path, ext, paths)
+
+    paths = []
+    for dirname, ext in dirs:
+        hash_dir(dirname, ext, paths)
+
+    h = hashlib.md5()
+    for path in sorted(paths):
+        with open(path, 'rb') as f:
+            h.update(f.read())
+
+    return h.digest()
