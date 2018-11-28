@@ -106,6 +106,12 @@ def _ql_typeref_to_ir_typeref(
             typ.subtypes.append(subtype)
     else:
         styp = schemactx.get_schema_type(maintype, ctx=ctx)
+
+        if styp.contains_any():
+            raise errors.EdgeQLSyntaxError(
+                f"Unexpected 'anytype'",
+                context=maintype.context)
+
         typ = irast.TypeRef(
             maintype=styp.get_name(ctx.env.schema),
             subtypes=[]

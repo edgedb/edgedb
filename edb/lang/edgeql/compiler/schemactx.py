@@ -29,6 +29,7 @@ from edb.lang.schema import name as sn
 from edb.lang.schema import nodes as s_nodes
 from edb.lang.schema import objects as s_obj
 from edb.lang.schema import pointers as s_pointers
+from edb.lang.schema import pseudo as s_pseudo
 from edb.lang.schema import sources as s_sources
 from edb.lang.schema import types as s_types
 from edb.lang.schema import utils as s_utils
@@ -51,6 +52,8 @@ def get_schema_object(
             srcctx = name.context
         module = name.module
         name = name.name
+    elif isinstance(name, qlast.AnyType):
+        return s_pseudo.Any.create()
 
     if module:
         name = sn.Name(name=name, module=module)

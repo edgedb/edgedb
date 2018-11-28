@@ -298,7 +298,16 @@ def __infer_typeref(ir, env):
 
 @_infer_type.register(irast.TypeCast)
 def __infer_typecast(ir, env):
-    return infer_type(ir.type, env)
+    stype = infer_type(ir.type, env)
+
+    # is_polymorphic is synonymous to get_is_abstract for scalars
+    if stype.is_polymorphic(env.schema):
+        raise ql_errors.EdgeQLError(
+            f'cannot cast into an abstract scalar '
+            f'{stype.get_displayname(env.schema)}',
+            context=ir.context)
+
+    return stype
 
 
 @_infer_type.register(irast.Stmt)
