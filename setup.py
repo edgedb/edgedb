@@ -33,7 +33,7 @@ from setuptools.command import develop as setuptools_develop
 RUNTIME_DEPS = [
     'asyncpg',
     'click',
-    'graphql-core',
+    'graphql-core~=2.1.0',
     'immutables>=0.7',
     'Parsing',
     'prompt_toolkit>=1.0.15,<2.0.0',
