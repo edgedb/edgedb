@@ -26,7 +26,6 @@ import typing
 import uuid
 
 from edb.lang.common import parsing
-from edb.lang.common import persistent_hash as phash
 from edb.lang.common import ordered
 from edb.lang.common import struct
 from edb.lang.common import topological
@@ -67,14 +66,6 @@ def get_known_type_id(typename):
         _TYPE_IDS = load_type_ids()
 
     return _TYPE_IDS.get(typename)
-
-
-def is_named_class(scls):
-    if hasattr(scls.__class__, 'get_field'):
-        name_field = scls.__class__.get_field('name')
-        return name_field is not None
-
-    return False
 
 
 def default_field_merge(target: 'Object', sources: typing.List['Object'],
@@ -283,6 +274,7 @@ class ObjectMeta(type):
                 fields.update(parent.get_ownfields())
 
         cls._fields = fields
+        cls._hashable_fields = {f for f in fields.values() if f.hashable}
         cls._sorted_fields = collections.OrderedDict(
             sorted(fields.items(), key=lambda e: e[0]))
         fa = '{}.{}_fields'.format(cls.__module__, cls.__name__)
@@ -572,35 +564,19 @@ class Object(metaclass=ObjectMeta):
     def is_type(self):
         return False
 
-    def hash_criteria_fields(self, schema):
-        for fn, f in self.__class__.get_fields(sorted=True).items():
-            if f.hashable:
-                yield fn
-
     def hash_criteria(self, schema):
         cls = type(self)
-        fields = self.hash_criteria_fields(schema)
-        criteria = [('__class__', (cls.__module__, cls.__name__))]
-        abc = collections.abc
+        sig = []
 
-        for f in fields:
-            v = self.get_field_value(schema, f)
+        for f in cls._hashable_fields:
+            fn = f.name
+            val = schema._get_obj_field(self.id, fn)
+            if val is None:
+                continue
 
-            if not isinstance(v, phash.PersistentlyHashable):
-                if isinstance(v, abc.Set):
-                    v = frozenset(v)
-                elif isinstance(v, abc.Mapping):
-                    v = frozenset(v.items())
-                elif (isinstance(v, abc.Sequence) and
-                        not isinstance(v, abc.Hashable)):
-                    v = tuple(v)
+            sig.append((fn, val))
 
-            if is_named_class(v):
-                v = v.get_name(schema)
-
-            criteria.append((f, v))
-
-        return tuple(criteria)
+        return frozenset(sig)
 
     def set_attribute(self, schema, name, value, *,
                       dctx=None, source=None, source_context=None):
@@ -624,16 +600,6 @@ class Object(metaclass=ObjectMeta):
                 ))
 
         return schema
-
-    def persistent_hash(self, *, schema):
-        """Compute object 'snapshot' hash.
-
-        This is an explicit method since schema Objects are mutable.
-        The hash must be externally stable, i.e. stable across the runs
-        and thus must not contain default object hashes (addresses),
-        including that of None.
-        """
-        return phash.persistent_hash(self.hash_criteria(schema), schema=schema)
 
     def inheritable_fields(self):
         for fn, f in self.__class__.get_fields().items():
@@ -902,17 +868,17 @@ class Object(metaclass=ObjectMeta):
         old = list(old)
         new = list(new)
 
-        oldkeys = {o.persistent_hash(schema=old_schema) for o in old}
-        newkeys = {o.persistent_hash(schema=new_schema) for o in new}
+        oldkeys = {o.id: o.hash_criteria(old_schema) for o in old}
+        newkeys = {o.id: o.hash_criteria(new_schema) for o in new}
 
-        unchanged = oldkeys & newkeys
+        unchanged = set(oldkeys.values()) & set(newkeys.values())
 
         old = ordered.OrderedSet(
             o for o in old
-            if o.persistent_hash(schema=old_schema) not in unchanged)
+            if oldkeys[o.id] not in unchanged)
         new = ordered.OrderedSet(
             o for o in new
-            if o.persistent_hash(schema=new_schema) not in unchanged)
+            if newkeys[o.id] not in unchanged)
 
         comparison = []
         for x, y in itertools.product(new, old):
@@ -1248,9 +1214,6 @@ class ObjectCollection:
 
         return tuple(result)
 
-    def persistent_hash(self, *, schema):
-        return phash.persistent_hash(self.names(schema, allow_unresolved=True))
-
     @classmethod
     def compare_values(cls, ours, theirs, *,
                        our_schema, their_schema, context, compcoef):
@@ -1284,12 +1247,6 @@ class ObjectIndexBase(ObjectCollection, container=tuple):
         coll = super().create(schema, data)
         coll._check_duplicates(schema)
         return coll
-
-    def persistent_hash(self, *, schema):
-        vals = []
-        for k, v in self.items(schema):
-            vals.append((k, v))
-        return phash.persistent_hash(frozenset(vals), schema=schema)
 
     def _check_duplicates(self, schema):
         counts = collections.Counter(self.keys(schema))

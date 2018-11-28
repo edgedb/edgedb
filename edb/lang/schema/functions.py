@@ -20,8 +20,6 @@
 import types
 import typing
 
-from edb.lang.common import persistent_hash as ph
-
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import errors as ql_errors
 from edb.lang.edgeql import codegen
@@ -338,9 +336,6 @@ class FuncParameterList(so.ObjectList, type=Parameter):
         for param in self.objects(schema):
             if param.get_kind(schema) is ft.ParameterKind.VARIADIC:
                 return param
-
-    def persistent_hash(self, *, schema):
-        return ph.persistent_hash(tuple(self.objects(schema)), schema=schema)
 
     @classmethod
     def from_ast(cls, schema, astnode, modaliases, *, func_fqname):

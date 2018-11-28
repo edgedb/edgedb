@@ -18,7 +18,6 @@
 
 
 from edb.lang.common import typed
-from edb.lang.common import persistent_hash
 
 
 class ExpressionText(str):
@@ -39,6 +38,3 @@ class ExpressionList(typed.FrozenTypedList, type=ExpressionText):
                     result.extend(theirs)
 
         return result
-
-    def persistent_hash(self, *, schema):
-        return persistent_hash.persistent_hash(tuple(self), schema=schema)
