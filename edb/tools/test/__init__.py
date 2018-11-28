@@ -45,7 +45,7 @@ from . import styles
               help='enable or disable warnings (enabled by default)',
               default=True)
 @click.option('-j', '--jobs', type=int,
-              default=lambda: round(os.cpu_count() * 0.75),
+              default=lambda: os.cpu_count() // 2,
               help='number of parallel processes to use')
 @click.option('-k', '--include', type=str, multiple=True, metavar='REGEXP',
               help='only run tests which match the given regular expression')
