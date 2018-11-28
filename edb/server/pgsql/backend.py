@@ -355,9 +355,7 @@ class Backend:
         if not declarations:
             return cmd
 
-        target = await self._intro_mech.readschema(modules=s_std.STD_MODULES)
-
-        return s_ddl.compile_migration(cmd, target, self.schema)
+        return s_ddl.compile_migration(cmd, self.std_schema, self.schema)
 
     async def translate_pg_error(self, query, error):
         return await self._intro_mech.translate_pg_error(
