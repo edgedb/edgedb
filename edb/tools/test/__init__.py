@@ -17,7 +17,9 @@
 #
 
 
+import multiprocessing
 import os
+import platform
 import sys
 import unittest
 
@@ -70,6 +72,11 @@ def test(*, files, jobs, include, exclude, verbose, quiet, output_format,
         verbosity = 2
     else:
         verbosity = 1
+
+    if platform.system().lower() == 'darwin':
+        # A "fork" without "exec" is broken on macOS since 10.14:
+        # https://www.wefearchange.org/2018/11/forkmacos.rst.html
+        multiprocessing.set_start_method('spawn')
 
     output_format = runner.OutputFormat(output_format)
     if verbosity > 1 and output_format is runner.OutputFormat.stacked:
