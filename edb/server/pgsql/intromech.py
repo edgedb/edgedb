@@ -71,36 +71,37 @@ class IntrospectionMech:
         if schema is None:
             schema = so.Schema()
 
-        schema = await self.read_modules(
-            schema, only_modules=modules, exclude_modules=exclude_modules)
-        schema = await self.read_scalars(
-            schema, only_modules=modules, exclude_modules=exclude_modules)
-        schema = await self.read_attributes(
-            schema, only_modules=modules, exclude_modules=exclude_modules)
-        schema = await self.read_objtypes(
-            schema, only_modules=modules, exclude_modules=exclude_modules)
-        schema = await self.read_links(
-            schema, only_modules=modules, exclude_modules=exclude_modules)
-        schema = await self.read_link_properties(
-            schema, only_modules=modules, exclude_modules=exclude_modules)
-        schema = await self.read_attribute_values(
-            schema, only_modules=modules, exclude_modules=exclude_modules)
-        schema = await self.read_operators(
-            schema, only_modules=modules, exclude_modules=exclude_modules)
-        schema = await self.read_functions(
-            schema, only_modules=modules, exclude_modules=exclude_modules)
-        schema = await self.read_constraints(
-            schema, only_modules=modules, exclude_modules=exclude_modules)
-        schema = await self.read_indexes(
-            schema, only_modules=modules, exclude_modules=exclude_modules)
+        async with self.connection.transaction():
+            schema = await self.read_modules(
+                schema, only_modules=modules, exclude_modules=exclude_modules)
+            schema = await self.read_scalars(
+                schema, only_modules=modules, exclude_modules=exclude_modules)
+            schema = await self.read_attributes(
+                schema, only_modules=modules, exclude_modules=exclude_modules)
+            schema = await self.read_objtypes(
+                schema, only_modules=modules, exclude_modules=exclude_modules)
+            schema = await self.read_links(
+                schema, only_modules=modules, exclude_modules=exclude_modules)
+            schema = await self.read_link_properties(
+                schema, only_modules=modules, exclude_modules=exclude_modules)
+            schema = await self.read_attribute_values(
+                schema, only_modules=modules, exclude_modules=exclude_modules)
+            schema = await self.read_operators(
+                schema, only_modules=modules, exclude_modules=exclude_modules)
+            schema = await self.read_functions(
+                schema, only_modules=modules, exclude_modules=exclude_modules)
+            schema = await self.read_constraints(
+                schema, only_modules=modules, exclude_modules=exclude_modules)
+            schema = await self.read_indexes(
+                schema, only_modules=modules, exclude_modules=exclude_modules)
 
-        schema = await self.order_attributes(schema)
-        schema = await self.order_scalars(schema)
-        schema = await self.order_operators(schema)
-        schema = await self.order_functions(schema)
-        schema = await self.order_link_properties(schema)
-        schema = await self.order_links(schema)
-        schema = await self.order_objtypes(schema)
+            schema = await self.order_attributes(schema)
+            schema = await self.order_scalars(schema)
+            schema = await self.order_operators(schema)
+            schema = await self.order_functions(schema)
+            schema = await self.order_link_properties(schema)
+            schema = await self.order_links(schema)
+            schema = await self.order_objtypes(schema)
 
         return schema
 
