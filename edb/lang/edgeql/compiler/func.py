@@ -93,13 +93,11 @@ def compile_FunctionCall(
         fctx.in_func_call = True
         args, kwargs = compile_call_args(expr, funcname, ctx=fctx)
 
-        fatal_array_check = len(funcs) == 1
         matched_call = _NO_MATCH
 
         for func in sorted(funcs, key=lambda f: f.get_name(schema)):
             call = try_bind_func_args(
                 args, kwargs, funcname, func,
-                fatal_array_check=fatal_array_check,
                 ctx=ctx)
 
             if call is _NO_MATCH:
@@ -168,8 +166,7 @@ def try_bind_func_args(
         args: typing.List[typing.Tuple[s_types.Type, irast.Base]],
         kwargs: typing.Dict[str, typing.Tuple[s_types.Type, irast.Base]],
         funcname: sn.Name,
-        func: s_func.Function,
-        fatal_array_check: bool = False, *,
+        func: s_func.Function, *,
         ctx: context.ContextLevel) -> BoundCall:
 
     def _check_type(arg, arg_type, param_type):
