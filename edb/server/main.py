@@ -31,6 +31,7 @@ import sys
 import click
 from asyncpg import cluster as pg_cluster
 
+from edb.lang.common import devmode
 from edb.lang.common import exceptions
 
 from . import cluster as edgedb_cluster
@@ -126,7 +127,7 @@ def _run_server(cluster, args):
 
 
 def run_server(args):
-    if edgedb_cluster.is_in_dev_mode():
+    if devmode.is_in_dev_mode():
         logger.info('EdgeDB server starting in DEV mode.')
     else:
         logger.info('EdgeDB server starting.')
@@ -135,7 +136,7 @@ def run_server(args):
     pg_cluster_started_by_us = False
 
     try:
-        if args['data_dir']:
+        if not args['postgres']:
             server_settings = {
                 'log_connections': 'yes',
                 'log_statement': 'all',
@@ -187,6 +188,7 @@ def run_server(args):
 
         else:
             cluster = pg_cluster.RunningCluster(dsn=args['postgres'])
+            cluster._data_dir = args['data_dir']
 
         if args['bootstrap']:
             _init_cluster(cluster, args)
@@ -272,5 +274,5 @@ def main(**kwargs):
 
 
 def main_dev():
-    edgedb_cluster.enable_dev_mode()
+    devmode.enable_dev_mode()
     main()

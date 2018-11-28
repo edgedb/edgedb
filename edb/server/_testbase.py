@@ -125,7 +125,7 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
 _default_cluster = None
 
 
-def _init_cluster(data_dir_or_pg_cluster=None, *,
+def _init_cluster(data_dir=None, *, pg_cluster=None,
                   cleanup_atexit=True, init_settings={}):
     if (not os.environ.get('EDGEDB_DEBUG_SERVER') and
             not os.environ.get('EDGEDB_LOG_LEVEL')):
@@ -133,11 +133,12 @@ def _init_cluster(data_dir_or_pg_cluster=None, *,
     else:
         _env = {}
 
-    if data_dir_or_pg_cluster is None:
+    if data_dir is None:
         cluster = edgedb_cluster.TempCluster(env=_env)
         destroy = True
     else:
-        cluster = edgedb_cluster.Cluster(data_dir_or_pg_cluster, env=_env)
+        cluster = edgedb_cluster.Cluster(
+            data_dir=data_dir, postgres_cluster=pg_cluster, env=_env)
         destroy = False
 
     if cluster.get_status() == 'not-initialized':
@@ -160,9 +161,9 @@ def _start_cluster(*, cleanup_atexit=True):
     global _default_cluster
 
     if _default_cluster is None:
-        pg_cluster = os.environ.get('EDGEDB_TEST_PG_CLUSTER')
+        data_dir = os.environ.get('EDGEDB_TEST_DATA_DIR')
         _default_cluster = _init_cluster(
-            pg_cluster, cleanup_atexit=cleanup_atexit)
+            data_dir=data_dir, cleanup_atexit=cleanup_atexit)
 
     return _default_cluster
 
@@ -570,10 +571,13 @@ def start_worker_servers(master_cluster, num_workers):
     pg_conn_args = dict(master_cluster._pg_cluster.get_connection_spec())
     pg_conn_args['user'] = edgedb_defines.EDGEDB_SUPERUSER
     pg_dsn = connect_utils.render_dsn('postgres', pg_conn_args)
+    data_dir = master_cluster.get_data_dir()
 
     if num_workers > 1:
         for i in range(num_workers - 1):
-            servers.append(_init_cluster(pg_dsn, cleanup_atexit=False))
+            server = _init_cluster(
+                data_dir=data_dir, pg_cluster=pg_dsn, cleanup_atexit=False)
+            servers.append(server)
 
     for server in servers:
         conn_args = dict(server.get_connect_args())

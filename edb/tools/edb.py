@@ -19,9 +19,9 @@
 
 import click
 
-from edb.server import cluster
+from edb.lang.common import devmode
 
 
 @click.group()
 def edbcommands():
-    cluster.enable_dev_mode()
+    devmode.enable_dev_mode()

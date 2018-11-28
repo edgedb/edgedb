@@ -33,6 +33,7 @@ from asyncpg import cluster as pg_cluster
 import edb
 from edb import client as edgedb_client
 from edb.client import connect_utils
+from edb.lang.common import devmode
 from edb.server import defines as edgedb_defines
 
 
@@ -61,15 +62,6 @@ def find_available_port(port_range=(49152, 65535), max_tries=1000):
     return port
 
 
-def enable_dev_mode():
-    os.environ['__EDGEDB_DEVMODE'] = '1'
-
-
-def is_in_dev_mode() -> bool:
-    devmode = os.environ.get('__EDGEDB_DEVMODE', '0')
-    return devmode.lower() not in ('0', '', 'false')
-
-
 def get_pg_config_path_from_build_meta() -> os.PathLike:
     try:
         from . import _buildmeta
@@ -80,7 +72,7 @@ def get_pg_config_path_from_build_meta() -> os.PathLike:
 
 
 def get_pg_config_path() -> os.PathLike:
-    if is_in_dev_mode():
+    if devmode.is_in_dev_mode():
         root = pathlib.Path(edb.server.__path__[0]).parent.parent
         pg_config = (root / 'build' / 'postgres' /
                      'install' / 'bin' / 'pg_config').resolve()
@@ -119,24 +111,23 @@ class ClusterError(Exception):
 
 class Cluster:
     def __init__(
-            self, data_dir_or_pg_cluster, *,
+            self, data_dir, *, postgres_cluster=None,
             pg_superuser='postgres', port=edgedb_defines.EDGEDB_PORT,
             env=None):
-        if (isinstance(data_dir_or_pg_cluster, str) and
-                (data_dir_or_pg_cluster.startswith('postgres://') or
-                    data_dir_or_pg_cluster.startswith('postgres://'))):
-            self._pg_dsn = data_dir_or_pg_cluster
-            data_dir_or_pg_cluster = pg_cluster.RunningCluster(
-                dsn=self._pg_dsn)
+        if (isinstance(postgres_cluster, str) and
+                (postgres_cluster.startswith('postgres://') or
+                    postgres_cluster.startswith('postgres://'))):
+            self._pg_dsn = postgres_cluster
+            postgres_cluster = pg_cluster.RunningCluster(dsn=self._pg_dsn)
         else:
             self._pg_dsn = None
 
-        self._edgedb_cmd = ['edgedb-server']
+        self._data_dir = data_dir
+        self._location = data_dir
+        self._edgedb_cmd = ['edgedb-server', '-D', self._data_dir]
 
-        if isinstance(data_dir_or_pg_cluster, pg_cluster.Cluster):
-            self._data_dir = None
-            self._location = None
-            self._pg_cluster = data_dir_or_pg_cluster
+        if postgres_cluster is not None:
+            self._pg_cluster = postgres_cluster
 
             pg_conn_spec = dict(self._pg_cluster.get_connection_spec())
             pg_conn_spec['user'] = pg_superuser
@@ -153,11 +144,7 @@ class Cluster:
 
             self._edgedb_cmd.extend(['-P', self._pg_dsn])
         else:
-            self._data_dir = data_dir_or_pg_cluster
-            self._location = self._data_dir
             self._pg_cluster = get_pg_cluster(self._data_dir)
-
-            self._edgedb_cmd.extend(['-D', self._data_dir])
 
         self._pg_superuser = pg_superuser
         self._daemon_process = None
@@ -202,6 +189,9 @@ class Cluster:
             'host': 'localhost',
             'port': self._effective_port
         }
+
+    def get_data_dir(self):
+        return self._data_dir
 
     async def connect(self, loop=None, **kwargs):
         if loop is None:

@@ -275,7 +275,8 @@ class Protocol(asyncio.Protocol):
             self.send_error(e)
             return
 
-        fut = self._loop.create_task(backend.open_database(self.pgconn))
+        fut = self._loop.create_task(backend.open_database(
+            self.pgconn, self._pg_cluster.get_data_dir()))
 
         fut.add_done_callback(self._on_edge_connect)
 

@@ -17,17 +17,13 @@
 #
 
 
-import hashlib
-import os
 import pathlib
-import pickle
-import tempfile
 import typing
 
 from edb import lib as stdlib
 from edb.lang import edgeql
 from edb.lang import schema
-from edb.lang.edgeql import ast as qlast
+from edb.lang.common import devmode
 from edb.lang.edgeql import compiler as qlcompiler
 
 from . import ddl as s_ddl
@@ -41,12 +37,15 @@ QL_COMPILER_ROOT = pathlib.Path(qlcompiler.__path__[0])
 
 STD_LIB = ['std', 'schema']
 STD_MODULES = {'std', 'schema', 'stdattrs', 'stdgraphql'}
-CACHED_SCHEMA = LIB_ROOT / '.schema.pickle'
+
+CACHE_SRC_DIRS = (
+    (SCHEMA_ROOT, '.py'),
+    (QL_COMPILER_ROOT, '.py'),
+    (LIB_ROOT, '.eql'),
+)
 
 
-def std_module_to_ddl(
-        schema: s_schema.Schema,
-        modname: str) -> typing.List[qlast.DDL]:
+def get_std_module_text(modname: str) -> str:
 
     module_eql = ''
 
@@ -69,7 +68,7 @@ def std_module_to_ddl(
         with open(module_file) as f:
             module_eql += '\n' + f.read()
 
-    return edgeql.parse_block(module_eql)
+    return module_eql
 
 
 def load_std_module(
@@ -79,7 +78,8 @@ def load_std_module(
     if modname == 'std':
         modaliases[None] = 'std'
 
-    for statement in std_module_to_ddl(schema, modname):
+    modtext = get_std_module_text(modname)
+    for statement in edgeql.parse_block(modtext):
         cmd = s_ddl.delta_from_ddl(
             statement, schema=schema, modaliases=modaliases, stdmode=True)
         schema, _ = cmd.apply(schema)
@@ -88,33 +88,21 @@ def load_std_module(
 
 
 def load_std_schema() -> s_schema.Schema:
-    std_dirs_hash = hash_std_dirs()
-    if CACHED_SCHEMA.exists():
-        with open(CACHED_SCHEMA, 'rb') as f:
-            src_hash = f.read(16)
-            if src_hash == std_dirs_hash:
-                schema = pickle.loads(f.read())
-                return schema
+    std_dirs_hash = devmode.hash_dirs(CACHE_SRC_DIRS)
+    schema = None
 
-    schema = s_schema.Schema()
-    for modname in STD_LIB:
-        schema = load_std_module(schema, modname)
+    if devmode.is_in_dev_mode():
+        schema = devmode.read_dev_mode_cache(
+            std_dirs_hash, 'transient-stdschema.pickle')
 
-    pickled_schema = pickle.dumps(schema)
-    try:
-        with tempfile.NamedTemporaryFile(
-                mode='wb', dir=CACHED_SCHEMA.parent, delete=False) as f:
-            f.write(std_dirs_hash)
-            f.write(pickled_schema)
-    except Exception:
-        try:
-            os.unlink(f.name)
-        except OSError:
-            pass
-        finally:
-            raise
-    else:
-        os.rename(f.name, CACHED_SCHEMA)
+    if schema is None:
+        schema = s_schema.Schema()
+        for modname in STD_LIB:
+            schema = load_std_module(schema, modname)
+
+    if devmode.is_in_dev_mode():
+        devmode.write_dev_mode_cache(
+            schema, std_dirs_hash, 'transient-stdschema.pickle')
 
     return schema
 
@@ -125,32 +113,3 @@ def load_graphql_schema(
         schema = s_schema.Schema()
 
     return load_std_module(schema, 'stdgraphql')
-
-
-def hash_std_dirs():
-    return _hash_dirs(
-        (SCHEMA_ROOT, '.py'),
-        (QL_COMPILER_ROOT, '.py'),
-        (LIB_ROOT, '.eql'),
-    )
-
-
-def _hash_dirs(*dirs: typing.Tuple[str, str]) -> bytes:
-    def hash_dir(dirname, ext, paths):
-        with os.scandir(dirname) as it:
-            for entry in it:
-                if entry.is_file() and entry.name.endswith(ext):
-                    paths.append(entry.path)
-                elif entry.is_dir():
-                    hash_dir(entry.path, ext, paths)
-
-    paths = []
-    for dirname, ext in dirs:
-        hash_dir(dirname, ext, paths)
-
-    h = hashlib.md5()
-    for path in sorted(paths):
-        with open(path, 'rb') as f:
-            h.update(f.read())
-
-    return h.digest()

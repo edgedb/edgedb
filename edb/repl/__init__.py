@@ -42,6 +42,7 @@ from prompt_toolkit.layout import lexers as pt_lexers
 
 from edb import client
 from edb.lang.common import datetime
+from edb.lang.common import devmode
 from edb.lang.common import lexer as core_lexer
 from edb.lang.common import markup
 from edb.lang.common.markup.renderers import terminal as markup_term
@@ -504,5 +505,5 @@ def main():
 
 
 def main_dev():
-    edgedb_cluster.enable_dev_mode()
+    devmode.enable_dev_mode()
     main()

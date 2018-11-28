@@ -20,8 +20,6 @@
 import logging
 
 from edb.lang.common import debug
-from edb.lang.schema import ddl as s_ddl
-from edb.lang.schema import std as s_std
 
 from edb.server import defines as edgedb_defines
 from edb.server import protocol as edgedb_protocol
@@ -161,22 +159,11 @@ async def _ensure_meta_schema(conn):
     await metaschema.bootstrap(conn)
 
 
-async def _init_stdlib(conn):
+async def _init_stdlib(cluster, conn):
+    bk = await backend.open_database(
+        conn, cluster.get_data_dir(), bootstrap=True)
 
-    bk = await backend.open_database(conn, bootstrap=True)
-
-    for modname in s_std.STD_LIB + ['stdgraphql']:
-        logger.info(f'Bootstrapping {modname} module...')
-
-        modaliases = {}
-        if modname == 'std':
-            modaliases[None] = 'std'
-
-        for statement in s_std.std_module_to_ddl(bk.schema, modname):
-            cmd = s_ddl.delta_from_ddl(
-                statement, schema=bk.schema, modaliases=modaliases,
-                stdmode=True)
-            await bk.run_ddl_command(cmd)
+    await bk.run_std_bootstrap()
 
     await metaschema.generate_views(conn, bk.schema)
 
@@ -244,7 +231,7 @@ async def bootstrap(cluster, args, loop=None):
             try:
                 await _ensure_meta_schema(conn)
                 protocol = edgedb_protocol.Protocol(cluster, loop=loop)
-                protocol.backend = await _init_stdlib(conn)
+                protocol.backend = await _init_stdlib(cluster, conn)
                 await _init_defaults(protocol)
                 await _populate_data(protocol)
             finally:

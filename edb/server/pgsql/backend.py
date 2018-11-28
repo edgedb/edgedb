@@ -17,15 +17,19 @@
 #
 
 
-import asyncio
 import collections
 import logging
+import pathlib
+import pickle
 import re
 import uuid
 
 from edb.lang.common import context as parser_context
 from edb.lang.common import debug
+from edb.lang.common import devmode
 from edb.lang.common import exceptions
+
+from edb.lang import edgeql
 
 from edb.lang.schema import delta as sd
 
@@ -43,6 +47,10 @@ from edb.server.pgsql import delta as delta_cmds
 from . import compiler
 from . import intromech
 from . import types
+
+CACHE_SRC_DIRS = s_std.CACHE_SRC_DIRS + (
+    (pathlib.Path(__file__).parent, '.py'),
+)
 
 
 class Query(backend_query.Query):
@@ -77,9 +85,8 @@ class OutputDescriptor:
 class Backend:
 
     std_schema = None
-    std_schema_lock = None
 
-    def __init__(self, connection):
+    def __init__(self, connection, data_dir):
         self.schema = None
         self.modaliases = {None: 'default'}
         self.testmode = False
@@ -87,18 +94,21 @@ class Backend:
         self._intro_mech = intromech.IntrospectionMech(connection)
 
         self.connection = connection
+        self.data_dir = pathlib.Path(data_dir)
+        self.dev_mode = devmode.is_in_dev_mode()
         self.transactions = []
 
     async def getschema(self):
         if self.schema is None:
             cls = type(self)
             if cls.std_schema is None:
-                if cls.std_schema_lock is None:
-                    cls.std_schema_lock = asyncio.Lock()
-                async with cls.std_schema_lock:
-                    if cls.std_schema is None:
-                        cls.std_schema = await self._intro_mech.readschema(
-                            modules=s_std.STD_MODULES)
+                with open(self.data_dir / 'stdschema.pickle', 'rb') as f:
+                    try:
+                        cls.std_schema = pickle.load(f)
+                    except Exception as e:
+                        raise RuntimeError(
+                            'could not load std schema pickle') from e
+
             self.schema = await self._intro_mech.readschema(
                 schema=cls.std_schema, exclude_modules=s_std.STD_MODULES)
 
@@ -152,6 +162,146 @@ class Backend:
 
         return result
 
+    async def _execute_ddl(self, sql_text):
+        try:
+            if debug.flags.delta_execute:
+                debug.header('Delta Script')
+                debug.dump_code(sql_text, lexer='sql')
+
+            await self.connection.execute(sql_text)
+
+        except Exception as e:
+            position = getattr(e, 'position', None)
+            internal_position = getattr(e, 'internal_position', None)
+            context = getattr(e, 'context', '')
+            if context:
+                pl_func_line = re.search(
+                    r'^PL/pgSQL function inline_code_block line (\d+).*',
+                    context, re.M)
+
+                if pl_func_line:
+                    pl_func_line = int(pl_func_line.group(1))
+            else:
+                pl_func_line = None
+            point = None
+
+            if position is not None:
+                position = int(position)
+                point = parser_context.SourcePoint(
+                    None, None, position)
+                text = e.query
+                if text is None:
+                    # Parse errors
+                    text = sql_text
+
+            elif internal_position is not None:
+                internal_position = int(internal_position)
+                point = parser_context.SourcePoint(
+                    None, None, internal_position)
+                text = e.internal_query
+
+            elif pl_func_line:
+                point = parser_context.SourcePoint(
+                    pl_func_line, None, None
+                )
+                text = sql_text
+
+            if point is not None:
+                context = parser_context.ParserContext(
+                    'query', text, start=point, end=point)
+                exceptions.replace_context(e, context)
+
+            raise
+
+    async def _load_std(self):
+        schema = s_schema.Schema()
+
+        current_block = None
+
+        std_texts = []
+        for modname in s_std.STD_LIB + ['stdgraphql']:
+            std_texts.append(s_std.get_std_module_text(modname))
+
+        ddl_text = '\n'.join(std_texts)
+
+        for ddl_cmd in edgeql.parse_block(ddl_text):
+            delta_command = s_ddl.delta_from_ddl(
+                ddl_cmd, schema=schema, modaliases={None: 'std'}, stdmode=True)
+
+            if debug.flags.delta_plan_input:
+                debug.header('Delta Plan Input')
+                debug.dump(delta_command)
+
+            # Do a dry-run on test_schema to canonicalize
+            # the schema delta-commands.
+            test_schema = schema
+            context = sd.CommandContext()
+            canonical_delta = delta_command.copy()
+            canonical_delta.apply(test_schema, context=context)
+
+            # Apply and adapt delta, build native delta plan, which
+            # will also update the schema.
+            schema, plan = self.process_delta(canonical_delta, schema)
+
+            if isinstance(plan, (s_db.CreateDatabase, s_db.DropDatabase)):
+                if (current_block is not None and
+                        not isinstance(current_block, dbops.SQLBlock)):
+                    raise exceptions.EdgeQLError(
+                        'cannot mix DATABASE commands with regular DDL '
+                        'commands in a single block')
+                if current_block is None:
+                    current_block = dbops.SQLBlock()
+
+            else:
+                if (current_block is not None and
+                        not isinstance(current_block, dbops.PLTopBlock)):
+                    raise exceptions.EdgeQLError(
+                        'cannot mix DATABASE commands with regular DDL '
+                        'commands in a single block')
+                if current_block is None:
+                    current_block = dbops.PLTopBlock()
+
+            plan.generate(current_block)
+
+        sql_text = current_block.to_string()
+
+        return schema, sql_text
+
+    async def run_std_bootstrap(self):
+        cache_hit = False
+        sql_text = None
+
+        cluster_schema_cache = self.data_dir / 'stdschema.pickle'
+
+        if self.dev_mode:
+            schema_cache = 'backend-stdschema.pickle'
+            script_cache = 'backend-stdinitsql.pickle'
+
+            src_hash = devmode.hash_dirs(CACHE_SRC_DIRS)
+            sql_text = devmode.read_dev_mode_cache(src_hash, script_cache)
+
+            if sql_text is not None:
+                schema = devmode.read_dev_mode_cache(src_hash, schema_cache)
+
+        if sql_text is None or schema is None:
+            schema, sql_text = await self._load_std()
+        else:
+            cache_hit = True
+
+        if debug.flags.delta_execute:
+            debug.header('Delta Script')
+            debug.dump_code(sql_text, lexer='sql')
+
+        await self._execute_ddl(sql_text)
+        self.schema = schema
+
+        if not cache_hit and self.dev_mode:
+            devmode.write_dev_mode_cache(schema, src_hash, schema_cache)
+            devmode.write_dev_mode_cache(sql_text, src_hash, script_cache)
+
+        with open(cluster_schema_cache, 'wb') as f:
+            pickle.dump(schema, file=f, protocol=pickle.HIGHEST_PROTOCOL)
+
     async def run_ddl_command(self, ddl_plan):
         schema = self.schema
 
@@ -177,65 +327,15 @@ class Backend:
         else:
             block = dbops.PLTopBlock()
 
-        try:
-            plan.generate(block)
-            ql_text = block.to_string()
+        plan.generate(block)
+        ql_text = block.to_string()
 
-            if debug.flags.delta_execute:
-                debug.header('Delta Script')
-                debug.dump_code(ql_text, lexer='sql')
+        if debug.flags.delta_execute:
+            debug.header('Delta Script')
+            debug.dump_code(ql_text, lexer='sql')
 
-            if not isinstance(plan, (s_db.CreateDatabase, s_db.DropDatabase)):
-                async with self.connection.transaction():
-                    await self.connection.execute(ql_text)
-                    # Execute all pgsql/delta commands.
-            else:
-                await self.connection.execute(ql_text)
-        except Exception as e:
-            position = getattr(e, 'position', None)
-            internal_position = getattr(e, 'internal_position', None)
-            context = getattr(e, 'context', '')
-            if context:
-                pl_func_line = re.search(
-                    r'^PL/pgSQL function inline_code_block line (\d+).*',
-                    context, re.M)
-
-                if pl_func_line:
-                    pl_func_line = int(pl_func_line.group(1))
-            else:
-                pl_func_line = None
-            point = None
-
-            if position is not None:
-                position = int(position)
-                point = parser_context.SourcePoint(
-                    None, None, position)
-                text = e.query
-                if text is None:
-                    # Parse errors
-                    text = ql_text
-
-            elif internal_position is not None:
-                internal_position = int(internal_position)
-                point = parser_context.SourcePoint(
-                    None, None, internal_position)
-                text = e.internal_query
-
-            elif pl_func_line:
-                point = parser_context.SourcePoint(
-                    pl_func_line, None, None
-                )
-                text = ql_text
-
-            if point is not None:
-                context = parser_context.ParserContext(
-                    'query', text, start=point, end=point)
-                exceptions.replace_context(e, context)
-
-            raise
-
-        else:
-            self.schema = schema
+        await self._execute_ddl(ql_text)
+        self.schema = schema
 
     async def exec_session_state_cmd(self, cmd):
         for alias, module in cmd.modaliases.items():
@@ -381,8 +481,8 @@ class Backend:
         await transaction.rollback()
 
 
-async def open_database(pgconn, *, bootstrap=False):
-    bk = Backend(pgconn)
+async def open_database(pgconn, data_dir, *, bootstrap=False):
+    bk = Backend(pgconn, data_dir)
     pgconn.add_log_listener(pg_log_listener)
     if not bootstrap:
         await bk.getschema()
