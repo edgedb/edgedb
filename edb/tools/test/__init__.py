@@ -19,6 +19,7 @@
 
 import multiprocessing
 import os
+import pathlib
 import platform
 import sys
 import unittest
@@ -85,28 +86,21 @@ def test(*, files, jobs, include, exclude, verbose, quiet, output_format,
             fg='red')
         sys.exit(1)
 
-    # When invoked without arguments, we need to do a bit
-    # of a voodoo to make sure the discovered tests are
-    # actually imported correctly.  To do this, we determine
-    # if the current directory is under edgedb project root,
-    # and if it is, we prepend edgedb project root to sys.path.
     if not files:
         cwd = os.path.abspath(os.getcwd())
-        files = [cwd]
-        top_level_dirs = list(edb.__path__)
-
-        for top_level_dir in top_level_dirs:
-            top_level_dir = os.path.dirname(top_level_dir)
-
-            if os.path.commonpath([top_level_dir, cwd]) == top_level_dir:
-                break
+        if os.path.exists(os.path.join(cwd, 'tests')):
+            files = ('tests',)
         else:
-            top_level_dir = None
-    else:
-        top_level_dir = None
+            click.secho(
+                'Error: no test path specified and no "tests" directory found',
+                fg='red')
+            sys.exit(1)
 
-    if top_level_dir:
-        sys.path.insert(0, top_level_dir)
+    for file in files:
+        if not os.path.exists(file):
+            click.secho(
+                f'Error: test path {file!r} does not exist', fg='red')
+            sys.exit(1)
 
     suite = unittest.TestSuite()
 
@@ -133,13 +127,11 @@ def test(*, files, jobs, include, exclude, verbose, quiet, output_format,
                 f'Warning: {file}: no such file or directory.'))
 
         if os.path.isdir(file):
-            tests = test_loader.discover(
-                file, top_level_dir=top_level_dir)
+            tests = test_loader.discover(file)
         else:
             tests = test_loader.discover(
                 os.path.dirname(file),
-                pattern=os.path.basename(file),
-                top_level_dir=top_level_dir)
+                pattern=os.path.basename(file))
 
         suite.addTest(tests)
 
