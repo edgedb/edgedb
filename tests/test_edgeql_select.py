@@ -4438,3 +4438,194 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ''', [
             [True],
         ])
+
+    async def test_edgeql_select_is_01(self):
+        await self.assert_query_result(r'''
+            SELECT 5 IS int64;
+            SELECT 5 IS anyint;
+            SELECT 5 IS anyreal;
+            SELECT 5 IS anyscalar;
+            SELECT 5 IS int16;
+            SELECT 5 IS float64;
+            SELECT 5 IS anyfloat;
+            SELECT 5 IS str;
+            SELECT 5 IS Object;
+        ''', [
+            [True],
+            [True],
+            [True],
+            [True],
+            [False],
+            [False],
+            [False],
+            [False],
+            [False],
+        ])
+
+    async def test_edgeql_select_is_02(self):
+        await self.assert_query_result(r'''
+            SELECT 5.5 IS int64;
+            SELECT 5.5 IS anyint;
+            SELECT 5.5 IS anyreal;
+            SELECT 5.5 IS anyscalar;
+            SELECT 5.5 IS int16;
+            SELECT 5.5 IS float64;
+            SELECT 5.5 IS anyfloat;
+            SELECT 5.5 IS str;
+            SELECT 5.5 IS Object;
+        ''', [
+            [False],
+            [False],
+            [True],
+            [True],
+            [False],
+            [True],
+            [True],
+            [False],
+            [False],
+        ])
+
+    async def test_edgeql_select_is_03(self):
+        await self.assert_query_result(r'''
+            SET MODULE test;
+
+            SELECT Issue.time_estimate IS int64 LIMIT 1;
+            SELECT Issue.time_estimate IS anyint LIMIT 1;
+            SELECT Issue.time_estimate IS anyreal LIMIT 1;
+            SELECT Issue.time_estimate IS anyscalar LIMIT 1;
+            SELECT Issue.time_estimate IS int16 LIMIT 1;
+            SELECT Issue.time_estimate IS float64 LIMIT 1;
+            SELECT Issue.time_estimate IS anyfloat LIMIT 1;
+            SELECT Issue.time_estimate IS str LIMIT 1;
+            SELECT Issue.time_estimate IS Object LIMIT 1;
+        ''', [
+            None,
+            [True],
+            [True],
+            [True],
+            [True],
+            [False],
+            [False],
+            [False],
+            [False],
+            [False],
+        ])
+
+    async def test_edgeql_select_is_04(self):
+        await self.assert_query_result(r'''
+            SET MODULE test;
+
+            SELECT Issue.number IS int64 LIMIT 1;
+            SELECT Issue.number IS anyint LIMIT 1;
+            SELECT Issue.number IS anyreal LIMIT 1;
+            SELECT Issue.number IS anyscalar LIMIT 1;
+            SELECT Issue.number IS int16 LIMIT 1;
+            SELECT Issue.number IS float64 LIMIT 1;
+            SELECT Issue.number IS anyfloat LIMIT 1;
+            SELECT Issue.number IS str LIMIT 1;
+            SELECT Issue.number IS Object LIMIT 1;
+        ''', [
+            None,
+            [False],
+            [False],
+            [False],
+            [True],
+            [False],
+            [False],
+            [False],
+            [True],
+            [False],
+        ])
+
+    async def test_edgeql_select_is_05(self):
+        await self.assert_query_result(r'''
+            SET MODULE test;
+
+            SELECT Issue.status IS int64 LIMIT 1;
+            SELECT Issue.status IS anyint LIMIT 1;
+            SELECT Issue.status IS anyreal LIMIT 1;
+            SELECT Issue.status IS anyscalar LIMIT 1;
+            SELECT Issue.status IS int16 LIMIT 1;
+            SELECT Issue.status IS float64 LIMIT 1;
+            SELECT Issue.status IS anyfloat LIMIT 1;
+            SELECT Issue.status IS str LIMIT 1;
+            SELECT Issue.status IS Object LIMIT 1;
+        ''', [
+            None,
+            [False],
+            [False],
+            [False],
+            [False],
+            [False],
+            [False],
+            [False],
+            [False],
+            [True],
+        ])
+
+    async def test_edgeql_select_is_06(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLSyntaxError, r"Unexpected 'anytype'"):
+            await self.con.execute(r'''
+                SELECT 5 IS anytype;
+            ''')
+
+    async def test_edgeql_select_is_07(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLSyntaxError, r"Unexpected 'anytype'"):
+            await self.con.execute(r'''
+                SELECT 5.5 IS anytype;
+            ''')
+
+    async def test_edgeql_select_is_08(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLSyntaxError, r"Unexpected 'anytype'"):
+            await self.con.execute(r'''
+                SELECT '5.5' IS anytype;
+            ''')
+
+    async def test_edgeql_select_is_09(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLSyntaxError, r"Unexpected 'anytype'"):
+            await self.con.execute(r'''
+                SELECT test::Issue.time_estimate IS anytype LIMIT 1;
+            ''')
+
+    async def test_edgeql_select_is_10(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLSyntaxError, r"Unexpected 'anytype'"):
+            await self.con.execute(r'''
+                SELECT test::Issue.number IS anytype LIMIT 1;
+            ''')
+
+    async def test_edgeql_select_is_11(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLSyntaxError, r"Unexpected 'anytype'"):
+            await self.con.execute(r'''
+                SELECT test::Issue.status IS anytype LIMIT 1;
+            ''')
+
+    async def test_edgeql_select_is_12(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLSyntaxError, r"Unexpected 'anytype'"):
+            await self.con.execute(r'''
+                SELECT [5] IS (array<anytype>);
+            ''')
+
+    async def test_edgeql_select_is_13(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLSyntaxError, r"Unexpected 'anytype'"):
+            await self.con.execute(r'''
+                SELECT (5, 'hello') IS (tuple<anytype, str>);
+            ''')
+
+    # FIXME: IS doesn't work for arrays and tuples
+    @unittest.expectedFailure
+    async def test_edgeql_select_is_14(self):
+        await self.assert_query_result(r'''
+            SELECT [5] IS (array<int64>);
+            SELECT (5, 'hello') IS (tuple<int64, str>);
+        ''', [
+            [True],
+            [True],
+        ])

@@ -1297,3 +1297,106 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ''', [
                 [{"attributes": [{"name": "test::attr2", "@value": "aaaa"}]}]
             ])
+
+    # FIXME: the error messages are currently unclear
+    @unittest.expectedFailure
+    async def test_edgeql_ddl_anytype_01(self):
+        with self.assertRaisesRegex(
+                client_errors.SchemaError,
+                r"invalid property target"):
+
+            await self.con.execute("""
+                CREATE ABSTRACT LINK test::test_object_link_prop {
+                    CREATE PROPERTY test::link_prop1 -> anytype;
+                };
+            """)
+
+    @unittest.expectedFailure
+    async def test_edgeql_ddl_anytype_02(self):
+        with self.assertRaisesRegex(
+                client_errors.SchemaError,
+                r"invalid link target"):
+
+            await self.con.execute("""
+                CREATE TYPE test::AnyObject2 {
+                    CREATE LINK test::a -> anytype;
+                };
+            """)
+
+    @unittest.expectedFailure
+    async def test_edgeql_ddl_anytype_03(self):
+        with self.assertRaisesRegex(
+                client_errors.SchemaError,
+                r"invalid property target"):
+
+            await self.con.execute("""
+                CREATE TYPE test::AnyObject3 {
+                    CREATE PROPERTY test::a -> anytype;
+                };
+            """)
+
+    @unittest.expectedFailure
+    async def test_edgeql_ddl_anytype_04(self):
+        with self.assertRaisesRegex(
+                client_errors.SchemaError,
+                r"invalid property target"):
+
+            await self.con.execute("""
+                CREATE TYPE test::AnyObject4 {
+                    CREATE PROPERTY test::a -> anyscalar;
+                };
+            """)
+
+    @unittest.expectedFailure
+    async def test_edgeql_ddl_anytype_05(self):
+        with self.assertRaisesRegex(
+                client_errors.SchemaError,
+                r"invalid property target"):
+
+            await self.con.execute("""
+                CREATE TYPE test::AnyObject5 {
+                    CREATE PROPERTY test::a -> anyint;
+                };
+            """)
+
+    @unittest.expectedFailure
+    async def test_edgeql_ddl_anytype_06(self):
+        with self.assertRaisesRegex(
+                client_errors.SchemaError,
+                r"invalid.*anytype"):
+
+            await self.con.execute("""
+                CREATE TYPE test::AnyObject6 EXTENDING anytype {
+                    CREATE REQUIRED LINK test::a -> test::AnyObject6;
+                    CREATE REQUIRED PROPERTY test::b -> str;
+                };
+            """)
+
+    async def test_edgeql_ddl_extending_01(self):
+        with self.assertRaisesRegex(
+                client_errors.SchemaError,
+                r"Could not find consistent MRO for test::Merged1"):
+
+            await self.con.execute(r"""
+                CREATE TYPE test::ExtA1;
+                CREATE TYPE test::ExtB1;
+                # create two types with incompatible linearized bases
+                CREATE TYPE test::ExtC1 EXTENDING (test::ExtA1, test::ExtB1);
+                CREATE TYPE test::ExtD1 EXTENDING (test::ExtB1, test::ExtA1);
+                # extending from both of these incompatible types
+                CREATE TYPE test::Merged1 EXTENDING (test::ExtC1, test::ExtD1);
+            """)
+
+    async def test_edgeql_ddl_extending_02(self):
+        async with self._run_and_rollback():
+            await self.con.execute(r"""
+                CREATE TYPE test::ExtA2;
+                # Create two types with a different position of Object
+                # in the bases. This doesn't impact the linearized
+                # bases because Object is already implicitly included
+                # as the first element of the base types.
+                CREATE TYPE test::ExtC2 EXTENDING (test::ExtA1, Object);
+                CREATE TYPE test::ExtD2 EXTENDING (Object, test::ExtA1);
+                # extending from both of these types
+                CREATE TYPE test::Merged2 EXTENDING (test::ExtC2, test::ExtD2);
+            """)

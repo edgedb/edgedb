@@ -1027,13 +1027,14 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 );
             ''')
 
+    @unittest.expectedFailure
     async def test_edgeql_calls_29(self):
         await self.con.execute('''
             CREATE FUNCTION test::call29(
                 a: anyint
             ) -> anyint
                 FROM EdgeQL $$
-                    SELECT a + <anyint>1
+                    SELECT a + 1
                 $$;
         ''')
 

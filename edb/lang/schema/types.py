@@ -80,6 +80,9 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
     def is_any(self):
         return False
 
+    def contains_any(self):
+        return self.is_any()
+
     def is_scalar(self):
         return False
 
@@ -210,6 +213,9 @@ class Collection(Type):
     def is_polymorphic(self, schema):
         return any(st.is_polymorphic(schema)
                    for st in self.get_subtypes())
+
+    def contains_any(self):
+        return any(st.contains_any() for st in self.get_subtypes())
 
     @property
     def is_virtual(self):

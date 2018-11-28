@@ -50,6 +50,9 @@ class Any(PseudoType):
     def get_bases(self, schema):
         return so.ObjectList.create_empty()
 
+    def get_is_abstract(self, schema):
+        return True
+
     def is_any(self):
         return True
 

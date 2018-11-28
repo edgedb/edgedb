@@ -1264,7 +1264,7 @@ class TypeExpr(Nonterm):
         self.val = kids[0].val
 
     def reduce_TYPEOF_Expr(self, *kids):
-        self.val = qlast.TypeOf(expr=kids[0].val)
+        self.val = qlast.TypeOf(expr=kids[1].val)
 
     def reduce_LPAREN_FullTypeExpr_RPAREN(self, *kids):
         self.val = kids[1].val

@@ -82,8 +82,7 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
         return True
 
     def is_polymorphic(self, schema):
-        return bool(self.get_is_abstract(schema) and
-                    self.get_name(schema).module == 'std')
+        return self.get_is_abstract(schema)
 
     def _resolve_polymorphic(self, schema, concrete_type: s_types.Type):
         if (self.is_polymorphic(schema) and
