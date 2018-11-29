@@ -566,14 +566,13 @@ class Object(metaclass=ObjectMeta):
 
     def hash_criteria(self, schema):
         cls = type(self)
-        sig = []
 
+        sig = [cls]
         for f in cls._hashable_fields:
             fn = f.name
             val = schema._get_obj_field(self.id, fn)
             if val is None:
                 continue
-
             sig.append((fn, val))
 
         return frozenset(sig)
