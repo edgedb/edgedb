@@ -334,9 +334,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             [True, True, True, True],
         ])
 
-    # FIXME: something's wrong with casting to json, as the same
-    # values work fine if to_json is used
-    @unittest.expectedFailure
     async def test_edgeql_casts_str_03(self):
         # str to json is always lossless
         await self.assert_query_result(r'''
@@ -885,12 +882,11 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     # Casting to json is lossless (in the same way and for the same
     # reason as casting into str).
 
-    @unittest.expectedFailure
     async def test_edgeql_casts_json_01(self):
         await self.assert_query_result(r'''
             SELECT <bool><json>True = True;
             SELECT <bool><json>False = False;
-            SELECT <str><json>"Hello";
+            SELECT <str><json>"Hello" = 'Hello';
 
             WITH U := uuid_generate_v1mc()
             SELECT <uuid><json>U = U;
@@ -921,21 +917,24 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             [True],
             [True],
             [True],
+
+            [True],
+
             [True],
             [True],
             [True],
             [True],
             [True],
+
             [True],
             [True],
             [True],
             [True],
             [True],
-            [True],
+
             [True],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_casts_json_02(self):
         await self.assert_query_result(r'''
             WITH T := (SELECT test::Test FILTER .p_str = 'Hello')

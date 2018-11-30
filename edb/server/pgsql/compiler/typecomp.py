@@ -219,11 +219,13 @@ def cast(
                 expected_json_type = 'string'
 
             if expected_json_type is not None:
+                srcctx = None
                 if ir_expr is not None:
                     srcctx = irutils.get_source_context_as_json(ir_expr)
+
+                if srcctx is not None:
                     details = pgast.StringConstant(val=srcctx)
                 else:
-                    srcctx = None
                     details = pgast.NullConstant()
 
                 node = pgast.FuncCall(
