@@ -286,7 +286,7 @@ class Collection(Type):
         from . import types as s_types
 
         if isinstance(typeref, so.ObjectRef):
-            eltype = schema.get(typeref.get_name(schema))
+            eltype = typeref._resolve_ref(schema)
         else:
             eltype = typeref
 

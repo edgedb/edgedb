@@ -188,8 +188,9 @@ class CreateProperty(PropertyCommand,
 
             target_type = utils.resolve_typeref(target_ref, schema=schema)
 
-            if not isinstance(target_type, (scalars.ScalarType,
-                                            types.Collection)):
+            if (not isinstance(target_type, (scalars.ScalarType,
+                                             types.Collection)) or
+                    target_type.is_polymorphic(schema)):
                 raise s_err.SchemaDefinitionError(
                     f'invalid property target, expected primitive type, '
                     f'got {target_type.get_displayname(schema)!r}',

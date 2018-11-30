@@ -226,7 +226,8 @@ class EdgeQLOptimizer:
             self._process_expr(context, expr.expr)
             self._process_expr(context, expr.type)
 
-        elif isinstance(expr, qlast.TypeName):
+        elif (isinstance(expr, qlast.TypeName) and
+                not isinstance(expr.maintype, qlast.AnyType)):
             expr.maintype.module = self._process_module_ref(
                 context, expr.maintype.module)
 
@@ -267,8 +268,9 @@ class EdgeQLOptimizer:
 
             if bases:
                 for base in bases:
-                    base.maintype.module = self._process_module_ref(
-                        context, base.maintype.module)
+                    if not isinstance(base.maintype, qlast.AnyType):
+                        base.maintype.module = self._process_module_ref(
+                            context, base.maintype.module)
 
             if isinstance(expr, qlast.CreateConcreteLink):
                 self._process_expr(context, expr.target)

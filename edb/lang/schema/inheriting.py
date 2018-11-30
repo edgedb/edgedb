@@ -129,6 +129,12 @@ class CreateInheritingObject(named.CreateNamedObject, InheritingObjectCommand):
              for b in getattr(astnode, 'bases', None) or []]
         )
 
+        for base in bases.objects(schema):
+            if base.is_type() and base.contains_any():
+                base_type_name = base.get_displayname(schema)
+                raise s_err.SchemaError(
+                    f"{base_type_name!r} cannot be a parent type")
+
         mcls = cls.get_schema_metaclass()
         if not bases and classname not in mcls.get_root_classes():
             default_base = mcls.get_default_base_name()

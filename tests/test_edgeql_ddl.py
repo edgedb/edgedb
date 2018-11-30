@@ -1298,8 +1298,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 [{"attributes": [{"name": "test::attr2", "@value": "aaaa"}]}]
             ])
 
-    # FIXME: the error messages are currently unclear
-    @unittest.expectedFailure
     async def test_edgeql_ddl_anytype_01(self):
         with self.assertRaisesRegex(
                 client_errors.SchemaError,
@@ -1311,7 +1309,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
-    @unittest.expectedFailure
     async def test_edgeql_ddl_anytype_02(self):
         with self.assertRaisesRegex(
                 client_errors.SchemaError,
@@ -1323,7 +1320,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
-    @unittest.expectedFailure
     async def test_edgeql_ddl_anytype_03(self):
         with self.assertRaisesRegex(
                 client_errors.SchemaError,
@@ -1335,7 +1331,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
-    @unittest.expectedFailure
     async def test_edgeql_ddl_anytype_04(self):
         with self.assertRaisesRegex(
                 client_errors.SchemaError,
@@ -1347,7 +1342,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
-    @unittest.expectedFailure
     async def test_edgeql_ddl_anytype_05(self):
         with self.assertRaisesRegex(
                 client_errors.SchemaError,
@@ -1359,11 +1353,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
-    @unittest.expectedFailure
     async def test_edgeql_ddl_anytype_06(self):
         with self.assertRaisesRegex(
                 client_errors.SchemaError,
-                r"invalid.*anytype"):
+                r"'anytype' cannot be a parent type"):
 
             await self.con.execute("""
                 CREATE TYPE test::AnyObject6 EXTENDING anytype {

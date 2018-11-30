@@ -44,6 +44,12 @@ class Any(PseudoType):
     def get_name(self, schema):
         return self.name
 
+    def get_shortname(self, schema):
+        return self.name
+
+    def get_displayname(self, schema):
+        return self.schema_name
+
     def get__virtual_children(self, schema):
         return None
 

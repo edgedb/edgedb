@@ -1143,7 +1143,7 @@ class ObjectCollection:
         for item_id in self._ids:
             if isinstance(item_id, ObjectRef):
                 try:
-                    obj = schema.get(item_id.get_name(schema))
+                    obj = item_id._resolve_ref(schema)
                 except s_err.ItemNotFoundError:
                     if allow_unresolved:
                         result.append(item_id.get_name(schema))
@@ -1163,7 +1163,7 @@ class ObjectCollection:
         for item_id in self._ids:
             if isinstance(item_id, ObjectRef):
                 try:
-                    obj = schema.get(item_id.get_name(schema))
+                    obj = item_id._resolve_ref(schema)
                 except s_err.ItemNotFoundError:
                     if allow_unresolved:
                         result.append(
@@ -1184,7 +1184,7 @@ class ObjectCollection:
 
         for item_id in self._ids:
             if isinstance(item_id, ObjectRef):
-                result.append(schema.get(item_id.get_name(schema)))
+                result.append(item_id._resolve_ref(schema))
             else:
                 result.append(schema.get_by_id(item_id))
 
