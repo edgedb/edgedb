@@ -173,13 +173,6 @@ class Type(so.Object, derivable.DerivableObjectBase, s_abc.Type):
         # parent class is available, returns self.
         return self
 
-    def __repr__(self):
-        return (
-            f'<schema.{self.__class__.__name__} {self.id} at 0x{id(self):x}>'
-        )
-
-    __str__ = __repr__
-
 
 class Collection(Type, s_abc.Collection):
 
@@ -333,6 +326,16 @@ class Collection(Type, s_abc.Collection):
                 schema, subtypes, typemods=self.get_typemods())
         else:
             return self
+
+    def __repr__(self):
+        return (
+            f'<{self.__class__.__name__} '
+            f'{self.name} {self.id}'
+            f'at 0x{id(self):x}>'
+        )
+
+    def dump(self, schema):
+        return repr(self)
 
 
 class Dimensions(typed.FrozenTypedList, type=int):
@@ -496,8 +499,12 @@ class Tuple(Collection, s_abc.Tuple):
             id = uuid.uuid5(TYPE_ID_NAMESPACE, id_str)
 
         if name is None:
-            st_names = ','.join(st.get_name(schema)
-                                for st in element_types.values())
+            if named:
+                st_names = ','.join(st.get_name(schema)
+                                    for st in element_types.values())
+            else:
+                st_names = ','.join(f'{sn}:={st.get_name(schema)}'
+                                    for sn, st in element_types.items())
             name = s_name.SchemaName(
                 module='std',
                 name=f'tuple<{st_names}>')

@@ -69,10 +69,6 @@ def _dump(markup, header, file):
 
 
 def dump(*objs, file=None, trim=True, marker=None, **kwargs):
-    for kw in kwargs:
-        if kw[0] != '_':
-            raise TypeError(f'unknown keyword argument {kw!r}')
-
     for obj in objs:
         if marker:
             markup = elements.doc.Marker(text=marker)

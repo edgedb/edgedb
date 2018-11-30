@@ -99,7 +99,7 @@ def compile_ir_to_sql(
 
     if debug.flags.edgeql_compile:  # pragma: no cover
         debug.header('SQL Tree')
-        debug.dump(qtree)
+        debug.dump(qtree, schema=schema)
 
     argmap = qtree.argnames
 

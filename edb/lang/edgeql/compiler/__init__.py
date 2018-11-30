@@ -112,7 +112,7 @@ def compile_ast_to_ir(tree,
 
     if debug.flags.edgeql_compile:
         debug.header('EdgeQL AST')
-        debug.dump(tree)
+        debug.dump(tree, schema=schema)
 
     ctx = stmtctx.init_context(
         schema=schema, anchors=anchors, singletons=singletons,
@@ -131,7 +131,7 @@ def compile_ast_to_ir(tree,
         else:
             print('N/A')
         debug.header('EdgeDB IR')
-        debug.dump(ir_expr)
+        debug.dump(ir_expr, schema=ir_expr.schema)
 
     return ir_expr
 

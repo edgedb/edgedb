@@ -122,7 +122,7 @@ class Backend:
 
         if debug.flags.delta_plan:
             debug.header('Delta Plan')
-            debug.dump(delta)
+            debug.dump(delta, schema=schema)
 
         delta = self.adapt_delta(delta)
         context = delta_cmds.CommandContext(self.connection)
@@ -130,7 +130,7 @@ class Backend:
 
         if debug.flags.delta_pgsql_plan:
             debug.header('PgSQL Delta Plan')
-            debug.dump(delta)
+            debug.dump(delta, schema=schema)
 
         return schema, delta
 

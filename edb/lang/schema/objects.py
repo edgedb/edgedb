@@ -25,8 +25,9 @@ import re
 import typing
 import uuid
 
-from edb.lang.common import parsing
+from edb.lang.common import markup
 from edb.lang.common import ordered
+from edb.lang.common import parsing
 from edb.lang.common import struct
 from edb.lang.common import topological
 from edb.lang.common import typed
@@ -1013,6 +1014,15 @@ class Object(s_abc.Object, metaclass=ObjectMeta):
     def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
         return schema
 
+    def dump(self, schema):
+        return (
+            f'<{type(self).__name__} name={self.get_name(schema)!r} '
+            f'at {id(self):#x}>'
+        )
+
+    def __repr__(self):
+        return f'<{type(self).__name__} at 0x{id(self):#x}>'
+
 
 class ObjectRef(Object):
 
@@ -1029,8 +1039,6 @@ class ObjectRef(Object):
 
     def __repr__(self):
         return '<ObjectRef "{}" at 0x{:x}>'.format(self._name, id(self))
-
-    __str__ = __repr__
 
     def __eq__(self, other):
         if type(self) is not type(other):
@@ -1071,6 +1079,13 @@ class ObjectCollection:
 
     def __hash__(self):
         return hash(self._ids)
+
+    def dump(self, schema):
+        return (
+            f'<{type(self).__name__} objects='
+            f'[{", ".join(o.dump(schema) for o in self.objects(schema))}] '
+            f'at {id(self):#x}>'
+        )
 
     @classmethod
     def create(cls, schema, data: typing.Iterable[Object]):
@@ -1333,3 +1348,17 @@ class ObjectList(ObjectCollection, container=tuple):
             raise IndexError('ObjectList is empty')
         else:
             return default
+
+
+@markup.serializer.serializer.register(Object)
+@markup.serializer.serializer.register(ObjectCollection)
+def _serialize_to_markup(o, *, ctx):
+    if 'schema' not in ctx.kwargs:
+        orepr = repr(o)
+    else:
+        orepr = o.dump(ctx.kwargs['schema'])
+
+    return markup.elements.lang.Object(
+        id=id(o), class_module=type(o).__module__,
+        classname=type(o).__name__,
+        repr=orepr)
