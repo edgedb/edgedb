@@ -47,19 +47,21 @@ class Type(so.NamedObject, derivable.DerivableObjectBase):
     # For a type representing a view, this would contain the
     # view type.  Non-view types have None here.
     view_type = so.SchemaField(
-        ViewType, default=None, compcoef=0.909)
+        ViewType,
+        default=None, compcoef=0.909)
 
     # If this type is a view, expr may contain an expression that
     # defines the view set.
     expr = so.SchemaField(
-        s_expr.ExpressionText, default=None,
-        coerce=True, compcoef=0.909)
+        s_expr.ExpressionText,
+        default=None, coerce=True, compcoef=0.909)
 
     # If this type is a view defined by a nested shape expression,
     # and the nested shape contains references to link properties,
     # rptr will contain the inbound pointer class.
     rptr = so.SchemaField(
-        so.Object, default=None, compcoef=0.909)
+        so.Object,
+        default=None, compcoef=0.909)
 
     def derive_subtype(
             self, schema, *, name: str,
@@ -182,13 +184,16 @@ class Collection(Type):
         inheritable=False, compcoef=0.670)
 
     view_type = so.Field(
-        ViewType, default=None, ephemeral=True)
+        ViewType,
+        default=None, ephemeral=True)
 
     expr = so.Field(
-        s_expr.ExpressionText, default=None, ephemeral=True)
+        s_expr.ExpressionText,
+        default=None, ephemeral=True)
 
     rptr = so.Field(
-        so.Object, default=None, ephemeral=True)
+        so.Object,
+        default=None, ephemeral=True)
 
     def get_name(self, schema):
         return self.name

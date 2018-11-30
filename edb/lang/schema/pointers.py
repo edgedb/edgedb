@@ -95,10 +95,12 @@ class PointerLike:
 class Pointer(constraints.ConsistencySubject, PointerLike):
 
     source = so.SchemaField(
-        so.Object, None, compcoef=None)
+        so.Object,
+        default=None, compcoef=None)
 
     target = so.SchemaField(
-        s_types.Type, None, compcoef=0.833)
+        s_types.Type,
+        default=None, compcoef=0.833)
 
     required = so.SchemaField(
         bool,

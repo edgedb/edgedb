@@ -1399,7 +1399,7 @@ class JSONSliceFunction(dbops.Function):
 
 
 def _field_to_column(field):
-    ftype = field.type[0]
+    ftype = field.type
     coltype = None
 
     if issubclass(ftype, (s_obj.ObjectSet, s_obj.ObjectList)):
@@ -1695,7 +1695,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                     if field.ephemeral or not field.introspectable:
                         continue
 
-                    ftype = field.type[0]
+                    ftype = field.type
                     if issubclass(ftype,
                                   (s_obj.Object,
                                    s_obj.ObjectCollection,
@@ -1763,7 +1763,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
     else:
         link_query = None
         if field is not None:
-            ftype = field.type[0]
+            ftype = field.type
         else:
             ftype = type(None)
 
@@ -2068,7 +2068,7 @@ async def generate_views(conn, schema):
                             '.' + pn.name))
 
             if field is not None:
-                ft = field.type[0]
+                ft = field.type
                 if (issubclass(ft, (s_obj.Object, s_obj.ObjectCollection)) and
                         not issubclass(ft, (s_obj.ObjectSet,
                                             s_obj.ObjectList))):

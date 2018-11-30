@@ -139,7 +139,8 @@ class DerivableObject(so.NamedObject, DerivableObjectBase):
     # Indicates that the object has been declared as
     # explicitly inherited.
     declared_inherited = so.SchemaField(
-        bool, False, compcoef=None,
+        bool,
+        default=False, compcoef=None,
         introspectable=False, inheritable=False)
 
     @classmethod

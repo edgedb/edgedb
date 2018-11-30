@@ -190,7 +190,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         return utils.resolve_typeref(ref, schema)
 
     def _resolve_attr_value(self, value, fname, field, schema):
-        ftype = field.type[0]
+        ftype = field.type
 
         if isinstance(ftype, so.ObjectMeta):
             value = self._resolve_type_ref(value, schema)
@@ -215,7 +215,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
                 value = ftype(vals)
 
         else:
-            value = self.adapt_value(field, value)
+            value = field.coerce_value(schema, value)
 
         return value
 
@@ -254,11 +254,6 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             if op.property == attr_name:
                 self.discard(op)
                 return
-
-    def adapt_value(self, field, value):
-        if value is not None and not isinstance(value, field.type):
-            value = field.adapt(value)
-        return value
 
     def __iter__(self):
         for op in self.ops:
@@ -644,8 +639,8 @@ class AlterObjectProperty(Command):
 
             field = parent_cls._fields.get(propname)
             if (field is not None and
-                    issubclass(field.type[0], typed.AbstractTypedCollection)):
-                value = field.type[0]()
+                    issubclass(field.type, typed.AbstractTypedCollection)):
+                value = field.type()
             else:
                 value = None
 

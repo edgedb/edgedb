@@ -232,7 +232,7 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
                 # appropriate refdict in self and all descendants
                 # that don't already have an existing reference.
                 schema = referrer.add_classref(schema, refdict.attr, self.scls)
-                reftype = type(referrer).get_field(refdict.attr).type[0]
+                reftype = type(referrer).get_field(refdict.attr).type
                 refname = reftype.get_key_for(schema, self.scls)
                 for child in referrer.descendants(schema):
                     child_local_coll = child.get_field_value(
@@ -254,7 +254,7 @@ class ReferencedObjectCommand(named.NamedObjectCommand,
             referrer = referrer_ctx.scls
             referrer_class = type(referrer)
             refdict = referrer_class.get_refdict_for_class(scls.__class__)
-            reftype = referrer_class.get_field(refdict.attr).type[0]
+            reftype = referrer_class.get_field(refdict.attr).type
             refname = reftype.get_key_for(schema, self.scls)
             schema = referrer.del_classref(schema, refdict.attr, refname)
 
@@ -462,7 +462,7 @@ class ReferencingObject(inheriting.InheritingObject,
         refdict = type(self).get_refdict(collection)
         attr = refdict.attr
         local_attr = refdict.local_attr
-        colltype = type(self).get_field(local_attr).type[0]
+        colltype = type(self).get_field(local_attr).type
 
         local_coll = self.get_explicit_field_value(schema, local_attr, None)
         all_coll = self.get_explicit_field_value(schema, attr, None)
@@ -584,7 +584,7 @@ class ReferencingObject(inheriting.InheritingObject,
                                in the collection will be used.
         """
         classrefs = self.get_explicit_field_value(schema, attr, None)
-        colltype = type(self).get_field(local_attr).type[0]
+        colltype = type(self).get_field(local_attr).type
         if classrefs is None:
             classrefs = colltype.create_empty()
 

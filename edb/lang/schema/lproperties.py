@@ -75,7 +75,7 @@ class Property(pointers.Pointer):
             # This is consistent with skipping the comparison on Pointer.source
             # in general.
             field = self.__class__.get_field('target')
-            target_coef = field.type[0].compare_values(
+            target_coef = field.type.compare_values(
                 self.get_target(our_schema),
                 other.get_target(their_schema),
                 our_schema=our_schema,

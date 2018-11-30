@@ -445,8 +445,6 @@ class DeclarationLoader:
         fields = type(ptr).get_fields()
         updates = {}
 
-        check_type = lambda t, types: any(issubclass(bt, t) for bt in types)
-
         for attrdecl in attrdecls:
             attrname = attrdecl.name.name
 
@@ -456,14 +454,14 @@ class DeclarationLoader:
                     f'unexpected attribute {attrname}',
                     context=attrdecl.context)
 
-            if check_type(s_expr.ExpressionText, attrfield.type):
+            if issubclass(attrfield.type, s_expr.ExpressionText):
                 updates[attrname] = qlcodegen.generate_source(attrdecl.value)
 
-            elif (check_type(bool, attrfield.type) and
+            elif (issubclass(attrfield.type, bool) and
                     isinstance(attrdecl.value, qlast.BooleanConstant)):
                 updates[attrname] = attrdecl.value.value.lower() == 'true'
 
-            elif (check_type(str, attrfield.type) and
+            elif (issubclass(attrfield.type, str) and
                     isinstance(attrdecl.value, qlast.StringConstant)):
                 updates[attrname] = ql_lexutils.unescape_string(
                     attrdecl.value.value)

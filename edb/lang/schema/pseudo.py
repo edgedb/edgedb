@@ -30,7 +30,7 @@ class PseudoType(inheriting.InheritingObject, s_types.Type):
 
 class Any(PseudoType):
 
-    name = so.Field(str, inheritable=False, compcoef=0.670)
+    name = so.Field(str)
 
     schema_name = 'anytype'
     _instance = None

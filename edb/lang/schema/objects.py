@@ -128,63 +128,75 @@ class NoDefault:
 
 class Field(struct.ProtoField):  # derived from ProtoField for validation
 
-    __slots__ = ('name', 'type', 'coerce', 'formatters',
-                 'compcoef', 'inheritable', 'hashable', 'simpledelta',
+    __slots__ = ('name', 'type', 'coerce',
+                 'compcoef', 'inheritable', 'simpledelta',
                  'merge_fn', 'ephemeral', 'introspectable', 'public')
 
-    def __init__(self, type, *, coerce=False,
-                 str_formatter=str, repr_formatter=repr,
-                 compcoef=None, inheritable=True, hashable=True,
+    def __init__(self, type_, *, coerce=False,
+                 compcoef=None, inheritable=True,
                  simpledelta=True, merge_fn=None, ephemeral=False,
-                 introspectable=True, public=False, **kwargs):
+                 introspectable=True, **kwargs):
         """Schema item core attribute definition.
 
         """
-        if not isinstance(type, tuple):
-            type = (type, )
+        if not isinstance(type_, type):
+            raise ValueError(f'{type_!r} is not a type')
 
-        self.type = type
+        self.type = type_
         self.coerce = coerce
-        self.public = public
-
-        if coerce and len(type) > 1:
-            raise ValueError(
-                'unable to coerce values for fields with multiple types')
-
-        self.formatters = {'str': str_formatter, 'repr': repr_formatter}
+        self.public = False
 
         self.compcoef = compcoef
         self.inheritable = inheritable
-        self.hashable = hashable
         self.simpledelta = simpledelta
         self.introspectable = introspectable
 
         if merge_fn is not None:
             self.merge_fn = merge_fn
-        elif callable(getattr(self.type[0], 'merge_values', None)):
-            self.merge_fn = self.type[0].merge_values
+        elif callable(getattr(self.type, 'merge_values', None)):
+            self.merge_fn = self.type.merge_values
         else:
             self.merge_fn = default_field_merge
 
         self.ephemeral = ephemeral
 
-    def copy(self):
-        return self.__class__(
-            self.type, self.default, coerce=self.coerce,
-            str_formatter=self.formatters['str'],
-            repr_formatter=self.formatters['repr'])
+    def coerce_value(self, schema, value):
+        ftype = self.type
 
-    def adapt(self, value):
-        if not isinstance(value, self.type):
-            for t in self.type:
-                try:
-                    value = t(value)
-                except TypeError:
-                    pass
-                else:
-                    break
+        if value is None or isinstance(value, ftype):
+            return value
 
-        return value
+        if not self.coerce:
+            raise TypeError(
+                f'{self.name} field: expected {ftype} but got {value!r}')
+
+        if issubclass(ftype, (typed.AbstractTypedSequence,
+                              typed.AbstractTypedSet)):
+            casted_value = []
+            for v in value:
+                if v is not None and not isinstance(v, ftype.type):
+                    v = ftype.type(v)
+                casted_value.append(v)
+            return ftype(casted_value)
+
+        if issubclass(ftype, typed.AbstractTypedMapping):
+            casted_value = {}
+            for k, v in value.items():
+                if k is not None and not isinstance(k, ftype.keytype):
+                    k = ftype.keytype(k)
+                if v is not None and not isinstance(v, ftype.valuetype):
+                    v = ftype.valuetype(v)
+                casted_value[k] = v
+            return ftype(casted_value)
+
+        if issubclass(ftype, ObjectCollection):
+            return ftype.create(schema, value)
+
+        try:
+            return ftype(value)
+        except Exception:
+            raise TypeError(
+                f'cannot coerce {self.name!r} value {value!r} to {ftype}')
 
     @property
     def required(self):
@@ -209,11 +221,16 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
 
 class SchemaField(Field):
 
-    __slots__ = ('default',)
+    __slots__ = ('default', 'hashable')
 
-    def __init__(self, type, default=NoDefault, **kwargs):
+    def __init__(self, type, *,
+                 default=NoDefault, hashable=True,
+                 public=False,
+                 **kwargs):
         super().__init__(type, **kwargs)
         self.default = default
+        self.hashable = hashable
+        self.public = public
 
     @property
     def required(self):
@@ -274,7 +291,8 @@ class ObjectMeta(type):
                 fields.update(parent.get_ownfields())
 
         cls._fields = fields
-        cls._hashable_fields = {f for f in fields.values() if f.hashable}
+        cls._hashable_fields = {f for f in fields.values()
+                                if f.is_schema_field and f.hashable}
         cls._sorted_fields = collections.OrderedDict(
             sorted(fields.items(), key=lambda e: e[0]))
         fa = '{}.{}_fields'.format(cls.__module__, cls.__name__)
@@ -316,11 +334,14 @@ class FieldValueNotFoundError(Exception):
 class Object(metaclass=ObjectMeta):
     """Base schema item class."""
 
-    id = Field(uuid.UUID, inheritable=False, simpledelta=False)
+    id = Field(
+        uuid.UUID,
+        inheritable=False, simpledelta=False)
     """Unique ID for this schema item."""
 
     sourcectx = SchemaField(
-        parsing.ParserContext, None, compcoef=None,
+        parsing.ParserContext,
+        default=None, compcoef=None,
         inheritable=False, introspectable=False, hashable=False,
         ephemeral=True)
     """Schema source context for this object"""
@@ -370,7 +391,7 @@ class Object(metaclass=ObjectMeta):
 
             assert field.is_schema_field
 
-            value = cls._check_field_type(schema, field, field.name, value)
+            value = field.coerce_value(schema, value)
             if value is None:
                 continue
 
@@ -416,54 +437,8 @@ class Object(metaclass=ObjectMeta):
         raise RuntimeError(
             f'cannot set value to attribute {self}.{name} directly')
 
-    @classmethod
-    def _check_field_type(cls, schema, field, name, value):
-        if (field.type and value is not None and
-                not isinstance(value, field.type)):
-            if field.coerce:
-                ftype = field.type[0]
-
-                if issubclass(ftype, (typed.AbstractTypedSequence,
-                                      typed.AbstractTypedSet)):
-                    casted_value = []
-                    for v in value:
-                        if v is not None and not isinstance(v, ftype.type):
-                            v = ftype.type(v)
-                        casted_value.append(v)
-                    value = casted_value
-                elif issubclass(ftype, typed.AbstractTypedMapping):
-                    casted_value = {}
-                    for k, v in value.items():
-                        if k is not None and not isinstance(k, ftype.keytype):
-                            k = ftype.keytype(k)
-                        if (v is not None and
-                                not isinstance(v, ftype.valuetype)):
-                            v = ftype.valuetype(v)
-                        casted_value[k] = v
-
-                    value = casted_value
-
-                if issubclass(ftype, ObjectCollection):
-                    assert schema is not None
-
-                    return ftype.create(schema, value)
-                else:
-                    try:
-                        return ftype(value)
-                    except Exception as ex:
-                        raise TypeError(
-                            'cannot coerce {!r} value {!r} '
-                            'to {}'.format(name, value, ftype)) from ex
-
-            raise TypeError(
-                '{}.{}.{}: expected {} but got {!r}'.format(
-                    cls.__module__, cls.__name__, name,
-                    ' or '.join(t.__name__ for t in field.type), value))
-
-        return value
-
     def _getdefault(self, field_name, field, relaxrequired=False):
-        if field.default in field.type:
+        if field.default == field.type:
             if issubclass(field.default, ObjectCollection):
                 value = field.default.create_empty()
             else:
@@ -542,7 +517,7 @@ class Object(metaclass=ObjectMeta):
         if value is None:
             return schema._unset_obj_field(self.id, name)
         else:
-            value = self._check_field_type(schema, field, name, value)
+            value = field.coerce_value(schema, value)
             return schema._set_obj_field(self.__dict__['id'], name, value)
 
     def update(self, schema, updates: dict):
@@ -555,8 +530,7 @@ class Object(metaclass=ObjectMeta):
 
             new_val = updates[field_name]
             if new_val is not None:
-                new_val = self._check_field_type(
-                    schema, field, field_name, new_val)
+                new_val = field.coerce_value(schema, new_val)
                 updates[field_name] = new_val
 
         return schema._update_obj(self.__dict__['id'], updates)
@@ -645,7 +619,7 @@ class Object(metaclass=ObjectMeta):
                 if field.compcoef is None:
                     continue
 
-                FieldType = field.type[0]
+                FieldType = field.type
 
                 ours = self.get_field_value(our_schema, field_name)
                 theirs = other.get_field_value(their_schema, field_name)
@@ -997,15 +971,18 @@ class NamedObject(Object):
     # so that this item can act as a transparent proxy for the item
     # it has been derived from, specifically in path ids.
     path_id_name = SchemaField(
-        sn.Name, inheritable=False, ephemeral=True,
+        sn.Name,
+        inheritable=False, ephemeral=True,
         introspectable=False, default=None)
 
     title = SchemaField(
-        str, default=None, compcoef=0.909, coerce=True,
+        str,
+        default=None, compcoef=0.909, coerce=True,
         public=True)
 
     description = SchemaField(
-        str, default=None, compcoef=0.909, public=True)
+        str,
+        default=None, compcoef=0.909, public=True)
 
     @classmethod
     def create_in_schema(cls, schema, **kwargs):
