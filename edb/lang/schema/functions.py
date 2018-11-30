@@ -25,6 +25,7 @@ from edb.lang.edgeql import errors as ql_errors
 from edb.lang.edgeql import codegen
 from edb.lang.edgeql import functypes as ft
 
+from . import abc as s_abc
 from . import delta as sd
 from . import expr
 from . import name as sn
@@ -170,7 +171,7 @@ class ParameterDesc(typing.NamedTuple):
         return cmd
 
 
-class Parameter(so.Object):
+class Parameter(so.Object, s_abc.Parameter):
 
     num = so.SchemaField(
         int, compcoef=0.4)
@@ -457,7 +458,7 @@ class CallableCommand(named.NamedObjectCommand):
         quals = []
         for param in pgp.params:
             pt = param.get_type(schema)
-            if isinstance(pt, s_types.Collection):
+            if isinstance(pt, s_abc.Collection):
                 quals.append(pt.schema_name)
                 for st in pt.get_subtypes():
                     quals.append(st.get_name(schema))
@@ -528,7 +529,7 @@ class DeleteCallableObject(named.DeleteNamedObject):
         return cmd
 
 
-class Function(CallableObject):
+class Function(CallableObject, s_abc.Function):
 
     code = so.SchemaField(
         str, default=None, compcoef=0.4)

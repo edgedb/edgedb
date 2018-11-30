@@ -26,6 +26,7 @@ from edb.lang.common import topological
 
 from edb.lang import schema as so
 
+from edb.lang.schema import abc as s_abc
 from edb.lang.schema import attributes as s_attrs
 from edb.lang.schema import scalars as s_scalars
 from edb.lang.schema import objtypes as s_objtypes
@@ -418,7 +419,7 @@ class IntrospectionMech:
                 typemods = None
 
             named = all(s[0] is not None for s in subtypes)
-            if issubclass(coll_type, s_types.Tuple) and named:
+            if issubclass(coll_type, s_abc.Tuple) and named:
                 st = collections.OrderedDict(subtypes)
                 typemods = {'named': named}
             else:

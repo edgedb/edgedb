@@ -24,6 +24,7 @@ import typing
 
 from edb.lang.common import parsing
 
+from edb.lang.schema import abc as s_abc
 from edb.lang.schema import error as s_err
 from edb.lang.schema import name as sn
 from edb.lang.schema import nodes as s_nodes
@@ -137,7 +138,7 @@ def derive_view(
             stype=stype, derived_name_quals=derived_name_quals,
             derived_name_base=derived_name_base, ctx=ctx)
 
-    if isinstance(stype, s_types.Type):
+    if isinstance(stype, s_abc.Type):
         if is_insert:
             vtype = s_types.ViewType.Insert
         elif is_update:
@@ -152,7 +153,7 @@ def derive_view(
 
         attrs['view_type'] = vtype
 
-    if isinstance(stype, s_types.Collection):
+    if isinstance(stype, s_abc.Collection):
         ctx.env.schema, derived = stype.derive_subtype(
             ctx.env.schema, name=derived_name)
     else:
@@ -177,7 +178,7 @@ def derive_view(
                     if computable_data is not None:
                         ctx.source_map[ptr] = computable_data
 
-    if isinstance(derived, s_types.Type):
+    if isinstance(derived, s_abc.Type):
         ctx.view_nodes[derived.get_name(ctx.env.schema)] = derived
 
     return derived

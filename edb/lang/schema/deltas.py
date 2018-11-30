@@ -22,13 +22,15 @@
 
 from edb.lang.edgeql import ast as qlast
 
+from . import abc as s_abc
 from . import ast as s_ast
 from . import delta as sd
 from . import named
 from . import objects as so
 
 
-class Delta(so.Object):
+class Delta(so.Object, s_abc.Delta):
+
     parents = so.SchemaField(
         so.ObjectList,
         default=so.ObjectList, coerce=True, inheritable=False)

@@ -28,8 +28,8 @@ from edb.lang.common import enum as s_enum
 from edb.lang.ir import ast as irast
 from edb.lang.ir import utils as irutils
 
+from edb.lang.schema import abc as s_abc
 from edb.lang.schema import pointers as s_pointers
-from edb.lang.schema import types as s_types
 
 from edb.server.pgsql import ast as pgast
 from edb.server.pgsql import types as pg_types
@@ -398,7 +398,7 @@ def get_path_output_alias(
     if rptr is not None:
         ptrname = rptr.get_shortname(env.schema)
         alias_base = ptrname.name
-    elif isinstance(path_id.target, s_types.Collection):
+    elif isinstance(path_id.target, s_abc.Collection):
         alias_base = path_id.target.schema_name
     else:
         _, _, alias_base = path_id.target_name.rpartition('::')

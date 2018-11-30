@@ -16,11 +16,11 @@
 # limitations under the License.
 #
 
+from edb.lang.schema import abc as s_abc
 from edb.lang.schema import name as sn
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import pointers as s_pointers
 from edb.lang.schema import scalars as s_scalars
-from edb.lang.schema import types as s_types
 
 
 class PathId:
@@ -53,7 +53,7 @@ class PathId:
     @classmethod
     def from_type(cls, schema, initializer, *, namespace=None, typename=None):
         pid = cls()
-        if not isinstance(initializer, s_types.Type):
+        if not isinstance(initializer, s_abc.Type):
             raise ValueError(
                 f'invalid PathId: bad source: {initializer!r}')
         pid._path = (initializer,)

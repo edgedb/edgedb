@@ -25,6 +25,7 @@ import typing
 
 from edb.lang.ir import ast as irast
 
+from edb.lang.schema import abc as s_abc
 from edb.lang.schema import objects as s_obj
 from edb.lang.schema import types as s_types
 
@@ -37,7 +38,7 @@ from . import schemactx
 
 def type_to_ql_typeref(t: s_obj.Object, *,
                        ctx: context.ContextLevel) -> qlast.TypeName:
-    if not isinstance(t, s_types.Collection):
+    if not isinstance(t, s_abc.Collection):
         result = qlast.TypeName(
             maintype=qlast.ObjectRef(
                 module=t.get_name(ctx.env.schema).module,
@@ -127,7 +128,7 @@ def ql_typeref_to_type(
         coll = s_types.Collection.get_class(
             ql_t.maintype.name)
 
-        if issubclass(coll, s_types.Tuple):
+        if issubclass(coll, s_abc.Tuple):
             subtypes = collections.OrderedDict()
             named = False
             for si, st in enumerate(ql_t.subtypes):

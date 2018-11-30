@@ -44,9 +44,9 @@ from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import codegen
 from edb.lang.edgeql.parser import parse_fragment
 
+from edb.lang.schema import abc as s_abc
 from edb.lang.schema import modules as s_mod
 from edb.lang.schema import pointers as s_pointers
-from edb.lang.schema import types as s_types
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import scalars as s_scalars
 
@@ -131,7 +131,7 @@ class GQLCoreSchema:
 
         # only arrays can be validly wrapped, other containers don't
         # produce a valid graphql type
-        if isinstance(edb_target, s_types.Array):
+        if isinstance(edb_target, s_abc.Array):
             el_type = self._convert_edb_type(edb_target.element_type)
             if el_type:
                 target = GraphQLList(GraphQLNonNull(el_type))

@@ -23,6 +23,7 @@ from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import errors as ql_errors
 from edb.lang.edgeql import functypes as ft
 
+from . import abc as s_abc
 from . import delta as sd
 from . import functions as s_func
 from . import name as sn
@@ -31,7 +32,7 @@ from . import objects as so
 from . import utils
 
 
-class Operator(s_func.CallableObject):
+class Operator(s_func.CallableObject, s_abc.Operator):
 
     operator_kind = so.SchemaField(
         ft.OperatorKind, coerce=True, compcoef=0.4)

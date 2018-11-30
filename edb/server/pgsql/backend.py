@@ -33,12 +33,12 @@ from edb.lang import edgeql
 
 from edb.lang.schema import delta as sd
 
+from edb.lang.schema import abc as s_abc
 from edb.lang.schema import database as s_db
 from edb.lang.schema import ddl as s_ddl
 from edb.lang.schema import deltas as s_deltas
 from edb.lang.schema import schema as s_schema
 from edb.lang.schema import std as s_std
-from edb.lang.schema import types as s_types
 
 from edb.server import query as backend_query
 from edb.server.pgsql import dbops
@@ -360,11 +360,11 @@ class Backend:
         mt = t.material_type(schema)
         is_tuple = False
 
-        if isinstance(t, s_types.Collection):
+        if isinstance(t, s_abc.Collection):
             subtypes = [self._describe_type(schema, st, view_shapes, _tuples)
                         for st in t.get_subtypes()]
 
-            if isinstance(t, s_types.Tuple) and t.named:
+            if isinstance(t, s_abc.Tuple) and t.named:
                 element_names = list(t.element_types.keys())
             else:
                 element_names = None

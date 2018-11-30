@@ -25,6 +25,7 @@ import uuid
 
 from edb.lang.common import typed
 
+from . import abc as s_abc
 from . import derivable
 from . import error as s_err
 from . import expr as s_expr
@@ -41,7 +42,7 @@ class ViewType(enum.IntEnum):
     Update = enum.auto()
 
 
-class Type(so.Object, derivable.DerivableObjectBase):
+class Type(so.Object, derivable.DerivableObjectBase, s_abc.Type):
     """A schema item that is a valid *type*."""
 
     # For a type representing a view, this would contain the
@@ -180,7 +181,7 @@ class Type(so.Object, derivable.DerivableObjectBase):
     __str__ = __repr__
 
 
-class Collection(Type):
+class Collection(Type, s_abc.Collection):
 
     name = so.Field(
         s_name.SchemaName,
@@ -282,7 +283,6 @@ class Collection(Type):
         return ()
 
     def get_subtype(self, schema, typeref):
-        from . import scalars as s_scalars
         from . import types as s_types
 
         if isinstance(typeref, so.ObjectRef):
@@ -290,7 +290,7 @@ class Collection(Type):
         else:
             eltype = typeref
 
-        if isinstance(eltype, s_scalars.ScalarType):
+        if isinstance(eltype, s_abc.ScalarType):
             eltype = eltype.get_topmost_concrete_base(schema)
             eltype = s_types.BaseTypeMeta.get_implementation(eltype.name)
 
@@ -339,7 +339,7 @@ class Dimensions(typed.FrozenTypedList, type=int):
     pass
 
 
-class Array(Collection):
+class Array(Collection, s_abc.Array):
     schema_name = 'array'
     element_type = so.Field(so.Object)
     dimensions = so.Field(Dimensions, coerce=True)
@@ -478,7 +478,7 @@ class Array(Collection):
         )
 
 
-class Tuple(Collection):
+class Tuple(Collection, s_abc.Tuple):
     schema_name = 'tuple'
 
     named = so.Field(bool)

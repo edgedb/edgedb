@@ -20,6 +20,7 @@
 
 from edb.lang.edgeql import ast as qlast
 
+from . import abc as s_abc
 from . import delta as sd
 from . import inheriting
 from . import name as sn
@@ -32,7 +33,9 @@ from . import utils
 
 class Attribute(inheriting.InheritingObject):
 
-    type = so.SchemaField(s_types.Type, compcoef=0.909)
+    type = so.SchemaField(
+        s_types.Type,
+        compcoef=0.909)
 
 
 class AttributeValue(inheriting.InheritingObject):
@@ -108,7 +111,7 @@ class CreateAttribute(AttributeCommand, named.CreateNamedObject):
     def _apply_field_ast(self, schema, context, node, op):
         if op.property == 'type':
             tp = op.new_value
-            if isinstance(tp, s_types.Collection):
+            if isinstance(tp, s_abc.Collection):
                 maintype = tp.schema_name
                 stt = tp.get_subtypes()
 
