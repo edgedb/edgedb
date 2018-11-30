@@ -28,9 +28,9 @@ from edb.lang.edgeql import functypes as ql_ft
 from edb.lang.ir import ast as irast
 from edb.lang.ir import utils as irutils
 
+from edb.lang.schema import abc as s_abc
 from edb.lang.schema import scalars as s_scalars
 from edb.lang.schema import objects as s_obj
-from edb.lang.schema import types as s_types
 
 from edb.server.pgsql import ast as pgast
 from edb.server.pgsql import common
@@ -332,13 +332,13 @@ def compile_BinOp(
                 op == ast.ops.ADD):
             op = '||'
 
-    if isinstance(left_type, s_types.Tuple):
+    if isinstance(left_type, s_abc.Tuple):
         left = _tuple_to_row_expr(expr.left, ctx=newctx)
         left_count = len(left.args)
     else:
         left_count = 0
 
-    if isinstance(right_type, s_types.Tuple):
+    if isinstance(right_type, s_abc.Tuple):
         right = _tuple_to_row_expr(expr.right, ctx=newctx)
         right_count = len(right.args)
     else:

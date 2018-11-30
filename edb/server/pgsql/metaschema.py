@@ -26,6 +26,7 @@ from edb.lang.common import adapter, debug, typed
 from edb.lang.common import context as parser_context
 from edb.lang.common import exceptions
 
+from edb.lang.schema import abc as s_abc
 from edb.lang.schema import attributes as s_attrs
 from edb.lang.schema import constraints as s_constraints
 from edb.lang.schema import database as s_db
@@ -36,7 +37,6 @@ from edb.lang.schema import named as s_named
 from edb.lang.schema import objects as s_obj
 from edb.lang.schema import pseudo as s_pseudo
 from edb.lang.schema import referencing as s_ref
-from edb.lang.schema import types as s_types
 
 from . import common
 from . import dbops
@@ -1447,7 +1447,7 @@ def get_interesting_metaclasses():
 
     metaclasses = [
         mcls for mcls in metaclasses
-        if (not issubclass(mcls, (s_obj.ObjectRef, s_types.Collection)) and
+        if (not issubclass(mcls, (s_obj.ObjectRef, s_abc.Collection)) and
             not isinstance(mcls, adapter.Adapter) and
             not issubclass(mcls, (s_db.Database)))
     ]

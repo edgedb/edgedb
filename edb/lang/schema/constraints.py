@@ -24,6 +24,7 @@ from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import errors as ql_errors
 from edb.lang.edgeql import functypes as ft
 
+from . import abc as s_abc
 from . import delta as sd
 from . import error as s_errors
 from . import expr as s_expr
@@ -37,7 +38,8 @@ from . import referencing
 from . import utils
 
 
-class Constraint(inheriting.InheritingObject, s_func.CallableObject):
+class Constraint(inheriting.InheritingObject, s_func.CallableObject,
+                 s_abc.Constraint):
 
     expr = so.SchemaField(
         s_expr.ExpressionText, default=None, compcoef=0.909,

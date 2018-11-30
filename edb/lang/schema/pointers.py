@@ -23,6 +23,7 @@ from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
 from edb.lang.common import enum
 
+from . import abc as s_abc
 from . import constraints
 from . import delta as sd
 from . import error as schema_error
@@ -183,7 +184,7 @@ class Pointer(constraints.ConsistencySubject, PointerLike):
 
     @classmethod
     def merge_targets(cls, schema, ptr, t1, t2):
-        from . import scalars as s_scalars, objtypes as s_objtypes
+        from . import objtypes as s_objtypes
 
         # When two pointers are merged, check target compatibility
         # and return a target that satisfies both specified targets.
@@ -191,8 +192,8 @@ class Pointer(constraints.ConsistencySubject, PointerLike):
 
         source = ptr.get_source(schema)
 
-        if (isinstance(t1, s_scalars.ScalarType) !=
-                isinstance(t2, s_scalars.ScalarType)):
+        if (isinstance(t1, s_abc.ScalarType) !=
+                isinstance(t2, s_abc.ScalarType)):
             # Targets are not of the same node type
 
             pn = ptr.get_shortname(schema)
@@ -210,7 +211,7 @@ class Pointer(constraints.ConsistencySubject, PointerLike):
                 f'could not merge "{pn}" pointer: invalid ' +
                 'target type mix', details=detail)
 
-        elif isinstance(t1, s_scalars.ScalarType):
+        elif isinstance(t1, s_abc.ScalarType):
             # Targets are both scalars
             if t1 != t2:
                 pn = ptr.get_shortname(schema)

@@ -19,11 +19,12 @@
 
 from edb.lang.common import uuidgen
 
+from . import abc as s_abc
 from . import name as sn
 from . import objects as so
 
 
-class DerivableObjectBase:
+class DerivableObjectBase(s_abc.Object):
     # Override name field comparison coefficient on the
     # presumption that the derived names may be different,
     # but base names may be equal.

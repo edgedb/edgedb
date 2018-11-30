@@ -29,6 +29,7 @@ from edb.lang.common import parsing
 from edb.lang.ir import ast as irast
 from edb.lang.ir import utils as irutils
 
+from edb.lang.schema import abc as s_abc
 from edb.lang.schema import expr as s_expr
 from edb.lang.schema import links as s_links
 from edb.lang.schema import name as s_name
@@ -184,7 +185,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 source = path_tip.stype
 
             with ctx.newscope(fenced=True, temporary=True) as subctx:
-                if isinstance(source, s_types.Tuple):
+                if isinstance(source, s_abc.Tuple):
                     path_tip = tuple_indirection_set(
                         path_tip, source=source, ptr_name=ptr_name,
                         source_context=step.context, ctx=subctx)

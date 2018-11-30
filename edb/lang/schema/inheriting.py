@@ -20,6 +20,7 @@
 from edb.lang.common import struct
 from edb.lang.edgeql import ast as qlast
 
+from . import abc as s_abc
 from . import delta as sd
 from . import derivable
 from . import error as s_err
@@ -252,7 +253,7 @@ def compute_mro(schema, obj):
 
 def create_virtual_parent(schema, children, *,
                           module_name=None, minimize_by=None):
-    from . import scalars as s_scalars, objtypes as s_objtypes, sources
+    from . import objtypes as s_objtypes, sources
 
     if len(children) == 1:
         return schema, next(iter(children))
@@ -290,7 +291,7 @@ def create_virtual_parent(schema, children, *,
     seen_objtypes = False
 
     for target in children:
-        if isinstance(target, s_scalars.ScalarType):
+        if isinstance(target, s_abc.ScalarType):
             if seen_objtypes:
                 raise s_err.SchemaError(
                     'cannot mix scalars and objects in link target list')

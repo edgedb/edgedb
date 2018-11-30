@@ -24,13 +24,13 @@ import uuid
 
 from edb.lang.ir import utils as irutils
 
+from edb.lang.schema import abc as s_abc
 from edb.lang.schema import scalars as s_scalars
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import name as sn
 from edb.lang.schema import named as s_named
 from edb.lang.schema import objects as s_obj
 from edb.lang.schema import schema as s_schema
-from edb.lang.schema import types as s_types
 
 from . import common
 from .common import quote_literal as ql
@@ -143,10 +143,10 @@ def pg_type_from_object(
     if isinstance(obj, s_scalars.ScalarType):
         return pg_type_from_scalar(schema, obj, topbase=topbase)
 
-    elif isinstance(obj, s_types.Tuple):
+    elif isinstance(obj, s_abc.Tuple):
         return ('record',)
 
-    elif isinstance(obj, s_types.Array):
+    elif isinstance(obj, s_abc.Array):
         if obj.is_polymorphic(schema):
             return ('anyarray',)
         else:
@@ -377,7 +377,7 @@ class TypeDesc:
         )
 
     @classmethod
-    def from_type(cls, schema, type: s_types.Type) -> 'TypeDesc':
+    def from_type(cls, schema, type: s_abc.Type) -> 'TypeDesc':
         nodes = []
         cls._get_typedesc(schema, [(None, type)], nodes)
         return cls(nodes)
@@ -393,15 +393,15 @@ class TypeDesc:
             indexes.append(len(typedesc) - 1)
 
         for i, (tn, t) in enumerate(types):
-            if isinstance(t, s_types.Collection):
-                if isinstance(t, s_types.Tuple) and t.named:
+            if isinstance(t, s_abc.Collection):
+                if isinstance(t, s_abc.Tuple) and t.named:
                     stypes = list(t.element_types.items())
                 else:
                     stypes = [(None, st) for st in t.get_subtypes()]
 
                 subtypes = cls._get_typedesc(
                     schema, stypes, typedesc, is_root=False)
-                if isinstance(t, s_types.Array):
+                if isinstance(t, s_abc.Array):
                     dimensions = t.dimensions
                 else:
                     dimensions = []

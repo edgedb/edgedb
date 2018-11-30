@@ -32,7 +32,7 @@ from . import utils
 
 
 def delta_schemas(schema1, schema2):
-    from . import modules, objects as so, database
+    from . import modules, database
     from . import derivable
 
     result = database.AlterDatabase()
@@ -82,7 +82,7 @@ def delta_schemas(schema1, schema2):
 
 
 def delta_module(schema1, schema2, modname):
-    from . import objects as so, database
+    from . import database
     from . import derivable
 
     result = database.AlterDatabase()

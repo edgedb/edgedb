@@ -34,6 +34,7 @@ from edb.lang.edgeql.parser.grammar import lexutils as ql_lexutils
 from . import ast as s_ast
 from . import parser as s_parser
 
+from . import abc as s_abc
 from . import attributes as s_attrs
 from . import delta as s_delta
 from . import objtypes as s_objtypes
@@ -339,7 +340,7 @@ class DeclarationLoader:
                              for p in constraint_params.objects(self._schema)])
 
         for dep in list(deps):
-            if isinstance(dep, s_types.Collection):
+            if isinstance(dep, s_abc.Collection):
                 deps.update(dep.get_subtypes())
                 deps.discard(dep)
 
@@ -744,7 +745,7 @@ class DeclarationLoader:
                         f'is declared as "single"',
                         context=expr.context)
 
-        if (not isinstance(expr_type, s_types.Type) or
+        if (not isinstance(expr_type, s_abc.Type) or
                 (ptr.get_target(self._schema) is not None and
                  not expr_type.issubclass(
                     self._schema, ptr.get_target(self._schema)))):

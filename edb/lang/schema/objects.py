@@ -32,6 +32,7 @@ from edb.lang.common import topological
 from edb.lang.common import typed
 from edb.lang.common import uuidgen
 
+from . import abc as s_abc
 from . import error as s_err
 from . import name as sn
 
@@ -282,7 +283,11 @@ class ObjectMeta(type):
                         self._get_schema_field_value(schema, _fn)
                 )
 
-        cls = super().__new__(mcls, name, bases, clsdict)
+        try:
+            cls = super().__new__(mcls, name, bases, clsdict)
+        except TypeError as ex:
+            raise TypeError(
+                f'Object metaclass has failed to create class {name}: {ex}')
 
         for parent in reversed(cls.__mro__):
             if parent is cls:
@@ -331,7 +336,7 @@ class FieldValueNotFoundError(Exception):
     pass
 
 
-class Object(metaclass=ObjectMeta):
+class Object(s_abc.Object, metaclass=ObjectMeta):
     """Base schema item class."""
 
     id = Field(

@@ -30,9 +30,9 @@ from edb.lang.edgeql import functypes as ql_ft
 from edb.lang.ir import ast as irast
 from edb.lang.ir import utils as irutils
 
+from edb.lang.schema import abc as s_abc
 from edb.lang.schema import scalars as s_scalars
 from edb.lang.schema import objtypes as s_objtypes
-from edb.lang.schema import types as s_types
 
 from edb.server.pgsql import ast as pgast
 from edb.server.pgsql import common
@@ -538,7 +538,7 @@ def get_set_rel_alias(ir_set: irast.Set, *,
             ir_set.rptr.ptrcls.get_shortname(ctx.env.schema).name
         )
     else:
-        if isinstance(ir_set.stype, s_types.Collection):
+        if isinstance(ir_set.stype, s_abc.Collection):
             alias_hint = ir_set.stype.schema_name
         else:
             _, _, dname = ir_set.path_id.target_name.rpartition('::')
@@ -1261,7 +1261,7 @@ def process_set_as_type_cast(
 
             if (is_json_cast and
                     isinstance(inner_set.stype,
-                               (s_objtypes.ObjectType, s_types.Collection))):
+                               (s_abc.ObjectType, s_abc.Collection))):
                 subctx.expr_exposed = True
                 subctx.output_format = context.OutputFormat.JSON
                 implicit_cast = True
@@ -1274,7 +1274,7 @@ def process_set_as_type_cast(
                     stmt, inner_set.path_id, env=subctx.env)
 
                 if serialized is not None:
-                    if isinstance(inner_set.stype, s_types.Collection):
+                    if isinstance(inner_set.stype, s_abc.Collection):
                         serialized = output.serialize_expr_to_json(
                             serialized, path_id=inner_set.path_id,
                             env=subctx.env)
@@ -1360,7 +1360,7 @@ def process_set_as_func_expr(
     if expr.typemod is ql_ft.TypeModifier.SET_OF:
         rtype = expr.stype
 
-        if isinstance(rtype, s_types.Tuple):
+        if isinstance(rtype, s_abc.Tuple):
             colnames = list(rtype.element_types.keys())
         else:
             colnames = [ctx.env.aliases.get('v')]

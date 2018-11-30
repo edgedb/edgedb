@@ -23,6 +23,7 @@ import typing
 from edb.lang.common import ast
 from edb.lang.edgeql import ast as qlast
 
+from . import abc as s_abc
 from . import attributes
 from . import constraints
 from . import delta as sd
@@ -37,7 +38,7 @@ from . import types as s_types
 
 
 class ScalarType(nodes.Node, constraints.ConsistencySubject,
-                 attributes.AttributeSubject):
+                 attributes.AttributeSubject, s_abc.ScalarType):
 
     default = so.SchemaField(
         expr.ExpressionText, default=None,
@@ -67,7 +68,7 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
                 ptypes = [p.get_type(schema) for p in c_params]
                 if ptypes:
                     for ptype in ptypes:
-                        if isinstance(ptype, s_types.Collection):
+                        if isinstance(ptype, s_abc.Collection):
                             subtypes = ptype.get_subtypes()
                         else:
                             subtypes = [ptype]

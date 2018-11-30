@@ -19,6 +19,7 @@
 
 from edb.lang.edgeql import ast as qlast
 
+from . import abc as s_abc
 from . import constraints
 from . import delta as sd
 from . import inheriting
@@ -36,7 +37,8 @@ class BaseObjectType(sources.Source, nodes.Node):
     pass
 
 
-class ObjectType(BaseObjectType, constraints.ConsistencySubject):
+class ObjectType(BaseObjectType, constraints.ConsistencySubject,
+                 s_abc.ObjectType):
 
     def is_object_type(self):
         return True

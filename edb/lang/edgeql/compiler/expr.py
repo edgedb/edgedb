@@ -29,9 +29,9 @@ from edb.lang.ir import ast as irast
 from edb.lang.ir import staeval as ireval
 from edb.lang.ir import utils as irutils
 
+from edb.lang.schema import abc as s_abc
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import pointers as s_pointers
-from edb.lang.schema import types as s_types
 from edb.lang.schema import utils as s_utils
 
 from edb.lang.edgeql import ast as qlast
@@ -334,7 +334,7 @@ def compile_Array(
     elements = [dispatch.compile(e, ctx=ctx) for e in expr.elements]
     # check that none of the elements are themselves arrays
     for el, expr_el in zip(elements, expr.elements):
-        if isinstance(inference.infer_type(el, ctx.env), s_types.Array):
+        if isinstance(inference.infer_type(el, ctx.env), s_abc.Array):
             raise errors.EdgeQLError(
                 f'nested arrays are not supported',
                 context=expr_el.context)
@@ -507,7 +507,7 @@ def _cast_expr(
     new_typeref = typegen.ql_typeref_to_ir_typeref(ql_type, ctx=ctx)
     json_t = ctx.env.schema.get('std::json')
 
-    if isinstance(orig_type, s_types.Tuple):
+    if isinstance(orig_type, s_abc.Tuple):
         if new_type.issubclass(ctx.env.schema, json_t):
             # Casting to std::json involves casting each tuple
             # element and also keeping the cast around the whole tuple.
@@ -544,7 +544,7 @@ def _cast_expr(
         else:
             # For tuple-to-tuple casts we generate a new tuple
             # to simplify things on sqlgen side.
-            if not isinstance(new_type, s_types.Tuple):
+            if not isinstance(new_type, s_abc.Tuple):
                 raise errors.EdgeQLError(
                     f'cannot cast tuple to '
                     f'{new_type.get_name(ctx.env.schema)}',
@@ -592,7 +592,7 @@ def _cast_expr(
             isinstance(ir_expr.expr, irast.Array)):
         if new_type.issubclass(ctx.env.schema, json_t):
             el_type = ql_type
-        elif not isinstance(new_type, s_types.Array):
+        elif not isinstance(new_type, s_abc.Array):
             raise errors.EdgeQLError(
                 f'cannot cast array to {new_type.get_name(ctx.env.schema)}',
                 context=source_context)
@@ -710,7 +710,7 @@ def compile_set_op(
     left_type = inference.infer_type(left, ctx.env)
     right_type = inference.infer_type(right, ctx.env)
 
-    if left_type != right_type and isinstance(left_type, s_types.Collection):
+    if left_type != right_type and isinstance(left_type, s_abc.Collection):
         common_type = left_type.find_common_implicitly_castable_type(
             right_type, ctx.env.schema)
 

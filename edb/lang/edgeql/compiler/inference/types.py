@@ -22,6 +22,7 @@ import typing
 
 from edb.lang.common import ast
 
+from edb.lang.schema import abc as s_abc
 from edb.lang.schema import inheriting as s_inh
 from edb.lang.schema import name as s_name
 from edb.lang.schema import objects as s_obj
@@ -64,7 +65,7 @@ def _infer_common_type(irs: typing.List[irast.Base], env):
             continue
 
         t = infer_type(arg, env)
-        if isinstance(t, s_types.Collection):
+        if isinstance(t, s_abc.Collection):
             seen_coll = True
         elif isinstance(t, s_scalars.ScalarType):
             seen_scalar = True
@@ -157,7 +158,7 @@ def __infer_setop(ir, env):
 
     assert ir.op == qlast.UNION
 
-    if isinstance(left_type, (s_scalars.ScalarType, s_types.Collection)):
+    if isinstance(left_type, (s_scalars.ScalarType, s_abc.Collection)):
         result = left_type.find_common_implicitly_castable_type(
             right_type, env.schema)
 
@@ -338,7 +339,7 @@ def __infer_slice(ir, env):
         base_name = 'json array'
     elif node_type.issubclass(env.schema, bytes_t):
         base_name = 'bytes'
-    elif isinstance(node_type, s_types.Array):
+    elif isinstance(node_type, s_abc.Array):
         base_name = 'array'
     elif node_type.is_any():
         base_name = 'anytype'
@@ -407,7 +408,7 @@ def __infer_index(ir, env):
 
         result = json_t
 
-    elif isinstance(node_type, s_types.Array):
+    elif isinstance(node_type, s_abc.Array):
 
         if not index_type.implicitly_castable_to(int_t, env.schema):
             raise ql_errors.EdgeQLError(

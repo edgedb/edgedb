@@ -24,6 +24,7 @@ import typing
 from edb.lang.common import levenshtein
 from edb.lang.edgeql import ast as ql_ast
 
+from . import abc as s_abc
 from . import error as s_err
 from . import name as sn
 from . import objects as so
@@ -61,7 +62,7 @@ def ast_to_typeref(
     if node.subtypes is not None:
         coll = s_types.Collection.get_class(node.maintype.name)
 
-        if issubclass(coll, s_types.Tuple):
+        if issubclass(coll, s_abc.Tuple):
             subtypes = collections.OrderedDict()
             # tuple declaration must either be named or unnamed, but not both
             named = None
@@ -114,7 +115,7 @@ def ast_to_typeref(
 
 
 def typeref_to_ast(schema, t: so.Object) -> ql_ast.TypeName:
-    if not isinstance(t, s_types.Collection):
+    if not isinstance(t, s_abc.Collection):
         result = ql_ast.TypeName(
             maintype=ql_ast.ObjectRef(
                 module=t.get_name(schema).module,

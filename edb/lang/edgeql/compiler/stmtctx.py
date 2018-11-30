@@ -29,6 +29,7 @@ from edb.lang.edgeql import errors
 
 from edb.lang.ir import ast as irast
 
+from edb.lang.schema import abc as s_abc
 from edb.lang.schema import functions as s_func
 from edb.lang.schema import modules as s_mod
 from edb.lang.schema import name as s_name
@@ -163,7 +164,7 @@ def compile_anchor(
 
     show_as_anchor = True
 
-    if isinstance(anchor, s_types.Type):
+    if isinstance(anchor, s_abc.Type):
         step = setgen.class_set(anchor, ctx=ctx)
 
     elif (isinstance(anchor, s_pointers.Pointer) and
