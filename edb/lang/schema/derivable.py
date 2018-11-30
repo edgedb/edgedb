@@ -134,7 +134,7 @@ class DerivableObjectBase:
         return schema, derived
 
 
-class DerivableObject(so.NamedObject, DerivableObjectBase):
+class DerivableObject(so.Object, DerivableObjectBase):
 
     # Indicates that the object has been declared as
     # explicitly inherited.

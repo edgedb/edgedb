@@ -22,11 +22,10 @@ from edb.lang.edgeql import ast as qlast
 
 from . import delta as sd
 from . import modules
-from . import named
 from . import objects as so
 
 
-class Database(named.NamedObject):
+class Database(so.Object):
     # Override 'name' to str type, since databases don't have
     # fully-qualified names.
     name = so.SchemaField(str)

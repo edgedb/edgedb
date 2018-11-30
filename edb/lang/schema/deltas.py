@@ -28,7 +28,7 @@ from . import named
 from . import objects as so
 
 
-class Delta(named.NamedObject):
+class Delta(so.Object):
     parents = so.SchemaField(
         so.ObjectList,
         default=so.ObjectList, coerce=True, inheritable=False)

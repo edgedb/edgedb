@@ -170,7 +170,7 @@ class ParameterDesc(typing.NamedTuple):
         return cmd
 
 
-class Parameter(named.NamedObject):
+class Parameter(so.Object):
 
     num = so.SchemaField(
         int, compcoef=0.4)
@@ -368,7 +368,7 @@ class FuncParameterList(so.ObjectList, type=Parameter):
         return schema, cls.create(schema, params)
 
 
-class CallableObject(so.NamedObject):
+class CallableObject(so.Object):
 
     params = so.SchemaField(
         FuncParameterList,

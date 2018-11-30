@@ -38,7 +38,7 @@ class Attribute(inheriting.InheritingObject):
 class AttributeValue(inheriting.InheritingObject):
 
     subject = so.SchemaField(
-        named.NamedObject, compcoef=1.0, default=None, inheritable=False)
+        so.Object, compcoef=1.0, default=None, inheritable=False)
 
     attribute = so.SchemaField(
         Attribute, compcoef=0.429)

@@ -30,9 +30,6 @@ from . import name as sn
 from . import error as s_err
 
 
-NamedObject = so.NamedObject
-
-
 class NamedObjectCommand(sd.ObjectCommand):
     classname = struct.Field(sn.Name)
 

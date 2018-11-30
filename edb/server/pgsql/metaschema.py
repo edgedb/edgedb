@@ -21,6 +21,7 @@
 
 import collections
 import textwrap
+import uuid
 
 from edb.lang.common import adapter, debug, typed
 from edb.lang.common import context as parser_context
@@ -32,7 +33,6 @@ from edb.lang.schema import database as s_db
 from edb.lang.schema import expr as s_expr
 from edb.lang.schema import inheriting as s_inheriting
 from edb.lang.schema import name as sn
-from edb.lang.schema import named as s_named
 from edb.lang.schema import objects as s_obj
 from edb.lang.schema import pseudo as s_pseudo
 from edb.lang.schema import referencing as s_ref
@@ -101,21 +101,6 @@ class TypeDescType(dbops.CompositeType):
         self.add_columns([
             dbops.Column(name='types', type='edgedb.type_desc_node_t[]'),
         ])
-
-
-class ObjectTable(dbops.Table):
-    def __init__(self):
-        super().__init__(
-            name=('edgedb', 'class'),
-            columns=[
-                dbops.Column(
-                    name='id', type='uuid', required=True,
-                    default='edgedb.uuid_generate_v1mc()')
-            ],
-            constraints=[
-                dbops.PrimaryKey(('edgedb', 'object'), columns=('id', ))
-            ]
-        )
 
 
 class RaiseExceptionFunction(dbops.Function):
@@ -341,7 +326,7 @@ class ResolveTypeNameFunction(dbops.Function):
 class ResolveSimpleTypeIdFunction(dbops.Function):
     text = '''
         SELECT coalesce(
-            (SELECT id FROM edgedb.NamedObject
+            (SELECT id FROM edgedb.Object
              WHERE name = type::text),
             edgedb._raise_exception(
                 'resolve_type_id: unknown type: "' || type || '"',
@@ -381,7 +366,7 @@ class ResolveSimpleTypeIdListFunction(dbops.Function):
 class ResolveSimpleTypeNameFunction(dbops.Function):
     text = '''
         SELECT coalesce(
-            (SELECT name FROM edgedb.NamedObject
+            (SELECT name FROM edgedb.Object
              WHERE id = type::uuid),
             edgedb._raise_exception(
                 'resolve_type_name: unknown type: "' || type || '"',
@@ -1401,6 +1386,8 @@ class JSONSliceFunction(dbops.Function):
 def _field_to_column(field):
     ftype = field.type
     coltype = None
+    required = False
+    default = None
 
     if issubclass(ftype, (s_obj.ObjectSet, s_obj.ObjectList)):
         # ObjectSet and ObjectList are exempt from type_t encoding,
@@ -1430,12 +1417,20 @@ def _field_to_column(field):
     elif issubclass(ftype, int):
         coltype = 'bigint'
 
+    elif issubclass(ftype, uuid.UUID):
+        coltype = 'uuid'
+        if field.name == 'id':
+            required = True
+            default = 'edgedb.uuid_generate_v1mc()'
+
     else:
         coltype = 'text'
 
     return dbops.Column(
         name=field.name,
         type=coltype,
+        required=required,
+        default=default,
     )
 
 
@@ -1452,14 +1447,13 @@ def get_interesting_metaclasses():
             not issubclass(mcls, (s_db.Database)))
     ]
 
-    return metaclasses[1:]
+    return metaclasses
 
 
 def init_metaclass_tables():
     # The first MetaCLass is the abstract Object, which we created
     # manually above.
     metaclasses = get_interesting_metaclasses()
-    metaclass_tables[s_obj.Object] = ObjectTable()
 
     for mcls in metaclasses:
         table = dbops.Table(name=('edgedb', mcls.__name__.lower()))
@@ -1490,6 +1484,11 @@ def init_metaclass_tables():
             cols.append(_field_to_column(field))
 
         table.add_columns(cols)
+
+        if mcls is s_obj.Object:
+            table.add_constraint(
+                dbops.PrimaryKey(('edgedb', 'object'), columns=('id',)))
+
         metaclass_tables[mcls] = table
 
 
@@ -1523,12 +1522,11 @@ async def bootstrap(conn):
         dbops.CreateCompositeType(TypeDescNodeType()),
         dbops.CreateCompositeType(TypeDescType()),
         dbops.CreateDomain(('edgedb', 'known_record_marker_t'), 'text'),
-        dbops.CreateTable(ObjectTable()),
     ])
 
     commands.add_commands(
         dbops.CreateTable(table)
-        for table in list(metaclass_tables.values())[1:])
+        for table in list(metaclass_tables.values()))
 
     commands.add_commands(
         dbops.Comment(table, f'schema::{mcls.__name__}')
@@ -1608,9 +1606,9 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
 
     if refdict:
         if (issubclass(mcls, s_inheriting.InheritingObject) or
-                mcls is s_named.NamedObject):
+                mcls is s_obj.Object):
 
-            if mcls is s_named.NamedObject:
+            if mcls is s_obj.Object:
                 schematab = 'edgedb.InheritingObject'
             else:
                 schematab = 'edgedb.{}'.format(mcls.__name__)
@@ -1913,7 +1911,7 @@ def _generate_type_element_view(schema, type_fields):
             types AS ({source})
         SELECT
             q.id            AS {dbname('std::id')},
-            (SELECT id FROM edgedb.NamedObject
+            (SELECT id FROM edgedb.Object
                  WHERE name = 'schema::TypeElement')
                             AS {dbname('std::__type__')},
             {_lookup_type('q.id')}
@@ -1954,7 +1952,7 @@ def _generate_types_views(schema, type_fields):
             q.id            AS {dbname('std::id')},
             q.collection    AS {dbname('schema::name')},
             NULL            AS {dbname('schema::description')},
-            (SELECT id FROM edgedb.NamedObject
+            (SELECT id FROM edgedb.Object
                  WHERE name = 'schema::Array')
                             AS {dbname('std::__type__')},
             {_lookup_type('q.subtypes[1]')}
@@ -1975,7 +1973,7 @@ def _generate_types_views(schema, type_fields):
             q.id            AS {dbname('std::id')},
             q.collection    AS {dbname('schema::name')},
             NULL            AS {dbname('schema::description')},
-            (SELECT id FROM edgedb.NamedObject
+            (SELECT id FROM edgedb.Object
                  WHERE name = 'schema::Array')
                             AS {dbname('std::__type__')},
             (SELECT array_agg(t.id)
@@ -2009,7 +2007,7 @@ async def generate_views(conn, schema):
     type_fields = []
 
     for mcls in metaclasses:
-        if mcls is s_named.NamedObject:
+        if mcls is s_obj.Object:
             schema_name = 'Object'
         else:
             schema_name = mcls.__name__
@@ -2079,8 +2077,7 @@ async def generate_views(conn, schema):
             ptrstor = types.get_pointer_storage_info(ptr, schema=schema)
 
             if ptrstor.table_type == 'ObjectType':
-                if (pn.name == 'name' and
-                        issubclass(mcls, (s_obj.NamedObject))):
+                if pn.name == 'name' and issubclass(mcls, s_obj.Object):
                     col_expr = 'edgedb.shortname_from_fullname(t.{})'.format(
                         q(pn.name))
                 else:
@@ -2106,7 +2103,7 @@ async def generate_views(conn, schema):
                     ON (t.tableoid = c.oid)
                 INNER JOIN pg_description AS cmt
                     ON (c.oid = cmt.objoid AND c.tableoid = cmt.classoid)
-                INNER JOIN edgedb.NamedObject AS no
+                INNER JOIN edgedb.Object AS no
                     ON (no.name = cmt.description)
         '''
 

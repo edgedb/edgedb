@@ -145,12 +145,11 @@ class NamedObjectMetaCommand(
     def _get_name(self, schema, value):
         if isinstance(value, s_obj.ObjectRef):
             name = value.get_name(schema)
-        elif isinstance(value, s_named.NamedObject):
+        elif isinstance(value, s_obj.Object):
             name = value.get_name(schema)
         else:
             raise ValueError(
-                'expecting a ObjectRef or a '
-                'NamedObject, got {!r}'.format(value))
+                f'expecting a ObjectRef or an Object, got {value!r}')
 
         return name
 

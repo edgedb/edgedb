@@ -334,17 +334,44 @@ class FieldValueNotFoundError(Exception):
 class Object(metaclass=ObjectMeta):
     """Base schema item class."""
 
+    # Unique ID for this schema item.
     id = Field(
         uuid.UUID,
         inheritable=False, simpledelta=False)
-    """Unique ID for this schema item."""
 
+    # Schema source context for this object
     sourcectx = SchemaField(
         parsing.ParserContext,
         default=None, compcoef=None,
         inheritable=False, introspectable=False, hashable=False,
         ephemeral=True)
-    """Schema source context for this object"""
+
+    name = SchemaField(
+        sn.Name,
+        inheritable=False, compcoef=0.670)
+
+    # The path_id_name field is solely for the purposes of the compiler
+    # so that this item can act as a transparent proxy for the item
+    # it has been derived from, specifically in path ids.
+    path_id_name = SchemaField(
+        sn.Name,
+        inheritable=False, ephemeral=True,
+        introspectable=False, default=None)
+
+    title = SchemaField(
+        str,
+        default=None, compcoef=0.909, coerce=True,
+        public=True)
+
+    description = SchemaField(
+        str,
+        default=None, compcoef=0.909, public=True)
+
+    def get_shortname(self, schema) -> sn.Name:
+        return sn.shortname_from_fullname(self.get_name(schema))
+
+    def get_displayname(self, schema) -> str:
+        return str(self.get_shortname(schema))
 
     def __init__(self, *, _private_init):
         pass
@@ -376,9 +403,12 @@ class Object(metaclass=ObjectMeta):
         return obj
 
     @classmethod
-    def _create_in_schema(cls, schema, *, id=None, **data) -> 'Object':
+    def create_in_schema(cls, schema, *, id=None, **data) -> 'Object':
         if not cls.is_schema_object:
             raise TypeError(f'{cls.__name__} type cannot be created in schema')
+
+        if not data.get('name'):
+            raise RuntimeError(f'cannot create {cls} without a name')
 
         obj_data = {}
         for field_name, value in data.items():
@@ -643,17 +673,17 @@ class Object(metaclass=ObjectMeta):
     @classmethod
     def compare_values(cls, ours, theirs, *,
                        our_schema, their_schema, context, compcoef):
+        similarity = 1.0
+
         if (ours is None) != (theirs is None):
-            return compcoef
-        elif ours is None:
-            return 1.0
-        else:
-            comp = ours.compare(theirs, our_schema=our_schema,
-                                their_schema=their_schema, context=context)
-            if comp is NotImplemented:
-                return NotImplemented
-            else:
-                return comp * compcoef
+            similarity /= 1.2
+        elif ours is not None:
+            if type(ours) is not type(theirs):
+                similarity /= 1.4
+            elif ours.get_name(our_schema) != theirs.get_name(their_schema):
+                similarity /= 1.2
+
+        return similarity
 
     @classmethod
     def delta(cls, old, new, *, context=None, old_schema, new_schema):
@@ -706,7 +736,7 @@ class Object(metaclass=ObjectMeta):
         return delta
 
     def _reduce_to_ref(self, schema):
-        raise NotImplementedError
+        return ObjectRef(name=self.get_name(schema)), self.get_name(schema)
 
     def _resolve_ref(self, schema):
         return self
@@ -756,6 +786,11 @@ class Object(metaclass=ObjectMeta):
                   if f.simpledelta and not f.ephemeral and f.introspectable]
 
         if old and new:
+            if old.get_name(old_schema) != new.get_name(new_schema):
+                delta.add(old.delta_rename(old, new.get_name(new_schema),
+                                           old_schema=old_schema,
+                                           new_schema=new_schema))
+
             for f in fields:
                 oldattr_v = old.get_explicit_field_value(old_schema, f, None)
                 newattr_v = new.get_explicit_field_value(new_schema, f, None)
@@ -779,6 +814,18 @@ class Object(metaclass=ObjectMeta):
                     value, _ = new._reduce_refs(new_schema, value)
                     delta.add(sd.AlterObjectProperty(
                         property=f, old_value=None, new_value=value))
+
+    @classmethod
+    def delta_rename(cls, obj, new_name, *, old_schema, new_schema):
+        from . import delta as sd
+        from . import named
+
+        rename_class = sd.ObjectCommandMeta.get_command_class_or_die(
+            named.RenameNamedObject, type(obj))
+
+        return rename_class(classname=obj.get_name(old_schema),
+                            new_name=new_name,
+                            metaclass=type(obj))
 
     @classmethod
     def _sort_set(cls, schema, items):
@@ -962,92 +1009,7 @@ class Object(metaclass=ObjectMeta):
         return schema
 
 
-class NamedObject(Object):
-    name = SchemaField(
-        sn.Name,
-        inheritable=False, compcoef=0.670)
-
-    # The path_id_name field is solely for the purposes of the compiler
-    # so that this item can act as a transparent proxy for the item
-    # it has been derived from, specifically in path ids.
-    path_id_name = SchemaField(
-        sn.Name,
-        inheritable=False, ephemeral=True,
-        introspectable=False, default=None)
-
-    title = SchemaField(
-        str,
-        default=None, compcoef=0.909, coerce=True,
-        public=True)
-
-    description = SchemaField(
-        str,
-        default=None, compcoef=0.909, public=True)
-
-    @classmethod
-    def create_in_schema(cls, schema, **kwargs):
-        name = kwargs.get('name')
-        if not name:
-            raise RuntimeError(f'cannot create {cls} without a name')
-        return cls._create_in_schema(schema, **kwargs)
-
-    def get_shortname(self, schema) -> sn.Name:
-        return sn.shortname_from_fullname(self.get_name(schema))
-
-    def get_displayname(self, schema) -> str:
-        return str(self.get_shortname(schema))
-
-    @classmethod
-    def delta_properties(cls, delta, old, new, *, context=None,
-                         old_schema, new_schema):
-        if old and new:
-            if old.get_name(old_schema) != new.get_name(new_schema):
-                delta.add(old.delta_rename(old, new.get_name(new_schema),
-                                           old_schema=old_schema,
-                                           new_schema=new_schema))
-
-        super().delta_properties(delta, old, new, context=context,
-                                 old_schema=old_schema, new_schema=new_schema)
-
-    @classmethod
-    def delta_rename(cls, obj, new_name, *, old_schema, new_schema):
-        from . import delta as sd
-        from . import named
-
-        rename_class = sd.ObjectCommandMeta.get_command_class_or_die(
-            named.RenameNamedObject, type(obj))
-
-        return rename_class(classname=obj.get_name(old_schema),
-                            new_name=new_name,
-                            metaclass=type(obj))
-
-    @classmethod
-    def compare_values(cls, ours, theirs, *,
-                       our_schema, their_schema, context, compcoef):
-        similarity = 1.0
-
-        if (ours is None) != (theirs is None):
-            similarity /= 1.2
-        elif ours is not None:
-            if type(ours) is not type(theirs):
-                similarity /= 1.4
-            elif ours.get_name(our_schema) != theirs.get_name(their_schema):
-                similarity /= 1.2
-
-        return similarity
-
-    def __repr__(self):
-        cls = self.__class__
-        return f'<{cls.__module__}.{cls.__name__} "{self.id}" ' \
-               f'at 0x{id(self):x}>'
-
-    __str__ = __repr__
-
-    def _reduce_to_ref(self, schema):
-        return ObjectRef(name=self.get_name(schema)), self.get_name(schema)
-
-
-class ObjectRef(NamedObject):
+class ObjectRef(Object):
 
     def __init__(self, *, name: str):
         super().__init__(_private_init=True)
@@ -1106,7 +1068,7 @@ class ObjectCollection:
         return hash(self._ids)
 
     @classmethod
-    def create(cls, schema, data: typing.Iterable[NamedObject]):
+    def create(cls, schema, data: typing.Iterable[Object]):
         ids = []
 
         if isinstance(data, ObjectCollection):
@@ -1219,7 +1181,7 @@ class ObjectIndexBase(ObjectCollection, container=tuple):
         return cls._key(schema, obj)
 
     @classmethod
-    def create(cls, schema, data: typing.Iterable[NamedObject]):
+    def create(cls, schema, data: typing.Iterable[Object]):
         coll = super().create(schema, data)
         coll._check_duplicates(schema)
         return coll
@@ -1277,7 +1239,7 @@ class ObjectIndexBase(ObjectCollection, container=tuple):
 
         return self.update(schema, [item])
 
-    def update(self, schema, reps: typing.Iterable[NamedObject]):
+    def update(self, schema, reps: typing.Iterable[Object]):
         items = dict(self.items(schema))
         keyfunc = type(self)._key
 

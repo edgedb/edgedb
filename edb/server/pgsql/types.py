@@ -27,7 +27,6 @@ from edb.lang.ir import utils as irutils
 from edb.lang.schema import scalars as s_scalars
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import name as sn
-from edb.lang.schema import named as s_named
 from edb.lang.schema import objects as s_obj
 from edb.lang.schema import schema as s_schema
 from edb.lang.schema import types as s_types
@@ -427,11 +426,10 @@ class TypeDesc:
     def _get_name(cls, schema, value):
         if isinstance(value, s_obj.ObjectRef):
             name = value.classname
-        elif isinstance(value, s_named.NamedObject):
+        elif isinstance(value, s_obj.Object):
             name = value.get_name(schema)
         else:
             raise ValueError(
-                'expecting a ObjectRef or a '
-                'NamedObject, got {!r}'.format(value))
+                f'expecting a ObjectRef or an Object, got {value!r}')
 
         return name

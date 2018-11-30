@@ -32,7 +32,7 @@ from . import utils as s_utils
 
 class SourceIndex(inheriting.InheritingObject):
 
-    subject = so.SchemaField(so.NamedObject)
+    subject = so.SchemaField(so.Object)
 
     expr = so.SchemaField(
         s_expr.ExpressionText, coerce=True, compcoef=0.909)

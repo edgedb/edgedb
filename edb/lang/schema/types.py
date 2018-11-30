@@ -41,7 +41,7 @@ class ViewType(enum.IntEnum):
     Update = enum.auto()
 
 
-class Type(so.NamedObject, derivable.DerivableObjectBase):
+class Type(so.Object, derivable.DerivableObjectBase):
     """A schema item that is a valid *type*."""
 
     # For a type representing a view, this would contain the

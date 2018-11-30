@@ -444,7 +444,7 @@ class ReferencingObject(inheriting.InheritingObject,
 
         if not result or farthest:
             bases = (c for c in self.compute_mro(schema)[1:]
-                     if isinstance(c, named.NamedObject))
+                     if isinstance(c, so.Object))
 
             for c in bases:
                 if c.get_field_value(schema, local_attr).has(schema, name):

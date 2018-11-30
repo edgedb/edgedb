@@ -64,6 +64,9 @@ class Table(composites.CompositeDBObject):
         self.columns = \
             collections.OrderedDict((c.name, c) for c in self.iter_columns())
 
+    def add_constraint(self, const):
+        self.constraints.add(const)
+
     def get_column(self, name):
         return self.columns.get(name)
 

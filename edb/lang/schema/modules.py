@@ -26,7 +26,7 @@ from . import named
 from . import objects as so
 
 
-class Module(named.NamedObject):
+class Module(so.Object):
     # Override 'name' to str type, since modules don't have
     # fully-qualified names.
     name = so.SchemaField(str)
