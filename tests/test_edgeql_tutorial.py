@@ -60,7 +60,6 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
             }
         ]])
 
-    @unittest.expectedFailure
     async def test_edgeql_tutorial_query_03(self):
         await self.assert_query_result(r'''
             SELECT
@@ -69,15 +68,12 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
                 }
             ORDER BY
                 User.followees.login;
-        ''', [{
-            'fullname': 'Alice Liddell',
-        }, {
-            'fullname': 'Bob Sponge',
-        }, {
-            'fullname': 'Carol Danvers',
-        }, {
-            'fullname': 'Dave Bowman',
-        }])
+        ''', [[
+            {'fullname': 'Alice Liddell'},
+            {'fullname': 'Bob Sponge'},
+            {'fullname': 'Carol Danvers'},
+            {'fullname': 'Dave Bowman'},
+        ]])
 
     async def test_edgeql_tutorial_query_04(self):
         await self.assert_query_result(r'''
