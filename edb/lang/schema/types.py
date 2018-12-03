@@ -500,11 +500,11 @@ class Tuple(Collection, s_abc.Tuple):
 
         if name is None:
             if named:
-                st_names = ','.join(st.get_name(schema)
-                                    for st in element_types.values())
-            else:
                 st_names = ','.join(f'{sn}:={st.get_name(schema)}'
                                     for sn, st in element_types.items())
+            else:
+                st_names = ','.join(st.get_name(schema)
+                                    for st in element_types.values())
             name = s_name.SchemaName(
                 module='std',
                 name=f'tuple<{st_names}>')
@@ -594,7 +594,7 @@ class Tuple(Collection, s_abc.Tuple):
             named = typemods.get('named', False)
 
         if not isinstance(subtypes, collections.abc.Mapping):
-            types = collections.OrderedDict()
+            types = {}
             for i, t in enumerate(subtypes):
                 types[str(i)] = t
         else:

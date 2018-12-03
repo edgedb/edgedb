@@ -717,26 +717,35 @@ class TestExpressions(tb.QueryTestCase):
             [[1, 2], [3, 4.5]],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_implicit_cast_06(self):
         await self.assert_query_result(r"""
             SELECT {(1, 2.0), (3, 4.5)};
             SELECT {(1, 2), (3, 4.5)};
+            SELECT {(3, 4.5), (1, 2.0)};
 
             SELECT {(x := 1, y := 2.0), (x := 3, y := 4.5)};
             SELECT {(x := 1, y := 2), (x := 3, y := 4.5)};
+            SELECT {(x := 3, y := 4.5), (x := 1, y := 2)};
 
             SELECT {(x := 1, y := 2), (a := 3, b := 4.5)};
+            SELECT {(a := 3, b := 4.5), (x := 1, y := 2)};
+
             SELECT {(1, 2), (a := 3, b := 4.5)};
+            SELECT {(a := 3, b := 4.5), (1, 2)};
         """, [
             [[1, 2], [3, 4.5]],
             [[1, 2], [3, 4.5]],
+            [[3, 4.5], [1, 2]],
 
             [{"x": 1, "y": 2}, {"x": 3, "y": 4.5}],
             [{"x": 1, "y": 2}, {"x": 3, "y": 4.5}],
+            [{"x": 3, "y": 4.5}, {"x": 1, "y": 2}],
 
             [[1, 2], [3, 4.5]],
+            [[3, 4.5], [1, 2]],
+
             [[1, 2], [3, 4.5]],
+            [[3, 4.5], [1, 2]],
         ])
 
     async def test_edgeql_expr_implicit_cast_07(self):

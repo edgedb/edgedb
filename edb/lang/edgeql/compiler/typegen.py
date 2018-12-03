@@ -37,16 +37,30 @@ from . import schemactx
 
 
 def type_to_ql_typeref(t: s_obj.Object, *,
+                       _name=None,
                        ctx: context.ContextLevel) -> qlast.TypeName:
     if not isinstance(t, s_abc.Collection):
         result = qlast.TypeName(
+            name=_name,
             maintype=qlast.ObjectRef(
                 module=t.get_name(ctx.env.schema).module,
                 name=t.get_name(ctx.env.schema).name
             )
         )
+    elif isinstance(t, s_abc.Tuple) and t.named:
+        result = qlast.TypeName(
+            name=_name,
+            maintype=qlast.ObjectRef(
+                name=t.schema_name
+            ),
+            subtypes=[
+                type_to_ql_typeref(st, _name=sn, ctx=ctx)
+                for sn, st in t.element_types.items()
+            ]
+        )
     else:
         result = qlast.TypeName(
+            name=_name,
             maintype=qlast.ObjectRef(
                 name=t.schema_name
             ),
