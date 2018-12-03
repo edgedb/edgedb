@@ -358,8 +358,10 @@ def set_to_array(
     array_agg = pgast.FuncCall(
         name=('array_agg',),
         args=[val],
-        agg_filter=(pgast.NullTest(arg=val, negated=True)
-                    if val.nullable else None)
+        agg_filter=(
+            astutils.new_binop(val, pgast.NullConstant(), 'IS DISTINCT FROM')
+            if val.nullable else None
+        )
     )
 
     agg_expr = pgast.CoalesceExpr(
