@@ -176,6 +176,20 @@ class ScopeTreeNode:
             yield from child.strict_descendants
 
     @property
+    def strict_descendants_and_namespaces(self) \
+            -> typing.Iterator[typing.Tuple['ScopeTreeNode',
+                                            typing.FrozenSet[str]]]:
+        """An iterator of node's descendants and namespaces.
+
+        Does not include self. Top-first.
+        """
+        for child in tuple(self.children):
+            yield child, child.namespaces
+            desc_ns = child.strict_descendants_and_namespaces
+            for desc, desc_namespaces in desc_ns:
+                yield desc, child.namespaces | desc_namespaces
+
+    @property
     def path_descendants(self) -> typing.Iterator['ScopeTreeNode']:
         """An iterator of node's descendants that have path ids."""
         return filter(lambda p: p.path_id is not None, self.descendants)
@@ -246,6 +260,12 @@ class ScopeTreeNode:
         This is a low-level operation, no tree validation is
         performed.  For safe tree modification, use attach_subtree()""
         """
+        if node.path_id is not None:
+            for child in self.children:
+                if child.path_id == node.path_id:
+                    raise InvalidScopeConfiguration(
+                        f'{node.path_id} is already present in {self!r}')
+
         node._set_parent(self)
 
     def attach_fence(self) -> 'ScopeTreeNode':
@@ -312,7 +332,7 @@ class ScopeTreeNode:
                 # any of our ancestors.
                 # If found, attach the node directly to its parent fence
                 # and remove all other occurrences.
-                existing = self.find_descendant(path_id)
+                existing, existing_ns = self.find_descendant_and_ns(path_id)
                 unnest_fence = False
                 parent_fence = None
                 if existing is None:
@@ -340,6 +360,8 @@ class ScopeTreeNode:
                             )
 
                         parent_fence.remove_descendants(path_id)
+                        existing.path_id = existing.path_id.strip_namespace(
+                            existing_ns)
                         parent_fence.attach_child(existing)
 
                     # Discard the node from the subtree being attached.
@@ -372,9 +394,6 @@ class ScopeTreeNode:
 
         for node in matching:
             node.remove()
-
-    def contain_path(self, path_id: pathid.PathId) -> None:
-        pass
 
     def mark_as_optional(self, path_id: pathid.PathId) -> None:
         """Indicate that *path_id* is used as an OPTIONAL argument."""
@@ -471,11 +490,21 @@ class ScopeTreeNode:
 
     def find_descendant(self, path_id: pathid.PathId) \
             -> typing.Optional['ScopeTreeNode']:
-        for child in self.strict_descendants:
-            if child.path_id == path_id:
-                return child
+        for descendant, dns in self.strict_descendants_and_namespaces:
+            if _paths_equal(descendant.path_id, path_id, dns):
+                return descendant
 
         return None
+
+    def find_descendant_and_ns(self, path_id: pathid.PathId) \
+            -> typing.Tuple[
+                typing.Optional['ScopeTreeNode'],
+                typing.FrozenSet[str]]:
+        for descendant, dns in self.strict_descendants_and_namespaces:
+            if _paths_equal(descendant.path_id, path_id, dns):
+                return descendant, dns
+
+        return None, frozenset()
 
     def find_unfenced(self, path_id: pathid.PathId) \
             -> typing.Tuple[typing.Optional['ScopeTreeNode'], bool]:

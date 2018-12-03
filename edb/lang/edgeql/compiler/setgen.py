@@ -400,6 +400,7 @@ def extend_path(
         ignore_computable: bool=False,
         force_computable: bool=False,
         unnest_fence: bool=False,
+        same_computable_scope: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
     """Return a Set node representing the new path tip."""
 
@@ -435,7 +436,8 @@ def extend_path(
     if (not ignore_computable and _is_computable_ptr(
             ptrcls, force_computable=force_computable, ctx=ctx)):
         target_set = computable_ptr_set(
-            ptr, unnest_fence=unnest_fence, ctx=ctx)
+            ptr, unnest_fence=unnest_fence,
+            same_computable_scope=same_computable_scope, ctx=ctx)
 
     return target_set
 
@@ -635,6 +637,7 @@ def ensure_stmt(expr: irast.Base, *, ctx: context.ContextLevel) -> irast.Stmt:
 def computable_ptr_set(
         rptr: irast.Pointer, *,
         unnest_fence: bool=False,
+        same_computable_scope: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
     """Return ir.Set for a pointer defined as a computable."""
     ptrcls = rptr.ptrcls
@@ -661,7 +664,8 @@ def computable_ptr_set(
                 source_set.rptr.ptrcls = derived_from
 
     try:
-        qlexpr, qlctx, inner_source_path_id = ctx.source_map[ptrcls]
+        qlexpr, qlctx, inner_source_path_id, path_id_ns = \
+            ctx.source_map[ptrcls]
     except KeyError:
         ptrcls_default = ptrcls.get_default(ctx.env.schema)
         if not ptrcls_default:
@@ -676,6 +680,7 @@ def computable_ptr_set(
 
         qlctx = None
         inner_source_path_id = None
+        path_id_ns = None
 
     if qlctx is None:
         # Schema-level computable, completely detached context
@@ -686,6 +691,8 @@ def computable_ptr_set(
             source=source_set,
             source_scls=source_scls,
             inner_source_path_id=inner_source_path_id,
+            path_id_ns=path_id_ns,
+            same_scope=same_computable_scope,
             qlctx=qlctx,
             ctx=ctx)
 
@@ -698,6 +705,7 @@ def computable_ptr_set(
         ptrcls,
         s_pointers.PointerDirection.Outbound,
         ptrcls.get_target(ctx.env.schema),
+        ns=ctx.path_id_namespace,
         schema=ctx.env.schema)
 
     with newctx() as subctx:
@@ -705,7 +713,6 @@ def computable_ptr_set(
         subctx.view_rptr = context.ViewRPtr(
             source_scls, ptrcls=ptrcls, rptr=rptr)
         subctx.anchors[qlast.Source] = source_set
-        subctx.path_scope.contain_path(path_id)
         subctx.empty_result_type_hint = ptrcls.get_target(ctx.env.schema)
 
         if isinstance(qlexpr, qlast.Statement) and unnest_fence:
@@ -744,6 +751,8 @@ def _get_computable_ctx(
         source: irast.Set,
         source_scls: s_nodes.Node,
         inner_source_path_id: irast.PathId,
+        path_id_ns: typing.Optional[irast.WeakNamespace],
+        same_scope: bool,
         qlctx: context.ContextLevel,
         ctx: context.ContextLevel) -> typing.ContextManager:
     @contextlib.contextmanager
@@ -764,20 +773,27 @@ def _get_computable_ctx(
 
             source_scope = pathctx.get_set_scope(rptr.source, ctx=ctx)
             if source_scope and source_scope.namespaces:
-                subctx.path_id_namespace += tuple(source_scope.namespaces)
+                subctx.path_id_namespace |= source_scope.namespaces
 
-            subctx.pending_stmt_own_path_id_namespace = \
-                irast.WeakNamespace(ctx.aliases.get('ns'))
+            if path_id_ns is not None:
+                subctx.path_id_namespace |= {path_id_ns}
+
+            subctx.pending_stmt_own_path_id_namespace = {
+                irast.WeakNamespace(ctx.aliases.get('ns')),
+            }
+
+            if path_id_ns is not None and same_scope:
+                subctx.pending_stmt_own_path_id_namespace.add(path_id_ns)
 
             subns = subctx.pending_stmt_full_path_id_namespace = \
-                {subctx.pending_stmt_own_path_id_namespace}
+                set(subctx.pending_stmt_own_path_id_namespace)
 
             self_view = ctx.view_sets.get(source.stype)
             if self_view:
                 if self_view.path_id.namespace:
                     subns.update(self_view.path_id.namespace)
                 inner_path_id = self_view.path_id.merge_namespace(
-                    subctx.path_id_namespace + tuple(subns))
+                    subctx.path_id_namespace | subns)
             else:
                 if source.path_id.namespace:
                     subns.update(source.path_id.namespace)
@@ -798,9 +814,7 @@ def _get_computable_ctx(
 
                 inner_path_id = inner_path_id.merge_namespace(subns)
 
-            remapped_source = new_set_from_set(rptr.source, ctx=subctx)
-            remapped_source.path_id = \
-                remapped_source.path_id.merge_namespace(subns)
+            remapped_source = new_set_from_set(rptr.source, ctx=ctx)
             remapped_source.rptr = rptr.source.rptr
             subctx.view_map[inner_path_id] = remapped_source
             yield subctx

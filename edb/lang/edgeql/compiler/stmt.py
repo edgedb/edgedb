@@ -426,11 +426,11 @@ def init_stmt(
 
     pending_own_ns = parent_ctx.pending_stmt_own_path_id_namespace
     if pending_own_ns:
-        ctx.path_scope.namespaces.add(pending_own_ns)
+        ctx.path_scope.namespaces.update(pending_own_ns)
 
     pending_full_ns = parent_ctx.pending_stmt_full_path_id_namespace
     if pending_full_ns:
-        ctx.path_id_namespace += tuple(pending_full_ns)
+        ctx.path_id_namespace |= pending_full_ns
 
     metadata = ctx.stmt_metadata.get(qlstmt)
     if metadata is not None and metadata.is_unnest_fence:

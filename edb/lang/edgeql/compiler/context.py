@@ -118,7 +118,8 @@ class ContextLevel(compiler.ContextLevel):
     """Extra statement metadata needed by the compiler, but not in AST."""
 
     source_map: typing.Dict[s_pointers.Pointer,
-                            typing.Tuple[qlast.Expr, compiler.ContextLevel]]
+                            typing.Tuple[qlast.Expr, compiler.ContextLevel,
+                                         typing.Optional[irast.WeakNamespace]]]
     """A mapping of computable pointers to QL source AST and context."""
 
     view_nodes: typing.Dict[s_name.SchemaName, s_nodes.Node]
@@ -153,13 +154,13 @@ class ContextLevel(compiler.ContextLevel):
     stmt: irast.Stmt
     """Statement node currently being built."""
 
-    path_id_namespace: typing.Tuple[str, ...]
+    path_id_namespace: typing.FrozenSet[str]
     """A namespace to use for all path ids."""
 
-    pending_stmt_own_path_id_namespace: str
+    pending_stmt_own_path_id_namespace: typing.FrozenSet[str]
     """A path id namespace to add to the fence of the next statement."""
 
-    pending_stmt_full_path_id_namespace: typing.Set[str]
+    pending_stmt_full_path_id_namespace: typing.FrozenSet[str]
     """A set of path id namespaces to use in path ids in the next statement."""
 
     view_map: typing.Dict[irast.PathId, irast.Set]
@@ -242,9 +243,9 @@ class ContextLevel(compiler.ContextLevel):
             self.toplevel_clause = None
             self.toplevel_stmt = None
             self.stmt = None
-            self.path_id_namespace = tuple()
-            self.pending_stmt_own_path_id_namespace = None
-            self.pending_stmt_full_path_id_namespace = None
+            self.path_id_namespace = frozenset()
+            self.pending_stmt_own_path_id_namespace = frozenset()
+            self.pending_stmt_full_path_id_namespace = frozenset()
             self.view_map = collections.ChainMap()
             self.class_shapes = collections.defaultdict(list)
             self.path_scope = None
@@ -323,12 +324,11 @@ class ContextLevel(compiler.ContextLevel):
                 self.class_view_overrides = {}
                 self.expr_exposed = prevlevel.expr_exposed
 
-                self.source_map = {}
                 self.view_nodes = {}
                 self.view_sets = {}
-                self.path_id_namespace = (self.aliases.get('ns'),)
-                self.pending_stmt_own_path_id_namespace = None
-                self.pending_stmt_full_path_id_namespace = None
+                self.path_id_namespace = frozenset({self.aliases.get('ns')})
+                self.pending_stmt_own_path_id_namespace = frozenset()
+                self.pending_stmt_full_path_id_namespace = frozenset()
 
                 self.view_rptr = None
                 self.view_scls = None

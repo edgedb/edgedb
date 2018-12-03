@@ -269,9 +269,9 @@ def declare_view(
             cached_view_set = ctx.expr_view_cache.get((expr, alias))
             # Detach the view namespace and record the prefix
             # in the parent statement's fence node.
-            add_ns = (irast.WeakNamespace(ctx.aliases.get('ns')),)
-            subctx.path_id_namespace = subctx.path_id_namespace + add_ns
-            ctx.path_scope.namespaces.add(subctx.path_id_namespace[-1])
+            view_path_id_ns = irast.WeakNamespace(ctx.aliases.get('ns'))
+            subctx.path_id_namespace |= {view_path_id_ns}
+            ctx.path_scope.namespaces.add(view_path_id_ns)
         else:
             cached_view_set = None
 
@@ -316,6 +316,7 @@ def declare_view_from_schema(
         return vc
 
     with ctx.detached() as subctx:
+        subctx.expr_exposed = False
         view_expr = qlparser.parse(viewcls.get_expr(ctx.env.schema))
         viewcls_name = viewcls.get_name(ctx.env.schema)
         declare_view(view_expr, alias=viewcls_name,

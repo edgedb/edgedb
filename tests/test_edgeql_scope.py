@@ -1165,11 +1165,16 @@ class TestEdgeQLScope(tb.QueryTestCase):
 
             WITH MODULE test
             SELECT Card.name + <str>count((WITH A := Card SELECT A.owners));
+
+            WITH MODULE test
+            SELECT <str>count((WITH A := Card SELECT A.owners)) + Card.name;
         ''', [
             {'Imp1', 'Dragon2', 'Bog monster4', 'Giant turtle4', 'Dwarf2',
              'Golem3', 'Sprite2', 'Giant eagle2', 'Djinn2'},
             {'Imp1', 'Dragon2', 'Bog monster4', 'Giant turtle4', 'Dwarf2',
              'Golem3', 'Sprite2', 'Giant eagle2', 'Djinn2'},
+            {'1Imp', '2Dragon', '4Bog monster', '4Giant turtle', '2Dwarf',
+             '3Golem', '2Sprite', '2Giant eagle', '2Djinn'},
         ])
 
     async def test_edgeql_scope_nested_12(self):
@@ -1509,7 +1514,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             {'name': 'Dave'},
         ]])
 
-    @unittest.expectedFailure
     async def test_edgeql_scope_detached_10(self):
         await self.assert_query_result(r'''
             WITH

@@ -703,6 +703,64 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         }
         """
 
+    def test_edgeql_ir_scope_tree_28(self):
+        """
+        WITH MODULE test
+        SELECT <str>count((WITH A := Card SELECT A.owners)) + Card.name
+
+% OK %
+        "FENCE": {
+            "(test::Card)",
+            "(test::Card).>(test::name)[IS std::str]",
+            "FENCE": {
+                "FENCE": {
+                    "(__derived__::__derived__|A@@w~1)\
+.>(test::owners)[IS test::User]": {
+                        "(__derived__::__derived__|A@@w~1)",
+                        "FENCE": {
+                            "ns~2@@(__derived__::__derived__|A@@w~1)\
+.<(test::deck)[IS test::User]"
+                        }
+                    }
+                }
+            }
+        }
+        """
+
+    def test_edgeql_ir_scope_tree_29(self):
+        """
+        WITH
+            MODULE test
+        SELECT Card {
+            name,
+            alice := (SELECT User FILTER User.name = 'Alice')
+        } FILTER Card.alice != User AND Card.name = 'Bog monster'
+
+% OK %
+        "FENCE": {
+            "(test::Card)",
+            "FENCE": {
+                "(test::Card).>(test::alice)[IS test::User]",
+                "(test::User)",
+                "FENCE": {
+                    "(test::User).>(test::name)[IS std::str]"
+                }
+            },
+            "FENCE": {
+                "(test::Card).>(test::alice)[IS test::User]": {
+                    "FENCE": {
+                        "(test::User)",
+                        "FENCE": {
+                            "(test::User).>(test::name)[IS std::str]"
+                        }
+                    }
+                },
+                "(test::Card).>(test::name)[IS std::str]",
+                "(test::User)"
+            }
+        }
+        """
+
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "reference to 'User.name' changes the interpretation",
                   line=4, col=9)

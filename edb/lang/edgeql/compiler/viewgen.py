@@ -65,12 +65,18 @@ def process_view(
 
     with ctx.newscope(fenced=True, temporary=True) as scopectx:
         scopectx.path_scope.attach_path(path_id)
+        if ctx.expr_exposed or is_insert or is_update:
+            view_path_id_ns = irast.WeakNamespace(ctx.aliases.get('ns'))
+            scopectx.path_id_namespace |= {view_path_id_ns}
+            scopectx.path_scope.namespaces.add(view_path_id_ns)
+        else:
+            view_path_id_ns = None
 
         view_scls = _process_view(
             stype=stype, path_id=path_id, elements=elements,
             view_rptr=view_rptr, view_name=view_name,
             is_insert=is_insert, is_update=is_update,
-            ctx=scopectx
+            path_id_namespace=view_path_id_ns, ctx=scopectx
         )
 
     ctx.shape_type_cache[cache_key] = view_scls
@@ -82,6 +88,7 @@ def _process_view(
         *,
         stype: s_nodes.Node,
         path_id: irast.PathId,
+        path_id_namespace: typing.Optional[irast.WeakNamespace]=None,
         elements: typing.List[qlast.ShapeElement],
         view_rptr: typing.Optional[context.ViewRPtr]=None,
         view_name: typing.Optional[sn.SchemaName]=None,
@@ -100,6 +107,7 @@ def _process_view(
         with ctx.newscope(fenced=True) as scopectx:
             pointers.append(_normalize_view_ptr_expr(
                 shape_el, view_scls, path_id=path_id,
+                path_id_namespace=path_id_namespace,
                 is_insert=is_insert, is_update=is_update,
                 view_rptr=view_rptr, ctx=scopectx))
 
@@ -123,6 +131,7 @@ def _process_view(
             with ctx.newscope(fenced=True) as scopectx:
                 pointers.append(_normalize_view_ptr_expr(
                     default_ql, view_scls, path_id=path_id,
+                    path_id_namespace=path_id_namespace,
                     is_insert=is_insert, is_update=is_update,
                     view_rptr=view_rptr, ctx=scopectx))
 
@@ -177,6 +186,7 @@ def _normalize_view_ptr_expr(
         shape_el: qlast.ShapeElement,
         view_scls: s_nodes.Node, *,
         path_id: irast.PathId,
+        path_id_namespace: typing.Optional[irast.WeakNamespace]=None,
         is_insert: bool=False,
         is_update: bool=False,
         view_rptr: typing.Optional[context.ViewRPtr]=None,
@@ -283,6 +293,7 @@ def _normalize_view_ptr_expr(
             sub_path_id = path_id.extend(
                 ptrcls,
                 target=ptrcls.get_target(ctx.env.schema),
+                ns=ctx.path_id_namespace,
                 schema=ctx.env.schema)
 
             ctx.path_scope.attach_path(sub_path_id)
@@ -300,11 +311,13 @@ def _normalize_view_ptr_expr(
 
                 ptr_target = _process_view(
                     stype=ptr_target, path_id=sub_path_id,
+                    path_id_namespace=path_id_namespace,
                     view_rptr=sub_view_rptr,
                     elements=shape_el.elements, is_update=True, ctx=ctx)
             else:
                 ptr_target = _process_view(
                     stype=ptr_target, path_id=sub_path_id,
+                    path_id_namespace=path_id_namespace,
                     view_rptr=sub_view_rptr,
                     elements=shape_el.elements, ctx=ctx)
 
@@ -435,7 +448,7 @@ def _normalize_view_ptr_expr(
                 ctx=ctx)
 
         if qlexpr is not None:
-            ctx.source_map[ptrcls] = (qlexpr, ctx, path_id)
+            ctx.source_map[ptrcls] = (qlexpr, ctx, path_id, path_id_namespace)
             ctx.env.schema = ptrcls.set_field_value(
                 ctx.env.schema, 'computable', True)
 
@@ -653,7 +666,7 @@ def _compile_view_shapes_in_set(
         for path_tip, ptr in shape_ptrs:
             element = setgen.extend_path(
                 path_tip, ptr, force_computable=is_mutation,
-                unnest_fence=True, ctx=ctx)
+                unnest_fence=True, same_computable_scope=True, ctx=ctx)
 
             element_scope = pathctx.get_set_scope(element, ctx=ctx)
 

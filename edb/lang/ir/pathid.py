@@ -139,6 +139,15 @@ class PathId:
         else:
             return self
 
+    def _get_minimal_prefix(self, prefix):
+        while prefix is not None:
+            if prefix._namespace == self._namespace:
+                prefix = prefix._prefix
+            else:
+                break
+
+        return prefix
+
     def strip_weak_namespaces(self):
         if self._namespace is not None:
             stripped_ns = tuple(bit for bit in self._namespace
@@ -146,7 +155,9 @@ class PathId:
             result = self.replace_namespace(stripped_ns)
 
             if result._prefix is not None:
-                result._prefix = result._prefix.strip_weak_namespaces()
+                result._prefix = result._get_minimal_prefix(
+                    result._prefix.strip_weak_namespaces())
+
         else:
             result = self
 
@@ -155,7 +166,13 @@ class PathId:
     def strip_namespace(self, namespace):
         if self._namespace and namespace:
             stripped_ns = self._namespace - set(namespace)
-            return self.replace_namespace(stripped_ns)
+            result = self.replace_namespace(stripped_ns)
+
+            if result._prefix is not None:
+                result._prefix = result._get_minimal_prefix(
+                    result._prefix.strip_namespace(namespace))
+
+            return result
         else:
             return self
 
@@ -357,19 +374,7 @@ class PathId:
         else:
             result._namespace = self._namespace
 
-        if self._namespace:
-            self_hard_ns = frozenset(n for n in self._namespace
-                                     if not isinstance(n, WeakNamespace))
-        else:
-            self_hard_ns = frozenset()
-
-        if result._namespace:
-            result_hard_ns = frozenset(n for n in result._namespace
-                                       if not isinstance(n, WeakNamespace))
-        else:
-            result_hard_ns = frozenset()
-
-        if self_hard_ns != result_hard_ns:
+        if self._namespace != result._namespace:
             result._prefix = self
         else:
             result._prefix = self._prefix

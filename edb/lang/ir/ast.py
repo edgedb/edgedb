@@ -128,7 +128,8 @@ class Statement(Command):
     source_map: typing.Dict[s_pointers.Pointer,
                             typing.Tuple[qlast.Expr,
                                          compiler.ContextLevel,
-                                         PathId]]
+                                         PathId,
+                                         typing.Optional[WeakNamespace]]]
 
 
 class Expr(Base):
