@@ -101,6 +101,10 @@ class T_PLUS(Token, lextoken='+'):
     pass
 
 
+class T_DOUBLEPLUS(Token, lextoken='++'):
+    pass
+
+
 class T_MINUS(Token, lextoken='-'):
     pass
 

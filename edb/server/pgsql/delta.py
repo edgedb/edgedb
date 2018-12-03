@@ -595,7 +595,11 @@ class CreateOperator(OperatorCommand, CreateNamedObject,
             else:
                 oper_func_name = None
 
-            if not oper.get_params(schema).has_polymorphic(schema):
+            params = oper.get_params(schema)
+
+            if (not params.has_polymorphic(schema) or
+                    all(p.get_type(schema).is_array()
+                        for p in params.objects(schema))):
                 self.pgops.add(dbops.CreateOperatorAlias(
                     name=self.get_pg_name(schema, oper),
                     args=args,

@@ -996,7 +996,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
         await self.assert_query_result(r'''
             # control query Q1
             WITH MODULE test
-            SELECT Card.element + ' ' + Card.name
+            SELECT Card.element ++ ' ' ++ Card.name
             FILTER Card.name > Card.element
             ORDER BY Card.name;
         ''', [
@@ -1015,7 +1015,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 MODULE test,
                 A := Card
             SELECT
-                A.element + ' ' + (WITH B := A SELECT B).name
+                A.element ++ ' ' ++ (WITH B := A SELECT B).name
             FILTER (
                 WITH C := A
                 SELECT (
@@ -1038,7 +1038,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 MODULE test,
                 A := Card
             SELECT
-                A.element + ' ' + (WITH B := A SELECT B).name
+                A.element ++ ' ' ++ (WITH B := A SELECT B).name
             FILTER (
                 WITH C := A
                 SELECT (
@@ -1058,7 +1058,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             WITH MODULE test
             SELECT
                 Card {
-                    foo := Card.element + <str>count(Card.name)
+                    foo := Card.element ++ <str>count(Card.name)
                 }
             FILTER
                 Card.name > Card.element
@@ -1079,7 +1079,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             # control query Q2
             WITH MODULE test
             # combination of element + SET OF with a common prefix
-            SELECT Card.name + <str>count(Card.owners)
+            SELECT Card.name ++ <str>count(Card.owners)
             FILTER
                 # some element filters
                 Card.name < Card.element
@@ -1100,7 +1100,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 MODULE test,
                 A := Card
             SELECT
-                A.name + (WITH B := A SELECT <str>count(B.owners))
+                A.name ++ (WITH B := A SELECT <str>count(B.owners))
             FILTER (
                 WITH C := A
                 SELECT (
@@ -1127,7 +1127,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 MODULE test,
                 A := Card
             SELECT
-                A.name + (WITH B := A SELECT <str>count(B.owners))
+                A.name ++ (WITH B := A SELECT <str>count(B.owners))
             FILTER (
                 WITH C := A
                 SELECT (
@@ -1150,7 +1150,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
         await self.assert_query_result(r'''
             # control query Q3
             WITH MODULE test
-            SELECT Card.name + <str>count(Card.owners);
+            SELECT Card.name ++ <str>count(Card.owners);
         ''', [
             {'Imp1', 'Dragon2', 'Bog monster4', 'Giant turtle4', 'Dwarf2',
              'Golem3', 'Sprite2', 'Giant eagle2', 'Djinn2'}
@@ -1161,13 +1161,13 @@ class TestEdgeQLScope(tb.QueryTestCase):
             # semantically same as control query Q3, except that some
             # aliases are introduced
             WITH MODULE test
-            SELECT Card.name + <str>count((WITH A := Card SELECT A).owners);
+            SELECT Card.name ++ <str>count((WITH A := Card SELECT A).owners);
 
             WITH MODULE test
-            SELECT Card.name + <str>count((WITH A := Card SELECT A.owners));
+            SELECT Card.name ++ <str>count((WITH A := Card SELECT A.owners));
 
             WITH MODULE test
-            SELECT <str>count((WITH A := Card SELECT A.owners)) + Card.name;
+            SELECT <str>count((WITH A := Card SELECT A.owners)) ++ Card.name;
         ''', [
             {'Imp1', 'Dragon2', 'Bog monster4', 'Giant turtle4', 'Dwarf2',
              'Golem3', 'Sprite2', 'Giant eagle2', 'Djinn2'},
@@ -1204,13 +1204,13 @@ class TestEdgeQLScope(tb.QueryTestCase):
             # U2 is a combination of DETACHED and non-DETACHED expression
             WITH
                 MODULE test,
-                U2 := User.name + DETACHED User.name
-            SELECT U2 + U2;
+                U2 := User.name ++ DETACHED User.name
+            SELECT U2 ++ U2;
 
             # DETACHED is reused directly
             WITH MODULE test
-            SELECT User.name + DETACHED User.name +
-                   User.name + DETACHED User.name;
+            SELECT User.name ++ DETACHED User.name ++
+                   User.name ++ DETACHED User.name;
             """, [
             {u + u for u in
                 (a + b
@@ -1227,7 +1227,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
         # calculate some useful base expression
         names = await self.con.execute(r"""
             WITH MODULE test
-            SELECT User.name + <str>count(User.deck);
+            SELECT User.name ++ <str>count(User.deck);
         """)
         names = names[0]
 
@@ -1240,7 +1240,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 U0 := User.name + <str>count(User.deck),
                 # make a copy of U0 so that we can do cross product
                 U1 := U0
-            SELECT U0 + ' vs ' + U1
+            SELECT U0 ++ ' vs ' ++ U1
             # get rid of players matching themselves
             FILTER U0 != U1;
         """, [
@@ -1259,7 +1259,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 U0 := DETACHED User.name,
                 U1 := DETACHED User.name,
                 U2 := DETACHED User.name
-            SELECT User.name + U0 + U1 + U2;
+            SELECT User.name ++ U0 ++ U1 ++ U2;
 
             # same thing, but building it up differently
             WITH
@@ -1270,12 +1270,12 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 # cross product
                 U1 := U0,
                 # cross product of players
-                U2 := U0 + U1,
+                U2 := U0 ++ U1,
                 # a copy of the players cross product
                 U3 := U2
             # compute what is effectively a cross product of a cross
             # product of names (expecting 256 results)
-            SELECT U2 + U3;
+            SELECT U2 ++ U3;
             """, [
             {a + b + c + d
                 for a in names

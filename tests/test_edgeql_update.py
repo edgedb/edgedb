@@ -117,7 +117,7 @@ class TestUpdate(tb.QueryTestCase):
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test2'
             SET {
-                comment := 'updated ' + UpdateTest.comment
+                comment := 'updated ' ++ UpdateTest.comment
             };
 
             WITH MODULE test
@@ -152,7 +152,7 @@ class TestUpdate(tb.QueryTestCase):
             WITH MODULE test
             UPDATE UpdateTest
             SET {
-                comment := UpdateTest.comment + "!",
+                comment := UpdateTest.comment ++ "!",
                 status := (SELECT Status FILTER Status.name = 'Closed')
             };
 
@@ -202,7 +202,7 @@ class TestUpdate(tb.QueryTestCase):
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test2'
                 SET {
-                    comment := 'updated ' + UpdateTest.comment
+                    comment := 'updated ' ++ UpdateTest.comment
                 }
             ) {
                 id,
@@ -225,7 +225,7 @@ class TestUpdate(tb.QueryTestCase):
             SELECT (
                 UPDATE UpdateTest
                 SET {
-                    comment := UpdateTest.comment + "!",
+                    comment := UpdateTest.comment ++ "!",
                     status := (SELECT Status FILTER Status.name = 'Closed')
                 }
             ) {
@@ -274,7 +274,7 @@ class TestUpdate(tb.QueryTestCase):
                     UPDATE UpdateTest
                     FILTER UpdateTest.name = 'update-test2'
                     SET {
-                        comment := 'updated ' + UpdateTest.comment
+                        comment := 'updated ' ++ UpdateTest.comment
                     }
                 )
             SELECT Status{name}
@@ -293,7 +293,7 @@ class TestUpdate(tb.QueryTestCase):
                 Q := (
                     UPDATE UpdateTest
                     SET {
-                        comment := UpdateTest.comment + "!",
+                        comment := UpdateTest.comment ++ "!",
                         status := (SELECT Status FILTER Status.name = 'Closed')
                     }
                 )
@@ -636,7 +636,7 @@ class TestUpdate(tb.QueryTestCase):
             SET {
                 annotated_tests := (
                     SELECT U2 {
-                        @note := 'note' + U2.name[-1]
+                        @note := 'note' ++ U2.name[-1]
                     } FILTER U2.name != 'update-test1'
                 )
             };

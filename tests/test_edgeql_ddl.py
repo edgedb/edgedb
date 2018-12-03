@@ -296,7 +296,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     SELECT '{long_func_name}'::text
                 $$;
 
-            CREATE FUNCTION test::my_sql_func6(a: std::str='a' + 'b')
+            CREATE FUNCTION test::my_sql_func6(a: std::str='a' ++ 'b')
                 -> std::str
                 FROM SQL $$
                     SELECT $1 || 'c'
@@ -332,7 +332,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             DROP FUNCTION test::my_sql_func2(foo: std::str);
             DROP FUNCTION test::my_sql_func4(VARIADIC s: std::str);
             DROP FUNCTION test::{long_func_name}();
-            DROP FUNCTION test::my_sql_func6(a: std::str='a' + 'b');
+            DROP FUNCTION test::my_sql_func6(a: std::str='a' ++ 'b');
             DROP FUNCTION test::my_sql_func7(s: array<std::int64>);
         """)
 
@@ -353,7 +353,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE FUNCTION test::my_edgeql_func1()
                 -> std::str
                 FROM EdgeQL $$
-                    SELECT 'sp' + 'am'
+                    SELECT 'sp' ++ 'am'
                 $$;
 
             CREATE FUNCTION test::my_edgeql_func2(s: std::str)

@@ -680,6 +680,10 @@ class Expr(Nonterm):
         self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
                                right=kids[2].val)
 
+    def reduce_Expr_DOUBLEPLUS_Expr(self, *kids):
+        self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
+                               right=kids[2].val)
+
     def reduce_Expr_MINUS_Expr(self, *kids):
         self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
                                right=kids[2].val)

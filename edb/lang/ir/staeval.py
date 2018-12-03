@@ -95,6 +95,9 @@ op_table = {
     ('INFIX', 'std::>='): lambda a, b: a >= b,
     ('INFIX', 'std::<'): lambda a, b: a < b,
     ('INFIX', 'std::<='): lambda a, b: a <= b,
+
+    # Concatenation
+    ('INFIX', 'std::++'): lambda a, b: a + b,
 }
 
 
@@ -126,8 +129,8 @@ def evaluate_OperatorCall(
 def const_to_python(
         ir: irast.BaseConstant,
         schema: s_schema.Schema) -> object:
-    raise NotImplementedError(
-        f'cannot convert {ir.__class__} to a Python value')
+    raise UnsupportedExpressionError(
+        f'cannot convert {ir!r} to Python value')
 
 
 @const_to_python.register(irast.IntegerConstant)

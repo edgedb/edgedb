@@ -111,7 +111,7 @@ class TestSchema(tb.BaseSchemaTest):
             type Object:
                 property foo -> str
                 property bar -> str
-                property foo_plus_bar := __source__.foo + __source__.bar
+                property foo_plus_bar := __source__.foo ++ __source__.bar
         """)
 
         obj = schema.get('test::Object')
@@ -124,7 +124,7 @@ class TestSchema(tb.BaseSchemaTest):
             type Object:
                 multi property foo -> str
                 property bar -> str
-                property foo_plus_bar := __source__.foo + __source__.bar
+                property foo_plus_bar := __source__.foo ++ __source__.bar
         """)
 
         obj = schema.get('test::Object')

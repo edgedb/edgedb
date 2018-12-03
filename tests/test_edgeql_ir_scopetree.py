@@ -479,7 +479,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         WITH
             MODULE test
         SELECT
-            Card.name + <str>count(Card.owners)
+            Card.name ++ <str>count(Card.owners)
 
 % OK %
         "FENCE": {
@@ -500,7 +500,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         WITH
             MODULE test
         SELECT
-            Card.element + ' ' + (SELECT Card).name
+            Card.element ++ ' ' ++ (SELECT Card).name
 
 % OK %
         "FENCE": {
@@ -706,7 +706,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
     def test_edgeql_ir_scope_tree_28(self):
         """
         WITH MODULE test
-        SELECT <str>count((WITH A := Card SELECT A.owners)) + Card.name
+        SELECT <str>count((WITH A := Card SELECT A.owners)) ++ Card.name
 
 % OK %
         "FENCE": {

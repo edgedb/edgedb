@@ -330,10 +330,6 @@ class Backend:
         plan.generate(block)
         ql_text = block.to_string()
 
-        if debug.flags.delta_execute:
-            debug.header('Delta Script')
-            debug.dump_code(ql_text, lexer='sql')
-
         await self._execute_ddl(ql_text)
         self.schema = schema
 

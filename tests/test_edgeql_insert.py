@@ -201,7 +201,7 @@ class TestInsert(tb.QueryTestCase):
                 l2 := 0,
                 subordinates := (
                     SELECT Subordinate {
-                        @comment := (SELECT 'comment ' + Subordinate.name)
+                        @comment := (SELECT 'comment ' ++ Subordinate.name)
                     }
                     FILTER Subordinate.name IN {'subtest 3', 'subtest 4'}
                 )
@@ -486,7 +486,7 @@ class TestInsert(tb.QueryTestCase):
             });
 
             WITH MODULE test
-            FOR Q IN {(SELECT InsertTest{foo := 'foo' + <str> InsertTest.l2}
+            FOR Q IN {(SELECT InsertTest{foo := 'foo' ++ <str> InsertTest.l2}
                        FILTER .name = 'insert for 1')}
             UNION (INSERT InsertTest {
                 name := 'insert for 1',
@@ -823,7 +823,7 @@ class TestInsert(tb.QueryTestCase):
             WITH MODULE test
             FOR i IN {'1', '2', '3'} UNION (
                 INSERT Subordinate {
-                    name := 'linkproptest ' + i
+                    name := 'linkproptest ' ++ i
                 }
             );
 

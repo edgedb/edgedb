@@ -77,7 +77,8 @@ class P_IS(Precedence, assoc='nonassoc', tokens=('IS',)):
     pass
 
 
-class P_ADD_OP(Precedence, assoc='left', tokens=('PLUS', 'MINUS')):
+class P_ADD_OP(Precedence, assoc='left',
+               tokens=('PLUS', 'MINUS', 'DOUBLEPLUS')):
     pass
 
 

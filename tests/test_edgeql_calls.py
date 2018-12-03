@@ -34,7 +34,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 NAMED ONLY prefix: str = 'pref-'
             ) -> std::str
                 FROM EdgeQL $$
-                    SELECT prefix + s + <str>sum(array_unpack(a)) + suffix;
+                    SELECT prefix ++ s ++ <str>sum(array_unpack(a)) ++ suffix;
                 $$;
         ''')
 
@@ -81,7 +81,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 VARIADIC a: anytype
             ) -> std::str
                 FROM EdgeQL $$
-                    SELECT '=' + <str>len(a) + '='
+                    SELECT '=' ++ <str>len(a) ++ '='
                 $$;
         ''')
 
@@ -772,23 +772,23 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 a: anytype, b: anytype
             ) -> anytype
                 FROM EdgeQL $$
-                    SELECT a + b
+                    SELECT a ++ b
                 $$;
         ''')
 
-        try:
-            await self.assert_query_result(r'''
-                SELECT test::call22('a', 'b');
-            ''', [
-                ['ab'],
-            ])
+        await self.assert_query_result(r'''
+            SELECT test::call22('a', 'b');
+        ''', [
+            ['ab'],
+        ])
 
-        finally:
-            await self.con.execute('''
-                DROP FUNCTION test::call22(
-                    a: anytype, b: anytype
-                );
-            ''')
+        await self.assert_query_result(r'''
+            SELECT test::call22(['a'], ['b']);
+        ''', [
+            [
+                ['a', 'b'],
+            ]
+        ])
 
     async def test_edgeql_calls_23(self):
         await self.con.execute('''
@@ -836,14 +836,14 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         await self.con.execute('''
             CREATE FUNCTION test::call24() -> str
                 FROM EdgeQL $$
-                    SELECT 'ab' + 'cd'
+                    SELECT 'ab' ++ 'cd'
                 $$;
 
             CREATE FUNCTION test::call24(
                 a: str
             ) -> str
                 FROM EdgeQL $$
-                    SELECT a + '!'
+                    SELECT a ++ '!'
                 $$;
         ''')
 
@@ -1120,3 +1120,26 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                     a: anytype
                 );
             ''')
+
+    # This fails in Postgres with
+    # function edgedb_test.call32(bigint[], smallint[]) does not exist
+    # To fix, polymorphic function calls must cast into a common type
+    # before calling.
+    @unittest.expectedFailure
+    async def test_edgeql_calls_32(self):
+        await self.con.execute('''
+            CREATE FUNCTION test::call32(
+                a: anytype, b: anytype
+            ) -> anytype
+                FROM EdgeQL $$
+                    SELECT a ++ b
+                $$;
+        ''')
+
+        await self.assert_query_result(r'''
+            SELECT test::call32([1], [<int16>2]);
+        ''', [
+            [
+                [1, 2],
+            ]
+        ])

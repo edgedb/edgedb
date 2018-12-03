@@ -56,15 +56,15 @@ INSERT PullRequest {
         (INSERT Comment {
             author := A,
             body :=
-                "Sublime Text handles whitespace-separated scope list " +
-                "pretty well, but Atom (or the 'first-mate' library to be " +
+                "Sublime Text handles whitespace-separated scope list " ++
+                "pretty well, but Atom (or the 'first-mate' library to be " ++
                 "precise) would fail to do that.",
             created_on := <datetime>'Feb 1, 2016, 5:31 PM UTC',
         }),
         (INSERT Comment {
             author := B,
             body :=
-                "Thanks for catching that. We'll make sure to follow this " +
+                "Thanks for catching that. We'll make sure to follow this " ++
                 "practice.",
             created_on := <datetime>'Feb 2, 2016, 12:47 PM UTC',
         }),
@@ -184,7 +184,7 @@ INSERT PullRequest {
         (INSERT Comment {
             author := A,
             body :=
-                "Rebase your diff and make sure to add the extension in " +
+                "Rebase your diff and make sure to add the extension in " ++
                 "both places.",
             created_on := <datetime>'Dec 8, 2016, 4:20 PM UTC',
         }),
@@ -236,7 +236,7 @@ INSERT PullRequest {
         (INSERT Comment {
             author := C,
             body :=
-                "This PR adds support for Python syntax highlighting in " +
+                "This PR adds support for Python syntax highlighting in " ++
                 ".smk files, which are used by Snakemake.",
             created_on := <datetime>'Jan 24, 2018, 6:20 PM UTC',
         }),

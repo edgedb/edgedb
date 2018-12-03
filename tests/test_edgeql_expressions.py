@@ -199,7 +199,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_op_05(self):
         await self.assert_query_result(r"""
-            SELECT 'foo' + 'bar';
+            SELECT 'foo' ++ 'bar';
         """, [
             ['foobar'],
         ])
@@ -380,6 +380,22 @@ class TestExpressions(tb.QueryTestCase):
             [True, True, True],
         ])
 
+    async def test_edgeql_expr_bytes_op_01(self):
+        await self.assert_query_result(r'''
+            SELECT len(b'123' ++ b'54');
+        ''', [
+            [5]
+        ])
+
+    async def test_edgeql_expr_bytes_op_02(self):
+        await self.assert_query_result(r'''
+            SELECT (b'123' ++ b'54')[-1] = b'4';
+            SELECT (b'123' ++ b'54')[0:2] = b'12';
+        ''', [
+            [True],
+            [True],
+        ])
+
     async def test_edgeql_expr_paths_01(self):
         cases = [
             "Issue.owner.name",
@@ -527,7 +543,7 @@ class TestExpressions(tb.QueryTestCase):
         await self.assert_query_result(r"""
             SELECT <std::str>123;
             SELECT <std::int64>"123";
-            SELECT <std::str>123 + 'qw';
+            SELECT <std::str>123 ++ 'qw';
             SELECT <std::int64>"123" + 9000;
             SELECT <std::int64>"123" * 100;
             SELECT <std::str>(123 * 2);
@@ -557,14 +573,14 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_cast_03(self):
         await self.assert_query_result(r"""
-            SELECT <std::str><std::int64><std::float64>'123.45' + 'foo';
+            SELECT <std::str><std::int64><std::float64>'123.45' ++ 'foo';
         """, [
             ['123foo'],
         ])
 
     async def test_edgeql_expr_cast_04(self):
         await self.assert_query_result(r"""
-            SELECT <str><int64><float64>'123.45' + 'foo';
+            SELECT <str><int64><float64>'123.45' ++ 'foo';
         """, [
             ['123foo'],
         ])
@@ -905,13 +921,22 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT [];
             """)
 
-    async def test_edgeql_expr_array_05(self):
+    async def test_edgeql_expr_array_concat_01(self):
+        await self.assert_query_result('''
+            SELECT [1, 2] ++ [3, 4];
+        ''', [
+            [
+                [1, 2, 3, 4]
+            ]
+        ])
+
+    async def test_edgeql_expr_array_concat_02(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
-                r"operator '\+' cannot.*"):
+                r"operator '\+\+' cannot.*int64.*str"):
 
-            await self.con.execute('''
-                SELECT [1, 2] + [3, 4];
+            await self.query('''
+                SELECT [1, 2] ++ ['a'];
             ''')
 
     async def test_edgeql_expr_array_06(self):

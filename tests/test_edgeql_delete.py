@@ -153,7 +153,7 @@ class TestDelete(tb.QueryTestCase):
                 (DELETE (
                     SELECT DeleteTest
                     FILTER DeleteTest.name = 'delete-test3'
-                )).name + '--DELETED';
+                )).name ++ '--DELETED';
         """)
 
         self.assert_data_shape(del_result, [
@@ -209,7 +209,7 @@ class TestDelete(tb.QueryTestCase):
             SELECT DeleteTest2 {
                 name,
                 foo := 'bar'
-            } FILTER DeleteTest2.name LIKE D.name[:2] + '%';
+            } FILTER DeleteTest2.name LIKE D.name[:2] ++ '%';
 
             WITH MODULE test
             SELECT (DELETE DeleteTest2) { name };

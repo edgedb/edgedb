@@ -46,7 +46,7 @@ type Card extending Named:
     link owners := __source__.<deck[IS User]
     # computable property
     property elemental_cost :=
-        <str>__source__.cost + ' ' + __source__.element
+        <str>__source__.cost ++ ' ' ++ __source__.element
 
 
 type SpecialCard extending Card

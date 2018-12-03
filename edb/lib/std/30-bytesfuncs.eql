@@ -54,5 +54,5 @@ std::`?!=` (l: OPTIONAL std::bytes, r: OPTIONAL std::bytes) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::bytes, r: std::bytes) -> std::bytes
+std::`++` (l: std::bytes, r: std::bytes) -> std::bytes
     FROM SQL OPERATOR r'||';

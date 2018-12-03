@@ -44,7 +44,7 @@ type User:
     required property firstname -> str
     required property lastname -> str
 
-    property fullname := (__source__.firstname + ' ' + __source__.lastname)
+    property fullname := (__source__.firstname ++ ' ' ++ __source__.lastname)
 
     multi link followees -> User
     multi link todo -> PullRequest

@@ -2312,7 +2312,7 @@ aa';
     def test_edgeql_syntax_insertfor_06(self):
         """
         FOR bar IN {(
-            UPDATE Bar SET {name := (name + 'bar')}
+            UPDATE Bar SET {name := (name ++ 'bar')}
         )}
         UNION (INSERT Foo{name := bar.name});
         """

@@ -358,7 +358,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         await self.assert_query_result(r'''
             # base line for a cross product
             WITH MODULE test
-            SELECT _ := Issue.number + Status.name
+            SELECT _ := Issue.number ++ Status.name
             ORDER BY _;
 
             # interaction of filter and cross product
@@ -366,14 +366,14 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             SELECT _ := (
                     SELECT Issue
                     FILTER Issue.owner.name = 'Elvis'
-                ).number + Status.name
+                ).number ++ Status.name
             ORDER BY _;
 
             WITH MODULE test
             SELECT _ := (
                     SELECT Issue
                     FILTER Issue.owner.name = 'Elvis'
-                ).number + Status.name
+                ).number ++ Status.name
             FILTER
                 # this FILTER is legal, but irrelevant, the same way as
                 # SELECT Issue.number + Status.name FILTER Status.name = 'Open'

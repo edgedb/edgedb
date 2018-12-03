@@ -47,8 +47,9 @@ std::`?!=` (l: OPTIONAL std::str, r: OPTIONAL std::str) -> std::bool
     FROM SQL EXPRESSION;
 
 
+# Concatenation.
 CREATE INFIX OPERATOR
-std::`+` (l: std::str, r: std::str) -> std::str
+std::`++` (l: std::str, r: std::str) -> std::str
     FROM SQL OPERATOR '||';
 
 

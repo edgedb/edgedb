@@ -1839,8 +1839,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     -> std::str
                 FROM EdgeQL $$
                     # poor man concat
-                    SELECT (array_get(s, 0) ?? '') +
-                           (sep ?? '::') +
+                    SELECT (array_get(s, 0) ?? '') ++
+                           (sep ?? '::') ++
                            (array_get(s, 1) ?? '')
                 $$;
         ''')
@@ -1936,7 +1936,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.con.execute('''
             CREATE FUNCTION test::my_edgeql_func1(s: std::str) -> std::str
                 FROM EdgeQL $$
-                    SELECT 'str=' + s
+                    SELECT 'str=' ++ s
                 $$;
         ''')
 
@@ -2836,7 +2836,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             # the cross product of status and priority names
             WITH MODULE test
-            SELECT Status.name + Priority.name
+            SELECT Status.name ++ Priority.name
             ORDER BY Status.name THEN Priority.name;
             """, [
             ['ClosedHigh', 'ClosedLow', 'OpenHigh', 'OpenLow'],
@@ -2846,7 +2846,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             # status and priority name for each issue
             WITH MODULE test
-            SELECT Issue.status.name + Issue.priority.name
+            SELECT Issue.status.name ++ Issue.priority.name
             ORDER BY Issue.number;
             """, [
             ['OpenHigh', 'ClosedLow'],
@@ -2856,7 +2856,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             # cross-product of all user names and issue numbers
             WITH MODULE test
-            SELECT User.name + Issue.number
+            SELECT User.name ++ Issue.number
             ORDER BY User.name THEN Issue.number;
             """, [
             ['Elvis1', 'Elvis2', 'Elvis3', 'Elvis4',
@@ -2867,7 +2867,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             # concatenate the user name with every issue number that user has
             WITH MODULE test
-            SELECT User.name + User.<owner[IS Issue].number
+            SELECT User.name ++ User.<owner[IS Issue].number
             ORDER BY User.name THEN User.<owner[IS Issue].number;
             """, [
             ['Elvis1', 'Elvis4', 'Yury2', 'Yury3'],
@@ -2887,7 +2887,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH MODULE test
             # tuples will not exist for the Issue without watchers
-            SELECT _ := Issue.owner.name + Issue.watchers.name
+            SELECT _ := Issue.owner.name ++ Issue.watchers.name
             ORDER BY _;
             """, [
             ['ElvisYury', 'YuryElvis', 'YuryElvis'],
@@ -2896,11 +2896,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_cross_07(self):
         await self.assert_query_result(r"""
             WITH MODULE test
-            SELECT _ := count(Issue.owner.name + Issue.watchers.name);
+            SELECT _ := count(Issue.owner.name ++ Issue.watchers.name);
 
             WITH MODULE test
             SELECT _ := count(DISTINCT (
-                Issue.owner.name + Issue.watchers.name));
+                Issue.owner.name ++ Issue.watchers.name));
             """, [
             [3],
             [2],
@@ -2909,7 +2909,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_cross08(self):
         await self.assert_query_result(r"""
             WITH MODULE test
-            SELECT _ := Issue.owner.name + <str>count(Issue.watchers.name)
+            SELECT _ := Issue.owner.name ++ <str>count(Issue.watchers.name)
             ORDER BY _;
             """, [
             ['Elvis0', 'Elvis1', 'Yury1', 'Yury1'],
@@ -2919,7 +2919,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH MODULE test
             SELECT _ := count(
-                Issue.owner.name + <str>count(Issue.watchers.name));
+                Issue.owner.name ++ <str>count(Issue.watchers.name));
             """, [
             [4],
         ])
@@ -2933,7 +2933,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     name := Issue.owner.name,
                     w := count(Issue.watchers.name),
                 })
-            SELECT count(x.name + <str>x.w);
+            SELECT count(x.name ++ <str>x.w);
             """, [
             [4],
         ])
@@ -2942,8 +2942,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH MODULE test
             SELECT count(
-                Issue.owner.name +
-                <str>count(Issue.watchers) +
+                Issue.owner.name ++
+                <str>count(Issue.watchers) ++
                 <str>Issue.time_estimate ?? '0'
             );
             """, [
@@ -2956,8 +2956,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(r"""
             WITH MODULE test
             SELECT count(
-                Issue.owner.name +
-                <str>count(Issue.watchers) +
+                Issue.owner.name ++
+                <str>count(Issue.watchers) ++
                 <str>Issue.time_estimate
             );
             """, [
@@ -2984,8 +2984,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 MODULE test,
                 Issue2 := Issue
             # this is string concatenation, not integer arithmetic
-            SELECT Issue.number + Issue2.number
-            ORDER BY Issue.number + Issue2.number;
+            SELECT Issue.number ++ Issue2.number
+            ORDER BY Issue.number ++ Issue2.number;
             """, [
             ['{}{}'.format(a, b) for a in range(1, 5) for b in range(1, 5)],
         ])
@@ -3139,7 +3139,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_subqueries_09(self):
         await self.assert_sorted_query_result(r"""
             WITH MODULE test
-            SELECT Issue.number + (SELECT Issue.number);
+            SELECT Issue.number ++ (SELECT Issue.number);
         """, lambda x: x, [
             ['11', '22', '33', '44'],
         ])
@@ -3150,7 +3150,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 MODULE test,
                 sub := (SELECT Issue.number)
             SELECT
-                Issue.number + sub;
+                Issue.number ++ sub;
         """, lambda x: x, [
             ['11', '12', '13', '14', '21', '22', '23', '24',
              '31', '32', '33', '34', '41', '42', '43', '44']
@@ -3322,11 +3322,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH
                 MODULE test,
                 U2 := DETACHED User
-            SELECT U2.name + U2.name;
+            SELECT U2.name ++ U2.name;
 
             # DETACHED is reused on both sides of '+' directly
             WITH MODULE test
-            SELECT (DETACHED User).name + (DETACHED User).name;
+            SELECT (DETACHED User).name ++ (DETACHED User).name;
 
             """, [
             {'ElvisElvis', 'YuryYury'},
@@ -3462,7 +3462,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                      WITH U2 := User
                      SELECT User {
                          friends := (
-                             SELECT U2 { foo := U2.name + '!' }
+                             SELECT U2 { foo := U2.name ++ '!' }
                              FILTER U2.name = 'Yury'
                          )
                      } FILTER .name = 'Elvis'
@@ -3495,7 +3495,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 sub := (
                     SELECT
                         Text {
-                            foo := Text.body + '!'
+                            foo := Text.body ++ '!'
                         }
                     ORDER BY
                         len(Text.body) ASC
@@ -3527,7 +3527,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 sub := (
                     SELECT
                         Text {
-                            foo := Text.body + '!'
+                            foo := Text.body ++ '!'
                         }
                     ORDER BY
                         len(Text.body) ASC
