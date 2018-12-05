@@ -27,6 +27,7 @@ from edb.lang.schema import delta as s_delta
 
 from . import scalars  # NOQA
 from . import attributes  # NOQA
+from . import casts  # NOQA
 from . import declarative as s_decl
 from . import delta as sd
 from . import objtypes  # NOQA

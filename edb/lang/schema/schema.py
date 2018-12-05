@@ -22,11 +22,13 @@ import typing
 
 import immutables as immu
 
+from . import casts as s_casts
 from . import error as s_err
 from . import functions as s_func
 from . import modules as s_modules
 from . import name as sn
 from . import operators as s_oper
+from . import types as s_types
 
 
 _void = object()
@@ -40,11 +42,13 @@ class Schema:
         self._id_to_type = immu.Map()
         self._shortname_to_id = immu.Map()
         self._name_to_id = immu.Map()
+        self._casts_to = immu.Map()
+        self._casts_from = immu.Map()
         self._generation = 0
 
     def _replace(self, *, id_to_data=None, id_to_type=None,
                  name_to_id=None, shortname_to_id=None,
-                 modules=None):
+                 modules=None, casts_to=None, casts_from=None):
         new = Schema.__new__(Schema)
 
         if modules is None:
@@ -71,6 +75,16 @@ class Schema:
             new._shortname_to_id = self._shortname_to_id
         else:
             new._shortname_to_id = shortname_to_id
+
+        if casts_to is None:
+            new._casts_to = self._casts_to
+        else:
+            new._casts_to = casts_to
+
+        if casts_from is None:
+            new._casts_from = self._casts_from
+        else:
+            new._casts_from = casts_from
 
         new._generation = self._generation + 1
 
@@ -203,6 +217,48 @@ class Schema:
                              shortname_to_id=shortname_to_id,
                              id_to_data=id_to_data)
 
+    def _add_cast(self, cast, data) -> dict:
+        updates = {}
+
+        from_type = data['from_type'].id
+        to_type = data['to_type'].id
+
+        try:
+            casts_to = self._casts_to[to_type]
+        except KeyError:
+            casts_to = frozenset((cast.id,))
+        else:
+            casts_to |= {cast.id}
+
+        updates['casts_to'] = self._casts_to.set(to_type, casts_to)
+
+        try:
+            casts_from = self._casts_from[from_type]
+        except KeyError:
+            casts_from = frozenset((cast.id,))
+        else:
+            casts_from |= {cast.id}
+
+        updates['casts_from'] = self._casts_from.set(from_type, casts_from)
+
+        return updates
+
+    def _delete_cast(self, cast) -> dict:
+        updates = {}
+
+        from_type = cast.get_from_type(self).id
+        to_type = cast.get_to_type(self).id
+
+        casts_to = self._casts_to[to_type]
+        updates['casts_to'] = self._casts_to.set(
+            to_type, casts_to - {cast.id})
+
+        casts_from = self._casts_from[from_type]
+        updates['casts_from'] = self._casts_from.set(
+            from_type, casts_from - {cast.id})
+
+        return updates
+
     def _add(self, id, scls, data) -> 'Schema':
         name = data['name']
 
@@ -228,6 +284,9 @@ class Schema:
             raise s_err.SchemaModuleNotFoundError(
                 f'module {name.module!r} is not in this schema')
 
+        if isinstance(scls, s_casts.Cast):
+            updates.update(self._add_cast(scls, data))
+
         return self._replace(**updates)
 
     def _delete(self, obj):
@@ -238,18 +297,23 @@ class Schema:
 
         name = data['name']
 
+        updates = {}
+
+        if isinstance(obj, s_modules.Module):
+            updates['modules'] = self._modules.delete(name)
+
+        elif isinstance(obj, s_casts.Cast):
+            updates.update(self._delete_cast(obj))
+
         name_to_id, shortname_to_id = self._update_obj_name(
             obj.id, self._id_to_type[obj.id], name, None)
 
-        updates = dict(
+        updates.update(dict(
             name_to_id=name_to_id,
             shortname_to_id=shortname_to_id,
             id_to_data=self._id_to_data.delete(obj.id),
             id_to_type=self._id_to_type.delete(obj.id),
-        )
-
-        if isinstance(obj, s_modules.Module):
-            updates['modules'] = self._modules.delete(name)
+        ))
 
         return self._replace(**updates)
 
@@ -314,6 +378,50 @@ class Schema:
 
         raise s_err.ItemNotFoundError(
             f'reference to a non-existent operator: {name}')
+
+    @functools.lru_cache()
+    def get_casts_to_type(
+            self, to_type: s_types.Type, *,
+            implicit: bool=False,
+            assignment: bool=False) -> typing.FrozenSet[s_casts.Cast]:
+
+        try:
+            typeids = self._casts_to[to_type.id]
+        except KeyError:
+            return frozenset()
+
+        casts = []
+        for typeid in typeids:
+            cast = self._id_to_type[typeid]
+            if implicit and not cast.get_allow_implicit(self):
+                continue
+            if assignment and not cast.get_allow_assignment(self):
+                continue
+            casts.append(cast)
+
+        return frozenset(casts)
+
+    @functools.lru_cache()
+    def get_casts_from_type(
+            self, from_type: s_types.Type, *,
+            implicit: bool=False,
+            assignment: bool=False) -> typing.FrozenSet[s_casts.Cast]:
+
+        try:
+            typeids = self._casts_from[from_type.id]
+        except KeyError:
+            return frozenset()
+
+        casts = []
+        for typeid in typeids:
+            cast = self._id_to_type[typeid]
+            if implicit and not cast.get_allow_implicit(self):
+                continue
+            if assignment and not cast.get_allow_assignment(self):
+                continue
+            casts.append(cast)
+
+        return frozenset(casts)
 
     def get_by_id(self, obj_id, default=_void):
         try:

@@ -27,7 +27,6 @@ from edb.lang.ir import ast as irast
 from edb.lang.ir import utils as irutils
 
 from edb.lang.schema import scalars as s_scalars
-from edb.lang.schema import objects as s_obj
 
 from edb.server.pgsql import ast as pgast
 from edb.server.pgsql import common
@@ -41,7 +40,6 @@ from . import output
 from . import pathctx
 from . import relgen
 from . import shapecomp
-from . import typecomp
 
 
 @dispatch.compile.register(irast.Set)
@@ -120,9 +118,13 @@ def compile_Parameter(
 
             result = pgast.ParamRef(number=index)
 
-    return typecomp.cast(
-        result, source_type=expr.stype, target_type=expr.stype,
-        ir_expr=expr, force=True, env=ctx.env)
+    return pgast.TypeCast(
+        arg=result,
+        type_name=pgast.TypeName(
+            name=pg_types.pg_type_from_object(
+                ctx.env.schema, expr.stype)
+        )
+    )
 
 
 @dispatch.compile.register(irast.RawStringConstant)
@@ -130,10 +132,13 @@ def compile_RawStringConstant(
         expr: irast.RawStringConstant, *,
         ctx: context.CompilerContextLevel) -> pgast.Base:
 
-    return typecomp.cast(
-        pgast.StringConstant(val=expr.value),
-        source_type=expr.stype, target_type=expr.stype,
-        ir_expr=expr, force=True, env=ctx.env)
+    return pgast.TypeCast(
+        arg=pgast.StringConstant(val=expr.value),
+        type_name=pgast.TypeName(
+            name=pg_types.pg_type_from_object(
+                ctx.env.schema, expr.stype)
+        )
+    )
 
 
 @dispatch.compile.register(irast.StringConstant)
@@ -141,10 +146,13 @@ def compile_StringConstant(
         expr: irast.StringConstant, *,
         ctx: context.CompilerContextLevel) -> pgast.Base:
 
-    return typecomp.cast(
-        pgast.EscapedStringConstant(val=expr.value),
-        source_type=expr.stype, target_type=expr.stype,
-        ir_expr=expr, force=True, env=ctx.env)
+    return pgast.TypeCast(
+        arg=pgast.EscapedStringConstant(val=expr.value),
+        type_name=pgast.TypeName(
+            name=pg_types.pg_type_from_object(
+                ctx.env.schema, expr.stype)
+        )
+    )
 
 
 @dispatch.compile.register(irast.BytesConstant)
@@ -160,10 +168,13 @@ def compile_IntegerConstant(
         expr: irast.IntegerConstant, *,
         ctx: context.CompilerContextLevel) -> pgast.Base:
 
-    return typecomp.cast(
-        pgast.NumericConstant(val=expr.value),
-        source_type=expr.stype, target_type=expr.stype,
-        ir_expr=expr, force=True, env=ctx.env)
+    return pgast.TypeCast(
+        arg=pgast.NumericConstant(val=expr.value),
+        type_name=pgast.TypeName(
+            name=pg_types.pg_type_from_object(
+                ctx.env.schema, expr.stype)
+        )
+    )
 
 
 @dispatch.compile.register(irast.FloatConstant)
@@ -171,10 +182,13 @@ def compile_FloatConstant(
         expr: irast.FloatConstant, *,
         ctx: context.CompilerContextLevel) -> pgast.Base:
 
-    return typecomp.cast(
-        pgast.NumericConstant(val=expr.value),
-        source_type=expr.stype, target_type=expr.stype,
-        ir_expr=expr, force=True, env=ctx.env)
+    return pgast.TypeCast(
+        arg=pgast.NumericConstant(val=expr.value),
+        type_name=pgast.TypeName(
+            name=pg_types.pg_type_from_object(
+                ctx.env.schema, expr.stype)
+        )
+    )
 
 
 @dispatch.compile.register(irast.BooleanConstant)
@@ -182,34 +196,50 @@ def compile_BooleanConstant(
         expr: irast.BooleanConstant, *,
         ctx: context.CompilerContextLevel) -> pgast.Base:
 
-    return typecomp.cast(
-        pgast.BooleanConstant(val=expr.value),
-        source_type=expr.stype, target_type=expr.stype,
-        ir_expr=expr, force=True, env=ctx.env)
+    return pgast.TypeCast(
+        arg=pgast.BooleanConstant(val=expr.value),
+        type_name=pgast.TypeName(
+            name=pg_types.pg_type_from_object(
+                ctx.env.schema, expr.stype)
+        )
+    )
 
 
 @dispatch.compile.register(irast.TypeCast)
 def compile_TypeCast(
         expr: irast.TypeCast, *,
         ctx: context.CompilerContextLevel) -> pgast.Base:
+
     pg_expr = dispatch.compile(expr.expr, ctx=ctx)
 
-    target_type = irutils.typeref_to_type(ctx.env.schema, expr.type)
+    if expr.sql_cast:
+        # Use explicit SQL cast.
 
-    if (isinstance(expr.expr, irast.EmptySet) or
-            (isinstance(expr.expr, irast.Array) and
-                not expr.expr.elements)):
+        to_type = irutils.typeref_to_type(ctx.env.schema, expr.to_type)
+        pg_type = pg_types.pg_type_from_object(ctx.env.schema, to_type)
+        return pgast.TypeCast(
+            arg=pg_expr,
+            type_name=pgast.TypeName(
+                name=pg_type
+            )
+        )
 
-        return typecomp.cast(
-            pg_expr, source_type=target_type,
-            target_type=target_type, ir_expr=expr.expr,
-            force=True, env=ctx.env)
+    elif expr.sql_function or expr.sql_expr:
+        # Cast implemented as a function.
+
+        if expr.sql_expr:
+            func_name = common.get_backend_cast_name(
+                expr.cast_name, aspect='function')
+        else:
+            func_name = (expr.sql_function,)
+
+        return pgast.FuncCall(
+            name=func_name,
+            args=[pg_expr],
+        )
 
     else:
-        source_type = _infer_type(expr.expr, ctx=ctx)
-        return typecomp.cast(
-            pg_expr, source_type=source_type, target_type=target_type,
-            ir_expr=expr.expr, env=ctx.env)
+        raise RuntimeError('cast not supported')
 
 
 @dispatch.compile.register(irast.IndexIndirection)
@@ -234,7 +264,7 @@ def compile_IndexIndirection(
 
     # If the index is some integer, cast it into int, because there's
     # no backend function that handles indexes larger than int.
-    index_t = _infer_type(expr.index, ctx=ctx)
+    index_t = expr.index.stype
     int_t = ctx.env.schema.get('std::anyint')
     if index_t.issubclass(ctx.env.schema, int_t):
         index = pgast.TypeCast(
@@ -366,7 +396,18 @@ def compile_IfElseExpr(
 def compile_Array(
         expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     elements = [dispatch.compile(e, ctx=ctx) for e in expr.elements]
-    return astutils.safe_array_expr(elements)
+    array = astutils.safe_array_expr(elements)
+
+    if irutils.is_empty_array_expr(expr):
+        return pgast.TypeCast(
+            arg=array,
+            type_name=pgast.TypeName(
+                name=pg_types.pg_type_from_object(
+                    ctx.env.schema, expr.stype)
+            )
+        )
+    else:
+        return array
 
 
 @dispatch.compile.register(irast.TupleIndirection)
@@ -428,14 +469,15 @@ def compile_FunctionCall(
     args = [dispatch.compile(a, ctx=ctx) for a in expr.args]
 
     if expr.has_empty_variadic:
-        args.append(
-            pgast.VariadicArgument(
-                expr=typecomp.cast(
-                    pgast.ArrayExpr(elements=[]),
-                    source_type=expr.variadic_param_type,
-                    target_type=expr.variadic_param_type,
-                    force=True,
-                    env=ctx.env)))
+        var = pgast.TypeCast(
+            arg=pgast.ArrayExpr(elements=[]),
+            type_name=pgast.TypeName(
+                name=pg_types.pg_type_from_object(
+                    ctx.env.schema, expr.variadic_param_type)
+            )
+        )
+
+        args.append(pgast.VariadicArgument(expr=var))
 
     if expr.func_sql_function:
         name = (expr.func_sql_function,)
@@ -543,10 +585,3 @@ def _compile_set_in_singleton_mode(
             )
 
         return colref
-
-
-def _infer_type(
-        expr: irast.Set, *,
-        ctx: context.CompilerContextLevel) -> s_obj.Object:
-    assert isinstance(expr, irast.Set)
-    return expr.stype

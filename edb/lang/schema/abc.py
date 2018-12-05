@@ -41,6 +41,10 @@ class Operator(Object):
     pass
 
 
+class Cast(Object):
+    pass
+
+
 class Parameter(Object):
     pass
 

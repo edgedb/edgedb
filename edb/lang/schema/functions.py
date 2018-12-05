@@ -414,6 +414,41 @@ class CallableObject(so.Object):
 
         return delta
 
+    @classmethod
+    def _get_fqname_quals(
+            cls, schema,
+            params: typing.List[ParameterDesc]) -> typing.Tuple[str, ...]:
+        pgp = PgParams.from_params(schema, params)
+
+        quals = []
+        for param in pgp.params:
+            pt = param.get_type(schema)
+            if isinstance(pt, s_abc.Collection):
+                quals.append(pt.schema_name)
+                for st in pt.get_subtypes():
+                    quals.append(st.get_name(schema))
+            else:
+                quals.append(pt.get_name(schema))
+
+            pk = param.get_kind(schema)
+            if pk is ft.ParameterKind.NAMED_ONLY:
+                quals.append(
+                    f'$NO-{param.get_name(schema)}-{pt.get_name(schema)}$')
+            elif pk is ft.ParameterKind.VARIADIC:
+                quals.append(f'$V$')
+
+        return tuple(quals)
+
+    @classmethod
+    def get_fqname(cls, schema, shortname: sn.Name,
+                   params: typing.List[ParameterDesc],
+                   *extra_quals: str) -> sn.Name:
+
+        quals = cls._get_fqname_quals(schema, params)
+        return sn.Name(
+            module=shortname.module,
+            name=sn.get_specialized_name(shortname, *(quals + extra_quals)))
+
     def has_inlined_defaults(self, schema):
         return False
 
@@ -451,31 +486,6 @@ class CallableCommand(named.NamedObjectCommand):
             schema, _ = op.apply(schema, context=context)
 
         return schema
-
-    @classmethod
-    def _get_function_name_quals(
-            cls, schema, name,
-            params: typing.List[ParameterDesc]) -> typing.List[str]:
-        pgp = PgParams.from_params(schema, params)
-
-        quals = []
-        for param in pgp.params:
-            pt = param.get_type(schema)
-            if isinstance(pt, s_abc.Collection):
-                quals.append(pt.schema_name)
-                for st in pt.get_subtypes():
-                    quals.append(st.get_name(schema))
-            else:
-                quals.append(pt.get_name(schema))
-
-            pk = param.get_kind(schema)
-            if pk is ft.ParameterKind.NAMED_ONLY:
-                quals.append(
-                    f'$NO-{param.get_name(schema)}-{pt.get_name(schema)}$')
-            elif pk is ft.ParameterKind.VARIADIC:
-                quals.append(f'$V$')
-
-        return quals
 
     @classmethod
     def _get_param_desc_from_ast(cls, schema, modaliases, astnode):
@@ -568,12 +578,7 @@ class FunctionCommand(CallableCommand,
         params = cls._get_param_desc_from_ast(
             schema, context.modaliases, astnode)
 
-        quals = cls._get_function_name_quals(
-            schema, name, params)
-
-        return sn.Name(
-            module=name.module,
-            name=sn.get_specialized_name(name, *quals))
+        return cls.get_schema_metaclass().get_fqname(schema, name, params)
 
 
 class CreateFunction(CreateCallableObject, FunctionCommand):

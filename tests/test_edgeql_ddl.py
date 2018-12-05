@@ -1173,6 +1173,71 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     (operand: int64);
             ''')
 
+    async def test_edgeql_ddl_cast_01(self):
+        async with self._run_and_rollback():
+            await self.query('''
+                CREATE SCALAR TYPE test::type_a EXTENDING std::str;
+                CREATE SCALAR TYPE test::type_b EXTENDING std::int64;
+                CREATE SCALAR TYPE test::type_c EXTENDING std::datetime;
+
+                CREATE CAST FROM test::type_a TO test::type_b {
+                    FROM SQL CAST;
+                    ALLOW IMPLICIT;
+                };
+
+                CREATE CAST FROM test::type_a TO test::type_c {
+                    FROM SQL CAST;
+                    ALLOW ASSIGNMENT;
+                };
+            ''')
+
+            await self.assert_query_result('''
+                WITH MODULE schema
+                SELECT Cast {
+                    from_type: {name},
+                    to_type: {name},
+                    allow_implicit,
+                    allow_assignment,
+                }
+                FILTER
+                    .from_type.name LIKE 'test::%'
+                ORDER BY
+                    .allow_implicit;
+            ''', [
+                [{
+                    'from_type': {'name': 'test::type_a'},
+                    'to_type': {'name': 'test::type_c'},
+                    'allow_implicit': False,
+                    'allow_assignment': True,
+                }, {
+                    'from_type': {'name': 'test::type_a'},
+                    'to_type': {'name': 'test::type_b'},
+                    'allow_implicit': True,
+                    'allow_assignment': False,
+                }]
+            ])
+
+            await self.query("""
+                DROP CAST FROM test::type_a TO test::type_b;
+                DROP CAST FROM test::type_a TO test::type_c;
+            """)
+
+            await self.assert_query_result('''
+                WITH MODULE schema
+                SELECT Cast {
+                    from_type: {name},
+                    to_type: {name},
+                    allow_implicit,
+                    allow_assignment,
+                }
+                FILTER
+                    .from_type.name LIKE 'test::%'
+                ORDER BY
+                    .allow_implicit;
+            ''', [
+                []
+            ])
+
     async def test_edgeql_ddl_property_computable_01(self):
         await self.query('''\
             CREATE TYPE test::CompProp;

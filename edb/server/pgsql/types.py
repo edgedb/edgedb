@@ -111,10 +111,12 @@ def pg_type_from_scalar(
     if scalar.is_polymorphic(schema):
         return ('anynonarray',)
 
+    scalar = scalar.material_type(schema)
+
     if topbase:
         base = scalar.get_topmost_concrete_base(schema)
     else:
-        base = get_scalar_base(schema, scalar)
+        base = get_scalar_base(schema, scalar.material_type(schema))
 
     if topbase:
         column_type = base_type_name_map.get(base.get_name(schema))
@@ -149,8 +151,8 @@ def pg_type_from_object(
         if obj.is_polymorphic(schema):
             return ('anyarray',)
         else:
-            st = schema.get(obj.element_type.get_name(schema))
-            tp = pg_type_from_scalar(schema, st, topbase=True)
+            tp = pg_type_from_object(
+                schema, obj.element_type, topbase=topbase)
             if len(tp) == 1:
                 return (tp[0] + '[]',)
             else:

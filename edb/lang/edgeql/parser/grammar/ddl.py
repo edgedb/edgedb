@@ -179,6 +179,15 @@ class InnerDDLStmt(Nonterm):
     def reduce_DropOperatorStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_CreateCastStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_AlterCastStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DropCastStmt(self, *kids):
+        self.val = kids[0].val
+
     def reduce_CreateIndexStmt(self, *kids):
         self.val = kids[0].val
 
@@ -1749,7 +1758,7 @@ class CreateOperatorStmt(Nonterm):
             CreateOperatorCommandsBlock
         """
         self.val = qlast.CreateOperator(
-            kind=ft.OperatorKind(kids[1].val),
+            kind=ft.OperatorKind(kids[1].val.upper()),
             name=kids[3].val,
             params=kids[4].val,
             returning_typemod=kids[6].val,
@@ -1841,7 +1850,7 @@ class AlterOperatorStmt(Nonterm):
            AlterOperatorCommandsBlock
         """
         self.val = qlast.AlterOperator(
-            kind=ft.OperatorKind(kids[1].val),
+            kind=ft.OperatorKind(kids[1].val.upper()),
             name=kids[3].val,
             params=kids[4].val,
             commands=kids[5].val
@@ -1858,7 +1867,226 @@ class DropOperatorStmt(Nonterm):
            DROP OperatorKind OPERATOR NodeName CreateFunctionArgs
         """
         self.val = qlast.DropOperator(
-            kind=ft.OperatorKind(kids[1].val),
+            kind=ft.OperatorKind(kids[1].val.upper()),
             name=kids[3].val,
             params=kids[4].val,
+        )
+
+
+#
+# CREATE CAST
+#
+
+
+class CastUseValue(typing.NamedTuple):
+
+    use: str
+
+
+class CastAllowedUse(Nonterm):
+
+    def reduce_ALLOW_IMPLICIT(self, *kids):
+        self.val = CastUseValue(use=kids[1].val.upper())
+
+    def reduce_ALLOW_ASSIGNMENT(self, *kids):
+        self.val = CastUseValue(use=kids[1].val.upper())
+
+
+class CastCode(Nonterm):
+
+    def reduce_FROM_Identifier_FUNCTION_BaseStringConstant(self, *kids):
+        lang = _parse_language(kids[1])
+        if lang not in {qlast.Language.SQL, qlast.Language.EdgeQL}:
+            raise EdgeQLSyntaxError(
+                f'{lang} language is not supported in FROM FUNCTION clause',
+                context=kids[1].context) from None
+
+        self.val = qlast.CastCode(language=lang,
+                                  from_function=kids[3].val.value)
+
+    def reduce_FROM_Identifier_BaseStringConstant(self, *kids):
+        lang = _parse_language(kids[1])
+        if lang not in {qlast.Language.SQL, qlast.Language.EdgeQL}:
+            raise EdgeQLSyntaxError(
+                f'{lang} language is not supported in FROM clause',
+                context=kids[1].context) from None
+
+        self.val = qlast.CastCode(language=lang,
+                                  code=kids[2].val.value)
+
+    def reduce_FROM_Identifier_CAST(self, *kids):
+        lang = _parse_language(kids[1])
+        if lang != qlast.Language.SQL:
+            raise EdgeQLSyntaxError(
+                f'{lang} language is not supported in FROM CAST clause',
+                context=kids[1].context) from None
+
+        self.val = qlast.CastCode(language=lang, from_cast=True)
+
+    def reduce_FROM_Identifier_EXPRESSION(self, *kids):
+        lang = _parse_language(kids[1])
+        if lang != qlast.Language.SQL:
+            raise EdgeQLSyntaxError(
+                f'{lang} language is not supported in FROM EXPRESSION clause',
+                context=kids[1].context) from None
+
+        self.val = qlast.CastCode(language=lang)
+
+
+commands_block(
+    'CreateCast',
+    SetFieldStmt,
+    CastCode,
+    CastAllowedUse,
+    opt=False
+)
+
+
+class CreateCastStmt(Nonterm):
+
+    def reduce_CreateCastStmt(self, *kids):
+        r"""%reduce
+            CREATE CAST FROM TypeName TO TypeName
+            CreateCastCommandsBlock
+        """
+        self.val = qlast.CreateCast(
+            from_type=kids[3].val,
+            to_type=kids[5].val,
+            **self._process_cast_body(kids[6])
+        )
+
+    def _process_cast_body(self, block):
+        props = {}
+
+        commands = []
+        from_function = None
+        from_expr = False
+        from_cast = False
+        allow_implicit = False
+        allow_assignment = False
+        code = None
+
+        for node in block.val:
+            if isinstance(node, qlast.CastCode):
+                if node.from_function:
+                    if from_function is not None:
+                        raise EdgeQLSyntaxError(
+                            'more than one FROM FUNCTION clause',
+                            context=node.context)
+                    from_function = node.from_function
+
+                elif node.code:
+                    if code is not None:
+                        raise EdgeQLSyntaxError(
+                            'more than one FROM <code> clause',
+                            context=node.context)
+                    code = node.code
+
+                elif node.from_cast:
+                    # FROM SQL CAST
+
+                    if from_cast:
+                        raise EdgeQLSyntaxError(
+                            'more than one FROM CAST clause',
+                            context=node.context)
+
+                    from_cast = True
+
+                else:
+                    # FROM SQL EXPRESSION
+
+                    if from_expr:
+                        raise EdgeQLSyntaxError(
+                            'more than one FROM EXPRESSION clause',
+                            context=node.context)
+
+                    from_expr = True
+
+            elif isinstance(node, CastUseValue):
+
+                if node.use == 'IMPLICIT':
+                    allow_implicit = True
+                elif node.use == 'ASSIGNMENT':
+                    allow_assignment = True
+                else:
+                    raise EdgeQLSyntaxError(
+                        'unexpected ALLOW clause',
+                        context=node.context)
+
+            else:
+                commands.append(node)
+
+        if (code is None and from_function is None
+                and not from_expr and not from_cast):
+            raise EdgeQLSyntaxError(
+                'CREATE CAST requires at least one FROM clause',
+                context=block.context)
+
+        else:
+            if from_expr and (from_function or code or from_cast):
+                raise EdgeQLSyntaxError(
+                    'FROM SQL EXPRESSION is mutually exclusive with other '
+                    'FROM variants',
+                    context=block.context)
+
+            if from_cast and (from_function or code or from_expr):
+                raise EdgeQLSyntaxError(
+                    'FROM SQL CAST is mutually exclusive with other '
+                    'FROM variants',
+                    context=block.context)
+
+            props['code'] = qlast.CastCode(
+                language=qlast.Language.SQL,
+                from_function=from_function,
+                from_expr=from_expr,
+                from_cast=from_cast,
+                code=code,
+            )
+
+            props['allow_implicit'] = allow_implicit
+            props['allow_assignment'] = allow_assignment
+
+        if commands:
+            props['commands'] = commands
+
+        return props
+
+
+#
+# ALTER CAST
+#
+
+commands_block(
+    'AlterCast',
+    SetFieldStmt,
+    DropFieldStmt,
+    opt=False
+)
+
+
+class AlterCastStmt(Nonterm):
+    def reduce_AlterCastStmt(self, *kids):
+        """%reduce
+           ALTER CAST FROM TypeName TO TypeName
+           AlterCastCommandsBlock
+        """
+        self.val = qlast.AlterCast(
+            from_type=kids[3].val,
+            to_type=kids[5].val,
+            commands=kids[6].val,
+        )
+
+
+#
+# DROP CAST
+#
+
+class DropCastStmt(Nonterm):
+    def reduce_DropCastStmt(self, *kids):
+        """%reduce
+           DROP CAST FROM TypeName TO TypeName
+        """
+        self.val = qlast.DropCast(
+            from_type=kids[3].val,
+            to_type=kids[5].val,
         )

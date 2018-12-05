@@ -547,8 +547,6 @@ class TestExpressions(tb.QueryTestCase):
             SELECT <std::int64>"123" + 9000;
             SELECT <std::int64>"123" * 100;
             SELECT <std::str>(123 * 2);
-            SELECT <int64>true;
-            SELECT <int64>false;
         """, [
             ['123'],
             [123],
@@ -556,8 +554,6 @@ class TestExpressions(tb.QueryTestCase):
             [9123],
             [12300],
             ['246'],
-            [1],
-            [0],
         ])
 
     async def test_edgeql_expr_cast_02(self):
@@ -628,7 +624,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_cast_08(self):
         with self.assertRaisesRegex(exc.EdgeQLError,
-                                    r'cannot cast tuple'):
+                                    r'cannot cast.*tuple.*to.*array.*'):
             await self.con.execute(r"""
                 SELECT <array<int64>>(123, 11);
             """)
@@ -660,7 +656,7 @@ class TestExpressions(tb.QueryTestCase):
             ['std::int64'],
             ['std::int64'],
             ['std::int32'],
-            # according to the _implicit_numeric_cast_map, any of the
+            # according to the standard implicit casts, any of the
             # ints can only be upcast to float64, not float32
             ['std::float64'],
             ['std::float64'],

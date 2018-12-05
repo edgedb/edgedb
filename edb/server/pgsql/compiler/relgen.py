@@ -43,7 +43,6 @@ from . import dispatch
 from . import output
 from . import pathctx
 from . import relctx
-from . import typecomp
 
 
 class SetRVar:
@@ -1195,10 +1194,13 @@ def process_set_as_tuple_indirection(
             tuple_val = pathctx.get_path_value_var(
                 stmt, path_id=tuple_set.path_id, env=subctx.env)
 
-            type_sentinel = typecomp.cast(
-                pgast.NullConstant(),
-                source_type=ir_set.stype, target_type=ir_set.stype, force=True,
-                env=subctx.env)
+            type_sentinel = pgast.TypeCast(
+                arg=pgast.NullConstant(),
+                type_name=pgast.TypeName(
+                    name=pg_types.pg_type_from_object(
+                        subctx.env.schema, ir_set.stype)
+                )
+            )
 
             index = tuple_set.stype.index_of(ctx.env.schema, ir_set.expr.name)
             att_idx = pgast.NumericConstant(val=str(index + 1))
@@ -1221,53 +1223,45 @@ def process_set_as_type_cast(
         ctx: context.CompilerContextLevel) -> SetRVars:
 
     inner_set = ir_set.expr.expr
-    is_json_cast = ir_set.expr.type.maintype == 'std::json'
+    is_json_cast = ir_set.expr.to_type.maintype == 'std::json'
 
     with ctx.new() as subctx:
-        if isinstance(inner_set, irast.Array):
-            # Special version of cast of an empty untyped array
-            set_expr = dispatch.compile(ir_set.expr, ctx=subctx)
+        ctx.rel.view_path_id_map[ir_set.path_id] = inner_set.path_id
+
+        if (is_json_cast and
+                isinstance(inner_set.stype,
+                           (s_abc.ObjectType, s_abc.Collection))):
+            subctx.expr_exposed = True
+            subctx.output_format = context.OutputFormat.JSON
+            implicit_cast = True
         else:
-            ctx.rel.view_path_id_map[ir_set.path_id] = inner_set.path_id
+            implicit_cast = False
 
-            if (is_json_cast and
-                    isinstance(inner_set.stype,
-                               (s_abc.ObjectType, s_abc.Collection))):
-                subctx.expr_exposed = True
-                subctx.output_format = context.OutputFormat.JSON
-                implicit_cast = True
-            else:
-                implicit_cast = False
+        if implicit_cast:
+            set_expr = dispatch.compile(inner_set, ctx=subctx)
 
-            inner_expr = dispatch.compile(inner_set, ctx=subctx)
-            if implicit_cast:
-                serialized = pathctx.maybe_get_path_serialized_var(
-                    stmt, inner_set.path_id, env=subctx.env)
+            serialized = pathctx.maybe_get_path_serialized_var(
+                stmt, inner_set.path_id, env=subctx.env)
 
-                if serialized is not None:
-                    if isinstance(inner_set.stype, s_abc.Collection):
-                        serialized = output.serialize_expr_to_json(
-                            serialized, path_id=inner_set.path_id,
-                            env=subctx.env)
+            if serialized is not None:
+                if isinstance(inner_set.stype, s_abc.Collection):
+                    serialized = output.serialize_expr_to_json(
+                        serialized, path_id=inner_set.path_id,
+                        env=subctx.env)
 
-                    pathctx.put_path_value_var(
-                        stmt, inner_set.path_id, serialized,
-                        force=True, env=subctx.env)
+                pathctx.put_path_value_var(
+                    stmt, inner_set.path_id, serialized,
+                    force=True, env=subctx.env)
+        else:
+            set_expr = dispatch.compile(ir_set.expr, ctx=ctx)
 
-                set_expr = inner_expr
-            else:
-                set_expr = typecomp.cast(
-                    inner_expr, source_type=inner_set.stype,
-                    target_type=ir_set.stype, ir_expr=inner_set,
-                    env=subctx.env)
-
-                # A proper path var mapping way would be to wrap
-                # the inner expression in a subquery, but that
-                # seems excessive for a type cast, so we cover
-                # our tracks here by removing the mapping and
-                # relying on the value and serialized vars
-                # populated above.
-                ctx.rel.view_path_id_map.pop(ir_set.path_id)
+            # A proper path var mapping way would be to wrap
+            # the inner expression in a subquery, but that
+            # seems excessive for a type cast, so we cover
+            # our tracks here by removing the mapping and
+            # relying on the value and serialized vars
+            # populated above.
+            ctx.rel.view_path_id_map.pop(ir_set.path_id)
 
     pathctx.put_path_value_var_if_not_exists(
         stmt, ir_set.path_id, set_expr, env=ctx.env)
@@ -1318,14 +1312,15 @@ def process_set_as_func_expr(
             name = common.schema_name_to_pg_name(expr.func_shortname)
 
         if expr.has_empty_variadic:
-            args.append(
-                pgast.VariadicArgument(
-                    expr=typecomp.cast(
-                        pgast.ArrayExpr(elements=[]),
-                        source_type=expr.variadic_param_type,
-                        target_type=expr.variadic_param_type,
-                        force=True,
-                        env=ctx.env)))
+            var = pgast.TypeCast(
+                arg=pgast.ArrayExpr(elements=[]),
+                type_name=pgast.TypeName(
+                    name=pg_types.pg_type_from_object(
+                        ctx.env.schema, expr.variadic_param_type)
+                )
+            )
+
+            args.append(pgast.VariadicArgument(expr=var))
 
         set_expr = pgast.FuncCall(
             name=name, args=args, with_ordinality=with_ordinality)
@@ -1613,11 +1608,31 @@ def process_set_as_array_expr(
             s_elements.append(s_var)
 
     set_expr = astutils.safe_array_expr(elements)
+
+    if irutils.is_empty_array_expr(ir_set.expr):
+        set_expr = pgast.TypeCast(
+            arg=set_expr,
+            type_name=pgast.TypeName(
+                name=pg_types.pg_type_from_object(
+                    ctx.env.schema, ir_set.expr.stype)
+            )
+        )
+
     pathctx.put_path_value_var_if_not_exists(
         stmt, ir_set.path_id, set_expr, env=ctx.env)
 
     if serializing:
         s_set_expr = astutils.safe_array_expr(s_elements)
+
+        if irutils.is_empty_array_expr(ir_set.expr):
+            s_set_expr = pgast.TypeCast(
+                arg=s_set_expr,
+                type_name=pgast.TypeName(
+                    name=pg_types.pg_type_from_object(
+                        ctx.env.schema, ir_set.expr.stype)
+                )
+            )
+
         pathctx.put_path_serialized_var(
             stmt, ir_set.path_id, s_set_expr, env=ctx.env)
 

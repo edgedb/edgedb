@@ -60,105 +60,105 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
     async def test_edgeql_casts_bytes_01(self):
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError, r'cannot cast'):
+                exc.EdgeQLError, r'cannot cast'):
             await self.con.execute("""
                 SELECT <bytes>True;
             """)
 
     async def test_edgeql_casts_bytes_02(self):
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError, r'cannot cast'):
+                exc.EdgeQLError, r'cannot cast'):
             await self.con.execute("""
                 SELECT <bytes>uuid_generate_v1mc();
             """)
 
     async def test_edgeql_casts_bytes_03(self):
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError, r'cannot cast'):
+                exc.EdgeQLError, r'cannot cast'):
             await self.con.execute("""
                 SELECT <bytes>'Hello';
             """)
 
     async def test_edgeql_casts_bytes_04(self):
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError, r'cannot cast'):
+                exc.EdgeQLError, r'cannot cast'):
             await self.con.execute("""
                 SELECT <bytes>to_json('1');
             """)
 
     async def test_edgeql_casts_bytes_05(self):
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError, r'cannot cast'):
+                exc.EdgeQLError, r'cannot cast'):
             await self.con.execute("""
                 SELECT <bytes>datetime_current();
             """)
 
     async def test_edgeql_casts_bytes_06(self):
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError, r'cannot cast'):
+                exc.EdgeQLError, r'cannot cast'):
             await self.con.execute("""
                 SELECT <bytes>to_naive_datetime('2018-05-07T20:01:22.306916');
             """)
 
     async def test_edgeql_casts_bytes_07(self):
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError, r'cannot cast'):
+                exc.EdgeQLError, r'cannot cast'):
             await self.con.execute("""
                 SELECT <bytes>to_naive_date('2018-05-07');
             """)
 
     async def test_edgeql_casts_bytes_08(self):
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError, r'cannot cast'):
+                exc.EdgeQLError, r'cannot cast'):
             await self.con.execute("""
                 SELECT <bytes>to_naive_time('20:01:22.306916');
             """)
 
     async def test_edgeql_casts_bytes_09(self):
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError, r'cannot cast'):
+                exc.EdgeQLError, r'cannot cast'):
             await self.con.execute("""
                 SELECT <bytes>to_timedelta(hours:=20);
             """)
 
     async def test_edgeql_casts_bytes_10(self):
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError, r'cannot cast'):
+                exc.EdgeQLError, r'cannot cast'):
             await self.con.execute("""
                 SELECT <bytes>to_int16('2');
             """)
 
     async def test_edgeql_casts_bytes_11(self):
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError, r'cannot cast'):
+                exc.EdgeQLError, r'cannot cast'):
             await self.con.execute("""
                 SELECT <bytes>to_int32('2');
             """)
 
     async def test_edgeql_casts_bytes_12(self):
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError, r'cannot cast'):
+                exc.EdgeQLError, r'cannot cast'):
             await self.con.execute("""
                 SELECT <bytes>to_int64('2');
             """)
 
     async def test_edgeql_casts_bytes_13(self):
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError, r'cannot cast'):
+                exc.EdgeQLError, r'cannot cast'):
             await self.con.execute("""
                 SELECT <bytes>to_float32('2');
             """)
 
     async def test_edgeql_casts_bytes_14(self):
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError, r'cannot cast'):
+                exc.EdgeQLError, r'cannot cast'):
             await self.con.execute("""
                 SELECT <bytes>to_float64('2');
             """)
 
     async def test_edgeql_casts_bytes_15(self):
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError, r'cannot cast'):
+                exc.EdgeQLError, r'cannot cast'):
             await self.con.execute("""
                 SELECT <bytes>to_decimal('2');
             """)
@@ -840,7 +840,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
     async def test_edgeql_casts_illegal_05(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot cast.*abstract'):
+                exc.EdgeQLError, r'cannot cast.*'):
             await self.con.execute("""
                 SELECT <anyfloat>123;
             """)

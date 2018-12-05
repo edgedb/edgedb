@@ -211,6 +211,25 @@ class AssertJSONTypeFunction(dbops.Function):
             text=self.text)
 
 
+class ExtractJSONScalarFunction(dbops.Function):
+    """Convert a given JSON scalar value into a text value."""
+    text = '''
+        SELECT
+            (to_jsonb(ARRAY[
+                edgedb.jsonb_assert_type(val, ARRAY[json_typename, 'null'])
+            ])->>0)
+    '''
+
+    def __init__(self):
+        super().__init__(
+            name=('edgedb', 'jsonb_extract_scalar'),
+            args=[('val', ('jsonb',)), ('json_typename', ('text',)),
+                  ('msg', ('text',), 'NULL'), ('det', ('text',), "''")],
+            returns=('text',),
+            volatility='immutable',
+            text=self.text)
+
+
 class DeriveUUIDFunction(dbops.Function):
     text = '''
         WITH
@@ -1508,6 +1527,7 @@ async def bootstrap(conn):
         dbops.CreateFunction(RaiseExceptionOnNullFunction()),
         dbops.CreateFunction(RaiseExceptionOnEmptyStringFunction()),
         dbops.CreateFunction(AssertJSONTypeFunction()),
+        dbops.CreateFunction(ExtractJSONScalarFunction()),
         dbops.CreateFunction(DeriveUUIDFunction()),
         dbops.CreateFunction(ResolveSimpleTypeIdFunction()),
         dbops.CreateFunction(ResolveSimpleTypeIdListFunction()),

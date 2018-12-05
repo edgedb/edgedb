@@ -48,7 +48,6 @@ from . import dispatch
 from . import pathctx
 from . import relctx
 from . import shapecomp
-from . import typecomp
 
 
 def init_dml_stmt(
@@ -470,7 +469,8 @@ def insert_value_for_shape_element(
                                'insert computable')
     insvalue = pgast.TypeCast(
         arg=insvalue,
-        type_name=typecomp.type_node(ptr_info.column_type))
+        type_name=pgast.TypeName(name=ptr_info.column_type),
+    )
 
     return insvalue
 
@@ -521,7 +521,8 @@ def process_update_body(
                 if ptr_info.table_type == 'ObjectType':
                     updvalue = pgast.TypeCast(
                         arg=dispatch.compile(updvalue, ctx=scopectx),
-                        type_name=typecomp.type_node(ptr_info.column_type))
+                        type_name=pgast.TypeName(name=ptr_info.column_type)
+                    )
 
                     update_stmt.targets.append(
                         pgast.UpdateTarget(

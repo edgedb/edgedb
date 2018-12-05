@@ -38,7 +38,6 @@ from . import astutils
 from . import context
 from . import dbobj
 from . import output
-from . import typecomp
 
 
 class PathAspect(s_enum.StrEnum):
@@ -598,10 +597,12 @@ def _get_rel_path_output(
         else:
             name = env.aliases.get('v')
 
-        val = typecomp.cast(pgast.NullConstant(nullable=True),
-                            source_type=target,
-                            target_type=target,
-                            force=True, env=env)
+        val = pgast.TypeCast(
+            arg=pgast.NullConstant(),
+            type_name=pgast.TypeName(
+                name=pg_types.pg_type_from_object(env.schema, target)
+            )
+        )
 
         rel.target_list.append(pgast.ResTarget(name=name, val=val))
         result = pgast.ColumnRef(name=[name], nullable=True)

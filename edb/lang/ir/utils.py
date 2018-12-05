@@ -24,6 +24,7 @@ from edb.lang.common import ast
 
 from edb.lang.edgeql import functypes as ft
 
+from edb.lang.schema import abc as s_abc
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import name as s_name
 from edb.lang.schema import pointers as s_pointers
@@ -95,6 +96,20 @@ def is_exists_expr(ir):
         isinstance(ir, irast.OperatorCall) and
         ir.operator_kind is ft.OperatorKind.PREFIX and
         ir.func_shortname == 'std::EXISTS'
+    )
+
+
+def is_empty_array_expr(ir):
+    return (
+        isinstance(ir, irast.Array)
+        and not ir.elements
+    )
+
+
+def is_untyped_empty_array_expr(ir):
+    return (
+        is_empty_array_expr(ir)
+        and (ir.stype is None or ir.stype.contains_any())
     )
 
 
@@ -352,5 +367,34 @@ def typeref_to_type(schema, typeref: irast.TypeRef) -> s_types.Type:
             schema, [typeref_to_type(schema, t) for t in typeref.subtypes])
     else:
         result = schema.get(typeref.maintype)
+
+    return result
+
+
+def type_to_typeref(schema, t: s_types.Type, *, _name=None) -> irast.TypeRef:
+
+    if not isinstance(t, s_abc.Collection):
+        result = irast.TypeRef(
+            name=_name,
+            maintype=t.get_name(schema),
+        )
+    elif isinstance(t, s_abc.Tuple) and t.named:
+        result = irast.TypeRef(
+            name=_name,
+            maintype=t.schema_name,
+            subtypes=[
+                type_to_typeref(schema, st, _name=sn)
+                for sn, st in t.element_types.items()
+            ]
+        )
+    else:
+        result = irast.TypeRef(
+            name=_name,
+            maintype=t.schema_name,
+            subtypes=[
+                type_to_typeref(schema, st)
+                for st in t.get_subtypes()
+            ]
+        )
 
     return result

@@ -30,6 +30,7 @@ from edb.lang.edgeql import errors as ql_errors
 from edb.lang.edgeql import functypes as ql_ft
 
 from edb.lang.schema import attributes as s_attrs
+from edb.lang.schema import casts as s_casts
 from edb.lang.schema import scalars as s_scalars
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import constraints as s_constr
@@ -657,6 +658,88 @@ class DeleteOperator(
         if not oper.get_from_expr(orig_schema):
             self.pgops.add(dbops.DropOperator(name=name, args=args))
         return schema, oper
+
+
+class CastCommand:
+    _table = metaschema.get_metaclass_table(s_casts.Cast)
+
+    def get_table(self, schema):
+        return self._table
+
+    def make_cast_function(self, cast: s_casts.Cast, schema):
+        name = common.get_backend_name(
+            schema, cast, catenate=False, aspect='function')
+
+        args = [(
+            'val',
+            types.pg_type_from_object(schema, cast.get_from_type(schema))
+        )]
+
+        returns = types.pg_type_from_object(schema, cast.get_to_type(schema))
+
+        return dbops.Function(
+            name=name,
+            args=args,
+            returns=returns,
+            text=cast.get_code(schema),
+        )
+
+
+class CreateCast(CastCommand, CreateNamedObject,
+                 adapts=s_casts.CreateCast):
+
+    def apply(self, schema, context):
+        schema, cast = super().apply(schema, context)
+        cast_language = cast.get_language(schema)
+        cast_code = cast.get_code(schema)
+        from_cast = cast.get_from_cast(schema)
+        from_expr = cast.get_from_expr(schema)
+
+        if cast_language is ql_ast.Language.SQL and cast_code:
+            cast_func = self.make_cast_function(cast, schema)
+            self.pgops.add(dbops.CreateFunction(cast_func))
+
+        elif from_cast is not None or from_expr is not None:
+            # This operator is handled by the compiler and does not
+            # need explicit representation in the backend.
+            pass
+
+        else:
+            raise ql_errors.EdgeQLError(
+                f'cannot create cast: '
+                f'only "FROM SQL" and "FROM SQL FUNCTION" casts '
+                f'are currently supported',
+                context=self.source_context)
+
+        return schema, cast
+
+
+class RenameCast(
+        CastCommand, RenameNamedObject, adapts=s_casts.RenameCast):
+    pass
+
+
+class AlterCast(
+        CastCommand, AlterNamedObject, adapts=s_casts.AlterCast):
+    pass
+
+
+class DeleteCast(
+        CastCommand, DeleteNamedObject, adapts=s_casts.DeleteCast):
+
+    def apply(self, schema, context):
+        cast = schema.get(self.classname)
+        cast_language = cast.get_language(schema)
+        cast_code = cast.get_code(schema)
+
+        schema, cast = super().apply(schema, context)
+
+        if cast_language is ql_ast.Language.SQL and cast_code:
+            cast_func = self.make_cast_function(cast, schema)
+            self.pgops.add(dbops.DropFunction(
+                cast_func.name, cast_func.args))
+
+        return schema, cast
 
 
 class AttributeCommand:

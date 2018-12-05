@@ -79,6 +79,7 @@ class _BaseTypeRef(Base):
 
 class TypeRef(_BaseTypeRef):
 
+    name: str
     maintype: str
     subtypes: typing.List[_BaseTypeRef]
 
@@ -189,6 +190,7 @@ class Tuple(Expr):
 class Array(Expr):
 
     elements: typing.List[Base]
+    stype: s_types.Type
 
 
 class SetOp(Expr):
@@ -310,7 +312,12 @@ class TypeCast(Expr):
     """<Type>Expr"""
 
     expr: Base
-    type: TypeRef
+    cast_name: str
+    from_type: TypeRef
+    to_type: TypeRef
+    sql_function: str
+    sql_cast: bool
+    sql_expr: bool
 
 
 class Stmt(Base):

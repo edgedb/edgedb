@@ -224,8 +224,22 @@ def __infer_ifelse(ir, env):
 def __infer_typeref(ir, env):
     if ir.subtypes:
         coll = s_types.Collection.get_class(ir.maintype)
-        result = coll.from_subtypes(
-            env.schema, [infer_type(t, env) for t in ir.subtypes])
+        if issubclass(coll, s_types.Tuple):
+            named = False
+            if any(t.name for t in ir.subtypes):
+                named = True
+
+            if named:
+                eltypes = {st.name: infer_type(st, env) for st in ir.subtypes}
+            else:
+                eltypes = {i: infer_type(st, env)
+                           for i, st in enumerate(ir.subtypes)}
+
+            result = coll.create(
+                env.schema, element_types=eltypes, named=named)
+        else:
+            result = coll.from_subtypes(
+                env.schema, [infer_type(t, env) for t in ir.subtypes])
     else:
         result = env.schema.get(ir.maintype)
 
@@ -234,7 +248,7 @@ def __infer_typeref(ir, env):
 
 @_infer_type.register(irast.TypeCast)
 def __infer_typecast(ir, env):
-    stype = infer_type(ir.type, env)
+    stype = infer_type(ir.to_type, env)
 
     # is_polymorphic is synonymous to get_is_abstract for scalars
     if stype.is_polymorphic(env.schema):
@@ -362,7 +376,9 @@ def __infer_index(ir, env):
 
 @_infer_type.register(irast.Array)
 def __infer_array(ir, env):
-    if ir.elements:
+    if ir.stype is not None:
+        return ir.stype
+    elif ir.elements:
         element_type = _infer_common_type(ir.elements, env)
         if element_type is None:
             raise ql_errors.EdgeQLError('could not determine array type',

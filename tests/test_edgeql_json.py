@@ -93,8 +93,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
             SELECT <bool>to_json('true');
             SELECT <bool>to_json('false');
-
-            SELECT <array<int64>>to_json('[2, 3, 5]');
         """, [
             ['qwerty'],
             [1],
@@ -103,7 +101,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             [True],
             [False],
 
-            [[2, 3, 5]],
         ])
 
     async def test_edgeql_json_cast_03(self):
@@ -149,8 +146,10 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         # is not currently implemented
         await self.assert_query_result(r"""
             SELECT <tuple<int64, str>><json>[1, 2];
+            SELECT <array<int64>>to_json('[2, 3, 5]');
         """, [
             [[1, '2']],
+            [[2, 3, 5]],
         ])
 
     async def test_edgeql_json_accessor_01(self):
@@ -940,6 +939,9 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             [1, {"foo": "bar", "name": "std::json"}]
         )
 
+    # Casting of arbitrary arrays to std::json
+    # is not currently implemented.
+    @unittest.expectedFailure
     async def test_edgeql_json_cast_tuple_to_json_02(self):
         res = await self.query("""
             SELECT
@@ -1015,7 +1017,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_bytes_cast_01(self):
         with self.assertRaisesRegex(
-                exc.UnknownEdgeDBError, r'cannot cast.*bytes to.*json'):
+                exc.EdgeQLError, r'cannot cast.*bytes.*to.*json.*'):
 
             await self.con.execute(r"""
                 SELECT <json>b'foo';

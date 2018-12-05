@@ -214,7 +214,7 @@ class EdgeQLOptimizer:
 
         elif isinstance(expr, qlast.TypeCast):
             self._process_expr(context, expr.expr)
-            self._process_expr(context, expr.type)
+            self._process_expr(context, expr.to_type)
 
         elif (isinstance(expr, qlast.TypeName)
                 and not isinstance(expr.maintype, qlast.PseudoObjectRef)):
@@ -243,6 +243,10 @@ class EdgeQLOptimizer:
 
         elif isinstance(expr, qlast.CreateModule):
             pass
+
+        elif isinstance(expr, qlast.CastCommand):
+            self._process_expr(context, expr.from_type)
+            self._process_expr(context, expr.to_type)
 
         elif isinstance(expr, qlast.ObjectDDL):
             self._process_aliases(context, expr)

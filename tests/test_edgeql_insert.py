@@ -892,11 +892,11 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_empty_02(self):
         with self.assertRaisesRegex(
                 exc.InvalidPointerTargetError,
-                r"invalid target for link.*std::str.*expecting 'std::int64'"):
+                r"invalid target.*std::datetime.*expecting 'std::int64'"):
             await self.con.execute(r"""
                 WITH MODULE test
                 INSERT InsertTest {
-                    l1 := <str>{},
+                    l1 := <datetime>{},
                     l2 := 99,
                 };
                 """)

@@ -74,3 +74,164 @@ std::`!=` (l: std::json, r: std::json) -> std::bool
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::json, r: OPTIONAL std::json) -> std::bool
     FROM SQL EXPRESSION;
+
+
+## CASTS
+
+# This is only a container cast, and subject to element type cast
+# availability.
+CREATE CAST FROM array<anytype> TO std::json
+    FROM SQL FUNCTION 'to_jsonb';
+
+
+# This is only a container cast, and subject to element type cast
+# availability.
+CREATE CAST FROM anytuple TO std::json
+    FROM SQL EXPRESSION;
+
+
+CREATE CAST FROM std::json TO array<json>
+    FROM SQL $$
+        SELECT array_agg(j)
+        FROM jsonb_array_elements(val) AS j
+    $$;
+
+
+CREATE CAST FROM std::bool TO std::json
+    FROM SQL FUNCTION 'to_jsonb';
+
+
+CREATE CAST FROM std::uuid TO std::json
+    FROM SQL FUNCTION 'to_jsonb';
+
+
+CREATE CAST FROM std::str TO std::json
+    FROM SQL FUNCTION 'to_jsonb';
+
+
+CREATE CAST FROM std::datetime TO std::json
+    FROM SQL FUNCTION 'to_jsonb';
+
+
+CREATE CAST FROM std::naive_datetime TO std::json
+    FROM SQL FUNCTION 'to_jsonb';
+
+
+CREATE CAST FROM std::naive_date TO std::json
+    FROM SQL FUNCTION 'to_jsonb';
+
+
+CREATE CAST FROM std::naive_time TO std::json
+    FROM SQL FUNCTION 'to_jsonb';
+
+
+CREATE CAST FROM std::timedelta TO std::json
+    FROM SQL FUNCTION 'to_jsonb';
+
+
+CREATE CAST FROM std::int16 TO std::json
+    FROM SQL FUNCTION 'to_jsonb';
+
+
+CREATE CAST FROM std::int32 TO std::json
+    FROM SQL FUNCTION 'to_jsonb';
+
+
+CREATE CAST FROM std::int64 TO std::json
+    FROM SQL FUNCTION 'to_jsonb';
+
+
+CREATE CAST FROM std::float32 TO std::json
+    FROM SQL FUNCTION 'to_jsonb';
+
+
+CREATE CAST FROM std::float64 TO std::json
+    FROM SQL FUNCTION 'to_jsonb';
+
+
+CREATE CAST FROM std::decimal TO std::json
+    FROM SQL FUNCTION 'to_jsonb';
+
+
+CREATE CAST FROM std::json TO std::bool
+    FROM SQL $$
+    SELECT edgedb.jsonb_extract_scalar(val, 'boolean')::bool;
+    $$;
+
+
+CREATE CAST FROM std::json TO std::uuid
+    FROM SQL $$
+    SELECT edgedb.jsonb_extract_scalar(val, 'string')::uuid;
+    $$;
+
+
+CREATE CAST FROM std::json TO std::str
+    FROM SQL $$
+    SELECT edgedb.jsonb_extract_scalar(val, 'string');
+    $$;
+
+
+CREATE CAST FROM std::json TO std::datetime
+    FROM SQL $$
+    SELECT edgedb.jsonb_extract_scalar(val, 'string')::timestamptz;
+    $$;
+
+
+CREATE CAST FROM std::json TO std::naive_datetime
+    FROM SQL $$
+    SELECT edgedb.jsonb_extract_scalar(val, 'string')::timestamp;
+    $$;
+
+
+CREATE CAST FROM std::json TO std::naive_date
+    FROM SQL $$
+    SELECT edgedb.jsonb_extract_scalar(val, 'string')::date;
+    $$;
+
+
+CREATE CAST FROM std::json TO std::naive_time
+    FROM SQL $$
+    SELECT edgedb.jsonb_extract_scalar(val, 'string')::time;
+    $$;
+
+
+CREATE CAST FROM std::json TO std::timedelta
+    FROM SQL $$
+    SELECT edgedb.jsonb_extract_scalar(val, 'string')::interval;
+    $$;
+
+
+CREATE CAST FROM std::json TO std::int16
+    FROM SQL $$
+    SELECT edgedb.jsonb_extract_scalar(val, 'number')::int2;
+    $$;
+
+
+CREATE CAST FROM std::json TO std::int32
+    FROM SQL $$
+    SELECT edgedb.jsonb_extract_scalar(val, 'number')::int4;
+    $$;
+
+
+CREATE CAST FROM std::json TO std::int64
+    FROM SQL $$
+    SELECT edgedb.jsonb_extract_scalar(val, 'number')::int8;
+    $$;
+
+
+CREATE CAST FROM std::json TO std::float32
+    FROM SQL $$
+    SELECT edgedb.jsonb_extract_scalar(val, 'number')::float4;
+    $$;
+
+
+CREATE CAST FROM std::json TO std::float64
+    FROM SQL $$
+    SELECT edgedb.jsonb_extract_scalar(val, 'number')::float8;
+    $$;
+
+
+CREATE CAST FROM std::json TO std::decimal
+    FROM SQL $$
+    SELECT edgedb.jsonb_extract_scalar(val, 'number')::numeric;
+    $$;

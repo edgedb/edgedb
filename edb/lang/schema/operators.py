@@ -75,14 +75,6 @@ class OperatorCommand(s_func.CallableCommand,
         return super()._cmd_tree_from_ast(schema, astnode, context)
 
     @classmethod
-    def _get_operator_name_quals(
-            cls, schema, name: str, kind: ft.OperatorKind,
-            params: s_func.FuncParameterList) -> typing.List[str]:
-        quals = super()._get_function_name_quals(schema, name, params)
-        quals.append(kind)
-        return quals
-
-    @classmethod
     def _classname_from_ast(cls, schema, astnode: qlast.OperatorCommand,
                             context) -> sn.Name:
         name = super()._classname_from_ast(schema, astnode, context)
@@ -90,12 +82,8 @@ class OperatorCommand(s_func.CallableCommand,
         params = cls._get_param_desc_from_ast(
             schema, context.modaliases, astnode)
 
-        quals = cls._get_operator_name_quals(
-            schema, name, astnode.kind, params)
-
-        return sn.Name(
-            module=name.module,
-            name=sn.get_specialized_name(name, *quals))
+        return cls.get_schema_metaclass().get_fqname(
+            schema, name, params, astnode.kind)
 
     def _qualify_operator_refs(
             self, schema, kind: ft.OperatorKind,

@@ -75,10 +75,10 @@ def get_schema_object(
             qlerror, name, modaliases=ctx.modaliases, schema=ctx.env.schema,
             item_types=item_types)
 
-        raise qlerror
+        raise qlerror from e
 
     except s_err.SchemaError as e:
-        raise qlerrors.EdgeQLError(e.args[0], context=srcctx)
+        raise qlerrors.EdgeQLError(e.args[0], context=srcctx) from e
 
     result = ctx.aliased_views.get(stype.get_name(ctx.env.schema))
     if result is None:

@@ -22,6 +22,7 @@ import base64
 import re
 import uuid
 
+from edb.lang.schema import casts as s_casts
 from edb.lang.schema import constraints as s_constr
 from edb.lang.schema import functions as s_func
 from edb.lang.schema import links as s_links
@@ -219,6 +220,14 @@ def get_backend_operator_name(name, catenate=False, *, aspect=None):
         return schema, oper_name
 
 
+def get_backend_cast_name(name, catenate=False, *, aspect=None):
+    if aspect == 'function':
+        return convert_name(name, 'f', catenate=catenate)
+    else:
+        raise ValueError(
+            f'unexpected aspect for cast backend name: {aspect!r}')
+
+
 def _get_backend_function_name(name, catenate=False):
     schema, func_name = convert_name(name, catenate=False)
     if catenate:
@@ -256,6 +265,10 @@ def get_backend_name(schema, obj, catenate=True, *, aspect=None):
     elif isinstance(obj, s_opers.Operator):
         return get_backend_operator_name(
             obj.get_shortname(schema), catenate, aspect=aspect)
+
+    elif isinstance(obj, s_casts.Cast):
+        return get_backend_cast_name(
+            obj.get_name(schema), catenate, aspect=aspect)
 
     elif isinstance(obj, s_func.Function):
         return _get_backend_function_name(obj.get_shortname(schema), catenate)

@@ -71,6 +71,8 @@ def new_set(*, ctx: context.ContextLevel, **kwargs) -> irast.Set:
 def new_set_from_set(
         ir_set: irast.Set, *,
         preserve_scope_ns: bool=False,
+        path_id: typing.Optional[irast.PathId]=None,
+        stype: typing.Optional[s_types.Type]=None,
         ctx: context.ContextLevel) -> irast.Set:
     """Create a new ir.Set from another ir.Set.
 
@@ -79,13 +81,16 @@ def new_set_from_set(
     is False, the new Set's path_id will be namespaced with the currently
     active scope namespace.
     """
-    path_id = ir_set.path_id
+    if path_id is None:
+        path_id = ir_set.path_id
     if not preserve_scope_ns:
         path_id = path_id.merge_namespace(ctx.path_id_namespace)
+    if stype is None:
+        stype = ir_set.stype
     result = new_set(
         path_id=path_id,
         path_scope_id=ir_set.path_scope_id,
-        stype=ir_set.stype,
+        stype=stype,
         expr=ir_set.expr,
         ctx=ctx
     )
@@ -552,7 +557,7 @@ def new_expression_set(
         typehint: typing.Optional[irast.TypeRef]=None, *,
         ctx: context.ContextLevel) -> irast.Set:
     if typehint is not None and irutils.is_empty(ir_expr):
-        ir_expr = irast.TypeCast(expr=ir_expr, type=typehint)
+        ir_expr.stype = typehint
 
     result_type = inference.infer_type(ir_expr, ctx.env)
 

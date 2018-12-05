@@ -233,17 +233,17 @@ class IRDecompiler(ast.visitor.NodeVisitor):
         return result
 
     def visit_TypeCast(self, node):
-        if node.type.subtypes:
+        if node.to_type.subtypes:
             typ = qlast.TypeName(
-                maintype=qlast.ObjectRef(name=node.type.maintype),
+                maintype=qlast.ObjectRef(name=node.to_type.maintype),
                 subtypes=[
                     qlast.ObjectRef(
                         module=stn.module, name=stn.name)
-                    for stn in node.type.subtypes
+                    for stn in node.to_type.subtypes
                 ]
             )
         else:
-            mtn = node.type.maintype
+            mtn = node.to_type.maintype
             mt = qlast.ObjectRef(module=mtn.module, name=mtn.name)
             typ = qlast.TypeName(maintype=mt)
 

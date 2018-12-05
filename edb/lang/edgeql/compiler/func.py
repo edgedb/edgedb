@@ -17,7 +17,7 @@
 #
 
 
-"""EdgeQL routines for function call compilation."""
+"""EdgeQL compiler routines for function calls and operators."""
 
 
 import typing
@@ -94,7 +94,7 @@ def compile_FunctionCall(
     matched_call = _NO_MATCH
 
     for func in funcs:
-        call = try_bind_call_args(args, kwargs, funcname, func, ctx=ctx)
+        call = try_bind_call_args(args, kwargs, func, ctx=ctx)
         if call is _NO_MATCH:
             continue
 
@@ -195,7 +195,7 @@ def compile_operator(
     matched_call = _NO_MATCH
 
     for oper in opers:
-        call = try_bind_call_args(args, {}, op_name, oper, ctx=ctx)
+        call = try_bind_call_args(args, {}, oper, ctx=ctx)
         if call is _NO_MATCH:
             continue
 
@@ -268,7 +268,6 @@ def compile_operator(
 def try_bind_call_args(
         args: typing.List[typing.Tuple[s_types.Type, irast.Base]],
         kwargs: typing.Dict[str, typing.Tuple[s_types.Type, irast.Base]],
-        funcname: sn.Name,
         func: s_func.CallableObject, *,
         ctx: context.ContextLevel) -> BoundCall:
 

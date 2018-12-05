@@ -45,3 +45,15 @@ std::`!=` (l: std::uuid, r: std::uuid) -> std::bool
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::uuid, r: OPTIONAL std::uuid) -> std::bool
     FROM SQL EXPRESSION;
+
+
+## String casts.
+
+CREATE CAST FROM std::str TO std::uuid {
+    FROM SQL CAST;
+    ALLOW ASSIGNMENT;
+};
+
+
+CREATE CAST FROM std::uuid TO std::str
+    FROM SQL CAST;

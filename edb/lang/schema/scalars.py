@@ -17,13 +17,13 @@
 #
 
 
-import functools
 import typing
 
 from edb.lang.edgeql import ast as qlast
 
 from . import abc as s_abc
 from . import attributes
+from . import casts as s_casts
 from . import constraints
 from . import delta as sd
 from . import expr
@@ -107,28 +107,24 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
         if self.implicitly_castable_to(target, schema):
             return True
 
-        source = str(self.get_topmost_concrete_base(schema).get_name(schema))
-        target = str(target.get_topmost_concrete_base(schema).get_name(schema))
+        source = self.get_topmost_concrete_base(schema)
+        target = target.get_topmost_concrete_base(schema)
 
-        return _is_assignment_castable_impl(source, target)
+        return s_casts.is_assignment_castable(schema, source, target)
 
     def implicitly_castable_to(self, other: s_types.Type, schema) -> bool:
         if not isinstance(other, ScalarType):
             return False
-        left = str(self.get_topmost_concrete_base(schema).get_name(schema))
-        right = str(other.get_topmost_concrete_base(schema).get_name(schema))
-        return _get_implicit_cast_distance_impl(left, right) != _NOT_REACHABLE
+        left = self.get_topmost_concrete_base(schema)
+        right = other.get_topmost_concrete_base(schema)
+        return s_casts.is_implicitly_castable(schema, left, right)
 
     def get_implicit_cast_distance(self, other: s_types.Type, schema) -> int:
         if not isinstance(other, ScalarType):
             return -1
-        left = str(self.get_topmost_concrete_base(schema).get_name(schema))
-        right = str(other.get_topmost_concrete_base(schema).get_name(schema))
-        dist = _get_implicit_cast_distance_impl(left, right)
-        if dist == _NOT_REACHABLE:
-            return -1
-        else:
-            return dist
+        left = self.get_topmost_concrete_base(schema)
+        right = other.get_topmost_concrete_base(schema)
+        return s_casts.get_implicit_cast_distance(schema, left, right)
 
     def find_common_implicitly_castable_type(
             self, other: s_types.Type,
@@ -140,94 +136,13 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
         if self.is_polymorphic(schema) and other.is_polymorphic(schema):
             return self
 
-        left = str(self.get_topmost_concrete_base(schema).get_name(schema))
-        right = str(other.get_topmost_concrete_base(schema).get_name(schema))
+        left = self.get_topmost_concrete_base(schema)
+        right = other.get_topmost_concrete_base(schema)
 
         if left == right:
-            return schema.get(left)
-
-        result = _find_common_castable_type_impl(left, right)
-        if result is not None:
-            return schema.get(result)
-
-
-# source -> target   (source can be implicitly casted into target)
-_implicit_numeric_cast_map = {
-    'std::int16': 'std::int32',
-    'std::int32': 'std::int64',
-    'std::int64': {'std::float64', 'std::decimal'},
-    'std::float32': 'std::float64',
-    'std::float64': None,
-    'std::decimal': None,
-}
-
-
-_NOT_REACHABLE = 10000000
-
-
-def _is_reachable(graph, source: str, target: str, distance: int) -> int:
-
-    if source == target:
-        return distance
-
-    while True:
-        distance += 1
-        source = graph.get(source)
-        if source is None:
-            return _NOT_REACHABLE
-        elif source == target:
-            return distance
-        elif isinstance(source, set):
-            return min(
-                _is_reachable(graph, s, target, distance) for s in source)
-
-
-@functools.lru_cache()
-def _get_implicit_cast_distance_impl(source: str, target: str) -> bool:
-    dist = _is_reachable(_implicit_numeric_cast_map, source, target, 0)
-    return dist
-
-
-@functools.lru_cache()
-def _find_common_castable_type_impl(
-        source: str, target: str) -> typing.Optional[str]:
-
-    if _get_implicit_cast_distance_impl(target, source) != _NOT_REACHABLE:
-        return source
-    if _get_implicit_cast_distance_impl(source, target) != _NOT_REACHABLE:
-        return target
-
-    # Elevate target in the castability ladder, and check if
-    # source is castable to it on each step.
-    while True:
-        target = _implicit_numeric_cast_map.get(target)
-        if target is None:
-            return None
-        elif isinstance(target, set):
-            for t in target:
-                candidate = _find_common_castable_type_impl(source, t)
-                if candidate is not None:
-                    return candidate
-            else:
-                return None
-        elif (_get_implicit_cast_distance_impl(source, target) !=
-                _NOT_REACHABLE):
-            return target
-
-
-# target -> source   (source can be casted into target in assignment)
-_assignment_numeric_cast_map = {
-    'std::int16': 'std::int32',
-    'std::int32': 'std::int64',
-    'std::float32': 'std::float64',
-    'std::float64': 'std::decimal',
-}
-
-
-@functools.lru_cache()
-def _is_assignment_castable_impl(source: str, target: str) -> bool:
-    dist = _is_reachable(_assignment_numeric_cast_map, target, source, 0)
-    return dist != _NOT_REACHABLE
+            return left
+        else:
+            return s_casts.find_common_castable_type(schema, left, right)
 
 
 class ScalarTypeCommandContext(sd.ObjectCommandContext,

@@ -297,3 +297,11 @@ CREATE TYPE schema::Operator EXTENDING schema::CallableObject {
     CREATE PROPERTY schema::operator_kind -> schema::operator_kind_t;
     CREATE LINK schema::commutator -> schema::Operator;
 };
+
+
+CREATE TYPE schema::Cast EXTENDING schema::Object {
+    CREATE LINK schema::from_type -> schema::Type;
+    CREATE LINK schema::to_type -> schema::Type;
+    CREATE PROPERTY schema::allow_implicit -> std::bool;
+    CREATE PROPERTY schema::allow_assignment -> std::bool;
+};

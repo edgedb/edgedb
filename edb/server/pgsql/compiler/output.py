@@ -30,7 +30,6 @@ from edb.server.pgsql import ast as pgast
 from edb.server.pgsql import types as pgtypes
 
 from . import context
-from . import typecomp
 
 
 def named_tuple_as_json_object(expr, *, stype, env):
@@ -41,10 +40,12 @@ def named_tuple_as_json_object(expr, *, stype, env):
     for el_idx, (el_name, el_type) in enumerate(subtypes):
         keyvals.append(pgast.StringConstant(val=el_name))
 
-        type_sentinel = typecomp.cast(
-            pgast.NullConstant(),
-            source_type=el_type, target_type=el_type, force=True,
-            env=env)
+        type_sentinel = pgast.TypeCast(
+            arg=pgast.NullConstant(),
+            type_name=pgast.TypeName(
+                name=pgtypes.pg_type_from_object(env.schema, el_type)
+            )
+        )
 
         val = pgast.FuncCall(
             name=('edgedb', 'row_getattr_by_num'),

@@ -28,6 +28,7 @@ from edb.lang import schema as so
 
 from edb.lang.schema import abc as s_abc
 from edb.lang.schema import attributes as s_attrs
+from edb.lang.schema import casts as s_casts
 from edb.lang.schema import scalars as s_scalars
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import constraints as s_constr
@@ -76,6 +77,8 @@ class IntrospectionMech:
             schema = await self.read_modules(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_scalars(
+                schema, only_modules=modules, exclude_modules=exclude_modules)
+            schema = await self.read_casts(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_attributes(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
@@ -297,6 +300,39 @@ class IntrospectionMech:
                 schema, 'commutator', schema.get(commutator))
 
         self._operator_commutators.clear()
+        return schema
+
+    async def read_casts(self, schema, only_modules, exclude_modules):
+        self._operator_commutators.clear()
+
+        ds = datasources.schema
+        cast_list = await ds.casts.fetch(
+            self.connection, modules=only_modules,
+            exclude_modules=exclude_modules)
+
+        for row in cast_list:
+            name = sn.Name(row['name'])
+
+            cast_data = {
+                'id': row['id'],
+                'name': name,
+                'title': row['title'],
+                'description': row['description'],
+                'from_type': self.unpack_typeref(row['from_type'], schema),
+                'to_type': self.unpack_typeref(row['to_type'], schema),
+                'language': row['language'],
+                'return_typemod': row['return_typemod'],
+                'from_cast': row['from_cast'],
+                'from_function': row['from_function'],
+                'from_expr': row['from_expr'],
+                'allow_implicit': row['allow_implicit'],
+                'allow_assignment': row['allow_assignment'],
+                'code': row['code'],
+            }
+
+            schema, oper = s_casts.Cast.create_in_schema(
+                schema, **cast_data)
+
         return schema
 
     async def read_functions(self, schema, only_modules, exclude_modules):

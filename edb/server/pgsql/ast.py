@@ -450,6 +450,8 @@ class StringConstant(BaseConstant):
 class NullConstant(BaseConstant):
     """A NULL constant."""
 
+    nullable: bool = True
+
 
 class EscapedStringConstant(BaseConstant):
     """An "E"-prefixed string."""

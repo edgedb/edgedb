@@ -808,6 +808,33 @@ class DropOperator(DropObject, OperatorCommand):
     pass
 
 
+class CastCode(Clause):
+    language: Language
+    from_function: str
+    from_expr: bool
+    from_cast: bool
+    code: str
+
+
+class CastCommand(ObjectDDL):
+    from_type: TypeName
+    to_type: TypeName
+
+
+class CreateCast(CreateObject, CastCommand):
+    code: CastCode
+    allow_implicit: bool
+    allow_assignment: bool
+
+
+class AlterCast(AlterObject, CastCommand):
+    pass
+
+
+class DropCast(DropObject, CastCommand):
+    pass
+
+
 class SessionStateDecl(Expr):
     items: typing.List[BaseAlias]
 

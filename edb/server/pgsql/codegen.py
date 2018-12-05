@@ -643,7 +643,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.type_name)
 
     def visit_TypeName(self, node):
-        self.write(common.qname(*node.name))
+        self.write(common.quote_type(node.name))
         if node.array_bounds:
             for array_bound in node.array_bounds:
                 self.write('[')

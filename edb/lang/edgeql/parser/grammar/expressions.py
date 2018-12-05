@@ -1233,6 +1233,7 @@ class BaseName(Nonterm):
         self.val = [kids[0].val, kids[2].val]
 
 
+# Non-collection type.
 class SimpleTypeName(Nonterm):
     def reduce_NodeName(self, *kids):
         self.val = qlast.TypeName(maintype=kids[0].val)
@@ -1249,7 +1250,7 @@ class SimpleTypeNameList(ListNonterm, element=SimpleTypeName,
     pass
 
 
-class ExtTypeName(Nonterm):
+class CollectionTypeName(Nonterm):
     def reduce_NodeName_LANGBRACKET_RANGBRACKET(self, *kids):
         self.val = qlast.TypeName(
             maintype=kids[0].val,
@@ -1261,6 +1262,14 @@ class ExtTypeName(Nonterm):
             maintype=kids[0].val,
             subtypes=kids[2].val,
         )
+
+
+class TypeName(Nonterm):
+    def reduce_SimpleTypeName(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_CollectionTypeName(self, *kids):
+        self.val = kids[0].val
 
 
 # This is a type expression without angle brackets or parentheses
@@ -1286,10 +1295,7 @@ class TypeExpr(Nonterm):
 # This is a type expression with everything, it is meant to be used
 # inside parentheses or angle brackets.
 class FullTypeExpr(Nonterm):
-    def reduce_SimpleTypeName(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_ExtTypeName(self, *kids):
+    def reduce_TypeName(self, *kids):
         self.val = kids[0].val
 
     def reduce_FullTypeExpr_PIPE_FullTypeExpr(self, *kids):

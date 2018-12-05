@@ -22,8 +22,6 @@
 
 import typing
 
-from edb.lang.common import parsing
-
 from edb.lang.edgeql import functypes as ft
 
 from edb.lang.ir import ast as irast
@@ -38,6 +36,8 @@ from edb.lang.schema import utils as s_utils
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import errors
 
+from . import astutils
+from . import cast
 from . import context
 from . import dispatch
 from . import inference
@@ -46,7 +46,6 @@ from . import setgen
 from . import schemactx
 from . import stmtctx
 from . import typegen
-from . import viewgen
 
 from . import func  # NOQA
 
@@ -298,21 +297,11 @@ def compile_TupleElement(
     return element
 
 
-def make_tuple(
-        elements: typing.List[irast.TupleElement], *,
-        named: bool,
-        ctx: context.ContextLevel) -> irast.Tuple:
-
-    tup = irast.Tuple(elements=elements, named=named)
-    tup.stype = inference.infer_type(tup, env=ctx.env)
-    return tup
-
-
 @dispatch.compile.register(qlast.NamedTuple)
 def compile_NamedTuple(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     elements = [dispatch.compile(e, ctx=ctx) for e in expr.elements]
-    tup = make_tuple(elements, named=True, ctx=ctx)
+    tup = astutils.make_tuple(elements, named=True, ctx=ctx)
     return setgen.generated_set(tup, ctx=ctx)
 
 
@@ -328,7 +317,7 @@ def compile_Tuple(
         )
         elements.append(element)
 
-    tup = make_tuple(elements, named=False, ctx=ctx)
+    tup = astutils.make_tuple(elements, named=False, ctx=ctx)
     return setgen.generated_set(tup, ctx=ctx)
 
 
@@ -342,7 +331,8 @@ def compile_Array(
             raise errors.EdgeQLError(
                 f'nested arrays are not supported',
                 context=expr_el.context)
-    return setgen.generated_set(irast.Array(elements=elements), ctx=ctx)
+    return setgen.generated_set(
+        astutils.make_array(elements, ctx=ctx), ctx=ctx)
 
 
 @dispatch.compile.register(qlast.IfElse)
@@ -465,139 +455,9 @@ def compile_TypeCast(
             subctx.expr_exposed = True
             ir_expr = dispatch.compile(expr.expr, ctx=subctx)
 
-    return setgen.ensure_set(
-        _cast_expr(expr.type, ir_expr, ctx=ctx,
-                   source_context=expr.expr.context),
-        ctx=ctx
-    )
-
-
-def _cast_expr(
-        ql_type: qlast.TypeName, ir_expr: irast.Base, *,
-        source_context: parsing.ParserContext,
-        ctx: context.ContextLevel) -> irast.Base:
-    try:
-        orig_type = inference.infer_type(ir_expr, ctx.env)
-    except errors.EdgeQLError:
-        # It is possible that the source expression is unresolved
-        # if the expr is an empty set (or a coalesce of empty sets).
-        orig_type = None
-
-    new_type = typegen.ql_typeref_to_type(ql_type, ctx=ctx)
-    new_typeref = typegen.ql_typeref_to_ir_typeref(ql_type, ctx=ctx)
-    json_t = ctx.env.schema.get('std::json')
-
-    if isinstance(orig_type, s_abc.Tuple):
-        if new_type.issubclass(ctx.env.schema, json_t):
-            # Casting to std::json involves casting each tuple
-            # element and also keeping the cast around the whole tuple.
-            # This is to trigger the downstream logic of casting
-            # objects (in elements of the tuple).
-            elements = []
-            for i, n in enumerate(orig_type.element_types):
-                val = setgen.generated_set(
-                    irast.TupleIndirection(
-                        expr=ir_expr,
-                        name=n
-                    ),
-                    ctx=ctx
-                )
-                val.path_id = irutils.tuple_indirection_path_id(
-                    ir_expr.path_id, n, orig_type.element_types[n],
-                    schema=ctx.env.schema)
-
-                val_type = inference.infer_type(val, ctx.env)
-                # Element cast
-                val = _cast_expr(ql_type, val, ctx=ctx,
-                                 source_context=source_context)
-
-                elements.append(irast.TupleElement(name=n, val=val))
-
-            new_tuple = setgen.ensure_set(
-                make_tuple(elements, named=orig_type.named, ctx=ctx),
-                ctx=ctx
-            )
-
-            return setgen.ensure_set(
-                irast.TypeCast(expr=new_tuple, type=new_typeref), ctx=ctx)
-
-        else:
-            # For tuple-to-tuple casts we generate a new tuple
-            # to simplify things on sqlgen side.
-            if not isinstance(new_type, s_abc.Tuple):
-                raise errors.EdgeQLError(
-                    f'cannot cast tuple to '
-                    f'{new_type.get_name(ctx.env.schema)}',
-                    context=source_context)
-
-            if len(orig_type.element_types) != len(new_type.element_types):
-                raise errors.EdgeQLError(
-                    f'cannot cast to {new_type.get_name(ctx.env.schema)}: '
-                    f'number of elements is not the same',
-                    context=source_context)
-
-            new_names = list(new_type.element_types)
-
-            elements = []
-            for i, n in enumerate(orig_type.element_types):
-                val = setgen.generated_set(
-                    irast.TupleIndirection(
-                        expr=ir_expr,
-                        name=n
-                    ),
-                    ctx=ctx
-                )
-                val.path_id = irutils.tuple_indirection_path_id(
-                    ir_expr.path_id, n, orig_type.element_types[n],
-                    schema=ctx.env.schema)
-
-                val_type = inference.infer_type(val, ctx.env)
-                new_el_name = new_names[i]
-                if val_type != new_type.element_types[new_el_name]:
-                    # Element cast
-                    val = _cast_expr(ql_type.subtypes[i], val, ctx=ctx,
-                                     source_context=source_context)
-
-                elements.append(irast.TupleElement(name=new_el_name, val=val))
-
-            return make_tuple(named=new_type.named, elements=elements, ctx=ctx)
-
-    elif isinstance(ir_expr, irast.EmptySet):
-        # For the common case of casting an empty set, we simply
-        # generate a new EmptySet node of the requested type.
-        return irutils.new_empty_set(ctx.env.schema, stype=new_type,
-                                     alias=ir_expr.path_id.target_name.name)
-
-    elif (isinstance(ir_expr, irast.Set) and
-            isinstance(ir_expr.expr, irast.Array)):
-        if new_type.issubclass(ctx.env.schema, json_t):
-            el_type = ql_type
-        elif not isinstance(new_type, s_abc.Array):
-            raise errors.EdgeQLError(
-                f'cannot cast array to {new_type.get_name(ctx.env.schema)}',
-                context=source_context)
-        else:
-            el_type = ql_type.subtypes[0]
-
-        casted_els = []
-        for el in ir_expr.expr.elements:
-            el = _cast_expr(el_type, el, ctx=ctx,
-                            source_context=source_context)
-            casted_els.append(el)
-
-        ir_expr.expr = irast.Array(elements=casted_els)
-        return setgen.ensure_set(
-            irast.TypeCast(expr=ir_expr, type=new_typeref), ctx=ctx)
-
-    else:
-        if (new_type.issubclass(ctx.env.schema, json_t) and
-                ir_expr.path_id.is_objtype_path()):
-            # JSON casts of objects are special: we want the full shape
-            # and not just an identity.
-            viewgen.compile_view_shapes(ir_expr, ctx=ctx)
-
-        return setgen.ensure_set(
-            irast.TypeCast(expr=ir_expr, type=new_typeref), ctx=ctx)
+    new_stype = typegen.ql_typeref_to_type(expr.type, ctx=ctx)
+    return cast.compile_cast(
+        ir_expr, new_stype, ctx=ctx, srcctx=expr.expr.context)
 
 
 @dispatch.compile.register(qlast.TypeFilter)
@@ -700,18 +560,12 @@ def compile_set_op(
                 context=expr.context)
 
         if left_type != common_type:
-            left = setgen.ensure_set(
-                _cast_expr(typegen.type_to_ql_typeref(common_type, ctx=ctx),
-                           left, ctx=ctx, source_context=expr.context),
-                ctx=ctx
-            )
+            left = cast.compile_cast(
+                left, common_type, ctx=ctx, srcctx=expr.context)
 
         if right_type != common_type:
-            right = setgen.ensure_set(
-                _cast_expr(typegen.type_to_ql_typeref(common_type, ctx=ctx),
-                           right, ctx=ctx, source_context=expr.context),
-                ctx=ctx
-            )
+            right = cast.compile_cast(
+                right, common_type, ctx=ctx, srcctx=expr.context)
 
     setop = irast.SetOp(left=left, right=right, op=expr.op)
 

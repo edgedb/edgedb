@@ -399,3 +399,93 @@ std::`-` (l: std::timedelta, r: std::timedelta) -> std::timedelta
 CREATE PREFIX OPERATOR
 std::`-` (v: std::timedelta) -> std::timedelta
     FROM SQL OPERATOR r'-';
+
+
+## Date/time casts
+## ---------------
+
+CREATE CAST FROM std::datetime TO std::naive_datetime
+    FROM SQL CAST;
+
+
+CREATE CAST FROM std::datetime TO std::naive_date
+    FROM SQL CAST;
+
+
+CREATE CAST FROM std::datetime TO std::naive_time
+    FROM SQL CAST;
+
+
+CREATE CAST FROM std::naive_datetime TO std::naive_date
+    FROM SQL CAST;
+
+
+CREATE CAST FROM std::naive_datetime TO std::naive_time
+    FROM SQL CAST;
+
+
+CREATE CAST FROM std::naive_date TO std::naive_datetime {
+    FROM SQL CAST;
+    ALLOW ASSIGNMENT;
+};
+
+
+## String casts
+
+CREATE CAST FROM std::str TO std::datetime {
+    FROM SQL CAST;
+    ALLOW ASSIGNMENT;
+};
+
+
+CREATE CAST FROM std::str TO std::naive_datetime {
+    FROM SQL CAST;
+    ALLOW ASSIGNMENT;
+};
+
+
+CREATE CAST FROM std::str TO std::naive_date {
+    FROM SQL CAST;
+    ALLOW ASSIGNMENT;
+};
+
+
+CREATE CAST FROM std::str TO std::naive_time {
+    FROM SQL CAST;
+    ALLOW ASSIGNMENT;
+};
+
+
+CREATE CAST FROM std::str TO std::timedelta {
+    FROM SQL CAST;
+    ALLOW ASSIGNMENT;
+};
+
+
+# Normalize [naive] datetime to text conversion to have
+# the same format as one would get by serializing to JSON.
+# Otherwise Postgres doesn't follow the ISO8601 standard
+# and uses ' ' instead of 'T' as a separator between date
+# and time.
+CREATE CAST FROM std::datetime TO std::str
+    FROM SQL $$
+    SELECT trim(to_json(val)::text, '"');
+    $$;
+
+
+CREATE CAST FROM std::naive_datetime TO std::str
+    FROM SQL $$
+    SELECT trim(to_json(val)::text, '"');
+    $$;
+
+
+CREATE CAST FROM std::naive_date TO std::str
+    FROM SQL CAST;
+
+
+CREATE CAST FROM std::naive_time TO std::str
+    FROM SQL CAST;
+
+
+CREATE CAST FROM std::timedelta TO std::str
+    FROM SQL CAST;

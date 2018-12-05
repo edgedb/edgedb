@@ -394,35 +394,27 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        try:
-            await self.assert_query_result(r'''
-                SELECT test::call11([<int16>1, <int16>22]);
-                SELECT test::call11([<int16>1, <int32>23]);
-                SELECT test::call11([<int32>1, <int32>24]);
-            ''', [
-                [23],
-                [24],
-                [25],
-            ])
+        await self.assert_query_result(r'''
+            SELECT test::call11([<int16>1, <int16>22]);
+            SELECT test::call11([<int16>1, <int32>23]);
+            SELECT test::call11([<int32>1, <int32>24]);
+        ''', [
+            [23],
+            [24],
+            [25],
+        ])
 
-            cases = [
-                'SELECT test::call11([<int32>1, 1.1]);',
-                'SELECT test::call11([<int32>1, <float32>1]);',
-                'SELECT test::call11([1, 2]);',
-            ]
+        cases = [
+            'SELECT test::call11([<int32>1, 1.1]);',
+            'SELECT test::call11([<int32>1, <float32>1]);',
+            'SELECT test::call11([1, 2]);',
+        ]
 
-            for c in cases:
-                with self.assertRaisesRegex(
-                        exc.EdgeQLError,
-                        r'could not find a function variant'):
-                    await self.con.execute(c)
-
-        finally:
-            await self.con.execute('''
-                DROP FUNCTION test::call11(
-                    a: array<int32>
-                );
-            ''')
+        for c in cases:
+            with self.assertRaisesRegex(
+                    exc.EdgeQLError,
+                    r'could not find a function variant'):
+                await self.con.execute(c)
 
     @unittest.expectedFailure
     async def test_edgeql_calls_12(self):
