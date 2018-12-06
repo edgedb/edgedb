@@ -17,10 +17,10 @@
 #
 
 
-import unittest
-
 from edb.server import _testbase as tb
 from edb.client import exceptions as exc
+
+from edb.tools import test
 
 
 class TestEdgeQLFuncCalls(tb.QueryTestCase):
@@ -132,7 +132,8 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 );
             ''')
 
-    @unittest.expectedFailure
+    @test.not_implemented(
+        'type of the "[]" default cannot be determined for array<anytype>')
     async def test_edgeql_calls_04(self):
         await self.con.execute('''
             CREATE FUNCTION test::call4(
@@ -416,7 +417,10 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                     r'could not find a function variant'):
                 await self.con.execute(c)
 
-    @unittest.expectedFailure
+    @test.not_implemented(
+        "this results in 2 PG functions: `(anynonarray)->bigint` and "
+        "`(bigint)->bigint`; PG fails with 'function is not unique' "
+        "at the call site")
     async def test_edgeql_calls_12(self):
         await self.con.execute('''
             CREATE FUNCTION test::call12(
@@ -670,7 +674,8 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 );
             ''')
 
-    @unittest.expectedFailure
+    @test.not_implemented(
+        "PG fails with 'return type record[] is not supported'")
     async def test_edgeql_calls_19(self):
         # XXX: Postgres raises the following error for this:
         #    return type record[] is not supported for SQL functions
@@ -964,7 +969,8 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 );
             ''')
 
-    @unittest.expectedFailure
+    @test.not_implemented(
+        "we get two `(anynonarray)->bigint` PG functions which is ambiguous")
     async def test_edgeql_calls_28(self):
         await self.con.execute('''
             CREATE FUNCTION test::call28(
@@ -1113,11 +1119,11 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 );
             ''')
 
-    # This fails in Postgres with
-    # function edgedb_test.call32(bigint[], smallint[]) does not exist
-    # To fix, polymorphic function calls must cast into a common type
-    # before calling.
-    @unittest.expectedFailure
+    @test.not_implemented(
+        "This fails in Postgres with "
+        "'function edgedb_test.call32(bigint[], smallint[]) does not exist'. "
+        "To fix, polymorphic function calls must cast into a common type "
+        "before calling.")
     async def test_edgeql_calls_32(self):
         await self.con.execute('''
             CREATE FUNCTION test::call32(
