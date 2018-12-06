@@ -32,6 +32,44 @@ from edb.server.pgsql import types as pgtypes
 from . import context
 
 
+def tuple_as_json_object(expr, *, stype, env):
+    if stype.named:
+        return named_tuple_as_json_object(expr, stype=stype, env=env)
+    else:
+        return unnamed_tuple_as_json_object(expr, stype=stype, env=env)
+
+
+def unnamed_tuple_as_json_object(expr, *, stype, env):
+    assert stype.is_tuple() and not stype.named
+
+    vals = []
+    subtypes = stype.get_subtypes()
+    for el_idx, el_type in enumerate(subtypes):
+        type_sentinel = pgast.TypeCast(
+            arg=pgast.NullConstant(),
+            type_name=pgast.TypeName(
+                name=pgtypes.pg_type_from_object(env.schema, el_type)
+            )
+        )
+
+        val = pgast.FuncCall(
+            name=('edgedb', 'row_getattr_by_num'),
+            args=[
+                expr,
+                pgast.NumericConstant(val=str(el_idx + 1)),
+                type_sentinel
+            ])
+
+        if el_type.is_tuple():
+            val = tuple_as_json_object(val, stype=el_type, env=env)
+
+        vals.append(val)
+
+    return pgast.FuncCall(
+        name=('edgedb', 'row_to_jsonb_array',), args=[expr],
+        null_safe=True, nullable=expr.nullable)
+
+
 def named_tuple_as_json_object(expr, *, stype, env):
     assert stype.is_tuple() and stype.named
 
@@ -54,6 +92,9 @@ def named_tuple_as_json_object(expr, *, stype, env):
                 pgast.NumericConstant(val=str(el_idx + 1)),
                 type_sentinel
             ])
+
+        if el_type.is_tuple():
+            val = tuple_as_json_object(val, stype=el_type, env=env)
 
         keyvals.append(val)
 
@@ -145,13 +186,7 @@ def serialize_expr_to_json(
             null_safe=True)
 
     elif path_id.target.is_tuple():
-        if path_id.target.named:
-            val = named_tuple_as_json_object(
-                expr, stype=path_id.target, env=env)
-        else:
-            val = pgast.FuncCall(
-                name=('edgedb', 'row_to_jsonb_array',), args=[expr],
-                null_safe=True)
+        val = tuple_as_json_object(expr, stype=path_id.target, env=env)
 
     elif not nested:
         val = pgast.FuncCall(

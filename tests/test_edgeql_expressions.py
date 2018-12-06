@@ -1529,14 +1529,15 @@ class TestExpressions(tb.QueryTestCase):
             [1],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_tuple_indirection_14(self):
         await self.assert_query_result(r"""
             SELECT [(a:=(b:=(c:=(e:=1))))][0].a;
             SELECT [(a:=(b:=(c:=(e:=1))))][0].0;
+            SELECT [(a:=(b:=(c:=(1,))))][0].0;
         """, [
             [{"b": {"c": {"e": 1}}}],
             [{"b": {"c": {"e": 1}}}],
+            [{"b": {"c": [1]}}],
         ])
 
     async def test_edgeql_expr_cannot_assign_dunder_type_01(self):
