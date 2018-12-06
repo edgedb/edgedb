@@ -272,6 +272,7 @@ class Markers(enum.Enum):
     skipped = 's'
     failed = 'F'
     xfailed = 'x'  # expected fail
+    not_implemented = '-'
     upassed = 'U'  # unexpected success
 
 
@@ -289,12 +290,12 @@ class BaseRenderer:
             marker.value: getattr(styles, f'marker_{marker.name}')
             for marker in Markers}
 
-    def report(self, test, marker):
+    def report(self, test, marker, description=None):
         raise NotImplementedError
 
 
 class SimpleRenderer(BaseRenderer):
-    def report(self, test, marker):
+    def report(self, test, marker, description=None):
         click.echo(self.styles_map[marker.value](marker.value),
                    nl=False, file=self.stream)
 
@@ -306,15 +307,19 @@ class VerboseRenderer(BaseRenderer):
         Markers.skipped: 'SKIPPED',
         Markers.failed: 'FAILED',
         Markers.xfailed: 'expected failure',
+        Markers.not_implemented: 'not implemented',
         Markers.upassed: 'unexpected success',
     }
 
-    def _render_test(self, test, marker):
-        return f'{test}: {self.fullnames[marker]}'
+    def _render_test(self, test, marker, description):
+        if description:
+            return f'{test}: {self.fullnames[marker]}: {description}'
+        else:
+            return f'{test}: {self.fullnames[marker]}'
 
-    def report(self, test, marker):
+    def report(self, test, marker, description=None):
         style = self.styles_map[marker.value]
-        click.echo(style(self._render_test(test, marker)),
+        click.echo(style(self._render_test(test, marker, description)),
                    file=self.stream)
 
 
@@ -341,7 +346,7 @@ class MultiLineRenderer(BaseRenderer):
         self.last_lines = -1
         self.max_lines = 0
 
-    def report(self, test, marker):
+    def report(self, test, marker, description=None):
         if marker in {Markers.failed, Markers.errored}:
             self.failed_tests.append(test.id().rpartition('.')[2])
 
@@ -489,6 +494,7 @@ class ParallelTextTestResult(unittest.result.TestResult):
         self.failfast = failfast
         self.test_stats = []
         self.warnings = []
+        self.notImplemented = []
         # An index of all seen warnings to keep track
         # of repeated warnings.
         self._warnings = {}
@@ -536,8 +542,17 @@ class ParallelTextTestResult(unittest.result.TestResult):
         self.ren.report(test, Markers.skipped)
 
     def addExpectedFailure(self, test, err):
-        super().addExpectedFailure(test, err)
-        self.ren.report(test, Markers.xfailed)
+        method = getattr(test, test._testMethodName)
+        reason = getattr(method, '__et_xfail_reason__', None)
+        not_impl = getattr(method, '__et_xfail_not_implemented__', False)
+        marker = Markers.not_implemented if not_impl else Markers.xfailed
+        if not_impl:
+            self.notImplemented.append(
+                (test, self._exc_info_to_string(err, test)))
+        else:
+            super().addExpectedFailure(test, err)
+
+        self.ren.report(test, marker, reason)
 
     def addUnexpectedSuccess(self, test):
         super().addUnexpectedSuccess(test)
@@ -705,11 +720,17 @@ class ParallelTextTestRunner:
 
         counts = [('tests ran', result.testsRun)]
 
+        display = {
+            'expectedFailures': 'expected failures',
+            'notImplemented': 'not implemented',
+            'unexpectedSuccesses': 'unexpected successes',
+        }
+
         for bit in ['failures', 'errors', 'expectedFailures',
-                    'unexpectedSuccesses', 'skipped']:
+                    'notImplemented', 'unexpectedSuccesses', 'skipped']:
             count = len(getattr(result, bit))
             if count:
-                counts.append((bit, count))
+                counts.append((display.get(bit, bit), count))
 
         for bit, count in counts:
             self._echo(f'  {bit}: ', nl=False)

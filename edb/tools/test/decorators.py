@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2017-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,19 +17,21 @@
 #
 
 
-import click
+import unittest
 
 
-__all__ = ()
+def xfail(reason):
+    def decorator(test_item):
+        test_item.__et_xfail_reason__ = reason
+        return unittest.expectedFailure(test_item)
+
+    return decorator
 
 
-marker_passed = lambda t: t
-marker_errored = lambda t: click.style(t, fg='red', bold=True)
-marker_skipped = lambda t: click.style(t, fg='yellow')
-marker_failed = lambda t: click.style(t, fg='red', bold=True)
-marker_xfailed = lambda t: t
-marker_not_implemented = lambda t: t
-marker_upassed = lambda t: click.style(t, fg='yellow')
+def not_implemented(reason):
+    def decorator(test_item):
+        test_item.__et_xfail_reason__ = reason
+        test_item.__et_xfail_not_implemented__ = True
+        return unittest.expectedFailure(test_item)
 
-status = lambda t: click.style(t, fg='white', bold=True)
-warning = lambda t: click.style(t, fg='yellow')
+    return decorator
