@@ -63,6 +63,16 @@ def compile_cast(
 
     if orig_stype == new_stype:
         return ir_set
+    elif orig_stype.is_object_type() and new_stype.is_object_type():
+        # Object types cannot be cast between themselves,
+        # as cast is a _constructor_ operation, and the only
+        # valid way to construct an object is to INSERT it.
+        raise errors.EdgeQLError(
+            f'cannot cast object type '
+            f'{orig_stype.get_displayname(ctx.env.schema)!r} '
+            f'to {new_stype.get_displayname(ctx.env.schema)!r}, use '
+            f'`...[IS {new_stype.get_displayname(ctx.env.schema)}]` instead',
+            context=srcctx)
 
     if isinstance(ir_set.expr, irast.Array):
         return _cast_array_literal(

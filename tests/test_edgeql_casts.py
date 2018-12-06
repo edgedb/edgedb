@@ -866,6 +866,14 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 SELECT <tuple<int64, anytype>>(123, 123);
             """)
 
+    async def test_edgeql_casts_illegal_09(self):
+        with self.assertRaisesRegex(
+                exc.EdgeQLError,
+                r"cannot cast.*std::Object.*use.*IS schema::Object.*"):
+            await self.con.execute("""
+                SELECT <schema::Object>std::Object;
+            """)
+
     # NOTE: json is a special type as it has its own type system. A
     # json value can be JSON array, object, boolean, number, string or
     # null. All of these JSON types have their own semantics. Casting
