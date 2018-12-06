@@ -18,11 +18,12 @@
 
 
 import os.path
-import unittest  # NOQA
 
 from edb.server import _testbase as tb
+from edb.tools import test
 
 
+@test.not_implemented('GROUP statement is not yet implemented')
 class TestEdgeQLGroup(tb.QueryTestCase):
     '''These tests are focused on using GROUP statement.'''
 
@@ -35,7 +36,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'groups_setup.eql')
 
-    @unittest.expectedFailure
     async def test_edgeql_group_simple_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -48,7 +48,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             {4, 2},
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_simple_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -63,7 +62,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             {3, 1},
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_simple_03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -77,7 +75,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             {3, 1},
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_simple_04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -92,7 +89,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             {3, 1},
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_simple_05(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -107,7 +103,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             {2, 1},
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_simple_06(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -122,7 +117,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             {2, 1},
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_by_01(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -144,7 +138,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_by_02(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -167,7 +160,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_result_alias_01(self):
         await self.assert_query_result(r'''
             # re-use the same "_" alias in nested scope
@@ -197,7 +189,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             [{'count': 1, 'te': [True]}, {'count': 3, 'te': []}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_result_alias_02(self):
         await self.assert_query_result(r'''
             # re-use the same "_" alias in nested scope
@@ -217,7 +208,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             [{'count': 1, 'te': [True]}, {'count': 3, 'te': []}],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_nested_01(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -263,7 +253,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             },
         ]])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_returning_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -279,7 +268,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             [42, 42],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_returning_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -295,7 +283,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             [1, 3, 42, 42],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_returning_03(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -321,7 +308,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_returning_04(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -353,7 +339,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_returning_05(self):
         await self.assert_query_result(r'''
             # a trivial group that is actually not doing anything
@@ -380,7 +365,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_returning_06(self):
         await self.assert_query_result(r'''
             # a trivial group that is actually not doing anything
@@ -407,7 +391,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_returning_07(self):
         await self.assert_query_result(r'''
             # Nominate a leader in each group from among the group.
@@ -496,7 +479,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_returning_08(self):
         await self.assert_query_result(r'''
             # Nominate a leader in each group from among the group.
@@ -581,7 +563,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_returning_09(self):
         await self.assert_query_result(r'''
             # Nominate a leader in each group from among the group.
@@ -664,7 +645,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_by_tuple_01(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -692,7 +672,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_by_multiple_01(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -724,7 +703,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_by_multiple_02(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -752,7 +730,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_by_multiple_03(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -785,7 +762,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_by_multiple_04(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -823,7 +799,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_by_multiple_05(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -862,7 +837,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_by_multiple_06(self):
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -900,7 +874,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_by_multiple_07(self):
         await self.assert_query_result(r"""
             WITH MODULE cards
@@ -923,7 +896,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             [['Dragon'], 11]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_linkproperty_simple_01(self):
         await self.assert_query_result(r"""
             # group by link property
@@ -960,7 +932,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_linkproperty_simple_02(self):
         await self.assert_query_result(r"""
             # use link property inside a group aggregate
@@ -1003,7 +974,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
 
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_linkproperty_simple_03(self):
         await self.assert_query_result(r"""
             # group by link property
@@ -1030,7 +1000,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_linkproperty_nested_01(self):
         await self.assert_query_result(r"""
             WITH MODULE cards
@@ -1101,10 +1070,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         ])
 
-    # XXX: once GROUP is working we'll need some test for a GROUP
-    # nested inside a GROUP
-
-    @unittest.expectedFailure
     async def test_edgeql_group_linkproperty_multiple_01(self):
         await self.assert_query_result(r"""
             WITH
@@ -1159,7 +1124,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_group_scalar_01(self):
         await self.assert_query_result(r"""
             WITH

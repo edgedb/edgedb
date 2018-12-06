@@ -543,8 +543,14 @@ class ParallelTextTestResult(unittest.result.TestResult):
 
     def addExpectedFailure(self, test, err):
         method = getattr(test, test._testMethodName)
-        reason = getattr(method, '__et_xfail_reason__', None)
-        not_impl = getattr(method, '__et_xfail_not_implemented__', False)
+        try:
+            reason = method.__et_xfail_reason__
+            not_impl = getattr(method, '__et_xfail_not_implemented__', False)
+        except AttributeError:
+            # Maybe the whole test case class is decorated?
+            reason = getattr(test, '__et_xfail_reason__', None)
+            not_impl = getattr(test, '__et_xfail_not_implemented__', False)
+
         marker = Markers.not_implemented if not_impl else Markers.xfailed
         if not_impl:
             self.notImplemented.append(
