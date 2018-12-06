@@ -93,7 +93,7 @@ class TestSession(tb.QueryTestCase):
 
     async def test_session_set_command_03(self):
         await self.assert_query_result("""
-            SET MODULE foo, bar := MODULE default;
+            SET MODULE foo, ALIAS bar AS MODULE default;
 
             SELECT (Entity.name, bar::User.name);
         """, [
@@ -108,7 +108,7 @@ class TestSession(tb.QueryTestCase):
                 err.EdgeQLError,
                 'expression aliases in SET are not supported yet'):
             await self.assert_query_result("""
-                SET foo := 1 + 1;
+                SET CONFIG foo := 1 + 1;
             """, [
                 None,
             ])
@@ -116,9 +116,9 @@ class TestSession(tb.QueryTestCase):
     async def test_session_set_command_05(self):
         # Check that local WITH overrides the session level setting.
         await self.assert_query_result("""
-            SET MODULE default, bar := MODULE foo;
+            SET MODULE default, ALIAS bar AS MODULE foo;
 
-            WITH MODULE foo, bar := MODULE default
+            WITH MODULE foo, bar AS MODULE default
             SELECT (Entity.name, bar::User.name);
         """, [
 

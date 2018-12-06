@@ -577,7 +577,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE MODULE foo;
             CREATE MODULE bar;
 
-            SET MODULE foo, b := MODULE bar;
+            SET MODULE foo, ALIAS b AS MODULE bar;
 
             CREATE SCALAR TYPE foo_t EXTENDING int64 {
                 CREATE CONSTRAINT expression ON (__subject__ > 0);

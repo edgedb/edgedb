@@ -100,17 +100,31 @@ class SortExpr(Clause):
 
 
 class BaseAlias(Clause):
-    pass
+    alias: str
 
 
 class AliasedExpr(BaseAlias):
     expr: Expr
-    alias: str
 
 
 class ModuleAliasDecl(BaseAlias):
     module: str
-    alias: str
+
+
+class BaseSessionSetting:
+    pass
+
+
+class SessionSettingModuleDecl(ModuleAliasDecl, BaseSessionSetting):
+    pass
+
+
+class SessionSettingConfigDecl(AliasedExpr, BaseSessionSetting):
+    pass
+
+
+class SetSessionState(Expr):
+    items: typing.List[BaseSessionSetting]
 
 
 class BaseObjectRef(Expr):
@@ -833,10 +847,6 @@ class AlterCast(AlterObject, CastCommand):
 
 class DropCast(DropObject, CastCommand):
     pass
-
-
-class SessionStateDecl(Expr):
-    items: typing.List[BaseAlias]
 
 
 class _Optional(Expr):

@@ -73,7 +73,7 @@ async def plan_statement(stmt, backend, flags={}, *, timer):
         # BEGIN/COMMIT
         return TransactionStatement(stmt)
 
-    elif isinstance(stmt, qlast.SessionStateDecl):
+    elif isinstance(stmt, qlast.SetSessionState):
         # SET ...
         with timer.timeit('compile_eql_to_ir'):
             ir = ql_compiler.compile_ast_to_ir(

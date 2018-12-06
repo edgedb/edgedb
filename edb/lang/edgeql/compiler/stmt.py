@@ -354,16 +354,16 @@ def compile_DeleteQuery(
     return result
 
 
-@dispatch.compile.register(qlast.SessionStateDecl)
-def compile_SessionStateDecl(
-        decl: qlast.SessionStateDecl, *,
+@dispatch.compile.register(qlast.SetSessionState)
+def compile_SetSessionState(
+        decl: qlast.SetSessionState, *,
         ctx: context.ContextLevel) -> irast.SessionStateCmd:
 
     aliases = {}
     testmode = False
 
     for item in decl.items:
-        if isinstance(item, qlast.ModuleAliasDecl):
+        if isinstance(item, qlast.SessionSettingModuleDecl):
             try:
                 module = ctx.env.schema.get(item.module)
             except s_err.ItemNotFoundError:
@@ -374,7 +374,8 @@ def compile_SessionStateDecl(
 
             aliases[item.alias] = module
 
-        elif item.alias == '__internal_testmode':
+        elif (isinstance(item, qlast.SessionSettingConfigDecl) and
+                item.alias == '__internal_testmode'):
             try:
                 testmode_ir = dispatch.compile(item.expr, ctx=ctx)
                 testmode = ireval.evaluate_to_python_val(

@@ -29,6 +29,7 @@ UNRESERVED_KEYWORD, RESERVED_KEYWORD, TYPE_FUNC_NAME_KEYWORD = keyword_types
 unreserved_keywords = frozenset([
     "abstract",
     "after",
+    "alias",
     "allow",
     "as",
     "asc",
@@ -38,6 +39,7 @@ unreserved_keywords = frozenset([
     "by",
     "cardinality",
     "cast",
+    "config",
     "constraint",
     "database",
     "default",
@@ -121,7 +123,6 @@ future_reserved_keywords = frozenset([
 ])
 
 
-# NOTE: all operators are made into RESERVED keywords for reasons of style.
 reserved_keywords = future_reserved_keywords | frozenset([
     "__source__",
     "__subject__",

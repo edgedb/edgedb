@@ -32,8 +32,19 @@ class SessionStmt(Nonterm):
 
 
 class SetDecl(Nonterm):
-    def reduce_AliasDecl(self, *kids):
-        self.val = kids[0].val
+    def reduce_ALIAS_Identifier_AS_MODULE_ModuleName(self, *kids):
+        self.val = qlast.SessionSettingModuleDecl(
+            module='.'.join(kids[4].val),
+            alias=kids[1].val)
+
+    def reduce_MODULE_ModuleName(self, *kids):
+        self.val = qlast.SessionSettingModuleDecl(
+            module='.'.join(kids[1].val))
+
+    def reduce_CONFIG_Identifier_ASSIGN_Expr(self, *kids):
+        self.val = qlast.SessionSettingConfigDecl(
+            alias=kids[1].val,
+            expr=kids[3].val)
 
 
 class SetDeclList(ListNonterm, element=SetDecl,
@@ -43,6 +54,6 @@ class SetDeclList(ListNonterm, element=SetDecl,
 
 class SetStmt(Nonterm):
     def reduce_SET_SetDeclList(self, *kids):
-        self.val = qlast.SessionStateDecl(
+        self.val = qlast.SetSessionState(
             items=kids[1].val
         )

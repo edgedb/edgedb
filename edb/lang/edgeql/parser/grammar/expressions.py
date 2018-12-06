@@ -227,7 +227,7 @@ class AliasDecl(Nonterm):
         self.val = qlast.ModuleAliasDecl(
             module='.'.join(kids[1].val))
 
-    def reduce_Identifier_ASSIGN_MODULE_ModuleName(self, *kids):
+    def reduce_Identifier_AS_MODULE_ModuleName(self, *kids):
         self.val = qlast.ModuleAliasDecl(
             alias=kids[0].val,
             module='.'.join(kids[3].val))

@@ -1752,7 +1752,7 @@ aa';
         """
         WITH
             MODULE test,
-            extra := MODULE lib.extra,
+            extra AS MODULE lib.extra,
             foo := Bar.foo,
             baz := (SELECT extra::Foo.baz)
         SELECT Bar {
@@ -3305,12 +3305,12 @@ aa';
 
     def test_edgeql_syntax_set_command_02(self):
         """
-        SET foo := MODULE default;
+        SET ALIAS foo AS MODULE default;
         """
 
     def test_edgeql_syntax_set_command_03(self):
         """
-        SET MODULE default, foo := (SELECT User);
+        SET MODULE default, CONFIG foo := (SELECT User);
         """
 
     def test_edgeql_syntax_ddl_view_01(self):
