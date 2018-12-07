@@ -24,6 +24,16 @@
 # for each permutation of common integer and floating-point
 # operand types to avoid casting overhead, as these operations
 # are very common.
+#
+# Our implicit casts do not coincide with PostgreSQL. In particular we
+# do not implicitly cast floats into decimals. The philosophy behind
+# that is that using decimal arithmetic should be opt-in. On the other
+# hand, if decimals are used they should not be accidentally switched
+# to floating point arithmetic. One of the consequences of this is
+# that we need to explicitly define operators for every legal
+# combination of floats and decimals (this concerns comparison
+# operators) as unlike PostgreSQL we cannot rely on every kind of
+# number casting implicitly into decimal.
 
 # EQUALITY
 
@@ -158,12 +168,22 @@ std::`?=` (l: OPTIONAL std::float64, r: OPTIONAL std::float64) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::decimal, r: std::decimal) -> std::bool
+std::`=` (l: std::decimal, r: std::anyreal) -> std::bool
     FROM SQL OPERATOR r'=';
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::decimal, r: OPTIONAL std::decimal) -> std::bool
+std::`?=` (l: OPTIONAL std::decimal, r: OPTIONAL std::anyreal) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`=` (l: std::anyreal, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR r'=';
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL std::anyreal, r: OPTIONAL std::decimal) -> std::bool
     FROM SQL EXPRESSION;
 
 
@@ -300,12 +320,22 @@ std::`?!=` (l: OPTIONAL std::float64, r: OPTIONAL std::float64) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::decimal, r: std::decimal) -> std::bool
+std::`!=` (l: std::decimal, r: std::anyreal) -> std::bool
     FROM SQL OPERATOR r'<>';
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::decimal, r: OPTIONAL std::decimal) -> std::bool
+std::`?!=` (l: OPTIONAL std::decimal, r: OPTIONAL std::anyreal) -> std::bool
+    FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`!=` (l: std::anyreal, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR r'<>';
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL std::anyreal, r: OPTIONAL std::decimal) -> std::bool
     FROM SQL EXPRESSION;
 
 
@@ -378,16 +408,35 @@ std::`>` (l: std::float64, r: std::float64) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::anyreal, r: std::decimal) -> std::bool
+std::`>` (l: std::decimal, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR r'>';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::float64, r: std::decimal) -> std::bool
     FROM SQL $$
-        SELECT "l" > "r";
+    SELECT "l" > "r";
     $$;
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::decimal, r: std::anyreal) -> std::bool
+std::`>` (l: std::float32, r: std::decimal) -> std::bool
     FROM SQL $$
-        SELECT "l" > "r";
+    SELECT "l" > "r";
+    $$;
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::decimal, r: std::float64) -> std::bool
+    FROM SQL $$
+    SELECT "l" > "r";
+    $$;
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::decimal, r: std::float32) -> std::bool
+    FROM SQL $$
+    SELECT "l" > "r";
     $$;
 
 
@@ -459,16 +508,35 @@ std::`>=` (l: std::float64, r: std::float64) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::anyreal, r: std::decimal) -> std::bool
+std::`>=` (l: std::decimal, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR r'>=';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::float64, r: std::decimal) -> std::bool
     FROM SQL $$
-        SELECT "l" >= "r";
+    SELECT "l" >= "r";
     $$;
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::decimal, r: std::anyreal) -> std::bool
+std::`>=` (l: std::float32, r: std::decimal) -> std::bool
     FROM SQL $$
-        SELECT "l" >= "r";
+    SELECT "l" >= "r";
+    $$;
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::decimal, r: std::float64) -> std::bool
+    FROM SQL $$
+    SELECT "l" >= "r";
+    $$;
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::decimal, r: std::float32) -> std::bool
+    FROM SQL $$
+    SELECT "l" >= "r";
     $$;
 
 
@@ -540,16 +608,35 @@ std::`<` (l: std::float64, r: std::float64) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::anyreal, r: std::decimal) -> std::bool
+std::`<` (l: std::decimal, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR r'<';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::float64, r: std::decimal) -> std::bool
     FROM SQL $$
-        SELECT "l" < "r";
+    SELECT "l" < "r";
     $$;
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::decimal, r: std::anyreal) -> std::bool
+std::`<` (l: std::float32, r: std::decimal) -> std::bool
     FROM SQL $$
-        SELECT "l" < "r";
+    SELECT "l" < "r";
+    $$;
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::decimal, r: std::float64) -> std::bool
+    FROM SQL $$
+    SELECT "l" < "r";
+    $$;
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::decimal, r: std::float32) -> std::bool
+    FROM SQL $$
+    SELECT "l" < "r";
     $$;
 
 
@@ -621,16 +708,35 @@ std::`<=` (l: std::float64, r: std::float64) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::anyreal, r: std::decimal) -> std::bool
+std::`<=` (l: std::decimal, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR r'<=';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::float64, r: std::decimal) -> std::bool
     FROM SQL $$
-        SELECT "l" <= "r";
+    SELECT "l" <= "r";
     $$;
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::decimal, r: std::anyreal) -> std::bool
+std::`<=` (l: std::float32, r: std::decimal) -> std::bool
     FROM SQL $$
-        SELECT "l" <= "r";
+    SELECT "l" <= "r";
+    $$;
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::decimal, r: std::float64) -> std::bool
+    FROM SQL $$
+    SELECT "l" <= "r";
+    $$;
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::decimal, r: std::float32) -> std::bool
+    FROM SQL $$
+    SELECT "l" <= "r";
     $$;
 
 
@@ -804,7 +910,7 @@ std::`/` (l: std::int64, r: std::int64) -> std::float64
     # the common attributes of the SQL division operator while
     # overriding the main operator function.
     FROM SQL OPERATOR r'/';
-    FROM SQL 'SELECT l / (r::float8)';
+    FROM SQL 'SELECT "l" / ("r"::float8)';
 };
 
 
@@ -878,7 +984,7 @@ CREATE INFIX OPERATOR
 std::`//` (n: std::decimal, d: std::decimal) -> std::decimal
 {
     FROM SQL OPERATOR r'/';
-    FROM SQL 'SELECT floor(n / d)';
+    FROM SQL 'SELECT floor("n" / "d")';
 };
 
 
@@ -911,8 +1017,8 @@ std::`%` (n: std::int64, d: std::int64) -> std::int64
 CREATE INFIX OPERATOR
 std::`%` (n: std::float32, d: std::float32) -> std::float32
 {
-    # We cheat here a bit by copying the `/` operator,
-    # since there is no float % in Postgres.
+    # We cheat here a bit by copying most of SQL operator metadata
+    # from the `/` operator, since there is no float % in Postgres.
     FROM SQL OPERATOR r'/';
     FROM SQL FUNCTION 'edgedb.float4floormod';
 };
@@ -930,21 +1036,42 @@ CREATE INFIX OPERATOR
 std::`%` (n: std::decimal, d: std::decimal) -> std::decimal
 {
     FROM SQL OPERATOR r'%';
-    FROM SQL 'SELECT n - floor(n / d) * d';
+    FROM SQL 'SELECT n - floor("n" / "d") * "d"';
+};
+
+
+# need an explicit operator for int64 in order to guarantee the result
+# is float64 and not decimal
+CREATE INFIX OPERATOR
+std::`^` (n: std::int64, p: std::int64) -> std::float64
+{
+    # We cheat here a bit by copying most of SQL operator metadata
+    # from the `/` operator, since there is no int ^ in Postgres. The
+    # power operator can behave like a division (negative power),
+    # therefore it should have the same basic properties w.r.t. types,
+    # etc. We don't use an explicit cast of the result because
+    # Postgres will treat this as float8 already.
+    FROM SQL OPERATOR r'/';
+    FROM SQL 'SELECT ("n" ^ "p")';
+};
+
+
+CREATE INFIX OPERATOR
+std::`^` (n: std::float32, p: std::float32) -> std::float32
+{
+    # We cheat here a bit by copying most of SQL operator metadata
+    # from the `/` operator, since there is no float4 ^ in Postgres.
+    # The power operator can behave like a division (negative power),
+    # therefore it should have the same basic properties w.r.t. types,
+    # etc.
+    FROM SQL OPERATOR '/';
+    FROM SQL 'SELECT ("n" ^ "p")::float4';
 };
 
 
 CREATE INFIX OPERATOR
 std::`^` (n: std::float64, p: std::float64) -> std::float64
     FROM SQL OPERATOR '^';
-
-
-CREATE INFIX OPERATOR
-std::`^` (n: std::int64, p: std::int64) -> std::decimal
-{
-    FROM SQL OPERATOR '*';
-    FROM SQL 'SELECT n::numeric ^ p::numeric';
-};
 
 
 CREATE INFIX OPERATOR
@@ -965,6 +1092,12 @@ CREATE CAST FROM std::int16 TO std::int32 {
 
 
 CREATE CAST FROM std::int32 TO std::int64 {
+    FROM SQL CAST;
+    ALLOW IMPLICIT;
+};
+
+
+CREATE CAST FROM std::int16 TO std::float32 {
     FROM SQL CAST;
     ALLOW IMPLICIT;
 };

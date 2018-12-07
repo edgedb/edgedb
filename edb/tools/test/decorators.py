@@ -20,6 +20,9 @@
 import unittest
 
 
+skip = unittest.skip
+
+
 def xfail(reason):
     def decorator(test_item):
         test_item.__et_xfail_reason__ = reason

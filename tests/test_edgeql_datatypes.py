@@ -17,8 +17,6 @@
 #
 
 
-import unittest  # NOQA
-
 from edb.server import _testbase as tb
 from edb.client import exceptions as exc
 
@@ -92,8 +90,6 @@ class TestEdgeQLDT(tb.QueryTestCase):
             ['2017-10-09T13:11:00'],
         ])
 
-    @unittest.expectedFailure
-    # FIXME: naive_date becomes naive_datetime after arithmetic with timedelta
     async def test_edgeql_dt_naive_date_01(self):
         await self.assert_query_result('''
             SELECT <naive_date>'2017-10-10' + <timedelta>'1 day';

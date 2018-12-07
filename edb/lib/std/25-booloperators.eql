@@ -36,7 +36,7 @@
 CREATE INFIX OPERATOR
 std::`OR` (a: std::bool, b: std::bool) -> std::bool
     FROM SQL $$
-    SELECT (a OR b) AND (a::int | b ::int)::bool
+    SELECT ("a" OR "b") AND ("a"::int | "b"::int)::bool
     $$;
 
 

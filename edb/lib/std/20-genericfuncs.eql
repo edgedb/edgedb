@@ -151,7 +151,7 @@ std::any(vals: SET OF std::bool) -> std::bool
 # ----------
 
 CREATE FUNCTION
-std::round(val: std::decimal) -> std::decimal
+std::round(val: std::int64) -> std::float64
 {
     FROM SQL $$
     SELECT round("val")
@@ -161,6 +161,15 @@ std::round(val: std::decimal) -> std::decimal
 
 CREATE FUNCTION
 std::round(val: std::float64) -> std::float64
+{
+    FROM SQL $$
+    SELECT round("val")
+    $$;
+};
+
+
+CREATE FUNCTION
+std::round(val: std::decimal) -> std::decimal
 {
     FROM SQL $$
     SELECT round("val")

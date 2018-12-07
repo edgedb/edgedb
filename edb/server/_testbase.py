@@ -379,19 +379,20 @@ class BaseQueryTestCase(DatabaseTestCase):
         query = textwrap.dedent(query)
         return await self.con.execute(query)
 
-    async def assert_query_result(self, query, result):
+    async def assert_query_result(self, query, result, *, msg=None):
         res = await self.con.execute(query)
-        self.assert_data_shape(res, result)
+        self.assert_data_shape(res, result, message=msg)
         return res
 
-    async def assert_sorted_query_result(self, query, key, result):
+    async def assert_sorted_query_result(self, query, key, result, *,
+                                         msg=None):
         res = await self.con.execute(query)
         # sort the query result by using the supplied key
         for r in res:
             # don't bother sorting empty things
             if r:
                 r.sort(key=key)
-        self.assert_data_shape(res, result)
+        self.assert_data_shape(res, result, message=msg)
         return res
 
     @contextlib.contextmanager

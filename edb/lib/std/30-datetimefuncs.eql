@@ -278,8 +278,31 @@ std::`<=` (l: std::naive_date, r: std::naive_date) -> std::bool
 
 
 CREATE INFIX OPERATOR
+std::`+` (l: std::naive_date, r: std::timedelta) -> std::naive_date
+    FROM SQL $$
+    SELECT ("l" + "r")::date
+    $$;
+
+
+CREATE INFIX OPERATOR
+std::`+` (l: std::timedelta, r: std::naive_date) -> std::naive_date
+    FROM SQL $$
+    SELECT ("l" + "r")::date
+    $$;
+
+
+CREATE INFIX OPERATOR
+std::`-` (l: std::naive_date, r: std::timedelta) -> std::naive_date
+    FROM SQL $$
+    SELECT ("l" - "r")::date
+    $$;
+
+
+CREATE INFIX OPERATOR
 std::`-` (l: std::naive_date, r: std::naive_date) -> std::timedelta
-    FROM SQL OPERATOR r'-';
+    FROM SQL $$
+    SELECT make_interval(days => "l" - "r")
+    $$;
 
 
 # std::naive_time
@@ -338,6 +361,11 @@ std::`+` (l: std::timedelta, r: std::naive_time) -> std::naive_time
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::naive_time, r: std::timedelta) -> std::naive_time
+    FROM SQL OPERATOR r'-';
+
+
+CREATE INFIX OPERATOR
+std::`-` (l: std::naive_time, r: std::naive_time) -> std::timedelta
     FROM SQL OPERATOR r'-';
 
 

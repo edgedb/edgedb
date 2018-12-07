@@ -29,13 +29,14 @@ from edb.tools import edbcommands
 
 from .decorators import not_implemented
 from .decorators import xfail
+from .decorators import skip
 
 from . import loader
 from . import runner
 from . import styles
 
 
-__all__ = ('not_implemented', 'xfail')
+__all__ = ('not_implemented', 'xfail', 'skip')
 
 
 @edbcommands.command()

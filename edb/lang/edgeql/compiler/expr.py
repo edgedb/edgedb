@@ -356,6 +356,16 @@ def compile_IfElse(
 
     if_expr_type = inference.infer_type(if_expr, ctx.env)
     else_expr_type = inference.infer_type(else_expr, ctx.env)
+    cond_expr_type = inference.infer_type(condition, ctx.env)
+
+    # make sure that the condition is actually boolean
+    bool_t = ctx.env.schema.get('std::bool')
+    if not cond_expr_type.issubclass(ctx.env.schema, bool_t):
+        raise errors.EdgeQLError(
+            'if/else condition must be of type {}, got: {}'.format(
+                bool_t.get_displayname(ctx.env.schema),
+                cond_expr_type.get_displayname(ctx.env.schema)),
+            context=expr.context)
 
     result = if_expr_type.find_common_implicitly_castable_type(
         else_expr_type, schema=ctx.env.schema)
@@ -363,8 +373,8 @@ def compile_IfElse(
     if result is None:
         raise errors.EdgeQLError(
             'if/else clauses must be of related types, got: {}/{}'.format(
-                if_expr_type.get_name(ctx.env.schema),
-                else_expr_type.get_name(ctx.env.schema)),
+                if_expr_type.get_displayname(ctx.env.schema),
+                else_expr_type.get_displayname(ctx.env.schema)),
             context=expr.context)
 
     ifelse = irast.IfElseExpr(
@@ -472,7 +482,7 @@ def compile_TypeFilter(
     if not isinstance(arg_type, s_objtypes.ObjectType):
         raise errors.EdgeQLError(
             f'invalid type filter operand: '
-            f'{arg_type.get_name(ctx.env.schema)} '
+            f'{arg_type.get_displayname(ctx.env.schema)} '
             f'is not an object type',
             context=expr.expr.context)
 
@@ -480,7 +490,7 @@ def compile_TypeFilter(
     if not isinstance(typ, s_objtypes.ObjectType):
         raise errors.EdgeQLError(
             f'invalid type filter operand: '
-            f'{typ.get_name(ctx.env.schema)} is not an object type',
+            f'{typ.get_displayname(ctx.env.schema)} is not an object type',
             context=expr.type.context)
 
     return setgen.class_indirection_set(arg, typ, optional=False, ctx=ctx)
