@@ -327,6 +327,8 @@ def get_column(
     else:
         colname = colspec
 
+    ser_safe = False
+
     if nullable is None:
         if isinstance(rvar, pgast.RangeVar):
             # Range over a relation, we cannot infer nullability in
@@ -337,13 +339,19 @@ def get_column(
             col_idx = find_column_in_subselect_rvar(rvar, colname)
             if astutils.is_set_op_query(rvar.subquery):
                 nullables = []
+                ser_safes = []
                 astutils.for_each_query_in_set(
                     rvar.subquery,
-                    lambda q: nullables.append(
-                        q.target_list[col_idx].nullable))
+                    lambda q:
+                        (nullables.append(q.target_list[col_idx].nullable),
+                         ser_safes.append(q.target_list[col_idx].ser_safe))
+                )
                 nullable = any(nullables)
+                ser_safe = all(ser_safes)
             else:
-                nullable = rvar.subquery.target_list[col_idx].nullable
+                rt = rvar.subquery.target_list[col_idx]
+                nullable = rt.nullable
+                ser_safe = rt.ser_safe
 
         elif isinstance(rvar, pgast.RangeFunction):
             # Range over a function.
@@ -356,7 +364,7 @@ def get_column(
 
     name = [rvar.alias.aliasname, colname]
 
-    return pgast.ColumnRef(name=name, nullable=nullable)
+    return pgast.ColumnRef(name=name, nullable=nullable, ser_safe=ser_safe)
 
 
 def rvar_for_rel(

@@ -1222,7 +1222,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 for c in names},
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_scope_detached_02(self):
         # calculate some useful base expression
         names = await self.con.execute(r"""
@@ -1237,7 +1236,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             WITH
                 MODULE test,
                 # calculate some expression ("full" name)
-                U0 := User.name + <str>count(User.deck),
+                U0 := User.name ++ <str>count(User.deck),
                 # make a copy of U0 so that we can do cross product
                 U1 := U0
             SELECT U0 ++ ' vs ' ++ U1

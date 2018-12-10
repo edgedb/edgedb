@@ -436,6 +436,11 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write(' AS ')
             self.visit(node.alias)
 
+        if node.coldeflist:
+            self.write('(')
+            self.visit_list(node.coldeflist, newlines=False)
+            self.write(')')
+
     def visit_ColumnRef(self, node):
         names = node.name
         if isinstance(names[-1], pgast.Star):

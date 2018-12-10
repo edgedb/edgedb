@@ -66,7 +66,13 @@ class SetRVars:
 
 def new_simple_set_rvar(
         ir_set: irast.Set, rvar: pgast.BaseRangeVar,
-        aspects: typing.Iterable[str]=('value',)) -> SetRVars:
+        aspects: typing.Optional[typing.Iterable[str]]=None) -> SetRVars:
+
+    if aspects is None:
+        if ir_set.path_id.is_objtype_path():
+            aspects = ('source', 'value')
+        else:
+            aspects = ('value',)
 
     rvar = SetRVar(rvar=rvar, path_id=ir_set.path_id, aspects=aspects)
     return SetRVars(main=rvar, new=[rvar])
@@ -1285,8 +1291,8 @@ def process_set_as_expr(
 def process_set_as_func_expr(
         ir_set: irast.Set, stmt: pgast.Query, *,
         ctx: context.CompilerContextLevel) -> None:
-    with ctx.new() as newctx:
-        newctx.rel = stmt
+
+    with ctx.subrel() as newctx:
         newctx.expr_exposed = False
 
         expr = ir_set.expr
@@ -1338,7 +1344,7 @@ def process_set_as_func_expr(
             lateral=True,
             functions=[set_expr])
 
-        stmt.from_clause.append(func_rvar)
+        newctx.rel.from_clause.append(func_rvar)
 
         if len(colnames) == 1:
             set_expr = dbobj.get_column(
@@ -1373,7 +1379,7 @@ def process_set_as_func_expr(
 
             for element in set_expr.elements:
                 pathctx.put_path_value_var(
-                    stmt, element.path_id, element.val, env=ctx.env)
+                    newctx.rel, element.path_id, element.val, env=ctx.env)
 
     if (ctx.volatility_ref is not None and
             ctx.volatility_ref is not context.NO_VOLATILITY):
@@ -1384,13 +1390,20 @@ def process_set_as_func_expr(
             values=[pgast.ImplicitRowExpr(args=[ctx.volatility_ref])]
         )
         volatility_rvar = dbobj.rvar_for_rel(volatility_source, env=ctx.env)
-        relctx.rel_join(stmt, volatility_rvar, ctx=ctx)
+        relctx.rel_join(newctx.rel, volatility_rvar, ctx=ctx)
 
     pathctx.put_path_var_if_not_exists(
-        stmt, ir_set.path_id, set_expr, aspect='value', env=ctx.env)
+        newctx.rel, ir_set.path_id, set_expr, aspect='value', env=ctx.env)
+
+    aspects = ('value',)
+
+    func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
+    relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
+                        pull_namespace=False, aspects=aspects, ctx=ctx)
 
     rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-    return new_simple_set_rvar(ir_set, rvar)
+
+    return new_simple_set_rvar(ir_set, rvar, aspects=aspects)
 
 
 def process_set_as_agg_expr(
@@ -1519,7 +1532,8 @@ def process_set_as_agg_expr(
             name = common.schema_name_to_pg_name(expr.func_shortname)
 
         set_expr = pgast.FuncCall(
-            name=name, args=args, agg_order=agg_sort, agg_filter=agg_filter)
+            name=name, args=args, agg_order=agg_sort, agg_filter=agg_filter,
+            ser_safe=serialization_safe)
 
     if expr.func_initial_value is not None:
         if newctx.expr_exposed and serialization_safe:
@@ -1539,7 +1553,8 @@ def process_set_as_agg_expr(
 
         with ctx.subrel() as subctx:
             wrapper = subctx.rel
-            set_expr = pgast.CoalesceExpr(args=[stmt, iv])
+            set_expr = pgast.CoalesceExpr(
+                args=[stmt, iv], ser_safe=serialization_safe)
 
             pathctx.put_path_value_var(
                 wrapper, ir_set.path_id, set_expr, env=ctx.env)
@@ -1599,7 +1614,7 @@ def process_set_as_array_expr(
                     stmt, ir_element.path_id, env=ctx.env)
                 s_var = output.serialize_expr(
                     v_var, path_id=ir_element.path_id, env=ctx.env)
-            else:
+            elif isinstance(s_var, pgast.TupleVar):
                 s_var = output.serialize_expr(
                     s_var, path_id=ir_element.path_id, env=ctx.env)
 
@@ -1620,7 +1635,7 @@ def process_set_as_array_expr(
         stmt, ir_set.path_id, set_expr, env=ctx.env)
 
     if serializing:
-        s_set_expr = astutils.safe_array_expr(s_elements)
+        s_set_expr = astutils.safe_array_expr(s_elements, ser_safe=True)
 
         if irutils.is_empty_array_expr(ir_set.expr):
             s_set_expr = pgast.TypeCast(

@@ -697,7 +697,8 @@ def _get_path_output(
         else:
             alias = get_path_output_alias(path_id, aspect, env=env)
 
-            restarget = pgast.ResTarget(name=alias, val=ref)
+            restarget = pgast.ResTarget(
+                name=alias, val=ref, ser_safe=getattr(ref, 'ser_safe', False))
             if hasattr(rel, 'returning_list'):
                 rel.returning_list.append(restarget)
             else:
@@ -776,13 +777,14 @@ def get_path_serialized_output(
     ref = output.serialize_expr(ref, path_id=path_id, env=env)
     alias = get_path_output_alias(path_id, aspect, env=env)
 
-    restarget = pgast.ResTarget(name=alias, val=ref)
+    restarget = pgast.ResTarget(name=alias, val=ref, ser_safe=True)
     if hasattr(rel, 'returning_list'):
         rel.returning_list.append(restarget)
     else:
         rel.target_list.append(restarget)
 
-    result = pgast.ColumnRef(name=[alias], nullable=ref.nullable)
+    result = pgast.ColumnRef(
+        name=[alias], nullable=ref.nullable, ser_safe=True)
     rel.path_outputs[path_id, aspect] = result
     return result
 

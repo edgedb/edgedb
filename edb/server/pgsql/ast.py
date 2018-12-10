@@ -74,6 +74,7 @@ class BaseExpr(ImmutableBase):
     __ast_meta__ = {'nullable'}
 
     nullable: bool              # Whether the result can be NULL.
+    ser_safe: bool = False      # Whether ther expr is serialization-safe.
 
     def __init__(self, *, nullable: typing.Optional[bool]=None,
                  **kwargs) -> None:
@@ -164,6 +165,7 @@ RangeTypes = typing.Union[BaseRangeVar, _Ref]
 
 class BaseRelation(Base):
     name: str
+    nullable: bool              # Whether the result can be NULL.
 
 
 class Relation(BaseRelation, EdgeQLPathInfo):

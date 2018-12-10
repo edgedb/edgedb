@@ -87,6 +87,9 @@ class Type(so.Object, derivable.DerivableObjectBase, s_abc.Type):
     def is_scalar(self):
         return False
 
+    def is_collection(self):
+        return False
+
     def is_array(self):
         return False
 
@@ -216,6 +219,9 @@ class Collection(Type, s_abc.Collection):
 
     def contains_any(self):
         return any(st.contains_any() for st in self.get_subtypes())
+
+    def is_collection(self):
+        return True
 
     @property
     def is_virtual(self):

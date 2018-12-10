@@ -121,11 +121,12 @@ def join_condition(lref: pgast.ColumnRef, rref: pgast.ColumnRef) -> pgast.Base:
     return path_cond
 
 
-def safe_array_expr(elements: typing.List[pgast.Base]) -> pgast.Base:
-    result = pgast.ArrayExpr(elements=elements)
+def safe_array_expr(elements: typing.List[pgast.Base], **kwargs) -> pgast.Base:
+    result = pgast.ArrayExpr(elements=elements, **kwargs)
     if any(el.nullable for el in elements):
         result = pgast.FuncCall(
             name=('edgedb', '_nullif_array_nulls'),
-            args=[result]
+            args=[result],
+            **kwargs,
         )
     return result

@@ -32,6 +32,81 @@ from edb.server.pgsql import types as pgtypes
 from . import context
 
 
+def coll_as_json_object(expr, *, stype, env):
+    if stype.is_tuple():
+        return tuple_as_json_object(expr, stype=stype, env=env)
+    elif stype.is_array():
+        return array_as_json_object(expr, stype=stype, env=env)
+    else:
+        raise RuntimeError(f'{stype!r} is not a collection')
+
+
+def array_as_json_object(expr, *, stype, env):
+    if stype.element_type.is_tuple():
+        coldeflist = []
+        json_args = []
+        is_named = stype.element_type.named
+
+        for n, st in stype.element_type.iter_subtypes():
+            colname = env.aliases.get(str(n))
+            if is_named:
+                json_args.append(pgast.StringConstant(val=n))
+
+            val = pgast.ColumnRef(name=[colname])
+            if st.is_collection():
+                val = coll_as_json_object(val, stype=st, env=env)
+
+            json_args.append(val)
+
+            coldeflist.append(
+                pgast.ColumnDef(
+                    name=colname,
+                    typename=pgast.TypeName(
+                        name=pgtypes.pg_type_from_object(env.schema, st)
+                    )
+                )
+            )
+
+        if is_named:
+            json_func = 'jsonb_build_object'
+        else:
+            json_func = 'jsonb_build_array'
+
+        return pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(
+                    val=pgast.FuncCall(
+                        name=('jsonb_agg',),
+                        args=[
+                            pgast.FuncCall(
+                                name=(json_func,),
+                                args=json_args,
+                            )
+                        ]
+                    ),
+                    ser_safe=True,
+                )
+            ],
+            from_clause=[
+                pgast.RangeFunction(
+                    alias=pgast.Alias(
+                        aliasname=env.aliases.get('q'),
+                    ),
+                    coldeflist=coldeflist,
+                    functions=[
+                        pgast.FuncCall(
+                            name=('unnest',),
+                            args=[expr],
+                        )
+                    ]
+                )
+            ]
+        )
+    else:
+        return pgast.FuncCall(
+            name=('to_jsonb',), args=[expr], null_safe=True, ser_safe=True)
+
+
 def tuple_as_json_object(expr, *, stype, env):
     if stype.named:
         return named_tuple_as_json_object(expr, stype=stype, env=env)
@@ -60,14 +135,14 @@ def unnamed_tuple_as_json_object(expr, *, stype, env):
                 type_sentinel
             ])
 
-        if el_type.is_tuple():
-            val = tuple_as_json_object(val, stype=el_type, env=env)
+        if el_type.is_collection():
+            val = coll_as_json_object(val, stype=el_type, env=env)
 
         vals.append(val)
 
     return pgast.FuncCall(
         name=('edgedb', 'row_to_jsonb_array',), args=[expr],
-        null_safe=True, nullable=expr.nullable)
+        null_safe=True, ser_safe=True, nullable=expr.nullable)
 
 
 def named_tuple_as_json_object(expr, *, stype, env):
@@ -93,14 +168,14 @@ def named_tuple_as_json_object(expr, *, stype, env):
                 type_sentinel
             ])
 
-        if el_type.is_tuple():
-            val = tuple_as_json_object(val, stype=el_type, env=env)
+        if el_type.is_collection():
+            val = coll_as_json_object(val, stype=el_type, env=env)
 
         keyvals.append(val)
 
     return pgast.FuncCall(
         name=('jsonb_build_object',),
-        args=keyvals, null_safe=True, nullable=expr.nullable)
+        args=keyvals, null_safe=True, ser_safe=True, nullable=expr.nullable)
 
 
 def tuple_var_as_json_object(tvar, *, path_id, env):
@@ -111,7 +186,7 @@ def tuple_var_as_json_object(tvar, *, path_id, env):
                 serialize_expr(t.val, path_id=t.path_id, nested=True, env=env)
                 for t in tvar.elements
             ],
-            null_safe=True, nullable=tvar.nullable)
+            null_safe=True, ser_safe=True, nullable=tvar.nullable)
     else:
         keyvals = []
 
@@ -126,14 +201,15 @@ def tuple_var_as_json_object(tvar, *, path_id, env):
             keyvals.append(pgast.StringConstant(val=name))
             if isinstance(element.val, pgast.TupleVar):
                 val = serialize_expr(
-                    element.val, path_id=element.path_id, env=env)
+                    element.val, path_id=element.path_id, nested=True, env=env)
             else:
                 val = element.val
             keyvals.append(val)
 
         return pgast.FuncCall(
             name=('jsonb_build_object',),
-            args=keyvals, null_safe=True, nullable=tvar.nullable)
+            args=keyvals, null_safe=True, ser_safe=True,
+            nullable=tvar.nullable)
 
 
 def in_serialization_ctx(ctx: context.CompilerContextLevel) -> bool:
@@ -183,14 +259,14 @@ def serialize_expr_to_json(
     elif isinstance(expr, (pgast.RowExpr, pgast.ImplicitRowExpr)):
         val = pgast.FuncCall(
             name=('jsonb_build_array',), args=expr.args,
-            null_safe=True)
-
-    elif path_id.target.is_tuple():
-        val = tuple_as_json_object(expr, stype=path_id.target, env=env)
+            null_safe=True, ser_safe=True,)
 
     elif not nested:
-        val = pgast.FuncCall(
-            name=('to_jsonb',), args=[expr], null_safe=True)
+        if path_id.target.is_collection() and not expr.ser_safe:
+            val = coll_as_json_object(expr, stype=path_id.target, env=env)
+        else:
+            val = pgast.FuncCall(
+                name=('to_jsonb',), args=[expr], null_safe=True, ser_safe=True)
 
     else:
         val = expr

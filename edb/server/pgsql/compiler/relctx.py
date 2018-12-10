@@ -127,6 +127,8 @@ def include_rvar(
         stmt: pgast.Query, rvar: pgast.BaseRangeVar,
         path_id: irast.PathId, *,
         overwrite_path_rvar: bool=False,
+        pull_namespace: bool=True,
+        aspects: typing.Optional[typing.Iterable[str]]=None,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
     """Ensure that *rvar* is visible in *stmt* as a value/source aspect.
 
@@ -145,21 +147,25 @@ def include_rvar(
     :param ctx:
         Compiler context.
     """
-    if path_id.is_objtype_path():
-        aspects = ['source', 'value']
-    else:
-        aspects = ['value']
+    if aspects is None:
+        if path_id.is_objtype_path():
+            aspects = ('source', 'value')
+        else:
+            aspects = ('value',)
 
     return include_specific_rvar(
         stmt, rvar=rvar, path_id=path_id,
         overwrite_path_rvar=overwrite_path_rvar,
-        aspects=aspects, ctx=ctx)
+        pull_namespace=pull_namespace,
+        aspects=aspects,
+        ctx=ctx)
 
 
 def include_specific_rvar(
         stmt: pgast.Query, rvar: pgast.BaseRangeVar,
         path_id: irast.PathId, *,
         overwrite_path_rvar: bool=False,
+        pull_namespace: bool=True,
         aspects: typing.Iterable[str]=('value',),
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
     """Make the *aspect* of *path_id* visible in *stmt* as *rvar*.
@@ -182,9 +188,10 @@ def include_specific_rvar(
 
     if not has_rvar(stmt, rvar, ctx=ctx):
         rel_join(stmt, rvar, ctx=ctx)
-        # Make sure that the path namespace of *cte* is mapped
+        # Make sure that the path namespace of *rvar* is mapped
         # onto the path namespace of *stmt*.
-        pull_path_namespace(target=stmt, source=rvar, ctx=ctx)
+        if pull_namespace:
+            pull_path_namespace(target=stmt, source=rvar, ctx=ctx)
 
     for aspect in aspects:
         if overwrite_path_rvar:
@@ -193,6 +200,15 @@ def include_specific_rvar(
         else:
             pathctx.put_path_rvar_if_not_exists(
                 stmt, path_id, rvar, aspect=aspect, env=ctx.env)
+
+        scopes = [ctx.scope_tree]
+        parent_scope = ctx.scope_tree.parent
+        if parent_scope is not None:
+            scopes.append(parent_scope)
+
+        if not any(scope.path_id == path_id or
+                   scope.find_child(path_id) for scope in scopes):
+            stmt.path_id_mask.add(path_id)
 
     return rvar
 

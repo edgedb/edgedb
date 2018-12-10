@@ -526,9 +526,8 @@ def _compile_shape(
     for element in result.elements:
         # The ref might have already been added by the nested shape
         # processing, so add it conditionally.
-        pathctx.put_path_var_if_not_exists(
-            ctx.rel, element.path_id, element.val, aspect='serialized',
-            env=ctx.env)
+        pathctx.put_path_serialized_var_if_not_exists(
+            ctx.rel, element.path_id, element.val, env=ctx.env)
 
     ser_elements = []
     for el in result.elements:
