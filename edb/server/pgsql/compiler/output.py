@@ -272,7 +272,10 @@ def top_output_as_value(
         stmt_res = stmt.target_list[0]
 
         if stmt_res.name is None:
-            stmt_res.name = env.aliases.get('v')
+            stmt_res = stmt.target_list[0] = pgast.ResTarget(
+                name=env.aliases.get('v'),
+                val=stmt_res.val,
+            )
 
         new_val = pgast.FuncCall(
             name=('json_agg',),

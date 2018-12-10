@@ -21,6 +21,7 @@ import enum
 import typing
 
 from edb.lang.common import ast
+from edb.lang.common import typeutils
 from edb.lang.edgeql import ast as qlast
 from edb.lang.ir import ast as irast
 
@@ -50,14 +51,14 @@ class _Ref(Base):
         return f'<pg.{self.__class__.__name__} -> {self.node!r}>'
 
 
-class Alias(Base):
+class Alias(ImmutableBase):
     """Alias for a range variable."""
 
     aliasname: str              # aliased relation name
     colnames: typing.List[str]  # optional list of column aliases
 
 
-class Keyword(Base):
+class Keyword(ImmutableBase):
     """An SQL keyword that must be output without quoting."""
 
     name: str                   # Keyword name
@@ -82,15 +83,25 @@ class BaseExpr(ImmutableBase):
     def _is_nullable(self, kwargs: typing.Dict[str, object],
                      nullable: typing.Optional[bool]) -> bool:
         if nullable is None:
-            nullable = self._infer_nullability(kwargs)
+            default = type(self).get_field('nullable').default
+            if default is not None:
+                nullable = default
+            else:
+                nullable = self._infer_nullability(kwargs)
         return nullable
 
     def _infer_nullability(self, kwargs: typing.Dict[str, object]) -> bool:
         nullable = False
-        for v in kwargs.values():
-            if getattr(v, 'nullable', None):
+        for k, v in kwargs.items():
+            if typeutils.is_container(v):
+                nullable = all(getattr(vv, 'nullable', False) for vv in v)
+
+            elif getattr(v, 'nullable', None):
                 nullable = True
+
+            if nullable:
                 break
+
         return nullable
 
 
@@ -126,7 +137,7 @@ class EdgeQLPathInfo(Base):
     path_id_mask: typing.Set[irast.PathId]
 
 
-class BaseRangeVar(Base):
+class BaseRangeVar(BaseExpr):
     """Range variable, used in FROM clauses."""
 
     alias: Alias
@@ -180,7 +191,7 @@ class RangeVar(BaseRangeVar):
             return self.relation
 
 
-class TypeName(Base):
+class TypeName(ImmutableBase):
     """Type in definitions and casts."""
 
     name: typing.Tuple[str, ...]    # Type name
@@ -210,7 +221,7 @@ class ColumnRef(OutputVar):
 ColumnRefTypes = typing.Union[ColumnRef, _Ref]
 
 
-class TupleElement(Base):
+class TupleElement(ImmutableBase):
     path_id: irast.PathId
     name: typing.Union[OutputVar, str]
     val: Base
@@ -256,7 +267,7 @@ class NamedParamRef(BaseExpr):
     name: str
 
 
-class ResTarget(Base):
+class ResTarget(BaseExpr):
     """Query result target."""
 
     # Column name (optional)
@@ -267,7 +278,7 @@ class ResTarget(Base):
     val: Base
 
 
-class UpdateTarget(Base):
+class UpdateTarget(BaseExpr):
     """Query update target."""
 
     # column name (optional)
@@ -276,7 +287,7 @@ class UpdateTarget(Base):
     val: Base
 
 
-class InferClause(Base):
+class InferClause(BaseExpr):
 
     # IndexElems to infer unique index
     index_elems: list
@@ -286,7 +297,7 @@ class InferClause(Base):
     conname: str
 
 
-class OnConflictClause(Base):
+class OnConflictClause(BaseExpr):
 
     action: str
     infer: InferClause
@@ -500,7 +511,7 @@ class CollateClause(BaseExpr):
     collname: str
 
 
-class VariadicArgument(Base):
+class VariadicArgument(BaseExpr):
 
     expr: Base
     nullable: bool = False
@@ -537,32 +548,14 @@ class FuncCall(BaseExpr):
             nullable = True
         super().__init__(nullable=nullable, **kwargs)
 
-    def _is_nullable(self, kwargs: typing.Dict[str, object],
-                     nullable: typing.Optional[bool]) -> bool:
-        if nullable is None:
-            nullable = False
-            for k, v in kwargs.items():
-                if k == 'args':
-                    for arg in v:
-                        if getattr(arg, 'nullable', None):
-                            nullable = True
-                            break
-                if getattr(v, 'nullable', None):
-                    nullable = True
 
-                if nullable:
-                    break
-
-        return nullable
-
-
-class NamedFuncArg(Base):
+class NamedFuncArg(BaseExpr):
 
     name: str
     val: Base
 
 
-class Indices(Base):
+class Indices(ImmutableBase):
     """Array subscript or slice bounds."""
 
     # True, if slice
@@ -589,7 +582,7 @@ class ArrayExpr(BaseExpr):
     elements: typing.List[Base]
 
 
-class MultiAssignRef(Base):
+class MultiAssignRef(ImmutableBase):
     """UPDATE (a, b, c) = row-valued-expr."""
 
     # row-valued expression
@@ -598,7 +591,7 @@ class MultiAssignRef(Base):
     columns: typing.List[ColumnRefTypes]
 
 
-class SortBy(Base):
+class SortBy(ImmutableBase):
     """ORDER BY clause element."""
 
     # expression to sort on
@@ -609,7 +602,7 @@ class SortBy(Base):
     nulls: qlast.NonesOrder
 
 
-class WindowDef(Base):
+class WindowDef(ImmutableBase):
     """WINDOW and OVER clauses."""
 
     # window name
@@ -642,7 +635,7 @@ class RangeSubselect(BaseRangeVar):
             return self.subquery
 
 
-class ColumnDef(Base):
+class ColumnDef(ImmutableBase):
 
     # name of column
     name: str
@@ -697,7 +690,7 @@ class SubLinkType(enum.IntEnum):
     ANY = enum.auto()
 
 
-class SubLink(Base):
+class SubLink(ImmutableBase):
     """Subselect appearing in an expression."""
 
     # Type of sublink
@@ -713,6 +706,8 @@ class RowExpr(BaseExpr):
 
     # The fields.
     args: typing.List[Base]
+    # Row expressions, while may contain NULLs, are not NULL themselves.
+    nullable: bool = False
 
 
 class ImplicitRowExpr(BaseExpr):
@@ -720,6 +715,8 @@ class ImplicitRowExpr(BaseExpr):
 
     # The fields.
     args: typing.List[Base]
+    # Row expressions, while may contain NULLs, are not NULL themselves.
+    nullable: bool = False
 
 
 class CoalesceExpr(BaseExpr):
@@ -727,10 +724,6 @@ class CoalesceExpr(BaseExpr):
 
     # The arguments.
     args: typing.List[Base]
-
-    def _infer_nullability(self, kwargs: typing.Dict[str, object]) -> bool:
-        args = kwargs['args']
-        return all(getattr(v, 'nullable', False) for v in args)
 
 
 class NullTest(BaseExpr):
@@ -740,9 +733,11 @@ class NullTest(BaseExpr):
     arg: Base
     # NOT NULL?
     negated: bool
+    # NullTest is never NULL
+    nullable: bool = False
 
 
-class CaseWhen(Base):
+class CaseWhen(ImmutableBase):
 
     # Condition expression
     expr: Base

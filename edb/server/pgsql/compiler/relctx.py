@@ -301,8 +301,8 @@ def new_root_rvar(
 
         if ptr_info.table_type == 'ObjectType':
             # Inline link
-            rref = dbobj.get_column(
-                None, ptr_info.column_name,
+            rref = pgast.ColumnRef(
+                name=[ptr_info.column_name],
                 nullable=not ptrcls.get_required(ctx.env.schema))
             pathctx.put_rvar_path_bond(
                 set_rvar, ir_set.path_id.src_path())
@@ -384,7 +384,7 @@ def _new_mapped_pointer_rvar(
     else:
         src_col = common.edgedb_name_to_pg_name('std::source')
 
-    source_ref = dbobj.get_column(None, src_col, nullable=False)
+    source_ref = pgast.ColumnRef(name=[src_col], nullable=False)
 
     if isinstance(ptrcls, s_links.Link):
         # XXX: fix this once Properties are Sources
@@ -395,8 +395,8 @@ def _new_mapped_pointer_rvar(
     else:
         tgt_col = common.edgedb_name_to_pg_name('std::target')
 
-    target_ref = dbobj.get_column(
-        None, tgt_col,
+    target_ref = pgast.ColumnRef(
+        name=[tgt_col],
         nullable=not ptrcls.get_required(ctx.env.schema))
 
     if ir_ptr.direction == s_pointers.PointerDirection.Inbound:
@@ -632,8 +632,6 @@ def rel_join(
 
         query.from_clause[0] = pgast.JoinExpr(
             type=join_type, larg=larg, rarg=rarg, quals=condition)
-        if join_type == 'left':
-            right_rvar.nullable = True
 
     if not right_rvar.is_distinct:
         query.is_distinct = False

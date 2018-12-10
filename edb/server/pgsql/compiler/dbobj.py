@@ -30,6 +30,7 @@ from edb.server.pgsql import ast as pgast
 from edb.server.pgsql import common
 from edb.server.pgsql import types as pgtypes
 
+from . import astutils
 from . import context
 
 
@@ -305,28 +306,58 @@ def range_from_queryset(
     return rvar
 
 
+def find_column_in_subselect_rvar(rvar: pgast.BaseRangeVar, name: str) -> int:
+    # Range over a subquery, we can inspect the output list
+    # of the subquery.  If the subquery is a UNION (or EXCEPT),
+    # we take the leftmost non-setop query.
+    subquery = astutils.get_leftmost_query(rvar.subquery)
+    for i, rt in enumerate(subquery.target_list):
+        if rt.name == name:
+            return i
+
+    raise RuntimeError(f'cannot find {name!r} in {rvar} output')
+
+
 def get_column(
         rvar: pgast.BaseRangeVar,
         colspec: typing.Union[str, pgast.ColumnRef], *,
-        optional: bool=False, nullable: bool=None) -> pgast.ColumnRef:
+        nullable: bool=None) -> pgast.ColumnRef:
 
     if isinstance(colspec, pgast.ColumnRef):
         colname = colspec.name[-1]
-        if nullable is None:
-            nullable = colspec.nullable
-        optional = colspec.optional
     else:
         colname = colspec
-        if nullable is None:
-            # Assume the column is nullable unless told otherwise.
+
+    if nullable is None:
+        if isinstance(rvar, pgast.RangeVar):
+            # Range over a relation, we cannot infer nullability in
+            # this context, so assume it's true.
             nullable = True
 
-    if rvar is None:
-        name = [colname]
-    else:
-        name = [rvar.alias.aliasname, colname]
+        elif isinstance(rvar, pgast.RangeSubselect):
+            col_idx = find_column_in_subselect_rvar(rvar, colname)
+            if astutils.is_set_op_query(rvar.subquery):
+                nullables = []
+                astutils.for_each_query_in_set(
+                    rvar.subquery,
+                    lambda q: nullables.append(
+                        q.target_list[col_idx].nullable))
+                nullable = any(nullables)
+            else:
+                nullable = rvar.subquery.target_list[col_idx].nullable
 
-    return pgast.ColumnRef(name=name, nullable=nullable, optional=optional)
+        elif isinstance(rvar, pgast.RangeFunction):
+            # Range over a function.
+            # TODO: look into the possibility of inspecting coldeflist.
+            nullable = True
+
+        elif isinstance(rvar, pgast.JoinExpr):
+            raise RuntimeError(
+                f'cannot find {colname!r} in unexpected {rvar!r} range var')
+
+    name = [rvar.alias.aliasname, colname]
+
+    return pgast.ColumnRef(name=name, nullable=nullable)
 
 
 def rvar_for_rel(
@@ -353,9 +384,8 @@ def rvar_for_rel(
 
 
 def get_rvar_var(
-        rvar: typing.Optional[pgast.BaseRangeVar], var: pgast.OutputVar,
-        *, optional: bool=False, nullable: bool=None) \
-        -> typing.Union[pgast.ColumnRef, pgast.TupleVar]:
+        rvar: pgast.BaseRangeVar,
+        var: pgast.OutputVar) -> pgast.OutputVar:
 
     assert isinstance(var, pgast.OutputVar)
 
@@ -370,10 +400,38 @@ def get_rvar_var(
 
         fieldref = pgast.TupleVar(elements, named=var.named)
     else:
-        fieldref = get_column(rvar, var, optional=optional,
-                              nullable=nullable)
+        fieldref = get_column(rvar, var)
 
     return fieldref
+
+
+def strip_output_var(
+        var: pgast.OutputVar, *,
+        optional: typing.Optional[bool]=None,
+        nullable: typing.Optional[bool]=None) -> pgast.OutputVar:
+
+    if isinstance(var, pgast.TupleVar):
+        elements = []
+
+        for el in var.elements:
+            if isinstance(el.name, str):
+                val = pgast.ColumnRef(name=[el.name])
+            else:
+                val = strip_output_var(el.name)
+
+            elements.append(
+                pgast.TupleElement(
+                    path_id=el.path_id, name=el.name, val=val))
+
+        result = pgast.TupleVar(elements, named=var.named)
+    else:
+        result = pgast.ColumnRef(
+            name=[var.name[-1]],
+            optional=optional if optional is not None else var.optional,
+            nullable=nullable if nullable is not None else var.nullable,
+        )
+
+    return result
 
 
 def add_rel_overlay(

@@ -162,8 +162,8 @@ def get_path_var(
         # Path vars produced by UNION expressions can be "optional",
         # i.e the record is accepted as-is when such var is NULL.
         # This is necessary to correctly join heterogeneous UNIONs.
-        var = dbobj.get_rvar_var(
-            None, first, optional=optional, nullable=optional or nullable)
+        var = dbobj.strip_output_var(
+            first, optional=optional, nullable=optional or nullable)
         put_path_var(rel, path_id, var, aspect=aspect, env=env)
         return var
 
@@ -693,8 +693,7 @@ def _get_path_output(
 
     else:
         if astutils.is_set_op_query(rel):
-            assert isinstance(ref, pgast.ColumnRef)
-            result = dbobj.get_column(None, ref)
+            result = dbobj.strip_output_var(ref)
         else:
             alias = get_path_output_alias(path_id, aspect, env=env)
 

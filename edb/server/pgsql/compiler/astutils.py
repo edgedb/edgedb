@@ -57,6 +57,13 @@ def is_set_op_query(query):
     return getattr(query, 'op', None) is not None
 
 
+def get_leftmost_query(query):
+    result = query
+    while is_set_op_query(result):
+        result = result.larg
+    return result
+
+
 def for_each_query_in_set(qry, cb):
     if qry.op:
         result = for_each_query_in_set(qry.larg, cb)
