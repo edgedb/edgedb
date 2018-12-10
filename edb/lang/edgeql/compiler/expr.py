@@ -31,7 +31,6 @@ from edb.lang.ir import utils as irutils
 from edb.lang.schema import abc as s_abc
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import pointers as s_pointers
-from edb.lang.schema import utils as s_utils
 
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import errors
@@ -358,8 +357,8 @@ def compile_IfElse(
     if_expr_type = inference.infer_type(if_expr, ctx.env)
     else_expr_type = inference.infer_type(else_expr, ctx.env)
 
-    result = s_utils.get_class_nearest_common_ancestor(
-        ctx.env.schema, [if_expr_type, else_expr_type])
+    result = if_expr_type.find_common_implicitly_castable_type(
+        else_expr_type, schema=ctx.env.schema)
 
     if result is None:
         raise errors.EdgeQLError(

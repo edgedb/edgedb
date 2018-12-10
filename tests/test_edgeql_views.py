@@ -498,7 +498,6 @@ class TestEdgeQLViews(tb.QueryTestCase):
             [['Alice', 110], ['Bob', 0], ['Carol', 0], ['Dave', 10]],
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_views_if_else_05(self):
         await self.assert_query_result(r"""
             WITH MODULE test

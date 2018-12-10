@@ -1694,7 +1694,6 @@ class TestExpressions(tb.QueryTestCase):
             ]),
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_expr_if_else_06(self):
         await self.assert_query_result(r"""
             WITH a := {'c', 'a', 't'}
