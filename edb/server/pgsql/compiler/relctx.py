@@ -632,6 +632,3 @@ def rel_join(
 
         query.from_clause[0] = pgast.JoinExpr(
             type=join_type, larg=larg, rarg=rarg, quals=condition)
-
-    if not right_rvar.is_distinct:
-        query.is_distinct = False

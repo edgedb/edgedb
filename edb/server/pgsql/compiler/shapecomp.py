@@ -43,7 +43,6 @@ def compile_shape(
 
     with ctx.newscope() as shapectx:
         shapectx.disable_semi_join.add(ir_set.path_id)
-        shapectx.unique_paths.add(ir_set.path_id)
 
         if (isinstance(ir_set.expr, irast.Stmt) and
                 ir_set.expr.iterator_stmt is not None):

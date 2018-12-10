@@ -143,10 +143,6 @@ class BaseRangeVar(BaseExpr):
     alias: Alias
 
     @property
-    def is_distinct(self):
-        return self.query.is_distinct
-
-    @property
     def path_outputs(self):
         return self.query.path_outputs
 

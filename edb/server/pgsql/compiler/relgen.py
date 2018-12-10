@@ -718,8 +718,6 @@ def process_set_as_path(
         # Target set range.
         if isinstance(ir_set.stype, s_objtypes.ObjectType):
             target_rvar = relctx.new_root_rvar(ir_set, ctx=ctx)
-            if ir_source.path_id not in ctx.unique_paths:
-                target_rvar.query.is_distinct = False
 
             main_rvar = SetRVar(
                 target_rvar,

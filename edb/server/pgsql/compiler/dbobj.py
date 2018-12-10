@@ -136,7 +136,6 @@ def range_for_objtype(
 
         rvar = range_from_queryset(set_ops, objtype, env=env)
 
-    rvar.query.is_distinct = True
     rvar.query.path_id = path_id
 
     return rvar
