@@ -31,7 +31,6 @@ from . import expr as s_expr
 from . import functions as s_func
 from . import inheriting
 from . import name as sn
-from . import named
 from . import objects as so
 from . import pseudo as s_pseudo
 from . import referencing
@@ -518,11 +517,11 @@ class CreateConstraint(ConstraintCommand,
             super()._apply_field_ast(schema, context, node, op)
 
 
-class RenameConstraint(ConstraintCommand, named.RenameNamedObject):
+class RenameConstraint(ConstraintCommand, sd.RenameObject):
     pass
 
 
-class AlterConstraint(ConstraintCommand, named.AlterNamedObject):
+class AlterConstraint(ConstraintCommand, sd.AlterObject):
     astnode = [qlast.AlterConcreteConstraint, qlast.AlterConstraint]
     referenced_astnode = qlast.AlterConcreteConstraint
 
@@ -535,7 +534,7 @@ class AlterConstraint(ConstraintCommand, named.AlterNamedObject):
             new_subject_name = None
 
             for op in subject_ctx.op.get_subcommands(
-                    type=named.RenameNamedObject):
+                    type=sd.RenameObject):
                 new_subject_name = op.new_name
 
             if new_subject_name is not None:

@@ -587,6 +587,10 @@ class CreateDatabase(CreateObject, Database):
     pass
 
 
+class AlterDatabase(AlterObject, Database):
+    pass
+
+
 class DropDatabase(DropObject, Database):
     pass
 

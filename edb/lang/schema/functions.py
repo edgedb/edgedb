@@ -29,7 +29,6 @@ from . import abc as s_abc
 from . import delta as sd
 from . import expr
 from . import name as sn
-from . import named
 from . import objects as so
 from . import types as s_types
 from . import utils
@@ -234,13 +233,13 @@ class ParameterCommandContext(sd.ObjectCommandContext):
     pass
 
 
-class ParameterCommand(named.NamedObjectCommand,
+class ParameterCommand(sd.ObjectCommand,
                        schema_metaclass=Parameter,
                        context_class=ParameterCommandContext):
     pass
 
 
-class CreateParameter(ParameterCommand, named.CreateNamedObject):
+class CreateParameter(ParameterCommand, sd.CreateObject):
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
@@ -261,7 +260,7 @@ class CreateParameter(ParameterCommand, named.CreateNamedObject):
             super()._apply_field_ast(schema, context, node, op)
 
 
-class DeleteParameter(ParameterCommand, named.DeleteNamedObject):
+class DeleteParameter(ParameterCommand, sd.DeleteObject):
     pass
 
 
@@ -453,7 +452,7 @@ class CallableObject(so.Object):
         return False
 
 
-class CallableCommand(named.NamedObjectCommand):
+class CallableCommand(sd.ObjectCommand):
 
     def _make_constructor_args(self, schema, context):
         # Make sure the parameter objects exist first and foremost.
@@ -512,7 +511,7 @@ class CallableCommand(named.NamedObjectCommand):
         return params
 
 
-class CreateCallableObject(named.CreateNamedObject, CallableCommand):
+class CreateCallableObject(CallableCommand, sd.CreateObject):
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
@@ -527,7 +526,7 @@ class CreateCallableObject(named.CreateNamedObject, CallableCommand):
         return cmd
 
 
-class DeleteCallableObject(named.DeleteNamedObject):
+class DeleteCallableObject(sd.DeleteObject):
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
@@ -751,11 +750,11 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
         return cmd
 
 
-class RenameFunction(named.RenameNamedObject, FunctionCommand):
+class RenameFunction(sd.RenameObject, FunctionCommand):
     pass
 
 
-class AlterFunction(named.AlterNamedObject, FunctionCommand):
+class AlterFunction(sd.AlterObject, FunctionCommand):
     astnode = qlast.AlterFunction
 
 

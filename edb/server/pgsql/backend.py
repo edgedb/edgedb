@@ -150,7 +150,7 @@ class Backend:
 
         with context(s_deltas.DeltaCommandContext(schema, delta_cmd, delta)):
             if isinstance(delta_cmd, s_deltas.CommitDelta):
-                ddl_plan = s_db.AlterDatabase()
+                ddl_plan = sd.DeltaRoot()
                 ddl_plan.update(delta.get_commands(schema))
                 await self.run_ddl_command(ddl_plan)
 

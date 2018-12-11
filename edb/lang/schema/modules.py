@@ -22,7 +22,6 @@ from edb.lang.edgeql import ast as qlast
 
 from . import delta as sd
 from . import name as sn
-from . import named
 from . import objects as so
 
 
@@ -36,7 +35,7 @@ class ModuleCommandContext(sd.ObjectCommandContext):
     pass
 
 
-class ModuleCommand(named.NamedObjectCommand, schema_metaclass=Module,
+class ModuleCommand(sd.ObjectCommand, schema_metaclass=Module,
                     context_class=ModuleCommandContext):
 
     classname = struct.Field(str)
@@ -52,11 +51,11 @@ class ModuleCommand(named.NamedObjectCommand, schema_metaclass=Module,
         return classname
 
 
-class CreateModule(named.CreateNamedObject, ModuleCommand):
+class CreateModule(ModuleCommand, sd.CreateObject):
     astnode = qlast.CreateModule
 
 
-class AlterModule(named.CreateOrAlterNamedObject, ModuleCommand):
+class AlterModule(ModuleCommand, sd.CreateOrAlterObject):
     astnode = qlast.AlterModule
 
 

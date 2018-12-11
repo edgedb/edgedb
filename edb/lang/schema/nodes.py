@@ -22,10 +22,8 @@ import typing
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import errors as ql_errors
 
-from . import database as s_db
 from . import delta as sd
 from . import inheriting
-from . import named
 from . import objects as so
 from . import schema as s_schema
 from . import types as s_types
@@ -59,7 +57,7 @@ class NodeCommandContext:
     pass
 
 
-class NodeCommand(named.NamedObjectCommand):
+class NodeCommand(sd.ObjectCommand):
     @classmethod
     def _maybe_get_view_expr(cls, astnode):
         for subcmd in astnode.commands:
@@ -108,7 +106,7 @@ class NodeCommand(named.NamedObjectCommand):
                 prev_ir = None
                 prev_view_types = []
 
-            derived_delta = s_db.AlterDatabase()
+            derived_delta = sd.DeltaRoot()
 
             new_schema = ir.schema
             old_schema = prev_ir.schema if prev_ir is not None else None

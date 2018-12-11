@@ -24,7 +24,6 @@ from . import delta as sd
 from . import error as s_err
 from . import inheriting
 from . import name as sn
-from . import named
 from . import objects as so
 from . import pointers
 from . import referencing
@@ -240,11 +239,11 @@ class CreateProperty(PropertyCommand,
             super()._apply_field_ast(schema, context, node, op)
 
 
-class RenameProperty(PropertyCommand, named.RenameNamedObject):
+class RenameProperty(PropertyCommand, sd.RenameObject):
     pass
 
 
-class RebaseProperty(PropertyCommand, inheriting.RebaseNamedObject):
+class RebaseProperty(PropertyCommand, inheriting.RebaseInheritingObject):
     pass
 
 

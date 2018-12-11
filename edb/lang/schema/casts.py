@@ -26,7 +26,6 @@ from edb.lang.edgeql import errors as ql_errors
 from . import abc as s_abc
 from . import delta as sd
 from . import name as sn
-from . import named
 from . import objects as so
 from . import types as s_types
 from . import utils
@@ -161,7 +160,7 @@ class CastCommandContext(sd.ObjectCommandContext):
     pass
 
 
-class CastCommand(named.NamedObjectCommand,
+class CastCommand(sd.ObjectCommand,
                   schema_metaclass=Cast,
                   context_class=CastCommandContext):
 
@@ -195,7 +194,7 @@ class CastCommand(named.NamedObjectCommand,
         return get_cast_fullname(schema, 'std', from_type, to_type)
 
 
-class CreateCast(named.CreateNamedObject, CastCommand):
+class CreateCast(CastCommand, sd.CreateObject):
     astnode = qlast.CreateCast
 
     def _create_begin(self, schema, context):
@@ -270,13 +269,13 @@ class CreateCast(named.CreateNamedObject, CastCommand):
         return cmd
 
 
-class RenameCast(named.RenameNamedObject, CastCommand):
+class RenameCast(CastCommand, sd.RenameObject):
     pass
 
 
-class AlterCast(named.AlterNamedObject, CastCommand):
+class AlterCast(CastCommand, sd.AlterObject):
     astnode = qlast.AlterCast
 
 
-class DeleteCast(named.DeleteNamedObject, CastCommand):
+class DeleteCast(CastCommand, sd.DeleteObject):
     astnode = qlast.DropCast

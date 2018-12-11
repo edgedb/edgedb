@@ -834,10 +834,9 @@ class Object(s_abc.Object, metaclass=ObjectMeta):
     @classmethod
     def delta_rename(cls, obj, new_name, *, old_schema, new_schema):
         from . import delta as sd
-        from . import named
 
         rename_class = sd.ObjectCommandMeta.get_command_class_or_die(
-            named.RenameNamedObject, type(obj))
+            sd.RenameObject, type(obj))
 
         return rename_class(classname=obj.get_name(old_schema),
                             new_name=new_name,
@@ -880,12 +879,11 @@ class Object(s_abc.Object, metaclass=ObjectMeta):
     @classmethod
     def _delta_sets(cls, old, new, context=None, *,
                     old_schema, new_schema):
-        from edb.lang.schema import named as s_named
-        from edb.lang.schema import database as s_db
+        from edb.lang.schema import delta as sd
         from edb.lang.schema import inheriting as s_inh
 
-        adds_mods = s_db.AlterDatabase()
-        dels = s_db.AlterDatabase()
+        adds_mods = sd.DeltaRoot()
+        dels = sd.DeltaRoot()
 
         if old is None:
             for n in new:
@@ -970,14 +968,14 @@ class Object(s_abc.Object, metaclass=ObjectMeta):
                 altered_idx = {p.classname: p for p in altered}
                 for p in altered:
                     for op in p.get_subcommands(
-                            type=s_named.RenameNamedObject):
+                            type=sd.RenameObject):
                         altered_idx[op.new_name] = p
 
                 for p in altered:
                     old_class = old_schema.get(p.classname)
 
                     for op in p.get_subcommands(
-                            type=s_named.RenameNamedObject):
+                            type=sd.RenameObject):
                         new_name = op.new_name
                         break
                     else:

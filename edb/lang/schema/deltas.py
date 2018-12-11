@@ -25,7 +25,6 @@ from edb.lang.edgeql import ast as qlast
 from . import abc as s_abc
 from . import ast as s_ast
 from . import delta as sd
-from . import named
 from . import objects as so
 
 
@@ -49,12 +48,12 @@ class DeltaCommandContext(sd.ObjectCommandContext):
     pass
 
 
-class DeltaCommand(named.NamedObjectCommand, schema_metaclass=Delta,
+class DeltaCommand(sd.ObjectCommand, schema_metaclass=Delta,
                    context_class=DeltaCommandContext):
     pass
 
 
-class CreateDelta(named.CreateNamedObject, DeltaCommand):
+class CreateDelta(DeltaCommand, sd.CreateObject):
     astnode = qlast.CreateDelta
 
     @classmethod
@@ -70,7 +69,7 @@ class CreateDelta(named.CreateNamedObject, DeltaCommand):
         return cmd
 
 
-class AlterDelta(named.CreateOrAlterNamedObject, DeltaCommand):
+class AlterDelta(DeltaCommand, sd.CreateOrAlterObject):
     astnode = qlast.AlterDelta
 
 

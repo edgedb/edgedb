@@ -28,7 +28,6 @@ from . import inheriting
 from . import links
 from . import lproperties
 from . import name as sn
-from . import named
 from . import nodes
 from . import referencing
 from . import sources
@@ -164,7 +163,7 @@ class CreateObjectType(ObjectTypeCommand, inheriting.CreateInheritingObject):
     astnode = qlast.CreateObjectType
 
 
-class RenameObjectType(ObjectTypeCommand, named.RenameNamedObject):
+class RenameObjectType(ObjectTypeCommand, sd.RenameObject):
     pass
 
 

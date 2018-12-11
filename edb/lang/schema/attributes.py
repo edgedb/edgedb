@@ -24,7 +24,6 @@ from . import abc as s_abc
 from . import delta as sd
 from . import inheriting
 from . import name as sn
-from . import named
 from . import objects as so
 from . import referencing
 from . import types as s_types
@@ -90,7 +89,7 @@ class AttributeCommand(sd.ObjectCommand, schema_metaclass=Attribute,
     pass
 
 
-class CreateAttribute(AttributeCommand, named.CreateNamedObject):
+class CreateAttribute(AttributeCommand, sd.CreateObject):
     astnode = qlast.CreateAttribute
 
     @classmethod
@@ -129,11 +128,11 @@ class CreateAttribute(AttributeCommand, named.CreateNamedObject):
             super()._apply_field_ast(schema, context, node, op)
 
 
-class AlterAttribute(AttributeCommand, named.AlterNamedObject):
+class AlterAttribute(AttributeCommand, sd.AlterObject):
     pass
 
 
-class DeleteAttribute(AttributeCommand, named.DeleteNamedObject):
+class DeleteAttribute(AttributeCommand, sd.DeleteObject):
     astnode = qlast.DropAttribute
 
 
@@ -185,7 +184,7 @@ class AttributeValueCommand(sd.ObjectCommand, schema_metaclass=AttributeValue,
         return parent.del_attribute(schema, attribute_class)
 
 
-class CreateAttributeValue(AttributeValueCommand, named.CreateNamedObject):
+class CreateAttributeValue(AttributeValueCommand, sd.CreateObject):
     astnode = qlast.CreateAttributeValue
 
     @classmethod
@@ -265,13 +264,13 @@ class CreateAttributeValue(AttributeValueCommand, named.CreateNamedObject):
                 schema, attribute = super().apply(schema, context)
                 schema = self.add_attribute(schema, attribute, attrsubj.scls)
             else:
-                schema, attribute = named.AlterNamedObject.apply(
+                schema, attribute = sd.AlterObject.apply(
                     self, schema, context)
 
             return schema, attribute
 
 
-class AlterAttributeValue(AttributeValueCommand, named.AlterNamedObject):
+class AlterAttributeValue(AttributeValueCommand, sd.AlterObject):
     astnode = qlast.AlterAttributeValue
 
     def _apply_fields_ast(self, schema, context, node):
@@ -299,7 +298,7 @@ class AlterAttributeValue(AttributeValueCommand, named.AlterNamedObject):
             return super().apply(schema, context)
 
 
-class DeleteAttributeValue(AttributeValueCommand, named.DeleteNamedObject):
+class DeleteAttributeValue(AttributeValueCommand, sd.DeleteObject):
     astnode = qlast.DropAttributeValue
 
     def apply(self, schema, context):

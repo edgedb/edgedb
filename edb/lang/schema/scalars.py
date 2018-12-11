@@ -29,7 +29,6 @@ from . import delta as sd
 from . import expr
 from . import inheriting
 from . import name as sn
-from . import named
 from . import nodes
 from . import objects as so
 from . import types as s_types
@@ -186,11 +185,11 @@ class CreateScalarType(ScalarTypeCommand, inheriting.CreateInheritingObject):
             super()._apply_field_ast(schema, context, node, op)
 
 
-class RenameScalarType(ScalarTypeCommand, named.RenameNamedObject):
+class RenameScalarType(ScalarTypeCommand, sd.RenameObject):
     pass
 
 
-class RebaseScalarType(ScalarTypeCommand, inheriting.RebaseNamedObject):
+class RebaseScalarType(ScalarTypeCommand, inheriting.RebaseInheritingObject):
     pass
 
 

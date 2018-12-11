@@ -25,11 +25,10 @@ from . import delta as sd
 from . import derivable
 from . import error as s_err
 from . import objects as so
-from . import named
 from . import utils
 
 
-class InheritingObjectCommand(named.NamedObjectCommand):
+class InheritingObjectCommand(sd.ObjectCommand):
     pass
 
 
@@ -85,7 +84,7 @@ class AlterInherit(sd.Command):
         return None
 
 
-class CreateInheritingObject(named.CreateNamedObject, InheritingObjectCommand):
+class CreateInheritingObject(InheritingObjectCommand, sd.CreateObject):
     def _create_finalize(self, schema, context):
         schema = self.scls.acquire_ancestor_inheritance(schema, dctx=context)
         schema = self.scls.update_descendants(schema)
@@ -149,11 +148,11 @@ class CreateInheritingObject(named.CreateNamedObject, InheritingObjectCommand):
         return bases
 
 
-class AlterInheritingObject(named.AlterNamedObject, InheritingObjectCommand):
+class AlterInheritingObject(InheritingObjectCommand, sd.AlterObject):
     def _alter_begin(self, schema, context, scls):
         schema = super()._alter_begin(schema, context, scls)
 
-        for op in self.get_subcommands(type=RebaseNamedObject):
+        for op in self.get_subcommands(type=RebaseInheritingObject):
             schema, _ = op.apply(schema, context)
 
         schema = scls.acquire_ancestor_inheritance(schema)
@@ -166,14 +165,14 @@ class AlterInheritingObject(named.AlterNamedObject, InheritingObjectCommand):
         return super()._alter_finalize(schema, context, scls)
 
 
-class DeleteInheritingObject(named.DeleteNamedObject, InheritingObjectCommand):
+class DeleteInheritingObject(InheritingObjectCommand, sd.DeleteObject):
 
     def _delete_finalize(self, schema, context, scls):
         schema = self.scls.update_descendants(schema)
         return super()._delete_finalize(schema, context, scls)
 
 
-class RebaseNamedObject(named.NamedObjectCommand):
+class RebaseInheritingObject(sd.ObjectCommand):
     _delta_action = 'rebase'
 
     new_base = struct.Field(tuple, default=tuple())
@@ -186,7 +185,7 @@ class RebaseNamedObject(named.NamedObjectCommand):
                                  self.classname)
 
     def apply(self, schema, context):
-        for op in self.get_subcommands(type=named.NamedObjectCommand):
+        for op in self.get_subcommands(type=sd.ObjectCommand):
             schema, _ = op.apply(schema, context)
 
         metaclass = self.get_schema_metaclass()
@@ -230,7 +229,7 @@ class RebaseNamedObject(named.NamedObjectCommand):
             self.set_attribute_value('mro', new_mro)
 
         alter_cmd = sd.ObjectCommandMeta.get_command_class(
-            named.AlterNamedObject, metaclass)
+            sd.AlterObject, metaclass)
 
         descendants = list(scls.descendants(schema))
         if descendants and not list(self.get_subcommands(type=alter_cmd)):
@@ -402,7 +401,7 @@ class InheritingObject(derivable.DerivableObject):
 
             if old and new:
                 rebase = sd.ObjectCommandMeta.get_command_class(
-                    RebaseNamedObject, type(new))
+                    RebaseInheritingObject, type(new))
 
                 old_base_names = old.get_base_names(old_schema)
                 new_base_names = new.get_base_names(new_schema)

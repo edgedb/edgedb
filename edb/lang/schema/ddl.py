@@ -18,7 +18,6 @@
 
 
 from edb.lang import edgeql
-from edb.lang.schema import database as s_db
 from edb.lang.schema import delta as s_delta
 
 
@@ -94,7 +93,7 @@ def compile_migration(cmd, target_schema, current_schema):
 
 def delta_from_ddl(stmts, *, schema, modaliases,
                    stdmode: bool=False, testmode: bool=False):
-    alter_db = s_db.AlterDatabase()
+    alter_db = s_delta.DeltaRoot()
     context = s_delta.CommandContext()
     context.modaliases = modaliases
     context.schema = schema
@@ -105,7 +104,7 @@ def delta_from_ddl(stmts, *, schema, modaliases,
         stmts = [stmts]
 
     for stmt in stmts:
-        with context(s_db.DatabaseCommandContext(alter_db)):
+        with context(s_delta.DeltaRootContext(alter_db)):
             alter_db.add(cmd_from_ddl(
                 stmt, context=context, schema=schema, modaliases=modaliases,
                 testmode=testmode))
@@ -120,7 +119,7 @@ def ddl_from_delta(schema, delta):
 
 def ddl_text_from_delta_command(schema, delta):
     """Return DDL text for a delta command tree."""
-    if isinstance(delta, s_db.AlterDatabase):
+    if isinstance(delta, s_delta.DeltaRoot):
         commands = delta
     else:
         commands = [delta]

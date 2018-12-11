@@ -27,7 +27,6 @@ from . import abc as s_abc
 from . import delta as sd
 from . import functions as s_func
 from . import name as sn
-from . import named
 from . import objects as so
 from . import utils
 
@@ -212,11 +211,11 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
         return cmd
 
 
-class RenameOperator(named.RenameNamedObject, OperatorCommand):
+class RenameOperator(sd.RenameObject, OperatorCommand):
     pass
 
 
-class AlterOperator(named.AlterNamedObject, OperatorCommand):
+class AlterOperator(sd.AlterObject, OperatorCommand):
     astnode = qlast.AlterOperator
 
     @classmethod

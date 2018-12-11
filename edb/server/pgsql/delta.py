@@ -43,7 +43,6 @@ from edb.lang.schema import links as s_links
 from edb.lang.schema import lproperties as s_props
 from edb.lang.schema import modules as s_mod
 from edb.lang.schema import name as sn
-from edb.lang.schema import named as s_named
 from edb.lang.schema import objects as s_obj
 from edb.lang.schema import operators as s_opers
 from edb.lang.schema import referencing as s_referencing
@@ -117,11 +116,6 @@ class CommandGroupAdapted(MetaCommand, adapts=sd.CommandGroup):
         return schema, None
 
 
-class ObjectMetaCommand(MetaCommand, sd.ObjectCommand,
-                        metaclass=ObjectCommandMeta):
-    pass
-
-
 class Record:
     def __init__(self, items):
         self._items = items
@@ -136,8 +130,8 @@ class Record:
         return '<_Record {!r}>'.format(self._items)
 
 
-class NamedObjectMetaCommand(
-        ObjectMetaCommand, s_named.NamedObjectCommand):
+class ObjectMetaCommand(MetaCommand, sd.ObjectCommand,
+                        metaclass=ObjectCommandMeta):
     op_priority = 0
 
     def get_table(self, schema):
@@ -281,22 +275,22 @@ class NamedObjectMetaCommand(
                 table=table, condition=[('id', scls.id)]))
 
 
-class CreateNamedObject(NamedObjectMetaCommand):
+class CreateObject(ObjectMetaCommand):
     def apply(self, schema, context):
         schema, obj = self.__class__.get_adaptee().apply(self, schema, context)
-        schema, _ = NamedObjectMetaCommand.apply(self, schema, context)
+        schema, _ = ObjectMetaCommand.apply(self, schema, context)
         updates = self.create_object(schema, obj)
         self.updates = updates
         return schema, obj
 
 
-class CreateOrAlterNamedObject(NamedObjectMetaCommand):
+class CreateOrAlterObject(ObjectMetaCommand):
     def apply(self, schema, context):
         existing = schema.get(self.classname, None)
 
         schema, self.scls = self.__class__.get_adaptee().apply(
             self, schema, context)
-        schema, _ = NamedObjectMetaCommand.apply(self, schema, context)
+        schema, _ = ObjectMetaCommand.apply(self, schema, context)
 
         if existing is None:
             updates = self.create_object(schema, self.scls)
@@ -306,36 +300,36 @@ class CreateOrAlterNamedObject(NamedObjectMetaCommand):
         return schema, self.scls
 
 
-class RenameNamedObject(NamedObjectMetaCommand):
+class RenameObject(ObjectMetaCommand):
     def apply(self, schema, context):
         ctx = context.get(sd.ObjectCommandContext)
         schema, obj = self.__class__.get_adaptee().apply(self, schema, context)
-        schema, _ = NamedObjectMetaCommand.apply(self, schema, context)
+        schema, _ = ObjectMetaCommand.apply(self, schema, context)
         self.rename(schema, ctx.original_schema, context, obj)
         return schema, obj
 
 
-class RebaseNamedObject(NamedObjectMetaCommand):
+class RebaseObject(ObjectMetaCommand):
     def apply(self, schema, context):
         schema, obj = self.__class__.get_adaptee().apply(self, schema, context)
-        schema, _ = NamedObjectMetaCommand.apply(self, schema, context)
+        schema, _ = ObjectMetaCommand.apply(self, schema, context)
         self.updates = self.update(schema, context)
         return schema, obj
 
 
-class AlterNamedObject(NamedObjectMetaCommand):
+class AlterObject(ObjectMetaCommand):
     def apply(self, schema, context):
-        schema, _ = NamedObjectMetaCommand.apply(self, schema, context)
+        schema, _ = ObjectMetaCommand.apply(self, schema, context)
         schema, self.scls = self.__class__.get_adaptee().apply(
             self, schema, context)
         self.updates = self.update(schema, context)
         return schema, self.scls
 
 
-class DeleteNamedObject(NamedObjectMetaCommand):
+class DeleteObject(ObjectMetaCommand):
     def apply(self, schema, context):
         schema, obj = self.__class__.get_adaptee().apply(self, schema, context)
-        schema, _ = NamedObjectMetaCommand.apply(self, schema, context)
+        schema, _ = ObjectMetaCommand.apply(self, schema, context)
         self.delete(schema, context, obj)
         return schema, obj
 
@@ -351,13 +345,13 @@ class ParameterCommand:
         return self._table
 
 
-class CreateParameter(ParameterCommand, CreateNamedObject,
+class CreateParameter(ParameterCommand, CreateObject,
                       adapts=s_funcs.CreateParameter):
 
     pass
 
 
-class DeleteParameter(ParameterCommand, DeleteNamedObject,
+class DeleteParameter(ParameterCommand, DeleteObject,
                       adapts=s_funcs.DeleteParameter):
 
     pass
@@ -430,7 +424,7 @@ class FunctionCommand:
         return args
 
 
-class CreateFunction(FunctionCommand, CreateNamedObject,
+class CreateFunction(FunctionCommand, CreateObject,
                      adapts=s_funcs.CreateFunction):
 
     def make_function(self, func: s_funcs.Function, code, schema):
@@ -483,17 +477,17 @@ class CreateFunction(FunctionCommand, CreateNamedObject,
 
 
 class RenameFunction(
-        FunctionCommand, RenameNamedObject, adapts=s_funcs.RenameFunction):
+        FunctionCommand, RenameObject, adapts=s_funcs.RenameFunction):
     pass
 
 
 class AlterFunction(
-        FunctionCommand, AlterNamedObject, adapts=s_funcs.AlterFunction):
+        FunctionCommand, AlterObject, adapts=s_funcs.AlterFunction):
     pass
 
 
 class DeleteFunction(
-        FunctionCommand, DeleteNamedObject, adapts=s_funcs.DeleteFunction):
+        FunctionCommand, DeleteObject, adapts=s_funcs.DeleteFunction):
 
     def apply(self, schema, context):
         orig_schema = schema
@@ -573,7 +567,7 @@ class OperatorCommand(FunctionCommand):
             text=oper.get_code(schema))
 
 
-class CreateOperator(OperatorCommand, CreateNamedObject,
+class CreateOperator(OperatorCommand, CreateObject,
                      adapts=s_opers.CreateOperator):
 
     def apply(self, schema, context):
@@ -637,17 +631,17 @@ class CreateOperator(OperatorCommand, CreateNamedObject,
 
 
 class RenameOperator(
-        OperatorCommand, RenameNamedObject, adapts=s_opers.RenameOperator):
+        OperatorCommand, RenameObject, adapts=s_opers.RenameOperator):
     pass
 
 
 class AlterOperator(
-        OperatorCommand, AlterNamedObject, adapts=s_opers.AlterOperator):
+        OperatorCommand, AlterObject, adapts=s_opers.AlterOperator):
     pass
 
 
 class DeleteOperator(
-        OperatorCommand, DeleteNamedObject, adapts=s_opers.DeleteOperator):
+        OperatorCommand, DeleteObject, adapts=s_opers.DeleteOperator):
 
     def apply(self, schema, context):
         orig_schema = schema
@@ -686,7 +680,7 @@ class CastCommand:
         )
 
 
-class CreateCast(CastCommand, CreateNamedObject,
+class CreateCast(CastCommand, CreateObject,
                  adapts=s_casts.CreateCast):
 
     def apply(self, schema, context):
@@ -716,17 +710,17 @@ class CreateCast(CastCommand, CreateNamedObject,
 
 
 class RenameCast(
-        CastCommand, RenameNamedObject, adapts=s_casts.RenameCast):
+        CastCommand, RenameObject, adapts=s_casts.RenameCast):
     pass
 
 
 class AlterCast(
-        CastCommand, AlterNamedObject, adapts=s_casts.AlterCast):
+        CastCommand, AlterObject, adapts=s_casts.AlterCast):
     pass
 
 
 class DeleteCast(
-        CastCommand, DeleteNamedObject, adapts=s_casts.DeleteCast):
+        CastCommand, DeleteObject, adapts=s_casts.DeleteCast):
 
     def apply(self, schema, context):
         cast = schema.get(self.classname)
@@ -751,18 +745,18 @@ class AttributeCommand:
 
 
 class CreateAttribute(
-        AttributeCommand, CreateNamedObject,
+        AttributeCommand, CreateObject,
         adapts=s_attrs.CreateAttribute):
     op_priority = 1
 
 
 class AlterAttribute(
-        AttributeCommand, AlterNamedObject, adapts=s_attrs.AlterAttribute):
+        AttributeCommand, AlterObject, adapts=s_attrs.AlterAttribute):
     pass
 
 
 class DeleteAttribute(
-        AttributeCommand, DeleteNamedObject,
+        AttributeCommand, DeleteObject,
         adapts=s_attrs.DeleteAttribute):
     pass
 
@@ -787,19 +781,19 @@ class AttributeValueCommand(sd.ObjectCommand,
 
 
 class CreateAttributeValue(
-        AttributeValueCommand, CreateOrAlterNamedObject,
+        AttributeValueCommand, CreateOrAlterObject,
         adapts=s_attrs.CreateAttributeValue):
     pass
 
 
 class AlterAttributeValue(
-        AttributeValueCommand, AlterNamedObject,
+        AttributeValueCommand, AlterObject,
         adapts=s_attrs.AlterAttributeValue):
     pass
 
 
 class DeleteAttributeValue(
-        AttributeValueCommand, DeleteNamedObject,
+        AttributeValueCommand, DeleteObject,
         adapts=s_attrs.DeleteAttributeValue):
     pass
 
@@ -814,7 +808,7 @@ class ConstraintCommand(sd.ObjectCommand,
 
 
 class CreateConstraint(
-        ConstraintCommand, CreateNamedObject,
+        ConstraintCommand, CreateObject,
         adapts=s_constr.CreateConstraint):
     def apply(self, schema, context):
         schema, constraint = super().apply(schema, context)
@@ -835,7 +829,7 @@ class CreateConstraint(
 
 
 class RenameConstraint(
-        ConstraintCommand, RenameNamedObject,
+        ConstraintCommand, RenameObject,
         adapts=s_constr.RenameConstraint):
     # Constraints are created using the ID in the backend,
     # so there is nothing special we need to do here.
@@ -843,7 +837,7 @@ class RenameConstraint(
 
 
 class AlterConstraint(
-        ConstraintCommand, AlterNamedObject,
+        ConstraintCommand, AlterObject,
         adapts=s_constr.AlterConstraint):
     def _alter_finalize(self, schema, context, constraint):
         schema = super()._alter_finalize(schema, context, constraint)
@@ -878,7 +872,7 @@ class AlterConstraint(
 
 
 class DeleteConstraint(
-        ConstraintCommand, DeleteNamedObject,
+        ConstraintCommand, DeleteObject,
         adapts=s_constr.DeleteConstraint):
     def apply(self, schema, context):
         constraint = schema.get(self.classname)
@@ -898,7 +892,7 @@ class DeleteConstraint(
         return schema, constraint
 
 
-class ViewCapableObjectMetaCommand(NamedObjectMetaCommand):
+class ViewCapableObjectMetaCommand(ObjectMetaCommand):
     def fill_record(self, schema, *, use_defaults=False):
         rec, updates = super().fill_record(schema, use_defaults=use_defaults)
         if rec and False:
@@ -1182,7 +1176,7 @@ class DeleteScalarType(ScalarTypeMetaCommand,
         return schema, scalar
 
 
-class CompositeObjectMetaCommand(NamedObjectMetaCommand):
+class CompositeObjectMetaCommand(ObjectMetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.table_name = None
@@ -1391,8 +1385,8 @@ class CompositeObjectMetaCommand(NamedObjectMetaCommand):
 
     def apply_base_delta(
             self, source, orig_schema, schema, context):
-        db_ctx = context.get(s_db.DatabaseCommandContext)
-        renames = db_ctx.op._renames
+        delta_ctx = context.get(sd.DeltaRootContext)
+        renames = delta_ctx.op._renames
 
         orig_bases = [
             b.get_name(orig_schema)
@@ -1550,11 +1544,11 @@ class SourceIndexCommand(sd.ObjectCommand,
         return self._table
 
 
-class CreateSourceIndex(SourceIndexCommand, CreateNamedObject,
+class CreateSourceIndex(SourceIndexCommand, CreateObject,
                         adapts=s_indexes.CreateSourceIndex):
 
     def apply(self, schema, context):
-        schema, index = CreateNamedObject.apply(self, schema, context)
+        schema, index = CreateObject.apply(self, schema, context)
 
         source = context.get(s_links.LinkCommandContext)
         if not source:
@@ -1585,13 +1579,13 @@ class CreateSourceIndex(SourceIndexCommand, CreateNamedObject,
         return schema, index
 
 
-class RenameSourceIndex(SourceIndexCommand, RenameNamedObject,
+class RenameSourceIndex(SourceIndexCommand, RenameObject,
                         adapts=s_indexes.RenameSourceIndex):
 
     def apply(self, schema, context):
         schema, index = s_indexes.RenameSourceIndex.apply(
             self, schema, context)
-        schema, _ = RenameNamedObject.apply(self, schema, context)
+        schema, _ = RenameObject.apply(self, schema, context)
 
         subject = context.get(s_links.LinkCommandContext)
         if not subject:
@@ -1614,28 +1608,28 @@ class RenameSourceIndex(SourceIndexCommand, RenameNamedObject,
         return schema, index
 
 
-class AlterSourceIndex(SourceIndexCommand, AlterNamedObject,
+class AlterSourceIndex(SourceIndexCommand, AlterObject,
                        adapts=s_indexes.AlterSourceIndex):
     def apply(self, schema, context=None):
         schema, result = s_indexes.AlterSourceIndex.apply(
             self, schema, context)
-        schema, _ = AlterNamedObject.apply(self, schema, context)
+        schema, _ = AlterObject.apply(self, schema, context)
         return schema, result
 
 
-class DeleteSourceIndex(SourceIndexCommand, DeleteNamedObject,
+class DeleteSourceIndex(SourceIndexCommand, DeleteObject,
                         adapts=s_indexes.DeleteSourceIndex):
 
     def apply(self, schema, context=None):
         schema, index = s_indexes.DeleteSourceIndex.apply(
             self, schema, context)
-        schema, _ = DeleteNamedObject.apply(self, schema, context)
+        schema, _ = DeleteObject.apply(self, schema, context)
 
         source = context.get(s_links.LinkCommandContext)
         if not source:
             source = context.get(s_objtypes.ObjectTypeCommandContext)
 
-        if not isinstance(source.op, s_named.DeleteNamedObject):
+        if not isinstance(source.op, sd.DeleteObject):
             # We should not drop indexes when the host is being dropped since
             # the indexes are dropped automatically in this case.
             #
@@ -1761,11 +1755,11 @@ class RenameObjectType(ObjectTypeMetaCommand,
         objtype = context.get(s_objtypes.ObjectTypeCommandContext)
         assert objtype
 
-        db_ctx = context.get(s_db.DatabaseCommandContext)
-        assert db_ctx
+        delta_ctx = context.get(sd.DeltaRootContext)
+        assert delta_ctx
 
         orig_name = scls.get_name(objtype.original_schema)
-        db_ctx.op._renames[orig_name] = scls.get_name(schema)
+        delta_ctx.op._renames[orig_name] = scls.get_name(schema)
 
         objtype.op.attach_alter_table(context)
 
@@ -2222,7 +2216,7 @@ class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
     def schedule_endpoint_delete_action_update(
             self, link, orig_schema, schema, context):
         endpoint_delete_actions = context.get(
-            s_db.DatabaseCommandContext).op.update_endpoint_delete_actions
+            sd.DeltaRootContext).op.update_endpoint_delete_actions
         endpoint_delete_actions.link_ops.append((self, link, orig_schema))
 
 
@@ -2457,7 +2451,7 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
         return schema, link
 
 
-class PropertyMetaCommand(NamedObjectMetaCommand, PointerMetaCommand):
+class PropertyMetaCommand(ObjectMetaCommand, PointerMetaCommand):
     _table = metaschema.get_metaclass_table(s_props.Property)
 
     def get_table(self, schema):
@@ -3042,7 +3036,7 @@ class CommandContext(sd.CommandContext):
         return class_map
 
 
-class ModuleMetaCommand(NamedObjectMetaCommand):
+class ModuleMetaCommand(ObjectMetaCommand):
     _table = metaschema.get_metaclass_table(s_mod.Module)
 
     def get_table(self, schema):
@@ -3119,11 +3113,18 @@ class DeleteModule(ModuleMetaCommand, adapts=s_mod.DeleteModule):
 class CreateDatabase(ObjectMetaCommand, adapts=s_db.CreateDatabase):
     def apply(self, schema, context):
         schema, _ = s_db.CreateDatabase.apply(self, schema, context)
-        self.pgops.add(dbops.CreateDatabase(dbops.Database(self.name)))
+        self.pgops.add(dbops.CreateDatabase(dbops.Database(self.classname)))
         return schema, None
 
 
-class AlterDatabase(ObjectMetaCommand, adapts=s_db.AlterDatabase):
+class DropDatabase(ObjectMetaCommand, adapts=s_db.DropDatabase):
+    def apply(self, schema, context):
+        schema, _ = s_db.CreateDatabase.apply(self, schema, context)
+        self.pgops.add(dbops.DropDatabase(self.classname))
+        return schema, None
+
+
+class DeltaRoot(MetaCommand, adapts=sd.DeltaRoot):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._renames = {}
@@ -3131,7 +3132,7 @@ class AlterDatabase(ObjectMetaCommand, adapts=s_db.AlterDatabase):
     def apply(self, schema, context):
         self.update_endpoint_delete_actions = UpdateEndpointDeleteActions()
 
-        schema, _ = s_db.AlterDatabase.apply(self, schema, context)
+        schema, _ = sd.DeltaRoot.apply(self, schema, context)
         schema, _ = MetaCommand.apply(self, schema)
 
         self.update_endpoint_delete_actions.apply(schema, context)
@@ -3162,10 +3163,3 @@ class AlterDatabase(ObjectMetaCommand, adapts=s_db.AlterDatabase):
                 if not queue:
                     queues[op.priority] = queue = []
                 queue.append(op)
-
-
-class DropDatabase(ObjectMetaCommand, adapts=s_db.DropDatabase):
-    def apply(self, schema, context):
-        schema, _ = s_db.CreateDatabase.apply(self, schema, context)
-        self.pgops.add(dbops.DropDatabase(self.name))
-        return schema, None

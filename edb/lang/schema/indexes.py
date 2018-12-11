@@ -24,7 +24,6 @@ from . import delta as sd
 from . import expr as s_expr
 from . import inheriting
 from . import name as sn
-from . import named
 from . import objects as so
 from . import referencing
 from . import utils as s_utils
@@ -94,7 +93,7 @@ class SourceIndexCommand(referencing.ReferencedObjectCommand,
         return sn.Name(name=idx_name, module=subject_name.module)
 
 
-class CreateSourceIndex(SourceIndexCommand, named.CreateNamedObject):
+class CreateSourceIndex(SourceIndexCommand, sd.CreateObject):
     astnode = qlast.CreateIndex
 
     @classmethod
@@ -119,7 +118,7 @@ class CreateSourceIndex(SourceIndexCommand, named.CreateNamedObject):
         return cmd
 
     def _create_begin(self, schema, context):
-        return named.CreateNamedObject._create_begin(
+        return sd.CreateObject._create_begin(
             self, schema, context)
 
     def _apply_fields_ast(self, schema, context, node):
@@ -137,13 +136,13 @@ class CreateSourceIndex(SourceIndexCommand, named.CreateNamedObject):
             super()._apply_field_ast(schema, context, node, op)
 
 
-class RenameSourceIndex(SourceIndexCommand, named.RenameNamedObject):
+class RenameSourceIndex(SourceIndexCommand, sd.RenameObject):
     pass
 
 
-class AlterSourceIndex(SourceIndexCommand, named.AlterNamedObject):
+class AlterSourceIndex(SourceIndexCommand, sd.AlterObject):
     pass
 
 
-class DeleteSourceIndex(SourceIndexCommand, named.DeleteNamedObject):
+class DeleteSourceIndex(SourceIndexCommand, sd.DeleteObject):
     astnode = qlast.DropIndex

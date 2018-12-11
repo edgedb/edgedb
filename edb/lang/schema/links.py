@@ -22,14 +22,12 @@ import typing
 from edb.lang.edgeql import ast as qlast
 
 from . import constraints
-from . import database as s_db
 from . import delta as sd
 from . import error as s_err
 from . import indexes
 from . import inheriting
 from . import lproperties
 from . import name as sn
-from . import named
 from . import objects as so
 from . import pointers
 from . import referencing
@@ -296,14 +294,14 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                     )
                 ))
 
-                alter_db_ctx = context.get(s_db.DatabaseCommandContext)
+                delta_ctx = context.get(sd.DeltaRootContext)
 
-                for cc in alter_db_ctx.op.get_subcommands(
+                for cc in delta_ctx.op.get_subcommands(
                         type=s_objtypes.CreateObjectType):
                     if cc.classname == create_virt_parent.classname:
                         break
                 else:
-                    alter_db_ctx.op.add(create_virt_parent)
+                    delta_ctx.op.add(create_virt_parent)
             else:
                 target_expr = targets[0]
                 if isinstance(target_expr, qlast.TypeName):
@@ -482,11 +480,11 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
             self._append_subcmd_ast(schema, node, op, context)
 
 
-class RenameLink(LinkCommand, named.RenameNamedObject):
+class RenameLink(LinkCommand, sd.RenameObject):
     pass
 
 
-class RebaseLink(LinkCommand, inheriting.RebaseNamedObject):
+class RebaseLink(LinkCommand, inheriting.RebaseInheritingObject):
     pass
 
 
@@ -554,13 +552,13 @@ class AlterTarget(sd.Command):
                 )
             ))
 
-            alter_db_ctx = context.get(s_db.DatabaseCommandContext)
+            delta_ctx = context.get(sd.DeltaRootContext)
 
-            for cc in alter_db_ctx.op(s_objtypes.CreateObjectType):
+            for cc in delta_ctx.op(s_objtypes.CreateObjectType):
                 if cc.classname == create_virt_parent.classname:
                     break
             else:
-                alter_db_ctx.op.add(create_virt_parent)
+                delta_ctx.op.add(create_virt_parent)
         else:
             target = targets[0]
 
@@ -569,7 +567,7 @@ class AlterTarget(sd.Command):
         return cmd
 
 
-class AlterLink(LinkCommand, named.AlterNamedObject):
+class AlterLink(LinkCommand, sd.AlterObject):
     astnode = [qlast.AlterLink, qlast.AlterConcreteLink]
     referenced_astnode = qlast.AlterConcreteLink
 
@@ -624,7 +622,7 @@ class AlterLink(LinkCommand, named.AlterNamedObject):
             super()._apply_field_ast(schema, context, node, op)
 
 
-class DeleteLink(LinkCommand, named.DeleteNamedObject):
+class DeleteLink(LinkCommand, sd.DeleteObject):
     astnode = [qlast.DropLink, qlast.DropConcreteLink]
     referenced_astnode = qlast.DropConcreteLink
 

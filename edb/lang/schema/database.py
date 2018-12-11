@@ -22,7 +22,6 @@ from edb.lang.edgeql import ast as qlast
 
 from . import abc as s_abc
 from . import delta as sd
-from . import modules
 from . import objects as so
 
 
@@ -39,45 +38,21 @@ class DatabaseCommandContext(sd.CommandContextToken):
 
 class DatabaseCommand(sd.ObjectCommand, schema_metaclass=Database,
                       context_class=DatabaseCommandContext):
-    pass
+
+    classname = struct.Field(str)
+
+    @classmethod
+    def _classname_from_ast(cls, schema, astnode, context):
+        return astnode.name.name
 
 
 class CreateDatabase(DatabaseCommand):
-    name = struct.Field(str, None)
     astnode = qlast.CreateDatabase
-
-    @classmethod
-    def _cmd_from_ast(cls, schema, astnode, context):
-        return cls(name=astnode.name.name)
 
 
 class AlterDatabase(DatabaseCommand):
-    def apply(self, schema, context=None):
-        context = context or sd.CommandContext()
-
-        with context(DatabaseCommandContext(self)):
-            mods = []
-
-            for op in self.get_subcommands(type=modules.CreateModule):
-                schema, mod = op.apply(schema, context)
-                mods.append(mod)
-
-            for op in self.get_subcommands(type=modules.AlterModule):
-                schema, mod = op.apply(schema, context)
-                mods.append(mod)
-
-            for op in self:
-                if not isinstance(op, (modules.CreateModule,
-                                       modules.AlterModule)):
-                    schema, _ = op.apply(schema, context)
-
-        return schema, None
+    astnode = qlast.AlterDatabase
 
 
 class DropDatabase(DatabaseCommand):
-    name = struct.Field(str, None)
     astnode = qlast.DropDatabase
-
-    @classmethod
-    def _cmd_from_ast(cls, schema, astnode, context):
-        return cls(name=astnode.name.name)

@@ -27,7 +27,6 @@ from . import error as s_err
 from . import inheriting
 from . import objects as so
 from . import name as sn
-from . import named
 from . import utils
 
 
@@ -40,7 +39,7 @@ class RefDict(struct.Struct):
     ref_cls = struct.Field(type)
 
 
-class RebaseReferencingObject(inheriting.RebaseNamedObject):
+class RebaseReferencingObject(inheriting.RebaseInheritingObject):
     def apply(self, schema, context):
         this_obj = schema.get(self.classname)
         objects = [this_obj] + list(this_obj.descendants(schema))
@@ -155,7 +154,7 @@ class ReferencingObjectMeta(type(inheriting.InheritingObject)):
             raise KeyError(f'{cls} has no refdict for {refcls}')
 
 
-class ReferencedObjectCommandMeta(type(named.NamedObjectCommand)):
+class ReferencedObjectCommandMeta(type(sd.ObjectCommand)):
     _transparent_adapter_subclass = True
 
     def __new__(mcls, name, bases, clsdct, *,
@@ -166,7 +165,7 @@ class ReferencedObjectCommandMeta(type(named.NamedObjectCommand)):
         return cls
 
 
-class ReferencedObjectCommand(named.NamedObjectCommand,
+class ReferencedObjectCommand(sd.ObjectCommand,
                               metaclass=ReferencedObjectCommandMeta):
     _referrer_context_class = None
 
@@ -765,7 +764,7 @@ class ReferencingObjectCommand(inheriting.InheritingObjectCommand):
         # deleted explicitly.
         for ref in all_refs - deleted_refs:
             del_cmd = sd.ObjectCommandMeta.get_command_class(
-                named.DeleteNamedObject, type(ref))
+                sd.DeleteObject, type(ref))
 
             op = del_cmd(classname=ref.get_name(schema))
             schema, _ = op.apply(schema, context=context)
