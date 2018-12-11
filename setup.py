@@ -46,7 +46,13 @@ EXTRA_DEPS = {
     'test': [
         'flake8~=3.6.0',
         'pycodestyle~=2.4.0',
-    ]
+    ],
+
+    'docs': [
+        'Sphinx',
+        'lxml',
+        'requests-xml',
+    ],
 }
 
 
