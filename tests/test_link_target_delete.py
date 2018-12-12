@@ -29,7 +29,7 @@ from edb.lang.schema import links as s_links
 from edb.server import _testbase as stb
 
 
-class TestLinkTargetDeleteSchema(tb.BaseSchemaTest):
+class TestLinkTargetDeleteSchema(tb.BaseSchemaLoadTest):
     def test_schema_on_target_delete_01(self):
         schema = self.load_schema("""
             type Object:

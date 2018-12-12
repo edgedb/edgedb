@@ -23,7 +23,7 @@ from edb.lang.schema import error as s_err
 from edb.lang.schema import pointers as s_pointers
 
 
-class TestSchema(tb.BaseSchemaTest):
+class TestSchema(tb.BaseSchemaLoadTest):
     def test_schema_inherited_01(self):
         """
             type UniqueName:

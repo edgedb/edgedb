@@ -209,23 +209,28 @@ def _load_std_schema():
     return _std_schema
 
 
-class BaseEdgeQLCompilerTest(BaseDocTest):
+class BaseSchemaTest(BaseDocTest):
     SCHEMA = None
 
     @classmethod
     def setUpClass(cls):
-        cls.schema = cls.load_schemas()
+        script = cls.get_schema_script()
+        if script is not None:
+            cls.schema = cls.run_ddl(_load_std_schema(), script)
 
     @classmethod
-    def load_schemas(cls):
-        script = cls.get_schema_script()
-        statements = edgeql.parse_block(script)
+    def run_ddl(cls, schema, ddl):
+        statements = edgeql.parse_block(ddl)
 
-        current_schema = target_schema = _load_std_schema()
+        current_schema = schema
+        target_schema = None
 
         for stmt in statements:
             if isinstance(stmt, qlast.CreateDelta):
                 # CREATE MIGRATION
+                if target_schema is None:
+                    target_schema = _load_std_schema()
+
                 ddl_plan = s_ddl.cmd_from_ddl(
                     stmt, schema=current_schema, modaliases={None: 'default'})
 
@@ -252,14 +257,13 @@ class BaseEdgeQLCompilerTest(BaseDocTest):
         return current_schema
 
     @classmethod
-    def get_schema_script(cls):
-        if cls.SCHEMA is None:
-            raise ValueError(
-                'compiler test cases must define at least one'
-                ' SCHEMA attribute')
+    def load_schema(cls, source):
+        schema = _load_std_schema()
+        return s_decl.parse_module_declarations(schema, [('test', source)])
 
-        # Always create the test module.
-        script = 'CREATE MODULE test;'
+    @classmethod
+    def get_schema_script(cls):
+        script = ''
 
         # look at all SCHEMA entries and potentially create multiple modules
         #
@@ -283,13 +287,25 @@ class BaseEdgeQLCompilerTest(BaseDocTest):
                 script += f' TO eschema $${schema}$$;'
                 script += f'\nCOMMIT MIGRATION {module_name}::d1;'
 
-        return script.strip(' \n')
+        if script:
+            # Always create the test module.
+            script = 'CREATE MODULE test;\n' + script
+            return script.strip(' \n')
+        else:
+            return script
 
 
-class BaseSchemaTest(BaseDocTest):
-    def load_schema(self, source):
-        schema = _load_std_schema()
-        return s_decl.parse_module_declarations(schema, [('test', source)])
-
+class BaseSchemaLoadTest(BaseSchemaTest):
     def run_test(self, *, source, spec, expected=None):
         self.load_schema(source)
+
+
+class BaseEdgeQLCompilerTest(BaseSchemaTest):
+    @classmethod
+    def get_schema_script(cls):
+        script = super().get_schema_script()
+        if not script:
+            raise ValueError(
+                'compiler test cases must define at least one '
+                'schema in the SCHEMA[_MODNAME] class attribute.')
+        return script
