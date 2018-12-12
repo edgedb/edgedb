@@ -2219,10 +2219,11 @@ class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
 
         return create_c
 
-    def schedule_endpoint_delete_action_update(self, link, schema, context):
+    def schedule_endpoint_delete_action_update(
+            self, link, orig_schema, schema, context):
         endpoint_delete_actions = context.get(
             s_db.DatabaseCommandContext).op.update_endpoint_delete_actions
-        endpoint_delete_actions.link_ops.append((self, link))
+        endpoint_delete_actions.link_ops.append((self, link, orig_schema))
 
 
 class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
@@ -2283,7 +2284,8 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
         self.attach_alter_table(context)
 
         if not link.generic(schema):
-            self.schedule_endpoint_delete_action_update(link, schema, context)
+            self.schedule_endpoint_delete_action_update(
+                link, orig_schema, schema, context)
 
         return schema, link
 
@@ -2397,11 +2399,15 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
             if isinstance(link.get_target(schema), s_scalars.ScalarType):
                 self.alter_pointer_default(link, schema, context)
 
+            self.schedule_endpoint_delete_action_update(
+                link, orig_schema, schema, context)
+
         return schema, link
 
 
 class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
     def apply(self, schema, context=None):
+        orig_schema = schema
         link = schema.get(self.classname)
 
         old_table_name = common.get_backend_name(
@@ -2433,6 +2439,9 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
                     col = dbops.AlterTableDropColumn(col)
                     alter_table.add_operation((col, [cond], []))
                     self.pgops.add(alter_table)
+
+            self.schedule_endpoint_delete_action_update(
+                link, orig_schema, schema, context)
 
         condition = dbops.TableExists(name=old_table_name)
         self.pgops.add(
@@ -2733,22 +2742,32 @@ class UpdateEndpointDeleteActions(MetaCommand):
     def get_trigger_name(self, schema, target,
                          disposition, deferred=False):
         if disposition == 'target':
-            name = 'deltde' if deferred else 'deltim'
+            aspect = 'target-del'
         else:
-            name = 'delsde' if deferred else 'delsim'
+            aspect = 'source-del'
 
-        return common.edgedb_name_to_pg_name(
-            f'{target.get_name(schema)}_{name}')
+        if deferred:
+            aspect += '-def-t'
+        else:
+            aspect += '-imm-t'
+
+        return common.get_backend_name(
+            schema, target, catenate=False, aspect=aspect)[1]
 
     def get_trigger_proc_name(self, schema, target,
                               disposition, deferred=False):
         if disposition == 'target':
-            name = 'deltdef' if deferred else 'deltimf'
+            aspect = 'target-del'
         else:
-            name = 'delsdef' if deferred else 'delsimf'
+            aspect = 'source-del'
 
-        return common.convert_name(
-            target.get_name(schema), name, catenate=False)
+        if deferred:
+            aspect += '-def-f'
+        else:
+            aspect += '-imm-f'
+
+        return common.get_backend_name(
+            schema, target, catenate=False, aspect=aspect)
 
     def get_trigger_proc_text(self, target, links, disposition, schema):
         chunks = []
@@ -2870,55 +2889,101 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
         DA = s_links.LinkTargetDeleteAction
 
-        source_map = collections.defaultdict(list)
-        target_map = collections.defaultdict(list)
-        deferred_target_map = collections.defaultdict(list)
+        affected_sources = set()
+        affected_targets = set()
 
-        for link_op, link in self.link_ops:
-            if link.generic(schema) or link.get_source(schema).is_view(schema):
-                continue
-
-            ptr_stor_info = types.get_pointer_storage_info(link, schema=schema)
-            if ptr_stor_info.table_type != 'link':
-                continue
-
-            source_map[link.get_source(schema).get_name(schema)].append(link)
-
-            if link.get_on_target_delete(schema) is DA.DEFERRED_RESTRICT:
-                deferred_target_map[
-                    link.get_target(schema).get_name(schema)].append(link)
+        for link_op, link, orig_schema in self.link_ops:
+            if isinstance(link_op, DeleteLink):
+                if link.generic(orig_schema):
+                    continue
+                source = link.get_source(orig_schema)
+                current_source = schema.get_by_id(source.id, None)
+                if (current_source is not None
+                        and not current_source.is_view(schema)):
+                    affected_sources.add(current_source)
+                target = link.get_target(orig_schema)
+                current_target = schema.get_by_id(target.id, None)
+                if current_target is not None:
+                    affected_targets.add(current_target)
             else:
-                target_map[
-                    link.get_target(schema).get_name(schema)].append(link)
+                if link.generic(schema):
+                    continue
+                source = link.get_source(schema)
+                if source.is_view(schema):
+                    continue
 
-        for source_name, links in source_map.items():
-            self._create_action_triggers(
-                schema, source_name, links, disposition='source')
+                affected_sources.add(source)
 
-        for links in target_map.values():
+                target = link.get_target(schema)
+                affected_targets.add(target)
+
+                if isinstance(link_op, AlterLink):
+                    orig_target = link.get_target(orig_schema)
+                    if target != orig_target:
+                        current_orig_target = schema.get_by_id(
+                            orig_target.id, None)
+                        if current_orig_target is not None:
+                            affected_targets.add(current_orig_target)
+
+        for source in affected_sources:
+            links = []
+
+            for l in source.get_own_pointers(schema).objects(schema):
+                if not isinstance(l, s_links.Link):
+                    continue
+                ptr_stor_info = types.get_pointer_storage_info(
+                    l, schema=schema)
+                if ptr_stor_info.table_type != 'link':
+                    continue
+
+                links.append(l)
+
             links.sort(
                 key=lambda l: (l.get_on_target_delete(schema),
                                l.get_name(schema)))
 
-        for target_name, links in target_map.items():
-            self._create_action_triggers(
-                schema, target_name, links, disposition='target')
+            self._update_action_triggers(
+                schema, source, links, disposition='source')
 
-        for target_name, links in deferred_target_map.items():
-            self._create_action_triggers(
-                schema, target_name, links,
+        for target in affected_targets:
+            deferred_links = []
+            links = []
+
+            for l in schema.get_referrers(target, scls_type=s_links.Link,
+                                          field_name='target'):
+                ptr_stor_info = types.get_pointer_storage_info(
+                    l, schema=schema)
+                if ptr_stor_info.table_type != 'link':
+                    continue
+
+                if l.get_on_target_delete(schema) is DA.DEFERRED_RESTRICT:
+                    deferred_links.append(l)
+                else:
+                    links.append(l)
+
+            links.sort(
+                key=lambda l: (l.get_on_target_delete(schema),
+                               l.get_name(schema)))
+
+            deferred_links.sort(
+                key=lambda l: l.get_name(schema))
+
+            self._update_action_triggers(
+                schema, target, links, disposition='target')
+
+            self._update_action_triggers(
+                schema, target, deferred_links,
                 disposition='target', deferred=True)
 
         return schema, None
 
-    def _create_action_triggers(
+    def _update_action_triggers(
             self,
             schema,
-            objtype_name: str,
+            objtype: s_objtypes.ObjectType,
             links: typing.List[s_links.Link], *,
             disposition: str,
             deferred: bool=False) -> None:
-        objtype = schema.get(objtype_name)
 
         if objtype.get_is_virtual(schema):
             objtypes = tuple(objtype.children(schema))

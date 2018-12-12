@@ -743,3 +743,74 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                     {'name': 'Target1.3'},
                 ]
             ])
+
+
+class TestLinkTargetDeleteMigrations(stb.NonIsolatedDDLTestCase):
+    SCHEMA = pathlib.Path(__file__).parent / 'schemas' / 'link_tgt_del.eschema'
+
+    async def test_link_on_target_delete_migration_01(self):
+        async with self._run_and_rollback():
+
+            schema_f = (pathlib.Path(__file__).parent / 'schemas' /
+                        'link_tgt_del_migrated.eschema')
+
+            with open(schema_f) as f:
+                schema = f.read()
+
+            await self.con.execute(f'''
+                CREATE MIGRATION test::d_m01 TO eschema $${schema}$$;
+                COMMIT MIGRATION test::d_m01;
+                ''')
+
+            await self.query('''
+                INSERT test::Target1 {name := 'Target1_migration_01'};
+
+                INSERT test::ObjectType4 {
+                    foo := (
+                        SELECT test::Target1
+                        FILTER .name = 'Target1_migration_01'
+                    )
+                };
+
+                DELETE (
+                    SELECT test::AbstractObjectType
+                    FILTER .foo.name = 'Target1_migration_01'
+                );
+            ''')
+
+    async def test_link_on_target_delete_migration_02(self):
+        async with self._run_and_rollback():
+
+            schema_f = (pathlib.Path(__file__).parent / 'schemas' /
+                        'link_tgt_del_migrated.eschema')
+
+            with open(schema_f) as f:
+                schema = f.read()
+
+            await self.con.execute(f'''
+                CREATE MIGRATION test::d_m01 TO eschema $${schema}$$;
+                COMMIT MIGRATION test::d_m01;
+                ''')
+
+            await self.con.execute("""
+                INSERT test::Target1 {
+                    name := 'Target1.m02'
+                };
+
+                INSERT test::Source1 {
+                    name := 'Source1.m02',
+                    tgt1_deferred_restrict := (
+                        SELECT test::Target1
+                        FILTER .name = 'Target1.m02'
+                    )
+                };
+            """)
+
+            # Post-migration the deletion trigger must fire immediately,
+            # since the policy is no longer "DEFERRED"
+            with self.assertRaisesRegex(
+                    exceptions.ConstraintViolationError,
+                    'deletion of test::Target1 .* is prohibited by link'):
+                await self.con.execute("""
+                    DELETE (SELECT test::Target1 FILTER .name = 'Target1.m02');
+                """)

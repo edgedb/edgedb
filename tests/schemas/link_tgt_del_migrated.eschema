@@ -36,7 +36,7 @@ type Source1 extending Named:
         on target delete delete source
 
     link tgt1_deferred_restrict -> Target1:
-        on target delete deferred restrict
+        on target delete restrict
 
     multi link tgt1_m2m_restrict -> Target1:
         on target delete restrict
@@ -53,9 +53,11 @@ type Source2 extending Named:
 type Source3 extending Source1
 
 
-type ObjectType4:
+abstract type AbstractObjectType:
     link foo -> Target1
 
 
-type ObjectType5:
-    link foo -> Target1
+type ObjectType4 extending AbstractObjectType
+
+
+type ObjectType5 extending AbstractObjectType

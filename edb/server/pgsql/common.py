@@ -153,11 +153,27 @@ def _scalar_name_to_domain_name(name, catenate=True, prefix='edgedb_', *,
     return convert_name(name, aspect, catenate)
 
 
-def _get_backend_objtype_name(schema, objtype, catenate=True):
+def _get_backend_objtype_name(schema, objtype, catenate=True, aspect=None):
+    if aspect is None:
+        aspect = 'table'
+    if aspect not in (
+            'table',
+            'target-del-def-t', 'target-del-imm-t',
+            'source-del-def-t', 'source-del-imm-t',
+            'target-del-def-f', 'target-del-imm-f',
+            'source-del-def-f', 'source-del-imm-f'):
+        raise ValueError(
+            f'unexpected aspect for object type backend name: {aspect!r}')
+
     name = s_name.Name(module=objtype.get_name(schema).module,
                        name=str(objtype.id))
 
-    return convert_name(name, catenate=catenate)
+    if aspect != 'table':
+        suffix = aspect
+    else:
+        suffix = ''
+
+    return convert_name(name, suffix=suffix, catenate=catenate)
 
 
 def _link_name_to_table_name(name, catenate=True):
@@ -250,7 +266,7 @@ def _get_backend_constraint_name(
 
 def get_backend_name(schema, obj, catenate=True, *, aspect=None):
     if isinstance(obj, s_objtypes.ObjectType):
-        return _get_backend_objtype_name(schema, obj, catenate)
+        return _get_backend_objtype_name(schema, obj, catenate, aspect=aspect)
 
     elif isinstance(obj, s_props.Property):
         return _prop_name_to_table_name(obj.get_name(schema), catenate)
