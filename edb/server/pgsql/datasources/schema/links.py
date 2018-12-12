@@ -38,8 +38,6 @@ async def fetch(
                 l.cardinality,
                 l.required,
                 l.computable,
-                l.title,
-                l.description,
                 l.is_abstract,
                 l.is_final,
                 l.is_derived,
@@ -71,8 +69,6 @@ async def fetch_properties(
                 edgedb._resolve_type_name(p.derived_from)
                                         AS derived_from,
                 p.cardinality           AS cardinality,
-                p.title                 AS title,
-                p.description           AS description,
                 p.required              AS required,
                 p.computable            AS computable,
                 p.readonly              AS readonly,

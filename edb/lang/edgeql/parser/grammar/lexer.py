@@ -40,7 +40,7 @@ class EdgeQLLexer(lexer.Lexer):
 
     start_state = STATE_BASE
 
-    MERGE_TOKENS = {('NAMED', 'ONLY')}
+    MERGE_TOKENS = {('NAMED', 'ONLY'), ('SET', 'ATTRIBUTE')}
 
     NL = 'NL'
     MULTILINE_TOKENS = frozenset(('SCONST', 'BCONST', 'RSCONST'))
@@ -248,7 +248,7 @@ class EdgeQLLexer(lexer.Lexer):
                 continue
 
             elif tok_type in self._possible_long_token:
-                # Buffer in case this is NAMED ONLY
+                # Buffer in case this is a merged token
                 if not buffer:
                     buffer.append(tok)
                 else:

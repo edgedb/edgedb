@@ -350,7 +350,7 @@ Set the ``title`` attribute of link ``interests`` of object type ``User``
 .. code-block:: edgeql
 
     ALTER TYPE User {
-        ALTER LINK interests SET title := "Interests";
+        ALTER LINK interests SET ATTRIBUTE title := "Interests";
     };
 
 Add a minimum-length constraint to link ``name`` of object type ``User``:

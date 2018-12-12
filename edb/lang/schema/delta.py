@@ -226,10 +226,11 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         metaclass = self.get_schema_metaclass()
 
         for op in self.get_subcommands(type=AlterObjectProperty):
-            try:
-                field = metaclass.get_field(op.property)
-            except KeyError:
-                continue
+            field = metaclass.get_field(op.property)
+            if field is None:
+                raise RuntimeError(
+                    f'got AlterObjectProperty command for '
+                    f'invalid field: {metaclass.__name__}.{op.property}')
 
             result[op.property] = self._resolve_attr_value(
                 op.new_value, op.property, field, schema)
@@ -635,7 +636,7 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
         as_expr = isinstance(value, qlast.ExpressionText)
         name_ref = qlast.ObjectRef(
             name=name, module='')
-        node.commands.append(qlast.CreateAttributeValue(
+        node.commands.append(qlast.AlterObjectProperty(
             name=name_ref, value=value, as_expr=as_expr))
 
     def _drop_attribute_ast(self, context, node, name):
@@ -742,7 +743,7 @@ class CreateObject(CreateOrAlterObject):
 
     def apply(self, schema, context):
         schema = self._create_begin(schema, context)
-        with self.new_context(schema, context):
+        with self.new_context(schema, context, self.scls):
             schema = self._create_innards(schema, context)
             schema = self._create_finalize(schema, context)
         return schema, self.scls
@@ -1107,6 +1108,8 @@ class AlterSpecialObjectProperty(Command):
 
 
 class AlterObjectProperty(Command):
+    astnode = qlast.AlterObjectProperty
+
     property = struct.Field(str)
     old_value = struct.Field(object, None)
     new_value = struct.Field(object, None)
@@ -1117,23 +1120,6 @@ class AlterObjectProperty(Command):
         from edb.lang.edgeql import compiler as qlcompiler
 
         propname = astnode.name.name
-        if astnode.name.module:
-            propname = astnode.name.module + '::' + propname
-
-        assert '::' not in propname
-
-        if isinstance(astnode, qlast.DropAttributeValue):
-            parent_ctx = context.get(CommandContextToken)
-            parent_cls = parent_ctx.op.get_schema_metaclass()
-
-            field = parent_cls._fields.get(propname)
-            if (field is not None and
-                    issubclass(field.type, typed.AbstractTypedCollection)):
-                value = field.type()
-            else:
-                value = None
-
-            return cls(property=propname, new_value=value)
 
         if astnode.as_expr:
             new_value = s_expr.ExpressionText(
@@ -1192,7 +1178,7 @@ class AlterObjectProperty(Command):
             value = qlast.BaseConstant.from_python(value)
 
         as_expr = isinstance(value, qlast.ExpressionText)
-        op = qlast.CreateAttributeValue(
+        op = qlast.AlterObjectProperty(
             name=qlast.ObjectRef(module='', name=self.property),
             value=value, as_expr=as_expr)
         return op

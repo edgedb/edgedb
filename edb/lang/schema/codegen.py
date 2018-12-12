@@ -54,6 +54,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
 
     def _visit_specs(self, node):
         if (getattr(node, 'attributes', None) or
+                getattr(node, 'fields', None) or
                 getattr(node, 'constraints', None) or
                 getattr(node, 'links', None) or
                 getattr(node, 'on_target_delete', None) or
@@ -73,6 +74,8 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
                 self._visit_list(node.policies)
             if getattr(node, 'indexes', None):
                 self._visit_list(node.indexes)
+            if getattr(node, 'fields', None):
+                self._visit_list(node.fields)
             if getattr(node, 'on_target_delete', None):
                 self.visit(node.on_target_delete)
 
@@ -239,7 +242,8 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self.new_lines = 1
         self.indentation += 1
         self._visit_list(node.attributes)
-        self.visit(node.code)
+        self._visit_list(node.fields)
+        self.visit(node.function_code)
         self.indentation -= 1
         self.new_lines = 2
 
@@ -293,18 +297,27 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self.write(' on ')
             self.visit(node.subject)
 
-        if node.attributes:
+        if node.attributes or node.fields:
             self.write(':')
-            self.new_lines = 1
-        if node.attributes:
             self.new_lines = 1
             self.indentation += 1
             self._visit_list(node.attributes)
+            self._visit_list(node.fields)
             self.indentation -= 1
 
         self.new_lines = 2
 
+    def visit_Field(self, node):
+        self.visit(node.name)
+        if isinstance(node.value, eqlast.Base):
+            self._visit_assignment(node.value)
+        else:
+            self.write(' := ')
+            self.visit(node.value)
+            self.new_lines = 1
+
     def visit_Attribute(self, node):
+        self.write('attribute ')
         self.visit(node.name)
         if isinstance(node.value, eqlast.Base):
             self._visit_assignment(node.value)

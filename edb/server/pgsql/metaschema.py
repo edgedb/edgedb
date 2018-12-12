@@ -20,6 +20,7 @@
 """Database structure and objects supporting EdgeDB metadata."""
 
 import collections
+import re
 import textwrap
 import uuid
 
@@ -28,7 +29,6 @@ from edb.lang.common import context as parser_context
 from edb.lang.common import exceptions
 
 from edb.lang.schema import abc as s_abc
-from edb.lang.schema import attributes as s_attrs
 from edb.lang.schema import constraints as s_constraints
 from edb.lang.schema import database as s_db
 from edb.lang.schema import expr as s_expr
@@ -1639,8 +1639,8 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
         else:
             link_query = '''
                 SELECT
-                    {refattr}  AS {src},
-                    id         AS {tgt}
+                    (({refattr}).types[1]).maintype AS {src},
+                    id                              AS {tgt}
                 FROM
                     {reftab}
             '''.format(
@@ -1653,98 +1653,19 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
         if pn.name == 'attributes':
             link_query = '''
                 SELECT
-                    q.*,
+                    q.{src} AS {src},
+                    ((av.attribute).types[1]).maintype AS {tgt},
                     av.value    AS {valprop}
                 FROM
                     ({query}
                     ) AS q
-                    INNER JOIN edgedb.AttributeValue av
-                        ON (q.{tgt} = ((av.attribute).types[1]).maintype AND
-                            q.{src} = ((av.subject).types[1]).maintype)
+                    INNER JOIN edgedb.AttributeValue av ON q.{tgt} = av.id
             '''.format(
                 query=link_query,
                 src=dbname(sn.Name('std::source')),
                 tgt=dbname(sn.Name('std::target')),
                 valprop=dbname(sn.Name('schema::value')),
             )
-
-            # In addition to custom attributes returned by the
-            # generic refdict query above, collect and return
-            # standard system attributes.
-            partitions = []
-
-            for metaclass in get_interesting_metaclasses():
-                fields = metaclass.get_ownfields()
-                attrs = []
-                for fn in fields:
-                    field = metaclass.get_field(fn)
-                    if field.ephemeral or not field.introspectable:
-                        continue
-
-                    ftype = field.type
-                    if issubclass(ftype,
-                                  (s_obj.Object,
-                                   s_obj.ObjectCollection,
-                                   typed.AbstractTypedCollection,
-                                   list, dict)):
-                        continue
-
-                    aname = 'stdattrs::{}'.format(fn)
-                    attrcls = schema.get(aname, default=None)
-                    if attrcls is None:
-                        continue
-                    aname = ql(aname) + '::text'
-                    aval = q(fn) + '::text'
-                    if fn == 'name':
-                        aval = 'edgedb.shortname_from_fullname({})'.format(
-                            aval)
-                    attrs.append([aname, aval])
-
-                if attrs:
-                    values = ', '.join(
-                        '({}, {})'.format(k, v) for k, v in attrs)
-
-                    qry = '''
-                        SELECT
-                            id AS subject_id,
-                            a.*
-                        FROM
-                            {schematab},
-                            UNNEST(ARRAY[{values}]) AS a(
-                                attr_name text,
-                                attr_value text
-                            )
-                    '''.format(
-                        schematab='edgedb.{}'.format(metaclass.__name__),
-                        values=values
-                    )
-
-                    partitions.append(qry)
-
-            if partitions:
-                union = ('\n' + (' ' * 16) + 'UNION \n').join(partitions)
-
-                stdattrs = '''
-                    SELECT
-                        vals.subject_id     AS {src},
-                        attrs.id            AS {tgt},
-                        vals.attr_value     AS {valprop}
-                    FROM
-                        ({union}
-                        ) AS vals
-                        INNER JOIN edgedb.Attribute attrs
-                            ON (vals.attr_name = attrs.name)
-                '''.format(
-                    union=union,
-                    src=dbname(sn.Name('std::source')),
-                    tgt=dbname(sn.Name('std::target')),
-                    valprop=dbname(sn.Name('schema::value')),
-                )
-
-                link_query += (
-                    '\n' + (' ' * 16) + 'UNION ALL (\n' + stdattrs +
-                    '\n' + (' ' * 16) + ')'
-                )
 
     else:
         link_query = None
@@ -1838,8 +1759,7 @@ def _generate_database_view(schema):
 
     view_query = f'''
         SELECT
-            datname         AS {dbname('schema::name')},
-            NULL            AS {dbname('schema::description')}
+            datname         AS {dbname('schema::name')}
         FROM
             pg_database
         WHERE
@@ -1939,7 +1859,6 @@ def _generate_types_views(schema, type_fields):
         SELECT
             q.id            AS {dbname('std::id')},
             q.collection    AS {dbname('schema::name')},
-            NULL            AS {dbname('schema::description')},
             (SELECT id FROM edgedb.Object
                  WHERE name = 'schema::Array')
                             AS {dbname('std::__type__')},
@@ -1960,7 +1879,6 @@ def _generate_types_views(schema, type_fields):
         SELECT
             q.id            AS {dbname('std::id')},
             q.collection    AS {dbname('schema::name')},
-            NULL            AS {dbname('schema::description')},
             (SELECT id FROM edgedb.Object
                  WHERE name = 'schema::Array')
                             AS {dbname('std::__type__')},
@@ -2021,22 +1939,15 @@ async def generate_views(conn, schema):
 
             refdict = None
             if field is None:
-                if pn.name == 'attributes':
-                    # Special hack to allow generic introspection of
-                    # both generic and standard attributes, so we
-                    # pretend all classes are AttributeSubjects.
-                    refdict = s_attrs.AttributeSubject.attributes_refs
-
-                elif issubclass(mcls, s_inheriting.InheritingObject):
-                    fn = classref_attr_aliases.get(pn.name, pn.name)
-                    refdict = mcls.get_refdict(fn)
-                    if refdict is not None and ptr.singular(schema):
-                        # This is nether a field, nor a refdict, that's
-                        # not expected.
-                        raise RuntimeError(
-                            'introspection schema error: {!r} must not be '
-                            'singular'.format(
-                                '(' + schema_cls.name + ')' + '.' + pn.name))
+                fn = classref_attr_aliases.get(pn.name, pn.name)
+                refdict = mcls.get_refdict(fn)
+                if refdict is not None and ptr.singular(schema):
+                    # This is nether a field, nor a refdict, that's
+                    # not expected.
+                    raise RuntimeError(
+                        'introspection schema error: {!r} must not be '
+                        'singular'.format(
+                            '(' + schema_cls.name + ')' + '.' + pn.name))
 
             if field is None and refdict is None:
                 if pn.name == 'id':
@@ -2048,10 +1959,9 @@ async def generate_views(conn, schema):
                     # This is nether a field, nor a refdict, that's
                     # not expected.
                     raise RuntimeError(
-                        'introspection schema error: cannot resolve '
-                        '{!r} into metadata reference'.format(
-                            '(' + schema_cls.name + ')' +
-                            '.' + pn.name))
+                        f'introspection schema error: cannot resolve '
+                        f'{schema_cls.get_name(schema)}.{pn.name} '
+                        f'into metadata reference')
 
             if field is not None:
                 ft = field.type
@@ -2115,7 +2025,6 @@ async def generate_views(conn, schema):
         (
             SELECT
                 "schema::name",
-                "schema::description",
                 "std::id",
                 "std::__type__"
             FROM
@@ -2141,10 +2050,42 @@ async def _execute_block(conn, block):
         await conn.execute(sql_text)
     except Exception as e:
         position = getattr(e, 'position', None)
-        if position:
+        internal_position = getattr(e, 'internal_position', None)
+        context = getattr(e, 'context', '')
+        if context:
+            pl_func_line = re.search(
+                r'^PL/pgSQL function inline_code_block line (\d+).*',
+                context, re.M)
+
+            if pl_func_line:
+                pl_func_line = int(pl_func_line.group(1))
+        else:
+            pl_func_line = None
+        point = None
+
+        if position is not None:
             position = int(position)
-            point = parser_context.SourcePoint(None, None, position)
+            point = parser_context.SourcePoint(
+                None, None, position)
+            text = e.query
+            if text is None:
+                # Parse errors
+                text = sql_text
+
+        elif internal_position is not None:
+            internal_position = int(internal_position)
+            point = parser_context.SourcePoint(
+                None, None, internal_position)
+            text = e.internal_query
+
+        elif pl_func_line:
+            point = parser_context.SourcePoint(
+                pl_func_line, None, None
+            )
+            text = sql_text
+
+        if point is not None:
             context = parser_context.ParserContext(
-                'query', sql_text, start=point, end=point)
+                'query', text, start=point, end=point)
             exceptions.replace_context(e, context)
         raise

@@ -55,7 +55,7 @@ class Operator(s_func.CallableObject, s_abc.Operator):
         so.Object, default=None, compcoef=0.99)
 
 
-class OperatorCommandContext(sd.ObjectCommandContext):
+class OperatorCommandContext(s_func.CallableCommandContext):
     pass
 
 

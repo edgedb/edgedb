@@ -17,6 +17,7 @@
 #
 
 
+import collections
 import re
 import textwrap
 import typing
@@ -304,6 +305,50 @@ class DeclarationBase(Nonterm):
             context=kids[0].context)
 
 
+def _astname_to_propname(name: str) -> str:
+    return re.sub(
+        '([a-z0-9])([A-Z])',
+        r'\1_\2',
+        re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+    ).lower()
+
+
+def _pluralize(name: str) -> str:
+    if name[-1] in {'s', 'x', 'z'}:
+        return f'{name}es'
+    elif name[-1] == 'y':
+        return f'{name[:-1]}ies'
+    else:
+        return f'{name}s'
+
+
+def _process_decl_body(
+    specs: typing.List[esast.Spec],
+    allowed: typing.Tuple[type(esast.Spec), ...], *,
+    once: typing.AbstractSet[type(esast.Spec)]=frozenset(),
+) -> typing.Mapping[str, typing.List[esast.Spec]]:
+    result = collections.defaultdict(list)
+
+    for spec in specs:
+        if not isinstance(spec, allowed):
+            raise SchemaSyntaxError(
+                'illegal definition', context=spec.context)
+
+        propname = _astname_to_propname(type(spec).__name__)
+        if type(spec) in once:
+            if result[propname]:
+                raise SchemaSyntaxError(
+                    f'more than one {propname.replace("_", " ")!r} '
+                    f'specification',
+                    context=spec.context)
+            result[propname] = spec
+        else:
+            propname = _pluralize(propname)
+            result[propname].append(spec)
+
+    return result
+
+
 class ScalarTypeDeclaration(Nonterm):
     def reduce_SCALAR_TYPE_NameAndExtends_NL(self, *kids):
         np: NameWithParents = kids[2].val
@@ -314,48 +359,41 @@ class ScalarTypeDeclaration(Nonterm):
     def reduce_SCALAR_TYPE_NameAndExtends_DeclarationSpecsBlob(self, *kids):
         np: NameWithParents = kids[2].val
 
-        constraints = []
-        attributes = []
-
-        for spec in kids[3].val:
-            if isinstance(spec, esast.Constraint):
-                constraints.append(spec)
-            elif isinstance(spec, esast.Attribute):
-                attributes.append(spec)
-            else:
-                raise SchemaSyntaxError(
-                    'illegal definition', context=spec.context)
-
         self.val = esast.ScalarTypeDeclaration(
             name=np.name,
             extends=np.extends,
-            attributes=attributes,
-            constraints=constraints)
+            **_process_decl_body(
+                kids[3].val,
+                (
+                    esast.Constraint,
+                    esast.Attribute,
+                    esast.Field
+                )
+            )
+        )
 
 
 class AttributeDeclaration(Nonterm):
-    def reduce_ATTRIBUTE_ParenRawString_NL(self, *kids):
-        eql = kids[1].parse_as_attribute_decl()
+    def reduce_ATTRIBUTE_NameAndExtends_NL(self, *kids):
+        np: NameWithParents = kids[1].val
         self.val = esast.AttributeDeclaration(
-            name=eql.name.name,
-            extends=eql.bases,
-            type=eql.type)
+            name=np.name,
+            extends=np.extends)
 
-    def reduce_ATTRIBUTE_ParenRawString_DeclarationSpecsBlob(self, *kids):
-        eql = kids[1].parse_as_attribute_decl()
-        attributes = []
-        for spec in kids[2].val:
-            if isinstance(spec, esast.Attribute):
-                attributes.append(spec)
-            else:
-                raise SchemaSyntaxError(
-                    'illegal definition', context=spec.context)
+    def reduce_ATTRIBUTE_NameAndExtends_DeclarationSpecsBlob(self, *kids):
+        np: NameWithParents = kids[1].val
 
         self.val = esast.AttributeDeclaration(
-            name=eql.name.name,
-            extends=eql.bases,
-            type=eql.type,
-            attributes=attributes)
+            name=np.name,
+            extends=np.extends,
+            **_process_decl_body(
+                kids[2].val,
+                (
+                    esast.Attribute,
+                    esast.Field
+                )
+            )
+        )
 
 
 class RawTypeList(Nonterm):
@@ -385,35 +423,21 @@ class ObjectTypeDeclaration(Nonterm):
             self, *kids):
         np: NameWithParents = kids[1].val
 
-        constraints = []
-        links = []
-        properties = []
-        attributes = []
-        indexes = []
-
-        for spec in kids[2].val:
-            if isinstance(spec, esast.Constraint):
-                constraints.append(spec)
-            elif isinstance(spec, esast.Attribute):
-                attributes.append(spec)
-            elif isinstance(spec, esast.Index):
-                indexes.append(spec)
-            elif isinstance(spec, esast.Link):
-                links.append(spec)
-            elif isinstance(spec, esast.Property):
-                properties.append(spec)
-            else:
-                raise SchemaSyntaxError(
-                    'illegal definition', context=spec.context)
-
         self.val = esast.ObjectTypeDeclaration(
             name=np.name,
             extends=np.extends,
-            attributes=attributes,
-            constraints=constraints,
-            indexes=indexes,
-            links=links,
-            properties=properties)
+            **_process_decl_body(
+                kids[2].val,
+                (
+                    esast.Constraint,
+                    esast.Attribute,
+                    esast.Field,
+                    esast.Index,
+                    esast.Link,
+                    esast.Property,
+                )
+            )
+        )
 
 
 class ConstraintCallableAndExtends(Nonterm):
@@ -438,19 +462,20 @@ class ConstraintDeclaration(Nonterm):
         self.val = decl.val
 
     def reduce_CONSTRAINT_ConstraintCallableAndExtends_DeclarationSpecsBlob(
-            self, c_tok, decl, specs: list):
+            self, c_tok, decl, specs):
         decl: esast.ConstraintDeclaration = decl.val
         specs: list = specs.val
 
-        attributes = []
-        for spec in specs:
-            if isinstance(spec, esast.Attribute):
-                attributes.append(spec)
-            else:
-                raise SchemaSyntaxError(
-                    'illegal definition', context=spec.context)
+        attrs = _process_decl_body(
+            specs,
+            (
+                esast.Attribute,
+                esast.Field,
+            )
+        )
+        for attr, val in attrs.items():
+            setattr(decl, attr, val)
 
-        decl.attributes = attributes
         self.val = decl
 
 
@@ -465,35 +490,26 @@ class LinkDeclaration(Nonterm):
             self, *kids):
         np: NameWithParents = kids[1].val
 
-        constraints = []
-        properties = []
-        attributes = []
-        indexes = []
-
-        for spec in kids[2].val:
-            if isinstance(spec, esast.Constraint):
-                constraints.append(spec)
-            elif isinstance(spec, esast.Attribute):
-                attributes.append(spec)
-            elif isinstance(spec, esast.Property):
-                if spec.required:
-                    raise SchemaSyntaxError(
-                        'Link properties cannot be "required".',
-                        context=spec.context)
-                properties.append(spec)
-            elif isinstance(spec, esast.Index):
-                indexes.append(spec)
-            else:
-                raise SchemaSyntaxError(
-                    'illegal definition', context=spec.context)
-
         self.val = esast.LinkDeclaration(
             name=np.name,
             extends=np.extends,
-            attributes=attributes,
-            constraints=constraints,
-            properties=properties,
-            indexes=indexes)
+            **_process_decl_body(
+                kids[2].val,
+                (
+                    esast.Constraint,
+                    esast.Attribute,
+                    esast.Field,
+                    esast.Index,
+                    esast.Property,
+                )
+            )
+        )
+
+        for prop in self.val.properties:
+            if prop.required:
+                raise SchemaSyntaxError(
+                    'link properties cannot be "required".',
+                    context=prop.context)
 
 
 class PropertyDeclaration(Nonterm):
@@ -507,30 +523,36 @@ class PropertyDeclaration(Nonterm):
             self, *kids):
         np: NameWithParents = kids[1].val
 
-        attributes = []
-
-        for spec in kids[2].val:
-            if isinstance(spec, esast.Attribute):
-                attributes.append(spec)
-            else:
-                raise SchemaSyntaxError(
-                    'illegal definition', context=spec.context)
-
         self.val = esast.PropertyDeclaration(
             name=np.name,
             extends=np.extends,
-            attributes=attributes)
+            **_process_decl_body(
+                kids[2].val,
+                (
+                    esast.Attribute,
+                    esast.Field
+                )
+            )
+        )
 
 
 class ViewDeclaration(Nonterm):
-    def reduce_VIEW_Identifier_COLON_NL_INDENT_Attributes_DEDENT(self, *kids):
-        self.val = esast.ViewDeclaration(name=kids[1].val,
-                                         attributes=kids[5].val)
+    def reduce_VIEW_Identifier_DeclarationSpecsBlob(self, *kids):
+        self.val = esast.ViewDeclaration(
+            name=kids[1].val,
+            **_process_decl_body(
+                kids[2].val,
+                (
+                    esast.Attribute,
+                    esast.Field,
+                )
+            )
+        )
 
     def reduce_VIEW_Identifier_AssignmentBlob(self, *kids):
         self.val = esast.ViewDeclaration(
             name=kids[1].val,
-            attributes=[esast.Attribute(
+            fields=[esast.Field(
                 name=qlast.ObjectRef(name='expr'),
                 value=kids[2].val)
             ])
@@ -540,13 +562,13 @@ class FunctionDeclaration(Nonterm):
     def reduce_FUNCTION_FunctionDeclCore(self, *kids):
         self.val = kids[1].val
 
-        for attr in self.val.attributes:
-            if attr.name.name == 'initial_value':
+        for field in self.val.fields:
+            if field.name.name == 'initial_value':
                 raise SchemaSyntaxError(
                     "unexpected 'initial_value' in function definition",
-                    context=attr.context)
+                    context=field.context)
 
-        if self.val.code is None:
+        if self.val.function_code is None:
             raise SchemaSyntaxError("missing 'from' in function definition",
                                     context=kids[0].context)
 
@@ -557,18 +579,6 @@ class FunctionDeclCore(Nonterm):
                 Identifier FunctionParameters \
                 ARROW RowRawString FunctionSpecsBlob \
         """
-        attributes = []
-        code = None
-
-        for spec in kids[4].val:
-            if isinstance(spec, esast.Attribute):
-                attributes.append(spec)
-            elif code is None and isinstance(spec, esast.FunctionCode):
-                code = spec
-            else:
-                raise SchemaSyntaxError(
-                    'illegal definition', context=spec.context)
-
         returning_typemod, returning = kids[3].parse_as_function_type()
 
         self.val = esast.FunctionDeclaration(
@@ -576,8 +586,15 @@ class FunctionDeclCore(Nonterm):
             params=kids[1].val,
             returning_typemod=returning_typemod,
             returning=returning,
-            attributes=attributes,
-            code=code,
+            **_process_decl_body(
+                kids[4].val,
+                (
+                    esast.Attribute,
+                    esast.Field,
+                    esast.FunctionCode,
+                ),
+                once={esast.FunctionCode}
+            )
         )
 
 
@@ -667,23 +684,6 @@ class ParenRawString(Nonterm):
 
         return eql
 
-    def parse_as_attribute_decl(self):
-        expr = self.val.value
-        context = self.context
-
-        # XXX: the prefix also includes a module in order to break if
-        # the module name is supplied in the schema
-        prefix = 'CREATE ABSTRACT ATTRIBUTE foo::'
-        eql_query = f'{prefix}{expr}'
-        eql = parse_edgeql(eql_query, context, offset_column=-len(prefix))
-
-        if not isinstance(eql, qlast.CreateAttribute):
-            raise SchemaSyntaxError(
-                f'Could not parse attribute declaration {expr!r}',
-                context=context) from None
-
-        return eql
-
 
 class OnExpr(Nonterm):
     def reduce_ON_LPAREN_ParenRawString_RPAREN(self, *kids):
@@ -766,6 +766,9 @@ class DeclarationSpecBase(Nonterm):
     def reduce_Attribute(self, kid):
         self.val = kid.val
 
+    def reduce_Field(self, kid):
+        self.val = kid.val
+
     def reduce_Index(self, kid):
         self.val = kid.val
 
@@ -815,37 +818,22 @@ class Spec(Nonterm):
 
 class Link(Nonterm):
     def _process_pointerspec(self, p: PointerSpec):
-        constraints = []
-        attributes = []
-        properties = []
-        on_delete = None
-
-        for spec in p.spec:
-            if isinstance(spec, esast.Constraint):
-                constraints.append(spec)
-            elif isinstance(spec, esast.Attribute):
-                attributes.append(spec)
-            elif isinstance(spec, esast.Property):
-                properties.append(spec)
-            elif isinstance(spec, esast.OnTargetDelete):
-                if on_delete:
-                    raise SchemaSyntaxError(  # TODO: better error message
-                        "More than one 'on target delete' specification",
-                        context=spec.context)
-                else:
-                    on_delete = spec
-            else:
-                raise SchemaSyntaxError(  # TODO: better error message
-                    'illegal definition', context=spec.context)
-
         return esast.Link(
             name=p.name,
             target=p.target,
             expr=p.expr,
-            attributes=attributes,
-            constraints=constraints,
-            properties=properties,
-            on_target_delete=on_delete)
+            **_process_decl_body(
+                p.spec,
+                (
+                    esast.Constraint,
+                    esast.Attribute,
+                    esast.Field,
+                    esast.Property,
+                    esast.OnTargetDelete,
+                ),
+                once={esast.OnTargetDelete},
+            )
+        )
 
     def reduce_LINK_Spec(self, *kids):
         self.val = self._process_pointerspec(kids[1].val)
@@ -915,24 +903,19 @@ class Link(Nonterm):
 
 class Property(Nonterm):
     def _process_pointerspec(self, p: PointerSpec):
-        constraints = []
-        attributes = []
-
-        for spec in p.spec:
-            if isinstance(spec, esast.Constraint):
-                constraints.append(spec)
-            elif isinstance(spec, esast.Attribute):
-                attributes.append(spec)
-            else:
-                raise SchemaSyntaxError(  # TODO: better error message
-                    'illegal definition', context=spec.context)
-
         return esast.Property(
             name=p.name,
             target=p.target,
             expr=p.expr,
-            attributes=attributes,
-            constraints=constraints)
+            **_process_decl_body(
+                p.spec,
+                (
+                    esast.Constraint,
+                    esast.Attribute,
+                    esast.Field,
+                ),
+            )
+        )
 
     def reduce_PROPERTY_Spec(self, *kids):
         self.val = self._process_pointerspec(kids[1].val)
@@ -1058,24 +1041,32 @@ class Constraint(Nonterm):
             subject=kids[3].val)
 
     def reduce_constraint_with_attributes(self, *kids):
-        r"""%reduce \
-                CONSTRAINT ObjectName OptConstraintCallArguments \
-                OptOnExpr COLON NL INDENT Attributes DEDENT \
+        """%reduce
+                CONSTRAINT ObjectName OptConstraintCallArguments
+                OptOnExpr DeclarationSpecsBlob
         """
         self.val = esast.Constraint(
             name=kids[1].val,
             args=kids[2].val,
             subject=kids[3].val,
-            attributes=kids[7].val)
+            **_process_decl_body(
+                kids[4].val,
+                (
+                    esast.Attribute,
+                    esast.Field,
+                ),
+            )
+        )
 
 
 class Attribute(Nonterm):
+    def reduce_ATTRIBUTE_ObjectName_Value(self, *kids):
+        self.val = esast.Attribute(name=kids[1].val, value=kids[2].val)
+
+
+class Field(Nonterm):
     def reduce_ObjectName_Value(self, *kids):
-        self.val = esast.Attribute(name=kids[0].val, value=kids[1].val)
-
-
-class Attributes(ListNonterm, element=Attribute):
-    pass
+        self.val = esast.Field(name=kids[0].val, value=kids[1].val)
 
 
 class Value(Nonterm):

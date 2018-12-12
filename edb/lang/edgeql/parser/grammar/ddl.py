@@ -312,7 +312,7 @@ class SetFieldStmt(Nonterm):
         # should be treated as an eager expression
         eager = isinstance(kids[3].val,
                            (qlast.BaseConstant, qlast.Tuple))
-        self.val = qlast.CreateAttributeValue(
+        self.val = qlast.AlterObjectProperty(
             name=kids[1].val,
             value=kids[3].val,
             as_expr=not eager
@@ -321,16 +321,21 @@ class SetFieldStmt(Nonterm):
     def reduce_SET_NodeName_AS_SchemaItemClass_NodeName(self, *kids):
         ref = kids[4].val
         ref.itemclass = kids[3].val.itemclass
-        self.val = qlast.CreateAttributeValue(
+        self.val = qlast.AlterObjectProperty(
             name=kids[1].val,
             value=ref
         )
 
 
-commands_block('Create', SetFieldStmt)
+class SetAttributeValueStmt(Nonterm):
+    def reduce_SETATTRIBUTE_NodeName_ASSIGN_Expr(self, *kids):
+        self.val = qlast.CreateAttributeValue(
+            name=kids[1].val,
+            value=kids[3].val,
+        )
 
 
-class DropFieldStmt(Nonterm):
+class DropAttributeValueStmt(Nonterm):
     def reduce_DROP_ATTRIBUTE_NodeName(self, *kids):
         self.val = qlast.DropAttributeValue(
             name=kids[2].val,
@@ -342,7 +347,19 @@ class RenameStmt(Nonterm):
         self.val = qlast.Rename(new_name=kids[2].val)
 
 
-commands_block('Alter', RenameStmt, SetFieldStmt, DropFieldStmt, opt=False)
+commands_block(
+    'Create',
+    SetFieldStmt,
+    SetAttributeValueStmt)
+
+
+commands_block(
+    'Alter',
+    RenameStmt,
+    SetFieldStmt,
+    SetAttributeValueStmt,
+    DropAttributeValueStmt,
+    opt=False)
 
 
 class Extending(Nonterm):
@@ -598,7 +615,8 @@ commands_block(
     'AlterRole',
     RenameStmt,
     SetFieldStmt,
-    DropFieldStmt,
+    SetAttributeValueStmt,
+    DropAttributeValueStmt,
     AlterRoleExtending,
     opt=False
 )
@@ -713,7 +731,8 @@ commands_block(
     'AlterConcreteConstraint',
     RenameStmt,
     SetFieldStmt,
-    DropFieldStmt,
+    SetAttributeValueStmt,
+    DropAttributeValueStmt,
     AlterAbstract,
     opt=False
 )
@@ -741,7 +760,11 @@ class DropConcreteConstraintStmt(Nonterm):
 # CREATE SCALAR TYPE
 #
 
-commands_block('CreateScalarType', SetFieldStmt, CreateConcreteConstraintStmt)
+commands_block(
+    'CreateScalarType',
+    SetFieldStmt,
+    SetAttributeValueStmt,
+    CreateConcreteConstraintStmt)
 
 
 class CreateScalarTypeStmt(Nonterm):
@@ -789,7 +812,8 @@ commands_block(
     'AlterScalarType',
     RenameStmt,
     SetFieldStmt,
-    DropFieldStmt,
+    SetAttributeValueStmt,
+    DropAttributeValueStmt,
     AlterExtending,
     CreateConcreteConstraintStmt,
     AlterConcreteConstraintStmt,
@@ -821,18 +845,8 @@ class DropScalarTypeStmt(Nonterm):
 # CREATE ATTRIBUTE
 #
 class CreateAttributeStmt(Nonterm):
-    def reduce_CreateAttributeWithType(self, *kids):
-        r"""%reduce CREATE ABSTRACT ATTRIBUTE NodeName FullTypeExpr OptExtending \
-                    OptCreateCommandsBlock"""
-        self.val = qlast.CreateAttribute(
-            name=kids[3].val,
-            type=kids[4].val,
-            bases=kids[5].val,
-            commands=kids[6].val,
-        )
-
-    def reduce_CreateAttributeWithoutType(self, *kids):
-        r"""%reduce CREATE ABSTRACT ATTRIBUTE NodeName Extending \
+    def reduce_CreateAttribute(self, *kids):
+        r"""%reduce CREATE ABSTRACT ATTRIBUTE NodeName OptExtending \
                     OptCreateCommandsBlock"""
         self.val = qlast.CreateAttribute(
             name=kids[3].val,
@@ -901,7 +915,8 @@ commands_block(
     'AlterProperty',
     RenameStmt,
     SetFieldStmt,
-    DropFieldStmt,
+    SetAttributeValueStmt,
+    DropAttributeValueStmt,
     opt=False
 )
 
@@ -936,6 +951,7 @@ class DropPropertyStmt(Nonterm):
 commands_block(
     'CreateConcreteProperty',
     SetFieldStmt,
+    SetAttributeValueStmt,
     CreateConcreteConstraintStmt
 )
 
@@ -1001,7 +1017,8 @@ commands_block(
     'AlterConcreteProperty',
     RenameStmt,
     SetFieldStmt,
-    DropFieldStmt,
+    SetAttributeValueStmt,
+    DropAttributeValueStmt,
     AlterTargetStmt,
     SetCardinalityStmt,
     SetRequiredStmt,
@@ -1045,6 +1062,7 @@ class DropConcretePropertyStmt(Nonterm):
 commands_block(
     'CreateLink',
     SetFieldStmt,
+    SetAttributeValueStmt,
     CreateConcreteConstraintStmt,
     CreateConcretePropertyStmt,
     CreateIndexStmt,
@@ -1072,7 +1090,8 @@ commands_block(
     'AlterLink',
     RenameStmt,
     SetFieldStmt,
-    DropFieldStmt,
+    SetAttributeValueStmt,
+    DropAttributeValueStmt,
     AlterExtending,
     CreateConcreteConstraintStmt,
     AlterConcreteConstraintStmt,
@@ -1155,6 +1174,7 @@ class OnTargetDeleteStmt(Nonterm):
 commands_block(
     'CreateConcreteLink',
     SetFieldStmt,
+    SetAttributeValueStmt,
     CreateConcreteConstraintStmt,
     CreateConcretePropertyStmt,
     OnTargetDeleteStmt,
@@ -1188,7 +1208,8 @@ commands_block(
     'AlterConcreteLink',
     RenameStmt,
     SetFieldStmt,
-    DropFieldStmt,
+    SetAttributeValueStmt,
+    DropAttributeValueStmt,
     SetCardinalityStmt,
     SetRequiredStmt,
     AlterTargetStmt,
@@ -1240,6 +1261,7 @@ class DropConcreteLinkStmt(Nonterm):
 commands_block(
     'CreateObjectType',
     SetFieldStmt,
+    SetAttributeValueStmt,
     CreateConcretePropertyStmt,
     CreateConcreteLinkStmt,
     CreateIndexStmt
@@ -1280,7 +1302,8 @@ commands_block(
     'AlterObjectType',
     RenameStmt,
     SetFieldStmt,
-    DropFieldStmt,
+    SetAttributeValueStmt,
+    DropAttributeValueStmt,
     AlterExtending,
     CreateConcretePropertyStmt,
     AlterConcretePropertyStmt,
@@ -1338,6 +1361,7 @@ class DropObjectTypeStmt(Nonterm):
 commands_block(
     'CreateView',
     SetFieldStmt,
+    SetAttributeValueStmt,
     opt=False
 )
 
@@ -1350,7 +1374,7 @@ class CreateViewStmt(Nonterm):
         self.val = qlast.CreateView(
             name=kids[2].val,
             commands=[
-                qlast.CreateAttributeValue(
+                qlast.AlterObjectProperty(
                     name=qlast.ObjectRef(name='expr'),
                     value=kids[4].val,
                     as_expr=True
@@ -1377,7 +1401,8 @@ commands_block(
     'AlterView',
     RenameStmt,
     SetFieldStmt,
-    DropFieldStmt,
+    SetAttributeValueStmt,
+    DropAttributeValueStmt,
     opt=False
 )
 
@@ -1640,6 +1665,7 @@ commands_block(
     'CreateFunction',
     FromFunction,
     SetFieldStmt,
+    SetAttributeValueStmt,
     opt=False
 )
 
@@ -1744,6 +1770,7 @@ class OperatorCode(Nonterm):
 commands_block(
     'CreateOperator',
     SetFieldStmt,
+    SetAttributeValueStmt,
     OperatorCode,
     opt=False
 )
@@ -1838,7 +1865,8 @@ class CreateOperatorStmt(Nonterm):
 commands_block(
     'AlterOperator',
     SetFieldStmt,
-    DropFieldStmt,
+    SetAttributeValueStmt,
+    DropAttributeValueStmt,
     opt=False
 )
 
@@ -1936,6 +1964,7 @@ class CastCode(Nonterm):
 commands_block(
     'CreateCast',
     SetFieldStmt,
+    SetAttributeValueStmt,
     CastCode,
     CastAllowedUse,
     opt=False
@@ -2059,7 +2088,8 @@ class CreateCastStmt(Nonterm):
 commands_block(
     'AlterCast',
     SetFieldStmt,
-    DropFieldStmt,
+    SetAttributeValueStmt,
+    DropAttributeValueStmt,
     opt=False
 )
 

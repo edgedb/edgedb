@@ -374,9 +374,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit_list(node.elements, newlines=False)
         self.write('}')
 
-    def visit_EmptyCollection(self, node):
-        self.write('[]')
-
     def visit_Array(self, node):
         self.write('[')
         self.visit_list(node.elements, newlines=False)
@@ -834,11 +831,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_DropView(self, node):
         self._visit_DropObject(node, 'VIEW')
 
-    def visit_CreateAttribute(self, node):
-        def after_name():
-            self.write(' ')
-            self.visit(node.type)
+    def visit_AlterObjectProperty(self, node):
+        self.write('SET ')
+        self.visit(node.name)
+        self.write(' := ')
+        self.visit(node.value)
 
+    def visit_CreateAttribute(self, node):
+        after_name = lambda: self._ddl_visit_bases(node)
         self._visit_CreateObject(node, 'ABSTRACT ATTRIBUTE',
                                  after_name=after_name)
 
@@ -846,15 +846,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'ABSTRACT ATTRIBUTE')
 
     def visit_CreateAttributeValue(self, node):
-        self.write('SET ')
+        self.write('SET ATTRIBUTE ')
         self.visit(node.name)
         self.write(' := ')
-        self.visit(node.value)
-
-    def visit_AlterAttributeValue(self, node):
-        self.write('SET ')
-        self.visit(node.name)
-        self.write(' = ')
         self.visit(node.value)
 
     def visit_DropAttributeValue(self, node):

@@ -101,8 +101,8 @@ is a string in upper case.
 .. code-block:: edgeql
 
     CREATE ABSTRACT CONSTRAINT uppercase {
+        SET ATTRIBUTE title := "Upper case constraint";
         SET expr := upper(__subject__) = __subject__;
-        SET title := "Upper case constraint";
         SET errmessage := "{__subject__} is not in upper case";
     };
 

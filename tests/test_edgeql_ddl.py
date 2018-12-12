@@ -39,7 +39,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE test::TestObjectType {
                 CREATE LINK test::test_object_link -> std::Object {
                     CREATE PROPERTY test::test_link_prop -> std::int64 {
-                        SET title := 'Test Property';
+                        SET ATTRIBUTE title := 'Test Property';
                     };
                 };
             };
@@ -399,7 +399,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_09(self):
         await self.con.execute("""
             CREATE FUNCTION test::attr_func_1() -> std::str {
-                SET description := 'hello';
+                SET ATTRIBUTE description := 'hello';
                 FROM EdgeQL "SELECT '1'";
             };
         """)
@@ -408,7 +408,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             SELECT schema::Function {
                 attributes: {
                     @value
-                } FILTER .name = 'stdattrs::description'
+                } FILTER .name = 'std::description'
             } FILTER .name = 'test::attr_func_1';
         """, [
             [{
@@ -694,7 +694,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 client_errors.SchemaError,
                 r'unqualified name and no default module set'):
             await self.con.execute(r"""
-                CREATE ABSTRACT ATTRIBUTE test::bad_attr array;
+                CREATE TYPE test::Foo {
+                    CREATE PROPERTY test::bar -> array;
+                };
             """)
 
     async def test_edgeql_ddl_22(self):
@@ -702,7 +704,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 client_errors.SchemaError,
                 r'unqualified name and no default module set'):
             await self.con.execute(r"""
-                CREATE ABSTRACT ATTRIBUTE test::bad_attr tuple;
+                CREATE TYPE test::Foo {
+                    CREATE PROPERTY test::bar -> tuple;
+                };
             """)
 
     async def test_edgeql_ddl_23(self):
@@ -710,8 +714,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 client_errors.SchemaError,
                 r'unexpected number of subtypes, expecting 1'):
             await self.con.execute(r"""
-                CREATE ABSTRACT ATTRIBUTE test::bad_attr
-                    array<int64, int64, int64>;
+                CREATE TYPE test::Foo {
+                    CREATE PROPERTY test::bar -> array<int64, int64, int64>;
+                };
             """)
 
     async def test_edgeql_ddl_24(self):
@@ -719,7 +724,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 client_errors.SchemaError,
                 r'nested arrays are not supported'):
             await self.con.execute(r"""
-                CREATE ABSTRACT ATTRIBUTE test::bad_attr array<array<int64>>;
+                CREATE TYPE test::Foo {
+                    CREATE PROPERTY test::bar -> array<array<int64>>;
+                };
             """)
 
     async def test_edgeql_ddl_25(self):
@@ -728,8 +735,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r'mixing named and unnamed tuple declaration is not '
                 r'supported'):
             await self.con.execute(r"""
-                CREATE ABSTRACT ATTRIBUTE test::bad_attr
-                    tuple<int64, foo:int64>;
+                CREATE TYPE test::Foo {
+                    CREATE PROPERTY test::bar -> tuple<int64, foo:int64>;
+                };
             """)
 
     async def test_edgeql_ddl_26(self):
@@ -737,7 +745,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 client_errors.SchemaError,
                 r'unexpected number of subtypes, expecting 1'):
             await self.con.execute(r"""
-                CREATE ABSTRACT ATTRIBUTE test::bad_attr array<>;
+                CREATE TYPE test::Foo {
+                    CREATE PROPERTY test::bar -> array<>;
+                };
             """)
 
     async def test_edgeql_ddl_27(self):
@@ -1090,21 +1100,21 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.query('''
             ALTER INFIX OPERATOR test::`+`
                 (left: int64, right: int64)
-                SET description := 'my plus';
+                SET ATTRIBUTE description := 'my plus';
         ''')
 
         await self.assert_query_result('''
             WITH MODULE schema
             SELECT Operator {
                 name,
-                description,
             }
             FILTER
-                .name = 'test::+';
+                .name = 'test::+'
+                AND .attributes.name = 'std::description'
+                AND .attributes@value = 'my plus';
         ''', [
             [{
                 'name': 'test::+',
-                'description': 'my plus',
             }]
         ])
 
@@ -1291,19 +1301,19 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     @unittest.expectedFailure
     async def test_edgeql_ddl_attribute_01(self):
         await self.con.execute("""
-            CREATE ABSTRACT ATTRIBUTE test::attr1 std::str;
+            CREATE ABSTRACT ATTRIBUTE test::attr1;
 
             CREATE SCALAR TYPE test::TestAttrType1 EXTENDING std::str {
-                SET test::attr1 := 'aaaa';
+                SET ATTRIBUTE test::attr1 := 'aaaa';
             };
         """)
 
         await self.con.execute("""
             CREATE MIGRATION test::mig1 TO eschema $$
-            abstract attribute attr2 std::str
+            abstract attribute attr2
 
             scalar type TestAttrType1 extending std::str:
-                attr2 := 'aaaa'
+                attribute attr2 := 'aaaa'
             $$;
 
             COMMIT MIGRATION test::mig1;
@@ -1327,19 +1337,19 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     @unittest.expectedFailure
     async def test_edgeql_ddl_attribute_02(self):
         await self.con.execute("""
-            CREATE ABSTRACT ATTRIBUTE test::attr1 std::str;
+            CREATE ABSTRACT ATTRIBUTE test::attr1;
 
             CREATE TYPE test::TestAttrType2 {
-                SET test::attr1 := 'aaaa';
+                SET ATTRIBUTE test::attr1 := 'aaaa';
             };
         """)
 
         await self.con.execute("""
             CREATE MIGRATION test::mig1 TO eschema $$
-            abstract attribute attr2 std::str
+            abstract attribute attr2
 
             type TestAttrType2:
-                attr2 := 'aaaa'
+                attribute attr2 := 'aaaa'
             $$;
 
             COMMIT MIGRATION test::mig1;

@@ -24,6 +24,7 @@ from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import errors as ql_errors
 
 from . import abc as s_abc
+from . import attributes
 from . import delta as sd
 from . import name as sn
 from . import objects as so
@@ -126,7 +127,7 @@ def get_cast_fullname(
         name=sn.get_specialized_name(shortname, *quals))
 
 
-class Cast(so.Object, s_abc.Cast):
+class Cast(attributes.AttributeSubject, s_abc.Cast):
 
     from_type = so.SchemaField(
         s_types.Type, compcoef=0.5)
@@ -156,7 +157,8 @@ class Cast(so.Object, s_abc.Cast):
         str, default=None, compcoef=0.4, introspectable=False)
 
 
-class CastCommandContext(sd.ObjectCommandContext):
+class CastCommandContext(sd.ObjectCommandContext,
+                         attributes.AttributeSubjectCommandContext):
     pass
 
 

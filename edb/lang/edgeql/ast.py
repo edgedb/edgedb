@@ -362,10 +362,6 @@ class NamedTuple(Expr):
     elements: typing.List[TupleElement]
 
 
-class EmptyCollection(Expr):
-    pass
-
-
 class Tuple(Expr):
     elements: typing.List[Expr]
 
@@ -762,12 +758,12 @@ class DropIndex(DropObject):
     pass
 
 
-class CreateAttributeValue(CreateObject):
+class AlterObjectProperty(ObjectDDL):
     value: Expr
     as_expr: bool = False
 
 
-class AlterAttributeValue(AlterObject):
+class CreateAttributeValue(CreateObject):
     value: Expr
 
 

@@ -24,6 +24,7 @@ from edb.lang.edgeql import ast as qlast
 from edb.lang.common import enum
 
 from . import abc as s_abc
+from . import attributes
 from . import constraints
 from . import delta as sd
 from . import error as schema_error
@@ -93,7 +94,8 @@ class PointerLike:
     pass
 
 
-class Pointer(constraints.ConsistencySubject, PointerLike):
+class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
+              PointerLike):
 
     source = so.SchemaField(
         so.Object,
@@ -420,6 +422,7 @@ class PointerCommandContext(sd.ObjectCommandContext):
 
 
 class PointerCommand(constraints.ConsistencySubjectCommand,
+                     attributes.AttributeSubjectCommand,
                      referencing.ReferencedInheritingObjectCommand):
 
     @classmethod

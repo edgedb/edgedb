@@ -38,8 +38,14 @@ class Base(ast.AST):
         return f'<{self.__class__.__name__} at {id(self):#x}{ar}>'
 
 
+class Field(Base):
+    name: qlast.ObjectRef
+    value: qlast.Base
+
+
 class Spec(Base):
     inherited: bool = False
+    fields: typing.List[Field]
 
 
 class Attribute(Spec):
@@ -93,6 +99,7 @@ class Declaration(Base):
     name: str
     extends: typing.List[qlast.TypeName]
     attributes: typing.List[Attribute]
+    fields: typing.List[Field]
 
 
 class ScalarTypeDeclaration(Declaration):
@@ -138,7 +145,7 @@ class FunctionCode(Base):
 class FunctionDeclaration(Declaration):
     params: list
     returning: qlast.TypeName
-    code: FunctionCode
+    function_code: FunctionCode
     returning_typemod: qlft.TypeModifier
 
 

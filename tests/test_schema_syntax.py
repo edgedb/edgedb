@@ -303,7 +303,7 @@ type Commit:
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  "More than one 'on target delete' specification",
+                  "more than one 'on target delete' specification",
                   line=5, col=17)
     def test_eschema_syntax_type_18(self):
         """
@@ -582,50 +582,48 @@ scalar type issue_num_t extending int:
     def test_eschema_syntax_scalar_03(self):
         r"""
 scalar type basic extending int:
-    title := 'Basic ScalarType'
-    default := 2
     delegated constraint min(0)
     constraint max(123456)
     constraint must_be_even
+
+    title := 'Basic ScalarType'
+    default := 2
         """
 
     def test_eschema_syntax_scalar_04(self):
         """
 scalar type basic extending int:
-
-    title := 'Basic ScalarType'
-    default := 2
-
     constraint min(0)
     constraint max(123456)
     delegated constraint expr on (__subject__ % 2 = 0)
+
+    title := 'Basic ScalarType'
+    default := 2
         """
 
     def test_eschema_syntax_scalar_05(self):
         """
 scalar type basic extending int:
-
-    title := 'Basic ScalarType'
-    default := 2
-
     constraint expr:
         prop :=
             __subject__ % 2 = 0
     constraint min(0)
     constraint max(123456)
+
+    title := 'Basic ScalarType'
+    default := 2
         """
 
     def test_eschema_syntax_scalar_06(self):
         """
 scalar type basic extending int:
-
-    title := 'Basic ScalarType'
-    default := 2
-
     constraint min(0)
     constraint max(123456)
     constraint expr:
         abc := __subject__ % 2 = 0
+
+    title := 'Basic ScalarType'
+    default := 2
 
 
 scalar type inherits_default extending basic
@@ -641,9 +639,9 @@ final scalar type none
     def test_eschema_syntax_scalar_08(self):
         """
 scalar type basic extending int:
+    constraint special_constraint
     title := 'Basic ScalarType'
     default := 2
-    constraint special_constraint
         """
 
     @tb.must_fail(error.SchemaSyntaxError, r"Unexpected ':='",
@@ -657,9 +655,9 @@ scalar type special extending int:
     def test_eschema_syntax_scalar_10(self):
         """
 scalar type special extending int:
-    title := 'Special ScalarType'
     constraint special_constraint:
         expr := __subject__ % 2 = 0
+    title := 'Special ScalarType'
         """
 
     def test_eschema_syntax_scalar_11(self):
@@ -830,11 +828,11 @@ abstract property bar extending foo:
 
 abstract link coollink:
     property foo -> int64:
-        default := 2
         constraint min(0)
         constraint max(123456)
         constraint expr on (__subject__ % 2 = 0):
             title := 'aaa'
+        default := 2
 
     property bar -> int64
 
@@ -843,7 +841,7 @@ abstract link coollink:
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
-                  r'Link properties cannot be "required".', line=3, col=13)
+                  r'link properties cannot be "required".', line=3, col=13)
     def test_eschema_syntax_link_06(self):
         """
         abstract link coollink:
@@ -1161,12 +1159,7 @@ type Foo:
 
     def test_eschema_syntax_attribute_01(self):
         """
-        abstract attribute foobar std::str
-        """
-
-    def test_eschema_syntax_attribute_02(self):
-        """
-        abstract attribute foobar test::mystr extending baz
+        abstract attribute foobar
         """
 
     def test_eschema_syntax_attribute_03(self):
@@ -1176,13 +1169,7 @@ type Foo:
 
     def test_eschema_syntax_attribute_04(self):
         """
-        abstract attribute foobar std::str:
-            title := 'Some title'
-        """
-
-    def test_eschema_syntax_attribute_05(self):
-        """
-        abstract attribute foobar test::mystr extending baz:
+        abstract attribute foobar:
             title := 'Some title'
         """
 
@@ -1190,13 +1177,6 @@ type Foo:
         """
         abstract attribute foobar extending baz:
             title := 'Some title'
-        """
-
-    @tb.must_fail(error.SchemaSyntaxError,
-                  r"Unexpected '::'", line=2, col=32)
-    def test_eschema_syntax_attribute_07(self):
-        """
-        abstract attribute test::foobar as std::str
         """
 
     def test_eschema_syntax_attribute_08(self):
@@ -1219,7 +1199,7 @@ type Foo:
 
     def test_eschema_syntax_attribute_11(self):
         """
-        abstract attribute as as extending foo
+        abstract attribute as extending foo
         """
 
     @tb.must_fail(error.SchemaSyntaxError,
@@ -1229,25 +1209,11 @@ type Foo:
         abstract attribute as extending extending foo
         """
 
-    @tb.must_fail(error.SchemaSyntaxError,
-                  r"Unexpected 'extending'", line=2, col=44)
-    def test_eschema_syntax_attribute_13(self):
-        """
-        abstract attribute as as extending extending
-        """
-
-    @tb.must_fail(error.SchemaSyntaxError,
-                  r'Unexpected end of line', line=2, col=34)
-    def test_eschema_syntax_attribute_14(self):
-        """
-        abstract attribute foobar
-        """
-
     @tb.must_fail(error.SchemaSyntaxError, r"Unexpected 'attribute'",
                   line=2, col=1)
     def test_eschema_syntax_attribute_15(self):
         """
-attribute foo std::int64;
+attribute foo;
         """
 
     def test_eschema_syntax_eol_01(self):
@@ -1417,21 +1383,21 @@ attribute foo std::int64;
     def test_eschema_syntax_eol_08(self):
         r"""
         abstract attribute \
-        foobar std::str
+        foobar
 
         abstract attribute foobar\
-         std::str
+         extending baz
 
         abstract attribute \
-    foobar std::str
+    foobar
 
 % OK %
 
-        abstract attribute foobar std::str
+        abstract attribute foobar
 
-        abstract attribute foobar std::str
+        abstract attribute foobar extending baz
 
-        abstract attribute foobar std::str
+        abstract attribute foobar
         """
 
     @tb.must_fail(error.SchemaSyntaxError,

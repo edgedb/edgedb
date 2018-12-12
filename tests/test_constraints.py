@@ -1094,7 +1094,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                     'subjectexpr is not a valid constraint attribute'):
                 await self.con.execute("""
                     ALTER ABSTRACT CONSTRAINT test::foo_drop {
-                        DROP ATTRIBUTE subjectexpr;
+                        SET subjectexpr := 'foo';
                     };
                 """)
 
@@ -1104,7 +1104,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                     'subject is not a valid constraint attribute'):
                 await self.con.execute("""
                     ALTER ABSTRACT CONSTRAINT test::foo_drop {
-                        DROP ATTRIBUTE subject;
+                        SET subject := 'foo';
                     };
                 """)
 
@@ -1116,7 +1116,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                     ALTER TYPE test::ConstraintAlterTest1 {
                         ALTER PROPERTY test::value {
                             ALTER CONSTRAINT std::max {
-                                DROP ATTRIBUTE subjectexpr;
+                                SET subjectexpr := 'foo';
                             };
                         };
                     };
@@ -1130,7 +1130,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                     ALTER TYPE test::ConstraintAlterTest1 {
                         ALTER PROPERTY test::value {
                             ALTER CONSTRAINT std::max {
-                                DROP ATTRIBUTE subject;
+                                SET subject := 'foo';
                             };
                         };
                     };

@@ -62,7 +62,7 @@ For example:
 .. code-block:: eschema
 
     scalar type pr_status extending str:
-        title := 'Pull Request Status Type'
+        attribute title := 'Pull Request Status Type'
 
 Attributes can also be set using the :eql:stmt:`SET ATTRIBUTE` EdgeQL command.
 

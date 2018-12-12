@@ -31,8 +31,6 @@ async def fetch(
         SELECT
                 a.id                    AS id,
                 a.name                  AS name,
-                a.title                 AS title,
-                a.description           AS description,
                 a.is_abstract           AS is_abstract,
                 a.is_final              AS is_final,
                 edgedb._resolve_type_name(a.bases)

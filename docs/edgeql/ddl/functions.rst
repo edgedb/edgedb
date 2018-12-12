@@ -157,7 +157,7 @@ Define a function using the block syntax:
         FROM edgeql $$
             SELECT a + b;
         $$;
-        SET title := "My sum function.";
+        SET ATTRIBUTE title := "My sum function.";
     };
 
 

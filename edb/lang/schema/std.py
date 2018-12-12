@@ -36,7 +36,7 @@ LIB_ROOT = pathlib.Path(stdlib.__path__[0])
 QL_COMPILER_ROOT = pathlib.Path(qlcompiler.__path__[0])
 
 STD_LIB = ['std', 'schema', 'math']
-STD_MODULES = {'std', 'schema', 'stdattrs', 'stdgraphql', 'math'}
+STD_MODULES = {'std', 'schema', 'stdgraphql', 'math'}
 
 CACHE_SRC_DIRS = (
     (SCHEMA_ROOT, '.py'),

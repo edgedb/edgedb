@@ -25,6 +25,7 @@ from edb.lang.edgeql import errors as ql_errors
 from edb.lang.edgeql import functypes as ft
 
 from . import abc as s_abc
+from . import attributes
 from . import delta as sd
 from . import error as s_errors
 from . import expr as s_expr
@@ -105,19 +106,18 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
         return schema
 
     def get_derived_quals(self, schema, source, attrs=None):
-        qualifiers = []
-
         if attrs and attrs.get('finalexpr'):
             finalexpr = attrs['finalexpr']
         else:
             finalexpr = self.get_field_value(schema, 'finalexpr')
 
-        m = hashlib.sha1()
-        m.update(finalexpr.encode())
-        expr_qual = m.hexdigest()
-        qualifiers.append(expr_qual)
+        return (self._name_qual_from_expr(schema, finalexpr),)
 
-        return tuple(qualifiers)
+    @classmethod
+    def _name_qual_from_expr(self, schema, expr):
+        m = hashlib.sha1()
+        m.update(expr.encode())
+        return m.hexdigest()
 
     @classmethod
     def _dummy_subject(cls, schema):
@@ -170,7 +170,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
         return expr
 
     @classmethod
-    def create_concrete_constraint(
+    def get_concrete_constraint_attrs(
             cls, schema, subject, *, name, subjectexpr=None,
             sourcectx=None, args=[], modaliases=None, **kwargs):
         from edb.lang.edgeql import utils as edgeql_utils
@@ -256,9 +256,19 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
 
         attrs['finalexpr'] = expr_text
 
+        return constr_base, attrs
+
+    @classmethod
+    def create_concrete_constraint(
+            cls, schema, subject, *, name, subjectexpr=None,
+            sourcectx=None, args=[], modaliases=None, **kwargs):
+        constr_base, attrs = cls.get_concrete_constraint_attrs(
+            schema, subject, name=name, subjectexpr=subjectexpr,
+            sourcectx=sourcectx, args=args, modaliases=modaliases, **kwargs)
+
         schema, constraint = constr_base.derive(
             schema,
-            orig_subject,
+            subject,
             merge_bases=[constr_base],
             attrs=attrs)
 
@@ -267,11 +277,13 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
     def format_error_message(self, schema):
         errmsg = self.get_errmessage(schema)
         subject = self.get_subject(schema)
-        subjtitle = subject.get_title(schema)
+        titleattr = subject.get_attribute(schema, 'std::title')
 
-        if not subjtitle:
+        if not titleattr:
             subjname = subject.get_shortname(schema)
             subjtitle = subjname.name
+        else:
+            subjtitle = titleattr.value
 
         formatted = errmsg.format(__subject__=subjtitle)
 
@@ -376,7 +388,8 @@ class ConsistencySubjectCommand(inheriting.InheritingObjectCommand):
     pass
 
 
-class ConstraintCommandContext(sd.ObjectCommandContext):
+class ConstraintCommandContext(sd.ObjectCommandContext,
+                               attributes.AttributeSubjectCommandContext):
     pass
 
 
@@ -442,18 +455,46 @@ class CreateConstraint(ConstraintCommand,
         return schema
 
     @classmethod
+    def _constraint_args_from_ast(cls, schema, astnode):
+        args = []
+
+        if astnode.args:
+            for arg in astnode.args:
+                arg_expr = s_expr.ExpressionText(
+                    edgeql.generate_source(arg.arg, pretty=False))
+                args.append(arg_expr)
+
+        return args
+
+    @classmethod
+    def _classname_quals_from_ast(cls, schema, astnode, base_name,
+                                  referrer_name, context):
+        subject = schema.get(referrer_name, None)
+        if subject is None:
+            return ()
+
+        props = {}
+        args = cls._constraint_args_from_ast(schema, astnode)
+        if args:
+            props['args'] = args
+        if astnode.subject:
+            props['subjectexpr'] = s_expr.ExpressionText(
+                edgeql.generate_source(astnode.subject, pretty=False))
+
+        _, attrs = Constraint.get_concrete_constraint_attrs(
+            schema, subject, name=base_name,
+            sourcectx=astnode.context,
+            modaliases=context.modaliases, **props)
+
+        return (Constraint._name_qual_from_expr(schema, attrs['finalexpr']),)
+
+    @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if isinstance(astnode, qlast.CreateConcreteConstraint):
-            if astnode.args:
-                args = []
-
-                for arg in astnode.args:
-                    arg_expr = s_expr.ExpressionText(
-                        edgeql.generate_source(arg.arg, pretty=False))
-                    args.append(arg_expr)
-
+            args = cls._constraint_args_from_ast(schema, astnode)
+            if args:
                 cmd.add(
                     sd.AlterObjectProperty(
                         property='args',

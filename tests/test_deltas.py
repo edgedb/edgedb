@@ -27,7 +27,6 @@ from edb.server import _testbase as tb
 
 
 class TestDeltas(tb.DDLTestCase):
-    ISOLATED_METHODS = True
 
     async def test_delta_simple_01(self):
         result = await self.con.execute("""
@@ -84,24 +83,32 @@ class TestDeltas(tb.DDLTestCase):
         # Check that constraints defined on scalars being dropped are
         # dropped.
         result = await self.con.execute("""
-            CREATE SCALAR TYPE test::a1 EXTENDING std::str {
+            CREATE SCALAR TYPE test::a1 EXTENDING std::str;
+
+            ALTER SCALAR TYPE test::a1 {
                 CREATE CONSTRAINT std::enum('a', 'b') {
-                    SET description := 'test_delta_drop_01_constraint';
+                    SET ATTRIBUTE description :=
+                        'test_delta_drop_01_constraint';
                 };
             };
 
             WITH MODULE schema
             SELECT Constraint {name}
-            FILTER Constraint.description = 'test_delta_drop_01_constraint';
+            FILTER
+                .attributes.name = 'std::description'
+                AND .attributes@value = 'test_delta_drop_01_constraint';
 
             DROP SCALAR TYPE test::a1;
 
             WITH MODULE schema
             SELECT Constraint {name}
-            FILTER Constraint.description = 'test_delta_drop_01_constraint';
+            FILTER
+                .attributes.name = 'std::description'
+                AND .attributes@value = 'test_delta_drop_01_constraint';
         """)
 
         self.assert_data_shape(result, [
+            None,
             None,
 
             [{
@@ -119,19 +126,23 @@ class TestDeltas(tb.DDLTestCase):
         result = await self.con.execute("""
             CREATE TYPE test::C1 {
                 CREATE PROPERTY test::l1 -> std::str {
-                    SET description := 'test_delta_drop_02_link';
+                    SET ATTRIBUTE description := 'test_delta_drop_02_link';
                 };
             };
 
             WITH MODULE schema
             SELECT Property {name}
-            FILTER Property.description = 'test_delta_drop_02_link';
+            FILTER
+                .attributes.name = 'std::description'
+                AND .attributes@value = 'test_delta_drop_02_link';
 
             DROP TYPE test::C1;
 
             WITH MODULE schema
             SELECT Property {name}
-            FILTER Property.description = 'test_delta_drop_02_link';
+            FILTER
+                .attributes.name = 'std::description'
+                AND .attributes@value = 'test_delta_drop_02_link';
         """)
 
         self.assert_data_shape(result, [
@@ -275,7 +286,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                     required property name -> str
                     required link related -> NamedObject:
                         inherited property lang -> str:
-                            title := 'Language'
+                            attribute title := 'Language'
             $$;
 
             GET MIGRATION test::d1;
@@ -298,8 +309,9 @@ ALTER TYPE test::NamedObject {
     ALTER LINK test::related {
         CREATE SINGLE PROPERTY std::source -> test::NamedObject;
         CREATE SINGLE PROPERTY std::target -> test::NamedObject;
-        CREATE SINGLE PROPERTY test::lang -> std::str {
-            SET title := 'Language';
+        CREATE SINGLE PROPERTY test::lang -> std::str;
+        ALTER PROPERTY test::lang {
+            SET ATTRIBUTE std::title := 'Language';
         };
     };
 };
@@ -415,7 +427,7 @@ test::a2 -> array<std::int64> {
 
     async def test_delta_ddlgen_06(self):
         with self.assertRaisesRegex(
-                exceptions.SchemaError, r"unexpected attribute aaa"):
+                exceptions.SchemaError, r"unexpected field aaa"):
 
             await self.con.execute("""
                 CREATE MIGRATION test::d5 TO eschema $$

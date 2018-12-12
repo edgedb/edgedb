@@ -70,10 +70,17 @@ class ReferencedObjectCommand(sd.ObjectCommand,
             else:
                 base_name = base_ref.get_name(schema)
 
-            pnn = sn.get_specialized_name(base_name, referrer_name)
+            quals = cls._classname_quals_from_ast(
+                schema, astnode, base_name, referrer_name, context)
+            pnn = sn.get_specialized_name(base_name, referrer_name, *quals)
             name = sn.Name(name=pnn, module=referrer_name.module)
 
         return name
+
+    @classmethod
+    def _classname_quals_from_ast(cls, schema, astnode, base_name,
+                                  referrer_name, context):
+        return ()
 
     def _get_ast_node(self, context):
         subject_ctx = self.get_referrer_context(context)

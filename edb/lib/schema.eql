@@ -22,62 +22,22 @@
 
 CREATE MODULE schema;
 
-CREATE MODULE stdattrs;  # standard schema attributes need to be in a separate
-                         # module to avoid name conflicts.
-
-# Standard schema item attributes.
-CREATE ABSTRACT ATTRIBUTE stdattrs::name std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::is_abstract std::bool;
-CREATE ABSTRACT ATTRIBUTE stdattrs::is_final std::bool;
-CREATE ABSTRACT ATTRIBUTE stdattrs::is_derived std::bool;
-CREATE ABSTRACT ATTRIBUTE stdattrs::is_virtual std::bool;
-CREATE ABSTRACT ATTRIBUTE stdattrs::view_type std::int64;
-CREATE ABSTRACT ATTRIBUTE stdattrs::title std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::description std::str;
-
-CREATE ABSTRACT ATTRIBUTE stdattrs::expr std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::subjectexpr std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::finalexpr std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::errmessage std::str;
-
-CREATE ABSTRACT ATTRIBUTE stdattrs::value std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::required std::bool;
-CREATE ABSTRACT ATTRIBUTE stdattrs::readonly std::bool;
-CREATE ABSTRACT ATTRIBUTE stdattrs::computable std::bool;
-CREATE ABSTRACT ATTRIBUTE stdattrs::default std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::expression std::str;
-
 CREATE SCALAR TYPE schema::cardinality_t EXTENDING std::str {
     CREATE CONSTRAINT std::enum ('ONE', 'MANY');
 };
-CREATE ABSTRACT ATTRIBUTE stdattrs::cardinality schema::cardinality_t;
-
-CREATE ABSTRACT ATTRIBUTE stdattrs::language std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::code std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::from_function std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::initial_value std::str;
-CREATE ABSTRACT ATTRIBUTE stdattrs::return_typemod std::str;
 
 CREATE SCALAR TYPE schema::target_delete_action_t EXTENDING std::str {
     CREATE CONSTRAINT std::enum ('RESTRICT', 'DELETE SOURCE', 'SET EMPTY',
                                  'SET DEFAULT', 'DEFERRED RESTRICT');
 };
 
-CREATE ABSTRACT ATTRIBUTE stdattrs::on_target_delete
-    schema::target_delete_action_t;
-
 CREATE SCALAR TYPE schema::operator_kind_t EXTENDING std::str {
     CREATE CONSTRAINT std::enum ('INFIX', 'POSTFIX', 'PREFIX');
 };
 
-CREATE ABSTRACT ATTRIBUTE stdattrs::operator_kind
-    schema::operator_kind_t;
-
-
 # Base type for all schema entities.
 CREATE ABSTRACT TYPE schema::Object {
     CREATE REQUIRED PROPERTY schema::name -> std::str;
-    CREATE PROPERTY schema::description -> std::str;
 };
 
 
@@ -87,21 +47,6 @@ CREATE TYPE schema::Database EXTENDING schema::Object;
 # Base type for all *types*.
 CREATE ABSTRACT TYPE schema::Type EXTENDING schema::Object;
 CREATE TYPE schema::PseudoType EXTENDING schema::Type;
-
-
-CREATE TYPE schema::Attribute EXTENDING schema::Object {
-    CREATE LINK schema::type -> schema::Type;
-};
-
-
-CREATE ABSTRACT LINK schema::attributes {
-    CREATE PROPERTY schema::value -> std::str;
-};
-
-
-ALTER TYPE schema::Object {
-    CREATE MULTI LINK schema::attributes -> schema::Attribute;
-};
 
 
 CREATE ABSTRACT LINK std::__type__ {
@@ -147,6 +92,19 @@ CREATE TYPE schema::Delta EXTENDING schema::Object {
 };
 
 
+CREATE TYPE schema::Attribute EXTENDING schema::Object;
+
+
+CREATE ABSTRACT LINK schema::attributes {
+    CREATE PROPERTY schema::value -> std::str;
+};
+
+
+CREATE ABSTRACT TYPE schema::AttributeSubject EXTENDING schema::Object {
+    CREATE MULTI LINK schema::attributes -> schema::Attribute;
+};
+
+
 CREATE ABSTRACT TYPE schema::InheritingObject EXTENDING schema::Object {
     CREATE MULTI LINK schema::bases -> schema::InheritingObject;
     CREATE MULTI LINK schema::mro -> schema::InheritingObject;
@@ -176,7 +134,9 @@ CREATE ABSTRACT LINK schema::args {
 };
 
 
-CREATE ABSTRACT TYPE schema::CallableObject extending schema::Object {
+CREATE ABSTRACT TYPE schema::CallableObject
+    EXTENDING schema::AttributeSubject
+{
 
     CREATE MULTI LINK schema::params -> schema::Parameter {
         CREATE CONSTRAINT std::exclusive;
@@ -226,7 +186,9 @@ CREATE ABSTRACT TYPE schema::Source EXTENDING schema::Object {
 
 
 CREATE ABSTRACT TYPE schema::Pointer EXTENDING
-        (schema::InheritingObject, schema::ConsistencySubject) {
+        (schema::InheritingObject, schema::ConsistencySubject,
+         schema::AttributeSubject)
+{
     CREATE REQUIRED PROPERTY schema::cardinality -> schema::cardinality_t;
     CREATE REQUIRED PROPERTY schema::required -> std::bool;
 };
@@ -240,14 +202,16 @@ ALTER TYPE schema::Source {
 
 
 CREATE TYPE schema::ScalarType EXTENDING
-        (schema::InheritingObject, schema::ConsistencySubject, schema::Type) {
+        (schema::InheritingObject, schema::ConsistencySubject,
+         schema::AttributeSubject, schema::Type)
+{
     CREATE PROPERTY schema::default -> std::str;
 };
 
 
 CREATE TYPE schema::ObjectType EXTENDING
-        (schema::InheritingObject, schema::ConsistencySubject, schema::Type,
-         schema::Source);
+        (schema::InheritingObject, schema::ConsistencySubject,
+         schema::AttributeSubject, schema::Type, schema::Source);
 
 
 CREATE TYPE schema::UnionObjectType EXTENDING

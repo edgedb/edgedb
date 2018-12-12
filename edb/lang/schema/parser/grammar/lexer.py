@@ -38,7 +38,6 @@ STATE_RAW_PAREN = 3
 STATE_RAW_ANGLE = 4
 STATE_RAW_TYPE = 5
 STATE_RAW_STRING = 6
-STATE_ATTRIBUTE_RAW_TYPE = 7
 
 
 keyword_tokens = {tok[0] for tok in edge_schema_keywords.values()}
@@ -139,7 +138,7 @@ class EdgeSchemaLexer(lexer.Lexer):
                           next_state=STATE_KEEP,
                           regexp=lexer.group(val))
                      for val, tok in edge_schema_keywords.items()
-                     if tok[0] not in {'LINK', 'TO', 'EXTENDING', 'ATTRIBUTE'}]
+                     if tok[0] not in {'LINK', 'TO', 'EXTENDING'}]
 
     common_rules = keyword_rules + [
         Rule(token='LINK',
@@ -155,10 +154,6 @@ class EdgeSchemaLexer(lexer.Lexer):
         Rule(token='EXTENDING',
              next_state=STATE_KEEP,
              regexp=r'\bEXTENDING\b'),
-
-        Rule(token='ATTRIBUTE',
-             next_state=STATE_ATTRIBUTE_RAW_TYPE,
-             regexp=r'\bATTRIBUTE\b'),
 
         comment_rule,
 
@@ -313,33 +308,6 @@ class EdgeSchemaLexer(lexer.Lexer):
             Rule(token='RAWSTRING',
                  next_state=STATE_KEEP,
                  regexp=r'.*?(?:\n|.$)'),
-        ],
-        STATE_ATTRIBUTE_RAW_TYPE: [
-            line_cont_rule,
-            bad_line_cont_rule,
-
-            Rule(token='RAWSTRING',
-                 next_state=STATE_WS_SENSITIVE,
-                 regexp=r'(?=\n|:(?!:))'),
-
-            Rule(token='RAWSTRING',
-                 next_state=STATE_KEEP,
-                 regexp=r'::'),
-
-            Rule(token='RAWSTRING',
-                 next_state=push_state(STATE_RAW_ANGLE),
-                 regexp=r'\<'),
-
-            Rule(token='LPAREN',
-                 next_state=push_state(STATE_RAW_PAREN),
-                 regexp=r'\('),
-
-            string_rule,
-            qident_rule,
-
-            Rule(token='RAWSTRING',
-                 next_state=STATE_KEEP,
-                 regexp=r'''[^:<(`'"\n\\][^:<(`'"$\n\\]*'''),
         ],
     }
 

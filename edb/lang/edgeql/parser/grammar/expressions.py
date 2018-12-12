@@ -839,10 +839,7 @@ class Set(Nonterm):
 class Collection(Nonterm):
     def reduce_LBRACKET_OptExprList_RBRACKET(self, *kids):
         elements = kids[1].val
-        if elements:
-            self.val = qlast.Array(elements=elements)
-        else:
-            self.val = qlast.EmptyCollection()
+        self.val = qlast.Array(elements=elements)
 
 
 class OptExprList(Nonterm):

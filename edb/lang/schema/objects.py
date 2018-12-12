@@ -465,15 +465,6 @@ class Object(s_abc.Object, metaclass=ObjectMeta):
         inheritable=False, ephemeral=True,
         introspectable=False, default=None)
 
-    title = SchemaField(
-        str,
-        default=None, compcoef=0.909, coerce=True,
-        public=True)
-
-    description = SchemaField(
-        str,
-        default=None, compcoef=0.909, public=True)
-
     def get_shortname(self, schema) -> sn.Name:
         return sn.shortname_from_fullname(self.get_name(schema))
 
@@ -688,8 +679,8 @@ class Object(s_abc.Object, metaclass=ObjectMeta):
 
         return frozenset(sig)
 
-    def set_attribute(self, schema, name, value, *,
-                      dctx=None, source=None, source_context=None):
+    def set_field_value_with_delta(self, schema, name, value, *,
+                                   dctx, source, source_context=None):
         """Set the attribute `name` to `value`."""
         from . import delta as sd
 
@@ -734,7 +725,7 @@ class Object(s_abc.Object, metaclass=ObjectMeta):
             result = field.merge_fn(self, objs, field_name, schema=schema)
             ours = self.get_explicit_field_value(schema, field_name, None)
             if result is not None or ours is not None:
-                schema = self.set_attribute(
+                schema = self.set_field_value_with_delta(
                     schema, field_name, result, dctx=dctx,
                     source='inheritance')
 

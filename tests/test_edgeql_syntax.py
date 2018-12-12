@@ -2676,88 +2676,12 @@ aa';
 
     def test_edgeql_syntax_ddl_attribute_01(self):
         """
-        CREATE ABSTRACT ATTRIBUTE std::paramtypes
-            tuple<std::str, std::typeref>;
+        CREATE ABSTRACT ATTRIBUTE std::paramtypes;
         """
 
     def test_edgeql_syntax_ddl_attribute_02(self):
         """
-        CREATE ABSTRACT ATTRIBUTE stdattrs::precision array<std::int64>;
-        """
-
-    def test_edgeql_syntax_ddl_attribute_03(self):
-        # test parsing of array types
-        """
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int64>;
-        """
-
-    def test_edgeql_syntax_ddl_attribute_05(self):
-        # test parsing of tuple types
-        """
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<>;
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<float64>;
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<int64, str>;
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<array<int64>, str>;
-        CREATE ABSTRACT ATTRIBUTE std::foo
-            tuple<array<int64>, tuple<str, str>>;
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<int64, foo::Bar>;
-
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<count: int64, name: str>;
-
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<Baz, tuple<int64, str>>;
-        CREATE ABSTRACT ATTRIBUTE std::foo
-            tuple<Baz, tuple<array<int64>, str>>;
-        CREATE ABSTRACT ATTRIBUTE std::foo
-            tuple<Baz, tuple<array<int64>, tuple<str, str>>>;
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<Baz, tuple<int64, foo::Bar>>;
-        """
-
-    # illegal semantically, but syntactically valid
-    def test_edgeql_syntax_ddl_attribute_09(self):
-        """
-        CREATE ABSTRACT ATTRIBUTE std::foo array;
-        """
-
-    # illegal semantically, but syntactically valid
-    def test_edgeql_syntax_ddl_attribute_10(self):
-        """
-        CREATE ABSTRACT ATTRIBUTE std::foo array<int64, int64, int64>;
-        """
-
-    # illegal semantically, but syntactically valid
-    def test_edgeql_syntax_ddl_attribute_11(self):
-        """
-        CREATE ABSTRACT ATTRIBUTE std::foo array<array<int64>>;
-        """
-
-    # illegal semantically, but syntactically valid
-    def test_edgeql_syntax_ddl_attribute_12(self):
-        """
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple<int64, foo:int64>;
-        """
-
-    def test_edgeql_syntax_ddl_attribute_13(self):
-        """
-        CREATE ABSTRACT ATTRIBUTE std::foo bar<foo:int64, str>;
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected ';'", line=2, col=50)
-    def test_edgeql_syntax_ddl_attribute_14(self):
-        """
-        CREATE ABSTRACT ATTRIBUTE std::paramtypes;
-        """
-
-    # illegal semantically, but syntactically valid
-    def test_edgeql_syntax_ddl_attribute_15(self):
-        """
-        CREATE ABSTRACT ATTRIBUTE std::foo array<>;
-        """
-
-    # illegal semantically, but syntactically valid
-    def test_edgeql_syntax_ddl_attribute_16(self):
-        """
-        CREATE ABSTRACT ATTRIBUTE std::foo tuple;
+        CREATE ABSTRACT ATTRIBUTE std::paramtypes EXTENDING std::baseattr;
         """
 
     def test_edgeql_syntax_ddl_constraint_01(self):
@@ -2956,7 +2880,7 @@ aa';
     def test_edgeql_syntax_ddl_function_25(self):
         """
         CREATE FUNCTION foo() -> std::str {
-            SET description := 'aaaa';
+            SET ATTRIBUTE description := 'aaaa';
             FROM SQL $a$SELECT $$foo$$$a$;
         };
         """
@@ -2965,7 +2889,7 @@ aa';
         """
         CREATE FUNCTION foo() -> std::str {
             SET volatility := 'volatile';
-            SET description := 'aaaa';
+            SET ATTRIBUTE description := 'aaaa';
             FROM SQL $a$SELECT $$foo$$$a$;
         };
         """
@@ -2975,7 +2899,7 @@ aa';
     def test_edgeql_syntax_ddl_function_27(self):
         """
         CREATE FUNCTION foo() -> std::str {
-            SET description := 'aaaa';
+            SET ATTRIBUTE description := 'aaaa';
         };
         """
 
@@ -2985,7 +2909,7 @@ aa';
         """
         CREATE FUNCTION foo() -> std::str {
             FROM SQL 'SELECT 1';
-            SET description := 'aaaa';
+            SET ATTRIBUTE description := 'aaaa';
             FROM SQL 'SELECT 2';
         };
         """

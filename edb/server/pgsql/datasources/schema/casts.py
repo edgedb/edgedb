@@ -30,8 +30,6 @@ async def fetch(
         SELECT
                 o.id AS id,
                 o.name AS name,
-                o.title AS title,
-                o.description AS description,
                 o.language,
                 o.from_function,
                 o.from_expr,

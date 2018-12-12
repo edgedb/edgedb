@@ -26,6 +26,7 @@ from edb.lang.edgeql import codegen
 from edb.lang.edgeql import functypes as ft
 
 from . import abc as s_abc
+from . import attributes
 from . import delta as sd
 from . import expr
 from . import name as sn
@@ -368,7 +369,7 @@ class FuncParameterList(so.ObjectList, type=Parameter):
         return schema, cls.create(schema, params)
 
 
-class CallableObject(so.Object):
+class CallableObject(attributes.AttributeSubject):
 
     params = so.SchemaField(
         FuncParameterList,
@@ -450,6 +451,11 @@ class CallableObject(so.Object):
 
     def has_inlined_defaults(self, schema):
         return False
+
+
+class CallableCommandContext(sd.ObjectCommandContext,
+                             attributes.AttributeSubjectCommandContext):
+    pass
 
 
 class CallableCommand(sd.ObjectCommand):
@@ -562,7 +568,7 @@ class Function(CallableObject, s_abc.Function):
                     self.get_params(schema).find_named_only(schema))
 
 
-class FunctionCommandContext(sd.ObjectCommandContext):
+class FunctionCommandContext(CallableCommandContext):
     pass
 
 

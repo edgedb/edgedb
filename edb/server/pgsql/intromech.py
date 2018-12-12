@@ -88,8 +88,6 @@ class IntrospectionMech:
                 schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_link_properties(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
-            schema = await self.read_attribute_values(
-                schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_operators(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_functions(
@@ -97,6 +95,8 @@ class IntrospectionMech:
             schema = await self.read_constraints(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_indexes(
+                schema, only_modules=modules, exclude_modules=exclude_modules)
+            schema = await self.read_attribute_values(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
 
             schema = await self.order_attributes(schema)
@@ -173,8 +173,6 @@ class IntrospectionMech:
             scalar_data = {
                 'id': row['id'],
                 'name': name,
-                'title': row['title'],
-                'description': row['description'],
                 'is_abstract': row['is_abstract'],
                 'is_final': row['is_final'],
                 'view_type': (s_types.ViewType(row['view_type'])
@@ -274,8 +272,6 @@ class IntrospectionMech:
                 'id': row['id'],
                 'name': name,
                 'operator_kind': row['operator_kind'],
-                'title': row['title'],
-                'description': row['description'],
                 'language': row['language'],
                 'params': params,
                 'return_typemod': row['return_typemod'],
@@ -316,8 +312,6 @@ class IntrospectionMech:
             cast_data = {
                 'id': row['id'],
                 'name': name,
-                'title': row['title'],
-                'description': row['description'],
                 'from_type': self.unpack_typeref(row['from_type'], schema),
                 'to_type': self.unpack_typeref(row['to_type'], schema),
                 'language': row['language'],
@@ -353,8 +347,6 @@ class IntrospectionMech:
             func_data = {
                 'id': row['id'],
                 'name': name,
-                'title': row['title'],
-                'description': row['description'],
                 'language': row['language'],
                 'params': params,
                 'return_typemod': row['return_typemod'],
@@ -395,8 +387,6 @@ class IntrospectionMech:
             elif name != 'std::constraint':
                 bases = (sn.Name('std::constraint'), )
 
-            title = r['title']
-            description = r['description']
             subject = schema.get(r['subject']) if r['subject'] else None
 
             basemap[name] = r['bases'] or []
@@ -411,9 +401,8 @@ class IntrospectionMech:
                 id=r['id'],
                 name=name,
                 subject=subject,
-                title=title,
                 params=params,
-                description=description, is_abstract=r['is_abstract'],
+                is_abstract=r['is_abstract'],
                 is_final=r['is_final'], expr=r['expr'],
                 subjectexpr=r['subjectexpr'],
                 finalexpr=r['finalexpr'],
@@ -587,9 +576,6 @@ class IntrospectionMech:
             else:
                 derived_from = None
 
-            title = r['title']
-            description = r['description']
-
             source = schema.get(r['source']) if r['source'] else None
             if r['spectargets']:
                 spectargets = [schema.get(t) for t in r['spectargets']]
@@ -618,8 +604,6 @@ class IntrospectionMech:
                 spectargets=spectargets,
                 cardinality=cardinality,
                 required=required,
-                title=title,
-                description=description,
                 derived_from=derived_from,
                 is_derived=r['is_derived'],
                 is_abstract=r['is_abstract'],
@@ -691,8 +675,6 @@ class IntrospectionMech:
             elif name != 'std::property':
                 bases = (sn.Name('std::property'), )
 
-            title = r['title']
-            description = r['description']
             source = schema.get(r['source']) if r['source'] else None
 
             if r['derived_from']:
@@ -715,11 +697,10 @@ class IntrospectionMech:
                 schema,
                 id=r['id'],
                 name=name, source=source, target=target, required=required,
-                title=title, description=description, readonly=r['readonly'],
-                computable=r['computable'], default=default,
-                cardinality=cardinality, derived_from=derived_from,
-                is_derived=r['is_derived'], is_abstract=r['is_abstract'],
-                is_final=r['is_final'])
+                readonly=r['readonly'], computable=r['computable'],
+                default=default, cardinality=cardinality,
+                derived_from=derived_from, is_derived=r['is_derived'],
+                is_abstract=r['is_abstract'], is_final=r['is_final'])
 
             if bases and bases[0] in {'std::target', 'std::source'}:
                 if bases[0] == 'std::target' and source is not None:
@@ -770,13 +751,11 @@ class IntrospectionMech:
 
         for r in attributes:
             name = sn.Name(r['name'])
-            title = r['title']
-            description = r['description']
             schema, attribute = s_attrs.Attribute.create_in_schema(
                 schema,
                 id=r['id'],
-                name=name, title=title, description=description,
-                type=self.unpack_typeref(r['type'], schema))
+                name=name,
+            )
 
         return schema
 
@@ -820,8 +799,6 @@ class IntrospectionMech:
             objtype = {
                 'id': row['id'],
                 'name': name,
-                'title': row['title'],
-                'description': row['description'],
                 'is_abstract': row['is_abstract'],
                 'is_final': row['is_final'],
                 'view_type': (s_types.ViewType(row['view_type'])
@@ -835,8 +812,7 @@ class IntrospectionMech:
             schema, objtype = s_objtypes.ObjectType.create_in_schema(
                 schema,
                 id=objtype['id'],
-                name=name, title=objtype['title'],
-                description=objtype['description'],
+                name=name,
                 is_abstract=objtype['is_abstract'],
                 is_final=objtype['is_final'],
                 view_type=objtype['view_type'],

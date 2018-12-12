@@ -292,7 +292,7 @@ link ``favorites`` to ``"Rank"``:
 .. code-block:: edgeql
 
     ALTER ABSTRACT LINK favorites {
-        ALTER PROPERTY rank SET title := "Rank";
+        ALTER PROPERTY rank SET ATTRIBUTE title := "Rank";
     };
 
 

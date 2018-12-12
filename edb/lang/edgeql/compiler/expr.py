@@ -271,14 +271,6 @@ def try_fold_associative_binop(
     return folded
 
 
-@dispatch.compile.register(qlast.EmptyCollection)
-def compile_EmptyCollection(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    raise errors.EdgeQLError(
-        f'could not determine type of empty array',
-        context=expr.context)
-
-
 @dispatch.compile.register(qlast.TupleElement)
 def compile_TupleElement(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
@@ -451,7 +443,7 @@ def compile_TypeCast(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     target_typeref = typegen.ql_typeref_to_ir_typeref(expr.type, ctx=ctx)
 
-    if (isinstance(expr.expr, qlast.EmptyCollection) and
+    if (isinstance(expr.expr, qlast.Array) and not expr.expr.elements and
             target_typeref.maintype == 'array'):
         ir_expr = irast.Array()
     else:

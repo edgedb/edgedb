@@ -18,7 +18,6 @@
 
 
 import os.path
-import unittest
 
 from edb.server import _testbase as tb
 
@@ -118,12 +117,7 @@ class TestIntrospection(tb.QueryTestCase):
                 name,
                 is_abstract,
                 pointers: {
-                    name,
-                    attributes: {
-                        name,
-                        @value
-                    } FILTER .name = 'stdattrs::name'
-                      ORDER BY .name
+                    name
                 } ORDER BY .name
             }
             FILTER ObjectType.name = 'test::User';
@@ -133,36 +127,16 @@ class TestIntrospection(tb.QueryTestCase):
                 'is_abstract': False,
                 'pointers': [{
                     'name': 'std::__type__',
-                    'attributes': [{
-                        'name': 'stdattrs::name',
-                        '@value': 'std::__type__'
-                    }]
                 }, {
                     'name': 'std::id',
-                    'attributes': [{
-                        'name': 'stdattrs::name',
-                        '@value': 'std::id'
-                    }]
                 }, {
                     'name': 'test::name',
-                    'attributes': [{
-                        'name': 'stdattrs::name',
-                        '@value': 'test::name'
-                    }]
                 }, {
                     'name': 'test::todo',
-                    'attributes': [{
-                        'name': 'stdattrs::name',
-                        '@value': 'test::todo'
-                    }]
                 }]
             }]
         ])
 
-    # XXX: default schema field values are no longer persisted,
-    # so this fails pending introspection specialization in the
-    # compiler.
-    @unittest.expectedFailure
     async def test_edgeql_introspection_objtype_05(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
@@ -170,11 +144,8 @@ class TestIntrospection(tb.QueryTestCase):
                 name,
                 is_abstract,
                 pointers: {
-                    attributes: {
-                        name,
-                        @value
-                    } FILTER EXISTS @value
-                      ORDER BY .name
+                    name,
+                    cardinality,
                 } FILTER .name LIKE 'test::%'
                   ORDER BY .name
             }
@@ -184,29 +155,11 @@ class TestIntrospection(tb.QueryTestCase):
                 'name': 'test::User',
                 'is_abstract': False,
                 'pointers': [{
-                    'attributes': [
-                        {'name': 'stdattrs::cardinality', '@value': 'ONE'},
-                        {'name': 'stdattrs::is_abstract', '@value': 'false'},
-                        {'name': 'stdattrs::is_derived', '@value': 'false'},
-                        {'name': 'stdattrs::is_final', '@value': 'false'},
-                        {'name': 'stdattrs::is_virtual', '@value': 'false'},
-                        {'name': 'stdattrs::name', '@value': 'test::name'},
-                        {'name': 'stdattrs::readonly', '@value': 'false'},
-                        {'name': 'stdattrs::required', '@value': 'true'},
-                    ]
+                    'name': 'test::name',
+                    'cardinality': 'ONE',
                 }, {
-                    'attributes': [
-                        {'name': 'stdattrs::cardinality', '@value': 'MANY'},
-                        {'name': 'stdattrs::is_abstract', '@value': 'false'},
-                        {'name': 'stdattrs::is_derived', '@value': 'false'},
-                        {'name': 'stdattrs::is_final', '@value': 'false'},
-                        {'name': 'stdattrs::is_virtual', '@value': 'false'},
-                        {'name': 'stdattrs::name', '@value': 'test::todo'},
-                        {'name': 'stdattrs::on_target_delete',
-                         '@value': 'RESTRICT'},
-                        {'name': 'stdattrs::readonly', '@value': 'false'},
-                        {'name': 'stdattrs::required', '@value': 'false'},
-                    ]
+                    'name': 'test::todo',
+                    'cardinality': 'MANY',
                 }]
             }]
         ])
@@ -222,11 +175,7 @@ class TestIntrospection(tb.QueryTestCase):
                     cardinality,
                     target: {
                         name
-                    },
-                    attributes: {
-                        name,
-                        @value
-                    } FILTER .name LIKE '%cardinality'
+                    }
                 } ORDER BY .name
             }
             FILTER .name LIKE '%Comment';
@@ -237,34 +186,18 @@ class TestIntrospection(tb.QueryTestCase):
                     'name': 'std::__type__',
                     'target': {'name': 'schema::Type'},
                     'cardinality': 'ONE',
-                    'attributes': [{
-                        'name': 'stdattrs::cardinality',
-                        '@value': 'ONE',
-                    }],
                 }, {
                     'name': 'test::issue',
                     'target': {'name': 'test::Issue'},
                     'cardinality': 'ONE',
-                    'attributes': [{
-                        'name': 'stdattrs::cardinality',
-                        '@value': 'ONE',
-                    }],
                 }, {
                     'name': 'test::owner',
                     'target': {'name': 'test::User'},
                     'cardinality': 'ONE',
-                    'attributes': [{
-                        'name': 'stdattrs::cardinality',
-                        '@value': 'ONE',
-                    }],
                 }, {
                     'name': 'test::parent',
                     'target': {'name': 'test::Comment'},
                     'cardinality': 'ONE',
-                    'attributes': [{
-                        'name': 'stdattrs::cardinality',
-                        '@value': 'ONE',
-                    }],
                 }]
             }]
         ])
@@ -279,9 +212,7 @@ class TestIntrospection(tb.QueryTestCase):
             FILTER
                 ObjectType.name LIKE 'test::%'
                 AND
-                ObjectType.links.attributes.name = 'stdattrs::cardinality'
-                AND
-                ObjectType.links.attributes@value = 'MANY'
+                ObjectType.links.cardinality = 'MANY'
             ORDER BY ObjectType.name;
         """, [
             [{
@@ -301,9 +232,7 @@ class TestIntrospection(tb.QueryTestCase):
             FILTER
                 `ObjectType`.name LIKE 'test::%'
                 AND
-                `ObjectType`.links.attributes.name = 'stdattrs::cardinality'
-                AND
-                `ObjectType`.links.attributes@value = 'MANY'
+                `ObjectType`.links.cardinality = 'MANY'
             ORDER BY `ObjectType`.name;
         """, [
             [{

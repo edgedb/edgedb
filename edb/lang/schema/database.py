@@ -21,11 +21,12 @@ from edb.lang.common import struct
 from edb.lang.edgeql import ast as qlast
 
 from . import abc as s_abc
+from . import attributes
 from . import delta as sd
 from . import objects as so
 
 
-class Database(so.Object, s_abc.Database):
+class Database(attributes.AttributeSubject, s_abc.Database):
 
     # Override 'name' to str type, since databases don't have
     # fully-qualified names.

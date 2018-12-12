@@ -26,10 +26,9 @@ import typing
 from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import codegen as qlcodegen
+from edb.lang.edgeql import compiler as qlcompiler
 from edb.lang.edgeql import functypes as ft
 from edb.lang.edgeql import utils as qlutils
-
-from edb.lang.edgeql.parser.grammar import lexutils as ql_lexutils
 
 from . import ast as s_ast
 from . import parser as s_parser
@@ -118,17 +117,8 @@ class DeclarationLoader:
                 **objcls_kw,
             )
 
-            for attrdecl in decl.attributes:
-                attr_name = self._get_ref_name(attrdecl.name)
-
-                if (hasattr(type(obj), attr_name) and
-                        not isinstance(attrdecl.value, edgeql.ast.Base)):
-                    value = self._get_literal_value(attrdecl.value)
-                    # This is a builtin attribute, not an expression,
-                    # simply set it on object.
-                    self._schema = obj.set_attribute(
-                        self._schema, attr_name, value,
-                        source=attrdecl.value.context)
+            if decl.attributes:
+                self._parse_attr_setters(obj, decl.attributes)
 
             objects[type(obj)][obj] = decl
 
@@ -221,6 +211,20 @@ class DeclarationLoader:
             raise TypeError('ObjectRef expected '
                             '(got type {!r})'.format(type(ref).__name__))
 
+    def _get_ref_obj(self, ref, item_type):
+        clsname = self._get_ref_name(ref)
+        try:
+            obj = self._schema.get(
+                clsname, type=item_type, module_aliases=self._mod_aliases)
+        except s_err.ItemNotFoundError as e:
+            s_utils.enrich_schema_lookup_error(
+                e, clsname, modaliases=self._mod_aliases,
+                schema=self._schema, item_types=(item_type,))
+            e.set_source_context(ref.context)
+            raise e
+
+        return obj
+
     def _get_ref_type(self, ref):
         clsname = self._get_ref_name(ref.maintype)
         if ref.subtypes:
@@ -277,7 +281,7 @@ class DeclarationLoader:
 
     def _init_constraints(self, constraints):
         for constraint, decl in constraints.items():
-            attrs = {a.name.name: a.value for a in decl.attributes}
+            attrs = {a.name.name: a.value for a in decl.fields}
             assert 'subject' not in attrs  # TODO: Add proper validation
             assert 'subjectexpr' not in attrs  # TODO: Add proper validation
 
@@ -314,14 +318,12 @@ class DeclarationLoader:
                 self._schema, 'params', params)
 
     def _init_attributes(self, attrs):
-        for attr, attrdecl in attrs.items():
-            self._schema = attr.set_field_value(
-                self._schema, 'type', self._get_ref_type(attrdecl.type))
+        pass
 
     def _init_scalars(self, scalars):
         for scalar, scalardecl in scalars.items():
-            if scalardecl.attributes:
-                self._parse_field_setters(scalar, scalardecl.attributes)
+            if scalardecl.fields:
+                self._parse_field_setters(scalar, scalardecl.fields)
 
             if scalardecl.constraints:
                 self._parse_subject_constraints(scalar, scalardecl)
@@ -436,50 +438,60 @@ class DeclarationLoader:
             self._schema = source.add_pointer(self._schema, prop)
 
             if propdecl.attributes:
-                self._parse_field_setters(prop, propdecl.attributes)
+                self._parse_attr_setters(prop, propdecl.attributes)
+
+            if propdecl.fields:
+                self._parse_field_setters(prop, propdecl.fields)
 
             if propdecl.constraints:
                 self._parse_subject_constraints(prop, propdecl)
 
-    def _parse_field_setters(self, ptr,
-                             attrdecls: typing.List[s_ast.Attribute]):
-        fields = type(ptr).get_fields()
+    def _parse_attr_setters(
+            self, scls, attrdecls: typing.List[s_ast.Attribute]):
+        for attrdecl in attrdecls:
+            attr = self._get_ref_obj(attrdecl.name, s_attrs.Attribute)
+            value = qlcompiler.evaluate_ast_to_python_val(
+                attrdecl.value, self._schema, modaliases=self._mod_aliases)
+
+            if not isinstance(value, str):
+                raise s_err.SchemaError(
+                    'attribute value is not a string',
+                    context=attrdecl.value.context)
+
+            self._schema = scls.set_attribute(self._schema, attr, value)
+
+    def _parse_field_setters(
+            self, scls, field_decls: typing.List[s_ast.Field]):
+        fields = type(scls).get_fields()
         updates = {}
 
-        for attrdecl in attrdecls:
-            attrname = attrdecl.name.name
+        for field_decl in field_decls:
+            fieldname = field_decl.name.name
 
-            attrfield = fields.get(attrname)
+            attrfield = fields.get(fieldname)
             if attrfield is None or not attrfield.public:
                 raise s_err.SchemaError(
-                    f'unexpected attribute {attrname}',
-                    context=attrdecl.context)
+                    f'unexpected field {fieldname}',
+                    context=field_decl.context)
 
             if issubclass(attrfield.type, s_expr.ExpressionText):
-                updates[attrname] = qlcodegen.generate_source(attrdecl.value)
+                updates[fieldname] = qlcodegen.generate_source(
+                    field_decl.value)
 
-            elif (issubclass(attrfield.type, bool) and
-                    isinstance(attrdecl.value, qlast.BooleanConstant)):
-                updates[attrname] = attrdecl.value.value.lower() == 'true'
-
-            elif (issubclass(attrfield.type, str) and
-                    isinstance(attrdecl.value, qlast.StringConstant)):
-                updates[attrname] = ql_lexutils.unescape_string(
-                    attrdecl.value.value)
             else:
-                raise s_err.SchemaError(
-                    f'unable to parse value for {attrname} attribute',
-                    context=attrdecl.context)
+                updates[fieldname] = qlcompiler.evaluate_ast_to_python_val(
+                    field_decl.value, self._schema,
+                    modaliases=self._mod_aliases)
 
         if updates:
-            self._schema = ptr.update(self._schema, updates)
+            self._schema = scls.update(self._schema, updates)
 
     def _parse_subject_constraints(self, subject, subjdecl):
         # Perform initial collection of constraints defined in subject context.
         # At this point all referenced constraints should be fully initialized.
 
         for constrdecl in subjdecl.constraints:
-            attrs = {a.name.name: a.value for a in constrdecl.attributes}
+            attrs = {a.name.name: a.value for a in constrdecl.fields}
             assert 'subject' not in attrs  # TODO: Add proper validation
 
             constr_name = self._get_ref_name(constrdecl.name)
@@ -537,8 +549,8 @@ class DeclarationLoader:
         for objtype, objtypedecl in objtypes.items():
             self._parse_source_props(objtype, objtypedecl)
 
-            if objtypedecl.attributes:
-                self._parse_field_setters(objtype, objtypedecl.attributes)
+            if objtypedecl.fields:
+                self._parse_field_setters(objtype, objtypedecl.fields)
 
             for linkdecl in objtypedecl.links:
                 link_name = self._get_ref_name(linkdecl.name)
@@ -680,7 +692,7 @@ class DeclarationLoader:
                 self._normalize_ptr_default(
                     ptrdecl.expr, objtype, spec_link, ptrdecl)
 
-            for attr in ptrdecl.attributes:
+            for attr in ptrdecl.fields:
                 name = attr.name.name
                 if name == 'default':
                     if isinstance(attr.value, edgeql.ast.SelectQuery):

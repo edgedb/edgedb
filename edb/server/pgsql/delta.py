@@ -20,7 +20,6 @@
 import collections.abc
 import itertools
 import json
-import pickle
 import textwrap
 import typing
 
@@ -764,31 +763,15 @@ class DeleteAttribute(
 class AttributeValueCommand(sd.ObjectCommand,
                             metaclass=ReferencedObjectCommandMeta):
     _table = metaschema.get_metaclass_table(s_attrs.AttributeValue)
-    op_priority = 1
+    op_priority = 4
 
     def get_table(self, schema):
         return self._table
-
-    def fill_record(self, schema, *, use_defaults=False):
-        rec, updates = super().fill_record(schema, use_defaults=use_defaults)
-
-        if rec:
-            value = updates.get('value')
-            if value:
-                rec.value = pickle.dumps(value)
-
-        return rec, updates
 
 
 class CreateAttributeValue(
         AttributeValueCommand, CreateOrAlterObject,
         adapts=s_attrs.CreateAttributeValue):
-    pass
-
-
-class AlterAttributeValue(
-        AttributeValueCommand, AlterObject,
-        adapts=s_attrs.AlterAttributeValue):
     pass
 
 

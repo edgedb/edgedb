@@ -29,11 +29,7 @@ async def fetch(
     return await conn.fetch("""
         SELECT
                 a.id                    AS id,
-                a.name                  AS name,
-                a.title                 AS title,
-                a.description           AS description,
-                edgedb._resolve_type(a.type)
-                                        AS type
+                a.name                  AS name
             FROM
                 edgedb.attribute a
             WHERE

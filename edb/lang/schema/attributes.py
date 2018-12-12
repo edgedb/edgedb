@@ -19,21 +19,21 @@
 
 
 from edb.lang.edgeql import ast as qlast
+from edb.lang.edgeql import errors as qlerrors
 
-from . import abc as s_abc
 from . import delta as sd
+from . import error as s_err
 from . import inheriting
 from . import name as sn
 from . import objects as so
-from . import types as s_types
 from . import utils
 
 
 class Attribute(inheriting.InheritingObject):
-
-    type = so.SchemaField(
-        s_types.Type,
-        compcoef=0.909)
+    # Attributes cannot be renamed, so make sure the name
+    # has low compcoef.
+    name = so.SchemaField(
+        sn.Name, inheritable=False, compcoef=0.2)
 
 
 class AttributeValue(inheriting.InheritingObject):
@@ -53,7 +53,7 @@ class AttributeValue(inheriting.InheritingObject):
     __repr__ = __str__
 
 
-class AttributeSubject(inheriting.InheritingObject):
+class AttributeSubject(so.Object):
     attributes_refs = so.RefDict(
         attr='attributes',
         local_attr='own_attributes',
@@ -78,6 +78,25 @@ class AttributeSubject(inheriting.InheritingObject):
         shortname = sn.shortname_from_fullname(attribute_name)
         return self.del_classref(schema, 'attributes', shortname)
 
+    def get_attribute(self, schema, name):
+        return self.get_attributes(schema).get(schema, name, None)
+
+    def set_attribute(self, schema, attr: Attribute, value: str):
+        attrname = attr.get_name(schema)
+        existing = self.get_own_attributes(schema).get(schema, attrname, None)
+        if existing is None:
+            my_name = self.get_name(schema)
+            ann = sn.get_specialized_name(attrname, my_name)
+            an = sn.Name(name=ann, module=my_name.module)
+            schema, av = AttributeValue.create_in_schema(
+                schema, name=an, value=value)
+            schema = self.add_attribute(schema, av)
+        else:
+            schema, updated = existing.set_field_value('value', value)
+            schema = self.add_attribute(schema, updated, replace=True)
+
+        return schema
+
 
 class AttributeCommandContext(sd.ObjectCommandContext):
     pass
@@ -90,41 +109,6 @@ class AttributeCommand(sd.ObjectCommand, schema_metaclass=Attribute,
 
 class CreateAttribute(AttributeCommand, sd.CreateObject):
     astnode = qlast.CreateAttribute
-
-    @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
-        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-
-        cmd.add(
-            sd.AlterObjectProperty(
-                property='type',
-                new_value=utils.ast_to_typeref(
-                    astnode.type, modaliases=context.modaliases,
-                    schema=schema)
-            )
-        )
-
-        return cmd
-
-    def _apply_field_ast(self, schema, context, node, op):
-        if op.property == 'type':
-            tp = op.new_value
-            if isinstance(tp, s_abc.Collection):
-                maintype = tp.schema_name
-                stt = tp.get_subtypes()
-
-                for st in stt:
-                    eltype = qlast.ObjectRef(module=st.module, name=st.name)
-                tnn = qlast.TypeName(
-                    maintype=maintype,
-                    subtypes=[eltype])
-            else:
-                tnn = qlast.TypeName(maintype=tp)
-
-            node.type = tnn
-
-        else:
-            super()._apply_field_ast(schema, context, node, op)
 
 
 class AlterAttribute(AttributeCommand, sd.AlterObject):
@@ -151,30 +135,25 @@ class AttributeValueCommand(sd.ObjectCommand, schema_metaclass=AttributeValue,
                             context_class=AttributeValueCommandContext):
     @classmethod
     def _classname_from_ast(cls, schema, astnode, context):
-        propname = super()._classname_from_ast(schema, astnode, context)
+        nqname = cls._get_ast_name(schema, astnode, context)
+        if astnode.name.module:
+            propname = sn.Name(module=astnode.name.module, name=nqname)
+        else:
+            propname = nqname
+
+        try:
+            attr = schema.get(propname, module_aliases=context.modaliases)
+        except s_err.ItemNotFoundError as e:
+            raise qlerrors.EdgeQLReferenceError(
+                str(e), context=astnode.context) from e
 
         parent_ctx = context.get(sd.CommandContextToken)
         subject_name = parent_ctx.op.classname
 
-        pnn = sn.get_specialized_name(
-            sn.Name(propname), subject_name
-        )
-
+        pnn = sn.get_specialized_name(attr.get_name(schema), subject_name)
         pn = sn.Name(name=pnn, module=subject_name.module)
 
         return pn
-
-    @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
-        propname = astnode.name.name
-        if astnode.name.module:
-            propname = astnode.name.module + '::' + propname
-
-        if '::' not in propname:
-            return sd.AlterObjectProperty._cmd_tree_from_ast(
-                schema, astnode, context)
-        else:
-            return super()._cmd_tree_from_ast(schema, astnode, context)
 
     def add_attribute(self, schema, attribute, parent):
         return parent.add_attribute(schema, attribute, replace=True)
@@ -190,41 +169,24 @@ class CreateAttributeValue(AttributeValueCommand, sd.CreateObject):
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         from edb.lang.edgeql import compiler as qlcompiler
 
-        propname = astnode.name.name
-        if astnode.name.module:
-            propname = astnode.name.module + '::' + propname
-
-        if '::' not in propname:
-            return sd.AlterObjectProperty._cmd_tree_from_ast(
-                schema, astnode, context)
-
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         propname = sn.shortname_from_fullname(cmd.classname)
 
-        val = astnode.value
-        if isinstance(val, qlast.BaseConstant):
-            value = qlcompiler.evaluate_ast_to_python_val(
-                val, schema=schema)
+        value = qlcompiler.evaluate_ast_to_python_val(
+            astnode.value, schema=schema)
 
-        elif isinstance(astnode.value, qlast.Tuple):
-            value = tuple(
-                qlcompiler.evaluate_ast_to_python_val(
-                    el.value, schema=schema)
-                for el in astnode.value.elements
-            )
-
-        else:
-            msg = 'unexpected value type in AttributeValue: {!r}'
-            raise ValueError(msg.format(val))
+        if not isinstance(value, str):
+            raise ValueError(
+                f'unexpected value type in AttributeValue: {value!r}')
 
         parent_ctx = context.get(sd.CommandContextToken)
-        subject = parent_ctx.scls
+        subject_name = parent_ctx.op.classname
         attr = schema.get(propname)
 
         cmd.update((
             sd.AlterObjectProperty(
                 property='subject',
-                new_value=utils.reduce_to_typeref(schema, subject)
+                new_value=so.ObjectRef(name=subject_name),
             ),
             sd.AlterObjectProperty(
                 property='attribute',
@@ -255,7 +217,7 @@ class CreateAttributeValue(AttributeValueCommand, sd.CreateObject):
         assert attrsubj, "Attribute commands must be run in " + \
                          "AttributeSubject context"
 
-        with context(AttributeValueCommandContext(self, None)):
+        with context(AttributeValueCommandContext(schema, self, None)):
             name = sn.shortname_from_fullname(self.classname)
             attrs = attrsubj.scls.get_own_attributes(schema)
             attribute = attrs.get(schema, name, None)
@@ -267,34 +229,6 @@ class CreateAttributeValue(AttributeValueCommand, sd.CreateObject):
                     self, schema, context)
 
             return schema, attribute
-
-
-class AlterAttributeValue(AttributeValueCommand, sd.AlterObject):
-    astnode = qlast.AlterAttributeValue
-
-    def _apply_fields_ast(self, schema, context, node):
-        super()._apply_fields_ast(schema, context, node)
-        for op in self(sd.AlterObjectProperty):
-            if op.property == 'value':
-                node.value = qlast.BaseConstant.from_python(op.new_value)
-
-    def _apply_field_ast(self, schema, context, node, op):
-        if op.property == 'is_derived':
-            pass
-        elif op.property == 'attribute':
-            pass
-        elif op.property == 'subject':
-            pass
-        else:
-            super()._apply_field_ast(schema, context, node, op)
-
-    def apply(self, schema, context):
-        attrsubj = context.get(AttributeSubjectCommandContext)
-        assert attrsubj, "Attribute commands must be run in " + \
-                         "AttributeSubject context"
-
-        with context(AttributeValueCommandContext(self, None)):
-            return super().apply(schema, context)
 
 
 class DeleteAttributeValue(AttributeValueCommand, sd.DeleteObject):

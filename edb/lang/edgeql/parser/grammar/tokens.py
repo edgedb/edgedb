@@ -169,6 +169,10 @@ class T_NAMEDONLY(Token):
     pass
 
 
+class T_SETATTRIBUTE(Token):
+    pass
+
+
 class T_ICONST(Token):
     pass
 

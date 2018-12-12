@@ -20,12 +20,13 @@
 from edb.lang.common import struct
 from edb.lang.edgeql import ast as qlast
 
+from . import attributes
 from . import delta as sd
 from . import name as sn
 from . import objects as so
 
 
-class Module(so.Object):
+class Module(attributes.AttributeSubject):
     # Override 'name' to str type, since modules don't have
     # fully-qualified names.
     name = so.SchemaField(str)

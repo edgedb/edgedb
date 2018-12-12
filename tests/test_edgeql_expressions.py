@@ -1553,6 +1553,7 @@ class TestExpressions(tb.QueryTestCase):
             [
                 'schema::Array',
                 'schema::Attribute',
+                'schema::AttributeSubject',
                 'schema::Database',
                 'schema::Delta',
                 'schema::DerivedLink',
@@ -1692,8 +1693,8 @@ class TestExpressions(tb.QueryTestCase):
         await self.assert_query_result('''
             WITH
                 MODULE schema,
-                A := (SELECT Type FILTER .name = 'test::issue_num_t')
-            SELECT [A.name, A.description];
+                A := (SELECT ScalarType FILTER .name = 'test::issue_num_t')
+            SELECT [A.name, A.default];
         ''', [
             [],
         ])
@@ -2941,37 +2942,4 @@ class TestExpressions(tb.QueryTestCase):
             ORDER BY y;
         ''', [
             [[1, 3], [2, 1], [3, 2]]
-        ])
-
-    # XXX: default schema field values are no longer persisted,
-    # so this fails pending introspection specialization in the
-    # compiler.
-    @unittest.expectedFailure
-    async def test_edgeql_expr_schema_01(self):
-        await self.assert_query_result(r'''
-            WITH MODULE schema
-            SELECT ObjectType {
-                name,
-                attributes: {
-                    name,
-                    @value
-                } ORDER BY ObjectType.attributes.name
-            }
-            FILTER .name = 'test::User';
-
-        ''', [
-            [{
-                'name': 'test::User',
-                'attributes': [
-                    {'name': 'stdattrs::description', '@value': None},
-                    {'name': 'stdattrs::expr', '@value': None},
-                    {'name': 'stdattrs::is_abstract', '@value': 'false'},
-                    {'name': 'stdattrs::is_derived', '@value': 'false'},
-                    {'name': 'stdattrs::is_final', '@value': 'false'},
-                    {'name': 'stdattrs::is_virtual', '@value': 'false'},
-                    {'name': 'stdattrs::name', '@value': 'test::User'},
-                    {'name': 'stdattrs::title', '@value': None},
-                    {'name': 'stdattrs::view_type', '@value': None},
-                ]
-            }]
         ])
