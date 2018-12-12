@@ -24,7 +24,6 @@ from . import indexes
 from . import name as sn
 from . import objects as so
 from . import pointers
-from . import referencing
 from . import utils
 
 
@@ -38,7 +37,7 @@ class SourceCommand(indexes.IndexSourceCommand):
 
 
 class Source(indexes.IndexableSubject):
-    pointers_refs = referencing.RefDict(
+    pointers_refs = so.RefDict(
         attr='pointers',
         local_attr='own_pointers',
         requires_explicit_inherit=True,

@@ -185,12 +185,31 @@ class RebaseInheritingObject(sd.ObjectCommand):
                                  self.classname)
 
     def apply(self, schema, context):
-        for op in self.get_subcommands(type=sd.ObjectCommand):
-            schema, _ = op.apply(schema, context)
-
         metaclass = self.get_schema_metaclass()
         scls = schema.get(self.classname, type=metaclass)
         self.scls = scls
+
+        objects = [scls] + list(scls.descendants(schema))
+        for obj in objects:
+            for refdict in scls.__class__.get_refdicts():
+                attr = refdict.attr
+                local_attr = refdict.local_attr
+                backref = refdict.backref_attr
+
+                coll = obj.get_field_value(schema, attr)
+                local_coll = obj.get_field_value(schema, local_attr)
+
+                for ref_name in tuple(coll.shortnames(schema)):
+                    if not local_coll.has(schema, ref_name):
+                        try:
+                            obj.get_classref_origin(
+                                schema, ref_name, attr, local_attr, backref)
+                        except KeyError:
+                            del coll[ref_name]
+
+        for op in self.get_subcommands(type=sd.ObjectCommand):
+            schema, _ = op.apply(schema, context)
+
         bases = list(scls.get_bases(schema).objects(schema))
         removed_bases = {b.get_name(schema) for b in self.removed_bases}
         existing_bases = set()
@@ -390,7 +409,7 @@ class InheritingObject(derivable.DerivableObject):
         default=False, compcoef=0.5)
 
     @classmethod
-    def delta(cls, old, new, *, context, old_schema, new_schema):
+    def delta(cls, old, new, *, context=None, old_schema, new_schema):
         if context is None:
             context = so.ComparisonContext()
 
@@ -418,6 +437,177 @@ class InheritingObject(derivable.DerivableObject):
                         new_base=tuple(new_base_names)))
 
         return delta
+
+    def merge(self, *objs, schema, dctx=None):
+        schema = super().merge(*objs, schema=schema, dctx=None)
+
+        for obj in objs:
+            for refdict in self.__class__.get_refdicts():
+                # Merge Object references in each registered collection.
+                #
+                this_coll = self.get_explicit_field_value(
+                    schema, refdict.attr, None)
+
+                other_coll = obj.get_explicit_field_value(
+                    schema, refdict.attr, None)
+
+                if other_coll is None:
+                    continue
+
+                if this_coll is None:
+                    schema = self.set_field_value(
+                        schema, refdict.attr, other_coll)
+                else:
+                    updates = {v for k, v in other_coll.items(schema)
+                               if not this_coll.has(schema, k)}
+
+                    schema, this_coll = this_coll.update(schema, updates)
+                    schema = self.set_field_value(
+                        schema, refdict.attr, this_coll)
+
+        return schema
+
+    def begin_classref_dict_merge(self, schema, bases, attr):
+        return schema, None
+
+    def finish_classref_dict_merge(self, schema, bases, attr):
+        return schema
+
+    def merge_classref_dict(self, schema, *,
+                            bases, attr, local_attr,
+                            backref_attr, classrefcls,
+                            classref_keys, requires_explicit_inherit,
+                            dctx=None):
+        """Merge reference collections from bases.
+
+        :param schema:         The schema.
+
+        :param bases:          An iterable containing base objects.
+
+        :param str attr:       Name of the attribute containing the full
+                               reference collection.
+
+        :param str local_attr: Name of the attribute containing the collection
+                               of references defined locally (not inherited).
+
+        :param str backref_attr: Name of the attribute on a referenced
+                                 object containing the reference back to
+                                 this object.
+
+        :param classrefcls:    Referenced object class.
+
+        :param classrefkeys:   An optional list of reference keys to consider
+                               for merging.  If not specified, all keys
+                               in the collection will be used.
+        """
+        classrefs = self.get_explicit_field_value(schema, attr, None)
+        colltype = type(self).get_field(local_attr).type
+        if classrefs is None:
+            classrefs = colltype.create_empty()
+
+        local_classrefs = self.get_explicit_field_value(
+            schema, local_attr, None)
+        if local_classrefs is None:
+            local_classrefs = colltype.create_empty()
+
+        if classref_keys is None:
+            classref_keys = classrefs.keys(schema)
+
+        for classref_key in classref_keys:
+            local = local_classrefs.get(schema, classref_key, None)
+            local_schema = schema
+
+            inherited = []
+            for b in bases:
+                attrval = b.get_explicit_field_value(schema, attr, None)
+                if not attrval:
+                    continue
+                bref = attrval.get(schema, classref_key, None)
+                if bref is not None:
+                    inherited.append(bref)
+
+            ancestry = {pref.get_field_value(schema, backref_attr): pref
+                        for pref in inherited}
+
+            inherited = list(ancestry.values())
+
+            if not inherited and local is None:
+                continue
+
+            pure_inheritance = False
+
+            if local and inherited:
+                schema = local.acquire_ancestor_inheritance(schema, inherited)
+                schema = local.finalize(schema, bases=inherited)
+                merged = local
+
+            elif len(inherited) > 1:
+                base = inherited[0].get_bases(schema).first(schema)
+                schema, merged = base.derive(
+                    schema, self, merge_bases=inherited, dctx=dctx)
+
+            elif len(inherited) == 1:
+                # Pure inheritance
+                item = inherited[0]
+                # In some cases pure inheritance is not possible, such
+                # as when a pointer has delegated constraints that must
+                # be materialized on inheritance.  We delegate the
+                # decision to the referenced class here.
+                schema, merged = classrefcls.inherit_pure(
+                    schema, item, source=self, dctx=dctx)
+                pure_inheritance = schema is local_schema
+
+            else:
+                # Not inherited
+                merged = local
+
+            if (local is not None and inherited and not pure_inheritance and
+                    requires_explicit_inherit and
+                    not local.get_declared_inherited(local_schema) and
+                    dctx is not None and dctx.declarative):
+                # locally defined references *must* use
+                # the `inherited` keyword if ancestors have
+                # a reference under the same name.
+                raise s_err.SchemaDefinitionError(
+                    f'{self.get_shortname(schema)}: '
+                    f'{local.get_shortname(local_schema)} must be '
+                    f'declared using the `inherited` keyword because '
+                    f'it is defined in the following ancestor(s): '
+                    f'{", ".join(a.get_shortname(schema) for a in ancestry)}',
+                    context=local.get_sourcectx(local_schema)
+                )
+
+            if not inherited and local.get_declared_inherited(local_schema):
+                raise s_err.SchemaDefinitionError(
+                    f'{self.get_shortname(schema)}: '
+                    f'{local.get_shortname(local_schema)} cannot '
+                    f'be declared `inherited` as there are no ancestors '
+                    f'defining it.',
+                    context=local.get_sourcectx(local_schema)
+                )
+
+            if inherited:
+                if not pure_inheritance:
+                    if dctx is not None:
+                        delta = merged.delta(local, merged,
+                                             context=None,
+                                             old_schema=local_schema,
+                                             new_schema=schema)
+                        if delta.has_subcommands():
+                            dctx.current().op.add(delta)
+
+                    schema, local_classrefs = local_classrefs.update(
+                        schema, [merged])
+
+                schema, classrefs = classrefs.update(
+                    schema, [merged])
+
+        schema = self.update(schema, {
+            attr: classrefs,
+            local_attr: local_classrefs
+        })
+
+        return schema
 
     def init_derived(self, schema, source, *qualifiers, as_copy,
                      merge_bases=None, mark_derived=False,
@@ -528,7 +718,54 @@ class InheritingObject(derivable.DerivableObject):
         schema = self.set_field_value(
             schema, 'mro', compute_mro(schema, self)[1:])
         schema = self.acquire_ancestor_inheritance(schema, dctx=dctx)
+
+        if bases is None:
+            bases = self.get_bases(schema).objects(schema)
+
+        for refdict in self.__class__.get_refdicts():
+            attr = refdict.attr
+            local_attr = refdict.local_attr
+            backref_attr = refdict.backref_attr
+            ref_cls = refdict.ref_cls
+            exp_inh = refdict.requires_explicit_inherit
+
+            schema, ref_keys = self.begin_classref_dict_merge(
+                schema, bases=bases, attr=attr)
+
+            schema = self.merge_classref_dict(
+                schema, bases=bases, attr=attr,
+                local_attr=local_attr,
+                backref_attr=backref_attr,
+                classrefcls=ref_cls,
+                classref_keys=ref_keys,
+                requires_explicit_inherit=exp_inh,
+                dctx=dctx)
+
+            schema = self.finish_classref_dict_merge(
+                schema, bases=bases, attr=attr)
+
         return schema
+
+    def del_classref(self, schema, collection, key):
+        refdict = type(self).get_refdict(collection)
+        attr = refdict.attr
+        local_attr = refdict.local_attr
+
+        is_inherited = any(b.get_field_value(schema, attr).has(schema, key)
+                           for b in self.get_bases(schema).objects(schema))
+
+        if not is_inherited:
+            for descendant in self.descendants(schema):
+                descendant_local_coll = descendant.get_field_value(
+                    schema, local_attr)
+                if not descendant_local_coll.has(schema, key):
+                    descendant_coll = descendant.get_field_value(schema, attr)
+                    schema, descendant_coll = descendant_coll.delete(
+                        schema, [key])
+                    schema = descendant.set_field_value(
+                        schema, attr, descendant_coll)
+
+        return super().del_classref(schema, collection, key)
 
     def get_nearest_non_derived_parent(self, schema):
         obj = self

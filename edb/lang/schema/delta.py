@@ -649,6 +649,14 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
         for op in self.get_subcommands(type=AlterObjectProperty):
             self._apply_field_ast(schema, context, node, op)
 
+        mcls = self.get_schema_metaclass()
+        for refdict in mcls.get_refdicts():
+            self._apply_refs_fields_ast(schema, context, node, refdict)
+
+    def _apply_refs_fields_ast(self, schema, context, node, refdict):
+        for op in self.get_subcommands(metaclass=refdict.ref_cls):
+            self._append_subcmd_ast(schema, node, op, context)
+
     def _apply_field_ast(self, schema, context, node, op):
         if op.property == 'name':
             pass
@@ -717,10 +725,20 @@ class CreateObject(CreateOrAlterObject):
         return schema, self.get_struct_properties(schema)
 
     def _create_innards(self, schema, context):
+        mcls = self.get_schema_metaclass()
+
+        for refdict in mcls.get_refdicts():
+            schema = self._create_refs(schema, context, self.scls, refdict)
+
         return schema
 
     def _create_finalize(self, schema, context):
         return self.scls.finalize(schema, dctx=context)
+
+    def _create_refs(self, schema, context, scls, refdict):
+        for op in self.get_subcommands(metaclass=refdict.ref_cls):
+            schema, _ = op.apply(schema, context=context)
+        return schema
 
     def apply(self, schema, context):
         schema = self._create_begin(schema, context)
@@ -991,9 +1009,23 @@ class AlterObject(CreateOrAlterObject):
         return schema
 
     def _alter_innards(self, schema, context, scls):
+        mcls = self.get_schema_metaclass()
+
+        for refdict in mcls.get_refdicts():
+            schema = self._alter_refs(schema, context, scls, refdict)
+
         return schema
 
     def _alter_finalize(self, schema, context, scls):
+        return schema
+
+    def _alter_refs(self, schema, context, scls, refdict):
+        for op in self.get_subcommands(metaclass=refdict.ref_cls):
+            derived_from = op.get_attribute_value('derived_from')
+            if derived_from is not None:
+                continue
+
+            schema, _ = op.apply(schema, context=context)
         return schema
 
     def apply(self, schema, context):
@@ -1016,10 +1048,38 @@ class DeleteObject(ObjectCommand):
         return schema
 
     def _delete_innards(self, schema, context, scls):
+        mcls = self.get_schema_metaclass()
+
+        for refdict in mcls.get_refdicts():
+            schema = self._delete_refs(schema, context, scls, refdict)
+
         return schema
 
     def _delete_finalize(self, schema, context, scls):
         schema = schema.delete(scls)
+        return schema
+
+    def _delete_refs(self, schema, context, scls, refdict):
+        deleted_refs = set()
+
+        all_refs = set(
+            scls.get_field_value(schema, refdict.local_attr).objects(schema)
+        )
+
+        for op in self.get_subcommands(metaclass=refdict.ref_cls):
+            schema, deleted_ref = op.apply(schema, context=context)
+            deleted_refs.add(deleted_ref)
+
+        # Add implicit Delete commands for any local refs not
+        # deleted explicitly.
+        for ref in all_refs - deleted_refs:
+            del_cmd = ObjectCommandMeta.get_command_class(
+                DeleteObject, type(ref))
+
+            op = del_cmd(classname=ref.get_name(schema))
+            schema, _ = op.apply(schema, context=context)
+            self.add(op)
+
         return schema
 
     def apply(self, schema, context=None):

@@ -119,7 +119,7 @@ class PropertySourceContext(sources.SourceCommandContext):
     pass
 
 
-class PropertySourceCommand(referencing.ReferencingObjectCommand):
+class PropertySourceCommand(inheriting.InheritingObjectCommand):
     pass
 
 

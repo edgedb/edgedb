@@ -198,7 +198,7 @@ class LinkSourceCommandContext(sources.SourceCommandContext):
     pass
 
 
-class LinkSourceCommand(referencing.ReferencingObjectCommand):
+class LinkSourceCommand(inheriting.InheritingObjectCommand):
     pass
 
 

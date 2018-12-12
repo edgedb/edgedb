@@ -288,8 +288,8 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
         return sn.Name('std::constraint')
 
 
-class ConsistencySubject(referencing.ReferencingObject):
-    constraints_refs = referencing.RefDict(
+class ConsistencySubject(inheriting.InheritingObject):
+    constraints_refs = so.RefDict(
         attr='constraints',
         local_attr='own_constraints',
         ref_cls=Constraint)
@@ -372,7 +372,7 @@ class ConsistencySubjectCommandContext:
     pass
 
 
-class ConsistencySubjectCommand(referencing.ReferencingObjectCommand):
+class ConsistencySubjectCommand(inheriting.InheritingObjectCommand):
     pass
 
 

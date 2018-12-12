@@ -249,6 +249,15 @@ class SchemaField(Field):
             return self
 
 
+class RefDict(struct.Struct):
+
+    local_attr = struct.Field(str)
+    attr = struct.Field(str)
+    backref_attr = struct.Field(str, default='subject')
+    requires_explicit_inherit = struct.Field(bool, default=False)
+    ref_cls = struct.Field(type)
+
+
 class ObjectMeta(type):
 
     _schema_metaclasses = []
@@ -257,12 +266,17 @@ class ObjectMeta(type):
     def __new__(mcls, name, bases, clsdict):
         fields = {}
         myfields = {}
+        refdicts = collections.OrderedDict()
+        mydicts = {}
 
         if '__slots__' in clsdict:
             raise TypeError(
                 f'cannot create {name} class: __slots__ are not supported')
 
         for k, v in tuple(clsdict.items()):
+            if isinstance(v, RefDict):
+                mydicts[k] = v
+                continue
             if not isinstance(v, struct.ProtoField):
                 continue
             if not isinstance(v, Field):
@@ -293,8 +307,11 @@ class ObjectMeta(type):
         for parent in reversed(cls.__mro__):
             if parent is cls:
                 fields.update(myfields)
+                refdicts.update(mydicts)
             elif isinstance(parent, ObjectMeta):
                 fields.update(parent.get_ownfields())
+                refdicts.update({k: d.copy()
+                                for k, d in parent.get_own_refdicts().items()})
 
         cls._fields = fields
         cls._hashable_fields = {f for f in fields.values()
@@ -311,6 +328,61 @@ class ObjectMeta(type):
                              if not field.is_schema_field}
         if non_schema_fields == {'id'} and len(fields) > 1:
             mcls._schema_types.add(cls)
+
+        cls._refdicts_by_refclass = {}
+
+        for dct in refdicts.values():
+            if dct.attr not in cls._fields:
+                raise RuntimeError(
+                    f'object {name} has no refdict field {dct.attr}')
+            if dct.local_attr not in cls._fields:
+                raise RuntimeError(
+                    f'object {name} has no refdict field {dct.local_attr}')
+
+            if cls._fields[dct.attr].inheritable:
+                raise RuntimeError(
+                    f'{name}.{dct.attr} field must not be inheritable')
+            if cls._fields[dct.local_attr].inheritable:
+                raise RuntimeError(
+                    f'{name}.{dct.local_attr} field must not be inheritable')
+            if not cls._fields[dct.attr].ephemeral:
+                raise RuntimeError(
+                    f'{name}.{dct.attr} field must be ephemeral')
+            if not cls._fields[dct.local_attr].ephemeral:
+                raise RuntimeError(
+                    f'{name}.{dct.local_attr} field must be ephemeral')
+            if not cls._fields[dct.attr].coerce:
+                raise RuntimeError(
+                    f'{name}.{dct.attr} field must be coerced')
+            if not cls._fields[dct.local_attr].coerce:
+                raise RuntimeError(
+                    f'{name}.{dct.local_attr} field must be coerced')
+
+            if isinstance(dct.ref_cls, str):
+                ref_cls_getter = getattr(cls, dct.ref_cls)
+                try:
+                    dct.ref_cls = ref_cls_getter()
+                except NotImplementedError:
+                    pass
+
+            if not isinstance(dct.ref_cls, str):
+                other_dct = cls._refdicts_by_refclass.get(dct.ref_cls)
+                if other_dct is not None:
+                    raise TypeError(
+                        'multiple reference dicts for {!r} in '
+                        '{!r}: {!r} and {!r}'.format(dct.ref_cls, cls,
+                                                     dct.attr, other_dct.attr))
+
+                cls._refdicts_by_refclass[dct.ref_cls] = dct
+
+        # Refdicts need to be reversed here to respect the __mro__,
+        # as we have iterated over it in reverse above.
+        cls._refdicts = collections.OrderedDict(reversed(refdicts.items()))
+
+        cls._refdicts_by_field = {rd.attr: rd for rd in cls._refdicts.values()}
+
+        setattr(cls, '{}.{}_refdicts'.format(cls.__module__, cls.__name__),
+                     mydicts)
 
         cls._ref_type = None
         mcls._schema_metaclasses.append(cls)
@@ -337,6 +409,25 @@ class ObjectMeta(type):
     def get_ownfields(cls):
         return getattr(
             cls, '{}.{}_fields'.format(cls.__module__, cls.__name__))
+
+    def get_own_refdicts(cls):
+        return getattr(cls, '{}.{}_refdicts'.format(
+            cls.__module__, cls.__name__))
+
+    def get_refdicts(cls):
+        return iter(cls._refdicts.values())
+
+    def get_refdict(cls, name):
+        return cls._refdicts_by_field.get(name)
+
+    def get_refdict_for_class(cls, refcls):
+        for rcls in refcls.__mro__:
+            try:
+                return cls._refdicts_by_refclass[rcls]
+            except KeyError:
+                pass
+        else:
+            raise KeyError(f'{cls} has no refdict for {refcls}')
 
     @classmethod
     def get_schema_metaclasses(mcls):
@@ -705,51 +796,148 @@ class Object(s_abc.Object, metaclass=ObjectMeta):
     def delta(cls, old, new, *, context=None, old_schema, new_schema):
         from . import delta as sd
 
-        command_args = {}
+        if context is None:
+            context = ComparisonContext()
 
-        if old and new:
-            try:
-                name = old.get_name(old_schema)
-            except AttributeError:
-                pass
+        with context(old, new):
+            command_args = {}
+
+            if old and new:
+                try:
+                    name = old.get_name(old_schema)
+                except AttributeError:
+                    pass
+                else:
+                    command_args['classname'] = name
+
+                alter_class = sd.ObjectCommandMeta.get_command_class_or_die(
+                    sd.AlterObject, type(old))
+                delta = alter_class(**command_args)
+                cls.delta_properties(delta, old, new, context=context,
+                                     old_schema=old_schema,
+                                     new_schema=new_schema)
+
+            elif not old:
+                try:
+                    name = new.get_name(new_schema)
+                except AttributeError:
+                    pass
+                else:
+                    command_args['classname'] = name
+
+                create_class = sd.ObjectCommandMeta.get_command_class_or_die(
+                    sd.CreateObject, type(new))
+                delta = create_class(**command_args)
+                cls.delta_properties(delta, old, new, context=context,
+                                     old_schema=old_schema,
+                                     new_schema=new_schema)
+
             else:
-                command_args['classname'] = name
+                try:
+                    name = old.get_name(old_schema)
+                except AttributeError:
+                    pass
+                else:
+                    command_args['classname'] = name
 
-            alter_class = sd.ObjectCommandMeta.get_command_class_or_die(
-                sd.AlterObject, type(old))
-            delta = alter_class(**command_args)
-            cls.delta_properties(delta, old, new, context=context,
-                                 old_schema=old_schema,
-                                 new_schema=new_schema)
+                delete_class = sd.ObjectCommandMeta.get_command_class_or_die(
+                    sd.DeleteObject, type(old))
+                delta = delete_class(**command_args)
 
-        elif not old:
-            try:
-                name = new.get_name(new_schema)
-            except AttributeError:
-                pass
+            alter_class = sd.ObjectCommandMeta.get_command_class(
+                sd.AlterObject, type(new))
+
+            if isinstance(delta, sd.CreateObject) and alter_class is not None:
+                # If this is a CREATE delta, we need to make
+                # sure it is returned separately from the creation
+                # of references, which will go into a separate ALTER
+                # delta.  This is needed to avoid the hassle of
+                # sorting the delta order by dependencies or having
+                # to maintain ephemeral forward references.
+                #
+                # Generate an empty delta.
+                alter_delta = alter_class(classname=new.get_name(new_schema))
+                full_delta = sd.CommandGroup()
+                full_delta.add(delta)
             else:
-                command_args['classname'] = name
+                full_delta = alter_delta = delta
 
-            create_class = sd.ObjectCommandMeta.get_command_class_or_die(
-                sd.CreateObject, type(new))
-            delta = create_class(**command_args)
-            cls.delta_properties(delta, old, new, context=context,
-                                 old_schema=old_schema,
-                                 new_schema=new_schema)
+            old_idx_key = lambda o: o.get_name(old_schema)
+            new_idx_key = lambda o: o.get_name(new_schema)
 
+            for refdict in cls.get_refdicts():
+                local_attr = refdict.local_attr
+
+                if old:
+                    oldcoll = old.get_field_value(old_schema, local_attr)
+                    oldcoll_idx = ordered.OrderedIndex(
+                        oldcoll.objects(old_schema), key=old_idx_key)
+                else:
+                    oldcoll_idx = {}
+
+                if new:
+                    newcoll = new.get_field_value(new_schema, local_attr)
+                    newcoll_idx = ordered.OrderedIndex(
+                        newcoll.objects(new_schema), key=new_idx_key)
+                else:
+                    newcoll_idx = {}
+
+                cls.delta_sets(oldcoll_idx, newcoll_idx, alter_delta, context,
+                               old_schema=old_schema, new_schema=new_schema)
+
+            if alter_delta is not full_delta:
+                if alter_delta.has_subcommands():
+                    full_delta.add(alter_delta)
+                else:
+                    full_delta = delta
+
+        return full_delta
+
+    def add_classref(self, schema, collection, obj, replace=False):
+        refdict = type(self).get_refdict(collection)
+        attr = refdict.attr
+        local_attr = refdict.local_attr
+        colltype = type(self).get_field(local_attr).type
+
+        local_coll = self.get_explicit_field_value(schema, local_attr, None)
+        all_coll = self.get_explicit_field_value(schema, attr, None)
+
+        if local_coll is not None:
+            if not replace:
+                schema, local_coll = local_coll.add(schema, obj)
+            else:
+                schema, local_coll = local_coll.update(schema, [obj])
         else:
-            try:
-                name = old.get_name(old_schema)
-            except AttributeError:
-                pass
-            else:
-                command_args['classname'] = name
+            local_coll = colltype.create(schema, [obj])
 
-            delete_class = sd.ObjectCommandMeta.get_command_class_or_die(
-                sd.DeleteObject, type(old))
-            delta = delete_class(**command_args)
+        schema = self.set_field_value(schema, local_attr, local_coll)
 
-        return delta
+        if all_coll is not None:
+            schema, all_coll = all_coll.update(schema, [obj])
+        else:
+            all_coll = colltype.create(schema, [obj])
+
+        schema = self.set_field_value(schema, attr, all_coll)
+
+        return schema
+
+    def del_classref(self, schema, collection, key):
+        refdict = type(self).get_refdict(collection)
+        attr = refdict.attr
+        local_attr = refdict.local_attr
+
+        local_coll = self.get_field_value(schema, local_attr)
+        all_coll = self.get_field_value(schema, attr)
+
+        if local_coll and local_coll.has(schema, key):
+            schema, local_coll = local_coll.delete(schema, [key])
+            schema = self.set_field_value(schema, local_attr, local_coll)
+
+        if all_coll and all_coll.has(schema, key):
+            schema, all_coll = all_coll.delete(schema, [key])
+            schema = self.set_field_value(schema, attr, all_coll)
+
+        return schema
 
     def _reduce_to_ref(self, schema):
         return ObjectRef(name=self.get_name(schema)), self.get_name(schema)
@@ -1017,7 +1205,26 @@ class Object(s_abc.Object, metaclass=ObjectMeta):
     def get_classref_origin(self, schema, name, attr, local_attr, classname,
                             farthest=False):
         assert self.get_field_value(schema, attr).has(schema, name)
-        return self
+
+        result = None
+
+        if self.get_field_value(schema, local_attr).has(schema, name):
+            result = self
+
+        if not result or farthest:
+            bases = self.compute_mro(schema)[1:]
+
+            for c in bases:
+                if c.get_field_value(schema, local_attr).has(schema, name):
+                    result = c
+                    if not farthest:
+                        break
+
+        if result is None:
+            raise KeyError(
+                'could not find {} "{}" origin'.format(classname, name))
+
+        return result
 
     def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
         return schema

@@ -146,6 +146,6 @@ class DerivableObject(so.Object, DerivableObjectBase):
 
     @classmethod
     def inherit_pure(cls, schema, item, source, *, dctx=None):
-        # This method is used by ReferencingObject and must be
+        # This method is used by InheritingObject and must be
         # defined for all Derivables, not just Inheriting ones.
         return schema, item

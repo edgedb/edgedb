@@ -36,7 +36,6 @@ from edb.lang.schema import inheriting as s_inheriting
 from edb.lang.schema import name as sn
 from edb.lang.schema import objects as s_obj
 from edb.lang.schema import pseudo as s_pseudo
-from edb.lang.schema import referencing as s_ref
 
 from . import common
 from . import dbops
@@ -2028,7 +2027,7 @@ async def generate_views(conn, schema):
                     # pretend all classes are AttributeSubjects.
                     refdict = s_attrs.AttributeSubject.attributes_refs
 
-                elif issubclass(mcls, s_ref.ReferencingObject):
+                elif issubclass(mcls, s_inheriting.InheritingObject):
                     fn = classref_attr_aliases.get(pn.name, pn.name)
                     refdict = mcls.get_refdict(fn)
                     if refdict is not None and ptr.singular(schema):

@@ -25,7 +25,6 @@ from . import delta as sd
 from . import inheriting
 from . import name as sn
 from . import objects as so
-from . import referencing
 from . import types as s_types
 from . import utils
 
@@ -54,8 +53,8 @@ class AttributeValue(inheriting.InheritingObject):
     __repr__ = __str__
 
 
-class AttributeSubject(referencing.ReferencingObject):
-    attributes_refs = referencing.RefDict(
+class AttributeSubject(inheriting.InheritingObject):
+    attributes_refs = so.RefDict(
         attr='attributes',
         local_attr='own_attributes',
         ref_cls=AttributeValue)
@@ -140,7 +139,7 @@ class AttributeSubjectCommandContext:
     pass
 
 
-class AttributeSubjectCommand(referencing.ReferencingObjectCommand):
+class AttributeSubjectCommand(inheriting.InheritingObjectCommand):
     pass
 
 

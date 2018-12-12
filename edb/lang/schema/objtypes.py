@@ -29,7 +29,6 @@ from . import links
 from . import lproperties
 from . import name as sn
 from . import nodes
-from . import referencing
 from . import sources
 from . import types as s_types
 from . import utils
@@ -167,7 +166,7 @@ class RenameObjectType(ObjectTypeCommand, sd.RenameObject):
     pass
 
 
-class RebaseObjectType(ObjectTypeCommand, referencing.RebaseReferencingObject):
+class RebaseObjectType(ObjectTypeCommand, inheriting.RebaseInheritingObject):
     pass
 
 

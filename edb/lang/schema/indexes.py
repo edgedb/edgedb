@@ -44,8 +44,8 @@ class SourceIndex(inheriting.InheritingObject):
     __str__ = __repr__
 
 
-class IndexableSubject(referencing.ReferencingObject):
-    indexes_refs = referencing.RefDict(
+class IndexableSubject(inheriting.InheritingObject):
+    indexes_refs = so.RefDict(
         attr='indexes',
         local_attr='own_indexes',
         ref_cls=SourceIndex)
@@ -68,7 +68,7 @@ class IndexSourceCommandContext:
     pass
 
 
-class IndexSourceCommand(referencing.ReferencingObjectCommand):
+class IndexSourceCommand(inheriting.InheritingObjectCommand):
     pass
 
 
