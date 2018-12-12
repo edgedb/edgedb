@@ -290,8 +290,7 @@ class EdgeQLOptimizer:
         elif isinstance(expr, (qlast.AlterAddInherit,
                                qlast.AlterDropInherit)):
             for base in expr.bases:
-                base.module = self._process_module_ref(
-                    context, base.module)
+                self._process_expr(context, base)
 
     def _process_shape(self, context, shape):
         for spec in shape.elements:

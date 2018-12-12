@@ -1174,69 +1174,68 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ''')
 
     async def test_edgeql_ddl_cast_01(self):
-        async with self._run_and_rollback():
-            await self.query('''
-                CREATE SCALAR TYPE test::type_a EXTENDING std::str;
-                CREATE SCALAR TYPE test::type_b EXTENDING std::int64;
-                CREATE SCALAR TYPE test::type_c EXTENDING std::datetime;
+        await self.query('''
+            CREATE SCALAR TYPE test::type_a EXTENDING std::str;
+            CREATE SCALAR TYPE test::type_b EXTENDING std::int64;
+            CREATE SCALAR TYPE test::type_c EXTENDING std::datetime;
 
-                CREATE CAST FROM test::type_a TO test::type_b {
-                    FROM SQL CAST;
-                    ALLOW IMPLICIT;
-                };
+            CREATE CAST FROM test::type_a TO test::type_b {
+                FROM SQL CAST;
+                ALLOW IMPLICIT;
+            };
 
-                CREATE CAST FROM test::type_a TO test::type_c {
-                    FROM SQL CAST;
-                    ALLOW ASSIGNMENT;
-                };
-            ''')
+            CREATE CAST FROM test::type_a TO test::type_c {
+                FROM SQL CAST;
+                ALLOW ASSIGNMENT;
+            };
+        ''')
 
-            await self.assert_query_result('''
-                WITH MODULE schema
-                SELECT Cast {
-                    from_type: {name},
-                    to_type: {name},
-                    allow_implicit,
-                    allow_assignment,
-                }
-                FILTER
-                    .from_type.name LIKE 'test::%'
-                ORDER BY
-                    .allow_implicit;
-            ''', [
-                [{
-                    'from_type': {'name': 'test::type_a'},
-                    'to_type': {'name': 'test::type_c'},
-                    'allow_implicit': False,
-                    'allow_assignment': True,
-                }, {
-                    'from_type': {'name': 'test::type_a'},
-                    'to_type': {'name': 'test::type_b'},
-                    'allow_implicit': True,
-                    'allow_assignment': False,
-                }]
-            ])
+        await self.assert_query_result('''
+            WITH MODULE schema
+            SELECT Cast {
+                from_type: {name},
+                to_type: {name},
+                allow_implicit,
+                allow_assignment,
+            }
+            FILTER
+                .from_type.name LIKE 'test::%'
+            ORDER BY
+                .allow_implicit;
+        ''', [
+            [{
+                'from_type': {'name': 'test::type_a'},
+                'to_type': {'name': 'test::type_c'},
+                'allow_implicit': False,
+                'allow_assignment': True,
+            }, {
+                'from_type': {'name': 'test::type_a'},
+                'to_type': {'name': 'test::type_b'},
+                'allow_implicit': True,
+                'allow_assignment': False,
+            }]
+        ])
 
-            await self.query("""
-                DROP CAST FROM test::type_a TO test::type_b;
-                DROP CAST FROM test::type_a TO test::type_c;
-            """)
+        await self.query("""
+            DROP CAST FROM test::type_a TO test::type_b;
+            DROP CAST FROM test::type_a TO test::type_c;
+        """)
 
-            await self.assert_query_result('''
-                WITH MODULE schema
-                SELECT Cast {
-                    from_type: {name},
-                    to_type: {name},
-                    allow_implicit,
-                    allow_assignment,
-                }
-                FILTER
-                    .from_type.name LIKE 'test::%'
-                ORDER BY
-                    .allow_implicit;
-            ''', [
-                []
-            ])
+        await self.assert_query_result('''
+            WITH MODULE schema
+            SELECT Cast {
+                from_type: {name},
+                to_type: {name},
+                allow_implicit,
+                allow_assignment,
+            }
+            FILTER
+                .from_type.name LIKE 'test::%'
+            ORDER BY
+                .allow_implicit;
+        ''', [
+            []
+        ])
 
     async def test_edgeql_ddl_property_computable_01(self):
         await self.query('''\
@@ -1291,77 +1290,75 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_ddl_attribute_01(self):
-        async with self._run_and_rollback():
-            await self.con.execute("""
-                CREATE ABSTRACT ATTRIBUTE test::attr1 std::str;
+        await self.con.execute("""
+            CREATE ABSTRACT ATTRIBUTE test::attr1 std::str;
 
-                CREATE SCALAR TYPE test::TestAttrType1 EXTENDING std::str {
-                    SET test::attr1 := 'aaaa';
-                };
-            """)
+            CREATE SCALAR TYPE test::TestAttrType1 EXTENDING std::str {
+                SET test::attr1 := 'aaaa';
+            };
+        """)
 
-            await self.con.execute("""
-                CREATE MIGRATION test::mig1 TO eschema $$
-                abstract attribute attr2 std::str
+        await self.con.execute("""
+            CREATE MIGRATION test::mig1 TO eschema $$
+            abstract attribute attr2 std::str
 
-                scalar type TestAttrType1 extending std::str:
-                    attr2 := 'aaaa'
-                $$;
+            scalar type TestAttrType1 extending std::str:
+                attr2 := 'aaaa'
+            $$;
 
-                COMMIT MIGRATION test::mig1;
-            """)
+            COMMIT MIGRATION test::mig1;
+        """)
 
-            await self.assert_query_result('''
-                WITH MODULE schema
-                SELECT ScalarType {
-                    attributes: {
-                        name,
-                        @value,
-                    } FILTER .name = 'test::attr2'
-                }
-                FILTER
-                    .name = 'test::TestAttrType1';
+        await self.assert_query_result('''
+            WITH MODULE schema
+            SELECT ScalarType {
+                attributes: {
+                    name,
+                    @value,
+                } FILTER .name = 'test::attr2'
+            }
+            FILTER
+                .name = 'test::TestAttrType1';
 
-            ''', [
-                [{"attributes": [{"name": "test::attr2", "@value": "aaaa"}]}]
-            ])
+        ''', [
+            [{"attributes": [{"name": "test::attr2", "@value": "aaaa"}]}]
+        ])
 
     @unittest.expectedFailure
     async def test_edgeql_ddl_attribute_02(self):
-        async with self._run_and_rollback():
-            await self.con.execute("""
-                CREATE ABSTRACT ATTRIBUTE test::attr1 std::str;
+        await self.con.execute("""
+            CREATE ABSTRACT ATTRIBUTE test::attr1 std::str;
 
-                CREATE TYPE test::TestAttrType2 {
-                    SET test::attr1 := 'aaaa';
-                };
-            """)
+            CREATE TYPE test::TestAttrType2 {
+                SET test::attr1 := 'aaaa';
+            };
+        """)
 
-            await self.con.execute("""
-                CREATE MIGRATION test::mig1 TO eschema $$
-                abstract attribute attr2 std::str
+        await self.con.execute("""
+            CREATE MIGRATION test::mig1 TO eschema $$
+            abstract attribute attr2 std::str
 
-                type TestAttrType2:
-                    attr2 := 'aaaa'
-                $$;
+            type TestAttrType2:
+                attr2 := 'aaaa'
+            $$;
 
-                COMMIT MIGRATION test::mig1;
-            """)
+            COMMIT MIGRATION test::mig1;
+        """)
 
-            await self.assert_query_result('''
-                WITH MODULE schema
-                SELECT ObjectType {
-                    attributes: {
-                        name,
-                        @value,
-                    } FILTER .name = 'test::attr2'
-                }
-                FILTER
-                    .name = 'test::TestAttrType2';
+        await self.assert_query_result('''
+            WITH MODULE schema
+            SELECT ObjectType {
+                attributes: {
+                    name,
+                    @value,
+                } FILTER .name = 'test::attr2'
+            }
+            FILTER
+                .name = 'test::TestAttrType2';
 
-            ''', [
-                [{"attributes": [{"name": "test::attr2", "@value": "aaaa"}]}]
-            ])
+        ''', [
+            [{"attributes": [{"name": "test::attr2", "@value": "aaaa"}]}]
+        ])
 
     async def test_edgeql_ddl_anytype_01(self):
         with self.assertRaisesRegex(
@@ -1446,15 +1443,40 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             """)
 
     async def test_edgeql_ddl_extending_02(self):
-        async with self._run_and_rollback():
-            await self.con.execute(r"""
-                CREATE TYPE test::ExtA2;
-                # Create two types with a different position of Object
-                # in the bases. This doesn't impact the linearized
-                # bases because Object is already implicitly included
-                # as the first element of the base types.
-                CREATE TYPE test::ExtC2 EXTENDING (test::ExtA1, Object);
-                CREATE TYPE test::ExtD2 EXTENDING (Object, test::ExtA1);
-                # extending from both of these types
-                CREATE TYPE test::Merged2 EXTENDING (test::ExtC2, test::ExtD2);
-            """)
+        await self.con.execute(r"""
+            CREATE TYPE test::ExtA2;
+            # Create two types with a different position of Object
+            # in the bases. This doesn't impact the linearized
+            # bases because Object is already implicitly included
+            # as the first element of the base types.
+            CREATE TYPE test::ExtC2 EXTENDING (test::ExtA2, Object);
+            CREATE TYPE test::ExtD2 EXTENDING (Object, test::ExtA2);
+            # extending from both of these types
+            CREATE TYPE test::Merged2 EXTENDING (test::ExtC2, test::ExtD2);
+        """)
+
+    async def test_edgeql_ddl_extending_03(self):
+        # Check that the mro is recomputed properly on rebase.
+        await self.con.execute(r"""
+            CREATE TYPE test::ExtA3;
+            CREATE TYPE test::ExtB3 EXTENDING test::ExtA3;
+            CREATE TYPE test::ExtC3 EXTENDING test::ExtB3;
+        """)
+
+        await self.assert_query_result("""
+            SELECT (SELECT schema::ObjectType
+                    FILTER .name = 'test::ExtC3').mro.name;
+        """, [
+            {'std::Object', 'test::ExtA3', 'test::ExtB3'}
+        ])
+
+        await self.con.execute(r"""
+            ALTER TYPE test::ExtB3 DROP EXTENDING test::ExtA3;
+        """)
+
+        await self.assert_query_result("""
+            SELECT (SELECT schema::ObjectType
+                    FILTER .name = 'test::ExtC3').mro.name;
+        """, [
+            {'std::Object', 'test::ExtB3'}
+        ])

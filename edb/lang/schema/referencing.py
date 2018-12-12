@@ -42,8 +42,7 @@ class RefDict(struct.Struct):
 
 class RebaseReferencingObject(inheriting.RebaseNamedObject):
     def apply(self, schema, context):
-        schema, this_obj = super().apply(schema, context)
-
+        this_obj = schema.get(self.classname)
         objects = [this_obj] + list(this_obj.descendants(schema))
         for obj in objects:
             for refdict in this_obj.__class__.get_refdicts():
@@ -62,6 +61,7 @@ class RebaseReferencingObject(inheriting.RebaseNamedObject):
                         except KeyError:
                             del coll[ref_name]
 
+        schema, this_obj = super().apply(schema, context)
         return schema, this_obj
 
 

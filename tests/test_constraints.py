@@ -585,7 +585,7 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
                 """)
 
 
-class TestConstraintsDDL(tb.DDLTestCase):
+class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
     async def test_constraints_ddl_01(self):
         qry = """
             CREATE ABSTRACT LINK test::translated_label {

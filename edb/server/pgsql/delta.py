@@ -319,6 +319,7 @@ class RebaseNamedObject(NamedObjectMetaCommand):
     def apply(self, schema, context):
         schema, obj = self.__class__.get_adaptee().apply(self, schema, context)
         schema, _ = NamedObjectMetaCommand.apply(self, schema, context)
+        self.updates = self.update(schema, context)
         return schema, obj
 
 
@@ -1800,6 +1801,7 @@ class RebaseObjectType(ObjectTypeMetaCommand,
         schema, result = s_objtypes.RebaseObjectType.apply(
             self, schema, context)
         schema, _ = ObjectTypeMetaCommand.apply(self, schema, context)
+        self.update(schema, context)
 
         if self.has_table(result, schema):
             objtype_ctx = context.get(s_objtypes.ObjectTypeCommandContext)

@@ -182,7 +182,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     @classmethod
     def adapt(cls, obj):
         result = obj.copy_with_class(cls)
-        for op in obj:
+        for op in obj.get_subcommands():
             result.ops.add(type(cls).adapt(op))
         return result
 
@@ -233,6 +233,12 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
                 op.new_value, op.property, field, schema)
 
         return result
+
+    def has_attribute_value(self, attr_name):
+        for op in self.get_subcommands(type=AlterObjectProperty):
+            if op.property == attr_name:
+                return True
+        return False
 
     def get_attribute_value(self, attr_name):
         for op in self.get_subcommands(type=AlterObjectProperty):

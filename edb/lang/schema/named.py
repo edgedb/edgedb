@@ -265,9 +265,9 @@ class AlterNamedObject(CreateOrAlterNamedObject, sd.AlterObject):
                 if isinstance(astcmd, qlast.AlterDropInherit):
                     dropped_bases.extend(
                         so.ObjectRef(
-                            classname=sn.Name(
-                                module=b.module,
-                                name=b.name
+                            name=sn.Name(
+                                module=b.maintype.module,
+                                name=b.maintype.name
                             )
                         )
                         for b in astcmd.bases
@@ -276,8 +276,9 @@ class AlterNamedObject(CreateOrAlterNamedObject, sd.AlterObject):
                 elif isinstance(astcmd, qlast.AlterAddInherit):
                     bases = [
                         so.ObjectRef(
-                            classname=sn.Name(
-                                module=b.module, name=b.name))
+                            name=sn.Name(
+                                module=b.maintype.module,
+                                name=b.maintype.name))
                         for b in astcmd.bases
                     ]
 

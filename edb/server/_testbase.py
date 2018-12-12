@@ -540,6 +540,9 @@ class DDLTestCase(BaseQueryTestCase):
     # DDL test cases generally need to be serialized
     # to avoid deadlocks in parallel execution.
     SERIALIZED = True
+
+
+class NonIsolatedDDLTestCase(DDLTestCase):
     ISOLATED_METHODS = False
 
 

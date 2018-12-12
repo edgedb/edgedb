@@ -186,8 +186,12 @@ class RebaseNamedObject(named.NamedObjectCommand):
                                  self.classname)
 
     def apply(self, schema, context):
+        for op in self.get_subcommands(type=named.NamedObjectCommand):
+            schema, _ = op.apply(schema, context)
+
         metaclass = self.get_schema_metaclass()
         scls = schema.get(self.classname, type=metaclass)
+        self.scls = scls
         bases = list(scls.get_bases(schema).objects(schema))
         removed_bases = {b.get_name(schema) for b in self.removed_bases}
         existing_bases = set()
@@ -215,7 +219,30 @@ class RebaseNamedObject(named.NamedObjectCommand):
                               if b.get_name(schema) not in existing_bases]
             index = {b.get_name(schema): i for i, b in enumerate(bases)}
 
+        if not bases:
+            bases = [schema.get(metaclass.get_default_base_name())]
+
         schema = scls.set_field_value(schema, 'bases', bases)
+        new_mro = compute_mro(schema, scls)[1:]
+        schema = scls.set_field_value(schema, 'mro', new_mro)
+
+        if not self.has_attribute_value('mro'):
+            self.set_attribute_value('mro', new_mro)
+
+        alter_cmd = sd.ObjectCommandMeta.get_command_class(
+            named.AlterNamedObject, metaclass)
+
+        descendants = list(scls.descendants(schema))
+        if descendants and not list(self.get_subcommands(type=alter_cmd)):
+            for descendant in descendants:
+                new_mro = compute_mro(schema, descendant)[1:]
+                schema = descendant.set_field_value(schema, 'mro', new_mro)
+                alter = alter_cmd(classname=descendant.get_name(schema))
+                alter.add(sd.AlterObjectProperty(
+                    property='mro',
+                    new_value=new_mro,
+                ))
+                self.add(alter)
 
         return schema, scls
 
