@@ -59,10 +59,8 @@ and ``Comment``.  Let's define the initial schema with a migration:
       required property status -> str
       required property created_on -> datetime
       required link author -> User
-      link assignees -> User:
-        cardinality := '**'
-      link comments -> Comment:
-        cardinality := '1*'
+      multi link assignees -> User
+      multi link comments -> Comment
 
     type Comment:
       required property body -> str
@@ -102,10 +100,8 @@ link.  Let's remove this duplication by declaring an abstract parent type
         constraint unique
       required property title -> str
       required property status -> str
-      link assignees -> User:
-        cardinality := '**'
-      link comments -> Comment:
-        cardinality := '1*'
+      multi link assignees -> User
+      multi link comments -> Comment
 
     # <changed>
     type Comment extending AuthoredText

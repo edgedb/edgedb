@@ -67,22 +67,25 @@ declaration in the context of a ``type`` or ``abstract link`` declaration:
 .. eschema:synopsis::
 
     type <TypeName>:
-        [required] [readonly] [inherited] property <prop-name>:
+        [required] [inherited] [{multi|single}] property <prop-name> -> <type>:
             [ expr := <computable-expr> ]
             [ default := <default-expr> ]
+            [ readonly := {true | false} ]
             [ <attribute-declarations> ]
+            [ <constraint-declarations> ]
 
     # shorthand form for computable property declaration:
 
     type <TypeName>:
-        [inherited] property <prop-name> := <computable-expr>
+        [inherited] [{multi|single}] property <prop-name> := <computable-expr>
 
     # link property declaration:
 
     abstract link <link-name>:
-        [readonly] [inherited] property <prop-name>:
+        [inherited] property <prop-name>:
             [ expr := <computable-expr> ]
             [ default := <default-expr> ]
+            [ readonly := {true | false} ]
             [ <attribute-declarations> ]
 
     # shorthand form for computable link property declaration:
@@ -104,9 +107,33 @@ Parameters:
 
         Link properties cannot be ``required``.
 
+:eschema:synopsis:`inherited`
+    This qualifier must be specified if the property is *inherited* from
+    one or more parent object types or links.
+
+:eschema:synopsis:`multi`
+    Specifies that there may be more than one instance of this property
+    in an object, in other words, ``Object.property`` may resolve to a set
+    of a size greater than one.
+
+:eschema:synopsis:`single`
+    Specifies that there may be at most *one* instance of this property
+    in an object, in other words, ``Object.property`` may resolve to a set
+    of a size not greater than one.  ``single`` is assumed if nether
+    ``multi`` nor ``single`` qualifier is specified.
+
+    .. note::
+
+        Link properties are always ``single``.
+
 :eschema:synopsis:`readonly`
     If specified, the property is considered *read-only*.  Modifications
     of this property are prohibited once an object or link is created.
+
+:eschema:synopsis:`default`
+    Specifies the default value for the property as an EdgeQL expression.
+    The default value is used in an ``INSERT`` statement if an explicit
+    value for this property is not specified.
 
 :eschema:synopsis:`<computable-expr>`
     If specified, designates this property as a *computable property*
@@ -118,6 +145,9 @@ Parameters:
 :eschema:synopsis:`<attribute-declarations>`
     :ref:`Schema attribute <ref_datamodel_attributes>` declarations.
 
+:eschema:synopsis:`<constraint-declarations>`
+    :ref:`Constraint <ref_datamodel_constraints>` declarations.
 
-Concrete links can also be defined using the
-:eql:stmt:`CREATE LINK <CREATE-LINK>` EdgeQL command.
+
+Concrete properties can also be defined using the
+:eql:stmt:`CREATE PROPERTY` EdgeQL command.

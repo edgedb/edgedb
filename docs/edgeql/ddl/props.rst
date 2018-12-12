@@ -173,11 +173,11 @@ Define a concrete property on the specified link.
 .. eql:synopsis::
 
     [ WITH <with-item> [, ...] ]
-    CREATE [ INHERITED ] PROPERTY <name> TO <typename>
+    CREATE [{SINGLE | MULTI}] PROPERTY <name> -> <type>
     [ "{" <action>; [...] "}" ] ;
 
     [ WITH <with-item> [, ...] ]
-    CREATE [ INHERITED ] PROPERTY <name> := <expression> ;
+    CREATE [{SINGLE | MULTI}] PROPERTY <name> := <expression> ;
 
 Description
 -----------
@@ -197,12 +197,10 @@ Canonical Form
 The canonical form of ``CREATE PROPERTY`` defines a concrete
 property with the given *name* and referring to the *typename* type.
 
-The ``INHERITED`` keyword is required when the containing link
-has parents with the same link proeprty name, or when there is an
-abstract property with the same name defined in the same module
-as the containing link.  *Inherited* link properties form a persistent
-connections in the schema.  Schema modifications to parent link properties
-propagate to the child property.
+The optional ``SINGLE`` and ``MULTI`` qualifiers specify how many
+instances of the property are allowed per object.  ``SINGLE`` specifies that
+there may be at most *one* instance, and ``MULTI`` specifies that there may
+be more than one.  ``SINGLE`` is the default.
 
 :eql:synopsis:`<action>`
     The following actions are allowed in the
@@ -213,13 +211,12 @@ propagate to the child property.
         See :eql:stmt:`SET <SET ATTRIBUTE>` for details.
 
 
-Computable Link Form
---------------------
+Computable Property Form
+------------------------
 
 The computable form of ``CREATE PROPERTY`` defines a concrete
 *computable* property with the given *name*.  The type of the
-link is inferred from the *expression*.  The ``INHERITED`` keyword
-has the same meaning as in the canonical form.
+property is inferred from the *expression*.
 
 
 ALTER PROPERTY
@@ -258,6 +255,13 @@ alter action.
         links can be renamed.  When a concrete or abstract link is
         renamed, all concrete links that inherit from it are also
         renamed.
+
+    :eql:synopsis:`SET SINGLE`
+        Change the maximum cardinality of the property set to *one*.
+
+    :eql:synopsis:`SET MULTI`
+        Change the maximum cardinality of the property set to
+        *greater then one*.
 
     :eql:synopsis:`SET <attribute> := <value>;`
         Set link item's *attribute* to *value*.

@@ -75,17 +75,17 @@ declaration in the context of a ``type`` declaration:
 .. eschema:synopsis::
 
     type <TypeName>:
-        [required] [readonly] [inherited] link <link-name>:
-            [ cardinality := {'11' | '1*' | '*1' | '**'} ]
+        [required] [inherited] [{multi | single}] link <link-name> -> <type>:
             [ expr := <computable-expr> ]
             [ default := <default-expr> ]
+            [ readonly := {true | false} ]
             [ <attribute-declarations> ]
             [ <constraint-declarations> ]
 
     # shorthand form for computable link declaration:
 
     type <TypeName>:
-        [inherited] link <link-name> := <computable-expr>
+        [inherited] [{multi | single}] link <link-name> := <computable-expr>
 
 
 Parameters:
@@ -97,29 +97,29 @@ Parameters:
     the *required* attribute, i.e it is not possible to make a
     required link non-required by extending it.
 
+:eschema:synopsis:`inherited`
+    This qualifier must be specified if the link is *inherited* from
+    one or more parent object types.
+
+:eschema:synopsis:`multi`
+    Specifies that there may be more than one instance of this link
+    in an object, in other words, ``Object.link`` may resolve to a set
+    of a size greater than one.
+
+:eschema:synopsis:`single`
+    Specifies that there may be at most *one* instance of this link
+    in an object, in other words, ``Object.link`` may resolve to a set
+    of a size not greater than one.  ``single`` is assumed if nether
+    ``multi`` nor ``single`` qualifier is specified.
+
 :eschema:synopsis:`readonly`
     If specified, the link is considered *read-only*.  Modifications
     of this link are prohibited once an object is created.
 
-:eschema:synopsis:`cardinality := <cardinality>`
-    Specifies the *cardinality* of this link, which, in order of
-    decreasing strictness, can be one of:
-
-    - ``'11'`` ("one-to-one") -- object may refer to exactly one other
-      object, and the referred object cannot be referred to by any other
-      object using this link.
-
-    - ``'1*'`` ("one-to-many") -- object may refer to multiple objects,
-      and the referred objects cannot be referred to by any other object
-      using this link.
-
-    - ``'*1'`` ("many-to-one") -- object may refer to exactly one other
-      object, and the other object may be referred to by other objects
-      using this link.  *This is the default*.
-
-    - ``'**'`` ("many-to-many") -- object may refer to multiple other
-      objects and the referred objects may be referred to by other objects
-      using this link.
+:eschema:synopsis:`default`
+    Specifies the default value for the link as an EdgeQL expression.
+    The default value is used in an ``INSERT`` statement if an explicit
+    value for this link is not specified.
 
 :eschema:synopsis:`<computable-expr>`
     If specified, designates this link as a *computable link*

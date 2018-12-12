@@ -17,8 +17,7 @@ containing the following schema:
         # a required property
         required property title -> str
         property synopsis -> str
-        link author -> Author:
-            cardinality := '*1'
+        link author -> Author
         property isbn -> str:
             constraint maxlength(10)
 

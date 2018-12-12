@@ -104,10 +104,9 @@ of the computable because it affects serialization.
     };
 
 Cardinality is normally statically inferred from the query, so
-overruling this inference may only be done to *relax* the cardinality.
-This means that the only valid cardinality specification is
-``CARDINALITY '*'``, when attempting to override a possibility that
-the cardinality is provably ``'1'``.
+overruling this inference may only be done to *relax* the cardinality,
+so it is not valid to specify the ``single`` qualifier for a computable
+expression that may return multiple items.
 
 
 Expressions

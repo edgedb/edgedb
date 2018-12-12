@@ -199,11 +199,11 @@ specified *object type*.
 .. eql:synopsis::
 
     [ WITH <with-item> [, ...] ]
-    CREATE [ REQUIRED ] [ INHERITED ] LINK <name> TO <typename>
+    CREATE [ REQUIRED ] [{SINGLE | MULTI}] LINK <name> TO <type>
     [ "{" <action>; [...] "}" ] ;
 
     [ WITH <with-item> [, ...] ]
-    CREATE [ INHERITED ] LINK <name> := <expression> ;
+    CREATE [ REQUIRED ] [{SINGLE | MULTI}] LINK <name> := <expression> ;
 
 
 Description
@@ -224,12 +224,10 @@ The canonical form of ``CREATE LINK`` defines a concrete link *name*
 referring to the *typename* type.  If the optional ``REQUIRED``
 keyword is specified, the link is considered required.
 
-The ``INHERITED`` keyword is required when the containing object type
-has supertypes with the same link name, or when there is an abstract
-link with the same name defined in the same module as the containing
-object type.  *Inherited* links form a persistent connections in the
-schema.  Schema modifications to parent links propagate to the child
-link.
+The optional ``SINGLE`` and ``MULTI`` qualifiers specify how many
+instances of the link are allowed per object.  ``SINGLE`` specifies that
+there may be at most *one* instance, and ``MULTI`` specifies that there may
+be more than one.  ``SINGLE`` is the default.
 
 :eql:synopsis:`<action>`
     The following actions are allowed in the ``CREATE LINK`` block:
@@ -252,7 +250,7 @@ Define a new string link ``interests`` on the ``User`` object type:
 .. code-block:: edgeql
 
     ALTER TYPE User {
-        CREATE LINK interests -> str;
+        CREATE MULTI LINK interests -> str;
     };
 
 Define a new computable link ``followers_count`` on the
@@ -303,6 +301,12 @@ alter action.
         links can be renamed.  When a concrete or abstract link is
         renamed, all concrete links that inherit from it are also
         renamed.
+
+    :eql:synopsis:`SET SINGLE`
+        Change the maximum cardinality of the link set to *one*.
+
+    :eql:synopsis:`SET MULTI`
+        Change the maximum cardinality of the link set to *greater then one*.
 
     :eql:synopsis:`SET <attribute> := <value>;`
         Set link item's *attribute* to *value*.
