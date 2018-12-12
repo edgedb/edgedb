@@ -301,6 +301,9 @@ class ObjectMeta(type):
                                 if f.is_schema_field and f.hashable}
         cls._sorted_fields = collections.OrderedDict(
             sorted(fields.items(), key=lambda e: e[0]))
+        # Populated lazily
+        cls._object_fields = None
+
         fa = '{}.{}_fields'.format(cls.__module__, cls.__name__)
         setattr(cls, fa, myfields)
 
@@ -317,6 +320,13 @@ class ObjectMeta(type):
     @property
     def is_schema_object(cls):
         return cls in ObjectMeta._schema_types
+
+    def get_object_fields(cls):
+        if cls._object_fields is None:
+            cls._object_fields = frozenset(
+                f for f in cls._fields.values()
+                if issubclass(f.type, (Object, ObjectCollection)))
+        return cls._object_fields
 
     def get_field(cls, name):
         return cls._fields.get(name)
@@ -1118,6 +1128,17 @@ class ObjectCollection:
             raise TypeError(f'object {v!r} has no ID!')
 
         return v
+
+    def ids(self, schema):
+        result = []
+
+        for item_id in self._ids:
+            if isinstance(item_id, ObjectRef):
+                result.append(item_id._resolve_ref(schema).id)
+            else:
+                result.append(item_id)
+
+        return tuple(result)
 
     def names(self, schema, *, allow_unresolved=False):
         result = []

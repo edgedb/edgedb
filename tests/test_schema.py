@@ -20,6 +20,8 @@
 from edb.lang import _testbase as tb
 
 from edb.lang.schema import error as s_err
+from edb.lang.schema import links as s_links
+from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import pointers as s_pointers
 
 
@@ -131,3 +133,86 @@ class TestSchema(tb.BaseSchemaLoadTest):
         self.assertEqual(
             obj.getptr(schema, 'foo_plus_bar').get_cardinality(schema),
             s_pointers.Cardinality.MANY)
+
+    def test_schema_refs_01(self):
+        schema = self.load_schema("""
+            type Object1
+            type Object2:
+                link foo -> Object1
+            type Object3 extending Object1
+            type Object4 extending Object1
+            type Object5:
+                link bar -> Object2
+            type Object6 extending Object4
+        """)
+
+        Obj1 = schema.get('test::Object1')
+        Obj2 = schema.get('test::Object2')
+        Obj3 = schema.get('test::Object3')
+        Obj4 = schema.get('test::Object4')
+        Obj5 = schema.get('test::Object5')
+        Obj6 = schema.get('test::Object6')
+        foo = Obj2.getptr(schema, 'test::foo')
+        foo_target = foo.getptr(schema, 'std::target')
+        bar = Obj5.getptr(schema, 'test::bar')
+
+        self.assertEqual(
+            schema.get_referrers(Obj1),
+            frozenset({
+                foo,         # Object 1 is a Object2.foo target
+                foo_target,  # and also a target of its @target property
+                Obj3,        # It is also in Object3's bases and mro
+                Obj4,        # Likewise for Object4
+                Obj6,        # Object6 through its mro
+            })
+        )
+
+        self.assertEqual(
+            schema.get_referrers(Obj1, scls_type=s_objtypes.ObjectType),
+            {
+                Obj3,        # It is also in Object3's bases and mro
+                Obj4,        # Likewise for Object4
+                Obj6,        # Object6 through its mro
+            }
+        )
+
+        self.assertEqual(
+            schema.get_referrers(Obj2, scls_type=s_links.Link),
+            {
+                foo,        # Obj2 is foo's source
+                bar,        # Obj2 is bar's target
+            }
+        )
+
+        self.assertEqual(
+            schema.get_referrers(Obj2, scls_type=s_links.Link,
+                                 field_name='target'),
+            {
+                bar,        # Obj2 is bar's target
+            }
+        )
+
+        schema = self.run_ddl(schema, '''
+            ALTER TYPE test::Object4 DROP EXTENDING test::Object1;
+        ''')
+
+        self.assertEqual(
+            schema.get_referrers(Obj1),
+            frozenset({
+                foo,         # Object 1 is a Object2.foo target
+                foo_target,  # and also a target of its @target property
+                Obj3,        # It is also in Object3's bases and mro
+            })
+        )
+
+        schema = self.run_ddl(schema, '''
+            ALTER TYPE test::Object3 DROP EXTENDING test::Object1;
+        ''')
+
+        self.assertEqual(
+            schema.get_referrers(Obj1),
+            frozenset({
+                foo,         # Object 1 is a Object2.foo target
+                foo_target,  # and also a target of its @target property
+            })
+        )

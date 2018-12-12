@@ -18,6 +18,7 @@
 
 
 import functools
+import itertools
 import typing
 
 import immutables as immu
@@ -27,6 +28,7 @@ from . import error as s_err
 from . import functions as s_func
 from . import modules as s_modules
 from . import name as sn
+from . import objects as so
 from . import operators as s_oper
 from . import types as s_types
 
@@ -42,13 +44,12 @@ class Schema:
         self._id_to_type = immu.Map()
         self._shortname_to_id = immu.Map()
         self._name_to_id = immu.Map()
-        self._casts_to = immu.Map()
-        self._casts_from = immu.Map()
+        self._refs_to = immu.Map()
         self._generation = 0
 
     def _replace(self, *, id_to_data=None, id_to_type=None,
                  name_to_id=None, shortname_to_id=None,
-                 modules=None, casts_to=None, casts_from=None):
+                 modules=None, refs_to=None):
         new = Schema.__new__(Schema)
 
         if modules is None:
@@ -76,15 +77,10 @@ class Schema:
         else:
             new._shortname_to_id = shortname_to_id
 
-        if casts_to is None:
-            new._casts_to = self._casts_to
+        if refs_to is None:
+            new._refs_to = self._refs_to
         else:
-            new._casts_to = casts_to
-
-        if casts_from is None:
-            new._casts_from = self._casts_from
-        else:
-            new._casts_from = casts_from
+            new._refs_to = refs_to
 
         new._generation = self._generation + 1
 
@@ -127,6 +123,9 @@ class Schema:
         return name_to_id, shortname_to_id
 
     def _update_obj(self, obj_id, updates):
+        if not updates:
+            return self
+
         try:
             data = self._id_to_data[obj_id]
         except KeyError:
@@ -151,9 +150,12 @@ class Schema:
             new_data = mm.finish()
 
         id_to_data = self._id_to_data.set(obj_id, new_data)
+        scls = self._id_to_type[obj_id]
+        refs_to = self._update_refs_to(scls, data, new_data)
         return self._replace(name_to_id=name_to_id,
                              shortname_to_id=shortname_to_id,
-                             id_to_data=id_to_data)
+                             id_to_data=id_to_data,
+                             refs_to=refs_to)
 
     def _get_obj_field(self, obj_id, field):
         try:
@@ -183,12 +185,21 @@ class Schema:
                 old_name,
                 value)
 
-        data = data.set(field, value)
-        id_to_data = self._id_to_data.set(obj_id, data)
+        new_data = data.set(field, value)
+        id_to_data = self._id_to_data.set(obj_id, new_data)
+        scls = self._id_to_type[obj_id]
+
+        if field in data:
+            orig_field_data = {field: data[field]}
+        else:
+            orig_field_data = {}
+
+        refs_to = self._update_refs_to(scls, orig_field_data, {field: value})
 
         return self._replace(name_to_id=name_to_id,
                              shortname_to_id=shortname_to_id,
-                             id_to_data=id_to_data)
+                             id_to_data=id_to_data,
+                             refs_to=refs_to)
 
     def _unset_obj_field(self, obj_id, field):
         try:
@@ -205,59 +216,99 @@ class Schema:
                 self._id_to_type[obj_id],
                 name,
                 None)
-            data = data.delete(field)
+            new_data = data.delete(field)
         else:
             try:
-                data = data.delete(field)
+                new_data = data.delete(field)
             except KeyError:
                 return self
 
-        id_to_data = self._id_to_data.set(obj_id, data)
+        id_to_data = self._id_to_data.set(obj_id, new_data)
+        scls = self._id_to_type[obj_id]
+        refs_to = self._update_refs_to(scls, {field: data[field]}, None)
+
         return self._replace(name_to_id=name_to_id,
                              shortname_to_id=shortname_to_id,
-                             id_to_data=id_to_data)
+                             id_to_data=id_to_data,
+                             refs_to=refs_to)
 
-    def _add_cast(self, cast, data) -> dict:
-        updates = {}
+    def _update_refs_to(self, scls, orig_data, new_data) -> immu.Map:
+        scls_type = type(scls)
+        objfields = scls_type.get_object_fields()
+        if not objfields:
+            return self._refs_to
 
-        from_type = data['from_type'].id
-        to_type = data['to_type'].id
+        id_set = frozenset((scls.id,))
 
-        try:
-            casts_to = self._casts_to[to_type]
-        except KeyError:
-            casts_to = frozenset((cast.id,))
-        else:
-            casts_to |= {cast.id}
+        with self._refs_to.mutate() as mm:
+            for field in objfields:
+                if not new_data:
+                    ids = None
+                else:
+                    try:
+                        ref = new_data[field.name]
+                    except KeyError:
+                        ids = None
+                    else:
+                        if isinstance(ref, so.ObjectCollection):
+                            ids = frozenset(ref.ids(self))
+                        else:
+                            ids = frozenset((ref.id,))
 
-        updates['casts_to'] = self._casts_to.set(to_type, casts_to)
+                if not orig_data:
+                    orig_ids = None
+                else:
+                    try:
+                        ref = orig_data[field.name]
+                    except KeyError:
+                        orig_ids = None
+                    else:
+                        if isinstance(ref, so.ObjectCollection):
+                            orig_ids = frozenset(ref.ids(self))
+                        else:
+                            orig_ids = frozenset((ref.id,))
 
-        try:
-            casts_from = self._casts_from[from_type]
-        except KeyError:
-            casts_from = frozenset((cast.id,))
-        else:
-            casts_from |= {cast.id}
+                if not ids and not orig_ids:
+                    continue
 
-        updates['casts_from'] = self._casts_from.set(from_type, casts_from)
+                key = (scls_type, field.name)
 
-        return updates
+                if ids and orig_ids:
+                    new_ids = ids - orig_ids
+                    old_ids = orig_ids - ids
+                elif ids:
+                    new_ids = ids
+                    old_ids = None
+                else:
+                    new_ids = None
+                    old_ids = orig_ids
 
-    def _delete_cast(self, cast) -> dict:
-        updates = {}
+                if new_ids:
+                    for ref_id in new_ids:
+                        try:
+                            refs = mm[ref_id]
+                        except KeyError:
+                            mm[ref_id] = immu.Map({key: id_set})
+                        else:
+                            try:
+                                field_refs = refs[key]
+                            except KeyError:
+                                field_refs = id_set
+                            else:
+                                field_refs |= id_set
+                            mm[ref_id] = refs.set(key, field_refs)
 
-        from_type = cast.get_from_type(self).id
-        to_type = cast.get_to_type(self).id
+                if old_ids:
+                    for ref_id in old_ids:
+                        refs = mm[ref_id]
+                        field_refs = refs[key]
+                        field_refs -= id_set
+                        if not field_refs:
+                            mm[ref_id] = refs.delete(key)
+                        else:
+                            mm[ref_id] = refs.set(key, field_refs)
 
-        casts_to = self._casts_to[to_type]
-        updates['casts_to'] = self._casts_to.set(
-            to_type, casts_to - {cast.id})
-
-        casts_from = self._casts_from[from_type]
-        updates['casts_from'] = self._casts_from.set(
-            from_type, casts_from - {cast.id})
-
-        return updates
+            return mm.finish()
 
     def _add(self, id, scls, data) -> 'Schema':
         name = data['name']
@@ -276,6 +327,7 @@ class Schema:
             id_to_type=self._id_to_type.set(id, scls),
             name_to_id=name_to_id,
             shortname_to_id=shortname_to_id,
+            refs_to=self._update_refs_to(scls, None, data),
         )
 
         if isinstance(scls, s_modules.Module):
@@ -283,9 +335,6 @@ class Schema:
         elif name.module not in self._modules:
             raise s_err.SchemaModuleNotFoundError(
                 f'module {name.module!r} is not in this schema')
-
-        if isinstance(scls, s_casts.Cast):
-            updates.update(self._add_cast(scls, data))
 
         return self._replace(**updates)
 
@@ -302,17 +351,17 @@ class Schema:
         if isinstance(obj, s_modules.Module):
             updates['modules'] = self._modules.delete(name)
 
-        elif isinstance(obj, s_casts.Cast):
-            updates.update(self._delete_cast(obj))
-
         name_to_id, shortname_to_id = self._update_obj_name(
             obj.id, self._id_to_type[obj.id], name, None)
+
+        refs_to = self._update_refs_to(obj, self._id_to_data[obj.id], None)
 
         updates.update(dict(
             name_to_id=name_to_id,
             shortname_to_id=shortname_to_id,
             id_to_data=self._id_to_data.delete(obj.id),
             id_to_type=self._id_to_type.delete(obj.id),
+            refs_to=refs_to,
         ))
 
         return self._replace(**updates)
@@ -380,48 +429,72 @@ class Schema:
             f'reference to a non-existent operator: {name}')
 
     @functools.lru_cache()
+    def _get_casts(
+            self, stype: s_types.Type, *,
+            disposition: str,
+            implicit: bool=False,
+            assignment: bool=False) -> typing.FrozenSet[s_casts.Cast]:
+
+        all_casts = self.get_referrers(
+            stype, scls_type=s_casts.Cast, field_name=disposition)
+
+        casts = []
+        for cast in all_casts:
+            if implicit and not cast.get_allow_implicit(self):
+                continue
+            if assignment and not cast.get_allow_assignment(self):
+                continue
+            casts.append(cast)
+
+        return frozenset(casts)
+
     def get_casts_to_type(
             self, to_type: s_types.Type, *,
             implicit: bool=False,
             assignment: bool=False) -> typing.FrozenSet[s_casts.Cast]:
+        return self._get_casts(to_type, disposition='to_type',
+                               implicit=implicit, assignment=assignment)
 
-        try:
-            typeids = self._casts_to[to_type.id]
-        except KeyError:
-            return frozenset()
-
-        casts = []
-        for typeid in typeids:
-            cast = self._id_to_type[typeid]
-            if implicit and not cast.get_allow_implicit(self):
-                continue
-            if assignment and not cast.get_allow_assignment(self):
-                continue
-            casts.append(cast)
-
-        return frozenset(casts)
-
-    @functools.lru_cache()
     def get_casts_from_type(
             self, from_type: s_types.Type, *,
             implicit: bool=False,
             assignment: bool=False) -> typing.FrozenSet[s_casts.Cast]:
+        return self._get_casts(from_type, disposition='from_type',
+                               implicit=implicit, assignment=assignment)
+
+    @functools.lru_cache()
+    def get_referrers(
+            self, scls: so.Object, *,
+            scls_type: typing.Optional[so.ObjectMeta]=None,
+            field_name: typing.Optional[str]=None):
 
         try:
-            typeids = self._casts_from[from_type.id]
+            refs = self._refs_to[scls.id]
         except KeyError:
             return frozenset()
+        else:
+            referrers = set()
 
-        casts = []
-        for typeid in typeids:
-            cast = self._id_to_type[typeid]
-            if implicit and not cast.get_allow_implicit(self):
-                continue
-            if assignment and not cast.get_allow_assignment(self):
-                continue
-            casts.append(cast)
+            if scls_type is not None:
+                if field_name is not None:
+                    for (st, fn), ids in refs.items():
+                        if st is scls_type and fn == field_name:
+                            referrers.update(
+                                self._id_to_type[objid] for objid in ids)
+                else:
+                    for (st, _), ids in refs.items():
+                        if st is scls_type:
+                            referrers.update(
+                                self._id_to_type[objid] for objid in ids)
+            elif field_name is not None:
+                raise ValueError(
+                    'get_referrers: field_name cannot be used '
+                    'without scls_type')
+            else:
+                ids = itertools.chain.from_iterable(refs.values())
+                referrers.update(self._id_to_type[objid] for objid in ids)
 
-        return frozenset(casts)
+            return frozenset(referrers)
 
     def get_by_id(self, obj_id, default=_void):
         try:
