@@ -107,6 +107,9 @@ class Schema:
                     shortname_to_id = shortname_to_id.delete(sn_key)
 
         if new_name is not None:
+            if new_name in name_to_id:
+                raise s_err.SchemaError(
+                    f'name {new_name!r} is already in the schema')
             name_to_id = name_to_id.set(new_name, obj_id)
             if has_sn_cache:
                 new_shortname = sn.shortname_from_fullname(new_name)
