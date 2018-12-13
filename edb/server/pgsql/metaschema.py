@@ -1593,51 +1593,14 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
     pn = ptr.get_shortname(schema)
 
     if refdict:
-        if (issubclass(mcls, s_inheriting.InheritingObject) or
-                mcls is s_obj.Object):
+        if issubclass(mcls, s_inheriting.InheritingObject):
+            schematab = 'edgedb.{}'.format(mcls.__name__)
 
-            if mcls is s_obj.Object:
-                schematab = 'edgedb.InheritingObject'
-            else:
-                schematab = 'edgedb.{}'.format(mcls.__name__)
-
-            link_query = '''
-                SELECT DISTINCT ON ((cls.id, r.bases[1]))
-                    cls.id  AS {src},
-                    r.id    AS {tgt}
-                FROM
-                    (SELECT
-                        s.id                AS id,
-                        ancestry.ancestor   AS ancestor,
-                        ancestry.depth      AS depth
-                     FROM
-                        {schematab} s
-                        LEFT JOIN LATERAL
-                            UNNEST(s.mro) WITH ORDINALITY
-                                      AS ancestry(ancestor, depth) ON true
-
-                     UNION ALL
-                     SELECT
-                        s.id                AS id,
-                        s.id                AS ancestor,
-                        0                   AS depth
-                     FROM
-                        {schematab} s
-                    ) AS cls
-
-                    INNER JOIN {reftab} r
-                        ON (((r.{refattr}).types[1]).maintype = cls.ancestor)
-                ORDER BY
-                    (cls.id, r.bases[1]), cls.depth
-            '''.format(
-                schematab=schematab,
-                reftab='edgedb.{}'.format(refdict.ref_cls.__name__),
-                refattr=q(refdict.backref_attr),
-                src=dbname(sn.Name('std::source')),
-                tgt=dbname(sn.Name('std::target')),
-            )
+            non_inh_link_query = None
         else:
-            link_query = '''
+            schematab = 'edgedb.InheritingObject'
+
+            non_inh_link_query = '''
                 SELECT
                     (({refattr}).types[1]).maintype AS {src},
                     id                              AS {tgt}
@@ -1649,6 +1612,50 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                 src=dbname(sn.Name('std::source')),
                 tgt=dbname(sn.Name('std::target')),
             )
+
+        inh_link_query = '''
+            SELECT DISTINCT ON ((cls.id, r.bases[1]))
+                cls.id  AS {src},
+                r.id    AS {tgt}
+            FROM
+                (SELECT
+                    s.id                AS id,
+                    ancestry.ancestor   AS ancestor,
+                    ancestry.depth      AS depth
+                    FROM
+                    {schematab} s
+                    LEFT JOIN LATERAL
+                        UNNEST(s.mro) WITH ORDINALITY
+                                    AS ancestry(ancestor, depth) ON true
+
+                    UNION ALL
+                    SELECT
+                    s.id                AS id,
+                    s.id                AS ancestor,
+                    0                   AS depth
+                    FROM
+                    {schematab} s
+                ) AS cls
+
+                INNER JOIN {reftab} r
+                    ON (((r.{refattr}).types[1]).maintype = cls.ancestor)
+            ORDER BY
+                (cls.id, r.bases[1]), cls.depth
+        '''.format(
+            schematab=schematab,
+            reftab='edgedb.{}'.format(refdict.ref_cls.__name__),
+            refattr=q(refdict.backref_attr),
+            src=dbname(sn.Name('std::source')),
+            tgt=dbname(sn.Name('std::target')),
+        )
+
+        if non_inh_link_query:
+            link_query = (
+                f'({inh_link_query})\nUNION\n'
+                f'({non_inh_link_query})'
+            )
+        else:
+            link_query = inh_link_query
 
         if pn.name == 'attributes':
             link_query = '''

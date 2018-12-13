@@ -92,7 +92,9 @@ CREATE TYPE schema::Delta EXTENDING schema::Object {
 };
 
 
-CREATE TYPE schema::Attribute EXTENDING schema::Object;
+CREATE TYPE schema::Attribute EXTENDING schema::Object {
+    CREATE PROPERTY schema::inheritable -> std::bool;
+};
 
 
 CREATE ABSTRACT LINK schema::attributes {

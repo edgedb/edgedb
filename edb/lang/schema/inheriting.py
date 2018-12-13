@@ -454,6 +454,19 @@ class InheritingObject(derivable.DerivableObject):
                 if other_coll is None:
                     continue
 
+                if refdict.non_inheritable_attr:
+                    non_inh_coll = obj.get_explicit_field_value(
+                        schema, refdict.non_inheritable_attr, None)
+
+                    if non_inh_coll:
+                        other_coll = type(other_coll).create(schema, {
+                            v for k, v in other_coll.items(schema)
+                            if not non_inh_coll.has(schema, k)
+                        })
+
+                if not other_coll:
+                    continue
+
                 if this_coll is None:
                     schema = self.set_field_value(
                         schema, refdict.attr, other_coll)

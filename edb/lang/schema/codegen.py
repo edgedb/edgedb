@@ -187,15 +187,11 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self._visit_Declaration(node)
 
     def visit_AttributeDeclaration(self, node):
-        def after_name(node):
-            if node.type:
-                self.write(' ')
-                self.visit(node.type)
-                self.write(' ')
-
         if node.abstract:
             self.write('abstract ')
-        self._visit_Declaration(node, after_name=after_name)
+        if node.inheritable:
+            self.write('inheritable ')
+        self._visit_Declaration(node)
 
     def visit_ObjectTypeDeclaration(self, node):
         self._visit_qualifier(node)

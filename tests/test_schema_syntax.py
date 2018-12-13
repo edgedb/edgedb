@@ -1202,9 +1202,19 @@ type Foo:
         abstract attribute as extending foo
         """
 
+    def test_eschema_syntax_attribute_12(self):
+        """
+        abstract inheritable attribute foo
+        """
+
+    def test_eschema_syntax_attribute_13(self):
+        """
+        abstract inheritable attribute foo extending bar
+        """
+
     @tb.must_fail(error.SchemaSyntaxError,
                   r"Unexpected 'extending'", line=2, col=41)
-    def test_eschema_syntax_attribute_12(self):
+    def test_eschema_syntax_attribute_14(self):
         """
         abstract attribute as extending extending foo
         """

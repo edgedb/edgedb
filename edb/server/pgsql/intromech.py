@@ -755,6 +755,7 @@ class IntrospectionMech:
                 schema,
                 id=r['id'],
                 name=name,
+                inheritable=r['inheritable'],
             )
 
         return schema
@@ -780,7 +781,9 @@ class IntrospectionMech:
                 name=name,
                 subject=subject,
                 attribute=attribute,
-                value=value)
+                value=value,
+                inheritable=r['inheritable'],
+            )
 
             schema = subject.add_attribute(schema, attribute)
 

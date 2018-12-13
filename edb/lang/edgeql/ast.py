@@ -617,6 +617,7 @@ class DropRole(DropObject):
 
 class CreateAttribute(CreateExtendingObject):
     type: typing.Optional[TypeExpr]
+    inheritable: bool
 
 
 class DropAttribute(DropObject):

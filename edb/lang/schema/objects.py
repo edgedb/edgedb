@@ -253,6 +253,7 @@ class RefDict(struct.Struct):
 
     local_attr = struct.Field(str)
     attr = struct.Field(str)
+    non_inheritable_attr = struct.Field(str, default=None)
     backref_attr = struct.Field(str, default='subject')
     requires_explicit_inherit = struct.Field(bool, default=False)
     ref_cls = struct.Field(type)
@@ -853,28 +854,11 @@ class Object(s_abc.Object, metaclass=ObjectMeta):
             else:
                 full_delta = alter_delta = delta
 
-            old_idx_key = lambda o: o.get_name(old_schema)
-            new_idx_key = lambda o: o.get_name(new_schema)
-
             for refdict in cls.get_refdicts():
-                local_attr = refdict.local_attr
-
-                if old:
-                    oldcoll = old.get_field_value(old_schema, local_attr)
-                    oldcoll_idx = ordered.OrderedIndex(
-                        oldcoll.objects(old_schema), key=old_idx_key)
-                else:
-                    oldcoll_idx = {}
-
-                if new:
-                    newcoll = new.get_field_value(new_schema, local_attr)
-                    newcoll_idx = ordered.OrderedIndex(
-                        newcoll.objects(new_schema), key=new_idx_key)
-                else:
-                    newcoll_idx = {}
-
-                cls.delta_sets(oldcoll_idx, newcoll_idx, alter_delta, context,
-                               old_schema=old_schema, new_schema=new_schema)
+                cls._delta_refdict(
+                    old, new, delta=alter_delta,
+                    refdict=refdict, context=context,
+                    old_schema=old_schema, new_schema=new_schema)
 
             if alter_delta is not full_delta:
                 if alter_delta.has_subcommands():
@@ -884,10 +868,46 @@ class Object(s_abc.Object, metaclass=ObjectMeta):
 
         return full_delta
 
+    @classmethod
+    def _delta_refdict(cls, old, new, *, delta, refdict, context,
+                       old_schema, new_schema):
+
+        old_idx_key = lambda o: o.get_name(old_schema)
+        new_idx_key = lambda o: o.get_name(new_schema)
+
+        def _delta_subdict(attr):
+            if old:
+                oldcoll = old.get_field_value(old_schema, attr)
+                oldcoll_idx = ordered.OrderedIndex(
+                    oldcoll.objects(old_schema), key=old_idx_key)
+            else:
+                oldcoll_idx = {}
+
+            if new:
+                newcoll = new.get_field_value(new_schema, attr)
+                newcoll_idx = ordered.OrderedIndex(
+                    newcoll.objects(new_schema), key=new_idx_key)
+            else:
+                newcoll_idx = {}
+
+            cls.delta_sets(oldcoll_idx, newcoll_idx, delta, context,
+                           old_schema=old_schema, new_schema=new_schema)
+
+        _delta_subdict(refdict.local_attr)
+        if refdict.non_inheritable_attr:
+            _delta_subdict(refdict.non_inheritable_attr)
+
     def add_classref(self, schema, collection, obj, replace=False):
         refdict = type(self).get_refdict(collection)
         attr = refdict.attr
-        local_attr = refdict.local_attr
+
+        if (refdict.non_inheritable_attr
+                and type(obj).get_field('inheritable') is not None
+                and not obj.get_inheritable(schema)):
+            local_attr = refdict.non_inheritable_attr
+        else:
+            local_attr = refdict.local_attr
+
         colltype = type(self).get_field(local_attr).type
 
         local_coll = self.get_explicit_field_value(schema, local_attr, None)
@@ -916,6 +936,12 @@ class Object(s_abc.Object, metaclass=ObjectMeta):
         refdict = type(self).get_refdict(collection)
         attr = refdict.attr
         local_attr = refdict.local_attr
+        non_inh_attr = refdict.non_inheritable_attr
+
+        if non_inh_attr is not None:
+            non_inh_coll = self.get_field_value(schema, non_inh_attr)
+        else:
+            non_inh_coll = None
 
         local_coll = self.get_field_value(schema, local_attr)
         all_coll = self.get_field_value(schema, attr)
@@ -923,6 +949,10 @@ class Object(s_abc.Object, metaclass=ObjectMeta):
         if local_coll and local_coll.has(schema, key):
             schema, local_coll = local_coll.delete(schema, [key])
             schema = self.set_field_value(schema, local_attr, local_coll)
+
+        if non_inh_coll and non_inh_coll.has(schema, key):
+            schema, non_inh_coll = non_inh_coll.delete(schema, [key])
+            schema = self.set_field_value(schema, non_inh_attr, non_inh_coll)
 
         if all_coll and all_coll.has(schema, key):
             schema, all_coll = all_coll.delete(schema, [key])

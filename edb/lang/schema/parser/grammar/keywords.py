@@ -40,6 +40,7 @@ unreserved_keywords = frozenset([
     "final",
     "from",
     "index",
+    "inheritable",
     "inherited",
     "link",
     "multi",

@@ -839,8 +839,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_CreateAttribute(self, node):
         after_name = lambda: self._ddl_visit_bases(node)
-        self._visit_CreateObject(node, 'ABSTRACT ATTRIBUTE',
-                                 after_name=after_name)
+        if node.inheritable:
+            tag = 'ABSTRACT INHERITABLE ATTRIBUTE'
+        else:
+            tag = 'ABSTRACT ATTRIBUTE'
+        self._visit_CreateObject(node, tag, after_name=after_name)
 
     def visit_DropAttribute(self, node):
         self._visit_DropObject(node, 'ABSTRACT ATTRIBUTE')

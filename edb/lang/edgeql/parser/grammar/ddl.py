@@ -852,6 +852,17 @@ class CreateAttributeStmt(Nonterm):
             name=kids[3].val,
             bases=kids[4].val,
             commands=kids[5].val,
+            inheritable=False,
+        )
+
+    def reduce_CreateInheritableAttribute(self, *kids):
+        r"""%reduce CREATE ABSTRACT INHERITABLE ATTRIBUTE
+                    NodeName OptExtending OptCreateCommandsBlock"""
+        self.val = qlast.CreateAttribute(
+            name=kids[4].val,
+            bases=kids[5].val,
+            commands=kids[6].val,
+            inheritable=True,
         )
 
 

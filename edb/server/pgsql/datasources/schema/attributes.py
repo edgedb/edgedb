@@ -29,7 +29,8 @@ async def fetch(
     return await conn.fetch("""
         SELECT
                 a.id                    AS id,
-                a.name                  AS name
+                a.name                  AS name,
+                a.inheritable           AS inheritable
             FROM
                 edgedb.attribute a
             WHERE
@@ -54,7 +55,8 @@ async def fetch_values(
                                             AS subject_name,
                 edgedb._resolve_type_name(a.attribute)
                                             AS attribute_name,
-                a.value                     AS value
+                a.value                     AS value,
+                a.inheritable               AS inheritable
             FROM
                 edgedb.AttributeValue a
             WHERE

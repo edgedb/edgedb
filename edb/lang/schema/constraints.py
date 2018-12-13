@@ -283,7 +283,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
             subjname = subject.get_shortname(schema)
             subjtitle = subjname.name
         else:
-            subjtitle = titleattr.value
+            subjtitle = titleattr
 
         formatted = errmsg.format(__subject__=subjtitle)
 

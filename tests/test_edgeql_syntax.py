@@ -2684,6 +2684,17 @@ aa';
         CREATE ABSTRACT ATTRIBUTE std::paramtypes EXTENDING std::baseattr;
         """
 
+    def test_edgeql_syntax_ddl_attribute_03(self):
+        """
+        CREATE ABSTRACT INHERITABLE ATTRIBUTE std::paramtypes;
+        """
+
+    def test_edgeql_syntax_ddl_attribute_04(self):
+        """
+        CREATE ABSTRACT INHERITABLE ATTRIBUTE std::paramtypes
+            EXTENDING std::foo;
+        """
+
     def test_edgeql_syntax_ddl_constraint_01(self):
         """
         CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC p: anytype)

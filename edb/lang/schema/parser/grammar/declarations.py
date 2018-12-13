@@ -373,21 +373,34 @@ class ScalarTypeDeclaration(Nonterm):
         )
 
 
+class OptInheritable(Nonterm):
+    def reduce_empty(self):
+        self.val = False
+
+    def reduce_INHERITABLE(self, *kids):
+        self.val = True
+
+
 class AttributeDeclaration(Nonterm):
-    def reduce_ATTRIBUTE_NameAndExtends_NL(self, *kids):
-        np: NameWithParents = kids[1].val
+    def reduce_OptInheritable_ATTRIBUTE_NameAndExtends_NL(self, *kids):
+        np: NameWithParents = kids[2].val
         self.val = esast.AttributeDeclaration(
             name=np.name,
-            extends=np.extends)
+            extends=np.extends,
+            inheritable=kids[0].val
+        )
 
-    def reduce_ATTRIBUTE_NameAndExtends_DeclarationSpecsBlob(self, *kids):
-        np: NameWithParents = kids[1].val
+    def reduce_attribute_with_specs(self, *kids):
+        """%reduce OptInheritable ATTRIBUTE NameAndExtends
+                   DeclarationSpecsBlob
+        """
+        np: NameWithParents = kids[2].val
 
         self.val = esast.AttributeDeclaration(
             name=np.name,
             extends=np.extends,
             **_process_decl_body(
-                kids[2].val,
+                kids[3].val,
                 (
                     esast.Attribute,
                     esast.Field

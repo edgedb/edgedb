@@ -216,3 +216,27 @@ class TestSchema(tb.BaseSchemaLoadTest):
                 foo_target,  # and also a target of its @target property
             })
         )
+
+    def test_schema_attribute_inheritance(self):
+        schema = self.load_schema("""
+            abstract attribute noninh
+            abstract inheritable attribute inh
+
+            type Object1:
+                attribute noninh := 'bar'
+                attribute inh := 'inherit me'
+
+            type Object2 extending Object1
+        """)
+
+        Object1 = schema.get('test::Object1')
+        Object2 = schema.get('test::Object2')
+
+        self.assertEqual(Object1.get_attribute(schema, 'test::noninh'), 'bar')
+        # Attributes are non-inheritable by default
+        self.assertIsNone(Object2.get_attribute(schema, 'test::noninh'))
+
+        self.assertEqual(
+            Object1.get_attribute(schema, 'test::inh'), 'inherit me')
+        self.assertEqual(
+            Object2.get_attribute(schema, 'test::inh'), 'inherit me')

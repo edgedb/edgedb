@@ -18,6 +18,8 @@
 #
 
 
+import typing
+
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import errors as qlerrors
 
@@ -35,6 +37,9 @@ class Attribute(inheriting.InheritingObject):
     name = so.SchemaField(
         sn.Name, inheritable=False, compcoef=0.2)
 
+    inheritable = so.SchemaField(
+        bool, default=False, compcoef=0.2)
+
 
 class AttributeValue(inheriting.InheritingObject):
 
@@ -47,6 +52,9 @@ class AttributeValue(inheriting.InheritingObject):
     value = so.SchemaField(
         str, compcoef=0.909)
 
+    inheritable = so.SchemaField(
+        bool, default=False, compcoef=0.2)
+
     def __str__(self):
         return '<{}: at 0x{:x}>'.format(self.__class__.__name__, id(self))
 
@@ -57,6 +65,7 @@ class AttributeSubject(so.Object):
     attributes_refs = so.RefDict(
         attr='attributes',
         local_attr='own_attributes',
+        non_inheritable_attr='non_inheritable_attributes',
         ref_cls=AttributeValue)
 
     attributes = so.SchemaField(
@@ -65,6 +74,11 @@ class AttributeSubject(so.Object):
         default=so.ObjectIndexByShortname, hashable=False)
 
     own_attributes = so.SchemaField(
+        so.ObjectIndexByShortname, compcoef=0.909,
+        inheritable=False, ephemeral=True, coerce=True,
+        default=so.ObjectIndexByShortname)
+
+    non_inheritable_attributes = so.SchemaField(
         so.ObjectIndexByShortname, compcoef=0.909,
         inheritable=False, ephemeral=True, coerce=True,
         default=so.ObjectIndexByShortname)
@@ -78,18 +92,24 @@ class AttributeSubject(so.Object):
         shortname = sn.shortname_from_fullname(attribute_name)
         return self.del_classref(schema, 'attributes', shortname)
 
-    def get_attribute(self, schema, name):
-        return self.get_attributes(schema).get(schema, name, None)
+    def get_attribute(self, schema, name: str) -> typing.Optional[str]:
+        attrval = self.get_attributes(schema).get(schema, name, None)
+        return attrval.get_value(schema) if attrval is not None else None
 
     def set_attribute(self, schema, attr: Attribute, value: str):
         attrname = attr.get_name(schema)
         existing = self.get_own_attributes(schema).get(schema, attrname, None)
         if existing is None:
+            existing = self.get_non_inheritable_attributes(schema).get(
+                schema, attrname, None)
+        if existing is None:
             my_name = self.get_name(schema)
             ann = sn.get_specialized_name(attrname, my_name)
             an = sn.Name(name=ann, module=my_name.module)
             schema, av = AttributeValue.create_in_schema(
-                schema, name=an, value=value)
+                schema, name=an, value=value,
+                subject=self, attribute=attr,
+                inheritable=attr.get_inheritable(schema))
             schema = self.add_attribute(schema, av)
         else:
             schema, updated = existing.set_field_value('value', value)
@@ -109,6 +129,24 @@ class AttributeCommand(sd.ObjectCommand, schema_metaclass=Attribute,
 
 class CreateAttribute(AttributeCommand, sd.CreateObject):
     astnode = qlast.CreateAttribute
+
+    @classmethod
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        cmd.update((
+            sd.AlterObjectProperty(
+                property='inheritable',
+                new_value=astnode.inheritable,
+            ),
+        ))
+
+        return cmd
+
+    def _apply_field_ast(self, schema, context, node, op):
+        if op.property == 'inheritable':
+            node.inheritable = op.new_value
+        else:
+            super()._apply_field_ast(schema, context, node, op)
 
 
 class AlterAttribute(AttributeCommand, sd.AlterObject):
@@ -195,6 +233,10 @@ class CreateAttributeValue(AttributeValueCommand, sd.CreateObject):
             sd.AlterObjectProperty(
                 property='value',
                 new_value=value
+            ),
+            sd.AlterObjectProperty(
+                property='inheritable',
+                new_value=attr.get_inheritable(schema),
             )
         ))
 
@@ -209,6 +251,8 @@ class CreateAttributeValue(AttributeValueCommand, sd.CreateObject):
             pass
         elif op.property == 'subject':
             pass
+        elif op.property == 'inheritable':
+            pass
         else:
             super()._apply_field_ast(schema, context, node, op)
 
@@ -222,11 +266,14 @@ class CreateAttributeValue(AttributeValueCommand, sd.CreateObject):
             attrs = attrsubj.scls.get_own_attributes(schema)
             attribute = attrs.get(schema, name, None)
             if attribute is None:
+                attrs = attrsubj.scls.get_non_inheritable_attributes(schema)
+                attribute = attrs.get(schema, name, None)
+
+            if attribute is None:
                 schema, attribute = super().apply(schema, context)
                 schema = self.add_attribute(schema, attribute, attrsubj.scls)
             else:
-                schema, attribute = sd.AlterObject.apply(
-                    self, schema, context)
+                schema, attribute = sd.AlterObject.apply(self, schema, context)
 
             return schema, attribute
 

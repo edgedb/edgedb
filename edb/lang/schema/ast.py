@@ -109,7 +109,7 @@ class ScalarTypeDeclaration(Declaration):
 
 
 class AttributeDeclaration(Declaration):
-    type: qlast.TypeName
+    inheritable: bool = False
 
 
 class ObjectTypeDeclaration(Declaration):

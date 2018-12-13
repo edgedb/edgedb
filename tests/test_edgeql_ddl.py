@@ -1298,7 +1298,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             ''')
 
-    @unittest.expectedFailure
     async def test_edgeql_ddl_attribute_01(self):
         await self.con.execute("""
             CREATE ABSTRACT ATTRIBUTE test::attr1;
@@ -1307,6 +1306,21 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SET ATTRIBUTE test::attr1 := 'aaaa';
             };
         """)
+
+        await self.assert_query_result('''
+            WITH MODULE schema
+            SELECT ScalarType {
+                attributes: {
+                    name,
+                    @value,
+                }
+            }
+            FILTER
+                .name = 'test::TestAttrType1';
+
+        ''', [
+            [{"attributes": [{"name": "test::attr1", "@value": "aaaa"}]}]
+        ])
 
         await self.con.execute("""
             CREATE MIGRATION test::mig1 TO eschema $$
@@ -1325,7 +1339,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 attributes: {
                     name,
                     @value,
-                } FILTER .name = 'test::attr2'
+                }
             }
             FILTER
                 .name = 'test::TestAttrType1';
@@ -1334,7 +1348,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [{"attributes": [{"name": "test::attr2", "@value": "aaaa"}]}]
         ])
 
-    @unittest.expectedFailure
     async def test_edgeql_ddl_attribute_02(self):
         await self.con.execute("""
             CREATE ABSTRACT ATTRIBUTE test::attr1;
@@ -1368,6 +1381,52 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         ''', [
             [{"attributes": [{"name": "test::attr2", "@value": "aaaa"}]}]
+        ])
+
+    async def test_edgeql_ddl_attribute_03(self):
+        await self.con.execute("""
+            CREATE ABSTRACT ATTRIBUTE test::noninh;
+            CREATE ABSTRACT INHERITABLE ATTRIBUTE test::inh;
+
+            CREATE TYPE test::TestAttr1 {
+                SET ATTRIBUTE test::noninh := 'no inherit';
+                SET ATTRIBUTE test::inh := 'inherit me';
+            };
+
+            CREATE TYPE test::TestAttr2 EXTENDING test::TestAttr1;
+        """)
+
+        await self.assert_query_result('''
+            WITH MODULE schema
+            SELECT ObjectType {
+                attributes: {
+                    name,
+                    inheritable,
+                    @value,
+                } ORDER BY .name
+            }
+            FILTER
+                .name LIKE 'test::TestAttr%'
+            ORDER BY
+                .name;
+
+        ''', [
+            [{
+                "attributes": [{
+                    "name": "test::inh",
+                    "inheritable": True,
+                    "@value": "inherit me",
+                }, {
+                    "name": "test::noninh",
+                    "@value": "no inherit",
+                }]
+            }, {
+                "attributes": [{
+                    "name": "test::inh",
+                    "inheritable": True,
+                    "@value": "inherit me",
+                }]
+            }]
         ])
 
     async def test_edgeql_ddl_anytype_01(self):
