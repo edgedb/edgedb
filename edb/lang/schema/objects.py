@@ -251,12 +251,12 @@ class SchemaField(Field):
 
 class RefDict(struct.Struct):
 
-    local_attr = struct.Field(str)
-    attr = struct.Field(str)
-    non_inheritable_attr = struct.Field(str, default=None)
-    backref_attr = struct.Field(str, default='subject')
-    requires_explicit_inherit = struct.Field(bool, default=False)
-    ref_cls = struct.Field(type)
+    local_attr = struct.Field(str, frozen=True)
+    attr = struct.Field(str, frozen=True)
+    non_inheritable_attr = struct.Field(str, default=None, frozen=True)
+    backref_attr = struct.Field(str, default='subject', frozen=True)
+    requires_explicit_inherit = struct.Field(bool, default=False, frozen=True)
+    ref_cls = struct.Field(type, frozen=True)
 
 
 class ObjectMeta(type):
