@@ -67,7 +67,7 @@ class OperatorCommand(s_func.CallableCommand,
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         if not context.stdmode and not context.testmode:
             raise ql_errors.EdgeQLError(
-                'user-defined operators are not yet supported',
+                'user-defined operators are not supported',
                 context=astnode.context
             )
 

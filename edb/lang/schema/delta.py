@@ -23,6 +23,7 @@ import collections.abc
 from edb.lang.common import adapter
 from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
+from edb.lang.edgeql import errors as ql_errors
 
 from edb.lang.common import markup, ordered, struct, typed
 
@@ -31,6 +32,7 @@ from . import expr as s_expr
 from . import name as sn
 from . import objects as so
 from . import ordering as s_ordering
+from . import schema as s_schema
 from . import utils
 
 
@@ -681,6 +683,25 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
         else:
             return super().get_subcommands(type=type)
 
+    def _validate_legal_command(self, schema, context):
+        from . import functions as s_functions
+
+        if (not context.stdmode and not context.testmode and
+                not isinstance(self, s_functions.ParameterCommand)):
+
+            if isinstance(self.classname, sn.Name):
+                shortname = sn.shortname_from_fullname(self.classname)
+                modname = self.classname.module
+            else:
+                # modules have classname as simple strings
+                shortname = modname = self.classname
+
+            if modname in s_schema.STD_MODULES:
+                raise ql_errors.EdgeQLError(
+                    f'cannot {self._delta_action} `{shortname}`: '
+                    f'module {modname} is read-only',
+                    context=self.source_context)
+
 
 class ObjectCommandContext(CommandContextToken):
     def __init__(self, schema, op, scls):
@@ -710,6 +731,8 @@ class CreateObject(CreateOrAlterObject):
         return cmd
 
     def _create_begin(self, schema, context):
+        self._validate_legal_command(schema, context)
+
         schema, props = self._make_constructor_args(schema, context)
 
         metaclass = self.get_schema_metaclass()
@@ -796,6 +819,8 @@ class RenameObject(ObjectCommand):
                                          self.classname, self.new_name)
 
     def _rename_begin(self, schema, context, scls):
+        self._validate_legal_command(schema, context)
+
         self.old_name = self.classname
         schema = scls.set_field_value(schema, 'name', self.new_name)
 
@@ -1002,6 +1027,8 @@ class AlterObject(CreateOrAlterObject):
         return node
 
     def _alter_begin(self, schema, context, scls):
+        self._validate_legal_command(schema, context)
+
         for op in self.get_subcommands(type=RenameObject):
             schema, _ = op.apply(schema, context)
 
@@ -1046,6 +1073,8 @@ class DeleteObject(ObjectCommand):
     _delta_action = 'delete'
 
     def _delete_begin(self, schema, context, scls):
+        self._validate_legal_command(schema, context)
+
         return schema
 
     def _delete_innards(self, schema, context, scls):

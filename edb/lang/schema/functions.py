@@ -613,13 +613,36 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
         return_typemod = self.scls.get_return_typemod(schema)
         from_function = self.scls.get_from_function(schema)
         has_polymorphic = params.has_polymorphic(schema)
+        polymorphic_return_type = return_type.is_polymorphic(schema)
         named_only = params.find_named_only(schema)
 
-        if return_type.is_polymorphic(schema) and not has_polymorphic:
+        # Certain syntax is only allowed in "EdgeDB developer" mode,
+        # i.e. when populating std library, etc.
+        if not context.stdmode and not context.testmode:
+            if has_polymorphic or polymorphic_return_type:
+                raise ql_errors.EdgeQLError(
+                    f'cannot create `{signature}` function: '
+                    f'generic types are not supported in '
+                    f'user-defined functions',
+                    context=self.source_context)
+            elif from_function:
+                raise ql_errors.EdgeQLError(
+                    f'cannot create `{signature}` function: '
+                    f'"FROM SQL FUNCTION" is not supported in '
+                    f'user-defined functions',
+                    context=self.source_context)
+            elif language != qlast.Language.EdgeQL:
+                raise ql_errors.EdgeQLError(
+                    f'cannot create `{signature}` function: '
+                    f'"FROM {language}" is not supported in '
+                    f'user-defined functions',
+                    context=self.source_context)
+
+        if polymorphic_return_type and not has_polymorphic:
             raise ql_errors.EdgeQLError(
                 f'cannot create `{signature}` function: '
-                f'function returns a polymorphic type but has no '
-                f'polymorphic parameters',
+                f'function returns a generic type but has no '
+                f'generic parameters',
                 context=self.source_context)
 
         overloaded_funcs = schema.get_functions(shortname, ())
@@ -672,7 +695,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
             raise ql_errors.EdgeQLError(
                 f'cannot create the `{signature}` function: '
                 f'SET OF parameters in user-defined EdgeQL functions are '
-                f'not yet supported',
+                f'not supported',
                 context=self.source_context)
 
         # check that params of type 'anytype' don't have defaults

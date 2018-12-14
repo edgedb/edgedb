@@ -226,10 +226,15 @@ class DatabaseTestCase(ConnectedTestCase):
     # Some tests may want to manage transactions manually,
     # in which case ISOLATED_METHODS will be False.
     ISOLATED_METHODS = True
+    # Turns on "EdgeDB developer" mode which allows using restricted
+    # syntax like FROM SQL and similar. It allows modifying standard
+    # library (e.g. declaring casts).
+    INTERNAL_TESTMODE = True
 
     def setUp(self):
-        self.loop.run_until_complete(
-            self.con.execute('SET CONFIG __internal_testmode := true;'))
+        if self.INTERNAL_TESTMODE:
+            self.loop.run_until_complete(
+                self.con.execute('SET CONFIG __internal_testmode := true;'))
 
         if self.ISOLATED_METHODS:
             self.loop.run_until_complete(

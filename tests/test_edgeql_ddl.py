@@ -915,7 +915,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 client_errors.EdgeQLError,
                 r'cannot create.*test::ddlf_7\(a: SET OF std::int64\).*'
                 r'SET OF parameters in user-defined EdgeQL functions are '
-                r'not yet supported'):
+                r'not supported'):
 
             await self.con.execute(r'''
                 CREATE FUNCTION test::ddlf_7(a: SET OF int64) -> int64
@@ -1013,8 +1013,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 client_errors.EdgeQLError,
                 r'cannot create.*test::ddlf_12.*'
-                r'function returns a polymorphic type but has no '
-                r'polymorphic parameters'):
+                r'function returns a generic type but has no '
+                r'generic parameters'):
 
             await self.con.execute(r'''
                 CREATE FUNCTION test::ddlf_12(str: std::str) -> anytype

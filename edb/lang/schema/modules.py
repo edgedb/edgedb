@@ -31,6 +31,9 @@ class Module(attributes.AttributeSubject):
     # fully-qualified names.
     name = so.SchemaField(str)
 
+    def get_displayname(self, schema):
+        return self.get_name(schema)
+
 
 class ModuleCommandContext(sd.ObjectCommandContext):
     pass
@@ -60,5 +63,5 @@ class AlterModule(ModuleCommand, sd.CreateOrAlterObject):
     astnode = qlast.AlterModule
 
 
-class DeleteModule(ModuleCommand):
+class DeleteModule(ModuleCommand, sd.DeleteObject):
     astnode = qlast.DropModule

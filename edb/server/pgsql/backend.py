@@ -114,14 +114,25 @@ class Backend:
                             'could not load std schema pickle') from e
 
             self.schema = await self._intro_mech.readschema(
-                schema=cls.std_schema, exclude_modules=s_std.STD_MODULES)
+                schema=cls.std_schema, exclude_modules=s_schema.STD_MODULES)
 
         return self.schema
+
+    def create_context(self, cmds=None, stdmode=None):
+        if cmds is not None:
+            context = cmds.CommandContext(self.connection)
+        else:
+            context = sd.CommandContext()
+        context.testmode = self.testmode
+        if stdmode is not None:
+            context.stdmode = stdmode
+
+        return context
 
     def adapt_delta(self, delta):
         return delta_cmds.CommandMeta.adapt(delta)
 
-    def process_delta(self, delta, schema):
+    def process_delta(self, delta, schema, *, stdmode=None):
         """Adapt and process the delta command."""
 
         if debug.flags.delta_plan:
@@ -129,7 +140,7 @@ class Backend:
             debug.dump(delta, schema=schema)
 
         delta = self.adapt_delta(delta)
-        context = delta_cmds.CommandContext(self.connection)
+        context = self.create_context(delta_cmds, stdmode)
         schema, _ = delta.apply(schema, context)
 
         if debug.flags.delta_pgsql_plan:
@@ -140,7 +151,7 @@ class Backend:
 
     async def run_delta_command(self, delta_cmd):
         schema = self.schema
-        context = sd.CommandContext()
+        context = self.create_context()
         result = None
 
         if isinstance(delta_cmd, s_deltas.CreateDelta):
@@ -223,7 +234,7 @@ class Backend:
         current_block = None
 
         std_texts = []
-        for modname in s_std.STD_LIB + ['stdgraphql']:
+        for modname in s_schema.STD_LIB + ['stdgraphql']:
             std_texts.append(s_std.get_std_module_text(modname))
 
         ddl_text = '\n'.join(std_texts)
@@ -239,13 +250,14 @@ class Backend:
             # Do a dry-run on test_schema to canonicalize
             # the schema delta-commands.
             test_schema = schema
-            context = sd.CommandContext()
+            context = self.create_context(stdmode=True)
             canonical_delta = delta_command.copy()
             canonical_delta.apply(test_schema, context=context)
 
             # Apply and adapt delta, build native delta plan, which
             # will also update the schema.
-            schema, plan = self.process_delta(canonical_delta, schema)
+            schema, plan = self.process_delta(canonical_delta, schema,
+                                              stdmode=True)
 
             if isinstance(plan, (s_db.CreateDatabase, s_db.DropDatabase)):
                 if (current_block is not None and
@@ -312,7 +324,7 @@ class Backend:
         # Do a dry-run on test_schema to canonicalize
         # the schema delta-commands.
         test_schema = schema
-        context = sd.CommandContext()
+        context = self.create_context()
         canonical_ddl_plan = ddl_plan.copy()
         canonical_ddl_plan.apply(test_schema, context=context)
 
@@ -320,7 +332,7 @@ class Backend:
         # will also update the schema.
         schema, plan = self.process_delta(canonical_ddl_plan, schema)
 
-        context = delta_cmds.CommandContext(self.connection)
+        context = self.create_context(delta_cmds)
 
         if isinstance(plan, (s_db.CreateDatabase, s_db.DropDatabase)):
             block = dbops.SQLBlock()

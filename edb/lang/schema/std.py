@@ -25,6 +25,7 @@ from edb.lang import edgeql
 from edb.lang import schema
 from edb.lang.common import devmode
 from edb.lang.edgeql import compiler as qlcompiler
+from edb.lang.schema import delta as s_delta
 
 from . import ddl as s_ddl
 from . import error as s_err
@@ -34,9 +35,6 @@ from . import schema as s_schema
 SCHEMA_ROOT = pathlib.Path(schema.__path__[0])
 LIB_ROOT = pathlib.Path(stdlib.__path__[0])
 QL_COMPILER_ROOT = pathlib.Path(qlcompiler.__path__[0])
-
-STD_LIB = ['std', 'schema', 'math']
-STD_MODULES = {'std', 'schema', 'stdgraphql', 'math'}
 
 CACHE_SRC_DIRS = (
     (SCHEMA_ROOT, '.py'),
@@ -78,11 +76,14 @@ def load_std_module(
     if modname == 'std':
         modaliases[None] = 'std'
 
+    context = s_delta.CommandContext()
+    context.stdmode = True
+
     modtext = get_std_module_text(modname)
     for statement in edgeql.parse_block(modtext):
         cmd = s_ddl.delta_from_ddl(
             statement, schema=schema, modaliases=modaliases, stdmode=True)
-        schema, _ = cmd.apply(schema)
+        schema, _ = cmd.apply(schema, context)
 
     return schema
 
@@ -97,7 +98,7 @@ def load_std_schema() -> s_schema.Schema:
 
     if schema is None:
         schema = s_schema.Schema()
-        for modname in STD_LIB:
+        for modname in s_schema.STD_LIB:
             schema = load_std_module(schema, modname)
 
     if devmode.is_in_dev_mode():

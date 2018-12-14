@@ -20,6 +20,7 @@
 from edb.lang import edgeql
 from edb.lang.schema import delta as s_delta
 
+from . import schema as s_schema
 
 # The below must be imported here to make sure we have all
 # necessary mappers from/to DDL AST.
@@ -67,7 +68,7 @@ def compile_migration(cmd, target_schema, current_schema):
         (cmd.classname.module, declarations)
     ])
 
-    stdmodules = std.STD_MODULES
+    stdmodules = s_schema.STD_MODULES
     moditems = target_schema.get_objects(type=modules.Module)
     modnames = {m.get_name(target_schema) for m in moditems} - stdmodules
     if len(modnames) != 1:
