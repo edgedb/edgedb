@@ -44,9 +44,9 @@ item in the module.
     The following actions are allowed in the
     ``CREATE ABSTRACT PROPERTY`` block:
 
-    ``SET <attribute> := <value>;``
+    ``SET ATTRIBUTE <attribute> := <value>;``
         Set link item's *attribute* to *value*.
-        See :eql:stmt:`SET <SET ATTRIBUTE>` for details.
+        See :eql:stmt:`SET ATTRIBUTE` for details.
 
 
 ALTER ABSTRACT PROPERTY
@@ -106,13 +106,13 @@ property, optionally qualified with a module name.
         * ``AFTER <parent>`` -- insert parent(s) after an existing
           *parent*.
 
-    :eql:synopsis:`SET <attribute> := <value>;`
+    :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
         Set link item's *attribute* to *value*.
-        See :eql:stmt:`SET <SET ATTRIBUTE>` for details.
+        See :eql:stmt:`SET ATTRIBUTE` for details.
 
     :eql:synopsis:`DROP ATTRIBUTE <attribute>;`
         Remove link item's *attribute* to *value*.
-        See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE VALUE>` for details.
+        See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE>` for details.
 
     :eql:synopsis:`ALTER TARGET <typename>`
         Change the target type of the property to the specified type.
@@ -206,9 +206,9 @@ be more than one.  ``SINGLE`` is the default.
     The following actions are allowed in the
     ``CREATE PROPERTY`` block:
 
-    :eql:synopsis:`SET <attribute> := <value>;`
+    :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
         Set link item's *attribute* to *value*.
-        See :eql:stmt:`SET <SET ATTRIBUTE>` for details.
+        See :eql:stmt:`SET ATTRIBUTE` for details.
 
 
 Computable Property Form
@@ -263,13 +263,13 @@ alter action.
         Change the maximum cardinality of the property set to
         *greater then one*.
 
-    :eql:synopsis:`SET <attribute> := <value>;`
+    :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
         Set link item's *attribute* to *value*.
-        See :eql:stmt:`SET <SET ATTRIBUTE>` for details.
+        See :eql:stmt:`SET ATTRIBUTE` for details.
 
     :eql:synopsis:`DROP ATTRIBUTE <attribute>;`
         Remove link item's *attribute* to *value*.
-        See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE VALUE>` for details.
+        See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE>` for details.
 
     :eql:synopsis:`CREATE PROPERTY <property-name> ...`
         Define a new property item for this link.  See

@@ -71,9 +71,9 @@ Parameters
     The following subcommands are allowed in the ``CREATE TYPE``
     block:
 
-    :eql:synopsis:`SET <attribute> := <value>;`
+    :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
         Set link item's *attribute* to *value*.
-        See :eql:stmt:`SET <SET ATTRIBUTE>` for details.
+        See :eql:stmt:`SET ATTRIBUTE` for details.
 
     :eql:synopsis:`CREATE LINK`
         Define a concrete link on the object type.
@@ -106,7 +106,7 @@ Change the definition of an
 
         RENAME TO <newname>;
         EXTENDING <parent> [, ...]
-        SET <attribute> := <value>;
+        SET ATTRIBUTE <attribute> := <value>;
         DROP ATTRIBUTE <attribute>;
         CREATE LINK <link-name> ...
         ALTER LINK <link-name> ...
@@ -161,13 +161,13 @@ Parameters
     * ``AFTER <parent>`` -- insert parent(s) after an existing
       *parent*.
 
-:eql:synopsis:`SET <attribute> := <value>;`
+:eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
     Set object type *attribute* to *value*.
-    See :eql:stmt:`SET <SET ATTRIBUTE>` for details.
+    See :eql:stmt:`SET ATTRIBUTE` for details.
 
 :eql:synopsis:`DROP ATTRIBUTE <attribute>;`
     Remove object type *attribute*.
-    See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE VALUE>` for details.
+    See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE>` for details.
 
 :eql:synopsis:`CREATE LINK <link-name> ...`
     Define a new link for this object type.  See

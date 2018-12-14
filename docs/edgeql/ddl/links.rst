@@ -49,9 +49,9 @@ in the module.
     The following actions are allowed in the
     ``CREATE ABSTRACT LINK`` block:
 
-    :eql:synopsis:`SET <attribute> := <value>;`
+    :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
         Set link item's *attribute* to *value*.
-        See :eql:stmt:`SET <SET ATTRIBUTE>` for details.
+        See :eql:stmt:`SET ATTRIBUTE` for details.
 
     :eql:synopsis:`CREATE PROPERTY`
         Define a concrete property on the link.
@@ -116,13 +116,13 @@ with a module name.
         * ``AFTER <parent>`` -- insert parent(s) after an existing
           *parent*.
 
-    :eql:synopsis:`SET <attribute> := <value>;`
+    :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
         Set link item's *attribute* to *value*.
-        See :eql:stmt:`SET <SET ATTRIBUTE>` for details.
+        See :eql:stmt:`SET ATTRIBUTE` for details.
 
     :eql:synopsis:`DROP ATTRIBUTE <attribute>;`
         Remove link item's *attribute*.
-        See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE VALUE>` for details.
+        See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE>` for details.
 
     :eql:synopsis:`ALTER TARGET <typename> [, ...]`
         Change the target type of the link to the specified type or
@@ -232,7 +232,7 @@ be more than one.  ``SINGLE`` is the default.
 :eql:synopsis:`<action>`
     The following actions are allowed in the ``CREATE LINK`` block:
 
-    * :eql:stmt:`SET <SET ATTRIBUTE>`
+    * :eql:stmt:`SET ATTRIBUTE`
 
 
 Computable Link Form
@@ -308,13 +308,13 @@ alter action.
     :eql:synopsis:`SET MULTI`
         Change the maximum cardinality of the link set to *greater then one*.
 
-    :eql:synopsis:`SET <attribute> := <value>;`
+    :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
         Set link item's *attribute* to *value*.
-        See :eql:stmt:`SET <SET ATTRIBUTE>` for details.
+        See :eql:stmt:`SET ATTRIBUTE` for details.
 
     :eql:synopsis:`DROP ATTRIBUTE <attribute>;`
         Remove link item's *attribute* to *value*.
-        See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE VALUE>` for details.
+        See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE>` for details.
 
     :eql:synopsis:`CREATE PROPERTY <property-name> ...`
         Define a new property item for this link.  See

@@ -56,9 +56,9 @@ subtype with constraints.
     The following actions are allowed in the ``CREATE SCALAR TYPE``
     block:
 
-    :eql:synopsis:`SET <attribute> := <value>;`
+    :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
         Set link item's *attribute* to *value*.
-        See :eql:stmt:`SET <SET ATTRIBUTE>` for details.
+        See :eql:stmt:`SET ATTRIBUTE` for details.
 
     :eql:synopsis:`CREATE CONSTRAINT`
         Define a concrete constraint on the scalar type.
@@ -107,13 +107,13 @@ with a module name.
     :eql:synopsis:`RENAME TO <newname>;`
         Change the name of the scalar type to *newname*.
 
-    :eql:synopsis:`SET <attribute> := <value>;`
+    :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
         Set scalar type's *attribute* to *value*.
-        See :eql:stmt:`SET <SET ATTRIBUTE>` for details.
+        See :eql:stmt:`SET ATTRIBUTE` for details.
 
     :eql:synopsis:`DROP ATTRIBUTE <attribute>;`
         Remove scalar type's *attribute* to *value*.
-        See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE VALUE>` for details.
+        See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE>` for details.
 
     :eql:synopsis:`CREATE CONSTRAINT <constraint-name> ...`
         Define a new constraint for this scalar type.  See

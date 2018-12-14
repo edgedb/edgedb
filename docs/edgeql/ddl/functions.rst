@@ -120,9 +120,9 @@ Subcommands
 ``CREATE FUNCTION`` allows specifying the following subcommands in its
 block:
 
-:eql:synopsis:`SET <attribute> := <value>;`
+:eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
     Set the functions's *attribute* to *value*.
-    See :eql:stmt:`SET <SET ATTRIBUTE>` for details.
+    See :eql:stmt:`SET ATTRIBUTE` for details.
 
 :eql:synopsis:`FROM <language> <functionbody>;`
     See the meaning of *language* and *functionbody* above.

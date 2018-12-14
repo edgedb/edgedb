@@ -20,7 +20,7 @@ declaration:
 
 .. eschema:synopsis::
 
-    attribute <attr-name> -> <type>:
+    abstract [ inheritable ] attribute <attr-name>:
         [ <attribute-declarations> ]
 
 Parameters:
@@ -30,17 +30,18 @@ Parameters:
     are lowercase, with words separated by underscores as necessary for
     readability.
 
-:eschema:synopsis:`<type>`
-    Specifies attribute data type.  Must be a valid
-    :ref:`scalar type <ref_datamodel_scalar_types>` or a
-    :ref:`collection type <ref_datamodel_collection_types>`.
+:eschema:synopsis:`inheritable`
+    The attributes are non-inheritable by default.  That is, if a schema item
+    has an attribute defined on it, the descendants of that schema item will
+    not automatically inherit the attribute.  Normal inheritance behavior can
+    be turned on by declaring the attribute with the *inheritable* qualifier.
 
 :eschema:synopsis:`<attribute-declarations>`
     Schema attribute declarations for this attribute.  Schema attributes
     are considered schema items, and can have attributes themselves.
 
 
-Attributes can also be defined using the :eql:stmt:`CREATE ATTRIBUTE`
+Attributes can also be defined using the :eql:stmt:`CREATE ABSTRACT ATTRIBUTE`
 EdgeQL command.
 
 
@@ -51,11 +52,11 @@ Attributes may be set in EdgeDB Schema using the following syntax:
 
 .. eschema:synopsis::
 
-    <attr-name> := <constant-value>
+    attribute <attr-name> := <constant-string-value>
 
 Here :eschema:synopsis:`<attr-name>` is the name of the previously
-defined attribute, and :eschema:synopsis:`<constant-value>`
-is a valid constant literal which type matches that of the attribute.
+defined attribute, and :eschema:synopsis:`<constant-string-value>`
+is a valid constant expression that evaluates to a string.
 
 For example:
 

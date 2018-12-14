@@ -89,7 +89,7 @@ Parameters
 
 :eql:synopsis:`SET <attr-name> := <attr-value>;`
     An optional list of schema attribute values for the constraint.
-    See :eql:stmt:`SET <SET ATTRIBUTE>` for details.
+    See :eql:stmt:`SET ATTRIBUTE` for details.
 
 
 Examples
@@ -286,7 +286,7 @@ Parameters
 
 :eql:synopsis:`SET <attr-name> := <attr-value>;`
     An optional list of schema attribute values for the constraint.
-    See :eql:stmt:`SET <SET ATTRIBUTE>` for details.
+    See :eql:stmt:`SET ATTRIBUTE` for details.
 
 
 Examples
@@ -363,11 +363,11 @@ Parameters
 
 :eql:synopsis:`SET <attr-name> := <attr-value>;`
     Set constraint *attribute* to *value*.
-    See :eql:stmt:`SET <SET ATTRIBUTE>` for details.
+    See :eql:stmt:`SET ATTRIBUTE` for details.
 
 :eql:synopsis:`DROP ATTRIBUTE <attribute>;`
     Remove constraint *attribute*.
-    See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE VALUE>` for details.
+    See :eql:stmt:`DROP ATTRIBUTE` for details.
 
 
 Examples

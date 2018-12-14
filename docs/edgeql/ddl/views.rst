@@ -55,7 +55,7 @@ Parameters
 
 :eql:synopsis:`SET <attr-name> := <attr-value>;`
     An optional list of schema attribute values for the view.
-    See :eql:stmt:`SET <SET ATTRIBUTE>` for details.
+    See :eql:stmt:`SET ATTRIBUTE` for details.
 
 :eql:synopsis:`[ <module-alias> := ] MODULE <module-name>`
     An optional list of module alias declarations to be used in the
