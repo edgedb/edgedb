@@ -35,7 +35,7 @@ class PseudoType(inheriting.InheritingObject, s_types.Type):
         return self.name
 
     def get_displayname(self, schema):
-        return self.schema_name
+        return self.name
 
     def get__virtual_children(self, schema):
         return None
@@ -44,9 +44,6 @@ class PseudoType(inheriting.InheritingObject, s_types.Type):
         return so.ObjectList.create_empty()
 
     def get_is_abstract(self, schema):
-        return True
-
-    def is_any(self):
         return True
 
     def is_polymorphic(self, schema):
@@ -65,7 +62,6 @@ class PseudoType(inheriting.InheritingObject, s_types.Type):
 
 class Any(PseudoType):
 
-    schema_name = 'anytype'
     _instance = None
 
     @classmethod
@@ -73,6 +69,9 @@ class Any(PseudoType):
         if cls._instance is None:
             cls._instance = cls._create(None, name='anytype')
         return cls._instance
+
+    def is_any(self):
+        return True
 
     def _resolve_polymorphic(self, schema, concrete_type: s_types.Type):
         if concrete_type.is_scalar():
@@ -85,12 +84,22 @@ class Any(PseudoType):
     def _test_polymorphic(self, schema, other: s_types.Type):
         return other.is_any()
 
+    def implicitly_castable_to(self, other: s_types.Type, schema) -> bool:
+        return other.is_any()
+
     def find_common_implicitly_castable_type(
             self, other: s_types.Type,
             schema) -> typing.Optional[s_types.Type]:
 
         if self == other:
             return self
+
+    def get_common_parent_type_distance(
+            self, other: s_types.Type, schema) -> int:
+        if other.is_any():
+            return 0
+        else:
+            return s_types.MAX_TYPE_DISTANCE
 
     def _reduce_to_ref(self, schema):
         return AnyObjectRef(), 'anytype'
@@ -107,7 +116,6 @@ class AnyObjectRef(so.ObjectRef):
 
 class AnyTuple(PseudoType):
 
-    schema_name = 'anytuple'
     _instance = None
 
     @classmethod
@@ -115,6 +123,12 @@ class AnyTuple(PseudoType):
         if cls._instance is None:
             cls._instance = cls._create(None, name='anytuple')
         return cls._instance
+
+    def is_anytuple(self):
+        return True
+
+    def implicitly_castable_to(self, other: s_types.Type, schema) -> bool:
+        return other.is_anytuple()
 
     def _reduce_to_ref(self, schema):
         return AnyTupleRef(), 'anytuple'

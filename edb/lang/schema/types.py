@@ -34,6 +34,7 @@ from . import objects as so
 
 
 TYPE_ID_NAMESPACE = uuid.UUID('00e50276-2502-11e7-97f2-27fe51238dbd')
+MAX_TYPE_DISTANCE = 1_000_000_000
 
 
 class ViewType(enum.IntEnum):
@@ -79,6 +80,9 @@ class Type(so.Object, derivable.DerivableObjectBase, s_abc.Type):
         return False
 
     def is_any(self):
+        return False
+
+    def is_anytuple(self):
         return False
 
     def contains_any(self):
@@ -227,6 +231,27 @@ class Collection(Type, s_abc.Collection):
     def is_virtual(self):
         # This property in necessary for compatibility with node classes.
         return False
+
+    def get_common_parent_type_distance(
+            self, other: Type, schema) -> int:
+        if other.is_any():
+            return 1
+
+        if other.__class__ is not self.__class__:
+            return -1
+
+        other_types = other.get_subtypes()
+        my_types = self.get_subtypes()
+
+        type_dist = 0
+        for ot, my in zip(other_types, my_types):
+            el_dist = my.get_common_parent_type_distance(ot, schema)
+            if el_dist < 0:
+                return -1
+            else:
+                type_dist += el_dist
+
+        return type_dist
 
     def _issubclass(self, schema, parent):
         if parent.is_any():
@@ -752,7 +777,7 @@ class Tuple(Collection, s_abc.Tuple):
         return Tuple.from_subtypes(schema, new_types, typemods)
 
     def _test_polymorphic(self, schema, other: 'Type'):
-        if other.is_any():
+        if other.is_any() or other.is_anytuple():
             return True
         if not other.is_tuple():
             return False

@@ -168,8 +168,18 @@ std::`?=` (l: OPTIONAL std::float64, r: OPTIONAL std::float64) -> std::bool
 
 
 CREATE INFIX OPERATOR
+std::`=` (l: std::decimal, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR r'=';
+
+
+CREATE INFIX OPERATOR
 std::`=` (l: std::decimal, r: std::anyreal) -> std::bool
     FROM SQL OPERATOR r'=';
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL std::decimal, r: OPTIONAL std::decimal) -> std::bool
+    FROM SQL EXPRESSION;
 
 
 CREATE INFIX OPERATOR
@@ -320,8 +330,18 @@ std::`?!=` (l: OPTIONAL std::float64, r: OPTIONAL std::float64) -> std::bool
 
 
 CREATE INFIX OPERATOR
+std::`!=` (l: std::decimal, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR r'<>';
+
+
+CREATE INFIX OPERATOR
 std::`!=` (l: std::decimal, r: std::anyreal) -> std::bool
     FROM SQL OPERATOR r'<>';
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL std::decimal, r: OPTIONAL std::decimal) -> std::bool
+    FROM SQL EXPRESSION;
 
 
 CREATE INFIX OPERATOR
@@ -373,6 +393,11 @@ std::`>` (l: std::int32, r: std::int64) -> std::bool
 
 
 CREATE INFIX OPERATOR
+std::`>` (l: std::int32, r: std::float32) -> std::bool
+    FROM SQL OPERATOR '>(float8,float8)';
+
+
+CREATE INFIX OPERATOR
 std::`>` (l: std::int64, r: std::int16) -> std::bool
     FROM SQL OPERATOR r'>';
 
@@ -388,6 +413,11 @@ std::`>` (l: std::int64, r: std::int64) -> std::bool
 
 
 CREATE INFIX OPERATOR
+std::`>` (l: std::int64, r: std::float64) -> std::bool
+    FROM SQL OPERATOR r'>(float8,float8)';
+
+
+CREATE INFIX OPERATOR
 std::`>` (l: std::float32, r: std::float32) -> std::bool
     FROM SQL OPERATOR r'>';
 
@@ -395,6 +425,11 @@ std::`>` (l: std::float32, r: std::float32) -> std::bool
 CREATE INFIX OPERATOR
 std::`>` (l: std::float32, r: std::float64) -> std::bool
     FROM SQL OPERATOR r'>';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::float32, r: std::int32) -> std::bool
+    FROM SQL OPERATOR '>(float8,float8)';
 
 
 CREATE INFIX OPERATOR
@@ -408,12 +443,27 @@ std::`>` (l: std::float64, r: std::float64) -> std::bool
 
 
 CREATE INFIX OPERATOR
+std::`>` (l: std::float64, r: std::int64) -> std::bool
+    FROM SQL OPERATOR r'>(float8,float8)';
+
+
+CREATE INFIX OPERATOR
 std::`>` (l: std::decimal, r: std::decimal) -> std::bool
     FROM SQL OPERATOR r'>';
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::float64, r: std::decimal) -> std::bool
+std::`>` (l: std::int16, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR '>(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::int32, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR '>(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::int64, r: std::decimal) -> std::bool
     FROM SQL OPERATOR '>(numeric,numeric)';
 
 
@@ -423,12 +473,32 @@ std::`>` (l: std::float32, r: std::decimal) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::decimal, r: std::float64) -> std::bool
+std::`>` (l: std::float64, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR '>(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::decimal, r: std::int16) -> std::bool
+    FROM SQL OPERATOR '>(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::decimal, r: std::int32) -> std::bool
+    FROM SQL OPERATOR '>(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::decimal, r: std::int64) -> std::bool
     FROM SQL OPERATOR '>(numeric,numeric)';
 
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::decimal, r: std::float32) -> std::bool
+    FROM SQL OPERATOR '>(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::decimal, r: std::float64) -> std::bool
     FROM SQL OPERATOR '>(numeric,numeric)';
 
 
@@ -465,6 +535,11 @@ std::`>=` (l: std::int32, r: std::int64) -> std::bool
 
 
 CREATE INFIX OPERATOR
+std::`>=` (l: std::int32, r: std::float32) -> std::bool
+    FROM SQL OPERATOR '>=(float8,float8)';
+
+
+CREATE INFIX OPERATOR
 std::`>=` (l: std::int64, r: std::int16) -> std::bool
     FROM SQL OPERATOR r'>=';
 
@@ -480,6 +555,11 @@ std::`>=` (l: std::int64, r: std::int64) -> std::bool
 
 
 CREATE INFIX OPERATOR
+std::`>=` (l: std::int64, r: std::float64) -> std::bool
+    FROM SQL OPERATOR r'>=(float8,float8)';
+
+
+CREATE INFIX OPERATOR
 std::`>=` (l: std::float32, r: std::float32) -> std::bool
     FROM SQL OPERATOR r'>=';
 
@@ -487,6 +567,11 @@ std::`>=` (l: std::float32, r: std::float32) -> std::bool
 CREATE INFIX OPERATOR
 std::`>=` (l: std::float32, r: std::float64) -> std::bool
     FROM SQL OPERATOR r'>=';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::float32, r: std::int32) -> std::bool
+    FROM SQL OPERATOR '>=(float8,float8)';
 
 
 CREATE INFIX OPERATOR
@@ -500,12 +585,27 @@ std::`>=` (l: std::float64, r: std::float64) -> std::bool
 
 
 CREATE INFIX OPERATOR
+std::`>=` (l: std::float64, r: std::int64) -> std::bool
+    FROM SQL OPERATOR r'>=(float8,float8)';
+
+
+CREATE INFIX OPERATOR
 std::`>=` (l: std::decimal, r: std::decimal) -> std::bool
     FROM SQL OPERATOR r'>=';
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::float64, r: std::decimal) -> std::bool
+std::`>=` (l: std::int16, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR '>=(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::int32, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR '>=(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::int64, r: std::decimal) -> std::bool
     FROM SQL OPERATOR '>=(numeric,numeric)';
 
 
@@ -515,12 +615,32 @@ std::`>=` (l: std::float32, r: std::decimal) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::decimal, r: std::float64) -> std::bool
+std::`>=` (l: std::float64, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR '>=(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::decimal, r: std::int16) -> std::bool
+    FROM SQL OPERATOR '>=(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::decimal, r: std::int32) -> std::bool
+    FROM SQL OPERATOR '>=(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::decimal, r: std::int64) -> std::bool
     FROM SQL OPERATOR '>=(numeric,numeric)';
 
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::decimal, r: std::float32) -> std::bool
+    FROM SQL OPERATOR '>=(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::decimal, r: std::float64) -> std::bool
     FROM SQL OPERATOR '>=(numeric,numeric)';
 
 
@@ -557,6 +677,11 @@ std::`<` (l: std::int32, r: std::int64) -> std::bool
 
 
 CREATE INFIX OPERATOR
+std::`<` (l: std::int32, r: std::float32) -> std::bool
+    FROM SQL OPERATOR '<(float8,float8)';
+
+
+CREATE INFIX OPERATOR
 std::`<` (l: std::int64, r: std::int16) -> std::bool
     FROM SQL OPERATOR r'<';
 
@@ -572,6 +697,11 @@ std::`<` (l: std::int64, r: std::int64) -> std::bool
 
 
 CREATE INFIX OPERATOR
+std::`<` (l: std::int64, r: std::float64) -> std::bool
+    FROM SQL OPERATOR r'<(float8,float8)';
+
+
+CREATE INFIX OPERATOR
 std::`<` (l: std::float32, r: std::float32) -> std::bool
     FROM SQL OPERATOR r'<';
 
@@ -579,6 +709,11 @@ std::`<` (l: std::float32, r: std::float32) -> std::bool
 CREATE INFIX OPERATOR
 std::`<` (l: std::float32, r: std::float64) -> std::bool
     FROM SQL OPERATOR r'<';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::float32, r: std::int32) -> std::bool
+    FROM SQL OPERATOR '<(float8,float8)';
 
 
 CREATE INFIX OPERATOR
@@ -592,12 +727,27 @@ std::`<` (l: std::float64, r: std::float64) -> std::bool
 
 
 CREATE INFIX OPERATOR
+std::`<` (l: std::float64, r: std::int64) -> std::bool
+    FROM SQL OPERATOR r'<(float8,float8)';
+
+
+CREATE INFIX OPERATOR
 std::`<` (l: std::decimal, r: std::decimal) -> std::bool
     FROM SQL OPERATOR r'<';
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::float64, r: std::decimal) -> std::bool
+std::`<` (l: std::int16, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR '<(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::int32, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR '<(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::int64, r: std::decimal) -> std::bool
     FROM SQL OPERATOR '<(numeric,numeric)';
 
 
@@ -607,12 +757,32 @@ std::`<` (l: std::float32, r: std::decimal) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::decimal, r: std::float64) -> std::bool
+std::`<` (l: std::float64, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR '<(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::decimal, r: std::int16) -> std::bool
+    FROM SQL OPERATOR '<(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::decimal, r: std::int32) -> std::bool
+    FROM SQL OPERATOR '<(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::decimal, r: std::int64) -> std::bool
     FROM SQL OPERATOR '<(numeric,numeric)';
 
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::decimal, r: std::float32) -> std::bool
+    FROM SQL OPERATOR '<(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::decimal, r: std::float64) -> std::bool
     FROM SQL OPERATOR '<(numeric,numeric)';
 
 
@@ -649,6 +819,11 @@ std::`<=` (l: std::int32, r: std::int64) -> std::bool
 
 
 CREATE INFIX OPERATOR
+std::`<=` (l: std::int32, r: std::float32) -> std::bool
+    FROM SQL OPERATOR '<=(float8,float8)';
+
+
+CREATE INFIX OPERATOR
 std::`<=` (l: std::int64, r: std::int16) -> std::bool
     FROM SQL OPERATOR r'<=';
 
@@ -664,6 +839,11 @@ std::`<=` (l: std::int64, r: std::int64) -> std::bool
 
 
 CREATE INFIX OPERATOR
+std::`<=` (l: std::int64, r: std::float64) -> std::bool
+    FROM SQL OPERATOR r'<=(float8,float8)';
+
+
+CREATE INFIX OPERATOR
 std::`<=` (l: std::float32, r: std::float32) -> std::bool
     FROM SQL OPERATOR r'<=';
 
@@ -671,6 +851,11 @@ std::`<=` (l: std::float32, r: std::float32) -> std::bool
 CREATE INFIX OPERATOR
 std::`<=` (l: std::float32, r: std::float64) -> std::bool
     FROM SQL OPERATOR r'<=';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::float32, r: std::int32) -> std::bool
+    FROM SQL OPERATOR '<=(float8,float8)';
 
 
 CREATE INFIX OPERATOR
@@ -684,12 +869,27 @@ std::`<=` (l: std::float64, r: std::float64) -> std::bool
 
 
 CREATE INFIX OPERATOR
+std::`<=` (l: std::float64, r: std::int64) -> std::bool
+    FROM SQL OPERATOR r'<=(float8,float8)';
+
+
+CREATE INFIX OPERATOR
 std::`<=` (l: std::decimal, r: std::decimal) -> std::bool
     FROM SQL OPERATOR r'<=';
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::float64, r: std::decimal) -> std::bool
+std::`<=` (l: std::int16, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR r'<=(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::int32, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR '<=(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::int64, r: std::decimal) -> std::bool
     FROM SQL OPERATOR '<=(numeric,numeric)';
 
 
@@ -699,12 +899,32 @@ std::`<=` (l: std::float32, r: std::decimal) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::decimal, r: std::float64) -> std::bool
+std::`<=` (l: std::float64, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR '<=(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::decimal, r: std::int16) -> std::bool
+    FROM SQL OPERATOR '<=(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::decimal, r: std::int32) -> std::bool
+    FROM SQL OPERATOR '<=(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::decimal, r: std::int64) -> std::bool
     FROM SQL OPERATOR '<=(numeric,numeric)';
 
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::decimal, r: std::float32) -> std::bool
+    FROM SQL OPERATOR '<=(numeric,numeric)';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::decimal, r: std::float64) -> std::bool
     FROM SQL OPERATOR '<=(numeric,numeric)';
 
 
@@ -1104,6 +1324,12 @@ CREATE CAST FROM std::int64 TO std::int32 {
 
 
 CREATE CAST FROM std::int64 TO std::int16 {
+    FROM SQL CAST;
+    ALLOW ASSIGNMENT;
+};
+
+
+CREATE CAST FROM std::int64 TO std::float32 {
     FROM SQL CAST;
     ALLOW ASSIGNMENT;
 };

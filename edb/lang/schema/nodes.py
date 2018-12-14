@@ -27,6 +27,7 @@ from . import inheriting
 from . import objects as so
 from . import schema as s_schema
 from . import types as s_types
+from . import utils
 
 
 class Node(inheriting.InheritingObject, s_types.Type):
@@ -50,6 +51,26 @@ class Node(inheriting.InheritingObject, s_types.Type):
             return self.get_bases(schema).first(schema)
         else:
             return self
+
+    def get_common_parent_type_distance(
+            self, other: s_types.Type, schema) -> int:
+        if other.is_any():
+            return s_types.MAX_TYPE_DISTANCE
+
+        if not isinstance(other, type(self)):
+            return -1
+
+        if self == other:
+            return 0
+
+        ancestor = utils.get_class_nearest_common_ancestor(
+            schema, [self, other])
+
+        if ancestor == self:
+            return 0
+        else:
+            mro = list(self.get_mro(schema).objects(schema))
+            return mro.index(ancestor) + 1
 
 
 class NodeCommandContext:

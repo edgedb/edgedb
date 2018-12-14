@@ -120,11 +120,18 @@ def ast_to_typeref(
 
 def typeref_to_ast(schema, t: so.Object) -> ql_ast.TypeName:
     if not isinstance(t, s_abc.Collection):
-        result = ql_ast.TypeName(
-            maintype=ql_ast.ObjectRef(
+        if t.is_type() and t.is_any():
+            ref = ql_ast.AnyType()
+        elif t.is_type() and t.is_anytuple():
+            ref = ql_ast.AnyTuple()
+        else:
+            ref = ql_ast.ObjectRef(
                 module=t.get_name(schema).module,
                 name=t.get_name(schema).name
             )
+
+        result = ql_ast.TypeName(
+            maintype=ref
         )
     else:
         result = ql_ast.TypeName(

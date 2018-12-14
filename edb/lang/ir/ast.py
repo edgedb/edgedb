@@ -73,15 +73,22 @@ class Pointer(Base):
         return self.direction == s_pointers.PointerDirection.Inbound
 
 
-class _BaseTypeRef(Base):
+class BaseTypeRef(Base):
+    name: str
+
+
+class TypeRef(BaseTypeRef):
+
+    maintype: str
+    subtypes: typing.List[BaseTypeRef]
+
+
+class AnyTypeRef(BaseTypeRef):
     pass
 
 
-class TypeRef(_BaseTypeRef):
-
-    name: str
-    maintype: str
-    subtypes: typing.List[_BaseTypeRef]
+class AnyTupleRef(BaseTypeRef):
+    pass
 
 
 class Set(Base):
@@ -206,7 +213,7 @@ class SetOp(Expr):
 class TypeCheckOp(Expr):
 
     left: Set
-    right: typing.Union[TypeRef, Array]
+    right: typing.Union[BaseTypeRef, Array]
     op: str
 
 
@@ -318,8 +325,8 @@ class TypeCast(Expr):
 
     expr: Base
     cast_name: str
-    from_type: TypeRef
-    to_type: TypeRef
+    from_type: BaseTypeRef
+    to_type: BaseTypeRef
     sql_function: str
     sql_cast: bool
     sql_expr: bool

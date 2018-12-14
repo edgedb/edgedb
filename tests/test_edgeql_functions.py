@@ -695,6 +695,23 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [6.8],
         ])
 
+    async def test_edgeql_functions_sum_04(self):
+        await self.assert_query_result(r'''
+            SELECT sum(<int16>2) IS int64;
+            SELECT sum(<int32>2) IS int64;
+            SELECT sum(<int64>2) IS int64;
+            SELECT sum(<float32>2) IS float32;
+            SELECT sum(<float64>2) IS float64;
+            SELECT sum(<decimal>2) IS decimal;
+        ''', [
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+        ])
+
     async def test_edgeql_functions_datetime_current_01(self):
         dt = (await self.con.execute('SELECT datetime_current();'))[0][0]
         self.assertRegex(dt, r'\d+-\d+-\d+T\d+:\d+:\d+\.\d+.*')
@@ -2038,23 +2055,13 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {50000000000000000000000000},
         ])
 
-    @test.skip('''
-        The cast distance of int16 is 2 for mean(int64) and
-        mean(float64). Currently instead of an error one of the
-        implementaitons will be used at random, so the test failure is
-        unstable.
-
-        Once the cast distance ambiguity is fixed the next issue will
-        be making sure that only decimals produce decimal result,
-        everything else is float32 or float64.
-    ''')
     async def test_edgeql_functions_math_mean_02(self):
         await self.assert_query_result(r'''
             # int16 is implicitly cast in float32, which produces a
             # float64 result
             SELECT math::mean(<int16>2) IS float64;
-            SELECT math::mean(<int32>2) IS decimal;
-            SELECT math::mean(<int64>2) IS decimal;
+            SELECT math::mean(<int32>2) IS float64;
+            SELECT math::mean(<int64>2) IS float64;
             SELECT math::mean(<float32>2) IS float64;
             SELECT math::mean(<float64>2) IS float64;
             SELECT math::mean(<decimal>2) IS decimal;
@@ -2166,21 +2173,11 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {0.1},
         ])
 
-    @test.skip('''
-        The cast distance of int16 is 2 for mean(int64) and
-        mean(float64). Currently instead of an error one of the
-        implementaitons will be used at random, so the test failure is
-        unstable.
-
-        Once the cast distance ambiguity is fixed the next issue will
-        be making sure that only decimals produce decimal result,
-        everything else is float32 or float64.
-    ''')
     async def test_edgeql_functions_math_stddev_02(self):
         await self.assert_query_result(r'''
             SELECT math::stddev(<int16>{1, 1}) IS float64;
-            SELECT math::stddev(<int32>{1, 1}) IS decimal;
-            SELECT math::stddev(<int64>{1, 1}) IS decimal;
+            SELECT math::stddev(<int32>{1, 1}) IS float64;
+            SELECT math::stddev(<int64>{1, 1}) IS float64;
             SELECT math::stddev(<float32>{1, 1}) IS float64;
             SELECT math::stddev(<float64>{1, 1}) IS float64;
             SELECT math::stddev(<decimal>{1, 1}) IS decimal;
@@ -2232,21 +2229,11 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {0.05},
         ])
 
-    @test.skip('''
-        The cast distance of int16 is 2 for mean(int64) and
-        mean(float64). Currently instead of an error one of the
-        implementaitons will be used at random, so the test failure is
-        unstable.
-
-        Once the cast distance ambiguity is fixed the next issue will
-        be making sure that only decimals produce decimal result,
-        everything else is float32 or float64.
-    ''')
     async def test_edgeql_functions_math_stddev_pop_02(self):
         await self.assert_query_result(r'''
             SELECT math::stddev_pop(<int16>1) IS float64;
-            SELECT math::stddev_pop(<int32>1) IS decimal;
-            SELECT math::stddev_pop(<int64>1) IS decimal;
+            SELECT math::stddev_pop(<int32>1) IS float64;
+            SELECT math::stddev_pop(<int64>1) IS float64;
             SELECT math::stddev_pop(<float32>1) IS float64;
             SELECT math::stddev_pop(<float64>1) IS float64;
             SELECT math::stddev_pop(<decimal>1) IS decimal;
@@ -2286,23 +2273,13 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {0.01},
         ])
 
-    @test.skip('''
-        The cast distance of int16 is 2 for mean(int64) and
-        mean(float64). Currently instead of an error one of the
-        implementaitons will be used at random, so the test failure is
-        unstable.
-
-        Once the cast distance ambiguity is fixed the next issue will
-        be making sure that only decimals produce decimal result,
-        everything else is float32 or float64.
-    ''')
     async def test_edgeql_functions_math_var_02(self):
         await self.assert_query_result(r'''
             # int16 is implicitly cast in float32, which produces a
             # float64 result
             SELECT math::var(<int16>{1, 1}) IS float64;
-            SELECT math::var(<int32>{1, 1}) IS decimal;
-            SELECT math::var(<int64>{1, 1}) IS decimal;
+            SELECT math::var(<int32>{1, 1}) IS float64;
+            SELECT math::var(<int64>{1, 1}) IS float64;
             SELECT math::var(<float32>{1, 1}) IS float64;
             SELECT math::var(<float64>{1, 1}) IS float64;
             SELECT math::var(<decimal>{1, 1}) IS decimal;
@@ -2388,21 +2365,11 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {0.0025},
         ])
 
-    @test.skip('''
-        The cast distance of int16 is 2 for mean(int64) and
-        mean(float64). Currently instead of an error one of the
-        implementaitons will be used at random, so the test failure is
-        unstable.
-
-        Once the cast distance ambiguity is fixed the next issue will
-        be making sure that only decimals produce decimal result,
-        everything else is float32 or float64.
-    ''')
     async def test_edgeql_functions_math_var_pop_02(self):
         await self.assert_query_result(r'''
             SELECT math::var_pop(<int16>1) IS float64;
-            SELECT math::var_pop(<int32>1) IS decimal;
-            SELECT math::var_pop(<int64>1) IS decimal;
+            SELECT math::var_pop(<int32>1) IS float64;
+            SELECT math::var_pop(<int64>1) IS float64;
             SELECT math::var_pop(<float32>1) IS float64;
             SELECT math::var_pop(<float64>1) IS float64;
             SELECT math::var_pop(<decimal>1) IS decimal;

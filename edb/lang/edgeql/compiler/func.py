@@ -43,13 +43,20 @@ from . import setgen
 from . import typegen
 
 
+class BoundArg(typing.NamedTuple):
+
+    param: typing.Optional[s_func.Parameter]
+    val: typing.Optional[irast.Base]
+    valtype: s_types.Type
+    cast_distance: int
+
+
 class BoundCall(typing.NamedTuple):
 
     func: s_func.CallableObject
-    args: typing.Iterable[typing.Tuple[s_func.Parameter, irast.Base]]
+    args: typing.List[BoundArg]
     null_args: typing.Set[str]
-    return_type: s_types.Type
-    implicit_cast_distance: int
+    return_type: typing.Optional[s_types.Type]
     has_empty_variadic: bool
 
 
@@ -61,7 +68,7 @@ _SET_OF = ft.TypeModifier.SET_OF
 _OPTIONAL = ft.TypeModifier.OPTIONAL
 _SINGLETON = ft.TypeModifier.SINGLETON
 
-_NO_MATCH = BoundCall(None, (), frozenset(), None, False, False)
+_NO_MATCH = BoundCall(None, [], frozenset(), None, False)
 
 
 @dispatch.compile.register(qlast.FunctionCall)
@@ -90,30 +97,17 @@ def compile_FunctionCall(
             context=expr.context)
 
     args, kwargs = compile_call_args(expr, funcname, ctx=ctx)
-
-    matched_call = _NO_MATCH
-
-    for func in funcs:
-        call = try_bind_call_args(args, kwargs, func, ctx=ctx)
-        if call is _NO_MATCH:
-            continue
-
-        if matched_call is _NO_MATCH:
-            matched_call = call
-        else:
-            if (call.implicit_cast_distance <
-                    matched_call.implicit_cast_distance):
-                matched_call = call
-
-            if not args and not kwargs:
-                raise errors.EdgeQLError(
-                    f'function {funcname} is not unique',
-                    context=expr.context)
-
-    if matched_call is _NO_MATCH:
+    matched = find_callable(funcs, args=args, kwargs=kwargs, ctx=ctx)
+    if not matched:
         raise errors.EdgeQLError(
             f'could not find a function variant {funcname}',
             context=expr.context)
+    elif len(matched) > 1:
+        raise errors.EdgeQLError(
+            f'function {funcname} is not unique',
+            context=expr.context)
+    else:
+        matched_call = matched[0]
 
     args, params_typemods = finalize_args(matched_call, ctx=ctx)
 
@@ -195,37 +189,39 @@ def compile_operator(
 
         args.append((arg_type, arg_ir))
 
-    matched_call = _NO_MATCH
-
-    for oper in opers:
-        call = try_bind_call_args(args, {}, oper, ctx=ctx)
-        if call is _NO_MATCH:
-            continue
-
-        if matched_call is _NO_MATCH:
-            matched_call = call
-        else:
-            if (call.implicit_cast_distance <
-                    matched_call.implicit_cast_distance):
-                # Found a closer candidate.
-                matched_call = call
-
-    if matched_call is _NO_MATCH:
+    matched = find_callable(opers, args=args, kwargs={}, ctx=ctx)
+    if len(matched) == 1:
+        matched_call = matched[0]
+    else:
         if len(args) == 2:
-            larg, rarg = args
+            ltype = args[0][0].material_type(env.schema)
+            rtype = args[1][0].material_type(env.schema)
+
             types = (
-                f'{larg[0].get_displayname(env.schema)!r} and '
-                f'{rarg[0].get_displayname(env.schema)!r}')
-        elif len(args) == 1:
-            types = repr(args[0][0].get_displayname(env.schema))
+                f'{ltype.get_displayname(env.schema)!r} and '
+                f'{rtype.get_displayname(env.schema)!r}')
         else:
             types = ', '.join(
-                repr(a[0].get_displayname(env.schema)) for a in args)
+                repr(
+                    a[0].material_type(env.schema).get_displayname(env.schema)
+                ) for a in args
+            )
 
-        raise errors.EdgeQLError(
-            f'operator {str(op_name)!r} cannot be applied to '
-            f'operands of type {types}',
-            context=qlexpr.context)
+        if not matched:
+            raise errors.EdgeQLError(
+                f'operator {str(op_name)!r} cannot be applied to '
+                f'operands of type {types}',
+                context=qlexpr.context)
+        elif len(matched) > 1:
+            detail = ', '.join(
+                f'`{m.func.get_display_signature(ctx.env.schema)}`'
+                for m in matched
+            )
+            raise errors.EdgeQLError(
+                f'operator {str(op_name)!r} is ambiguous for '
+                f'operands of type {types}',
+                hint=f'Possible variants: {detail}.',
+                context=qlexpr.context)
 
     args, params_typemods = finalize_args(matched_call, ctx=ctx)
 
@@ -269,14 +265,73 @@ def compile_operator(
     return setgen.ensure_set(node, typehint=matched_call.return_type, ctx=ctx)
 
 
+def find_callable(
+        candidates: typing.Iterable[s_func.CallableObject], *,
+        args: typing.List[typing.Tuple[s_types.Type, irast.Base]],
+        kwargs: typing.Dict[str, typing.Tuple[s_types.Type, irast.Base]],
+        ctx: context.ContextLevel) -> typing.List[BoundCall]:
+
+    implicit_cast_distance = None
+    matched = []
+
+    for candidate in candidates:
+        call = try_bind_call_args(args, kwargs, candidate, ctx=ctx)
+        if call is _NO_MATCH:
+            continue
+
+        total_cd = sum(barg.cast_distance for barg in call.args)
+
+        if implicit_cast_distance is None:
+            implicit_cast_distance = total_cd
+            matched.append(call)
+        elif implicit_cast_distance == total_cd:
+            matched.append(call)
+        elif implicit_cast_distance > total_cd:
+            implicit_cast_distance = total_cd
+            matched = [call]
+
+    if len(matched) <= 1:
+        # Unabiguios resolution
+        return matched
+
+    else:
+        # Ambiguous resolution, try to disambiguate by
+        # checking for total type distance.
+        type_dist = None
+        remaining = []
+
+        for call in matched:
+            call_type_dist = 0
+
+            for barg in call.args:
+                if barg.param is None:
+                    # Skip injected bitmask argument.
+                    continue
+
+                paramtype = barg.param.get_type(ctx.env.schema)
+                arg_type_dist = barg.valtype.get_common_parent_type_distance(
+                    paramtype, ctx.env.schema)
+                call_type_dist += arg_type_dist
+
+            if type_dist is None:
+                type_dist = call_type_dist
+                remaining.append(call)
+            elif type_dist == call_type_dist:
+                remaining.append(call)
+            elif type_dist > call_type_dist:
+                type_dist = call_type_dist
+                remaining = [call]
+
+        return remaining
+
+
 def try_bind_call_args(
         args: typing.List[typing.Tuple[s_types.Type, irast.Base]],
         kwargs: typing.Dict[str, typing.Tuple[s_types.Type, irast.Base]],
         func: s_func.CallableObject, *,
         ctx: context.ContextLevel) -> BoundCall:
 
-    def _check_type(arg, arg_type, param_type):
-        nonlocal implicit_cast_distance
+    def _get_cast_distance(arg, arg_type, param_type) -> int:
         nonlocal resolved_poly_base_type
 
         if in_polymorphic_func:
@@ -284,10 +339,15 @@ def try_bind_call_args(
 
             if arg_type.is_polymorphic(schema):
                 if param_type.is_polymorphic(schema):
-                    return arg_type.test_polymorphic(schema, param_type)
-
-                arg_poly = arg_type.resolve_polymorphic(schema, param_type)
-                return arg_poly is not None
+                    if arg_type.test_polymorphic(schema, param_type):
+                        return 0
+                    else:
+                        return -1
+                else:
+                    if arg_type.resolve_polymorphic(schema, param_type):
+                        return 0
+                    else:
+                        return -1
 
         else:
             if arg_type.is_polymorphic(schema):
@@ -297,32 +357,27 @@ def try_bind_call_args(
 
         if param_type.is_polymorphic(schema):
             if not arg_type.test_polymorphic(schema, param_type):
-                return False
+                return -1
 
             resolved = param_type.resolve_polymorphic(schema, arg_type)
             if resolved is None:
-                return False
+                return -1
 
             if resolved_poly_base_type is None:
                 resolved_poly_base_type = resolved
 
             if resolved_poly_base_type == resolved:
-                return True
+                return 0
 
             ct = resolved_poly_base_type.find_common_implicitly_castable_type(
                 resolved, ctx.env.schema)
 
-            return ct is not None
+            return 0 if ct is not None else -1
 
         if arg_type.issubclass(schema, param_type):
-            return True
+            return 0
 
-        cast_distance = arg_type.get_implicit_cast_distance(param_type, schema)
-        if cast_distance > 0:
-            implicit_cast_distance += cast_distance
-            return True
-
-        return False
+        return arg_type.get_implicit_cast_distance(param_type, schema)
 
     schema = ctx.env.schema
 
@@ -332,7 +387,6 @@ def try_bind_call_args(
     )
 
     has_empty_variadic = False
-    implicit_cast_distance = 0
     resolved_poly_base_type = None
     no_args_call = not args and not kwargs
     has_inlined_defaults = func.has_inlined_defaults(schema)
@@ -346,16 +400,15 @@ def try_bind_call_args(
             args = []
             if has_inlined_defaults:
                 bytes_t = schema.get('std::bytes')
-                args = [
-                    setgen.ensure_set(
-                        irast.BytesConstant(value='\x00', stype=bytes_t),
-                        typehint=bytes_t,
-                        ctx=ctx)
-                ]
+                argval = setgen.ensure_set(
+                    irast.BytesConstant(value='\x00', stype=bytes_t),
+                    typehint=bytes_t,
+                    ctx=ctx)
+                args = [BoundArg(None, argval, bytes_t, 0)]
             return BoundCall(
                 func, args, set(),
                 func.get_return_type(schema),
-                False, False)
+                False)
         else:
             # No match: `func` is a function without parameters
             # being called with some arguments.
@@ -396,10 +449,12 @@ def try_bind_call_args(
             matched_kwargs += 1
 
             arg_type, arg_val = kwargs[param_shortname]
-            if not _check_type(arg_val, arg_type, param.get_type(schema)):
+            cd = _get_cast_distance(arg_val, arg_type, param.get_type(schema))
+            if cd < 0:
                 return _NO_MATCH
 
-            bound_param_args.append((param, arg_val))
+            bound_param_args.append(
+                BoundArg(param, arg_val, arg_type, cd))
 
         else:
             if param.get_default(schema) is None:
@@ -408,7 +463,8 @@ def try_bind_call_args(
                 return _NO_MATCH
 
             has_missing_args = True
-            bound_param_args.append((param, None))
+            bound_param_args.append(
+                BoundArg(param, None, param.get_type(schema), 0))
 
     if matched_kwargs != len(kwargs):
         # extra kwargs?
@@ -433,23 +489,29 @@ def try_bind_call_args(
 
             if param_kind is _VARIADIC:
                 var_type = param.get_type(schema).get_subtypes()[0]
-                if not _check_type(arg_val, arg_type, var_type):
+                cd = _get_cast_distance(arg_val, arg_type, var_type)
+                if cd < 0:
                     return _NO_MATCH
 
-                bound_param_args.append((param, arg_val))
+                bound_param_args.append(
+                    BoundArg(param, arg_val, arg_type, cd))
 
                 for arg_type, arg_val in args[ai:]:
-                    if not _check_type(arg_val, arg_type, var_type):
+                    cd = _get_cast_distance(arg_val, arg_type, var_type)
+                    if cd < 0:
                         return _NO_MATCH
 
-                    bound_param_args.append((param, arg_val))
+                    bound_param_args.append(
+                        BoundArg(param, arg_val, arg_type, cd))
 
                 break
 
-            if not _check_type(arg_val, arg_type, param.get_type(schema)):
+            cd = _get_cast_distance(arg_val, arg_type, param.get_type(schema))
+            if cd < 0:
                 return _NO_MATCH
 
-            bound_param_args.append((param, arg_val))
+            bound_param_args.append(
+                BoundArg(param, arg_val, arg_type, cd))
 
         else:
             break
@@ -466,7 +528,9 @@ def try_bind_call_args(
                 return _NO_MATCH
 
             has_missing_args = True
-            bound_param_args.append((param, None))
+            param_type = param.get_type(schema)
+            bound_param_args.append(
+                BoundArg(param, None, param_type, 0))
 
         elif param_kind is _VARIADIC:
             has_empty_variadic = True
@@ -481,10 +545,11 @@ def try_bind_call_args(
     if has_missing_args:
         if has_inlined_defaults or named_only:
             for i in range(len(bound_param_args)):
-                param, val = bound_param_args[i]
-                if val is not None:
+                barg = bound_param_args[i]
+                if barg.val is not None:
                     continue
 
+                param = barg.param
                 param_shortname = param.get_shortname(schema)
                 null_args.add(param_shortname)
 
@@ -528,39 +593,37 @@ def try_bind_call_args(
                     typehint=default_type,
                     ctx=ctx)
 
-                bound_param_args[i] = (
+                bound_param_args[i] = BoundArg(
                     param,
-                    default
+                    default,
+                    barg.valtype,
+                    barg.cast_distance,
                 )
 
         else:
             bound_param_args = [
-                (param, val)
-                for (param, val) in bound_param_args
-                if val is not None
-            ]
+                barg for barg in bound_param_args if barg.val is not None]
 
     if has_inlined_defaults:
         # If we are compiling an EdgeQL function, inject the defaults
         # bit-mask as a first argument.
         bytes_t = schema.get('std::bytes')
         bm = defaults_mask.to_bytes(nparams // 8 + 1, 'little')
-        bound_param_args.insert(
-            0,
-            (None, setgen.ensure_set(
-                irast.BytesConstant(value=bm.decode('ascii'), stype=bytes_t),
-                typehint=bytes_t, ctx=ctx)))
+        bm_set = setgen.ensure_set(
+            irast.BytesConstant(value=bm.decode('ascii'), stype=bytes_t),
+            typehint=bytes_t, ctx=ctx)
+        bound_param_args.insert(0, BoundArg(None, bm_set, bytes_t, 0))
 
     return_type = func.get_return_type(schema)
     if return_type.is_polymorphic(schema):
-        if resolved_poly_base_type is None:
+        if resolved_poly_base_type is not None:
+            return_type = return_type.to_nonpolymorphic(
+                schema, resolved_poly_base_type)
+        elif not in_polymorphic_func:
             return _NO_MATCH
-        return_type = return_type.to_nonpolymorphic(
-            schema, resolved_poly_base_type)
 
     return BoundCall(
-        func, bound_param_args, null_args, return_type,
-        implicit_cast_distance, has_empty_variadic)
+        func, bound_param_args, null_args, return_type, has_empty_variadic)
 
 
 def compile_call_arg(arg: qlast.FuncArg, *,
@@ -631,7 +694,9 @@ def finalize_args(bound_call: BoundCall, *,
     args = []
     typemods = []
 
-    for param, arg in bound_call.args:
+    for barg in bound_call.args:
+        param = barg.param
+        arg = barg.val
         if param is None:
             # defaults bitmask
             args.append(arg)

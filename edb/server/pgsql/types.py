@@ -144,7 +144,7 @@ def pg_type_from_object(
     if isinstance(obj, s_scalars.ScalarType):
         return pg_type_from_scalar(schema, obj, topbase=topbase)
 
-    elif isinstance(obj, s_abc.Tuple):
+    elif isinstance(obj, s_abc.Tuple) or (obj.is_type() and obj.is_anytuple()):
         return ('record',)
 
     elif isinstance(obj, s_abc.Array):
@@ -412,6 +412,10 @@ class TypeDesc:
             elif t.is_type() and t.is_any():
                 desc = TypeDescNode(
                     maintype='anytype', name=tn, collection=None,
+                    subtypes=[], dimensions=[], is_root=is_root)
+            elif t.is_type() and t.is_anytuple():
+                desc = TypeDescNode(
+                    maintype='anytuple', name=tn, collection=None,
                     subtypes=[], dimensions=[], is_root=is_root)
             else:
                 desc = TypeDescNode(

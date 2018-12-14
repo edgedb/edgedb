@@ -61,6 +61,15 @@ std::sum(s: SET OF std::decimal) -> std::decimal
 
 
 CREATE FUNCTION
+std::sum(s: SET OF std::int32) -> std::int64
+{
+    SET initial_value := 0;
+    SET force_return_cast := true;
+    FROM SQL FUNCTION 'sum';
+};
+
+
+CREATE FUNCTION
 std::sum(s: SET OF std::int64) -> std::int64
 {
     SET initial_value := 0;

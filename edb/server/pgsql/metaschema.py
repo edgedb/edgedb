@@ -1490,12 +1490,17 @@ def get_metaclass_table(mcls):
 def make_register_any_command():
     pseudo_type_table = get_metaclass_table(s_pseudo.PseudoType)
 
-    rec = pseudo_type_table.record
-    rec.mro = None
-    rec.id = s_obj.get_known_type_id('anytype')
-    rec.name = 'anytype'
+    anytype = pseudo_type_table.record
+    anytype.mro = None
+    anytype.id = s_obj.get_known_type_id('anytype')
+    anytype.name = 'anytype'
 
-    return dbops.Insert(table=pseudo_type_table, records=[rec])
+    anytuple = pseudo_type_table.record
+    anytuple.mro = None
+    anytuple.id = s_obj.get_known_type_id('anytuple')
+    anytuple.name = 'anytuple'
+
+    return dbops.Insert(table=pseudo_type_table, records=[anytype, anytuple])
 
 
 async def bootstrap(conn):

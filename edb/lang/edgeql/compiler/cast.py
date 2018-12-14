@@ -120,7 +120,7 @@ def _compile_cast(
         ctx: context.ContextLevel) -> irast.Set:
 
     ir_set = setgen.ensure_set(ir_expr, ctx=ctx)
-    cast = _find_cast(orig_stype, new_stype, ctx=ctx)
+    cast = _find_cast(orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
     if cast is None:
         raise errors.EdgeQLError(
@@ -219,6 +219,7 @@ class CastCallableWrapper:
 def _find_cast(
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
+        srcctx: parsing.ParserContext,
         ctx: context.ContextLevel) -> typing.Optional[s_casts.Cast]:
 
     casts = ctx.env.schema.get_casts_to_type(new_stype)
@@ -230,24 +231,17 @@ def _find_cast(
         (new_stype, None),
     ]
 
-    matched_call = func._NO_MATCH
+    matched = func.find_callable(
+        (CastCallableWrapper(c) for c in casts), args=args, kwargs={}, ctx=ctx)
 
-    for cast in casts:
-        wrapped_cast = CastCallableWrapper(cast)
-        call = func.try_bind_call_args(args, {}, wrapped_cast, ctx=ctx)
-        if call is func._NO_MATCH:
-            continue
-
-        if matched_call is func._NO_MATCH:
-            matched_call = call
-        else:
-            if (call.implicit_cast_distance <
-                    matched_call.implicit_cast_distance):
-                # Found a closer candidate.
-                matched_call = call
-
-    if matched_call is not func._NO_MATCH:
-        return matched_call.func._cast
+    if len(matched) == 1:
+        return matched[0].func._cast
+    elif len(matched) > 1:
+        raise errors.EdgeQLError(
+            f'cannot unambiguously cast '
+            f'{orig_stype.get_displayname(ctx.env.schema)!r} '
+            f'to {new_stype.get_displayname(ctx.env.schema)!r}',
+            context=srcctx)
     else:
         return None
 
@@ -259,7 +253,7 @@ def _cast_tuple(
         srcctx: parsing.ParserContext,
         ctx: context.ContextLevel) -> irast.Base:
 
-    direct_cast = _find_cast(orig_stype, new_stype, ctx=ctx)
+    direct_cast = _find_cast(orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
     if direct_cast is not None:
         # Direct casting to non-tuple involves casting each tuple
@@ -344,7 +338,7 @@ def _cast_array(
         srcctx: parsing.ParserContext,
         ctx: context.ContextLevel) -> irast.Base:
 
-    direct_cast = _find_cast(orig_stype, new_stype, ctx=ctx)
+    direct_cast = _find_cast(orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
     if direct_cast is None:
         if not new_stype.is_array():
@@ -358,7 +352,7 @@ def _cast_array(
 
     orig_el_type = orig_stype.get_subtypes()[0]
 
-    el_cast = _find_cast(orig_el_type, el_type, ctx=ctx)
+    el_cast = _find_cast(orig_el_type, el_type, srcctx=srcctx, ctx=ctx)
     if el_cast is None:
         raise errors.EdgeQLError(
             f'cannot cast {orig_stype.get_displayname(ctx.env.schema)!r} '
@@ -388,7 +382,7 @@ def _cast_array_literal(
     orig_typeref = irutils.type_to_typeref(ctx.env.schema, orig_stype)
     new_typeref = irutils.type_to_typeref(ctx.env.schema, new_stype)
 
-    direct_cast = _find_cast(orig_stype, new_stype, ctx=ctx)
+    direct_cast = _find_cast(orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
     if direct_cast is None:
         if not new_stype.is_array():

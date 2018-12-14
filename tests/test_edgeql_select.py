@@ -18,10 +18,10 @@
 
 
 import os.path
-import unittest
 
 from edb.server import _testbase as tb
 from edb.client import exceptions as exc
+from edb.tools import test
 
 
 class TestEdgeQLSelect(tb.QueryTestCase):
@@ -671,8 +671,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         self.assert_data_shape(res1[0][0]['__type__'], res2[0][0])
 
-    # Recursion isn't working yet.
-    @unittest.expectedFailure
+    @test.not_implemented('recursive queries are not implemented')
     async def test_edgeql_select_recursive_01(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -997,7 +996,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             },
         ])
 
-    @unittest.expectedFailure
+    @test.not_implemented('type expressions are not implemented')
     async def test_edgeql_select_polymorphic_07(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -1013,7 +1012,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             },
         ])
 
-    @unittest.expectedFailure
+    @test.not_implemented('type expressions are not implemented')
     async def test_edgeql_select_polymorphic_08(self):
         await self.assert_query_result(r'''
             WITH MODULE test
@@ -1303,7 +1302,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
+    @test.not_implemented('union types are not implemented yet')
     async def test_edgeql_select_setops_01(self):
         await self.assert_sorted_query_result(r"""
             WITH MODULE test
@@ -1630,7 +1629,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         ])
 
-    @unittest.expectedFailure
+    @test.not_implemented('union types are not implemented')
     async def test_edgeql_select_setops_14(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
@@ -1645,7 +1644,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }.number;
             """)
 
-    @unittest.expectedFailure
+    @test.not_implemented('union types are not implemented')
     async def test_edgeql_select_setops_15(self):
         with self.assertRaisesRegex(
                 exc.EdgeQLError,
@@ -4548,64 +4547,51 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True],
         ])
 
+    @test.xfail('IS is currently broken for pseudo types')
     async def test_edgeql_select_is_06(self):
-        with self.assertRaisesRegex(
-                exc.EdgeQLSyntaxError, r"Unexpected 'anytype'"):
-            await self.con.execute(r'''
-                SELECT 5 IS anytype;
-            ''')
+        await self.assert_query_result(r'''
+            SELECT 5 IS anytype;
+        ''', [
+            [True]
+        ])
 
     async def test_edgeql_select_is_07(self):
-        with self.assertRaisesRegex(
-                exc.EdgeQLSyntaxError, r"Unexpected 'anytype'"):
-            await self.con.execute(r'''
-                SELECT 5.5 IS anytype;
-            ''')
+        await self.assert_query_result(r'''
+            SELECT 5 IS anyint;
+        ''', [
+            [True]
+        ])
 
     async def test_edgeql_select_is_08(self):
-        with self.assertRaisesRegex(
-                exc.EdgeQLSyntaxError, r"Unexpected 'anytype'"):
-            await self.con.execute(r'''
-                SELECT '5.5' IS anytype;
-            ''')
+        await self.con.execute(r'''
+            SELECT 5.5 IS anyfloat;
+        ''')
 
+    @test.xfail('IS is currently broken for pseudo types')
     async def test_edgeql_select_is_09(self):
-        with self.assertRaisesRegex(
-                exc.EdgeQLSyntaxError, r"Unexpected 'anytype'"):
-            await self.con.execute(r'''
-                SELECT test::Issue.time_estimate IS anytype LIMIT 1;
-            ''')
+        await self.con.execute(r'''
+            SELECT test::Issue.time_estimate IS anytype LIMIT 1;
+        ''', [
+            [True]
+        ])
 
+    @test.xfail('IS is currently broken for collection types')
     async def test_edgeql_select_is_10(self):
-        with self.assertRaisesRegex(
-                exc.EdgeQLSyntaxError, r"Unexpected 'anytype'"):
-            await self.con.execute(r'''
-                SELECT test::Issue.number IS anytype LIMIT 1;
-            ''')
+        await self.con.execute(r'''
+            SELECT [5] IS (array<anytype>);
+        ''', [
+            [True]
+        ])
 
+    @test.xfail('IS is currently broken for collection types')
     async def test_edgeql_select_is_11(self):
-        with self.assertRaisesRegex(
-                exc.EdgeQLSyntaxError, r"Unexpected 'anytype'"):
-            await self.con.execute(r'''
-                SELECT test::Issue.status IS anytype LIMIT 1;
-            ''')
+        await self.con.execute(r'''
+            SELECT (5, 'hello') IS (tuple<anytype, str>);
+        ''', [
+            [True]
+        ])
 
-    async def test_edgeql_select_is_12(self):
-        with self.assertRaisesRegex(
-                exc.EdgeQLSyntaxError, r"Unexpected 'anytype'"):
-            await self.con.execute(r'''
-                SELECT [5] IS (array<anytype>);
-            ''')
-
-    async def test_edgeql_select_is_13(self):
-        with self.assertRaisesRegex(
-                exc.EdgeQLSyntaxError, r"Unexpected 'anytype'"):
-            await self.con.execute(r'''
-                SELECT (5, 'hello') IS (tuple<anytype, str>);
-            ''')
-
-    # FIXME: IS doesn't work for arrays and tuples
-    @unittest.expectedFailure
+    @test.xfail('IS is currently broken for collection types')
     async def test_edgeql_select_is_14(self):
         await self.assert_query_result(r'''
             SELECT [5] IS (array<int64>);

@@ -373,7 +373,11 @@ def typeref_to_type(schema, typeref: irast.TypeRef) -> s_types.Type:
 
 def type_to_typeref(schema, t: s_types.Type, *, _name=None) -> irast.TypeRef:
 
-    if not isinstance(t, s_abc.Collection):
+    if t.is_anytuple():
+        result = irast.AnyTupleRef()
+    elif t.is_any():
+        result = irast.AnyTypeRef()
+    elif not isinstance(t, s_abc.Collection):
         result = irast.TypeRef(
             name=_name,
             maintype=t.get_name(schema),

@@ -59,6 +59,22 @@ class Operator(s_func.CallableObject, s_abc.Operator):
     commutator = so.SchemaField(
         so.Object, default=None, compcoef=0.99)
 
+    def get_display_signature(self, schema):
+        params = [
+            p.get_type(schema).get_displayname(schema)
+            for p in self.get_params(schema).objects(schema)
+        ]
+        name = self.get_shortname(schema).name
+        kind = self.get_operator_kind(schema)
+        if kind is ft.OperatorKind.INFIX:
+            return f'{params[0]} {name} {params[1]}'
+        elif kind is ft.OperatorKind.POSTFIX:
+            return f'{params[0]} {name}'
+        elif kind is ft.OperatorKind.PREFIX:
+            return f'{name} {params[1]}'
+        else:
+            raise ValueError('unexpected operator kind')
+
 
 class OperatorCommandContext(s_func.CallableCommandContext):
     pass

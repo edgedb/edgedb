@@ -220,6 +220,16 @@ def __infer_ifelse(ir, env):
     return result
 
 
+@_infer_type.register(irast.AnyTypeRef)
+def __infer_anytyperef(ir, env):
+    return s_pseudo.Any.create()
+
+
+@_infer_type.register(irast.AnyTupleRef)
+def __infer_anytupleref(ir, env):
+    return s_pseudo.AnyTuple.create()
+
+
 @_infer_type.register(irast.TypeRef)
 def __infer_typeref(ir, env):
     if ir.subtypes:
@@ -253,8 +263,8 @@ def __infer_typecast(ir, env):
     # is_polymorphic is synonymous to get_is_abstract for scalars
     if stype.is_polymorphic(env.schema):
         raise ql_errors.EdgeQLError(
-            f'cannot cast into an abstract scalar '
-            f'{stype.get_displayname(env.schema)}',
+            f'cannot cast into generic type '
+            f'{stype.get_displayname(env.schema)!r}',
             context=ir.context)
 
     return stype

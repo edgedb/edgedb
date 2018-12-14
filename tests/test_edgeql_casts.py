@@ -17,6 +17,7 @@
 #
 
 
+import itertools
 import os.path
 import unittest  # NOQA
 
@@ -809,31 +810,58 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     SELECT <int32><float32><int32>2147483638;
                 """)
 
+    async def test_edgeql_casts_numeric_06(self):
+        await self.assert_query_result(r'''
+            SELECT <int16>1;
+            SELECT <int32>1;
+            SELECT <int64>1;
+            SELECT <float32>1;
+            SELECT <float64>1;
+            SELECT <decimal>1;
+        ''', [
+            [1],
+            [1],
+            [1],
+            [1],
+            [1],
+            [1],
+        ])
+
+    async def test_edgeql_casts_numeric_07(self):
+        numerics = ['int16', 'int32', 'int64', 'float32', 'float64', 'decimal']
+
+        for t1, t2 in itertools.product(numerics, numerics):
+            await self.assert_query_result(f'''
+                SELECT <{t1}><{t2}>1;
+            ''', [
+                [1],
+            ])
+
     # casting into an abstract scalar should be illegal
     async def test_edgeql_casts_illegal_01(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLSyntaxError, r"Unexpected 'anytype'"):
+                exc.EdgeQLError, r"cannot cast into generic.*'anytype'"):
             await self.con.execute("""
                 SELECT <anytype>123;
             """)
 
     async def test_edgeql_casts_illegal_02(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot cast.*abstract'):
+                exc.EdgeQLError, r"cannot cast into generic.*anyscalar'"):
             await self.con.execute("""
                 SELECT <anyscalar>123;
             """)
 
     async def test_edgeql_casts_illegal_03(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot cast.*abstract'):
+                exc.EdgeQLError, r"cannot cast into generic.*anyreal'"):
             await self.con.execute("""
                 SELECT <anyreal>123;
             """)
 
     async def test_edgeql_casts_illegal_04(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot cast.*abstract'):
+                exc.EdgeQLError, r"cannot cast into generic.*anyint'"):
             await self.con.execute("""
                 SELECT <anyint>123;
             """)
@@ -847,21 +875,21 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
     async def test_edgeql_casts_illegal_06(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLError, r'cannot cast.*abstract'):
+                exc.EdgeQLError, r"cannot cast into generic.*sequence'"):
             await self.con.execute("""
                 SELECT <sequence>123;
             """)
 
     async def test_edgeql_casts_illegal_07(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLSyntaxError, r"Unexpected 'anytype'"):
+                exc.EdgeQLError, r"cannot cast into generic.*anytype'"):
             await self.con.execute("""
                 SELECT <array<anytype>>[123];
             """)
 
     async def test_edgeql_casts_illegal_08(self):
         with self.assertRaisesRegex(
-                exc.EdgeQLSyntaxError, r"Unexpected 'anytype'"):
+                exc.EdgeQLError, r"cannot cast into generic.*'anytype'"):
             await self.con.execute("""
                 SELECT <tuple<int64, anytype>>(123, 123);
             """)

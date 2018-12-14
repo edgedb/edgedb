@@ -460,33 +460,60 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
 
     async def test_edgeql_calls_13(self):
         await self.con.execute('''
+            CREATE FUNCTION test::inner(
+                a: anytype
+            ) -> int64
+                FROM EdgeQL $$
+                    SELECT 1;
+                $$;
+
             CREATE FUNCTION test::call13(
                 a: anytype
             ) -> int64
                 FROM EdgeQL $$
-                    SELECT len(a)
+                    SELECT test::inner(a)
                 $$;
         ''')
 
-        try:
-            await self.assert_query_result(r'''
-                SELECT test::call13('aaa');
-                SELECT test::call13(b'aaaa');
-                SELECT test::call13([1, 2, 3, 4, 5]);
-                SELECT test::call13(['a', 'b']);
-            ''', [
-                [3],
-                [4],
-                [5],
-                [2],
-            ])
+        await self.assert_query_result(r'''
+            SELECT test::call13('aaa');
+            SELECT test::call13(b'aaaa');
+            SELECT test::call13([1, 2, 3, 4, 5]);
+            SELECT test::call13(['a', 'b']);
+        ''', [
+            [1],
+            [1],
+            [1],
+            [1],
+        ])
 
-        finally:
-            await self.con.execute('''
-                DROP FUNCTION test::call13(
-                    a: anytype
-                );
-            ''')
+        await self.con.execute('''
+            CREATE FUNCTION test::inner(
+                a: str
+            ) -> int64
+                FROM EdgeQL $$
+                    SELECT 2;
+                $$;
+
+            CREATE FUNCTION test::call13_2(
+                a: anytype
+            ) -> int64
+                FROM EdgeQL $$
+                    SELECT test::inner(a)
+                $$;
+        ''')
+
+        await self.assert_query_result(r'''
+            SELECT test::call13_2('aaa');
+            SELECT test::call13_2(b'aaaa');
+            SELECT test::call13_2([1, 2, 3, 4, 5]);
+            SELECT test::call13_2(['a', 'b']);
+        ''', [
+            [2],
+            [1],
+            [1],
+            [1],
+        ])
 
     async def test_edgeql_calls_14(self):
         await self.con.execute('''
@@ -621,24 +648,13 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        try:
-            await self.assert_query_result(r'''
-                SELECT test::call17(2);
-                SELECT test::call17('aaa');
-            ''', [
-                [[2, 2, 2]],
-                [['!!!!', 'aaa', '!!!!']],
-            ])
-
-        finally:
-            await self.con.execute('''
-                DROP FUNCTION test::call17(
-                    a: anytype
-                );
-                DROP FUNCTION test::call17(
-                    a: str
-                );
-            ''')
+        await self.assert_query_result(r'''
+            SELECT test::call17(2);
+            SELECT test::call17('aaa');
+        ''', [
+            [[2, 2, 2]],
+            [['!!!!', 'aaa', '!!!!']],
+        ])
 
     async def test_edgeql_calls_18(self):
         await self.con.execute('''
@@ -699,17 +715,21 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 );
             ''')
 
+    @test.xfail(
+        "Polymorphic callable matching is currently too dumb to realize "
+        "that `+` _is_ defined for 'anyreal', even though there are multiple "
+        "actual forms defined.")
     async def test_edgeql_calls_20(self):
         await self.con.execute('''
             CREATE FUNCTION test::call20_1(
-                a: anytype, b: anytype
-            ) -> anytype
+                a: anyreal, b: anyreal
+            ) -> anyreal
                 FROM EdgeQL $$
                     SELECT a + b
                 $$;
 
             CREATE FUNCTION test::call20_2(
-                a: anytype, b: anytype
+                a: anyscalar, b: anyscalar
             ) -> bool
                 FROM EdgeQL $$
                     SELECT a < b
@@ -766,8 +786,15 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
     async def test_edgeql_calls_22(self):
         await self.con.execute('''
             CREATE FUNCTION test::call22(
-                a: anytype, b: anytype
-            ) -> anytype
+                a: str, b: str
+            ) -> str
+                FROM EdgeQL $$
+                    SELECT a ++ b
+                $$;
+
+            CREATE FUNCTION test::call22(
+                a: array<anytype>, b: array<anytype>
+            ) -> array<anytype>
                 FROM EdgeQL $$
                     SELECT a ++ b
                 $$;
@@ -857,44 +884,6 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             await self.con.execute('''
                 DROP FUNCTION test::call24();
                 DROP FUNCTION test::call24(a: str);
-            ''')
-
-    async def test_edgeql_calls_25(self):
-        await self.con.execute('''
-            CREATE FUNCTION test::call25(
-                a: anyscalar
-            ) -> int64
-                FROM EdgeQL $$
-                    SELECT len(a)
-                $$;
-        ''')
-
-        try:
-            await self.assert_query_result(r'''
-                SELECT test::call25('aaa');
-                SELECT test::call25(b'');
-            ''', [
-                [3],
-                [0],
-            ])
-
-            with self.assertRaisesRegex(
-                    exc.EdgeQLError,
-                    r'could not find a function variant'):
-
-                await self.con.execute('SELECT test::call25([1]);')
-
-            with self.assertRaisesRegex(
-                    exc.EdgeQLError,
-                    r'could not find a function variant'):
-
-                await self.con.execute('SELECT test::call25([(1, 2)]);')
-
-        finally:
-            await self.con.execute('''
-                DROP FUNCTION test::call25(
-                    a: anyscalar
-                );
             ''')
 
     async def test_edgeql_calls_26(self):
