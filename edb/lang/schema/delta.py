@@ -1150,6 +1150,17 @@ class AlterObjectProperty(Command):
 
         propname = astnode.name.name
 
+        parent_ctx = context.get(CommandContextToken)
+        parent_op = parent_ctx.op
+        field = parent_op.get_schema_metaclass().get_field(propname)
+        if field is None:
+            raise edgeql.EdgeQLError('{propname!r} is not a valid field',
+                                     context=astnode.context)
+
+        if field.stdonly and not (context.stdmode or context.testmode):
+            raise edgeql.EdgeQLError('{propname!r} is not a valid field',
+                                     context=astnode.context)
+
         if astnode.as_expr:
             new_value = s_expr.ExpressionText(
                 edgeql.generate_source(astnode.value, pretty=False))

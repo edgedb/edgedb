@@ -223,16 +223,17 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
 
 class SchemaField(Field):
 
-    __slots__ = ('default', 'hashable')
+    __slots__ = ('default', 'hashable', 'stdonly')
 
     def __init__(self, type, *,
                  default=NoDefault, hashable=True,
-                 public=False,
+                 public=False, stdonly=False,
                  **kwargs):
         super().__init__(type, **kwargs)
         self.default = default
         self.hashable = hashable
         self.public = public
+        self.stdonly = stdonly
 
     @property
     def required(self):
