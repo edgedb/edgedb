@@ -369,8 +369,8 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             SELECT sum({<float32>1, <float32>2, <float32>3}).__type__.name;
             SELECT sum({1.1, 2.2, 3}).__type__.name;
         ''', [
-            {'std::decimal'},
-            {'std::decimal'},
+            {'std::int64'},
+            {'std::int64'},
             {'std::float64'},
 
             {'std::float64'},
@@ -389,7 +389,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         await self.con.execute('''
             CREATE FUNCTION test::call11(
                 a: array<int32>
-            ) -> decimal
+            ) -> int64
                 FROM EdgeQL $$
                     SELECT sum(array_unpack(a))
                 $$;

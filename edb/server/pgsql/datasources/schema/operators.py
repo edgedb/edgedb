@@ -35,6 +35,7 @@ async def fetch(
                 o.from_operator,
                 o.from_function,
                 o.from_expr,
+                o.force_return_cast,
                 o.code,
                 o.operator_kind,
                 edgedb._resolve_type(o.return_type) AS return_type,

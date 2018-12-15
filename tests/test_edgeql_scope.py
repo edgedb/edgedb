@@ -478,13 +478,13 @@ class TestEdgeQLScope(tb.QueryTestCase):
             [
                 ['Alice', 11, 4, 2.75],
                 ['Bob', 9, 4, 2.25],
-                ['Carol', 16, 7, 2.2857142857142856],
-                ['Dave', 20, 7, 2.857142857142857],
+                ['Carol', 16, 7, 2.28571428571429],
+                ['Dave', 20, 7, 2.85714285714286],
             ],
             [
                 2.25,                # Bob (friend of Alice and Dave)
-                2.2857142857142856,  # Carol
-                2.857142857142857    # Dave
+                2.28571428571429,    # Carol
+                2.85714285714286,    # Dave
             ],
             [2.25],
         ])
@@ -522,13 +522,13 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 [{'name': 'Golem', 'percent_cost': 33},
                  {'name': 'Bob'}],
 
-                [{'name': 'Bog monster', 'percent_cost': 13},
+                [{'name': 'Bog monster', 'percent_cost': 12},
                  {'name': 'Carol'}],
                 [{'name': 'Djinn', 'percent_cost': 25},
                  {'name': 'Carol'}],
                 [{'name': 'Dwarf', 'percent_cost': 6},
                  {'name': 'Carol'}],
-                [{'name': 'Giant eagle', 'percent_cost': 13},
+                [{'name': 'Giant eagle', 'percent_cost': 12},
                  {'name': 'Carol'}],
                 [{'name': 'Giant turtle', 'percent_cost': 19},
                  {'name': 'Carol'}],

@@ -278,6 +278,7 @@ class IntrospectionMech:
                 'from_operator': row['from_operator'],
                 'from_function': row['from_function'],
                 'from_expr': row['from_expr'],
+                'force_return_cast': row['force_return_cast'],
                 'code': row['code'],
                 'return_type': self.unpack_typeref(row['return_type'], schema)
             }
@@ -351,6 +352,7 @@ class IntrospectionMech:
                 'params': params,
                 'return_typemod': row['return_typemod'],
                 'from_function': row['from_function'],
+                'force_return_cast': row['force_return_cast'],
                 'code': row['code'],
                 'initial_value': row['initial_value'],
                 'return_type': self.unpack_typeref(row['return_type'], schema)

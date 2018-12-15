@@ -248,6 +248,10 @@ class Call(Expr):
     # attribute will be set to the name of the SQL function.
     func_sql_function: typing.Optional[str]
 
+    # Whether the return value of the function should be
+    # explicitly cast into the declared function return type.
+    force_return_cast: bool
+
     # Bound arguments.
     args: typing.List[Base]
 

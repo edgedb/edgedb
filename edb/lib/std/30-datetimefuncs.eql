@@ -279,23 +279,26 @@ std::`<=` (l: std::naive_date, r: std::naive_date) -> std::bool
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::naive_date, r: std::timedelta) -> std::naive_date
-    FROM SQL $$
-    SELECT ("l" + "r")::date
-    $$;
+{
+    FROM SQL OPERATOR '+';
+    SET force_return_cast := true;
+};
 
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::timedelta, r: std::naive_date) -> std::naive_date
-    FROM SQL $$
-    SELECT ("l" + "r")::date
-    $$;
+{
+    FROM SQL OPERATOR '+';
+    SET force_return_cast := true;
+};
 
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::naive_date, r: std::timedelta) -> std::naive_date
-    FROM SQL $$
-    SELECT ("l" - "r")::date
-    $$;
+{
+    FROM SQL OPERATOR '-';
+    SET force_return_cast := true;
+};
 
 
 CREATE INFIX OPERATOR

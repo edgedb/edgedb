@@ -1535,6 +1535,18 @@ def process_set_as_agg_expr(
             name=name, args=args, agg_order=agg_sort, agg_filter=agg_filter,
             ser_safe=serialization_safe)
 
+        if expr.force_return_cast:
+            # The underlying function has a return value type
+            # different from that of the EdgeQL function declaration,
+            # so we need to make an explicit cast here.
+            set_expr = pgast.TypeCast(
+                arg=set_expr,
+                type_name=pgast.TypeName(
+                    name=pg_types.pg_type_from_object(
+                        ctx.env.schema, expr.stype)
+                )
+            )
+
     if expr.func_initial_value is not None:
         if newctx.expr_exposed and serialization_safe:
             # Serialization has changed the output type.

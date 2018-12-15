@@ -556,7 +556,10 @@ class Function(CallableObject, s_abc.Function):
         qlast.Language, default=None, compcoef=0.4, coerce=True)
 
     from_function = so.SchemaField(
-        str, default=None, compcoef=0.4)
+        str, default=None, compcoef=0.4, introspectable=False)
+
+    force_return_cast = so.SchemaField(
+        bool, default=False, compcoef=0.9, introspectable=False, stdonly=True)
 
     initial_value = so.SchemaField(
         expr.ExpressionText, default=None, compcoef=0.4, coerce=True)

@@ -133,11 +133,14 @@ def compile_FunctionCall(
     matched_func_initial_value = matched_call.func.get_initial_value(
         env.schema)
 
+    func = matched_call.func
+
     node = irast.FunctionCall(
         args=args,
         func_shortname=func.get_shortname(env.schema),
         func_polymorphic=is_polymorphic,
         func_sql_function=func.get_from_function(env.schema),
+        force_return_cast=func.get_force_return_cast(env.schema),
         params_typemods=params_typemods,
         context=expr.context,
         stype=matched_call.return_type,
@@ -255,6 +258,7 @@ def compile_operator(
         func_polymorphic=is_polymorphic,
         func_sql_function=oper.get_from_function(env.schema),
         sql_operator=sql_operator,
+        force_return_cast=oper.get_force_return_cast(env.schema),
         operator_kind=oper.get_operator_kind(env.schema),
         params_typemods=params_typemods,
         context=qlexpr.context,

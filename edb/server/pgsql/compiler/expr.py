@@ -368,12 +368,26 @@ def compile_OperatorCall(
     else:
         sql_oper = common.get_backend_operator_name(expr.func_shortname)[1]
 
-    return pgast.Expr(
+    result = pgast.Expr(
         kind=pgast.ExprKind.OP,
         name=sql_oper,
         lexpr=lexpr,
-        rexpr=rexpr
+        rexpr=rexpr,
     )
+
+    if expr.force_return_cast:
+        # The underlying operator has a return value type
+        # different from that of the EdgeQL operator declaration,
+        # so we need to make an explicit cast here.
+        result = pgast.TypeCast(
+            arg=result,
+            type_name=pgast.TypeName(
+                name=pg_types.pg_type_from_object(
+                    ctx.env.schema, expr.stype)
+            )
+        )
+
+    return result
 
 
 @dispatch.compile.register(irast.TypeCheckOp)
@@ -502,6 +516,18 @@ def compile_FunctionCall(
         name = common.schema_name_to_pg_name(expr.func_shortname)
 
     result = pgast.FuncCall(name=name, args=args)
+
+    if expr.force_return_cast:
+        # The underlying function has a return value type
+        # different from that of the EdgeQL function declaration,
+        # so we need to make an explicit cast here.
+        result = pgast.TypeCast(
+            arg=result,
+            type_name=pgast.TypeName(
+                name=pg_types.pg_type_from_object(
+                    ctx.env.schema, expr.stype)
+            )
+        )
 
     return result
 

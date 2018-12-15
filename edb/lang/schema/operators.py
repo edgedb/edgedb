@@ -50,6 +50,9 @@ class Operator(s_func.CallableObject, s_abc.Operator):
     from_expr = so.SchemaField(
         bool, default=False, compcoef=0.4, introspectable=False)
 
+    force_return_cast = so.SchemaField(
+        bool, default=False, compcoef=0.9, introspectable=False, stdonly=True)
+
     code = so.SchemaField(
         str, default=None, compcoef=0.4, introspectable=False)
 
