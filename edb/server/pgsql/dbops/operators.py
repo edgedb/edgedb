@@ -28,10 +28,12 @@ from . import ddl
 
 
 class CreateOperatorAlias(ddl.SchemaObjectOperation):
-    def __init__(self, *, name, args, operator, procedure=None, **kwargs):
+    def __init__(self, *, name, args, operator, operator_args,
+                 procedure=None, **kwargs):
         super().__init__(name=name, **kwargs)
         self.args = args
         self.operator = operator
+        self.operator_args = operator_args
         self.procedure = procedure
 
     def code(self, block: base.PLBlock) -> str:
@@ -41,7 +43,8 @@ class CreateOperatorAlias(ddl.SchemaObjectOperation):
         if self.args[0] is not None:
             left_type_desc = qt(self.args[0])
             left_type = f"', LEFTARG = {left_type_desc}'"
-            oper_cond.append(f'o.oprleft = {ql(qt(self.args[0]))}::regtype')
+            oper_cond.append(
+                f'o.oprleft = {ql(qt(self.operator_args[0]))}::regtype')
         else:
             left_type_desc = 'NONE'
             left_type = "''"
@@ -50,7 +53,8 @@ class CreateOperatorAlias(ddl.SchemaObjectOperation):
         if self.args[1] is not None:
             right_type_desc = qt(self.args[1])
             right_type = f"', RIGHTARG = {right_type_desc}'"
-            oper_cond.append(f'o.oprright = {ql(qt(self.args[1]))}::regtype')
+            oper_cond.append(
+                f'o.oprright = {ql(qt(self.operator_args[1]))}::regtype')
         else:
             right_type_desc = 'NONE'
             right_type = "''"
@@ -60,6 +64,8 @@ class CreateOperatorAlias(ddl.SchemaObjectOperation):
             f'{qi(self.operator[0])}.{self.operator[1]} ('
             f'{left_type_desc}, {right_type_desc})'
         ).strip()
+
+        oprtype_matches = self.args == self.operator_args
 
         def _get_op_field(field, oid):
             return textwrap.indent(textwrap.dedent(f'''\
@@ -125,8 +131,12 @@ class CreateOperatorAlias(ddl.SchemaObjectOperation):
             'oper_desc': ql(oper_desc),
             'left_type': left_type,
             'right_type': right_type,
-            'commutator': _get_op_field('COMMUTATOR', oper_var + '.oprcom'),
-            'negator': _get_op_field('NEGATOR', oper_var + '.oprnegate'),
+            'commutator':
+                _get_op_field('COMMUTATOR', oper_var + '.oprcom')
+                if oprtype_matches else "''",
+            'negator':
+                _get_op_field('NEGATOR', oper_var + '.oprnegate')
+                if oprtype_matches else "''",
             'restrict': (
                 f"(CASE WHEN {oper_var}.oprrest != 0 THEN "
                 f"', RESTRICT = ' || {oper_var}.oprrest::text "

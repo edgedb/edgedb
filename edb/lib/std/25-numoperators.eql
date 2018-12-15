@@ -414,30 +414,22 @@ std::`>` (l: std::decimal, r: std::decimal) -> std::bool
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::float64, r: std::decimal) -> std::bool
-    FROM SQL $$
-    SELECT "l" > "r";
-    $$;
+    FROM SQL OPERATOR '>(numeric,numeric)';
 
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::float32, r: std::decimal) -> std::bool
-    FROM SQL $$
-    SELECT "l" > "r";
-    $$;
+    FROM SQL OPERATOR '>(numeric,numeric)';
 
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::decimal, r: std::float64) -> std::bool
-    FROM SQL $$
-    SELECT "l" > "r";
-    $$;
+    FROM SQL OPERATOR '>(numeric,numeric)';
 
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::decimal, r: std::float32) -> std::bool
-    FROM SQL $$
-    SELECT "l" > "r";
-    $$;
+    FROM SQL OPERATOR '>(numeric,numeric)';
 
 
 # GREATER OR EQUAL
@@ -514,30 +506,22 @@ std::`>=` (l: std::decimal, r: std::decimal) -> std::bool
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::float64, r: std::decimal) -> std::bool
-    FROM SQL $$
-    SELECT "l" >= "r";
-    $$;
+    FROM SQL OPERATOR '>=(numeric,numeric)';
 
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::float32, r: std::decimal) -> std::bool
-    FROM SQL $$
-    SELECT "l" >= "r";
-    $$;
+    FROM SQL OPERATOR '>=(numeric,numeric)';
 
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::decimal, r: std::float64) -> std::bool
-    FROM SQL $$
-    SELECT "l" >= "r";
-    $$;
+    FROM SQL OPERATOR '>=(numeric,numeric)';
 
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::decimal, r: std::float32) -> std::bool
-    FROM SQL $$
-    SELECT "l" >= "r";
-    $$;
+    FROM SQL OPERATOR '>=(numeric,numeric)';
 
 
 # LESS THAN
@@ -614,30 +598,22 @@ std::`<` (l: std::decimal, r: std::decimal) -> std::bool
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::float64, r: std::decimal) -> std::bool
-    FROM SQL $$
-    SELECT "l" < "r";
-    $$;
+    FROM SQL OPERATOR '<(numeric,numeric)';
 
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::float32, r: std::decimal) -> std::bool
-    FROM SQL $$
-    SELECT "l" < "r";
-    $$;
+    FROM SQL OPERATOR '<(numeric,numeric)';
 
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::decimal, r: std::float64) -> std::bool
-    FROM SQL $$
-    SELECT "l" < "r";
-    $$;
+    FROM SQL OPERATOR '<(numeric,numeric)';
 
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::decimal, r: std::float32) -> std::bool
-    FROM SQL $$
-    SELECT "l" < "r";
-    $$;
+    FROM SQL OPERATOR '<(numeric,numeric)';
 
 
 # LESS THAN OR EQUAL
@@ -714,30 +690,22 @@ std::`<=` (l: std::decimal, r: std::decimal) -> std::bool
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::float64, r: std::decimal) -> std::bool
-    FROM SQL $$
-    SELECT "l" <= "r";
-    $$;
+    FROM SQL OPERATOR '<=(numeric,numeric)';
 
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::float32, r: std::decimal) -> std::bool
-    FROM SQL $$
-    SELECT "l" <= "r";
-    $$;
+    FROM SQL OPERATOR '<=(numeric,numeric)';
 
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::decimal, r: std::float64) -> std::bool
-    FROM SQL $$
-    SELECT "l" <= "r";
-    $$;
+    FROM SQL OPERATOR '<=(numeric,numeric)';
 
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::decimal, r: std::float32) -> std::bool
-    FROM SQL $$
-    SELECT "l" <= "r";
-    $$;
+    FROM SQL OPERATOR '<=(numeric,numeric)';
 
 
 # INFIX PLUS

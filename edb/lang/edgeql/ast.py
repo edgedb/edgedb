@@ -799,7 +799,7 @@ class DropFunction(DropObject, CallableObject):
 
 class OperatorCode(Clause):
     language: Language
-    from_operator: str
+    from_operator: typing.Optional[typing.Tuple[str, ...]]
     from_function: str
     from_expr: bool
     code: str

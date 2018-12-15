@@ -283,8 +283,9 @@ class OperatorCall(Call):
     operator_kind: ft.OperatorKind
 
     # If this operator maps directly onto an SQL operator, this
-    # will contain the operator name.
-    sql_operator: str = None
+    # will contain the operator name, and, optionally, backend
+    # operand types.
+    sql_operator: typing.Optional[typing.Tuple[str, ...]] = None
 
 
 class TupleIndirection(Expr):

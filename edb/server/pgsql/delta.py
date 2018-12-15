@@ -577,7 +577,13 @@ class CreateOperator(OperatorCommand, CreateObject,
         oper_code = oper.get_code(schema)
 
         if oper_language is ql_ast.Language.SQL and oper_fromop:
+            pg_oper_name = oper_fromop[0]
             args = self.get_pg_operands(schema, oper)
+            if len(oper_fromop) > 1:
+                # Explicit operand types given in FROM SQL OPERATOR.
+                from_args = oper_fromop[1:]
+            else:
+                from_args = args
 
             if oper_code:
                 oper_func = self.make_operator_function(oper, schema)
@@ -586,6 +592,32 @@ class CreateOperator(OperatorCommand, CreateObject,
 
             elif oper_fromfunc:
                 oper_func_name = oper_fromfunc
+
+            elif from_args != args:
+                # Need a proxy function with casts
+                oper_kind = oper.get_operator_kind(schema)
+
+                if oper_kind is ql_ft.OperatorKind.INFIX:
+                    op = (f'$1::{from_args[0]} {pg_oper_name} '
+                          f'$2::{from_args[1]}')
+                elif oper_kind is ql_ft.OperatorKind.POSTFIX:
+                    op = f'$1::{from_args[0]} {pg_oper_name}'
+                elif oper_kind is ql_ft.OperatorKind.PREFIX:
+                    op = f'{pg_oper_name} $1::{from_args[1]}'
+                else:
+                    raise RuntimeError(
+                        f'unexpected operator kind: {oper_kind!r}')
+
+                oper_func = dbops.Function(
+                    name=common.get_backend_name(
+                        schema, oper, catenate=False, aspect='function'),
+                    args=[a for a in args if a],
+                    returns=self.get_pgtype(
+                        oper, oper.get_return_type(schema), schema),
+                    text=f'SELECT {op}',
+                )
+                self.pgops.add(dbops.CreateFunction(oper_func))
+                oper_func_name = common.qname(*oper_func.name)
 
             else:
                 oper_func_name = None
@@ -599,7 +631,8 @@ class CreateOperator(OperatorCommand, CreateObject,
                     name=self.get_pg_name(schema, oper),
                     args=args,
                     procedure=oper_func_name,
-                    operator=('pg_catalog', oper_fromop)
+                    operator=('pg_catalog', pg_oper_name),
+                    operator_args=from_args,
                 ))
 
         elif oper_language is ql_ast.Language.SQL and oper_code:

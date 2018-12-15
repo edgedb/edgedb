@@ -245,7 +245,7 @@ def compile_operator(
     if (from_op is not None and oper.get_code(env.schema) is None and
             oper.get_from_function(env.schema) is None and
             not in_polymorphic_func):
-        sql_operator = from_op
+        sql_operator = tuple(from_op)
     else:
         sql_operator = None
 

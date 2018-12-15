@@ -347,7 +347,24 @@ def compile_OperatorCall(
         raise RuntimeError(f'unexpected operator kind: {expr.operator_kind!r}')
 
     if expr.sql_operator:
-        sql_oper = expr.sql_operator
+        sql_oper = expr.sql_operator[0]
+        if len(expr.sql_operator) > 1:
+            # Explicit operand types given in FROM SQL OPERATOR
+            if lexpr is not None:
+                lexpr = pgast.TypeCast(
+                    arg=lexpr,
+                    type_name=pgast.TypeName(
+                        name=(expr.sql_operator[1],)
+                    )
+                )
+
+            if rexpr is not None:
+                rexpr = pgast.TypeCast(
+                    arg=rexpr,
+                    type_name=pgast.TypeName(
+                        name=(expr.sql_operator[2],)
+                    )
+                )
     else:
         sql_oper = common.get_backend_operator_name(expr.func_shortname)[1]
 

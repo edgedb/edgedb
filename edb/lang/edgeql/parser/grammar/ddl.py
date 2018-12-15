@@ -18,6 +18,7 @@
 
 
 import collections
+import re
 import sys
 import types
 import typing
@@ -1745,8 +1746,20 @@ class OperatorCode(Nonterm):
                 f'{lang} language is not supported in FROM OPERATOR clause',
                 context=kids[1].context) from None
 
-        self.val = qlast.OperatorCode(language=lang,
-                                      from_operator=kids[3].val.value)
+        sql_operator = kids[3].val.value
+        m = re.match(r'([^(]+)(?:\((\w*(?:,\s*\w*)*)\))?', sql_operator)
+        if not m:
+            raise EdgeQLSyntaxError(
+                f'invalid syntax for FROM OPERATOR clause',
+                context=kids[3].context) from None
+
+        sql_operator = (m.group(1),)
+        if m.group(2):
+            operands = tuple(op.strip() for op in m.group(2).split(','))
+            sql_operator += operands
+
+        self.val = qlast.OperatorCode(
+            language=lang, from_operator=sql_operator)
 
     def reduce_FROM_Identifier_FUNCTION_BaseStringConstant(self, *kids):
         lang = _parse_language(kids[1])

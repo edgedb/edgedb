@@ -392,12 +392,16 @@ def _check_tuple_type(type_, value, raise_error, instance_type):
         raise_error(str(type_), value)
 
     eltype = None
+    ellipsis = False
     type_args = typing_inspect.get_args(type_, evaluate=True)
 
     for i, el in enumerate(value):
-        new_eltype = type_args[i]
-        if new_eltype is not Ellipsis:
-            eltype = new_eltype
+        if not ellipsis:
+            new_eltype = type_args[i]
+            if new_eltype is Ellipsis:
+                ellipsis = True
+            else:
+                eltype = new_eltype
         if eltype is not None:
             _check_type(eltype, el, raise_error)
 
