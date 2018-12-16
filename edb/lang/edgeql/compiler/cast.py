@@ -37,7 +37,7 @@ from edb.lang.edgeql import functypes as ft
 from . import astutils
 from . import context
 from . import inference
-from . import func
+from . import polyres
 from . import setgen
 from . import viewgen
 
@@ -231,7 +231,7 @@ def _find_cast(
         (new_stype, None),
     ]
 
-    matched = func.find_callable(
+    matched = polyres.find_callable(
         (CastCallableWrapper(c) for c in casts), args=args, kwargs={}, ctx=ctx)
 
     if len(matched) == 1:
