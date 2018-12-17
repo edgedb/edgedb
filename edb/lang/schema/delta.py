@@ -253,12 +253,16 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             return None
 
     def set_attribute_value(self, attr_name, value):
+        as_expr = isinstance(value, s_expr.ExpressionText)
+
         for op in self.get_subcommands(type=AlterObjectProperty):
             if op.property == attr_name:
                 op.new_value = value
+                op.as_expr = as_expr
                 break
         else:
-            self.add(AlterObjectProperty(property=attr_name, new_value=value))
+            self.add(AlterObjectProperty(
+                property=attr_name, new_value=value, as_expr=as_expr))
 
     def discard_attribute(self, attr_name):
         for op in self.get_subcommands(type=AlterObjectProperty):
@@ -630,20 +634,6 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
         self._apply_fields_ast(schema, context, op)
 
         return op
-
-    def _set_attribute_ast(self, context, node, name, value):
-        if isinstance(value, s_expr.ExpressionText):
-            value = qlast.ExpressionText(expr=str(value))
-
-        as_expr = isinstance(value, qlast.ExpressionText)
-        name_ref = qlast.ObjectRef(
-            name=name, module='')
-        node.commands.append(qlast.AlterObjectProperty(
-            name=name_ref, value=value, as_expr=as_expr))
-
-    def _drop_attribute_ast(self, context, node, name):
-        name_ref = qlast.ObjectRef(name=name, module='')
-        node.commands.append(qlast.DropAttributeValue(name=name_ref))
 
     def _apply_fields_ast(self, schema, context, node):
         for op in self.get_subcommands(type=RenameObject):
@@ -1137,7 +1127,7 @@ class AlterSpecialObjectProperty(Command):
 
 
 class AlterObjectProperty(Command):
-    astnode = qlast.AlterObjectProperty
+    astnode = (qlast.SetField, qlast.SetInternalField)
 
     property = struct.Field(str)
     old_value = struct.Field(object, None)
@@ -1154,11 +1144,14 @@ class AlterObjectProperty(Command):
         parent_op = parent_ctx.op
         field = parent_op.get_schema_metaclass().get_field(propname)
         if field is None:
-            raise edgeql.EdgeQLError('{propname!r} is not a valid field',
+            raise edgeql.EdgeQLError(f'{propname!r} is not a valid field',
                                      context=astnode.context)
 
-        if field.stdonly and not (context.stdmode or context.testmode):
-            raise edgeql.EdgeQLError('{propname!r} is not a valid field',
+        if not (isinstance(astnode, qlast.SetInternalField)
+                or field.allow_ddl_set
+                or context.stdmode
+                or context.testmode):
+            raise edgeql.EdgeQLError(f'{propname!r} is not a valid field',
                                      context=astnode.context)
 
         if astnode.as_expr:
@@ -1218,7 +1211,7 @@ class AlterObjectProperty(Command):
             value = qlast.BaseConstant.from_python(value)
 
         as_expr = isinstance(value, qlast.ExpressionText)
-        op = qlast.AlterObjectProperty(
+        op = qlast.SetField(
             name=qlast.ObjectRef(module='', name=self.property),
             value=value, as_expr=as_expr)
         return op

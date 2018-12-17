@@ -112,7 +112,7 @@ class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
 
     readonly = so.SchemaField(
         bool,
-        public=True,
+        allow_ddl_set=True,
         default=False, compcoef=0.909,
         merge_fn=utils.merge_sticky_bool)
 
@@ -123,7 +123,7 @@ class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
 
     default = so.SchemaField(
         sexpr.ExpressionText,
-        public=True,
+        allow_ddl_set=True,
         default=None, coerce=True, compcoef=0.909)
 
     cardinality = so.SchemaField(

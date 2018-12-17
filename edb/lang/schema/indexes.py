@@ -34,7 +34,8 @@ class SourceIndex(inheriting.InheritingObject):
     subject = so.SchemaField(so.Object)
 
     expr = so.SchemaField(
-        s_expr.ExpressionText, coerce=True, compcoef=0.909)
+        s_expr.ExpressionText, coerce=True, compcoef=0.909,
+        allow_ddl_set=True)
 
     def __repr__(self):
         cls = self.__class__

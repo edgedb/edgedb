@@ -313,7 +313,7 @@ class SetFieldStmt(Nonterm):
         # should be treated as an eager expression
         eager = isinstance(kids[3].val,
                            (qlast.BaseConstant, qlast.Tuple))
-        self.val = qlast.AlterObjectProperty(
+        self.val = qlast.SetField(
             name=kids[1].val,
             value=kids[3].val,
             as_expr=not eager
@@ -322,7 +322,7 @@ class SetFieldStmt(Nonterm):
     def reduce_SET_NodeName_AS_SchemaItemClass_NodeName(self, *kids):
         ref = kids[4].val
         ref.itemclass = kids[3].val.itemclass
-        self.val = qlast.AlterObjectProperty(
+        self.val = qlast.SetField(
             name=kids[1].val,
             value=ref
         )
@@ -1386,7 +1386,7 @@ class CreateViewStmt(Nonterm):
         self.val = qlast.CreateView(
             name=kids[2].val,
             commands=[
-                qlast.AlterObjectProperty(
+                qlast.SetField(
                     name=qlast.ObjectRef(name='expr'),
                     value=kids[4].val,
                     as_expr=True

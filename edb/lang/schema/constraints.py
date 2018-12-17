@@ -62,7 +62,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
         compcoef=0.875)
 
     errmessage = so.SchemaField(
-        str, default=None, compcoef=0.971)
+        str, default=None, compcoef=0.971, allow_ddl_set=True)
 
     def generic(self, schema):
         return self.get_subject(schema) is None

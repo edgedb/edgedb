@@ -759,9 +759,17 @@ class DropIndex(DropObject):
     pass
 
 
-class AlterObjectProperty(ObjectDDL):
+class BaseSetField(ObjectDDL):
     value: Expr
     as_expr: bool = False
+
+
+class SetField(BaseSetField):
+    pass
+
+
+class SetInternalField(BaseSetField):
+    pass
 
 
 class CreateAttributeValue(CreateObject):

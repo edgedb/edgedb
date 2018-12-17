@@ -56,7 +56,7 @@ class Type(so.Object, derivable.DerivableObjectBase, s_abc.Type):
     # defines the view set.
     expr = so.SchemaField(
         s_expr.ExpressionText,
-        default=None, coerce=True, compcoef=0.909)
+        default=None, coerce=True, allow_ddl_set=True, compcoef=0.909)
 
     # If this type is a view defined by a nested shape expression,
     # and the nested shape contains references to link properties,

@@ -831,7 +831,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_DropView(self, node):
         self._visit_DropObject(node, 'VIEW')
 
-    def visit_AlterObjectProperty(self, node):
+    def visit_SetField(self, node):
         self.write('SET ')
         self.visit(node.name)
         self.write(' := ')

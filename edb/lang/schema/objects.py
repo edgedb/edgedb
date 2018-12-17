@@ -132,7 +132,7 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
 
     __slots__ = ('name', 'type', 'coerce',
                  'compcoef', 'inheritable', 'simpledelta',
-                 'merge_fn', 'ephemeral', 'introspectable', 'public')
+                 'merge_fn', 'ephemeral', 'introspectable', 'allow_ddl_set')
 
     def __init__(self, type_, *, coerce=False,
                  compcoef=None, inheritable=True,
@@ -146,7 +146,7 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
 
         self.type = type_
         self.coerce = coerce
-        self.public = False
+        self.allow_ddl_set = False
 
         self.compcoef = compcoef
         self.inheritable = inheritable
@@ -223,17 +223,15 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
 
 class SchemaField(Field):
 
-    __slots__ = ('default', 'hashable', 'stdonly')
+    __slots__ = ('default', 'hashable')
 
     def __init__(self, type, *,
                  default=NoDefault, hashable=True,
-                 public=False, stdonly=False,
-                 **kwargs):
+                 allow_ddl_set=False, **kwargs):
         super().__init__(type, **kwargs)
         self.default = default
         self.hashable = hashable
-        self.public = public
-        self.stdonly = stdonly
+        self.allow_ddl_set = allow_ddl_set
 
     @property
     def required(self):

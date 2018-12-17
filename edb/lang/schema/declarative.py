@@ -471,7 +471,7 @@ class DeclarationLoader:
             fieldname = field_decl.name.name
 
             attrfield = fields.get(fieldname)
-            if attrfield is None or not attrfield.public:
+            if attrfield is None or not attrfield.allow_ddl_set:
                 raise s_err.SchemaError(
                     f'unexpected field {fieldname}',
                     context=field_decl.context)

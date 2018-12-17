@@ -82,7 +82,7 @@ class NodeCommand(sd.ObjectCommand):
     @classmethod
     def _maybe_get_view_expr(cls, astnode):
         for subcmd in astnode.commands:
-            if (isinstance(subcmd, qlast.AlterObjectProperty) and
+            if (isinstance(subcmd, qlast.SetField) and
                     subcmd.name.name == 'expr'):
                 return subcmd.value
 
