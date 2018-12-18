@@ -553,31 +553,29 @@ class Schema:
     def has_module(self, module):
         return module in self._modules
 
-    def _get_descendants(self, scls, *, max_depth=None, depth=0):
-        result = set()
-
+    def get_children(self, scls):
         _virtual_children = scls.get__virtual_children(self)
 
-        if _virtual_children is None:
-            child_names = self._find_children(scls)
+        if _virtual_children is not None:
+            return frozenset(_virtual_children.objects(self))
         else:
-            child_names = [c.material_type(self).get_name(self)
-                           for c in _virtual_children.objects(self)]
+            return self.get_referrers(
+                scls, scls_type=type(scls), field_name='bases')
 
-        children = {self.get(n, type=type(scls)) for n in child_names}
+    def get_descendants(self, scls):
+        descendants = set()
+        _virtual_children = scls.get__virtual_children(self)
 
-        if max_depth is not None and depth < max_depth:
-            for child in children:
-                result.update(self._get_descendants(
-                    child, max_depth=max_depth, depth=depth + 1))
+        if _virtual_children is not None:
+            for c in _virtual_children.objects(self):
+                descendants.add(c)
+                descendants.update(self.get_referrers(
+                    c, scls_type=type(scls), field_name='mro'))
+        else:
+            descendants.update(self.get_referrers(
+                scls, scls_type=type(scls), field_name='mro'))
 
-        result.update(children)
-        return result
-
-    def _find_children(self, scls):
-        flt = lambda p: scls in p.get_bases(self).objects(self)
-        it = self.get_objects(type=type(scls))
-        return {c.get_name(self) for c in filter(flt, it)}
+        return frozenset(descendants)
 
     def get_objects(self, *, modules=None, type=None):
         return SchemaIterator(self, modules=modules, type=type)

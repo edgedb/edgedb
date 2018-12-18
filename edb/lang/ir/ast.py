@@ -18,6 +18,7 @@
 
 
 import typing
+import uuid
 
 from edb.lang.common.exceptions import EdgeDBError
 from edb.lang.common import ast, compiler, parsing
@@ -32,7 +33,7 @@ from edb.lang.schema import types as s_types
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import functypes as ft
 
-from .pathid import PathId, WeakNamespace  # noqa
+from .pathid import PathId, WeakNamespace
 from .scopetree import InvalidScopeConfiguration, ScopeTreeNode  # noqa
 
 
@@ -59,11 +60,224 @@ class Base(ast.AST):
         )
 
 
+class TypeRef(Base):
+    # The id of the referenced type
+    id: uuid.UUID
+    # Full name of the type, not necessarily schema-addressable.
+    name: str
+    # Display name of the type.  Used in error messages
+    # and other user-visible output.
+    displayname: str
+    # The ref of the underlying material type, if this is a view type,
+    # else None.
+    material_type: typing.Optional['TypeRef']
+    # If this is a scalar type, base_type would be the highest
+    # non-abstract base type.
+    base_type: typing.Optional['TypeRef']
+    # If this is a union type, this would be a set of
+    # union elements.
+    children: typing.FrozenSet['TypeRef']
+    # If this node is an element of a collection, and the
+    # collection elements are named, this would be then
+    # name of the element.
+    element_name: str
+    # The kind of the collection type if this is a collection
+    collection: str
+    # Collection subtypes if this is a collection
+    subtypes: typing.Tuple['TypeRef', ...]
+    # True, if this describes a scalar type
+    is_scalar: bool = False
+    # True, if this describes a view
+    is_view: bool = False
+    # True, if this describes an abstract type
+    is_abstract: bool = False
+
+
+class AnyTypeRef(TypeRef):
+    pass
+
+
+class AnyTupleRef(TypeRef):
+    pass
+
+
+class BasePointerRef(Base):
+
+    name: sn.Name
+    shortname: sn.Name
+    displayname: str
+    dir_source: TypeRef
+    dir_target: TypeRef
+    out_source: TypeRef
+    out_target: TypeRef
+    direction: s_pointers.PointerDirection
+    parent_ptr: 'BasePointerRef'
+    material_ptr: 'BasePointerRef'
+    derived_from_ptr: 'BasePointerRef'
+    descendants: typing.Set['BasePointerRef']
+    has_properties: bool
+    required: bool
+    # Relation cardinality in the direction specified
+    # by *direction*.
+    dir_cardinality: Cardinality
+    # Outbound cardinality of the pointer.
+    out_cardinality: Cardinality
+
+
+class PointerRef(BasePointerRef):
+
+    id: uuid.UUID
+
+
+class TupleIndirectionLink(s_pointers.PointerLike):
+    """A Link-alike that can be used in tuple indirection path ids."""
+
+    def __init__(self, element_name):
+        self._name = sn.Name(module='__tuple__', name=str(element_name))
+
+    def __hash__(self):
+        return hash((self.__class__, self._name))
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+
+        return self._name == other._name
+
+    def get_shortname(self, schema):
+        return self._name
+
+    def get_name(self, schema):
+        return self._name
+
+    def get_displayname(self, schema):
+        return self._name
+
+    def has_user_defined_properties(self, schema):
+        return False
+
+    def get_required(self, schema):
+        return True
+
+    def get_cardinality(self, schema):
+        return Cardinality.ONE
+
+    def get_path_id_name(self, schema):
+        return self._name
+
+    def get_derived_from(self, schema):
+        return None
+
+    def is_link_property(self, schema):
+        return False
+
+    def generic(self, schema):
+        return False
+
+    def get_source(self, schema):
+        return None
+
+    def singular(self, schema,
+                 direction=s_pointers.PointerDirection.Outbound) -> bool:
+        return True
+
+    def scalar(self):
+        return self._target.is_scalar()
+
+    def material_type(self, schema):
+        return self
+
+    def is_pure_computable(self, schema):
+        return False
+
+    def is_tuple_indirection(self):
+        return True
+
+
+class TupleIndirectionPointerRef(BasePointerRef):
+    pass
+
+
+class TypeIndirectionLink(s_pointers.PointerLike):
+    """A Link-alike that can be used in type indirection path ids."""
+
+    def __init__(self, source, target, *, optional, cardinality):
+        name = 'optindirection' if optional else 'indirection'
+        self._name = sn.Name(module='__type__', name=name)
+        self._source = source
+        self._target = target
+        self._cardinality = cardinality
+        self._optional = optional
+
+    def get_name(self, schema):
+        return self._name
+
+    def get_shortname(self, schema):
+        return self._name
+
+    def get_displayname(self, schema):
+        return self._name
+
+    def has_user_defined_properties(self, schema):
+        return False
+
+    def get_required(self, schema):
+        return True
+
+    def get_cardinality(self, schema):
+        return self._cardinality
+
+    def get_path_id_name(self, schema):
+        return self._name
+
+    def get_derived_from(self, schema):
+        return None
+
+    def is_link_property(self, schema):
+        return False
+
+    def is_type_indirection(self):
+        return True
+
+    def is_optional(self):
+        return self._optional
+
+    def generic(self, schema):
+        return False
+
+    def get_source(self, schema):
+        return self._source
+
+    def get_target(self, schema):
+        return self._target
+
+    def singular(self, schema,
+                 direction=s_pointers.PointerDirection.Outbound) -> bool:
+        if direction is s_pointers.PointerDirection.Outbound:
+            return self.get_cardinality(schema) is Cardinality.ONE
+        else:
+            return True
+
+    def scalar(self):
+        return self._target.is_scalar()
+
+    def material_type(self, schema):
+        return self
+
+    def is_pure_computable(self, schema):
+        return False
+
+
+class TypeIndirectionPointerRef(BasePointerRef):
+
+    optional: bool
+
+
 class Pointer(Base):
 
     source: Base
     target: Base
-    ptrcls: s_pointers.PointerLike
+    ptrref: BasePointerRef
     direction: s_pointers.PointerDirection
     anchor: typing.Union[str, ast.MetaAST]
     show_as_anchor: typing.Union[str, ast.MetaAST]
@@ -73,29 +287,16 @@ class Pointer(Base):
         return self.direction == s_pointers.PointerDirection.Inbound
 
 
-class BaseTypeRef(Base):
-    name: str
+class TypeIndirectionPointer(Pointer):
 
-
-class TypeRef(BaseTypeRef):
-
-    maintype: str
-    subtypes: typing.List[BaseTypeRef]
-
-
-class AnyTypeRef(BaseTypeRef):
-    pass
-
-
-class AnyTupleRef(BaseTypeRef):
-    pass
+    optional: bool
 
 
 class Set(Base):
 
     path_id: PathId
     path_scope_id: int
-    stype: s_types.Type
+    typeref: TypeRef
     source: Base
     view_source: Base
     expr: Base
@@ -106,7 +307,7 @@ class Set(Base):
 
     def __repr__(self):
         return \
-            f'<ir.Set \'{self.path_id or self.stype.id}\' at 0x{id(self):x}>'
+            f'<ir.Set \'{self.path_id}\' at 0x{id(self):x}>'
 
 
 class Command(Base):
@@ -123,7 +324,6 @@ class Statement(Command):
     view_shapes: typing.Dict[so.Object, typing.List[s_pointers.Pointer]]
     schema: s_schema.Schema
     scope_tree: ScopeTreeNode
-    scope_map: typing.Dict[Set, str]
     source_map: typing.Dict[s_pointers.Pointer,
                             typing.Tuple[qlast.Expr,
                                          compiler.ContextLevel,
@@ -142,11 +342,11 @@ class EmptySet(Set):
 class BaseConstant(Expr):
 
     value: str
-    stype: s_types.Type
+    typeref: TypeRef
 
-    def __init__(self, *args, stype, **kwargs):
-        super().__init__(*args, stype=stype, **kwargs)
-        if self.stype is None:
+    def __init__(self, *args, typeref, **kwargs):
+        super().__init__(*args, typeref=typeref, **kwargs)
+        if self.typeref is None:
             raise ValueError('cannot create irast.Constant without a type')
         if self.value is None:
             raise ValueError('cannot create irast.Constant without a value')
@@ -179,25 +379,26 @@ class BytesConstant(BaseConstant):
 class Parameter(Base):
 
     name: str
-    stype: s_types.Type
+    typeref: TypeRef
 
 
 class TupleElement(Base):
 
     name: str
-    val: Base
+    val: Set
+    path_id: PathId
 
 
 class Tuple(Expr):
     named: bool = False
     elements: typing.List[TupleElement]
-    stype: s_types.Type
+    typeref: TypeRef
 
 
 class Array(Expr):
 
     elements: typing.List[Base]
-    stype: s_types.Type
+    typeref: TypeRef
 
 
 class SetOp(Expr):
@@ -213,7 +414,7 @@ class SetOp(Expr):
 class TypeCheckOp(Expr):
 
     left: Set
-    right: typing.Union[BaseTypeRef, Array]
+    right: typing.Union[TypeRef, Array]
     op: str
 
 
@@ -269,8 +470,12 @@ class Call(Expr):
     # Return type and typemod.  In bodies of polymorphic functions
     # the return type can be polymorphic; in queries the return
     # type will be a concrete schema type.
-    stype: s_types.Type
+    typeref: TypeRef
     typemod: ft.TypeModifier
+
+    # If the return type is a tuple, this will contain a list
+    # of tuple element path ids relative to the call set.
+    tuple_path_ids: typing.Optional[typing.List[PathId]]
 
 
 class FunctionCall(Call):
@@ -285,7 +490,7 @@ class FunctionCall(Call):
 
     # Set to the type of the variadic parameter of the bound function
     # (or None, if the function has no variadic parameters.)
-    variadic_param_type: typing.Optional[s_types.Type]
+    variadic_param_type: typing.Optional[TypeRef]
 
 
 class OperatorCall(Call):
@@ -325,8 +530,8 @@ class TypeCast(Expr):
 
     expr: Base
     cast_name: str
-    from_type: BaseTypeRef
-    to_type: BaseTypeRef
+    from_type: TypeRef
+    to_type: TypeRef
     sql_function: str
     sql_cast: bool
     sql_expr: bool

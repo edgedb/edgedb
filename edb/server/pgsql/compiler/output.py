@@ -22,9 +22,7 @@
 import typing
 
 from edb.lang.ir import ast as irast
-
-from edb.lang.schema import objtypes as s_objtypes
-from edb.lang.schema import types as s_types
+from edb.lang.ir import typeutils as irtyputils
 
 from edb.server.pgsql import ast as pgast
 from edb.server.pgsql import types as pgtypes
@@ -32,29 +30,33 @@ from edb.server.pgsql import types as pgtypes
 from . import context
 
 
-def coll_as_json_object(expr, *, stype, env):
-    if stype.is_tuple():
-        return tuple_as_json_object(expr, stype=stype, env=env)
-    elif stype.is_array():
-        return array_as_json_object(expr, stype=stype, env=env)
+def coll_as_json_object(expr, *, styperef, env):
+    if irtyputils.is_tuple(styperef):
+        return tuple_as_json_object(expr, styperef=styperef, env=env)
+    elif irtyputils.is_array(styperef):
+        return array_as_json_object(expr, styperef=styperef, env=env)
     else:
-        raise RuntimeError(f'{stype!r} is not a collection')
+        raise RuntimeError(f'{styperef!r} is not a collection')
 
 
-def array_as_json_object(expr, *, stype, env):
-    if stype.element_type.is_tuple():
+def array_as_json_object(expr, *, styperef, env):
+    el_type = styperef.subtypes[0]
+
+    if irtyputils.is_tuple(el_type):
         coldeflist = []
         json_args = []
-        is_named = stype.element_type.named
+        is_named = any(st.element_name for st in el_type.subtypes)
 
-        for n, st in stype.element_type.iter_subtypes():
-            colname = env.aliases.get(str(n))
+        for i, st in enumerate(el_type.subtypes):
             if is_named:
-                json_args.append(pgast.StringConstant(val=n))
+                colname = env.aliases.get(st.element_name)
+                json_args.append(pgast.StringConstant(val=st.element_name))
+            else:
+                colname = env.aliases.get(str(i))
 
             val = pgast.ColumnRef(name=[colname])
-            if st.is_collection():
-                val = coll_as_json_object(val, stype=st, env=env)
+            if irtyputils.is_collection(st):
+                val = coll_as_json_object(val, styperef=st, env=env)
 
             json_args.append(val)
 
@@ -62,7 +64,7 @@ def array_as_json_object(expr, *, stype, env):
                 pgast.ColumnDef(
                     name=colname,
                     typename=pgast.TypeName(
-                        name=pgtypes.pg_type_from_object(env.schema, st)
+                        name=pgtypes.pg_type_from_ir_typeref(st)
                     )
                 )
             )
@@ -107,23 +109,20 @@ def array_as_json_object(expr, *, stype, env):
             name=('to_jsonb',), args=[expr], null_safe=True, ser_safe=True)
 
 
-def tuple_as_json_object(expr, *, stype, env):
-    if stype.named:
-        return named_tuple_as_json_object(expr, stype=stype, env=env)
+def tuple_as_json_object(expr, *, styperef, env):
+    if any(st.element_name for st in styperef.subtypes):
+        return named_tuple_as_json_object(expr, styperef=styperef, env=env)
     else:
-        return unnamed_tuple_as_json_object(expr, stype=stype, env=env)
+        return unnamed_tuple_as_json_object(expr, styperef=styperef, env=env)
 
 
-def unnamed_tuple_as_json_object(expr, *, stype, env):
-    assert stype.is_tuple() and not stype.named
-
+def unnamed_tuple_as_json_object(expr, *, styperef, env):
     vals = []
-    subtypes = stype.get_subtypes()
-    for el_idx, el_type in enumerate(subtypes):
+    for el_idx, el_type in enumerate(styperef.subtypes):
         type_sentinel = pgast.TypeCast(
             arg=pgast.NullConstant(),
             type_name=pgast.TypeName(
-                name=pgtypes.pg_type_from_object(env.schema, el_type)
+                name=pgtypes.pg_type_from_ir_typeref(el_type)
             )
         )
 
@@ -135,8 +134,8 @@ def unnamed_tuple_as_json_object(expr, *, stype, env):
                 type_sentinel
             ])
 
-        if el_type.is_collection():
-            val = coll_as_json_object(val, stype=el_type, env=env)
+        if irtyputils.is_collection(el_type):
+            val = coll_as_json_object(val, styperef=el_type, env=env)
 
         vals.append(val)
 
@@ -145,18 +144,15 @@ def unnamed_tuple_as_json_object(expr, *, stype, env):
         null_safe=True, ser_safe=True, nullable=expr.nullable)
 
 
-def named_tuple_as_json_object(expr, *, stype, env):
-    assert stype.is_tuple() and stype.named
-
+def named_tuple_as_json_object(expr, *, styperef, env):
     keyvals = []
-    subtypes = stype.iter_subtypes()
-    for el_idx, (el_name, el_type) in enumerate(subtypes):
-        keyvals.append(pgast.StringConstant(val=el_name))
+    for el_idx, el_type in enumerate(styperef.subtypes):
+        keyvals.append(pgast.StringConstant(val=el_type.element_name))
 
         type_sentinel = pgast.TypeCast(
             arg=pgast.NullConstant(),
             type_name=pgast.TypeName(
-                name=pgtypes.pg_type_from_object(env.schema, el_type)
+                name=pgtypes.pg_type_from_ir_typeref(el_type)
             )
         )
 
@@ -168,8 +164,8 @@ def named_tuple_as_json_object(expr, *, stype, env):
                 type_sentinel
             ])
 
-        if el_type.is_collection():
-            val = coll_as_json_object(val, stype=el_type, env=env)
+        if irtyputils.is_collection(el_type):
+            val = coll_as_json_object(val, styperef=el_type, env=env)
 
         keyvals.append(val)
 
@@ -195,8 +191,8 @@ def tuple_var_as_json_object(tvar, *, path_id, env):
             if rptr is None:
                 name = element.path_id.target_name.name
             else:
-                name = rptr.get_shortname(env.schema).name
-                if rptr.is_link_property(env.schema):
+                name = rptr.shortname.name
+                if rptr.parent_ptr is not None:
                     name = '@' + name
             keyvals.append(pgast.StringConstant(val=name))
             if isinstance(element.val, pgast.TupleVar):
@@ -262,8 +258,8 @@ def serialize_expr_to_json(
             null_safe=True, ser_safe=True,)
 
     elif not nested:
-        if path_id.target.is_collection() and not expr.ser_safe:
-            val = coll_as_json_object(expr, stype=path_id.target, env=env)
+        if path_id.is_collection_path() and not expr.ser_safe:
+            val = coll_as_json_object(expr, styperef=path_id.target, env=env)
         else:
             val = pgast.FuncCall(
                 name=('to_jsonb',), args=[expr], null_safe=True, ser_safe=True)
@@ -294,19 +290,19 @@ def serialize_expr(
 
 
 def get_pg_type(
-        schema_type: s_types.Type, *,
+        typeref: irast.TypeRef, *,
         ctx: context.CompilerContextLevel) -> typing.Tuple[str]:
 
     if in_serialization_ctx(ctx):
         if ctx.env.output_format == context.OutputFormat.JSON:
             return ('jsonb',)
-        elif isinstance(schema_type, s_objtypes.ObjectType):
+        elif irtyputils.is_object(typeref):
             return ('record',)
         else:
-            return pgtypes.pg_type_from_object(ctx.env.schema, schema_type)
+            return pgtypes.pg_type_from_ir_typeref(typeref)
 
     else:
-        return pgtypes.pg_type_from_object(ctx.env.schema, schema_type)
+        return pgtypes.pg_type_from_ir_typeref(typeref)
 
 
 def prepare_tuple_for_aggregation(

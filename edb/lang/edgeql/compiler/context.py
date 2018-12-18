@@ -73,6 +73,14 @@ class StatementMetadata:
         self.ignore_offset_limit = ignore_offset_limit
 
 
+class PendingCardinality(typing.NamedTuple):
+
+    specified_cardinality: typing.Optional[irast.Cardinality]
+    source_ctx: parsing.ParserContext
+    from_parent: bool
+    callbacks: typing.List[typing.Callable]
+
+
 class Environment:
     """Compilation environment."""
 
@@ -92,12 +100,16 @@ class Environment:
     schema_view_mode: bool
     """Use material types for pointer targets in schema views."""
 
+    set_types: typing.Dict[irast.Set, s_types.Type]
+    """A dictionary of all Set instances and their schema types."""
+
     def __init__(self, *, schema, path_scope, schema_view_mode: bool=False):
         self.schema = schema
         self.path_scope = path_scope
         self.schema_view_cache = {}
         self.query_parameters = {}
         self.schema_view_mode = schema_view_mode
+        self.set_types = {}
 
 
 class ContextLevel(compiler.ContextLevel):
@@ -120,9 +132,6 @@ class ContextLevel(compiler.ContextLevel):
 
     func: typing.Optional[s_func.Function]
     """Schema function object required when compiling functions bodies."""
-
-    all_sets: typing.List[irast.Set]
-    """A list of all Set instances generated."""
 
     stmt_metadata: typing.Dict[qlast.Statement, StatementMetadata]
     """Extra statement metadata needed by the compiler, but not in AST."""
@@ -183,13 +192,7 @@ class ContextLevel(compiler.ContextLevel):
     completion_work: typing.List[typing.Callable]
     """A list of callbacks to execute when the whole query has been seen."""
 
-    pending_cardinality: typing.Dict[
-        s_pointers.Pointer,
-        typing.Tuple[
-            typing.Optional[irast.Cardinality],
-            parsing.ParserContext,
-        ],
-    ]
+    pending_cardinality: typing.Dict[s_pointers.Pointer, PendingCardinality]
     """A set of derived pointers for which the cardinality is not yet known."""
 
     pointer_derivation_map: typing.Dict[s_pointers.Pointer, s_pointers.Pointer]
@@ -235,7 +238,6 @@ class ContextLevel(compiler.ContextLevel):
             self.anchors = {}
             self.modaliases = {}
             self.func = None
-            self.all_sets = []
             self.stmt_metadata = {}
             self.completion_work = []
             self.pending_cardinality = {}
@@ -277,7 +279,6 @@ class ContextLevel(compiler.ContextLevel):
             self.derived_target_module = prevlevel.derived_target_module
             self.aliases = prevlevel.aliases
             self.func = prevlevel.func
-            self.all_sets = prevlevel.all_sets
             self.stmt_metadata = prevlevel.stmt_metadata
             self.completion_work = prevlevel.completion_work
             self.pending_cardinality = prevlevel.pending_cardinality

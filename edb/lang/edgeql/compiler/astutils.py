@@ -23,7 +23,9 @@
 import typing
 
 from edb.lang.edgeql import ast as qlast
+
 from edb.lang.ir import ast as irast
+from edb.lang.ir import typeutils as irtyputils
 
 from . import context
 from . import inference
@@ -114,7 +116,9 @@ def make_tuple(
         ctx: context.ContextLevel) -> irast.Tuple:
 
     tup = irast.Tuple(elements=elements, named=named)
-    tup.stype = inference.infer_type(tup, env=ctx.env)
+    tup.typeref = irtyputils.type_to_typeref(
+        ctx.env.schema,
+        inference.infer_type(tup, env=ctx.env))
     return tup
 
 
@@ -123,5 +127,7 @@ def make_array(
         ctx: context.ContextLevel) -> irast.Array:
 
     arr = irast.Array(elements=elements)
-    arr.stype = inference.infer_type(arr, env=ctx.env)
+    arr.typeref = irtyputils.type_to_typeref(
+        ctx.env.schema,
+        inference.infer_type(arr, env=ctx.env))
     return arr

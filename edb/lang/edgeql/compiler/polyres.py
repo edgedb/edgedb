@@ -25,6 +25,7 @@ import typing
 from edb import errors
 
 from edb.lang.ir import ast as irast
+from edb.lang.ir import typeutils as irtyputils
 from edb.lang.ir import utils as irutils
 
 from edb.lang.schema import functions as s_func
@@ -201,7 +202,9 @@ def try_bind_call_args(
             if has_inlined_defaults:
                 bytes_t = schema.get('std::bytes')
                 argval = setgen.ensure_set(
-                    irast.BytesConstant(value='\x00', stype=bytes_t),
+                    irast.BytesConstant(
+                        value='\x00',
+                        typeref=irtyputils.type_to_typeref(schema, bytes_t)),
                     typehint=bytes_t,
                     ctx=ctx)
                 args = [BoundArg(None, argval, bytes_t, 0)]
@@ -383,10 +386,10 @@ def try_bind_call_args(
                     default_type = param_type
 
                 if has_inlined_defaults:
-                    default = irutils.new_empty_set(
-                        schema,
+                    default = setgen.new_empty_set(
                         stype=default_type,
-                        alias=param_shortname)
+                        alias=param_shortname,
+                        ctx=ctx)
 
                 default = setgen.ensure_set(
                     default,
@@ -410,7 +413,9 @@ def try_bind_call_args(
         bytes_t = schema.get('std::bytes')
         bm = defaults_mask.to_bytes(nparams // 8 + 1, 'little')
         bm_set = setgen.ensure_set(
-            irast.BytesConstant(value=bm.decode('ascii'), stype=bytes_t),
+            irast.BytesConstant(
+                value=bm.decode('ascii'),
+                typeref=irtyputils.type_to_typeref(ctx.env.schema, bytes_t)),
             typehint=bytes_t, ctx=ctx)
         bound_param_args.insert(0, BoundArg(None, bm_set, bytes_t, 0))
 

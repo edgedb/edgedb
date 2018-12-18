@@ -32,15 +32,16 @@ from edb.lang.schema import types as s_types
 from edb.lang.schema import utils as s_utils
 
 from edb.lang.ir import ast as irast
+from edb.lang.ir import typeutils as irtyputils
 
 from .. import context
 
 
-def amend_empty_set_type(es: irast.EmptySet, t: s_obj.Object, schema) -> None:
-    es.stype = t
+def amend_empty_set_type(es: irast.EmptySet, t: s_obj.Object, env) -> None:
+    env.set_types[es] = t
     alias = es.path_id.target_name.name
     typename = s_name.Name(module='__expr__', name=alias)
-    es.path_id = irast.PathId.from_type(schema, t, typename=typename)
+    es.path_id = irast.PathId.from_type(env.schema, t, typename=typename)
 
 
 def _infer_common_type(irs: typing.List[irast.Base], env):
@@ -57,7 +58,7 @@ def _infer_common_type(irs: typing.List[irast.Base], env):
     seen_coll = False
 
     for i, arg in enumerate(irs):
-        if isinstance(arg, irast.EmptySet) and arg.stype is None:
+        if isinstance(arg, irast.EmptySet) and env.set_types[arg] is None:
             empties.append(i)
             continue
 
@@ -100,7 +101,7 @@ def _infer_common_type(irs: typing.List[irast.Base], env):
         return None
 
     for i in empties:
-        amend_empty_set_type(irs[i], common_type, env.schema)
+        amend_empty_set_type(irs[i], common_type, env)
 
     return common_type
 
@@ -123,19 +124,19 @@ def __infer_statement(ir, env):
 
 @_infer_type.register(irast.Set)
 def __infer_set(ir, env):
-    return ir.stype
+    return env.set_types[ir]
 
 
 @_infer_type.register(irast.OperatorCall)
 @_infer_type.register(irast.FunctionCall)
 def __infer_func_call(ir, env):
-    return ir.stype
+    return irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
 
 
 @_infer_type.register(irast.BaseConstant)
 @_infer_type.register(irast.Parameter)
 def __infer_const_or_param(ir, env):
-    return ir.stype
+    return irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
 
 
 @_infer_type.register(irast.Coalesce)
@@ -188,10 +189,10 @@ def _infer_binop_args(left, right, env):
             'cannot determine the type of an empty set',
             context=left.context)
     elif left_type is None:
-        amend_empty_set_type(left, right_type, env.schema)
+        amend_empty_set_type(left, right_type, env)
         left_type = right_type
     elif right_type is None:
-        amend_empty_set_type(right, left_type, env.schema)
+        amend_empty_set_type(right, left_type, env)
         right_type = left_type
 
     return left_type, right_type
@@ -232,15 +233,16 @@ def __infer_anytupleref(ir, env):
 
 @_infer_type.register(irast.TypeRef)
 def __infer_typeref(ir, env):
-    if ir.subtypes:
-        coll = s_types.Collection.get_class(ir.maintype)
+    if ir.collection:
+        coll = s_types.Collection.get_class(ir.collection)
         if issubclass(coll, s_types.Tuple):
             named = False
-            if any(t.name for t in ir.subtypes):
+            if any(t.element_name for t in ir.subtypes):
                 named = True
 
             if named:
-                eltypes = {st.name: infer_type(st, env) for st in ir.subtypes}
+                eltypes = {st.element_name: infer_type(st, env)
+                           for st in ir.subtypes}
             else:
                 eltypes = {i: infer_type(st, env)
                            for i, st in enumerate(ir.subtypes)}
@@ -251,7 +253,7 @@ def __infer_typeref(ir, env):
             result = coll.from_subtypes(
                 env.schema, [infer_type(t, env) for t in ir.subtypes])
     else:
-        result = env.schema.get(ir.maintype)
+        result = env.schema.get(ir.name)
 
     return result
 
@@ -386,8 +388,8 @@ def __infer_index(ir, env):
 
 @_infer_type.register(irast.Array)
 def __infer_array(ir, env):
-    if ir.stype is not None:
-        return ir.stype
+    if ir.typeref is not None:
+        return irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
     elif ir.elements:
         element_type = _infer_common_type(ir.elements, env)
         if element_type is None:

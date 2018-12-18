@@ -27,8 +27,11 @@ from edb import errors
 from edb.lang.ir import ast as irast
 
 from edb.lang.schema import objects as s_obj
+from edb.lang.schema import pointers as s_pointers
+from edb.lang.schema import types as s_types
 
 from . import context
+from . import stmtctx
 
 
 def get_path_id(stype: s_obj.Object, *,
@@ -38,6 +41,32 @@ def get_path_id(stype: s_obj.Object, *,
         ctx.env.schema, stype,
         typename=typename,
         namespace=ctx.path_id_namespace)
+
+
+def get_tuple_indirection_path_id(
+        tuple_path_id: irast.PathId, element_name: str,
+        element_type: s_types.Type, *,
+        ctx: context.CompilerContext) -> irast.PathId:
+    return tuple_path_id.extend(
+        ptrcls=irast.TupleIndirectionLink(element_name),
+        direction=s_pointers.PointerDirection.Outbound,
+        target=element_type,
+        schema=ctx.env.schema
+    )
+
+
+def get_type_indirection_path_id(
+        path_id: irast.PathId, target_type: s_types.Type, *,
+        optional: bool, cardinality: irast.Cardinality,
+        ctx: context.CompilerContext) -> irast.PathId:
+    return path_id.extend(
+        ptrcls=irast.TypeIndirectionLink(
+            path_id.target, target_type,
+            optional=optional, cardinality=cardinality),
+        direction=s_pointers.PointerDirection.Outbound,
+        target=target_type,
+        schema=ctx.env.schema
+    )
 
 
 def register_set_in_scope(
@@ -88,3 +117,17 @@ def set_path_alias(
         path_id: irast.PathId, alias: irast.PathId, *,
         ctx: context.CompilerContext) -> None:
     ctx.path_scope.set_alias(path_id, alias)
+
+
+def extend_path_id(
+        path_id: irast.PathId, *,
+        ptrcls, direction=None, target=None, ns=None,
+        ctx: context.CompilerContext) -> irast.PathId:
+
+    result = path_id.extend(ptrcls=ptrcls, direction=direction, target=target,
+                            ns=ns, schema=ctx.env.schema)
+
+    ptrref = result.rptr()
+    stmtctx.ensure_ptrref_cardinality(ptrcls, ptrref, ctx=ctx)
+
+    return result

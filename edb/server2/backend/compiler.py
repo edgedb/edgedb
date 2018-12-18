@@ -177,7 +177,6 @@ class Compiler:
 
         sql_text, argmap = pg_compiler.compile_ir_to_sql(
             ir,
-            schema=ir.schema,
             pretty=debug.flags.edgeql_compile,
             output_format=ctx.output_format)
 

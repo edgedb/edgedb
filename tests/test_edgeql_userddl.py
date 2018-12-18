@@ -262,3 +262,19 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
             {'q', 'a'},
             {4},
         ])
+
+    async def test_edgeql_userddl_21(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                r"'force_return_cast' is not a valid field"):
+            await self.query('''
+                CREATE FUNCTION test::func(
+                    a: str
+                ) -> bool
+                {
+                    FROM EdgeQL $$
+                        SELECT True;
+                    $$;
+                    SET force_return_cast := true;
+                };
+            ''')

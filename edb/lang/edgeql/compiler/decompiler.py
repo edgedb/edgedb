@@ -19,10 +19,9 @@
 
 from edb.lang.common import ast
 
-from edb.lang.schema import links as s_links
-from edb.lang.schema import objtypes as s_objtypes
-
 from edb.lang.ir import ast as irast
+from edb.lang.ir import typeutils as irtyputils
+
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import functypes as ft
 
@@ -76,16 +75,18 @@ class IRDecompiler(ast.visitor.NodeVisitor):
             while node.rptr and (not node.show_as_anchor or
                                  self.context.inline_anchors):
                 rptr = node.rptr
-                ptrcls = rptr.ptrcls
-                pname = ptrcls.get_shortname(self.context.schema)
+                ptrref = rptr.ptrref
+                pname = ptrref.shortname
 
-                if isinstance(rptr.target.stype, s_objtypes.ObjectType):
-                    target = rptr.target.stype.get_shortname(
-                        self.context.schema)
+                if irtyputils.is_object(rptr.target.typeref):
+                    if rptr.target.typeref.material_type is not None:
+                        typeref = rptr.target.typeref.material_type
+                    else:
+                        typeref = rptr.target.typeref
                     target = qlast.TypeName(
                         maintype=qlast.ObjectRef(
-                            name=target.name,
-                            module=target.module))
+                            name=typeref.name.name,
+                            module=typeref.name.module))
                 else:
                     target = None
 
@@ -96,8 +97,7 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                     direction=rptr.direction,
                     target=target,
                 )
-                if isinstance(ptrcls.get_source(self.context.schema),
-                              s_links.Link):
+                if ptrref.parent_ptr is not None:
                     link.type = 'property'
                 links.append(link)
 
@@ -111,8 +111,11 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                 else:
                     step = qlast.ObjectRef(name=node.show_as_anchor)
             else:
-                scls_shortname = node.stype.get_shortname(
-                    self.context.schema)
+                if node.typeref.material_type is not None:
+                    typeref = node.typeref.material_type
+                else:
+                    typeref = node.typeref
+                scls_shortname = typeref.name
                 step = qlast.ObjectRef(name=scls_shortname.name,
                                        module=scls_shortname.module)
 
@@ -127,8 +130,8 @@ class IRDecompiler(ast.visitor.NodeVisitor):
 
             for el in node.shape:
                 rptr = el.rptr
-                ptrcls = rptr.ptrcls
-                pn = ptrcls.get_shortname(self.context.schema)
+                ptrref = rptr.ptrref
+                pn = ptrref.shortname
 
                 pn = qlast.ShapeElement(
                     expr=qlast.Path(
@@ -235,7 +238,7 @@ class IRDecompiler(ast.visitor.NodeVisitor):
     def visit_TypeCast(self, node):
         if node.to_type.subtypes:
             typ = qlast.TypeName(
-                maintype=qlast.ObjectRef(name=node.to_type.maintype),
+                maintype=qlast.ObjectRef(name=node.to_type.collection),
                 subtypes=[
                     qlast.ObjectRef(
                         module=stn.module, name=stn.name)
@@ -243,7 +246,7 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                 ]
             )
         else:
-            mtn = node.to_type.maintype
+            mtn = node.to_type.name
             mt = qlast.ObjectRef(module=mtn.module, name=mtn.name)
             typ = qlast.TypeName(maintype=mt)
 
@@ -291,7 +294,7 @@ class IRDecompiler(ast.visitor.NodeVisitor):
     def visit_TypeRef(self, node):
         # Bare TypeRef only appears as rhs of IS [NOT] and is always
         # an object type reference.
-        mtn = node.maintype
+        mtn = node.name
 
         result = qlast.Path(
             steps=[qlast.ObjectRef(module=mtn.module, name=mtn.name)]

@@ -30,11 +30,11 @@
 #    depending on the link layout.
 #
 
+import collections
 import typing
 
 from edb.lang.ir import ast as irast
-
-from edb.lang.schema import scalars as s_scalars
+from edb.lang.ir import typeutils as irtyputils
 
 from edb.server.pgsql import ast as pgast
 from edb.server.pgsql import types as pg_types
@@ -161,11 +161,11 @@ def fini_dml_stmt(
     # context to ensure that the RETURNING clause potentially
     # referencing this class yields the expected results.
     if isinstance(ir_stmt, irast.InsertStmt):
-        dbobj.add_rel_overlay(ir_stmt.subject.stype, 'union', dml_cte,
-                              env=ctx.env)
+        dbobj.add_rel_overlay(
+            ir_stmt.subject.typeref.name, 'union', dml_cte, env=ctx.env)
     elif isinstance(ir_stmt, irast.DeleteStmt):
-        dbobj.add_rel_overlay(ir_stmt.subject.stype, 'except', dml_cte,
-                              env=ctx.env)
+        dbobj.add_rel_overlay(
+            ir_stmt.subject.typeref.name, 'except', dml_cte, env=ctx.env)
 
     if parent_ctx.toplevel_stmt is wrapper:
         ret_ref = pathctx.get_path_identity_var(
@@ -294,30 +294,20 @@ def process_insert_body(
         iterator_cte = None
         iterator_id = None
 
+    typeref = ir_stmt.subject.typeref
+    if typeref.material_type is not None:
+        typeref = typeref.material_type
+
     values.append(
         pgast.ResTarget(
-            val=pgast.SelectStmt(
-                target_list=[
-                    pgast.ResTarget(
-                        val=pgast.ColumnRef(name=['id']))
-                ],
-                from_clause=[
-                    pgast.RangeVar(relation=pgast.Relation(
-                        name='objecttype', schemaname='edgedb'))
-                ],
-                where_clause=astutils.new_binop(
-                    op='=',
-                    lexpr=pgast.ColumnRef(name=['name']),
-                    rexpr=pgast.StringConstant(
-                        val=ir_stmt.subject.stype.get_shortname(
-                            ctx.env.schema))
-                )
-            )
+            val=pgast.TypeCast(
+                arg=pgast.StringConstant(val=str(typeref.id)),
+                type_name=pgast.TypeName(name=('uuid',))
+            ),
         )
     )
 
     external_inserts = []
-    tuple_elements = []
     parent_link_props = []
 
     with ctx.newrel() as subctx:
@@ -335,16 +325,17 @@ def process_insert_body(
         # a separate link table.
         for shape_el in ir_stmt.subject.shape:
             rptr = shape_el.rptr
-            ptrcls = rptr.ptrcls.material_type(ctx.env.schema)
+            ptrref = rptr.ptrref
+            if ptrref.material_ptr is not None:
+                ptrref = ptrref.material_ptr
 
-            if (ptrcls.is_link_property(ctx.env.schema) and
+            if (ptrref.parent_ptr is not None and
                     rptr.source.path_id != ir_stmt.subject.path_id):
                 parent_link_props.append(shape_el)
                 continue
 
-            ptr_info = pg_types.get_pointer_storage_info(
-                ptrcls, schema=subctx.env.schema, resolve_type=True,
-                link_bias=False)
+            ptr_info = pg_types.get_ptrref_storage_info(
+                ptrref, resolve_type=True, link_bias=False)
 
             props_only = False
 
@@ -358,14 +349,10 @@ def process_insert_body(
                     insert_stmt, wrapper, ir_stmt, shape_el, iterator_id,
                     ptr_info=ptr_info, ctx=subctx)
 
-                tuple_el = astutils.tuple_element_for_shape_el(
-                    shape_el, field, ctx=subctx)
-                tuple_elements.append(tuple_el)
                 values.append(pgast.ResTarget(val=insvalue))
 
-            ptr_info = pg_types.get_pointer_storage_info(
-                ptrcls, resolve_type=False, link_bias=True,
-                schema=ctx.env.schema)
+            ptr_info = pg_types.get_ptrref_storage_info(
+                ptrref, resolve_type=False, link_bias=True)
 
             if ptr_info and ptr_info.table_type == 'link':
                 external_inserts.append((shape_el, props_only))
@@ -456,7 +443,7 @@ def insert_value_for_shape_element(
 
     if isinstance(insvalue, pgast.TupleVar):
         for element in insvalue.elements:
-            name = element.path_id.rptr_name(ctx.env.schema)
+            name = element.path_id.rptr_name()
             if name == 'std::target':
                 insvalue = pathctx.get_path_value_var(
                     rel, element.path_id,
@@ -507,16 +494,14 @@ def process_update_body(
         subctx.expr_exposed = False
 
         for shape_el in ir_stmt.subject.shape:
-            with subctx.newscope() as scopectx:
-                ptrcls = shape_el.rptr.ptrcls
-                updvalue = shape_el.expr
+            ptrref = shape_el.rptr.ptrref
+            updvalue = shape_el.expr
+            ptr_info = pg_types.get_ptrref_storage_info(
+                ptrref, resolve_type=True, link_bias=False)
 
-                ptr_info = pg_types.get_pointer_storage_info(
-                    ptrcls, schema=scopectx.env.schema, resolve_type=True,
-                    link_bias=False)
-
-                # First, process all internal link updates
-                if ptr_info.table_type == 'ObjectType':
+            if ptr_info.table_type == 'ObjectType':
+                with subctx.newscope() as scopectx:
+                    # First, process all internal link updates
                     updvalue = pgast.TypeCast(
                         arg=dispatch.compile(updvalue, ctx=scopectx),
                         type_name=pgast.TypeName(name=ptr_info.column_type)
@@ -527,11 +512,10 @@ def process_update_body(
                             name=ptr_info.column_name,
                             val=updvalue))
 
-            props_only = is_props_only_update(shape_el, ctx=scopectx)
+            props_only = is_props_only_update(shape_el, ctx=subctx)
 
-            ptr_info = pg_types.get_pointer_storage_info(
-                ptrcls, resolve_type=False, link_bias=True,
-                schema=ctx.env.schema)
+            ptr_info = pg_types.get_ptrref_storage_info(
+                ptrref, resolve_type=False, link_bias=True)
 
             if ptr_info and ptr_info.table_type == 'link':
                 external_updates.append((shape_el, props_only))
@@ -574,21 +558,23 @@ def is_props_only_update(shape_el: irast.Set, *,
     """
     return (
         shape_el.shape and
-        all(el.rptr.ptrcls.is_link_property(ctx.env.schema)
-            for el in shape_el.shape)
+        all(el.rptr.ptrref.parent_ptr is not None for el in shape_el.shape)
     )
 
 
 def process_link_update(
-        ir_stmt: irast.MutatingStmt, ir_expr: irast.Base,
-        props_only: bool, wrapper: pgast.Query,
-        dml_cte: pgast.CommonTableExpr, iterator_cte: pgast.CommonTableExpr, *,
+        ir_stmt: irast.MutatingStmt,
+        ir_set: irast.Set,
+        props_only: bool,
+        wrapper: pgast.Query,
+        dml_cte: pgast.CommonTableExpr,
+        iterator_cte: pgast.CommonTableExpr, *,
         ctx: context.CompilerContextLevel) -> typing.Optional[pgast.Query]:
     """Perform updates to a link relation as part of a DML statement.
 
     :param ir_stmt:
         IR of the statement.
-    :param ir_expr:
+    :param ir_set:
         IR of the INSERT/UPDATE body element.
     :param props_only:
         Whether this link update only touches link properties.
@@ -603,59 +589,25 @@ def process_link_update(
     """
     toplevel = ctx.toplevel_stmt
 
-    edgedb_ptr_tab = pgast.RangeVar(
-        relation=pgast.Relation(
-            schemaname='edgedb', name='pointer'
-        ),
-        alias=pgast.Alias(aliasname=ctx.env.aliases.get(hint='ptr')))
-
-    ltab_alias = edgedb_ptr_tab.alias.aliasname
-
-    rptr = ir_expr.rptr
-    ptrcls = rptr.ptrcls
-    target_is_scalar = isinstance(ptrcls.get_target(ctx.env.schema),
-                                  s_scalars.ScalarType)
-
-    path_id = rptr.source.path_id.extend(
-        ptrcls, rptr.direction, rptr.target.stype,
-        schema=ctx.env.schema)
+    rptr = ir_set.rptr
+    ptrref = rptr.ptrref
+    target_is_scalar = irtyputils.is_scalar(ptrref.dir_target)
+    path_id = ir_set.path_id
 
     # The links in the dml class shape have been derived,
     # but we must use the correct specialized link class for the
     # base material type.
-    mptrcls = ptrcls.material_type(ctx.env.schema)
+    if ptrref.material_ptr is not None:
+        mptrref = ptrref.material_ptr
+    else:
+        mptrref = ptrref
 
-    # Lookup link class id by link name.
-    lname_to_id = pgast.CommonTableExpr(
-        query=pgast.SelectStmt(
-            from_clause=[
-                edgedb_ptr_tab
-            ],
-            target_list=[
-                pgast.ResTarget(
-                    val=pgast.ColumnRef(name=[ltab_alias, 'id']))
-            ],
-            where_clause=astutils.new_binop(
-                lexpr=pgast.ColumnRef(name=[ltab_alias, 'name']),
-                rexpr=pgast.StringConstant(
-                    val=mptrcls.get_name(ctx.env.schema)),
-                op='='
-            )
-        ),
-        name=ctx.env.aliases.get(hint='lid')
-    )
-
-    lname_to_id_rvar = pgast.RangeVar(relation=lname_to_id)
-    toplevel.ctes.append(lname_to_id)
-
-    target_rvar = dbobj.range_for_ptrcls(
-        mptrcls, '>', include_overlays=False, env=ctx.env)
+    target_rvar = dbobj.range_for_ptrref(
+        mptrref, include_overlays=False, env=ctx.env)
     target_alias = target_rvar.alias.aliasname
 
     target_tab_name = (target_rvar.relation.schemaname,
                        target_rvar.relation.name)
-
-    tab_cols = dbobj.cols_for_pointer(mptrcls, env=ctx.env)
 
     dml_cte_rvar = pgast.RangeVar(
         relation=dml_cte,
@@ -665,11 +617,9 @@ def process_link_update(
     )
 
     col_data = {
-        'ptr_item_id': pgast.ColumnRef(
-            name=[
-                lname_to_id.name,
-                'id'
-            ]
+        'ptr_item_id': pgast.TypeCast(
+            arg=pgast.StringConstant(val=str(mptrref.id)),
+            type_name=pgast.TypeName(name=('uuid',))
         ),
         'source': pathctx.get_rvar_path_identity_var(
             dml_cte_rvar, ir_stmt.subject.path_id, env=ctx.env)
@@ -701,16 +651,15 @@ def process_link_update(
     # Record the effect of this removal in the relation overlay
     # context to ensure that the RETURNING clause potentially
     # referencing this link yields the expected results.
-    overlays = ctx.env.rel_overlays[ptrcls.get_shortname(ctx.env.schema)]
+    overlays = ctx.env.rel_overlays[ptrref.shortname]
     overlays.append(('except', delcte))
     toplevel.ctes.append(delcte)
 
     # Turn the IR of the expression on the right side of :=
     # into a subquery returning records for the link table.
     data_cte, specified_cols = process_link_values(
-        ir_stmt, ir_expr, target_tab_name, tab_cols, col_data,
-        dml_cte_rvar, [lname_to_id_rvar],
-        props_only, target_is_scalar, iterator_cte, ctx=ctx)
+        ir_stmt, ir_set, target_tab_name, col_data,
+        dml_cte_rvar, [], props_only, target_is_scalar, iterator_cte, ctx=ctx)
 
     toplevel.ctes.append(data_cte)
 
@@ -791,7 +740,7 @@ def process_link_update(
     # Record the effect of this insertion in the relation overlay
     # context to ensure that the RETURNING clause potentially
     # referencing this link yields the expected results.
-    overlays = ctx.env.rel_overlays[ptrcls.get_shortname(ctx.env.schema)]
+    overlays = ctx.env.rel_overlays[ptrref.shortname]
     overlays.append(('union', updcte))
 
     toplevel.ctes.append(updcte)
@@ -817,10 +766,13 @@ def process_linkprop_update(
     toplevel = ctx.toplevel_stmt
 
     rptr = ir_expr.rptr
-    ptrcls = rptr.ptrcls
+    ptrref = rptr.ptrref
 
-    target_tab = dbobj.range_for_ptrcls(
-        ptrcls, '>', include_overlays=False, env=ctx.env)
+    if ptrref.material_ptr:
+        ptrref = ptrref.material_ptr
+
+    target_tab = dbobj.range_for_ptrref(
+        ptrref, include_overlays=False, env=ctx.env)
 
     dml_cte_rvar = pgast.RangeVar(
         relation=dml_cte,
@@ -838,7 +790,7 @@ def process_linkprop_update(
 
     targets = []
     for prop_el in ir_expr.shape:
-        ptrname = prop_el.rptr.ptrcls.get_shortname(ctx.env.schema)
+        ptrname = prop_el.rptr.ptrref.shortname
         with ctx.new() as input_rel_ctx:
             input_rel_ctx.expr_exposed = False
             input_rel = dispatch.compile(prop_el.expr, ctx=input_rel_ctx)
@@ -858,14 +810,14 @@ def process_linkprop_update(
 
     updcte = pgast.CommonTableExpr(
         query=updstmt,
-        name=ctx.env.aliases.get(ptrcls.get_shortname(ctx.env.schema).name)
+        name=ctx.env.aliases.get(ptrref.shortname.name)
     )
 
     toplevel.ctes.append(updcte)
 
 
 def process_link_values(
-        ir_stmt, ir_expr, target_tab, tab_cols, col_data,
+        ir_stmt, ir_expr, target_tab, col_data,
         dml_rvar, sources, props_only, target_is_scalar, iterator_cte, *,
         ctx=context.CompilerContext) -> \
         typing.Tuple[pgast.CommonTableExpr, typing.List[str]]:
@@ -875,8 +827,6 @@ def process_link_values(
         IR of the INSERT/UPDATE body element.
     :param target_tab:
         The link table being updated.
-    :param tab_cols:
-        A sequence of columns in the table being updated.
     :param col_data:
         Expressions used to populate well-known columns of the link
         table such as `source` and `__type__`.
@@ -945,7 +895,9 @@ def process_link_values(
 
     if shape_tuple is not None:
         for element in shape_tuple.elements:
-            name = element.path_id.rptr_name(ctx.env.schema)
+            if not element.path_id.is_linkprop_path():
+                continue
+            name = element.path_id.rptr_name()
             if name is None:
                 name = element.path_id.target_name
             colname = name.name
@@ -968,17 +920,12 @@ def process_link_values(
         source_data['target'] = target_ref
 
     specified_cols = []
-    for col in tab_cols:
-        expr = col_data.get(col)
-        if expr is None:
-            expr = source_data.get(col)
-
-        if expr is not None:
-            row_query.target_list.append(pgast.ResTarget(
-                val=expr,
-                name=col
-            ))
-            specified_cols.append(col)
+    for col, expr in collections.ChainMap(col_data, source_data).items():
+        row_query.target_list.append(pgast.ResTarget(
+            val=expr,
+            name=col
+        ))
+        specified_cols.append(col)
 
     row_query.from_clause += list(sources) + [input_rvar]
 

@@ -55,6 +55,8 @@ def get_schema_object(
         name = name.name
     elif isinstance(name, qlast.AnyType):
         return s_pseudo.Any.create()
+    elif isinstance(name, qlast.AnyTuple):
+        return s_pseudo.AnyTuple.create()
 
     if module:
         name = sn.Name(name=name, module=module)

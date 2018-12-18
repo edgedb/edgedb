@@ -24,9 +24,6 @@ import typing
 from edb.lang.ir import ast as irast
 from edb.lang.ir import utils as irutils
 
-from edb.lang.schema import objtypes as s_objtypes
-from edb.lang.schema import pointers as s_pointers
-
 from edb.server.pgsql import ast as pgast
 
 from . import astutils
@@ -64,14 +61,13 @@ def compile_shape(
 
         for el in shape:
             rptr = el.rptr
-            ptrcls = rptr.ptrcls
-            ptrdir = rptr.direction or s_pointers.PointerDirection.Outbound
-            is_singleton = ptrcls.singular(ctx.env.schema, ptrdir)
+            ptrref = rptr.ptrref
+            is_singleton = ptrref.dir_cardinality is irast.Cardinality.ONE
 
             if (irutils.is_subquery_set(el) or
-                    isinstance(el.stype, s_objtypes.ObjectType) or
+                    el.path_id.is_objtype_path() or
                     not is_singleton or
-                    not ptrcls.get_required(ctx.env.schema)):
+                    not ptrref.required):
                 wrapper = relgen.set_as_subquery(
                     el, as_value=True, ctx=shapectx)
                 if not is_singleton:

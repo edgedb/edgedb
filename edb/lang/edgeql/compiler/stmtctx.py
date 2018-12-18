@@ -105,7 +105,7 @@ def fini_expression(
         cb(ctx=ctx)
     ctx.completion_work.clear()
 
-    for ir_set in ctx.all_sets:
+    for ir_set in ctx.env.set_types:
         if ir_set.path_id.namespace:
             ir_set.path_id = ir_set.path_id.strip_weak_namespaces()
 
@@ -120,7 +120,7 @@ def fini_expression(
                 node.path_id = node.path_id.strip_weak_namespaces()
 
         cardinality = inference.infer_cardinality(
-            ir, scope_tree=ctx.path_scope, schema=ctx.env.schema)
+            ir, scope_tree=ctx.path_scope, env=ctx.env)
     else:
         cardinality = irast.Cardinality.ONE
 
@@ -285,8 +285,8 @@ def declare_view(
             subctx.stmt = ctx.stmt.parent_stmt
 
         if cached_view_set is not None:
-            subctx.view_scls = cached_view_set.stype
-            view_name = cached_view_set.stype.get_name(ctx.env.schema)
+            subctx.view_scls = setgen.get_set_type(cached_view_set, ctx=ctx)
+            view_name = subctx.view_scls.get_name(ctx.env.schema)
         else:
             if isinstance(alias, s_name.SchemaName):
                 basename = alias
@@ -307,7 +307,7 @@ def declare_view(
         # The view path id _itself_ should not be in the nested namespace.
         view_set.path_id = view_set.path_id.replace_namespace(
             ctx.path_id_namespace)
-        ctx.aliased_views[alias] = view_set.stype
+        ctx.aliased_views[alias] = setgen.get_set_type(view_set, ctx=ctx)
         ctx.path_scope_map[view_set] = subctx.path_scope
         ctx.expr_view_cache[expr, alias] = view_set
 
@@ -346,11 +346,10 @@ def infer_expr_cardinality(
     scope = pathctx.get_set_scope(ir_set=irexpr, ctx=ctx)
     if scope is None:
         scope = ctx.path_scope
-    return inference.infer_cardinality(
-        irexpr, scope_tree=scope, schema=ctx.env.schema)
+    return inference.infer_cardinality(irexpr, scope_tree=scope, env=ctx.env)
 
 
-def infer_pointer_cardinality(
+def _infer_pointer_cardinality(
         *,
         ptrcls: s_pointers.Pointer,
         irexpr: irast.Expr,
@@ -380,6 +379,7 @@ def infer_pointer_cardinality(
     ctx.env.schema = ptrcls.set_field_value(
         ctx.env.schema, 'cardinality', ptr_card)
     _update_cardinality_in_derived(ptrcls, ctx=ctx)
+    _update_cardinality_callbacks(ptrcls, ctx=ctx)
 
 
 def _update_cardinality_in_derived(
@@ -393,16 +393,47 @@ def _update_cardinality_in_derived(
             ctx.env.schema = child.set_field_value(
                 ctx.env.schema, 'cardinality', ptrcls_cardinality)
             _update_cardinality_in_derived(child, ctx=ctx)
+            _update_cardinality_callbacks(child, ctx=ctx)
+
+
+def _update_cardinality_callbacks(
+        ptrcls: s_pointers.Pointer, *,
+        ctx: context.ContextLevel) -> None:
+
+    pending = ctx.pending_cardinality.get(ptrcls)
+    if pending:
+        for cb in pending.callbacks:
+            cb(ptrcls, ctx=ctx)
 
 
 def pend_pointer_cardinality_inference(
         *,
         ptrcls: s_pointers.Pointer,
         specified_card: typing.Optional[irast.Cardinality] = None,
+        from_parent: bool=False,
         source_ctx: typing.Optional[parsing.ParserContext] = None,
         ctx: context.ContextLevel) -> None:
 
-    ctx.pending_cardinality[ptrcls] = (specified_card, source_ctx)
+    ctx.pending_cardinality[ptrcls] = context.PendingCardinality(
+        specified_cardinality=specified_card,
+        source_ctx=source_ctx,
+        from_parent=from_parent,
+        callbacks=[],
+    )
+
+
+def once_pointer_cardinality_is_inferred(
+        ptrcls: s_pointers.Pointer,
+        cb: typing.Callable, *,
+        ctx: context.ContextLevel) -> None:
+
+    pending = ctx.pending_cardinality.get(ptrcls)
+    if pending is None:
+        raise ValueError(
+            f'{ptrcls.get_name(ctx.env.schema)!r} is not pending '
+            f'the cardinality inference')
+
+    pending.callbacks.append(cb)
 
 
 def get_pointer_cardinality_later(
@@ -415,7 +446,7 @@ def get_pointer_cardinality_later(
 
     at_stmt_fini(
         functools.partial(
-            infer_pointer_cardinality,
+            _infer_pointer_cardinality,
             ptrcls=ptrcls,
             irexpr=irexpr,
             specified_card=specified_card,
@@ -439,6 +470,26 @@ def get_expr_cardinality_later(
         ctx=ctx)
 
 
+def ensure_ptrref_cardinality(
+        ptrcls: s_pointers.PointerLike,
+        ptrref: irast.BasePointerRef, *,
+        ctx: context.ContextLevel) -> None:
+
+    if ptrcls.get_cardinality(ctx.env.schema) is None:
+        # The cardinality of the pointer is not yet, known,
+        # schedule an update of the PointerRef when it
+        # becomes available
+        def _update_ref_cardinality(ptrcls, *, ctx):
+            if ptrcls.singular(ctx.env.schema, ptrref.direction):
+                ptrref.dir_cardinality = irast.Cardinality.ONE
+            else:
+                ptrref.dir_cardinality = irast.Cardinality.MANY
+            ptrref.out_cardinality = ptrcls.get_cardinality(ctx.env.schema)
+
+        once_pointer_cardinality_is_inferred(
+            ptrcls, _update_ref_cardinality, ctx=ctx)
+
+
 def enforce_singleton_now(
         irexpr: irast.Base, *,
         ctx: context.ContextLevel) -> None:
@@ -446,7 +497,7 @@ def enforce_singleton_now(
     if scope is None:
         scope = ctx.path_scope
     cardinality = inference.infer_cardinality(
-        irexpr, scope_tree=scope, schema=ctx.env.schema)
+        irexpr, scope_tree=scope, env=ctx.env)
     if cardinality != irast.Cardinality.ONE:
         raise errors.QueryError(
             'possibly more than one element returned by an expression '

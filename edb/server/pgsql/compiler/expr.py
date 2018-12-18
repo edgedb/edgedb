@@ -26,9 +26,8 @@ from edb import errors
 from edb.lang.edgeql import functypes as ql_ft
 
 from edb.lang.ir import ast as irast
+from edb.lang.ir import typeutils as irtyputils
 from edb.lang.ir import utils as irutils
-
-from edb.lang.schema import scalars as s_scalars
 
 from edb.server.pgsql import ast as pgast
 from edb.server.pgsql import common
@@ -104,7 +103,8 @@ def _compile_set_impl(
 
 @dispatch.compile.register(irast.Parameter)
 def compile_Parameter(
-        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
+        expr: irast.Parameter, *,
+        ctx: context.CompilerContextLevel) -> pgast.Base:
     if expr.name.isdecimal():
         index = int(expr.name) + 1
         result = pgast.ParamRef(number=index)
@@ -123,8 +123,7 @@ def compile_Parameter(
     return pgast.TypeCast(
         arg=result,
         type_name=pgast.TypeName(
-            name=pg_types.pg_type_from_object(
-                ctx.env.schema, expr.stype)
+            name=pg_types.pg_type_from_ir_typeref(expr.typeref)
         )
     )
 
@@ -137,8 +136,7 @@ def compile_RawStringConstant(
     return pgast.TypeCast(
         arg=pgast.StringConstant(val=expr.value),
         type_name=pgast.TypeName(
-            name=pg_types.pg_type_from_object(
-                ctx.env.schema, expr.stype)
+            name=pg_types.pg_type_from_ir_typeref(expr.typeref)
         )
     )
 
@@ -151,8 +149,7 @@ def compile_StringConstant(
     return pgast.TypeCast(
         arg=pgast.EscapedStringConstant(val=expr.value),
         type_name=pgast.TypeName(
-            name=pg_types.pg_type_from_object(
-                ctx.env.schema, expr.stype)
+            name=pg_types.pg_type_from_ir_typeref(expr.typeref)
         )
     )
 
@@ -173,8 +170,7 @@ def compile_IntegerConstant(
     return pgast.TypeCast(
         arg=pgast.NumericConstant(val=expr.value),
         type_name=pgast.TypeName(
-            name=pg_types.pg_type_from_object(
-                ctx.env.schema, expr.stype)
+            name=pg_types.pg_type_from_ir_typeref(expr.typeref)
         )
     )
 
@@ -187,8 +183,7 @@ def compile_FloatConstant(
     return pgast.TypeCast(
         arg=pgast.NumericConstant(val=expr.value),
         type_name=pgast.TypeName(
-            name=pg_types.pg_type_from_object(
-                ctx.env.schema, expr.stype)
+            name=pg_types.pg_type_from_ir_typeref(expr.typeref)
         )
     )
 
@@ -201,8 +196,7 @@ def compile_BooleanConstant(
     return pgast.TypeCast(
         arg=pgast.BooleanConstant(val=expr.value),
         type_name=pgast.TypeName(
-            name=pg_types.pg_type_from_object(
-                ctx.env.schema, expr.stype)
+            name=pg_types.pg_type_from_ir_typeref(expr.typeref)
         )
     )
 
@@ -217,8 +211,7 @@ def compile_TypeCast(
     if expr.sql_cast:
         # Use explicit SQL cast.
 
-        to_type = irutils.typeref_to_type(ctx.env.schema, expr.to_type)
-        pg_type = pg_types.pg_type_from_object(ctx.env.schema, to_type)
+        pg_type = pg_types.pg_type_from_ir_typeref(expr.to_type)
         return pgast.TypeCast(
             arg=pg_expr,
             type_name=pgast.TypeName(
@@ -358,8 +351,7 @@ def compile_OperatorCall(
         result = pgast.TypeCast(
             arg=result,
             type_name=pgast.TypeName(
-                name=pg_types.pg_type_from_object(
-                    ctx.env.schema, expr.stype)
+                name=pg_types.pg_type_from_ir_typeref(expr.typeref)
             )
         )
 
@@ -409,8 +401,7 @@ def compile_Array(
         return pgast.TypeCast(
             arg=array,
             type_name=pgast.TypeName(
-                name=pg_types.pg_type_from_object(
-                    ctx.env.schema, expr.stype)
+                name=pg_types.pg_type_from_ir_typeref(expr.typeref)
             )
         )
     else:
@@ -430,21 +421,22 @@ def compile_TupleIndirection(
 @dispatch.compile.register(irast.Tuple)
 def compile_Tuple(
         expr: irast.Tuple, *, ctx: context.CompilerContextLevel) -> pgast.Base:
-    ttype = expr.stype
-    ttypes = ttype.element_types
+    ttype = expr.typeref
+    ttypes = {}
+    for i, st in enumerate(ttype.subtypes):
+        if st.element_name:
+            ttypes[st.element_name] = st
+        else:
+            ttypes[str(i)] = st
     telems = list(ttypes)
-
-    path_id = irast.PathId.from_type(ctx.env.schema, ttype)
 
     elements = []
 
     for i, e in enumerate(expr.elements):
         telem = telems[i]
         ttype = ttypes[telem]
-        el_path_id = irutils.tuple_indirection_path_id(
-            path_id, telem, ttype, schema=ctx.env.schema)
         val = dispatch.compile(e.val, ctx=ctx)
-        elements.append(pgast.TupleElement(path_id=el_path_id, val=val))
+        elements.append(pgast.TupleElement(path_id=e.path_id, val=val))
 
     result = pgast.TupleVar(elements=elements)
 
@@ -454,12 +446,12 @@ def compile_Tuple(
 @dispatch.compile.register(irast.TypeRef)
 def compile_TypeRef(
         expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
-    if expr.subtypes:
+    if expr.collection:
         raise NotImplementedError()
     else:
         result = pgast.FuncCall(
             name=('edgedb', '_resolve_type_id'),
-            args=[pgast.StringConstant(val=expr.maintype)],
+            args=[pgast.StringConstant(val=expr.name)],
         )
 
     return result
@@ -479,8 +471,7 @@ def compile_FunctionCall(
         var = pgast.TypeCast(
             arg=pgast.ArrayExpr(elements=[]),
             type_name=pgast.TypeName(
-                name=pg_types.pg_type_from_object(
-                    ctx.env.schema, expr.variadic_param_type)
+                name=pg_types.pg_type_from_ir_typeref(expr.variadic_param_type)
             )
         )
 
@@ -500,8 +491,7 @@ def compile_FunctionCall(
         result = pgast.TypeCast(
             arg=result,
             type_name=pgast.TypeName(
-                name=pg_types.pg_type_from_object(
-                    ctx.env.schema, expr.stype)
+                name=pg_types.pg_type_from_ir_typeref(expr.typeref)
             )
         )
 
@@ -575,30 +565,27 @@ def _compile_set_in_singleton_mode(
         return dispatch.compile(node.expr, ctx=ctx)
     else:
         if node.rptr:
-            ptrcls = node.rptr.ptrcls
+            ptrref = node.rptr.ptrref
             source = node.rptr.source
 
-            if not ptrcls.is_link_property(ctx.env.schema):
-                if source.rptr:
-                    raise RuntimeError(
-                        'unexpectedly long path in simple expr')
+            if ptrref.parent_ptr is None and source.rptr is not None:
+                raise RuntimeError(
+                    'unexpectedly long path in simple expr')
 
-            ptr_stor_info = pg_types.get_pointer_storage_info(
-                ptrcls, schema=ctx.env.schema, resolve_type=False)
+            ptr_stor_info = pg_types.get_ptrref_storage_info(
+                ptrref, resolve_type=False)
 
             colref = pgast.ColumnRef(name=[ptr_stor_info.column_name])
-        elif isinstance(node.stype, s_scalars.ScalarType):
+        elif irtyputils.is_scalar(node.typeref):
             colref = pgast.ColumnRef(
                 name=[
-                    common.edgedb_name_to_pg_name(
-                        node.stype.get_name(ctx.env.schema))
+                    common.edgedb_name_to_pg_name(node.typeref.name)
                 ]
             )
         else:
             colref = pgast.ColumnRef(
                 name=[
-                    common.edgedb_name_to_pg_name(
-                        node.stype.get_name(ctx.env.schema))
+                    common.edgedb_name_to_pg_name(node.typeref.name)
                 ]
             )
 

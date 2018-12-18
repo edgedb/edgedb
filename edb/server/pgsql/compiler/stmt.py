@@ -19,8 +19,6 @@
 
 from edb.lang.ir import ast as irast
 
-from edb.lang.schema import objtypes as s_objtypes
-
 from edb.server.pgsql import ast as pgast
 
 from . import astutils
@@ -144,7 +142,7 @@ def compile_GroupStmt(
             # object in each partition if GROUP BY input is
             # a ObjectType, otherwise we generate the id using
             # row_number().
-            if isinstance(stmt.subject.stype, s_objtypes.ObjectType):
+            if stmt.subject.path_id.is_objtype_path():
                 first_val = pathctx.get_path_identity_var(
                     gquery, stmt.subject.path_id, env=ctx.env)
             else:

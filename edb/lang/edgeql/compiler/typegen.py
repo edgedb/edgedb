@@ -26,6 +26,7 @@ import typing
 from edb import errors
 
 from edb.lang.ir import ast as irast
+from edb.lang.ir import typeutils as irtyputils
 
 from edb.lang.schema import abc as s_abc
 from edb.lang.schema import objects as s_obj
@@ -108,31 +109,9 @@ def _ql_typeexpr_to_ir_typeref(
 def _ql_typeref_to_ir_typeref(
         ql_t: qlast.TypeName, *,
         ctx: context.ContextLevel) -> irast.TypeRef:
-    maintype = ql_t.maintype
-    subtypes = ql_t.subtypes
 
-    if subtypes:
-        typ = irast.TypeRef(
-            maintype=maintype.name,
-            subtypes=[]
-        )
-
-        for subtype in subtypes:
-            subtype = ql_typeref_to_ir_typeref(subtype, ctx=ctx)
-            typ.subtypes.append(subtype)
-    else:
-        styp = schemactx.get_schema_type(maintype, ctx=ctx)
-        if styp.is_any():
-            typ = irast.AnyTypeRef()
-        elif styp.is_anytuple():
-            typ = irast.AnyTupleRef()
-        else:
-            typ = irast.TypeRef(
-                maintype=styp.get_name(ctx.env.schema),
-                subtypes=[]
-            )
-
-    return typ
+    stype = ql_typeref_to_type(ql_t, ctx=ctx)
+    return irtyputils.type_to_typeref(ctx.env.schema, stype)
 
 
 def ql_typeref_to_type(

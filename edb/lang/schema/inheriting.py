@@ -707,10 +707,10 @@ class InheritingObject(derivable.DerivableObject):
                 return self._issubclass(schema, parent)
 
     def descendants(self, schema):
-        return schema._get_descendants(self)
+        return schema.get_descendants(self)
 
     def children(self, schema):
-        return schema._get_descendants(self, max_depth=0)
+        return schema.get_children(self)
 
     def acquire_ancestor_inheritance(self, schema, bases=None, *, dctx=None):
         if bases is None:

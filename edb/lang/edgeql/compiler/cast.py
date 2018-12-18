@@ -27,6 +27,7 @@ from edb import errors
 from edb.lang.common import parsing
 
 from edb.lang.ir import ast as irast
+from edb.lang.ir import typeutils as irtyputils
 from edb.lang.ir import utils as irutils
 
 from edb.lang.schema import casts as s_casts
@@ -38,6 +39,7 @@ from edb.lang.edgeql import functypes as ft
 from . import astutils
 from . import context
 from . import inference
+from . import pathctx
 from . import polyres
 from . import setgen
 from . import viewgen
@@ -51,16 +53,18 @@ def compile_cast(
     if isinstance(ir_expr, irast.EmptySet):
         # For the common case of casting an empty set, we simply
         # generate a new EmptySet node of the requested type.
-        return irutils.new_empty_set(ctx.env.schema, stype=new_stype,
-                                     alias=ir_expr.path_id.target_name.name)
+        return setgen.new_empty_set(stype=new_stype,
+                                    alias=ir_expr.path_id.target_name.name,
+                                    ctx=ctx)
 
     elif irutils.is_untyped_empty_array_expr(ir_expr):
         # Ditto for empty arrays.
+        new_typeref = irtyputils.type_to_typeref(ctx.env.schema, new_stype)
         return setgen.generated_set(
-            irast.Array(elements=[], stype=new_stype), ctx=ctx)
+            irast.Array(elements=[], typeref=new_typeref), ctx=ctx)
 
     ir_set = setgen.ensure_set(ir_expr, ctx=ctx)
-    orig_stype = ir_set.stype
+    orig_stype = setgen.get_set_type(ir_set, ctx=ctx)
 
     if orig_stype == new_stype:
         return ir_set
@@ -140,8 +144,8 @@ def _cast_to_ir(
         new_stype: s_types.Type, *,
         ctx: context.ContextLevel) -> irast.Set:
 
-    orig_typeref = irutils.type_to_typeref(ctx.env.schema, orig_stype)
-    new_typeref = irutils.type_to_typeref(ctx.env.schema, new_stype)
+    orig_typeref = irtyputils.type_to_typeref(ctx.env.schema, orig_stype)
+    new_typeref = irtyputils.type_to_typeref(ctx.env.schema, new_stype)
     cast_ir = irast.TypeCast(
         expr=ir_set,
         from_type=orig_typeref,
@@ -161,8 +165,8 @@ def _inheritance_cast_to_ir(
         new_stype: s_types.Type, *,
         ctx: context.ContextLevel) -> irast.Set:
 
-    orig_typeref = irutils.type_to_typeref(ctx.env.schema, orig_stype)
-    new_typeref = irutils.type_to_typeref(ctx.env.schema, new_stype)
+    orig_typeref = irtyputils.type_to_typeref(ctx.env.schema, orig_stype)
+    new_typeref = irtyputils.type_to_typeref(ctx.env.schema, new_stype)
     cast_ir = irast.TypeCast(
         expr=ir_set,
         from_type=orig_typeref,
@@ -263,17 +267,17 @@ def _cast_tuple(
         # objects (in elements of the tuple).
         elements = []
         for i, n in enumerate(orig_stype.element_types):
+            path_id = pathctx.get_tuple_indirection_path_id(
+                ir_set.path_id, n, orig_stype.element_types[n], ctx=ctx)
+
             val = setgen.generated_set(
                 irast.TupleIndirection(
                     expr=ir_set,
                     name=n
                 ),
+                path_id=path_id,
                 ctx=ctx
             )
-            val.path_id = irutils.tuple_indirection_path_id(
-                ir_set.path_id, n, orig_stype.element_types[n],
-                schema=ctx.env.schema)
-
             val_type = inference.infer_type(val, ctx.env)
             # Element cast
             val = compile_cast(val, new_stype, ctx=ctx, srcctx=srcctx)
@@ -284,6 +288,13 @@ def _cast_tuple(
             astutils.make_tuple(elements, named=orig_stype.named, ctx=ctx),
             ctx=ctx
         )
+
+        for el in elements:
+            el.path_id = pathctx.get_tuple_indirection_path_id(
+                new_tuple.path_id, el.name,
+                setgen.get_set_type(el.val, ctx=ctx),
+                ctx=ctx
+            ).strip_weak_namespaces()
 
         return _cast_to_ir(
             new_tuple, direct_cast, orig_stype, new_stype, ctx=ctx)
@@ -307,17 +318,17 @@ def _cast_tuple(
 
     elements = []
     for i, n in enumerate(orig_stype.element_types):
+        path_id = pathctx.get_tuple_indirection_path_id(
+            ir_set.path_id, n, orig_stype.element_types[n], ctx=ctx)
+
         val = setgen.generated_set(
             irast.TupleIndirection(
                 expr=ir_set,
                 name=n
             ),
+            path_id=path_id,
             ctx=ctx
         )
-        val.path_id = irutils.tuple_indirection_path_id(
-            ir_set.path_id, n, orig_stype.element_types[n],
-            schema=ctx.env.schema)
-
         val_type = inference.infer_type(val, ctx.env)
         new_el_name = new_names[i]
         new_subtypes = list(new_stype.get_subtypes())
@@ -328,8 +339,17 @@ def _cast_tuple(
 
         elements.append(irast.TupleElement(name=new_el_name, val=val))
 
-    return setgen.ensure_set(astutils.make_tuple(
+    new_tuple = setgen.ensure_set(astutils.make_tuple(
         named=new_stype.named, elements=elements, ctx=ctx), ctx=ctx)
+
+    for el in elements:
+        el.path_id = pathctx.get_tuple_indirection_path_id(
+            new_tuple.path_id, el.name,
+            setgen.get_set_type(el.val, ctx=ctx),
+            ctx=ctx
+        ).strip_weak_namespaces()
+
+    return new_tuple
 
 
 def _cast_array(
@@ -380,8 +400,8 @@ def _cast_array_literal(
         srcctx: parsing.ParserContext,
         ctx: context.ContextLevel) -> irast.Base:
 
-    orig_typeref = irutils.type_to_typeref(ctx.env.schema, orig_stype)
-    new_typeref = irutils.type_to_typeref(ctx.env.schema, new_stype)
+    orig_typeref = irtyputils.type_to_typeref(ctx.env.schema, orig_stype)
+    new_typeref = irtyputils.type_to_typeref(ctx.env.schema, new_stype)
 
     direct_cast = _find_cast(orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
@@ -401,7 +421,7 @@ def _cast_array_literal(
         casted_els.append(el)
 
     new_array = setgen.generated_set(
-        irast.Array(elements=casted_els, stype=orig_stype),
+        irast.Array(elements=casted_els, typeref=orig_typeref),
         ctx=ctx)
 
     if direct_cast is not None:

@@ -442,10 +442,18 @@ class DeclarationLoader:
                 self._schema, source, prop_target,
                 attrs=new_props)
 
+            if propdecl.cardinality is None:
+                if propdecl.expr is None:
+                    cardinality = qlast.Cardinality.ONE
+                else:
+                    cardinality = None
+            else:
+                cardinality = propdecl.cardinality
+
             self._schema = prop.update(self._schema, {
                 'declared_inherited': propdecl.inherited,
                 'required': bool(propdecl.required),
-                'cardinality': propdecl.cardinality,
+                'cardinality': cardinality,
             })
 
             if propdecl.expr is not None:
@@ -643,10 +651,18 @@ class DeclarationLoader:
                     attrs=new_props,
                     apply_defaults=not linkdecl.inherited)
 
+                if linkdecl.cardinality is None:
+                    if linkdecl.expr is None:
+                        cardinality = qlast.Cardinality.ONE
+                    else:
+                        cardinality = None
+                else:
+                    cardinality = linkdecl.cardinality
+
                 self._schema = link.update(self._schema, {
                     'spectargets': spectargets,
                     'required': bool(linkdecl.required),
-                    'cardinality': linkdecl.cardinality,
+                    'cardinality': cardinality,
                     'declared_inherited': linkdecl.inherited,
                 })
 

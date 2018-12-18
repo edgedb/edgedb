@@ -94,7 +94,11 @@ class PointerLike:
     # include actual schema properties and links, as well as
     # pseudo-links used by the compiler to represent things like
     # tuple and type indirection.
-    pass
+    def is_tuple_indirection(self):
+        return False
+
+    def is_type_indirection(self):
+        return False
 
 
 class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
@@ -137,13 +141,22 @@ class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
     def get_displayname(self, schema) -> str:
         return self.get_shortname(schema).name
 
+    def is_scalar(self) -> bool:
+        return False
+
     def material_type(self, schema):
         if self.generic(schema):
-            raise ValueError(f'{self!r} is generic')
-
-        source = self.get_source(schema)
-        return source.material_type(schema).getptr(
-            schema, self.get_shortname(schema).name)
+            return self
+        elif self.get_source(schema).is_scalar():
+            return self
+        else:
+            source = self.get_source(schema)
+            mptr = source.material_type(schema).getptr(
+                schema, self.get_shortname(schema).name)
+            if mptr is not None:
+                return mptr
+            else:
+                return self
 
     def get_near_endpoint(self, schema, direction):
         if direction == PointerDirection.Outbound:
@@ -390,37 +403,6 @@ class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
             return self.get_cardinality(schema) is qlast.Cardinality.ONE
         else:
             return self.is_exclusive(schema)
-
-
-class PointerVector(sn.Name):
-    __slots__ = ('module', 'name', 'direction', 'target', 'is_linkprop')
-
-    def __new__(cls, name, module=None, direction=PointerDirection.Outbound,
-                target=None, is_linkprop=False):
-        result = super().__new__(cls, name, module=module)
-        result.direction = direction
-        result.target = target
-        result.is_linkprop = is_linkprop
-        return result
-
-    def __repr__(self):
-        return '<edb.schema.PointerVector {}>'.format(self)
-
-    def __hash__(self):
-        if self.direction == PointerDirection.Outbound:
-            return super().__hash__()
-        else:
-            return hash((str(self), self.direction))
-
-    def __eq__(self, other):
-        if isinstance(other, PointerVector):
-            return (str(self) == str(other) and
-                    self.direction == other.direction)
-        elif isinstance(other, str):
-            return (str(self) == other and
-                    self.direction == PointerDirection.Outbound)
-        else:
-            return False
 
 
 class PointerCommandContext(sd.ObjectCommandContext):

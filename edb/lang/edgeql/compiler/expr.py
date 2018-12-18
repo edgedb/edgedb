@@ -28,7 +28,7 @@ from edb.lang.edgeql import functypes as ft
 
 from edb.lang.ir import ast as irast
 from edb.lang.ir import staeval as ireval
-from edb.lang.ir import utils as irutils
+from edb.lang.ir import typeutils as irtyputils
 
 from edb.lang.schema import abc as s_abc
 from edb.lang.schema import objtypes as s_objtypes
@@ -104,8 +104,9 @@ def compile_Parameter(
             context=expr.context)
 
     pt = ctx.env.query_parameters.get(expr.name)
+    typeref = irtyputils.type_to_typeref(ctx.env.schema, pt)
     return setgen.ensure_set(
-        irast.Parameter(stype=pt, name=expr.name), ctx=ctx)
+        irast.Parameter(typeref=typeref, name=expr.name), ctx=ctx)
 
 
 @dispatch.compile.register(qlast.DetachedExpr)
@@ -144,8 +145,7 @@ def compile_Set(
                 )
             return dispatch.compile(bigunion, ctx=ctx)
     else:
-        return irutils.new_empty_set(ctx.env.schema,
-                                     alias=ctx.aliases.get('e'))
+        return setgen.new_empty_set(alias=ctx.aliases.get('e'), ctx=ctx)
 
 
 @dispatch.compile.register(qlast.BaseConstant)
@@ -184,8 +184,9 @@ def compile_BaseConstant(
     else:
         raise RuntimeError(f'unexpected constant type: {type(expr)}')
 
-    ct = ctx.env.schema.get(std_type)
-    return setgen.generated_set(node_cls(value=value, stype=ct), ctx=ctx)
+    ct = irtyputils.type_to_typeref(
+        ctx.env.schema, ctx.env.schema.get(std_type))
+    return setgen.generated_set(node_cls(value=value, typeref=ct), ctx=ctx)
 
 
 def try_fold_binop(
@@ -198,7 +199,8 @@ def try_fold_binop(
 
         if (opcall.func_shortname in ('std::+', 'std::*') and
                 opcall.operator_kind is ft.OperatorKind.INFIX and
-                all(a.stype.issubclass(ctx.env.schema, anyreal)
+                all(setgen.get_set_type(a, ctx=ctx).issubclass(ctx.env.schema,
+                                                               anyreal)
                     for a in opcall.args)):
             return try_fold_associative_binop(opcall, ctx=ctx)
     else:
@@ -245,7 +247,7 @@ def try_fold_associative_binop(
                         operator_kind=opcall.operator_kind,
                         params_typemods=opcall.params_typemods,
                         context=opcall.context,
-                        stype=opcall.stype,
+                        typeref=opcall.typeref,
                         typemod=opcall.typemod,
                     ),
                     schema=ctx.env.schema,
@@ -266,7 +268,7 @@ def try_fold_associative_binop(
                     operator_kind=opcall.operator_kind,
                     params_typemods=opcall.params_typemods,
                     context=opcall.context,
-                    stype=opcall.stype,
+                    typeref=opcall.typeref,
                     typemod=opcall.typemod,
                 )
 
@@ -275,45 +277,52 @@ def try_fold_associative_binop(
     return folded
 
 
-@dispatch.compile.register(qlast.TupleElement)
-def compile_TupleElement(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    name = expr.name.name
-    if expr.name.module:
-        name = f'{expr.name.module}::{name}'
-
-    val = setgen.ensure_set(dispatch.compile(expr.val, ctx=ctx), ctx=ctx)
-
-    element = irast.TupleElement(
-        name=name,
-        val=val,
-    )
-
-    return element
-
-
 @dispatch.compile.register(qlast.NamedTuple)
 def compile_NamedTuple(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    elements = [dispatch.compile(e, ctx=ctx) for e in expr.elements]
-    tup = astutils.make_tuple(elements, named=True, ctx=ctx)
-    return setgen.generated_set(tup, ctx=ctx)
+        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
+
+    return _compile_tuple(expr, named=True, ctx=ctx)
 
 
 @dispatch.compile.register(qlast.Tuple)
 def compile_Tuple(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
+
+    return _compile_tuple(expr, named=False, ctx=ctx)
+
+
+def _compile_tuple(
+        expr: qlast.Base, *,
+        named: bool,
+        ctx: context.ContextLevel) -> irast.Set:
+
     elements = []
 
-    for i, el in enumerate(expr.elements):
-        element = irast.TupleElement(
-            name=str(i),
-            val=dispatch.compile(el, ctx=ctx)
-        )
-        elements.append(element)
+    if named:
+        for el in expr.elements:
+            element = irast.TupleElement(
+                name=el.name.name,
+                val=setgen.ensure_set(dispatch.compile(el.val, ctx=ctx),
+                                      ctx=ctx)
+            )
+            elements.append(element)
+    else:
+        for i, el in enumerate(expr.elements):
+            element = irast.TupleElement(
+                name=str(i),
+                val=setgen.ensure_set(dispatch.compile(el, ctx=ctx), ctx=ctx)
+            )
+            elements.append(element)
 
-    tup = astutils.make_tuple(elements, named=False, ctx=ctx)
-    return setgen.generated_set(tup, ctx=ctx)
+    tup = astutils.make_tuple(elements, named=named, ctx=ctx)
+    ir_set = setgen.generated_set(tup, ctx=ctx)
+
+    for elem in elements:
+        elem.path_id = pathctx.get_tuple_indirection_path_id(
+            ir_set.path_id, elem.name, setgen.get_set_type(elem.val, ctx=ctx),
+            ctx=ctx).strip_weak_namespaces()
+
+    return ir_set
 
 
 @dispatch.compile.register(qlast.Array)
@@ -408,8 +417,7 @@ def compile_UnaryOp(
 def compile_Coalesce(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     if all(isinstance(a, qlast.Set) and not a.elements for a in expr.args):
-        return irutils.new_empty_set(ctx.env.schema,
-                                     alias=ctx.aliases.get('e'))
+        return setgen.new_empty_set(alias=ctx.aliases.get('e'), ctx=ctx)
 
     # Due to the construction of relgen, the (unfenced) subscope
     # below is necessary to shield LHS paths from the outer query
@@ -448,7 +456,7 @@ def compile_TypeCast(
     target_typeref = typegen.ql_typeref_to_ir_typeref(expr.type, ctx=ctx)
 
     if (isinstance(expr.expr, qlast.Array) and not expr.expr.elements and
-            target_typeref.maintype == 'array'):
+            irtyputils.is_array(target_typeref)):
         ir_expr = irast.Array()
 
     elif isinstance(expr.expr, qlast.Parameter):
@@ -478,7 +486,7 @@ def compile_TypeCast(
                     context=expr.expr.context)
 
         param = irast.Parameter(
-            stype=pt, name=param_name, context=expr.expr.context)
+            typeref=pt, name=param_name, context=expr.expr.context)
         return setgen.ensure_set(param, ctx=ctx)
 
     else:

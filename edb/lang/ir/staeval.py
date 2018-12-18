@@ -121,7 +121,7 @@ def evaluate_OperatorCall(
     qlconst = qlast.BaseConstant.from_python(value)
 
     result = ql_compiler.compile_constant_tree_to_ir(
-        qlconst, stype=opcall.stype, schema=schema)
+        qlconst, styperef=opcall.typeref, schema=schema)
 
     return result
 
@@ -139,7 +139,7 @@ def int_const_to_python(
         ir: irast.IntegerConstant,
         schema: s_schema.Schema) -> object:
 
-    if ir.stype.get_name(schema) == 'std::decimal':
+    if ir.typeref.name == 'std::decimal':
         return decimal.Decimal(ir.value)
     else:
         return int(ir.value)
@@ -150,7 +150,7 @@ def float_const_to_python(
         ir: irast.FloatConstant,
         schema: s_schema.Schema) -> object:
 
-    if ir.stype.get_name(schema) == 'std::decimal':
+    if ir.typeref.name == 'std::decimal':
         return decimal.Decimal(ir.value)
     else:
         return float(ir.value)

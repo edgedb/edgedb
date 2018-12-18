@@ -22,7 +22,8 @@ import functools
 import typing
 import uuid
 
-from edb.lang.ir import utils as irutils
+from edb.lang.ir import ast as irast
+from edb.lang.ir import typeutils as irtyputils
 
 from edb.lang.schema import abc as s_abc
 from edb.lang.schema import scalars as s_scalars
@@ -168,7 +169,45 @@ def pg_type_from_object(
         raise ValueError(f'could not determine PG type for {obj!r}')
 
 
-class PointerStorageInfo:
+def pg_type_from_ir_typeref(
+        ir_typeref: irast.TypeRef) -> typing.Tuple[str, ...]:
+
+    if irtyputils.is_array(ir_typeref):
+        if (irtyputils.is_generic(ir_typeref)
+                or irtyputils.is_abstract(ir_typeref.subtypes[0])):
+            return ('anyarray',)
+        else:
+            tp = pg_type_from_ir_typeref(ir_typeref.subtypes[0])
+            if len(tp) == 1:
+                return (tp[0] + '[]',)
+            else:
+                return (tp[0], tp[1] + '[]')
+
+    elif irtyputils.is_tuple(ir_typeref) or irtyputils.is_anytuple(ir_typeref):
+        return ('record',)
+
+    elif irtyputils.is_any(ir_typeref):
+        return ('anyelement',)
+
+    else:
+        if ir_typeref.material_type:
+            material = ir_typeref.material_type
+        else:
+            material = ir_typeref
+
+        if irtyputils.is_abstract(material):
+            return ('anynonarray',)
+        elif irtyputils.is_object(material):
+            return ('uuid',)
+        else:
+            pg_type = base_type_name_map.get(material.name)
+            if pg_type is None:
+                raise ValueError(f'could not determine Postgres type for '
+                                 f'{material.name!r}')
+            return (pg_type,)
+
+
+class _PointerStorageInfo:
     @classmethod
     def _source_table_info(cls, schema, pointer):
         table = common.get_backend_name(
@@ -243,7 +282,7 @@ class PointerStorageInfo:
             pointer = source
             is_lprop = False
 
-        if isinstance(pointer, irutils.TupleIndirectionLink):
+        if isinstance(pointer, irast.TupleIndirectionLink):
             table = None
             table_type = 'ObjectType'
             col_name = pointer.get_shortname(schema).name
@@ -298,9 +337,121 @@ def get_pointer_storage_info(
         link_bias=False):
     assert not pointer.generic(schema), \
         "only specialized pointers can be stored"
-    return PointerStorageInfo(
+    return _PointerStorageInfo(
         schema, pointer, source=source, resolve_type=resolve_type,
         link_bias=link_bias)
+
+
+class PointerStorageInfo(typing.NamedTuple):
+
+    table_name: typing.Tuple[str, str]
+    table_type: str
+    column_name: str
+    column_type: typing.Tuple[str, str]
+
+
+@functools.lru_cache()
+def get_ptrref_storage_info(
+        ptrref: irast.PointerRef, *,
+        source=None, resolve_type=True, link_bias=False):
+
+    if ptrref.out_cardinality is None:
+        # Guard against the IR generator failure to populate the PointerRef
+        # cardinality correctly.
+        raise RuntimeError(
+            f'cannot determine backend storage parameters for the '
+            f'{ptrref.name!r} pointer: the cardinality is not known')
+
+    is_lprop = ptrref.parent_ptr is not None
+
+    if source is None:
+        if is_lprop:
+            source = ptrref.parent_ptr
+        else:
+            source = ptrref.out_source
+
+        target = ptrref.out_target
+
+    if is_lprop and ptrref.shortname == 'std::target':
+        # Normalize link@target to link
+        ptrref = source
+        is_lprop = False
+
+    if isinstance(ptrref, irast.TupleIndirectionPointerRef):
+        table = None
+        table_type = 'ObjectType'
+        col_name = ptrref.shortname.name
+
+    elif is_lprop:
+        table = common.get_pointer_backend_name(source.id, source.name)
+        table_type = 'link'
+        col_name = ptrref.shortname.name
+    else:
+        if irtyputils.is_scalar(source):
+            # This is a pseudo-link on an scalar (__type__)
+            table = None
+            table_type = 'ObjectType'
+            col_name = None
+
+        elif _storable_in_source(ptrref) and not link_bias:
+            table = common.get_objtype_backend_name(source.id, source.name)
+            col_name = ptrref.shortname.name
+            table_type = 'ObjectType'
+
+        elif _storable_in_pointer(ptrref):
+            table = common.get_pointer_backend_name(ptrref.id, ptrref.name)
+            col_name = 'target'
+            table_type = 'link'
+
+        elif not link_bias:
+            raise RuntimeError(
+                f'cannot determine backend storage parameters for the '
+                f'{ptrref.name} pointer: unexpected characteristics')
+
+        else:
+            return None
+
+    if resolve_type:
+        if irtyputils.is_object(target):
+            column_type = ('uuid',)
+        else:
+            column_type = pg_type_from_ir_typeref(target)
+    else:
+        column_type = None
+
+    return PointerStorageInfo(
+        table_name=table, table_type=table_type,
+        column_name=col_name, column_type=column_type
+    )
+
+
+def _storable_in_source(ptrref: irast.PointerRef) -> bool:
+    source = ptrref.out_source
+    if source.material_type is not None:
+        source = source.material_type
+
+    return (
+        (
+            ptrref.out_cardinality is irast.Cardinality.ONE
+            and not irtyputils.is_object(ptrref.out_target)
+        ) or
+        ptrref.shortname in {
+            'std::__type__',
+            'schema::element_type',
+            'schema::element_types',
+            'schema::key_type',
+        } or
+        (ptrref.shortname == 'schema::type' and
+            source.name != 'schema::Parameter')
+    )
+
+
+def _storable_in_pointer(ptrref: irast.PointerRef) -> bool:
+    return (
+        ptrref.out_cardinality is irast.Cardinality.MANY
+        or irtyputils.is_object(ptrref.out_target)
+        or ptrref.has_properties
+    )
 
 
 TYPE_ID_NAMESPACE = uuid.UUID('00e50276-2502-11e7-97f2-27fe51238dbd')

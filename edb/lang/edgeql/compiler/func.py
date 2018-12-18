@@ -25,6 +25,7 @@ import typing
 from edb import errors
 
 from edb.lang.ir import ast as irast
+from edb.lang.ir import typeutils as irtyputils
 from edb.lang.ir import utils as irutils
 
 from edb.lang.schema import name as sn
@@ -89,7 +90,9 @@ def compile_FunctionCall(
     variadic_param = matched_func_params.find_variadic(env.schema)
     variadic_param_type = None
     if variadic_param is not None:
-        variadic_param_type = variadic_param.get_type(env.schema)
+        variadic_param_type = irtyputils.type_to_typeref(
+            env.schema,
+            variadic_param.get_type(env.schema))
 
     matched_func_ret_type = matched_call.func.get_return_type(env.schema)
     is_polymorphic = (
@@ -111,7 +114,8 @@ def compile_FunctionCall(
         force_return_cast=func.get_force_return_cast(env.schema),
         params_typemods=params_typemods,
         context=expr.context,
-        stype=matched_call.return_type,
+        typeref=irtyputils.type_to_typeref(
+            env.schema, matched_call.return_type),
         typemod=matched_call.func.get_return_typemod(env.schema),
         has_empty_variadic=matched_call.has_empty_variadic,
         variadic_param_type=variadic_param_type,
@@ -125,7 +129,17 @@ def compile_FunctionCall(
         )
         node.func_initial_value = dispatch.compile(iv_ql, ctx=ctx)
 
-    return setgen.ensure_set(node, typehint=matched_call.return_type, ctx=ctx)
+    ir_set = setgen.ensure_set(
+        node, typehint=matched_call.return_type, ctx=ctx)
+
+    if matched_call.return_type.is_tuple():
+        node.tuple_path_ids = []
+        for n, st in matched_call.return_type.iter_subtypes():
+            path_id = pathctx.get_tuple_indirection_path_id(
+                ir_set.path_id, n, st, ctx=ctx)
+            node.tuple_path_ids.append(path_id.strip_weak_namespaces())
+
+    return ir_set
 
 
 def compile_operator(
@@ -232,7 +246,8 @@ def compile_operator(
         operator_kind=oper.get_operator_kind(env.schema),
         params_typemods=params_typemods,
         context=qlexpr.context,
-        stype=matched_call.return_type,
+        typeref=irtyputils.type_to_typeref(
+            env.schema, matched_call.return_type),
         typemod=oper.get_return_typemod(env.schema),
     )
 

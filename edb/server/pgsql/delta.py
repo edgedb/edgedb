@@ -386,7 +386,7 @@ class FunctionCommand:
                 raise ValueError('expression not constant')
 
             sql_tree = compiler.compile_ir_to_sql_tree(
-                ir.expr, schema=ir.schema, singleton_mode=True)
+                ir.expr, singleton_mode=True)
             return codegen.SQLSourceGenerator.to_source(sql_tree)
 
         except Exception as ex:
@@ -446,7 +446,6 @@ class CreateFunction(FunctionCommand, CreateObject,
 
         sql_text, _ = compiler.compile_ir_to_sql(
             body_ir,
-            schema=body_ir.schema,
             ignore_shapes=True,
             use_named_params=True)
 
@@ -1561,7 +1560,7 @@ class CreateSourceIndex(SourceIndexCommand, CreateObject,
             location='selector')
 
         sql_tree = compiler.compile_ir_to_sql_tree(
-            ir.expr, schema=ir.schema, singleton_mode=True)
+            ir.expr, singleton_mode=True)
         sql_expr = codegen.SQLSourceGenerator.to_source(sql_tree)
 
         if isinstance(sql_tree, pg_ast.ImplicitRowExpr):

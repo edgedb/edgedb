@@ -442,8 +442,7 @@ class Backend:
             type_desc=type_desc, tuple_registry=tuples)
 
         sql_text, argmap = compiler.compile_ir_to_sql(
-            query_ir, schema=query_ir.schema,
-            output_format=output_format, timer=timer)
+            query_ir, output_format=output_format, timer=timer)
 
         argtypes = {}
         for k, v in query_ir.params.items():

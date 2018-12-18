@@ -20,6 +20,7 @@
 import copy
 import collections.abc
 import functools
+import sys
 import typing
 
 import typing_inspect
@@ -53,8 +54,11 @@ class MetaAST(type):
         if '__annotations__' not in dct:
             return cls
 
+        globalns = sys.modules[cls.__module__].__dict__.copy()
+        globalns[cls.__name__] = cls
+
         try:
-            annos = typing.get_type_hints(cls)
+            annos = typing.get_type_hints(cls, globalns)
         except Exception:
             raise RuntimeError(
                 f'unable to resolve type annotations for '

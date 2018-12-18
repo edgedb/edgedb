@@ -32,6 +32,7 @@ from edb.lang.schema import functions as s_func
 from edb.lang.edgeql import ast as qlast
 from edb.lang.ir import ast as irast
 from edb.lang.ir import staeval as ireval
+from edb.lang.ir import typeutils as irtyputils
 
 from .decompiler import decompile_ir  # NOQA
 from . import dispatch
@@ -180,14 +181,16 @@ def compile_func_to_ir(func, schema, *,
         anchors = {}
 
     anchors['__defaults_mask__'] = irast.Parameter(
-        name='__defaults_mask__', stype=schema.get('std::bytes'))
+        name='__defaults_mask__',
+        typeref=irtyputils.type_to_typeref(schema, schema.get('std::bytes')))
 
     func_params = func.get_params(schema)
     pg_params = s_func.PgParams.from_params(schema, func_params)
     for pi, p in enumerate(pg_params.params):
         p_shortname = p.get_shortname(schema)
         anchors[p_shortname] = irast.Parameter(
-            name=p_shortname, stype=p.get_type(schema))
+            name=p_shortname,
+            typeref=irtyputils.type_to_typeref(schema, p.get_type(schema)))
 
         if p.get_default(schema) is None:
             continue
@@ -222,7 +225,8 @@ def compile_func_to_ir(func, schema, *,
     return ir
 
 
-def compile_constant_tree_to_ir(const, schema, *, stype=None, modaliases=None):
+def compile_constant_tree_to_ir(
+        const, schema, *, styperef=None, modaliases=None):
 
     ctx = stmtctx.init_context(
         schema=schema,
@@ -234,8 +238,9 @@ def compile_constant_tree_to_ir(const, schema, *, stype=None, modaliases=None):
 
     ir_set = dispatch.compile(const, ctx=ctx)
     result = ir_set.expr
-    if stype is not None:
-        result.stype = stype
-        result._inferred_type_ = stype
+    if styperef is not None:
+        result.typeref = styperef
+        if hasattr(result, '_inferred_type_'):
+            del result._inferred_type_
 
     return result

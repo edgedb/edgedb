@@ -26,9 +26,7 @@ import typing
 from edb.lang.common import enum as s_enum
 
 from edb.lang.ir import ast as irast
-from edb.lang.ir import utils as irutils
 
-from edb.lang.schema import abc as s_abc
 from edb.lang.schema import pointers as s_pointers
 
 from edb.server.pgsql import ast as pgast
@@ -113,11 +111,11 @@ def get_path_var(
     if (path_id, aspect) in rel.path_namespace:
         return rel.path_namespace[path_id, aspect]
 
-    ptrcls = path_id.rptr()
-    if ptrcls is not None:
-        ptr_info = pg_types.get_pointer_storage_info(
-            ptrcls, resolve_type=False, link_bias=False,
-            schema=env.schema)
+    ptrref = path_id.rptr()
+    is_type_indirection = isinstance(ptrref, irast.TypeIndirectionPointerRef)
+    if ptrref is not None and not is_type_indirection:
+        ptr_info = pg_types.get_ptrref_storage_info(
+            ptrref, resolve_type=False, link_bias=False)
         ptr_dir = path_id.rptr_dir()
         is_inbound = ptr_dir == s_pointers.PointerDirection.Inbound
         if is_inbound:
@@ -167,18 +165,19 @@ def get_path_var(
         put_path_var(rel, path_id, var, aspect=aspect, env=env)
         return var
 
-    if ptrcls is None:
+    if ptrref is None:
         if len(path_id) == 1:
             # This is an scalar set derived from an expression.
             src_path_id = path_id
 
-    elif ptrcls.is_link_property(env.schema):
+    elif ptrref.parent_ptr is not None:
         if ptr_info.table_type != 'link' and not is_inbound:
             # This is a link prop that is stored in source rel,
             # step back to link source rvar.
             src_path_id = path_id.src_path().src_path()
 
-    elif ptr_info.table_type != 'ObjectType' and not is_inbound:
+    elif (is_type_indirection or
+            (ptr_info.table_type != 'ObjectType' and not is_inbound)):
         # Ref is in the mapping rvar.
         src_path_id = path_id.ptr_path()
 
@@ -201,7 +200,7 @@ def get_path_var(
         else:
             src_aspect = aspect
 
-        if isinstance(src_path_id.rptr(), irutils.TupleIndirectionLink):
+        if isinstance(src_path_id.rptr(), irast.TupleIndirectionLink):
             rel_rvar = maybe_get_path_rvar(
                 rel, src_path_id, aspect=src_aspect, env=env)
 
@@ -234,7 +233,7 @@ def get_path_var(
     drilldown_path_id = map_path_id(path_id, rel.view_path_id_map)
 
     if source_rel in env.root_rels and len(source_rel.path_scope) == 1:
-        if not drilldown_path_id.is_objtype_path() and ptrcls is not None:
+        if not drilldown_path_id.is_objtype_path() and ptrref is not None:
             outer_path_id = drilldown_path_id.src_path()
         else:
             outer_path_id = drilldown_path_id
@@ -395,10 +394,9 @@ def get_path_output_alias(
         env: context.Environment) -> str:
     rptr = path_id.rptr()
     if rptr is not None:
-        ptrname = rptr.get_shortname(env.schema)
-        alias_base = ptrname.name
-    elif isinstance(path_id.target, s_abc.Collection):
-        alias_base = path_id.target.schema_name
+        alias_base = rptr.shortname.name
+    elif path_id.is_collection_path():
+        alias_base = path_id.target.collection
     else:
         _, _, alias_base = path_id.target_name.rpartition('::')
 
@@ -547,6 +545,37 @@ def _same_expr(expr1, expr2):
         return expr1 == expr2
 
 
+def _get_rel_object_id_output(
+        rel: pgast.BaseRelation, path_id: irast.PathId, *,
+        aspect: str,
+        ptr_info: typing.Optional[pg_types.PointerStorageInfo]=None,
+        env: context.Environment) -> pgast.OutputVar:
+
+    var = rel.path_outputs.get((path_id, aspect))
+    if var is not None:
+        return var
+
+    if isinstance(rel, pgast.NullRelation):
+        name = env.aliases.get('id')
+
+        val = pgast.TypeCast(
+            arg=pgast.NullConstant(),
+            type_name=pgast.TypeName(
+                name=('uuid',),
+            )
+        )
+
+        rel.target_list.append(pgast.ResTarget(name=name, val=val))
+        result = pgast.ColumnRef(name=[name], nullable=True)
+
+    else:
+        result = pgast.ColumnRef(name=['id'], nullable=False)
+
+    rel.path_outputs[path_id, aspect] = result
+
+    return result
+
+
 def _get_rel_path_output(
         rel: pgast.BaseRelation, path_id: irast.PathId, *,
         aspect: str,
@@ -562,9 +591,11 @@ def _get_rel_path_output(
                 f'invalid request for non-scalar path {path_id} {aspect}')
 
         if (path_id == rel.path_id or
-                (rel.path_id.is_type_indirection_path(env.schema) and
+                (rel.path_id.is_type_indirection_path() and
                  path_id == rel.path_id.src_path())):
-            path_id = irutils.get_id_path_id(path_id, schema=env.schema)
+
+            return _get_rel_object_id_output(
+                rel, path_id, aspect=aspect, env=env)
     else:
         if aspect == 'identity':
             raise LookupError(
@@ -577,7 +608,7 @@ def _get_rel_path_output(
     if var is not None:
         return var
 
-    ptrcls = path_id.rptr()
+    ptrref = path_id.rptr()
     rptr_dir = path_id.rptr_dir()
 
     if (rptr_dir is not None and
@@ -587,10 +618,12 @@ def _get_rel_path_output(
             f'on a base relation')
 
     if isinstance(rel, pgast.NullRelation):
-        if ptrcls is not None:
-            target = ptrcls.get_target(env.schema)
+        if ptrref is not None:
+            target = ptrref.out_target
         else:
             target = path_id.target
+
+        pg_type = pg_types.pg_type_from_ir_typeref(target)
 
         if ptr_info is not None:
             name = ptr_info.column_name
@@ -600,24 +633,23 @@ def _get_rel_path_output(
         val = pgast.TypeCast(
             arg=pgast.NullConstant(),
             type_name=pgast.TypeName(
-                name=pg_types.pg_type_from_object(env.schema, target)
+                name=pg_type,
             )
         )
 
         rel.target_list.append(pgast.ResTarget(name=name, val=val))
         result = pgast.ColumnRef(name=[name], nullable=True)
     else:
-        if ptrcls is None:
+        if ptrref is None:
             raise ValueError(
                 f'could not resolve trailing pointer class for {path_id}')
 
-        ptr_info = pg_types.get_pointer_storage_info(
-            ptrcls, resolve_type=False, link_bias=False,
-            schema=env.schema)
+        ptr_info = pg_types.get_ptrref_storage_info(
+            ptrref, resolve_type=False, link_bias=False)
 
         result = pgast.ColumnRef(
             name=[ptr_info.column_name],
-            nullable=not ptrcls.get_required(env.schema))
+            nullable=not ptrref.required)
     rel.path_outputs[path_id, aspect] = result
     return result
 

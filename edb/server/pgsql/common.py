@@ -25,8 +25,6 @@ import uuid
 from edb.lang.schema import casts as s_casts
 from edb.lang.schema import constraints as s_constr
 from edb.lang.schema import functions as s_func
-from edb.lang.schema import links as s_links
-from edb.lang.schema import lproperties as s_props
 from edb.lang.schema import modules as s_mod
 from edb.lang.schema import name as s_name
 from edb.lang.schema import objtypes as s_objtypes
@@ -153,7 +151,7 @@ def _scalar_name_to_domain_name(name, catenate=True, prefix='edgedb_', *,
     return convert_name(name, aspect, catenate)
 
 
-def _get_backend_objtype_name(schema, objtype, catenate=True, aspect=None):
+def get_objtype_backend_name(id, name, *, catenate=True, aspect=None):
     if aspect is None:
         aspect = 'table'
     if aspect not in (
@@ -165,8 +163,7 @@ def _get_backend_objtype_name(schema, objtype, catenate=True, aspect=None):
         raise ValueError(
             f'unexpected aspect for object type backend name: {aspect!r}')
 
-    name = s_name.Name(module=objtype.get_name(schema).module,
-                       name=str(objtype.id))
+    name = s_name.Name(module=name.module, name=str(id))
 
     if aspect != 'table':
         suffix = aspect
@@ -176,12 +173,9 @@ def _get_backend_objtype_name(schema, objtype, catenate=True, aspect=None):
     return convert_name(name, suffix=suffix, catenate=catenate)
 
 
-def _link_name_to_table_name(name, catenate=True):
-    return convert_name(name, 'link', catenate)
-
-
-def _prop_name_to_table_name(name, catenate=True):
-    return convert_name(name, 'prop', catenate)
+def get_pointer_backend_name(id, name, *, catenate=False):
+    name = s_name.Name(module=name.module, name=str(id))
+    return convert_name(name, suffix='', catenate=catenate)
 
 
 def schema_name_to_pg_name(name: s_name.Name):
@@ -266,13 +260,12 @@ def _get_backend_constraint_name(
 
 def get_backend_name(schema, obj, catenate=True, *, aspect=None):
     if isinstance(obj, s_objtypes.ObjectType):
-        return _get_backend_objtype_name(schema, obj, catenate, aspect=aspect)
+        return get_objtype_backend_name(
+            obj.id, obj.get_name(schema), catenate=catenate, aspect=aspect)
 
-    elif isinstance(obj, s_props.Property):
-        return _prop_name_to_table_name(obj.get_name(schema), catenate)
-
-    elif isinstance(obj, (s_links.Link, s_pointers.PointerLike)):
-        return _link_name_to_table_name(obj.get_name(schema), catenate)
+    elif isinstance(obj, s_pointers.PointerLike):
+        return get_pointer_backend_name(obj.id, obj.get_name(schema),
+                                        catenate=catenate)
 
     elif isinstance(obj, s_scalars.ScalarType):
         return _scalar_name_to_domain_name(

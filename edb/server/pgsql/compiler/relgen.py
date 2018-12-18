@@ -26,11 +26,8 @@ import typing
 from edb.lang.edgeql import functypes as ql_ft
 
 from edb.lang.ir import ast as irast
+from edb.lang.ir import typeutils as irtyputils
 from edb.lang.ir import utils as irutils
-
-from edb.lang.schema import abc as s_abc
-from edb.lang.schema import scalars as s_scalars
-from edb.lang.schema import objtypes as s_objtypes
 
 from edb.server.pgsql import ast as pgast
 from edb.server.pgsql import common
@@ -352,7 +349,7 @@ def set_to_array(
     if ir_set.path_id.is_objtype_path():
         val = output.prepare_tuple_for_aggregation(val, env=ctx.env)
 
-    pg_type = output.get_pg_type(ir_set.stype, ctx=ctx)
+    pg_type = output.get_pg_type(ir_set.typeref, ctx=ctx)
 
     array_agg = pgast.FuncCall(
         name=('array_agg',),
@@ -422,7 +419,7 @@ def prepare_optional_rel(
                     emptyrel = scopectx.rel
                     emptyrvar = relctx.new_empty_rvar(
                         irast.EmptySet(path_id=ir_set.path_id,
-                                       stype=ir_set.stype),
+                                       typeref=ir_set.typeref),
                         ctx=scopectx)
 
                     relctx.include_rvar(
@@ -533,17 +530,14 @@ def finalize_optional_rel(
 
 def get_set_rel_alias(ir_set: irast.Set, *,
                       ctx: context.CompilerContextLevel) -> str:
-    if ir_set.rptr is not None and ir_set.rptr.source.stype is not None:
+    if ir_set.rptr is not None and ir_set.rptr.source.typeref is not None:
         alias_hint = '{}_{}'.format(
-            ir_set.rptr.source.stype.get_name(ctx.env.schema).name,
-            ir_set.rptr.ptrcls.get_shortname(ctx.env.schema).name
+            ir_set.rptr.source.typeref.name.name,
+            ir_set.rptr.ptrref.shortname.name
         )
     else:
-        if isinstance(ir_set.stype, s_abc.Collection):
-            alias_hint = ir_set.stype.schema_name
-        else:
-            _, _, dname = ir_set.path_id.target_name.rpartition('::')
-            alias_hint = dname.replace('~', '-')
+        _, _, dname = ir_set.path_id.target_name.rpartition('::')
+        alias_hint = dname.replace('~', '-')
 
     return alias_hint
 
@@ -571,13 +565,12 @@ def process_set_as_link_property_ref(
     src_rvar = get_set_rvar(ir_source, ctx=ctx)
     rvars = []
 
-    lprop = ir_set.rptr.ptrcls
-    ptr_info = pg_types.get_pointer_storage_info(
-        lprop, resolve_type=False, link_bias=False,
-        schema=ctx.env.schema)
+    lpropref = ir_set.rptr.ptrref
+    ptr_info = pg_types.get_ptrref_storage_info(
+        lpropref, resolve_type=False, link_bias=False)
 
     if (ptr_info.table_type == 'ObjectType' or
-            lprop.get_shortname(ctx.env.schema) == 'std::target'):
+            lpropref.shortname == 'std::target'):
         # This is a singleton link property stored in source rel,
         # e.g. @target
         val = pathctx.get_rvar_path_var(
@@ -619,7 +612,7 @@ def process_set_as_path(
         ir_set: irast.Set, stmt: pgast.Query, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
     rptr = ir_set.rptr
-    ptrcls = rptr.ptrcls
+    ptrref = rptr.ptrref
     ir_source = rptr.source
 
     rvars = []
@@ -627,15 +620,15 @@ def process_set_as_path(
     # Path is a __type__ reference of a homogeneous set,
     # e.g {1, 2}.__type__.
     is_static_clsref = (
-        isinstance(ir_source.stype, s_scalars.ScalarType) and
-        ptrcls.get_shortname(ctx.env.schema) == 'std::__type__'
+        irtyputils.is_scalar(ir_source.typeref) and
+        ptrref.shortname == 'std::__type__'
     )
 
     if is_static_clsref:
         rvar = relctx.new_static_class_rvar(ir_set, ctx=ctx)
         return new_simple_set_rvar(ir_set, rvar, ['value', 'source'])
 
-    if ir_set.path_id.is_type_indirection_path(ctx.env.schema):
+    if ir_set.path_id.is_type_indirection_path():
         get_set_rvar(ir_source, ctx=ctx)
         poly_rvar = relctx.new_poly_rvar(ir_set, ctx=ctx)
         relctx.include_rvar(stmt, poly_rvar, ir_set.path_id, ctx=ctx)
@@ -643,16 +636,14 @@ def process_set_as_path(
         sub_rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
         return new_simple_set_rvar(ir_set, sub_rvar, ['value', 'source'])
 
-    ptr_info = pg_types.get_pointer_storage_info(
-        ptrcls, resolve_type=False, link_bias=False,
-        schema=ctx.env.schema)
+    ptr_info = pg_types.get_ptrref_storage_info(
+        ptrref, resolve_type=False, link_bias=False)
 
     # Path is a link property.
-    is_linkprop = ptrcls.is_link_property(ctx.env.schema)
+    is_linkprop = ptrref.parent_ptr is not None
     # Path is a reference to a relationship stored in the source table.
     is_inline_ref = ptr_info.table_type == 'ObjectType'
-    is_scalar_ref = not isinstance(ptrcls.get_target(ctx.env.schema),
-                                   s_objtypes.ObjectType)
+    is_scalar_ref = not irtyputils.is_object(ptrref.out_target)
     is_inline_scalar_ref = is_inline_ref and is_scalar_ref
     source_is_visible = ctx.scope_tree.is_visible(ir_source.path_id)
     semi_join = (
@@ -722,7 +713,7 @@ def process_set_as_path(
         rvars.append(map_rvar)
 
         # Target set range.
-        if isinstance(ir_set.stype, s_objtypes.ObjectType):
+        if irtyputils.is_object(ir_set.typeref):
             target_rvar = relctx.new_root_rvar(ir_set, ctx=ctx)
 
             main_rvar = SetRVar(
@@ -1144,13 +1135,17 @@ def process_set_as_tuple(
     with ctx.new() as subctx:
         elements = []
 
+        ttypes = {}
+        for i, st in enumerate(ir_set.typeref.subtypes):
+            if st.element_name:
+                ttypes[st.element_name] = st
+            else:
+                ttypes[str(i)] = st
+
         for element in expr.elements:
-            path_id = irutils.tuple_indirection_path_id(
-                ir_set.path_id, element.name,
-                ir_set.stype.get_subtype(ctx.env.schema, element.name),
-                schema=ctx.env.schema
-            )
-            stmt.view_path_id_map[path_id] = element.val.path_id
+            path_id = element.path_id
+            if path_id != element.val.path_id:
+                stmt.view_path_id_map[path_id] = element.val.path_id
 
             dispatch.visit(element.val, ctx=subctx)
             elements.append(pgast.TupleElement(path_id=path_id))
@@ -1201,12 +1196,18 @@ def process_set_as_tuple_indirection(
             type_sentinel = pgast.TypeCast(
                 arg=pgast.NullConstant(),
                 type_name=pgast.TypeName(
-                    name=pg_types.pg_type_from_object(
-                        subctx.env.schema, ir_set.stype)
+                    name=pg_types.pg_type_from_ir_typeref(ir_set.typeref)
                 )
             )
 
-            index = tuple_set.stype.index_of(ctx.env.schema, ir_set.expr.name)
+            ttypes = []
+            for i, st in enumerate(tuple_set.typeref.subtypes):
+                if st.element_name:
+                    ttypes.append(st.element_name)
+                else:
+                    ttypes.append(str(i))
+
+            index = ttypes.index(ir_set.expr.name)
             att_idx = pgast.NumericConstant(val=str(index + 1))
 
             set_expr = pgast.FuncCall(
@@ -1227,14 +1228,14 @@ def process_set_as_type_cast(
         ctx: context.CompilerContextLevel) -> SetRVars:
 
     inner_set = ir_set.expr.expr
-    is_json_cast = ir_set.expr.to_type.maintype == 'std::json'
+    is_json_cast = ir_set.expr.to_type.name == 'std::json'
 
     with ctx.new() as subctx:
         ctx.rel.view_path_id_map[ir_set.path_id] = inner_set.path_id
 
-        if (is_json_cast and
-                isinstance(inner_set.stype,
-                           (s_abc.ObjectType, s_abc.Collection))):
+        if (is_json_cast
+                and (irtyputils.is_collection(inner_set.typeref)
+                     or irtyputils.is_object(inner_set.typeref))):
             subctx.expr_exposed = True
             subctx.output_format = context.OutputFormat.JSON
             implicit_cast = True
@@ -1248,7 +1249,7 @@ def process_set_as_type_cast(
                 stmt, inner_set.path_id, env=subctx.env)
 
             if serialized is not None:
-                if isinstance(inner_set.stype, s_abc.Collection):
+                if irtyputils.is_collection(inner_set.typeref):
                     serialized = output.serialize_expr_to_json(
                         serialized, path_id=inner_set.path_id,
                         env=subctx.env)
@@ -1319,8 +1320,8 @@ def process_set_as_func_expr(
             var = pgast.TypeCast(
                 arg=pgast.ArrayExpr(elements=[]),
                 type_name=pgast.TypeName(
-                    name=pg_types.pg_type_from_object(
-                        ctx.env.schema, expr.variadic_param_type)
+                    name=pg_types.pg_type_from_ir_typeref(
+                        expr.variadic_param_type)
                 )
             )
 
@@ -1330,10 +1331,19 @@ def process_set_as_func_expr(
             name=name, args=args, with_ordinality=with_ordinality)
 
     if expr.typemod is ql_ft.TypeModifier.SET_OF:
-        rtype = expr.stype
+        rtype = expr.typeref
+        named_tuple = False
 
-        if isinstance(rtype, s_abc.Tuple):
-            colnames = list(rtype.element_types.keys())
+        if irtyputils.is_tuple(rtype):
+            subtypes = {}
+            for i, st in enumerate(rtype.subtypes):
+                if st.element_name:
+                    named_tuple = True
+                    subtypes[st.element_name] = st
+                else:
+                    subtypes[f'{i}'] = st
+
+            colnames = list(subtypes)
         else:
             colnames = [ctx.env.aliases.get('v')]
 
@@ -1353,19 +1363,14 @@ def process_set_as_func_expr(
             set_expr = pgast.TupleVar(
                 elements=[
                     pgast.TupleElement(
-                        path_id=irutils.tuple_indirection_path_id(
-                            ir_set.path_id,
-                            n,
-                            rtype.get_subtype(ctx.env.schema, n),
-                            schema=ctx.env.schema
-                        ),
+                        path_id=expr.tuple_path_ids[i],
                         name=n,
                         val=dbobj.get_column(
                             func_rvar, n, nullable=set_expr.nullable)
                     )
-                    for n in colnames
+                    for i, n in enumerate(colnames)
                 ],
-                named=rtype.named
+                named=named_tuple
             )
 
             if expr.func_shortname == 'std::array_enumerate':
@@ -1509,8 +1514,8 @@ def process_set_as_agg_expr(
 
                         query.sort_clause = []
 
-                if (isinstance(ir_arg.stype, s_scalars.ScalarType) and
-                        ir_arg.stype.get_bases(argctx.env.schema)):
+                if (irtyputils.is_scalar(ir_arg.typeref)
+                        and ir_arg.typeref.base_type is not None):
                     # Cast scalar refs to the base type in aggregate
                     # expressions, since PostgreSQL does not create array
                     # types for custom domains and will fail to process a
@@ -1519,8 +1524,8 @@ def process_set_as_agg_expr(
                     #
                     # XXX: Remove this once we switch to PostgreSQL 11,
                     #      which supports domain type arrays.
-                    pgtype = pg_types.pg_type_from_object(
-                        ctx.env.schema, ir_arg.stype, topbase=True)
+                    pgtype = pg_types.pg_type_from_ir_typeref(
+                        ir_arg.typeref.base_type)
                     pgtype = pgast.TypeName(name=pgtype)
                     arg_ref = pgast.TypeCast(arg=arg_ref, type_name=pgtype)
 
@@ -1542,8 +1547,7 @@ def process_set_as_agg_expr(
             set_expr = pgast.TypeCast(
                 arg=set_expr,
                 type_name=pgast.TypeName(
-                    name=pg_types.pg_type_from_object(
-                        ctx.env.schema, expr.stype)
+                    name=pg_types.pg_type_from_ir_typeref(expr.typeref)
                 )
             )
 
@@ -1638,8 +1642,7 @@ def process_set_as_array_expr(
         set_expr = pgast.TypeCast(
             arg=set_expr,
             type_name=pgast.TypeName(
-                name=pg_types.pg_type_from_object(
-                    ctx.env.schema, ir_set.expr.stype)
+                name=pg_types.pg_type_from_ir_typeref(ir_set.expr.typeref)
             )
         )
 
@@ -1653,8 +1656,7 @@ def process_set_as_array_expr(
             s_set_expr = pgast.TypeCast(
                 arg=s_set_expr,
                 type_name=pgast.TypeName(
-                    name=pg_types.pg_type_from_object(
-                        ctx.env.schema, ir_set.expr.stype)
+                    name=pg_types.pg_type_from_ir_typeref(ir_set.expr.typeref)
                 )
             )
 

@@ -21,10 +21,7 @@ import typing
 
 from edb.lang.ir import ast as irast
 
-from edb.lang.schema import objtypes as s_objtypes
-from edb.lang.schema import links as s_links
-from edb.lang.schema import objects as s_obj
-from edb.lang.schema import pointers as s_pointers
+from edb.lang.schema import name as sn
 
 from edb.server.pgsql import ast as pgast
 from edb.server.pgsql import common
@@ -35,20 +32,20 @@ from . import context
 
 
 def range_for_material_objtype(
-        objtype: s_objtypes.ObjectType,
+        typeref: irast.TypeRef,
         path_id: irast.PathId, *,
         include_overlays: bool=True,
         env: context.Environment) -> pgast.BaseRangeVar:
 
     from . import pathctx  # XXX: fix cycle
 
-    objtype = objtype.material_type(env.schema)
-    objtype_name = objtype.get_name(env.schema)
+    if typeref.material_type is not None:
+        typeref = typeref.material_type
 
-    table_schema_name, table_name = common.get_backend_name(
-        env.schema, objtype, catenate=False)
+    table_schema_name, table_name = common.get_objtype_backend_name(
+        typeref.id, typeref.name, catenate=False)
 
-    if objtype_name.module == 'schema':
+    if typeref.name.module == 'schema':
         # Redirect all queries to schema tables to edgedbss
         table_schema_name = 'edgedbss'
 
@@ -61,11 +58,11 @@ def range_for_material_objtype(
     rvar = pgast.RangeVar(
         relation=relation,
         alias=pgast.Alias(
-            aliasname=env.aliases.get(objtype_name.name)
+            aliasname=env.aliases.get(typeref.name.name)
         )
     )
 
-    overlays = env.rel_overlays.get(objtype_name)
+    overlays = env.rel_overlays.get(typeref.name)
     if overlays and include_overlays:
         set_ops = []
 
@@ -97,31 +94,29 @@ def range_for_material_objtype(
 
             set_ops.append((op, qry))
 
-        rvar = range_from_queryset(set_ops, objtype, env=env)
+        rvar = range_from_queryset(set_ops, typeref.name, env=env)
 
     return rvar
 
 
-def range_for_objtype(
-        objtype: s_objtypes.ObjectType,
+def range_for_typeref(
+        typeref: irast.TypeRef,
         path_id: irast.PathId, *,
         include_overlays: bool=True,
         env: context.Environment) -> pgast.BaseRangeVar:
     from . import pathctx  # XXX: fix cycle
 
-    if not objtype.get_is_virtual(env.schema):
+    if not typeref.children:
         rvar = range_for_material_objtype(
-            objtype, path_id, include_overlays=include_overlays, env=env)
+            typeref, path_id, include_overlays=include_overlays, env=env)
     else:
         # Union object types are represented as a UNION of selects
         # from their children, which is, for most purposes, equivalent
         # to SELECTing from a parent table.
-        children = frozenset(objtype.children(env.schema))
-
         set_ops = []
 
-        for child in children:
-            c_rvar = range_for_objtype(
+        for child in typeref.children:
+            c_rvar = range_for_typeref(
                 child, path_id=path_id,
                 include_overlays=include_overlays, env=env)
 
@@ -134,7 +129,7 @@ def range_for_objtype(
 
             set_ops.append(('union', qry))
 
-        rvar = range_from_queryset(set_ops, objtype, env=env)
+        rvar = range_from_queryset(set_ops, typeref.name, env=env)
 
     rvar.query.path_id = path_id
 
@@ -145,23 +140,19 @@ def range_for_set(
         ir_set: irast.Set, *,
         include_overlays: bool=True,
         env: context.Environment) -> pgast.BaseRangeVar:
-    rvar = range_for_objtype(
-        ir_set.stype, ir_set.path_id,
+    return range_for_typeref(
+        ir_set.typeref, ir_set.path_id,
         include_overlays=include_overlays, env=env)
 
-    return rvar
 
-
-def table_from_ptrcls(
-        ptrcls: s_links.Link, *,
+def table_from_ptrref(
+        ptrref: irast.PointerRef, *,
         env: context.Environment) -> pgast.RangeVar:
     """Return a Table corresponding to a given Link."""
-    table_schema_name, table_name = common.get_backend_name(
-        env.schema, ptrcls, catenate=False)
+    table_schema_name, table_name = common.get_pointer_backend_name(
+        ptrref.id, ptrref.name, catenate=False)
 
-    pname = ptrcls.get_shortname(env.schema)
-
-    if pname.module == 'schema':
+    if ptrref.shortname.module == 'schema':
         # Redirect all queries to schema tables to edgedbss
         table_schema_name = 'edgedbss'
 
@@ -171,30 +162,25 @@ def table_from_ptrcls(
     rvar = pgast.RangeVar(
         relation=relation,
         alias=pgast.Alias(
-            aliasname=env.aliases.get(pname.name)
+            aliasname=env.aliases.get(ptrref.shortname.name)
         )
     )
 
     return rvar
 
 
-def range_for_ptrcls(
-        ptrcls: s_links.Link, direction: s_pointers.PointerDirection, *,
+def range_for_ptrref(
+        ptrref: irast.BasePointerRef, *,
         include_overlays: bool=True,
         env: context.Environment) -> pgast.BaseRangeVar:
     """"Return a Range subclass corresponding to a given ptr step.
 
-    If `ptrcls` is a generic link, then a simple RangeVar is returned,
-    otherwise the return value may potentially be a UNION of all tables
+    The return value may potentially be a UNION of all tables
     corresponding to a set of specialized links computed from the given
-    `ptrcls` taking source inheritance into account.
+    `ptrref` taking source inheritance into account.
     """
-    linkname = ptrcls.get_shortname(env.schema).name
-    endpoint = ptrcls.get_source(env.schema)
-
-    tgt_col = pgtypes.get_pointer_storage_info(
-        ptrcls, resolve_type=False, link_bias=True,
-        schema=env.schema).column_name
+    tgt_col = pgtypes.get_ptrref_storage_info(
+        ptrref, resolve_type=False, link_bias=True).column_name
 
     cols = [
         'source',
@@ -203,23 +189,8 @@ def range_for_ptrcls(
 
     set_ops = []
 
-    ptrclses = set()
-
-    for source in {endpoint} | set(endpoint.descendants(env.schema)):
-        # Sift through the descendants to see who has this link
-        try:
-            ptr = source.getptr(env.schema, linkname)
-            src_ptrcls = ptr.material_type(env.schema)
-        except KeyError:
-            # This source has no such link, skip it
-            continue
-        else:
-            if src_ptrcls in ptrclses:
-                # Seen this link already
-                continue
-            ptrclses.add(src_ptrcls)
-
-        table = table_from_ptrcls(src_ptrcls, env=env)
+    for src_ptrref in {ptrref} | ptrref.descendants:
+        table = table_from_ptrref(src_ptrref, env=env)
 
         qry = pgast.SelectStmt()
         qry.from_clause.append(table)
@@ -234,7 +205,7 @@ def range_for_ptrcls(
 
         set_ops.append(('union', qry))
 
-        overlays = env.rel_overlays.get(src_ptrcls.get_shortname(env.schema))
+        overlays = env.rel_overlays.get(src_ptrref.shortname)
         if overlays and include_overlays:
             for op, cte in overlays:
                 rvar = pgast.RangeVar(
@@ -257,23 +228,23 @@ def range_for_ptrcls(
                 )
                 set_ops.append((op, qry))
 
-    rvar = range_from_queryset(set_ops, ptrcls, env=env)
+    rvar = range_from_queryset(set_ops, ptrref.shortname, env=env)
     return rvar
 
 
 def range_for_pointer(
-        pointer: s_links.Link, *,
+        pointer: irast.Pointer, *,
         env: context.Environment) -> pgast.BaseRangeVar:
-    ptrcls = pointer.ptrcls
-    if ptrcls.get_derived_from(env.schema) is not None:
-        ptrcls = ptrcls.get_nearest_non_derived_parent(env.schema)
+    ptrref = pointer.ptrref
+    if ptrref.derived_from_ptr is not None:
+        ptrref = ptrref.derived_from_ptr
 
-    return range_for_ptrcls(ptrcls, pointer.direction, env=env)
+    return range_for_ptrref(ptrref, env=env)
 
 
 def range_from_queryset(
         set_ops: typing.Sequence[typing.Tuple[str, pgast.BaseRelation]],
-        stype: s_obj.Object, *,
+        objname: sn.Name, *,
         env: context.Environment) -> pgast.BaseRangeVar:
     if len(set_ops) > 1:
         # More than one class table, generate a UNION/EXCEPT clause.
@@ -294,7 +265,7 @@ def range_from_queryset(
         rvar = pgast.RangeSubselect(
             subquery=qry,
             alias=pgast.Alias(
-                aliasname=env.aliases.get(stype.get_shortname(env.schema).name)
+                aliasname=env.aliases.get(objname.name),
             )
         )
 
@@ -442,9 +413,9 @@ def strip_output_var(
 
 
 def add_rel_overlay(
-        stype: s_objtypes.ObjectType, op: str, rel: pgast.BaseRelation, *,
+        typename: str, op: str, rel: pgast.BaseRelation, *,
         env: context.Environment) -> None:
-    overlays = env.rel_overlays[stype.get_name(env.schema)]
+    overlays = env.rel_overlays[typename]
     overlays.append((op, rel))
 
 
@@ -457,16 +428,3 @@ def cte_for_query(
             aliasname=env.aliases.get(rel.name)
         )
     )
-
-
-def cols_for_pointer(
-        pointer: s_pointers.Pointer, *,
-        env: context.Environment) -> typing.List[str]:
-    cols = ['ptr_item_id']
-
-    if isinstance(pointer, s_links.Link):
-        cols.extend(pointer.get_pointers(env.schema).keys(env.schema))
-    else:
-        cols.extend(('source', 'target'))
-
-    return cols

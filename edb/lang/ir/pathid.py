@@ -16,11 +16,15 @@
 # limitations under the License.
 #
 
+
+from __future__ import annotations
+
+from . import typeutils
+
 from edb.lang.schema import abc as s_abc
 from edb.lang.schema import name as sn
-from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import pointers as s_pointers
-from edb.lang.schema import scalars as s_scalars
+from edb.lang.schema import types as s_types
 
 
 class PathId:
@@ -52,13 +56,20 @@ class PathId:
 
     @classmethod
     def from_type(cls, schema, initializer, *, namespace=None, typename=None):
-        pid = cls()
         if not isinstance(initializer, s_abc.Type):
             raise ValueError(
                 f'invalid PathId: bad source: {initializer!r}')
+
+        initializer = typeutils.type_to_typeref(schema, initializer)
+        return cls.from_typeref(initializer, namespace=namespace,
+                                typename=typename)
+
+    @classmethod
+    def from_typeref(cls, initializer, *, namespace=None, typename=None):
+        pid = cls()
         pid._path = (initializer,)
         if typename is None:
-            typename = initializer.get_name(schema)
+            typename = initializer.name
         pid._norm_path = (typename,)
         pid._namespace = frozenset(namespace) if namespace else None
         return pid
@@ -276,10 +287,10 @@ class PathId:
         else:
             return None
 
-    def rptr_name(self, schema):
+    def rptr_name(self):
         rptr = self.rptr()
         if rptr is not None:
-            return rptr.get_shortname(schema)
+            return rptr.shortname
         else:
             return None
 
@@ -339,30 +350,52 @@ class PathId:
         else:
             return self
 
-    def extend(self, link, direction=None, target=None, *, ns=None, schema):
+    def extend(self, *, ptrcls, direction=None, target=None, ns=None, schema):
         if not self:
             raise ValueError('cannot extend empty PathId')
 
-        if link.generic(schema):
-            raise ValueError('path id must contain specialized links')
+        if ptrcls.generic(schema):
+            raise ValueError('path id must contain specialized pointers')
 
         if direction is None:
             direction = s_pointers.PointerDirection.Outbound
 
         if target is None:
-            target = link.get_far_endpoint(schema, direction)
+            target = ptrcls.get_far_endpoint(schema, direction)
 
-        is_linkprop = link.is_link_property(schema)
-        if is_linkprop and not self._is_ptr:
-            raise ValueError('link property path extension on a non-link path')
+        if isinstance(target, s_types.Type):
+            target_ref = typeutils.type_to_typeref(schema, target)
+        else:
+            target_ref = target
+
+        if target_ref.material_type is not None:
+            material_name = target_ref.material_type.name
+        else:
+            material_name = target_ref.name
+
+        is_linkprop = ptrcls.is_link_property(schema)
+        if is_linkprop:
+            if not self._is_ptr:
+                raise ValueError(
+                    'link property path extension on a non-link path')
+
+            ptr_ref = typeutils.ptrref_from_ptrcls(
+                source_ref=None, target_ref=target_ref,
+                parent_ptr=self.rptr(), ptrcls=ptrcls,
+                direction=direction, schema=schema,
+            )
+        else:
+            ptr_ref = typeutils.ptrref_from_ptrcls(
+                source_ref=self.target, target_ref=target_ref,
+                ptrcls=ptrcls, direction=direction, schema=schema,
+            )
 
         result = self.__class__()
-        result._path = self._path + ((link, direction), target)
-        link_name = link.get_path_id_name(schema) or link.get_name(schema)
+        result._path = self._path + ((ptr_ref, direction), target_ref)
+        link_name = ptrcls.get_path_id_name(schema) or ptrcls.get_name(schema)
         lnk = (link_name, direction, is_linkprop)
-        norm_target = target.material_type(schema)
         result._norm_path = (
-            self._norm_path + (lnk, norm_target.get_name(schema))
+            self._norm_path + (lnk, material_name)
         )
         result._is_linkprop = is_linkprop
 
@@ -398,16 +431,22 @@ class PathId:
         return self._norm_path[-1]
 
     def is_objtype_path(self):
-        return (
-            not self.is_ptr_path() and
-            isinstance(self.target, s_objtypes.ObjectType)
-        )
+        return not self.is_ptr_path() and typeutils.is_object(self.target)
 
     def is_scalar_path(self):
-        return (
-            not self.is_ptr_path() and
-            isinstance(self.target, s_scalars.ScalarType)
-        )
+        return not self.is_ptr_path() and typeutils.is_scalar(self.target)
+
+    def is_view_path(self):
+        return not self.is_ptr_path() and typeutils.is_view(self.target)
+
+    def is_tuple_path(self):
+        return not self.is_ptr_path() and typeutils.is_tuple(self.target)
+
+    def is_array_path(self):
+        return not self.is_ptr_path() and typeutils.is_array(self.target)
+
+    def is_collection_path(self):
+        return not self.is_ptr_path() and typeutils.is_collection(self.target)
 
     def is_ptr_path(self):
         return self._is_ptr
@@ -415,12 +454,12 @@ class PathId:
     def is_linkprop_path(self):
         return self._is_linkprop
 
-    def is_type_indirection_path(self, schema):
-        rptr = self.rptr()
-        if rptr is None:
+    def is_type_indirection_path(self):
+        rptr_name = self.rptr_name()
+        if rptr_name is None:
             return False
         else:
-            return rptr.get_shortname(schema) in (
+            return rptr_name in (
                 '__type__::indirection',
                 '__type__::optindirection',
             )

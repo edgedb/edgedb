@@ -26,6 +26,7 @@ import typing
 from edb import errors
 
 from edb.lang.ir import ast as irast
+from edb.lang.ir import typeutils as irtyputils
 
 from edb.lang.schema import links as s_links
 from edb.lang.schema import name as sn
@@ -289,11 +290,12 @@ def _normalize_view_ptr_expr(
                 ptrsource if is_linkprop else view_scls, ptrcls=ptrcls,
                 is_insert=is_insert, is_update=is_update)
 
-            sub_path_id = path_id.extend(
-                ptrcls,
+            sub_path_id = pathctx.extend_path_id(
+                path_id,
+                ptrcls=ptrcls,
                 target=ptrcls.get_target(ctx.env.schema),
                 ns=ctx.path_id_namespace,
-                schema=ctx.env.schema)
+                ctx=ctx)
 
             ctx.path_scope.attach_path(sub_path_id)
 
@@ -460,13 +462,17 @@ def _normalize_view_ptr_expr(
     if not is_mutation:
         if ptr_cardinality is None:
             if compexpr is not None:
-                stmtctx.pend_pointer_cardinality_inference(
-                    ptrcls=ptrcls,
-                    specified_card=shape_el.cardinality,
-                    source_ctx=shape_el.context,
-                    ctx=ctx)
+                from_parent = False
             elif ptrcls is not base_ptrcls:
                 ctx.pointer_derivation_map[base_ptrcls].append(ptrcls)
+                from_parent = True
+
+            stmtctx.pend_pointer_cardinality_inference(
+                ptrcls=ptrcls,
+                specified_card=shape_el.cardinality,
+                from_parent=from_parent,
+                source_ctx=shape_el.context,
+                ctx=ctx)
 
             ctx.env.schema = ptrcls.set_field_value(
                 ctx.env.schema, 'cardinality', None)
@@ -563,7 +569,7 @@ def _get_shape_configuration(
     """Return a list of (source_set, ptrcls) pairs as a shape for a given set.
     """
 
-    stype = ir_set.stype
+    stype = setgen.get_set_type(ir_set, ctx=ctx)
 
     sources = []
     link_view = False
@@ -572,17 +578,23 @@ def _get_shape_configuration(
     if rptr is None:
         rptr = ir_set.rptr
 
+    if rptr is not None:
+        rptrcls = irtyputils.ptrcls_from_ptrref(
+            rptr.ptrref, schema=ctx.env.schema)
+    else:
+        rptrcls = None
+
     link_view = (
-        rptr is not None and
-        not rptr.ptrcls.is_link_property(ctx.env.schema) and
-        _link_has_shape(rptr.ptrcls, ctx=ctx)
+        rptrcls is not None and
+        not rptrcls.is_link_property(ctx.env.schema) and
+        _link_has_shape(rptrcls, ctx=ctx)
     )
 
     if is_objtype or not link_view:
         sources.append(stype)
 
     if link_view:
-        sources.append(rptr.ptrcls)
+        sources.append(rptrcls)
 
     shape_ptrs = []
 
@@ -663,7 +675,7 @@ def _compile_view_shapes_in_set(
         else:
             pathctx.register_set_in_scope(ir_set, ctx=ctx)
 
-        stype = ir_set.stype
+        stype = setgen.get_set_type(ir_set, ctx=ctx)
 
         is_mutation = stype.get_view_type(ctx.env.schema) in (
             s_types.ViewType.Update, s_types.ViewType.Insert)

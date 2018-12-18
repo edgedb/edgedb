@@ -23,10 +23,9 @@
 import typing
 
 from edb.lang.ir import ast as irast
+from edb.lang.ir import typeutils as irtyputils
 from edb.lang.ir import utils as irutils
 
-from edb.lang.schema import links as s_links
-from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import pointers as s_pointers
 
 from edb.server.pgsql import ast as pgast
@@ -301,7 +300,7 @@ def new_empty_rvar(
 def new_root_rvar(
         ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
-    if not isinstance(ir_set.stype, s_objtypes.ObjectType):
+    if not ir_set.path_id.is_objtype_path():
         raise ValueError('cannot create root rvar for non-object path')
 
     set_rvar = dbobj.range_for_set(ir_set, env=ctx.env)
@@ -309,16 +308,15 @@ def new_root_rvar(
     set_rvar.value_scope.add(ir_set.path_id)
 
     if ir_set.rptr and ir_set.rptr.is_inbound:
-        ptrcls = ir_set.rptr.ptrcls
-        ptr_info = pg_types.get_pointer_storage_info(
-            ptrcls, resolve_type=False, link_bias=False,
-            schema=ctx.env.schema)
+        ptrref = ir_set.rptr.ptrref
+        ptr_info = pg_types.get_ptrref_storage_info(
+            ptrref, resolve_type=False, link_bias=False)
 
         if ptr_info.table_type == 'ObjectType':
             # Inline link
             rref = pgast.ColumnRef(
                 name=[ptr_info.column_name],
-                nullable=not ptrcls.get_required(ctx.env.schema))
+                nullable=not ptrref.required)
             pathctx.put_rvar_path_bond(
                 set_rvar, ir_set.path_id.src_path())
             pathctx.put_rvar_path_output(
@@ -343,11 +341,10 @@ def new_pointer_rvar(
         src_rvar: pgast.BaseRangeVar,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
 
-    ptrcls = ir_ptr.ptrcls
+    ptrref = ir_ptr.ptrref
 
-    ptr_info = pg_types.get_pointer_storage_info(
-        ptrcls, resolve_type=False, link_bias=link_bias,
-        schema=ctx.env.schema)
+    ptr_info = pg_types.get_ptrref_storage_info(
+        ptrref, resolve_type=False, link_bias=link_bias)
 
     if ptr_info.table_type == 'ObjectType':
         # Inline link
@@ -387,33 +384,24 @@ def _new_inline_pointer_rvar(
 def _new_mapped_pointer_rvar(
         ir_ptr: irast.Pointer, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
-    ptrcls = ir_ptr.ptrcls
+    ptrref = ir_ptr.ptrref
     ptr_rvar = dbobj.range_for_pointer(ir_ptr, env=ctx.env)
-    # Set up references according to the link direction.
-    if isinstance(ptrcls, s_links.Link):
-        # XXX: fix this once Properties are Sources
-        src_ptr_info = pg_types.get_pointer_storage_info(
-            ptrcls.getptr(ctx.env.schema, 'source'), resolve_type=False,
-            schema=ctx.env.schema)
-        src_col = src_ptr_info.column_name
-    else:
-        src_col = 'source'
+    src_col = 'source'
 
     source_ref = pgast.ColumnRef(name=[src_col], nullable=False)
 
-    if isinstance(ptrcls, s_links.Link):
-        # XXX: fix this once Properties are Sources
-        tgt_ptr_info = pg_types.get_pointer_storage_info(
-            ptrcls.getptr(ctx.env.schema, 'target'), resolve_type=False,
-            schema=ctx.env.schema)
+    if irtyputils.is_object(ptrref.out_target):
+        tgt_ptr_info = pg_types.get_ptrref_storage_info(
+            ptrref, resolve_type=False)
         tgt_col = tgt_ptr_info.column_name
     else:
         tgt_col = 'target'
 
     target_ref = pgast.ColumnRef(
         name=[tgt_col],
-        nullable=not ptrcls.get_required(ctx.env.schema))
+        nullable=not ptrref.required)
 
+    # Set up references according to the link direction.
     if ir_ptr.direction == s_pointers.PointerDirection.Inbound:
         near_ref = target_ref
         far_ref = source_ref
@@ -446,7 +434,7 @@ def new_rel_rvar(
         ir_set: irast.Set, stmt: pgast.Query, *,
         lateral: bool=True,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
-    if irutils.is_scalar_view_set(ir_set, schema=ctx.env.schema):
+    if irutils.is_scalar_view_set(ir_set):
         ensure_bond_for_expr(ir_set, stmt, ctx=ctx)
 
     return dbobj.rvar_for_rel(stmt, lateral=lateral, env=ctx.env)
@@ -457,9 +445,10 @@ def new_static_class_rvar(
         lateral: bool=True,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
     set_rvar = new_root_rvar(ir_set, ctx=ctx)
-    clsname = pgast.StringConstant(
-        val=ir_set.rptr.source.stype.material_type(ctx.env.schema).get_name(
-            ctx.env.schema))
+    source = ir_set.rptr.source.typeref
+    if source.material_type is not None:
+        source = source.material_type
+    clsname = pgast.StringConstant(val=source.name)
     nameref = dbobj.get_column(set_rvar, 'name', nullable=False)
     condition = astutils.new_binop(nameref, clsname, op='=')
     substmt = pgast.SelectStmt()
@@ -474,11 +463,6 @@ def semi_join(
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
     """Join an IR Set using semi-join."""
     rptr = ir_set.rptr
-    ptrcls = rptr.ptrcls
-    ptr_info = pg_types.get_pointer_storage_info(
-        ptrcls, resolve_type=False, link_bias=False,
-        schema=ctx.env.schema)
-    is_inline_ref = ptr_info.table_type == 'ObjectType'
 
     # Target set range.
     set_rvar = new_root_rvar(ir_set, ctx=ctx)
@@ -486,14 +470,8 @@ def semi_join(
     # Link range.
     map_rvar = new_pointer_rvar(rptr, src_rvar=src_rvar, ctx=ctx)
 
-    # Target identity in the target range.
-    if rptr.is_inbound and is_inline_ref:
-        tgt_pid = ir_set.path_id.extend(ptrcls, schema=ctx.env.schema)
-    else:
-        tgt_pid = ir_set.path_id
-
     tgt_ref = pathctx.get_rvar_path_identity_var(
-        set_rvar, tgt_pid, env=ctx.env)
+        set_rvar, ir_set.path_id, env=ctx.env)
 
     include_rvar(
         ctx.rel, map_rvar,

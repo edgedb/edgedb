@@ -23,6 +23,7 @@ from edb import errors
 
 from edb.lang.ir import ast as irast
 from edb.lang.ir import astexpr as irastexpr
+from edb.lang.ir import typeutils as irtyputils
 from edb.lang.ir import utils as ir_utils
 from edb.lang.edgeql import compiler as ql_compiler
 from edb.lang.edgeql import ast as qlast
@@ -70,15 +71,18 @@ class ConstraintMech:
         for ref in refs:
             rptr = ref.rptr
             if rptr is not None:
-                ptr = ref.rptr.ptrcls
+                ptrref = ref.rptr.ptrref
+                ptr = irtyputils.ptrcls_from_ptrref(ptrref, schema=schema)
                 if ptr.is_link_property(schema):
-                    src = ref.rptr.source.rptr.ptrcls
+                    srcref = ref.rptr.source.rptr.ptrref
+                    src = irtyputils.ptrcls_from_ptrref(srcref, schema=schema)
                     if src.get_is_derived(schema):
                         # This specialized pointer was derived specifically
                         # for the purposes of constraint expr compilation.
                         src = src.get_bases(schema).first(schema)
                 else:
-                    src = ref.rptr.source.stype
+                    src = irtyputils.ir_typeref_to_type(
+                        schema, ref.rptr.source.typeref)
                 ref_ptrs[ref] = (ptr, src)
 
         for ref, (ptr, src) in ref_ptrs.items():
@@ -123,7 +127,7 @@ class ConstraintMech:
     @classmethod
     def _edgeql_ref_to_pg_constr(cls, subject, tree, schema, link_bias):
         sql_tree = compiler.compile_ir_to_sql_tree(
-            tree, schema=schema, singleton_mode=True)
+            tree, singleton_mode=True)
 
         if isinstance(sql_tree, pg_ast.SelectStmt):
             # XXX: use ast pattern matcher for this
@@ -138,7 +142,7 @@ class ConstraintMech:
         if isinstance(tree.expr, irast.SelectStmt):
             tree = tree.expr.result
 
-        is_multicol = tree.stype.is_tuple()
+        is_multicol = irtyputils.is_tuple(tree.typeref)
 
         # Determine if the sequence of references are all simple refs, not
         # expressions.  This influences the type of Postgres constraint used.
@@ -402,7 +406,7 @@ def ptr_default_to_col_default(schema, ptr, expr):
         return None
 
     sql_expr = compiler.compile_ir_to_sql_tree(
-        ir, schema=ir.schema, singleton_mode=True)
+        ir, singleton_mode=True)
     sql_text = codegen.SQLSourceGenerator.to_source(sql_expr)
 
     return sql_text

@@ -137,13 +137,11 @@ class CompilerContext(compiler.CompilerContext):
 class Environment:
     """Static compilation environment."""
 
-    def __init__(self, *, schema, output_format, singleton_mode,
-                 use_named_params):
+    def __init__(self, *, output_format, singleton_mode, use_named_params):
         self.singleton_mode = singleton_mode
         self.aliases = aliases.AliasGenerator()
         self.root_rels = set()
         self.rel_overlays = collections.defaultdict(list)
         self.output_format = output_format
-        self.schema = schema
         self.tuple_formats = {}
         self.use_named_params = use_named_params
