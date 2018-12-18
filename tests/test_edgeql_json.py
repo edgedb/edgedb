@@ -233,7 +233,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 # FIXME: a different error should be used here, this
                 # one leaks postgres types
                 edgedb.InternalServerError,
-                r'cannot index json object by integer'):
+                r'cannot index json object by bigint'):
             await self.query(r"""
                 SELECT (to_json('{"a": 1, "b": null}'))[0];
             """)
@@ -345,7 +345,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 # FIXME: a different error should be used here, this
                 # one leaks postgres types
                 edgedb.InternalServerError,
-                r'cannot index json object by integer'):
+                r'cannot index json object by bigint'):
             await self.query(r"""
                 WITH
                     MODULE test,

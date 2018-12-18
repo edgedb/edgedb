@@ -265,18 +265,6 @@ def compile_IndexIndirection(
         subj = dispatch.compile(expr.expr, ctx=subctx)
         index = dispatch.compile(expr.index, ctx=subctx)
 
-    # If the index is some integer, cast it into int, because there's
-    # no backend function that handles indexes larger than int.
-    index_t = expr.index.stype
-    int_t = ctx.env.schema.get('std::anyint')
-    if index_t.issubclass(ctx.env.schema, int_t):
-        index = pgast.TypeCast(
-            arg=index,
-            type_name=pgast.TypeName(
-                name=('int',)
-            )
-        )
-
     result = pgast.FuncCall(
         name=('edgedb', '_index'),
         args=[subj, index, srcctx]
@@ -303,21 +291,6 @@ def compile_SliceIndirection(
             stop = pgast.NullConstant()
         else:
             stop = dispatch.compile(expr.stop, ctx=subctx)
-
-    # any integer indexes must be upcast into int to fit the helper
-    # function signature
-    start = pgast.TypeCast(
-        arg=start,
-        type_name=pgast.TypeName(
-            name=('int',)
-        )
-    )
-    stop = pgast.TypeCast(
-        arg=stop,
-        type_name=pgast.TypeName(
-            name=('int',)
-        )
-    )
 
     result = pgast.FuncCall(
         name=('edgedb', '_slice'),

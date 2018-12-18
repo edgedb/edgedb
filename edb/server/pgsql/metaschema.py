@@ -1021,7 +1021,7 @@ class NormalizeArrayIndexFunction(dbops.Function):
     def __init__(self):
         super().__init__(
             name=('edgedb', '_normalize_array_index'),
-            args=[('index', ('int',)), ('length', ('int',))],
+            args=[('index', ('bigint',)), ('length', ('int',))],
             returns=('int',),
             volatility='immutable',
             strict=True,
@@ -1042,7 +1042,7 @@ class ArrayIndexWithBoundsFunction(dbops.Function):
     def __init__(self):
         super().__init__(
             name=('edgedb', '_index'),
-            args=[('val', ('anyarray',)), ('index', ('int',)),
+            args=[('val', ('anyarray',)), ('index', ('bigint',)),
                   ('det', ('text',))],
             returns=('anyelement',),
             volatility='immutable',
@@ -1072,8 +1072,8 @@ class ArraySliceFunction(dbops.Function):
     def __init__(self):
         super().__init__(
             name=('edgedb', '_slice'),
-            args=[('val', ('anyarray',)), ('start', ('int',)),
-                  ('stop', ('int',))],
+            args=[('val', ('anyarray',)), ('start', ('bigint',)),
+                  ('stop', ('bigint',))],
             returns=('anyarray',),
             volatility='immutable',
             text=self.text)
@@ -1096,7 +1096,7 @@ class StringIndexWithBoundsFunction(dbops.Function):
     def __init__(self):
         super().__init__(
             name=('edgedb', '_index'),
-            args=[('val', ('text',)), ('index', ('int',)),
+            args=[('val', ('text',)), ('index', ('bigint',)),
                   ('det', ('text',))],
             returns=('text',),
             volatility='immutable',
@@ -1121,7 +1121,7 @@ class BytesIndexWithBoundsFunction(dbops.Function):
     def __init__(self):
         super().__init__(
             name=('edgedb', '_index'),
-            args=[('val', ('bytea',)), ('index', ('int',)),
+            args=[('val', ('bytea',)), ('index', ('bigint',)),
                   ('det', ('text',))],
             returns=('bytea',),
             volatility='immutable',
@@ -1135,14 +1135,14 @@ class SubstrProxyFunction(dbops.Function):
         SELECT
             CASE
                 WHEN length < 0 THEN ''
-                ELSE substr(val, start, length)
+                ELSE substr(val, start::int, length)
             END
     '''
 
     def __init__(self):
         super().__init__(
             name=('edgedb', '_substr'),
-            args=[('val', ('anyelement',)), ('start', ('int',)),
+            args=[('val', ('anyelement',)), ('start', ('bigint',)),
                   ('length', ('int',))],
             returns=('anyelement',),
             volatility='immutable',
@@ -1218,7 +1218,7 @@ class StringSliceImplFunction(dbops.Function):
             name=('edgedb', '_str_slice'),
             args=[
                 ('val', ('anyelement',)),
-                ('start', ('int',)), ('stop', ('int',))
+                ('start', ('bigint',)), ('stop', ('bigint',))
             ],
             returns=('anyelement',),
             volatility='immutable',
@@ -1236,7 +1236,7 @@ class StringSliceFunction(dbops.Function):
             name=('edgedb', '_slice'),
             args=[
                 ('val', ('text',)),
-                ('start', ('int',)), ('stop', ('int',))
+                ('start', ('bigint',)), ('stop', ('bigint',))
             ],
             returns=('text',),
             volatility='immutable',
@@ -1254,7 +1254,7 @@ class BytesSliceFunction(dbops.Function):
             name=('edgedb', '_slice'),
             args=[
                 ('val', ('bytea',)),
-                ('start', ('int',)), ('stop', ('int',))
+                ('start', ('bigint',)), ('stop', ('bigint',))
             ],
             returns=('bytea',),
             volatility='immutable',
@@ -1321,7 +1321,7 @@ class JSONIndexByIntFunction(dbops.Function):
             )
             WHEN 'array' THEN (
                 edgedb._raise_exception_on_null(
-                    val -> index,
+                    val -> index::int,
                     'invalid_parameter_value',
                     'json index ' || index::text || ' is out of bounds',
                     det
@@ -1340,7 +1340,7 @@ class JSONIndexByIntFunction(dbops.Function):
     def __init__(self):
         super().__init__(
             name=('edgedb', '_index'),
-            args=[('val', ('jsonb',)), ('index', ('int',)),
+            args=[('val', ('jsonb',)), ('index', ('bigint',)),
                   ('det', ('text',))],
             returns=('jsonb',),
             volatility='immutable',
@@ -1364,8 +1364,8 @@ class JSONSliceFunction(dbops.Function):
     def __init__(self):
         super().__init__(
             name=('edgedb', '_slice'),
-            args=[('val', ('jsonb',)), ('start', ('int',)),
-                  ('stop', ('int',))],
+            args=[('val', ('jsonb',)), ('start', ('bigint',)),
+                  ('stop', ('bigint',))],
             returns=('jsonb',),
             volatility='immutable',
             text=self.text)
