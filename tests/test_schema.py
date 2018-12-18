@@ -79,6 +79,16 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(s_err.SchemaError,
+                  'link or property name length exceeds the maximum.*',
+                  position=42)
+    def test_schema_bad_link_03(self):
+        """
+            type Object:
+                link f123456789_123456789_123456789_123456789_123456789\
+_123456789_123456789_123456789 -> Object
+        """
+
+    @tb.must_fail(s_err.SchemaError,
                   'invalid property target, expected primitive type, '
                   'got ObjectType',
                   position=58)
@@ -96,6 +106,16 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
             type Object:
                 property foo := (SELECT Object)
+        """
+
+    @tb.must_fail(s_err.SchemaError,
+                  'link or property name length exceeds the maximum.*',
+                  position=42)
+    def test_schema_bad_prop_03(self):
+        """
+            type Object:
+                property f123456789_123456789_123456789_123456789_123456789\
+_123456789_123456789_123456789 -> str
         """
 
     @tb.must_fail(s_err.SchemaError,
@@ -152,9 +172,9 @@ class TestSchema(tb.BaseSchemaLoadTest):
         Obj4 = schema.get('test::Object4')
         Obj5 = schema.get('test::Object5')
         Obj6 = schema.get('test::Object6')
-        foo = Obj2.getptr(schema, 'test::foo')
-        foo_target = foo.getptr(schema, 'std::target')
-        bar = Obj5.getptr(schema, 'test::bar')
+        foo = Obj2.getptr(schema, 'foo')
+        foo_target = foo.getptr(schema, 'target')
+        bar = Obj5.getptr(schema, 'bar')
 
         self.assertEqual(
             schema.get_referrers(Obj1),

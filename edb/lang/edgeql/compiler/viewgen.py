@@ -112,7 +112,7 @@ def _process_view(
                 view_rptr=view_rptr, ctx=scopectx))
 
     if is_insert:
-        explicit_ptrs = {ptrcls.get_shortname(ctx.env.schema)
+        explicit_ptrs = {ptrcls.get_shortname(ctx.env.schema).name
                          for ptrcls in pointers}
 
         scls_pointers = stype.get_pointers(ctx.env.schema)
@@ -225,7 +225,7 @@ def _normalize_view_ptr_expr(
         raise RuntimeError(
             f'unexpected path length in view shape: {len(steps)}')
 
-    ptrname = (lexpr.ptr.module, lexpr.ptr.name)
+    ptrname = lexpr.ptr.name
     ptrcls_is_derived = False
 
     compexpr = shape_el.compexpr
@@ -355,12 +355,11 @@ def _normalize_view_ptr_expr(
             base_ptrcls = ptrcls = None
 
             ptr_module = (
-                ptrname[0] or
                 ctx.derived_target_module or
                 stype.get_name(ctx.env.schema).module
             )
 
-            ptr_name = sn.SchemaName(module=ptr_module, name=ptrname[1])
+            ptr_name = sn.SchemaName(module=ptr_module, name=ptrname)
 
         qlexpr = astutils.ensure_qlstmt(compexpr)
 

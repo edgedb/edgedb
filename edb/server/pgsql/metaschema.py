@@ -557,8 +557,8 @@ class IsinstanceFunction(dbops.Function):
         );
 
         EXECUTE
-            'SELECT "std::__type__" FROM ' ||
-                ptabname || ' WHERE "std::id" = $1'
+            'SELECT "__type__" FROM ' ||
+                ptabname || ' WHERE "id" = $1'
             INTO clsid
             USING objid;
 
@@ -1614,8 +1614,8 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
             '''.format(
                 reftab='edgedb.{}'.format(refdict.ref_cls.__name__),
                 refattr=q(refdict.backref_attr),
-                src=dbname(sn.Name('std::source')),
-                tgt=dbname(sn.Name('std::target')),
+                src='source',
+                tgt='target',
             )
 
         inh_link_query = '''
@@ -1650,8 +1650,8 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
             schematab=schematab,
             reftab='edgedb.{}'.format(refdict.ref_cls.__name__),
             refattr=q(refdict.backref_attr),
-            src=dbname(sn.Name('std::source')),
-            tgt=dbname(sn.Name('std::target')),
+            src='source',
+            tgt='target',
         )
 
         if non_inh_link_query:
@@ -1674,9 +1674,9 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                     INNER JOIN edgedb.AttributeValue av ON q.{tgt} = av.id
             '''.format(
                 query=link_query,
-                src=dbname(sn.Name('std::source')),
-                tgt=dbname(sn.Name('std::target')),
-                valprop=dbname(sn.Name('schema::value')),
+                src='source',
+                tgt='target',
+                valprop='value',
             )
 
     else:
@@ -1701,9 +1701,9 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
             # Constraint args need special handling.
             link_query = f'''
                 SELECT
-                    q.id            AS {dbname('std::source')},
-                    q.param_id      AS {dbname('std::target')},
-                    q.value         AS {dbname('schema::value')}
+                    q.id            AS source,
+                    q.param_id      AS target,
+                    q.value         AS value
                 FROM
                     (SELECT
                         s.id        AS id,
@@ -1726,10 +1726,10 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
             # All other type fields are encoded as type_t.
             link_query = f'''
                 SELECT
-                    s.id        AS {dbname('std::source')},
+                    s.id        AS source,
                     (CASE WHEN t.collection IS NULL
                      THEN t.maintype ELSE t.id END)
-                                AS {dbname('std::target')}
+                                AS target
                 FROM
                     edgedb.{mcls.__name__} AS s,
                     LATERAL UNNEST ((s.{q(pn.name)}).types) AS t(
@@ -1759,8 +1759,8 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
             '''.format(
                 schematab='edgedb.{}'.format(mcls.__name__),
                 refattr=refattr,
-                src=dbname(sn.Name('std::source')),
-                tgt=dbname(sn.Name('std::target')),
+                src='source',
+                tgt='target',
             )
 
     return dbops.View(name=tabname(schema, ptr), query=link_query)
@@ -1771,7 +1771,7 @@ def _generate_database_view(schema):
 
     view_query = f'''
         SELECT
-            datname         AS {dbname('schema::name')}
+            datname         AS name
         FROM
             pg_database
         WHERE
@@ -1830,14 +1830,14 @@ def _generate_type_element_view(schema, type_fields):
         WITH
             types AS ({source})
         SELECT
-            q.id            AS {dbname('std::id')},
+            q.id            AS id,
             (SELECT id FROM edgedb.Object
                  WHERE name = 'schema::TypeElement')
-                            AS {dbname('std::__type__')},
+                            AS __type__,
             {_lookup_type('q.id')}
-                            AS {dbname('schema::type')},
-            q.name          AS {dbname('schema::name')},
-            q.num           AS {dbname('schema::num')}
+                            AS type,
+            q.name          AS name,
+            q.num           AS num
         FROM
             types AS q
         WHERE
@@ -1869,14 +1869,14 @@ def _generate_types_views(schema, type_fields):
         WITH
             types AS ({source})
         SELECT
-            q.id            AS {dbname('std::id')},
-            q.collection    AS {dbname('schema::name')},
+            q.id            AS id,
+            q.collection    AS name,
             (SELECT id FROM edgedb.Object
                  WHERE name = 'schema::Array')
-                            AS {dbname('std::__type__')},
+                            AS __type__,
             {_lookup_type('q.subtypes[1]')}
-                            AS {dbname('schema::element_type')},
-            q.dimensions    AS {dbname('schema::dimensions')}
+                            AS element_type,
+            q.dimensions    AS dimensions
         FROM
             types AS q
         WHERE
@@ -1889,14 +1889,14 @@ def _generate_types_views(schema, type_fields):
         WITH
             types AS ({source})
         SELECT
-            q.id            AS {dbname('std::id')},
-            q.collection    AS {dbname('schema::name')},
+            q.id            AS id,
+            q.collection    AS name,
             (SELECT id FROM edgedb.Object
                  WHERE name = 'schema::Array')
-                            AS {dbname('std::__type__')},
+                            AS __type__,
             (SELECT array_agg(t.id)
              FROM ({_lookup_types('q.subtypes')}) AS t)
-                            AS {dbname('schema::element_types')}
+                            AS element_types
         FROM
             types AS q
         WHERE
@@ -1944,14 +1944,14 @@ async def generate_views(conn, schema):
             if ptr.is_pure_computable(schema):
                 continue
 
-            field = mcls.get_field(pn.name)
+            field = mcls.get_field(pn)
             if field is not None and (field.ephemeral or
                                       not field.introspectable):
                 field = None
 
             refdict = None
             if field is None:
-                fn = classref_attr_aliases.get(pn.name, pn.name)
+                fn = classref_attr_aliases.get(pn, pn)
                 refdict = mcls.get_refdict(fn)
                 if refdict is not None and ptr.singular(schema):
                     # This is nether a field, nor a refdict, that's
@@ -1959,20 +1959,20 @@ async def generate_views(conn, schema):
                     raise RuntimeError(
                         'introspection schema error: {!r} must not be '
                         'singular'.format(
-                            '(' + schema_cls.name + ')' + '.' + pn.name))
+                            '(' + schema_cls.name + ')' + '.' + pn))
 
             if field is None and refdict is None:
-                if pn.name == 'id':
+                if pn == 'id':
                     # Id is present implicitly in schema tables.
                     pass
-                elif pn.name == '__type__':
+                elif pn == '__type__':
                     continue
                 else:
                     # This is nether a field, nor a refdict, that's
                     # not expected.
                     raise RuntimeError(
                         f'introspection schema error: cannot resolve '
-                        f'{schema_cls.get_name(schema)}.{pn.name} '
+                        f'{schema_cls.get_name(schema)}.{pn} '
                         f'into metadata reference')
 
             if field is not None:
@@ -1981,19 +1981,19 @@ async def generate_views(conn, schema):
                         not issubclass(ft, (s_obj.ObjectSet,
                                             s_obj.ObjectList))):
                     type_fields.append(
-                        (f'edgedb.{mcls.__name__}', pn.name)
+                        (f'edgedb.{mcls.__name__}', pn)
                     )
 
             ptrstor = types.get_pointer_storage_info(ptr, schema=schema)
 
             if ptrstor.table_type == 'ObjectType':
-                if pn.name == 'name' and issubclass(mcls, s_obj.Object):
+                if pn == 'name' and issubclass(mcls, s_obj.Object):
                     col_expr = 'edgedb.shortname_from_fullname(t.{})'.format(
-                        q(pn.name))
+                        q(ptrstor.column_name))
                 else:
-                    col_expr = f't.{q(pn.name)}'
+                    col_expr = f't.{q(ptrstor.column_name)}'
 
-                cols.append((col_expr, dbname(ptr.get_shortname(schema))))
+                cols.append((col_expr, pn))
             else:
                 view = _get_link_view(mcls, schema_cls, field, ptr, refdict,
                                       schema)
@@ -2006,7 +2006,7 @@ async def generate_views(conn, schema):
         view_query = f'''
             SELECT
                 {coltext.strip()},
-                no.id AS "std::__type__"
+                no.id AS "__type__"
             FROM
                 edgedb.{mcls.__name__} AS t
                 INNER JOIN pg_class AS c
@@ -2036,9 +2036,9 @@ async def generate_views(conn, schema):
     types_view.query += '\nUNION ALL\n' + '\nUNION ALL\n'.join(f'''
         (
             SELECT
-                "schema::name",
-                "std::id",
-                "std::__type__"
+                "name",
+                "id",
+                "__type__"
             FROM
                 {common.qname(*view.name)}
         )

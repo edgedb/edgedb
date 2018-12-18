@@ -187,9 +187,8 @@ class GQLCoreSchema:
         else:
             edb_type = self.edb_schema.get(typename)
             pointers = edb_type.get_pointers(self.edb_schema)
-            for name in sorted(pointers.shortnames(self.edb_schema),
-                               key=lambda x: x.name):
-                if name.name == '__type__':
+            for name in sorted(pointers.keys(self.edb_schema)):
+                if name == '__type__':
                     continue
 
                 self.edb_schema, ptr = edb_type.resolve_pointer(
@@ -204,7 +203,7 @@ class GQLCoreSchema:
                     else:
                         args = None
 
-                    fields[name.name] = GraphQLField(target, args=args)
+                    fields[name] = GraphQLField(target, args=args)
 
         return fields
 
@@ -219,14 +218,13 @@ class GQLCoreSchema:
 
         edb_type = self.edb_schema.get(typename)
         pointers = edb_type.get_pointers(self.edb_schema)
-        names = sorted(pointers.shortnames(self.edb_schema),
-                       key=lambda x: x.name)
+        names = sorted(pointers.keys(self.edb_schema))
         for name in names:
-            if name.name == '__type__':
+            if name == '__type__':
                 continue
-            if name.name in fields:
+            if name in fields:
                 raise g_errors.GraphQLCoreError(
-                    f"{name.name!r} of {typename} clashes with special "
+                    f"{name!r} of {typename} clashes with special "
                     "reserved fields required for GraphQL conversion"
                 )
 
@@ -240,7 +238,7 @@ class GQLCoreSchema:
             target = self._convert_edb_type(ptr.get_target(self.edb_schema))
             intype = self._gql_inobjtypes.get(f'Filter{target.name}')
             if intype:
-                fields[name.name] = GraphQLInputObjectField(intype)
+                fields[name] = GraphQLInputObjectField(intype)
 
         return fields
 
@@ -295,11 +293,10 @@ class GQLCoreSchema:
 
         edb_type = self.edb_schema.get(typename)
         pointers = edb_type.get_pointers(self.edb_schema)
-        names = sorted(pointers.shortnames(self.edb_schema),
-                       key=lambda x: x.name)
+        names = sorted(pointers.keys(self.edb_schema))
 
         for name in names:
-            if name.name == '__type__':
+            if name == '__type__':
                 continue
 
             self.edb_schema, ptr = edb_type.resolve_pointer(
@@ -314,7 +311,7 @@ class GQLCoreSchema:
             # that can be reflected into GraphQL
             intype = self._gql_inobjtypes.get(f'Filter{target.name}')
             if intype:
-                fields[name.name] = GraphQLInputObjectField(
+                fields[name] = GraphQLInputObjectField(
                     self._gql_ordertypes['Ordering']
                 )
 

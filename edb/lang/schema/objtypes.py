@@ -53,7 +53,11 @@ class ObjectType(BaseObjectType, constraints.ConsistencySubject,
 
     class ReversePointerResolver:
         @classmethod
-        def getptr_from_nqname(cls, schema, source, name):
+        def getptr(cls, schema, source, name):
+            if sn.Name.is_qualified(name):
+                raise ValueError(
+                    'references to concrete pointers must not be qualified')
+
             ptrs = set()
 
             for link in schema.get_objects(type=links.Link):
@@ -63,25 +67,6 @@ class ObjectType(BaseObjectType, constraints.ConsistencySubject,
                     ptrs.add(link)
 
             return ptrs
-
-        @classmethod
-        def getptr_from_fqname(cls, schema, source, name):
-            ptrs = set()
-
-            for link in schema.get_objects(type=links.Link):
-                if (link.get_shortname(schema) == name and
-                        link.get_target(schema) is not None and
-                        source.issubclass(schema, link.get_target(schema))):
-                    ptrs.add(link)
-
-            return ptrs
-
-        @classmethod
-        def getptr(cls, schema, source, name):
-            if sn.Name.is_qualified(name):
-                return cls.getptr_from_fqname(schema, source, name)
-            else:
-                return cls.getptr_from_nqname(schema, source, name)
 
         @classmethod
         def getptr_inherited_from(cls, source, schema,

@@ -101,7 +101,7 @@ class Link(sources.Source, pointers.Pointer):
         src_n = sn.Name('std::source')
         pointers = self.get_pointers(schema)
 
-        if not pointers.has(schema, src_n):
+        if not pointers.has(schema, 'source'):
             source_pbase = schema.get(src_n)
             schema, source_p = source_pbase.derive(
                 schema, self, self.get_source(schema),
@@ -110,7 +110,7 @@ class Link(sources.Source, pointers.Pointer):
             schema = self.add_pointer(schema, source_p)
 
         tgt_n = sn.Name('std::target')
-        if not pointers.has(schema, tgt_n):
+        if not pointers.has(schema, 'target'):
             target_pbase = schema.get(tgt_n)
             schema, target_p = target_pbase.derive(
                 schema, self, self.get_target(schema),

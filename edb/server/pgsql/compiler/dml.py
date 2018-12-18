@@ -37,7 +37,6 @@ from edb.lang.ir import ast as irast
 from edb.lang.schema import scalars as s_scalars
 
 from edb.server.pgsql import ast as pgast
-from edb.server.pgsql import common
 from edb.server.pgsql import types as pg_types
 
 from . import astutils
@@ -107,11 +106,10 @@ def init_dml_stmt(
 
         # Auxillary relations are always joined via the WHERE
         # clause due to the structure of the UPDATE/DELETE SQL statments.
-        id_col = common.edgedb_name_to_pg_name('std::id')
         dml_stmt.where_clause = astutils.new_binop(
             lexpr=pgast.ColumnRef(name=[
                 dml_stmt.relation.alias.aliasname,
-                id_col
+                'id'
             ]),
             op='=',
             rexpr=pathctx.get_rvar_path_identity_var(
@@ -258,13 +256,13 @@ def process_insert_body(
     :param insert_cte:
         CTE representing the SQL INSERT to the main relation of the Object.
     """
-    cols = [pgast.ColumnRef(name=['std::__type__'])]
+    cols = [pgast.ColumnRef(name=['__type__'])]
     select = pgast.SelectStmt(target_list=[])
     values = select.target_list
 
     # The main INSERT query of this statement will always be
-    # present to insert at least the std::id and std::__type__
-    # links.
+    # present to insert at least the `id` and `__type__`
+    # properties.
     insert_stmt = insert_cte.query
 
     insert_stmt.cols = cols
@@ -673,7 +671,7 @@ def process_link_update(
                 'id'
             ]
         ),
-        'std::source': pathctx.get_rvar_path_identity_var(
+        'source': pathctx.get_rvar_path_identity_var(
             dml_cte_rvar, ir_stmt.subject.path_id, env=ctx.env)
     }
 
@@ -682,10 +680,10 @@ def process_link_update(
         query=pgast.DeleteStmt(
             relation=target_rvar,
             where_clause=astutils.new_binop(
-                lexpr=col_data['std::source'],
+                lexpr=col_data['source'],
                 op='=',
                 rexpr=pgast.ColumnRef(
-                    name=[target_alias, 'std::source'])
+                    name=[target_alias, 'source'])
             ),
             using_clause=[dml_cte_rvar],
             returning_list=[
@@ -732,7 +730,7 @@ def process_link_update(
     # is executed in the snapshot where the above DELETE from
     # the link table is not visible.  Hence, we need to use
     # the ON CONFLICT clause to resolve this.
-    conflict_cols = ['std::source', 'std::target', 'ptr_item_id']
+    conflict_cols = ['source', 'target', 'ptr_item_id']
     conflict_inference = []
     conflict_exc_row = []
 
@@ -834,7 +832,7 @@ def process_linkprop_update(
     cond = astutils.new_binop(
         pathctx.get_rvar_path_identity_var(
             dml_cte_rvar, ir_stmt.subject.path_id, env=ctx.env),
-        dbobj.get_column(target_tab, 'std::source', nullable=False),
+        dbobj.get_column(target_tab, 'source', nullable=False),
         op='=',
     )
 
@@ -846,7 +844,7 @@ def process_linkprop_update(
             input_rel = dispatch.compile(prop_el.expr, ctx=input_rel_ctx)
             targets.append(
                 pgast.UpdateTarget(
-                    name=common.edgedb_name_to_pg_name(ptrname),
+                    name=ptrname.name,
                     val=input_rel
                 )
             )
@@ -881,7 +879,7 @@ def process_link_values(
         A sequence of columns in the table being updated.
     :param col_data:
         Expressions used to populate well-known columns of the link
-        table such as std::source and std::__type__.
+        table such as `source` and `__type__`.
     :param sources:
         A list of relations which must be joined into the data query
         to resolve expressions in *col_data*.
@@ -950,7 +948,7 @@ def process_link_values(
             name = element.path_id.rptr_name(ctx.env.schema)
             if name is None:
                 name = element.path_id.target_name
-            colname = common.edgedb_name_to_pg_name(name)
+            colname = name.name
             val = pathctx.get_rvar_path_value_var(
                 input_rvar, element.path_id, env=ctx.env)
             source_data.setdefault(colname, val)
@@ -962,12 +960,12 @@ def process_link_values(
             target_ref = pathctx.get_rvar_path_identity_var(
                 input_rvar, path_id, env=ctx.env)
 
-        source_data['std::target'] = target_ref
+        source_data['target'] = target_ref
 
-    if not target_is_scalar and 'std::target' not in source_data:
+    if not target_is_scalar and 'target' not in source_data:
         target_ref = pathctx.get_rvar_path_identity_var(
             input_rvar, path_id, env=ctx.env)
-        source_data['std::target'] = target_ref
+        source_data['target'] = target_ref
 
     specified_cols = []
     for col in tab_cols:

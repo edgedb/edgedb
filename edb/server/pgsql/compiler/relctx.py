@@ -30,7 +30,6 @@ from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import pointers as s_pointers
 
 from edb.server.pgsql import ast as pgast
-from edb.server.pgsql import common
 from edb.server.pgsql import types as pg_types
 
 from . import astutils
@@ -394,22 +393,22 @@ def _new_mapped_pointer_rvar(
     if isinstance(ptrcls, s_links.Link):
         # XXX: fix this once Properties are Sources
         src_ptr_info = pg_types.get_pointer_storage_info(
-            ptrcls.getptr(ctx.env.schema, 'std::source'), resolve_type=False,
+            ptrcls.getptr(ctx.env.schema, 'source'), resolve_type=False,
             schema=ctx.env.schema)
         src_col = src_ptr_info.column_name
     else:
-        src_col = common.edgedb_name_to_pg_name('std::source')
+        src_col = 'source'
 
     source_ref = pgast.ColumnRef(name=[src_col], nullable=False)
 
     if isinstance(ptrcls, s_links.Link):
         # XXX: fix this once Properties are Sources
         tgt_ptr_info = pg_types.get_pointer_storage_info(
-            ptrcls.getptr(ctx.env.schema, 'std::target'), resolve_type=False,
+            ptrcls.getptr(ctx.env.schema, 'target'), resolve_type=False,
             schema=ctx.env.schema)
         tgt_col = tgt_ptr_info.column_name
     else:
-        tgt_col = common.edgedb_name_to_pg_name('std::target')
+        tgt_col = 'target'
 
     target_ref = pgast.ColumnRef(
         name=[tgt_col],
@@ -461,9 +460,7 @@ def new_static_class_rvar(
     clsname = pgast.StringConstant(
         val=ir_set.rptr.source.stype.material_type(ctx.env.schema).get_name(
             ctx.env.schema))
-    nameref = dbobj.get_column(
-        set_rvar, common.edgedb_name_to_pg_name('schema::name'),
-        nullable=False)
+    nameref = dbobj.get_column(set_rvar, 'name', nullable=False)
     condition = astutils.new_binop(nameref, clsname, op='=')
     substmt = pgast.SelectStmt()
     include_rvar(substmt, set_rvar, ir_set.path_id, ctx=ctx)

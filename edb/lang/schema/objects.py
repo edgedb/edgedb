@@ -1385,28 +1385,6 @@ class ObjectCollection:
 
         return type(self)._container(result)
 
-    def shortnames(self, schema, *, allow_unresolved=False):
-        result = []
-
-        for item_id in self._ids:
-            if isinstance(item_id, ObjectRef):
-                try:
-                    obj = item_id._resolve_ref(schema)
-                except s_err.ItemNotFoundError:
-                    if allow_unresolved:
-                        result.append(
-                            sn.shortname_from_fullname(
-                                item_id.get_name(schema)))
-                    else:
-                        raise
-                else:
-                    result.append(obj.get_shortname(schema))
-            else:
-                obj = schema.get_by_id(item_id)
-                result.append(obj.get_shortname(schema))
-
-        return type(self)._container(result)
-
     def objects(self, schema):
         result = []
 
@@ -1550,13 +1528,21 @@ class ObjectIndexBase(ObjectCollection, container=tuple):
             return items.get(name, default)
 
 
-class ObjectIndexByFullname(ObjectIndexBase,
-                            key=lambda schema, o: o.get_name(schema)):
+class ObjectIndexByFullname(
+        ObjectIndexBase,
+        key=lambda schema, o: o.get_name(schema)):
     pass
 
 
-class ObjectIndexByShortname(ObjectIndexBase,
-                             key=lambda schema, o: o.get_shortname(schema)):
+class ObjectIndexByShortname(
+        ObjectIndexBase,
+        key=lambda schema, o: o.get_shortname(schema)):
+    pass
+
+
+class ObjectIndexByUnqualifiedName(
+        ObjectIndexBase,
+        key=lambda schema, o: o.get_shortname(schema).name):
     pass
 
 

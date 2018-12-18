@@ -56,10 +56,10 @@ class ErrorMech:
                 source_name = source.get_displayname(schema)
 
                 if err.column_name:
-                    pointer_name = sn.Name(err.column_name)
+                    pointer_name = err.column_name
 
             if pointer_name is not None:
-                pname = f'{source_name}.{pointer_name.name}'
+                pname = f'{source_name}.{pointer_name}'
 
                 return edgedb_error.MissingRequiredPointerError(
                     'missing value for required property {}'.format(pname),

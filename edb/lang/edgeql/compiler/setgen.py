@@ -180,7 +180,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                         f'is not an object type',
                         context=ptr_expr.target.context)
 
-            ptr_name = (ptr_expr.ptr.module, ptr_expr.ptr.name)
+            ptr_name = ptr_expr.ptr.name
 
             if ptr_expr.type == 'property':
                 # Link property reference; the source is the
@@ -296,7 +296,7 @@ def fuse_scope_branch(
 def ptr_step_set(
         path_tip: irast.Set, *,
         source: s_sources.Source,
-        ptr_name: typing.Tuple[str, str],
+        ptr_name: str,
         direction: PtrDir,
         ptr_target: typing.Optional[s_nodes.Node]=None,
         source_context: parsing.ParserContext,
@@ -322,19 +322,11 @@ def ptr_step_set(
 
 def resolve_ptr(
         near_endpoint: s_sources.Source,
-        ptr_name: typing.Tuple[str, str],
+        pointer_name: str,
         direction: s_pointers.PointerDirection,
         target: typing.Optional[s_nodes.Node]=None, *,
         source_context: typing.Optional[parsing.ParserContext]=None,
         ctx: context.ContextLevel) -> s_pointers.Pointer:
-    ptr_module, ptr_nqname = ptr_name
-
-    if ptr_module:
-        pointer = schemactx.get_schema_ptr(
-            name=ptr_nqname, module=ptr_module, ctx=ctx)
-        pointer_name = pointer.get_name(ctx.env.schema)
-    else:
-        pointer_name = ptr_nqname
 
     ptr = None
 
@@ -361,11 +353,11 @@ def resolve_ptr(
                     msg += f'of type {target.get_name(ctx.env.schema)!r}'
 
             else:
-                nep_name = near_endpoint.get_name(ctx.env.schema)
+                nep_name = near_endpoint.get_displayname(ctx.env.schema)
                 path = f'{nep_name}.{direction}{pointer_name}'
                 if target:
-                    path += f'[IS {target.get_name(ctx.env.schema)}]'
-                msg = f'{path} does not resolve to any known path',
+                    path += f'[IS {target.get_displayname(ctx.env.schema)}]'
+                msg = f'{path!r} does not resolve to any known path'
 
             err = errors.EdgeQLReferenceError(msg, context=source_context)
 
@@ -468,15 +460,11 @@ def _is_computable_ptr(
 def tuple_indirection_set(
         path_tip: irast.Set, *,
         source: s_sources.Source,
-        ptr_name: typing.Tuple[str, str],
+        ptr_name: str,
         source_context: parsing.ParserContext,
         ctx: context.ContextLevel) -> irast.Set:
 
-    if ptr_name[0] is not None:
-        el_name = '::'.join(ptr_name)
-    else:
-        el_name = ptr_name[1]
-
+    el_name = ptr_name
     el_norm_name = source.normalize_index(ctx.env.schema, el_name)
     el_type = source.get_subtype(ctx.env.schema, el_name)
 

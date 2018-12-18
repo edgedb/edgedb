@@ -48,6 +48,7 @@ from . import modules as s_mod
 from . import name as s_name
 from . import objects as s_obj
 from . import ordering as s_ordering
+from . import pointers as s_pointers
 from . import pseudo as s_pseudo
 from . import scalars as s_scalars
 from . import types as s_types
@@ -111,6 +112,13 @@ class DeclarationLoader:
             if objcls is s_constr.Constraint:
                 objcls_kw['return_type'] = self._schema.get('std::bool')
                 objcls_kw['return_typemod'] = ft.TypeModifier.SINGLETON
+
+            if issubclass(objcls, s_pointers.Pointer):
+                if len(decl.name) > s_pointers.MAX_NAME_LENGTH:
+                    raise s_err.SchemaError(
+                        f'link or property name length exceeds the maximum of '
+                        f'{s_pointers.MAX_NAME_LENGTH} characters',
+                        context=decl.context)
 
             self._schema, obj = objcls.create_in_schema(
                 self._schema,
@@ -361,6 +369,12 @@ class DeclarationLoader:
     def _parse_source_props(self, source, sourcedecl):
         for propdecl in sourcedecl.properties:
             prop_name = self._get_ref_name(propdecl.name)
+            if len(prop_name) > s_pointers.MAX_NAME_LENGTH:
+                raise s_err.SchemaError(
+                    f'link or property name length exceeds the maximum of '
+                    f'{s_pointers.MAX_NAME_LENGTH} characters',
+                    context=propdecl.context)
+
             prop_base = self._schema.get(prop_name,
                                          type=s_props.Property,
                                          default=None,
@@ -409,13 +423,13 @@ class DeclarationLoader:
 
             elif not source.generic(self._schema):
                 link_base = source.get_bases(self._schema).first(self._schema)
-                propdef = link_base.getptr(self._schema, prop_qname)
+                propdef = link_base.getptr(self._schema, prop_qname.name)
                 if not propdef:
                     raise s_err.SchemaError(
                         'link {!r} does not define property '
                         '{!r}'.format(
                             source.get_name(self._schema),
-                            prop_qname))
+                            prop_qname.name))
 
                 prop_qname = propdef.get_shortname(self._schema)
 
@@ -556,6 +570,12 @@ class DeclarationLoader:
 
             for linkdecl in objtypedecl.links:
                 link_name = self._get_ref_name(linkdecl.name)
+                if len(link_name) > s_pointers.MAX_NAME_LENGTH:
+                    raise s_err.SchemaError(
+                        f'link or property name length exceeds the maximum of '
+                        f'{s_pointers.MAX_NAME_LENGTH} characters',
+                        context=linkdecl.context)
+
                 link_base = self._schema.get(link_name, type=s_links.Link,
                                              default=None,
                                              module_aliases=self._mod_aliases)
@@ -663,7 +683,7 @@ class DeclarationLoader:
                     prop_name, module_aliases=self._mod_aliases)
                 spec_prop = link.getptr(
                     self._schema,
-                    generic_prop.get_name(self._schema))
+                    generic_prop.get_name(self._schema).name)
 
                 if propdecl.expr is not None:
                     # Computable
@@ -677,7 +697,7 @@ class DeclarationLoader:
                 generic_link = self._schema.get(
                     link_name, module_aliases=self._mod_aliases)
                 spec_link = objtype.getptr(
-                    self._schema, generic_link.get_name(self._schema))
+                    self._schema, generic_link.get_name(self._schema).name)
                 self._parse_subject_constraints(spec_link, linkdecl)
 
     def _normalize_objtype_expressions(self, objtype, typedecl):
@@ -687,7 +707,7 @@ class DeclarationLoader:
             generic_link = self._schema.get(
                 link_name, module_aliases=self._mod_aliases)
             spec_link = objtype.getptr(
-                self._schema, generic_link.get_name(self._schema))
+                self._schema, generic_link.get_name(self._schema).name)
 
             if ptrdecl.expr is not None:
                 # Computable
@@ -743,8 +763,7 @@ class DeclarationLoader:
                     )
 
             if isinstance(ptr, s_links.Link):
-                pname = s_name.Name('std::target')
-                tgt_prop = ptr.getptr(self._schema, pname)
+                tgt_prop = ptr.getptr(self._schema, 'target')
                 self._schema = tgt_prop.set_field_value(
                     self._schema, 'target', expr_type)
 

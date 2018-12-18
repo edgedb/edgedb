@@ -985,18 +985,12 @@ class ScalarTypeMetaCommand(ViewCapableObjectMetaCommand):
             self.pgops.add(dbops.CreateDomain(name=domain_name, base=base))
 
         for host_class, item_class in users:
-            if isinstance(item_class, s_links.Link):
-                name = item_class.get_shortname(schema)
-            else:
-                name = item_class.get_name(schema)
-
-            table_name = common.get_backend_name(
-                schema, host_class, catenate=False)
-            column_name = common.edgedb_name_to_pg_name(name)
+            ptr_stor_info = types.get_pointer_storage_info(
+                item_class, schema=schema)
 
             alter_type = dbops.AlterTableAlterColumnType(
-                column_name, target_type)
-            alter_table = dbops.AlterTable(table_name)
+                ptr_stor_info.column_name, target_type)
+            alter_table = dbops.AlterTable(ptr_stor_info.table_name)
             alter_table.add_operation(alter_type)
             self.pgops.add(alter_table)
 
@@ -1364,7 +1358,7 @@ class CompositeObjectMetaCommand(ObjectMetaCommand):
                         name=old_ptr_stor_info.column_name,
                         type=common.qname(*old_ptr_stor_info.column_type))
 
-                    if oldcol.name != 'std::target':
+                    if oldcol.name != 'target':
                         pat.add_command(dbops.AlterTableDropColumn(oldcol))
 
                     # Moved from link to object
@@ -1484,8 +1478,8 @@ class CompositeObjectMetaCommand(ObjectMetaCommand):
 
                 orig_ptrs = source.get_pointers(orig_schema)
                 dropped_ptrs = (
-                    set(orig_ptrs.shortnames(schema)) -
-                    set(ptrs.shortnames(schema))
+                    set(orig_ptrs.keys(schema)) -
+                    set(ptrs.keys(schema))
                 )
 
                 if dropped_ptrs:
@@ -1722,7 +1716,7 @@ class CreateObjectType(ObjectTypeMetaCommand,
                 self.classname + '.class_check')
 
             constr_expr = dbops.Query(textwrap.dedent(f"""\
-                SELECT '"std::__type__" = ' || quote_literal(id)
+                SELECT '"__type__" = ' || quote_literal(id)
                 FROM edgedb.ObjectType WHERE name =
                     {ql(objtype.get_name(schema))}
             """), type='text')
@@ -1733,13 +1727,13 @@ class CreateObjectType(ObjectTypeMetaCommand,
                 dbops.AlterTableAddConstraint(cid_constraint))
 
             cid_col = dbops.Column(
-                name='std::__type__', type='uuid', required=True)
+                name='__type__', type='uuid', required=True)
 
             if objtype.get_name(schema) == 'std::Object':
                 alter_table.add_operation(dbops.AlterTableAddColumn(cid_col))
 
             constraint = dbops.PrimaryKey(
-                table_name=alter_table.name, columns=['std::id'])
+                table_name=alter_table.name, columns=['id'])
             alter_table.add_operation(
                 dbops.AlterTableAddConstraint(constraint))
 
@@ -1943,7 +1937,8 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
         alter_table = context.get(
             s_objtypes.ObjectTypeCommandContext).op.get_alter_table(
                 schema, context, priority=1)
-        column_name = common.edgedb_name_to_pg_name(ptr.get_shortname(schema))
+
+        ptr_stor_info = types.get_pointer_storage_info(ptr, schema=schema)
 
         if isinstance(new_target, s_scalars.ScalarType):
             target_type = types.pg_type_from_object(schema, new_target)
@@ -1953,7 +1948,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                     self, schema, context, old_target, new_target,
                     in_place=False)
                 alter_type = dbops.AlterTableAlterColumnType(
-                    column_name, common.qname(*target_type))
+                    ptr_stor_info.column_name, common.qname(*target_type))
                 alter_table.add_operation(alter_type)
             else:
                 cols = self.get_columns(ptr, schema)
@@ -1961,7 +1956,9 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                 for op in ops:
                     alter_table.add_operation(op)
         else:
-            col = dbops.Column(name=column_name, type='text')
+            col = dbops.Column(
+                name=ptr_stor_info.column_name,
+                type=ptr_stor_info.column_type)
             alter_table.add_operation(dbops.AlterTableDropColumn(col))
 
     def get_pointer_default(self, ptr, schema, context):
@@ -2009,11 +2006,13 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                         schema, context)
                 alter_table = source_ctx.op.get_alter_table(
                     schema, context, contained=True, priority=3)
-                column_name = common.edgedb_name_to_pg_name(
-                    pointer.get_shortname(schema))
+
+                ptr_stor_info = types.get_pointer_storage_info(
+                    pointer, schema=schema)
                 alter_table.add_operation(
                     dbops.AlterTableAlterColumnDefault(
-                        column_name=column_name, default=new_default))
+                        column_name=ptr_stor_info.column_name,
+                        default=new_default))
 
     @classmethod
     def get_columns(cls, pointer, schema, default=None):
@@ -2141,18 +2140,16 @@ class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
         constraints = []
         columns = []
 
-        src_col = common.edgedb_name_to_pg_name('std::source')
-        tgt_col = common.edgedb_name_to_pg_name('std::target')
+        src_col = 'source'
+        tgt_col = 'target'
 
         if link.get_name(schema) == 'std::link':
             columns.append(
                 dbops.Column(
-                    name=src_col, type='uuid', required=True,
-                    comment='std::source'))
+                    name=src_col, type='uuid', required=True))
             columns.append(
                 dbops.Column(
-                    name=tgt_col, type='uuid', required=False,
-                    comment='std::target'))
+                    name=tgt_col, type='uuid', required=False))
             columns.append(
                 dbops.Column(
                     name='ptr_item_id', type='uuid', required=True))
@@ -2164,7 +2161,7 @@ class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
 
         if not link.generic(schema) and link.scalar():
             try:
-                tgt_prop = link.getptr(schema, 'std::target')
+                tgt_prop = link.getptr(schema, 'target')
             except KeyError:
                 pass
             else:
@@ -2399,11 +2396,10 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
                     ot_ctx = context.get(s_objtypes.ObjectTypeCommandContext)
                     alter_table = ot_ctx.op.get_alter_table(
                         schema, context)
-                    column_name = common.edgedb_name_to_pg_name(
-                        link.get_shortname(schema))
+
                     alter_table.add_operation(
                         dbops.AlterTableAlterColumnNull(
-                            column_name=column_name,
+                            column_name=ptr_stor_info.column_name,
                             null=not link.get_required(schema)))
 
             if isinstance(link.get_target(schema), s_scalars.ScalarType):
@@ -2426,7 +2422,7 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
         schema, _ = LinkMetaCommand.apply(self, schema, context)
 
         if not link.generic(schema):
-            name = link.get_shortname(schema)
+            link_name = link.get_shortname(schema).name
             ptr_stor_info = types.get_pointer_storage_info(
                 link, schema=schema)
 
@@ -2435,7 +2431,7 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
             if ptr_stor_info.table_type == 'ObjectType':
                 # Only drop the column if the link was not reinherited in the
                 # same delta.
-                if objtype.scls.getptr(schema, name) is None:
+                if objtype.scls.getptr(schema, link_name) is None:
                     # This must be a separate so that objects depending
                     # on this column can be dropped correctly.
                     #
@@ -2484,13 +2480,12 @@ class PropertyMetaCommand(ObjectMetaCommand, PointerMetaCommand):
         constraints = []
         columns = []
 
-        src_col = common.edgedb_name_to_pg_name('std::source')
+        src_col = common.edgedb_name_to_pg_name('source')
 
         if prop.get_name(schema) == 'std::property':
             columns.append(
                 dbops.Column(
-                    name=src_col, type='uuid', required=True,
-                    comment='std::source'))
+                    name=src_col, type='uuid', required=True))
             columns.append(
                 dbops.Column(
                     name='ptr_item_id', type='uuid', required=True))
@@ -2672,11 +2667,11 @@ class AlterProperty(
                 src_op = src_ctx.op
                 alter_table = src_op.get_alter_table(
                     schema, context, priority=5)
-                column_name = common.edgedb_name_to_pg_name(
-                    prop.get_shortname(schema))
+                ptr_stor_info = types.get_pointer_storage_info(
+                    prop, schema=schema)
                 alter_table.add_operation(
                     dbops.AlterTableAlterColumnNull(
-                        column_name=column_name,
+                        column_name=ptr_stor_info.column_name,
                         null=not prop.get_required(schema)))
 
             new_type = None
@@ -2702,9 +2697,8 @@ class AlterProperty(
 class DeleteProperty(
         PropertyMetaCommand, adapts=s_props.DeleteProperty):
     def apply(self, schema, context=None):
+        orig_schema = schema
         prop = schema.get(self.classname)
-        column_name = common.edgedb_name_to_pg_name(
-            prop.get_shortname(schema))
 
         schema, prop = s_props.DeleteProperty.apply(self, schema, context)
         schema, _ = PropertyMetaCommand.apply(self, schema, context)
@@ -2714,11 +2708,12 @@ class DeleteProperty(
         if link:
             alter_table = link.op.get_alter_table(schema, context)
 
-            # We don't really care about the type -- we're dropping the thing
-            column_type = 'text'
+            ptr_stor_info = types.get_pointer_storage_info(
+                prop, schema=orig_schema)
 
             col = dbops.AlterTableDropColumn(
-                dbops.Column(name=column_name, type=column_type))
+                dbops.Column(name=ptr_stor_info.column_name,
+                             type=ptr_stor_info.column_type))
             alter_table.add_operation(col)
 
         table = self.get_table(schema)
@@ -2741,8 +2736,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 (SELECT ptr_item_id, {src} as source, {tgt} as target
                 FROM {table})
             ''').format(
-                src=common.quote_ident('std::source'),
-                tgt=common.quote_ident('std::target'),
+                src=common.quote_ident('source'),
+                tgt=common.quote_ident('target'),
                 table=common.get_backend_name(
                     schema, link),
             ))
@@ -2827,7 +2822,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     END IF;
                 ''').format(
                     tables=tables,
-                    id=common.quote_ident('std::id'),
+                    id='id',
                     tgtname=target.get_displayname(schema),
                     near_endpoint=near_endpoint,
                     far_endpoint=far_endpoint,
@@ -2847,8 +2842,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
                             {endpoint} = OLD.{id};
                     ''').format(
                         link_table=link_table,
-                        endpoint=common.quote_ident(f'std::{near_endpoint}'),
-                        id=common.quote_ident('std::id')
+                        endpoint=common.quote_ident(near_endpoint),
+                        id='id'
                     )
 
                     chunks.append(text)
@@ -2872,7 +2867,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                             );
                     ''').format(
                         source_table=common.get_backend_name(schema, source),
-                        id=common.quote_ident('std::id'),
+                        id='id',
                         tables=tables,
                     )
 

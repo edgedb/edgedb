@@ -678,18 +678,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ]
         ])
 
-    async def test_edgeql_ddl_20(self):
-        with self.assertRaisesRegex(
-                client_errors.EdgeQLError,
-                r'cannot create.*test::my_agg.*function:.+anytype.+cannot '
-                r'have a non-empty default'):
-            await self.con.execute(r"""
-                CREATE FUNCTION test::my_agg(
-                        s: anytype = [1]) -> array<anytype>
-                    FROM SQL FUNCTION "my_agg";
-            """)
-
-    async def test_edgeql_ddl_21(self):
+    async def test_edgeql_ddl_bad_01(self):
         with self.assertRaisesRegex(
                 client_errors.SchemaError,
                 r'unqualified name and no default module set'):
@@ -699,7 +688,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
-    async def test_edgeql_ddl_22(self):
+    async def test_edgeql_ddl_bad_02(self):
         with self.assertRaisesRegex(
                 client_errors.SchemaError,
                 r'unqualified name and no default module set'):
@@ -709,7 +698,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
-    async def test_edgeql_ddl_23(self):
+    async def test_edgeql_ddl_bad_03(self):
         with self.assertRaisesRegex(
                 client_errors.SchemaError,
                 r'unexpected number of subtypes, expecting 1'):
@@ -719,7 +708,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
-    async def test_edgeql_ddl_24(self):
+    async def test_edgeql_ddl_bad_04(self):
         with self.assertRaisesRegex(
                 client_errors.SchemaError,
                 r'nested arrays are not supported'):
@@ -729,7 +718,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
-    async def test_edgeql_ddl_25(self):
+    async def test_edgeql_ddl_bad_05(self):
         with self.assertRaisesRegex(
                 client_errors.SchemaError,
                 r'mixing named and unnamed tuple declaration is not '
@@ -740,7 +729,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
-    async def test_edgeql_ddl_26(self):
+    async def test_edgeql_ddl_bad_06(self):
         with self.assertRaisesRegex(
                 client_errors.SchemaError,
                 r'unexpected number of subtypes, expecting 1'):
@@ -750,7 +739,56 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
-    async def test_edgeql_ddl_27(self):
+    async def test_edgeql_ddl_link_bad_01(self):
+        with self.assertRaisesRegex(
+                client_errors.SchemaError,
+                f'link or property name length exceeds the maximum'):
+            await self.con.execute("""
+                CREATE ABSTRACT LINK test::f123456789_123456789_123456789_\
+123456789_123456789_123456789_123456789_123456789;
+            """)
+
+        with self.assertRaisesRegex(
+                client_errors.SchemaError,
+                f'link or property name length exceeds the maximum'):
+            await self.con.execute("""
+                CREATE TYPE test::Foo {
+                    CREATE LINK test::f123456789_123456789_123456789_\
+123456789_123456789_123456789_123456789_123456789 -> test::Foo;
+                };
+            """)
+
+    async def test_edgeql_ddl_prop_bad_01(self):
+        with self.assertRaisesRegex(
+                client_errors.SchemaError,
+                f'link or property name length exceeds the maximum'):
+            await self.con.execute("""
+                CREATE ABSTRACT PROPERTY test::f123456789_123456789_123456789_\
+123456789_123456789_123456789_123456789_123456789;
+            """)
+
+        with self.assertRaisesRegex(
+                client_errors.SchemaError,
+                f'link or property name length exceeds the maximum'):
+            await self.con.execute("""
+                CREATE TYPE test::Foo {
+                    CREATE PROPERTY test::f123456789_123456789_123456789_\
+123456789_123456789_123456789_123456789_123456789 -> std::str;
+                };
+            """)
+
+    async def test_edgeql_ddl_function_bad_01(self):
+        with self.assertRaisesRegex(
+                client_errors.EdgeQLError,
+                r'cannot create.*test::my_agg.*function:.+anytype.+cannot '
+                r'have a non-empty default'):
+            await self.con.execute(r"""
+                CREATE FUNCTION test::my_agg(
+                        s: anytype = [1]) -> array<anytype>
+                    FROM SQL FUNCTION "my_agg";
+            """)
+
+    async def test_edgeql_ddl_function_bad_02(self):
         with self.assertRaisesRegex(
                 client_errors.EdgeQLError,
                 r'invalid declaration.*unexpected type of the default'):

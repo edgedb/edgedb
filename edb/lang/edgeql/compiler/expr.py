@@ -527,7 +527,7 @@ def compile_type_check_op(
     left = dispatch.compile(expr.left, ctx=ctx)
     ltype = inference.infer_type(left, ctx.env)
     left = setgen.ptr_step_set(
-        left, source=ltype, ptr_name=('std', '__type__'),
+        left, source=ltype, ptr_name='__type__',
         direction=s_pointers.PointerDirection.Outbound,
         source_context=expr.context, ctx=ctx)
 

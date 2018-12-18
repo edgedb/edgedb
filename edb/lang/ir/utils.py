@@ -120,7 +120,7 @@ def get_id_path_id(
     source: s_sources.Source = path_id.target
     assert isinstance(source, s_objtypes.ObjectType)
     return path_id.extend(
-        source.getptr(schema, 'std::id'),
+        source.getptr(schema, 'id'),
         s_pointers.PointerDirection.Outbound,
         schema.get('std::uuid'),
         schema=schema)

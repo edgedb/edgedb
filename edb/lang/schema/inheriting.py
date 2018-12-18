@@ -199,7 +199,7 @@ class RebaseInheritingObject(sd.ObjectCommand):
                 coll = obj.get_field_value(schema, attr)
                 local_coll = obj.get_field_value(schema, local_attr)
 
-                for ref_name in tuple(coll.shortnames(schema)):
+                for ref_name in tuple(coll.keys(schema)):
                     if not local_coll.has(schema, ref_name):
                         try:
                             obj.get_classref_origin(

@@ -173,8 +173,7 @@ class PointerStorageInfo:
     def _source_table_info(cls, schema, pointer):
         table = common.get_backend_name(
             schema, pointer.get_source(schema), catenate=False)
-        ptr_name = pointer.get_shortname(schema)
-        col_name = common.edgedb_name_to_pg_name(ptr_name)
+        col_name = pointer.get_shortname(schema).name
         table_type = 'ObjectType'
 
         return table, table_type, col_name
@@ -183,9 +182,8 @@ class PointerStorageInfo:
     def _pointer_table_info(cls, schema, pointer):
         table = common.get_backend_name(
             schema, pointer, catenate=False)
-        col_name = 'std::target'
+        col_name = 'target'
         table_type = 'link'
-        col_name = common.edgedb_name_to_pg_name(col_name)
 
         return table, table_type, col_name
 
@@ -248,14 +246,12 @@ class PointerStorageInfo:
         if isinstance(pointer, irutils.TupleIndirectionLink):
             table = None
             table_type = 'ObjectType'
-            col_name = common.edgedb_name_to_pg_name(
-                pointer.get_shortname(schema).name)
+            col_name = pointer.get_shortname(schema).name
         elif is_lprop:
             table = common.get_backend_name(
                 schema, source, catenate=False)
             table_type = 'link'
-            col_name = common.edgedb_name_to_pg_name(
-                pointer.get_shortname(schema))
+            col_name = pointer.get_shortname(schema).name
         else:
             if isinstance(source, s_scalars.ScalarType):
                 # This is a pseudo-link on an scalar (__type__)

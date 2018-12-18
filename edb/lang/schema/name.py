@@ -52,9 +52,6 @@ class SchemaName(str):
 
         return result
 
-    def __repr__(self):
-        return '<SchemaName %s>' % self
-
     def as_tuple(self):
         return (self.module, self.name)
 

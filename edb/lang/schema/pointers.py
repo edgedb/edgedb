@@ -44,6 +44,8 @@ class PointerDirection(enum.StrEnum):
 
 Cardinality = qlast.Cardinality
 
+MAX_NAME_LENGTH = 63
+
 
 def merge_cardinality(target: so.Object, sources: typing.List[so.Object],
                       field_name: str, *, schema) -> object:
@@ -140,7 +142,7 @@ class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
 
         source = self.get_source(schema)
         return source.material_type(schema).getptr(
-            schema, self.get_shortname(schema))
+            schema, self.get_shortname(schema).name)
 
     def get_near_endpoint(self, schema, direction):
         if direction == PointerDirection.Outbound:
@@ -424,6 +426,17 @@ class PointerCommandContext(sd.ObjectCommandContext):
 class PointerCommand(constraints.ConsistencySubjectCommand,
                      attributes.AttributeSubjectCommand,
                      referencing.ReferencedInheritingObjectCommand):
+
+    @classmethod
+    def _classname_from_ast(cls, schema, astnode, context):
+        name = super()._classname_from_ast(schema, astnode, context)
+        shortname = sn.shortname_from_fullname(name)
+        if len(shortname.name) > MAX_NAME_LENGTH:
+            raise schema_error.SchemaError(
+                f'link or property name length exceeds the maximum of '
+                f'{MAX_NAME_LENGTH} characters',
+                context=astnode.context)
+        return name
 
     @classmethod
     def _extract_union_operands(cls, expr, operands):

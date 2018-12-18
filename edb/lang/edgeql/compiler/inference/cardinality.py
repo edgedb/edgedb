@@ -192,7 +192,7 @@ def _is_ptr_or_self_ref(
                 ir_set.rptr is not None and
                 srccls.getptr(
                     schema,
-                    ir_set.rptr.ptrcls.get_shortname(schema)) is not None
+                    ir_set.rptr.ptrcls.get_shortname(schema).name) is not None
             ))
         )
 
@@ -218,15 +218,13 @@ def _extract_filters(
             elif _is_ptr_or_self_ref(left, result_set.stype, schema):
                 if infer_cardinality(right, scope_tree, schema) == ONE:
                     if left.stype == result_set.stype:
-                        ptr_filters.append(
-                            left.stype.getptr(schema, 'std::id'))
+                        ptr_filters.append(left.stype.getptr(schema, 'id'))
                     else:
                         ptr_filters.append(left.rptr.ptrcls)
             elif _is_ptr_or_self_ref(right, result_set.stype, schema):
                 if infer_cardinality(left, scope_tree, schema) == ONE:
                     if right.stype == result_set.stype:
-                        ptr_filters.append(
-                            right.stype.getptr(schema, 'std::id'))
+                        ptr_filters.append(right.stype.getptr(schema, 'id'))
                     else:
                         ptr_filters.append(right.rptr.ptrcls)
 

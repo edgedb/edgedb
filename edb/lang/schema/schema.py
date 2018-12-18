@@ -321,8 +321,9 @@ class Schema:
         name = data['name']
 
         if name in self._name_to_id:
-            err = f'{name!r} is already present in the schema {self!r}'
-            raise s_err.SchemaError(err)
+            raise s_err.SchemaError(
+                f'{type(scls).__name__} {name!r} is already present '
+                f'in the schema {self!r}')
 
         data = immu.Map(data)
 

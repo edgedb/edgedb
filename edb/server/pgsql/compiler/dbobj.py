@@ -189,7 +189,7 @@ def range_for_ptrcls(
     corresponding to a set of specialized links computed from the given
     `ptrcls` taking source inheritance into account.
     """
-    linkname = ptrcls.get_shortname(env.schema)
+    linkname = ptrcls.get_shortname(env.schema).name
     endpoint = ptrcls.get_source(env.schema)
 
     tgt_col = pgtypes.get_pointer_storage_info(
@@ -197,7 +197,7 @@ def range_for_ptrcls(
         schema=env.schema).column_name
 
     cols = [
-        'std::source',
+        'source',
         tgt_col
     ]
 
@@ -465,10 +465,8 @@ def cols_for_pointer(
     cols = ['ptr_item_id']
 
     if isinstance(pointer, s_links.Link):
-        for ptr in pointer.get_pointers(env.schema).objects(env.schema):
-            cols.append(
-                common.edgedb_name_to_pg_name(ptr.get_shortname(env.schema)))
+        cols.extend(pointer.get_pointers(env.schema).keys(env.schema))
     else:
-        cols.extend(('std::source', 'std::target'))
+        cols.extend(('source', 'target'))
 
     return cols

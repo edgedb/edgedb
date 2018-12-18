@@ -19,7 +19,6 @@
 
 import hashlib
 
-from . import error as schema_error
 from . import indexes
 from . import name as sn
 from . import objects as so
@@ -45,40 +44,26 @@ class Source(indexes.IndexableSubject):
         ref_cls=pointers.Pointer)
 
     pointers = so.SchemaField(
-        so.ObjectIndexByShortname,
+        so.ObjectIndexByUnqualifiedName,
         inheritable=False, ephemeral=True, coerce=True,
-        default=so.ObjectIndexByShortname, hashable=False)
+        default=so.ObjectIndexByUnqualifiedName, hashable=False)
 
     own_pointers = so.SchemaField(
-        so.ObjectIndexByShortname, compcoef=0.857,
+        so.ObjectIndexByUnqualifiedName, compcoef=0.857,
         inheritable=False, ephemeral=True, coerce=True,
-        default=so.ObjectIndexByShortname)
+        default=so.ObjectIndexByUnqualifiedName)
 
     class PointerResolver:
         @classmethod
-        def getptr_from_nqname(cls, schema, source, name):
-            ptrs = set()
-
-            for ptr_name, ptr in source.get_pointers(schema).items(schema):
-                if ptr_name.name == name:
-                    ptrs.add(ptr)
-
-            return ptrs
-
-        @classmethod
-        def getptr_from_fqname(cls, schema, source, name):
-            ptr = source.get_pointers(schema).get(schema, name, None)
-            if ptr:
-                return {ptr}
-            else:
-                return set()
-
-        @classmethod
         def getptr(cls, schema, source, name):
             if sn.Name.is_qualified(name):
-                return cls.getptr_from_fqname(schema, source, name)
+                raise ValueError(
+                    'references to concrete pointers must not be qualified')
+            ptr = source.get_pointers(schema).get(schema, name, None)
+            if ptr is None:
+                return set()
             else:
-                return cls.getptr_from_nqname(schema, source, name)
+                return {ptr}
 
         @classmethod
         def getptr_inherited_from(cls, source, schema, base_ptr_class,
@@ -91,35 +76,12 @@ class Source(indexes.IndexableSubject):
                     break
             return result
 
-    def _check_ptr_name_consistency(self, schema, name, ptrs):
-        if not sn.Name.is_qualified(name) and ptrs:
-            ambig = set()
-
-            names = {}
-
-            for ptr in ptrs:
-                ptr_sn = ptr.get_shortname(schema)
-                nq_name = ptr_sn.name
-                fq_name = names.get(nq_name)
-
-                if fq_name is None:
-                    names[nq_name] = ptr_sn
-                elif fq_name != ptr_sn:
-                    ambig.add(ptr)
-
-            if ambig:
-                raise schema_error.SchemaError(
-                    f'reference to an ambiguous link: {name!r}')
-
-    def _getptr_descending(self, schema, name, resolver, _top=True):
+    def _getptr_descending(self, schema, name, resolver):
         ptrs = resolver.getptr(schema, self, name)
 
         if not ptrs:
             for c in self.children(schema):
                 ptrs |= c._getptr_descending(schema, name, resolver)
-
-        if _top:
-            self._check_ptr_name_consistency(schema, name, ptrs)
 
         return ptrs
 
@@ -155,8 +117,6 @@ class Source(indexes.IndexableSubject):
         if not ptrs:
             if include_inherited:
                 ptrs = self._getptr_inherited_from(schema, name, resolver)
-
-        self._check_ptr_name_consistency(schema, name, ptrs)
 
         return ptrs
 
