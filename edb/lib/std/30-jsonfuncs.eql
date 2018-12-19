@@ -76,6 +76,26 @@ std::`?!=` (l: OPTIONAL std::json, r: OPTIONAL std::json) -> std::bool
     FROM SQL EXPRESSION;
 
 
+CREATE INFIX OPERATOR
+std::`>=` (l: std::json, r: std::json) -> std::bool
+    FROM SQL OPERATOR '>=';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::json, r: std::json) -> std::bool
+    FROM SQL OPERATOR '>';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::json, r: std::json) -> std::bool
+    FROM SQL OPERATOR '<=';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::json, r: std::json) -> std::bool
+    FROM SQL OPERATOR '<';
+
+
 ## CASTS
 
 # This is only a container cast, and subject to element type cast

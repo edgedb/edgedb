@@ -26,14 +26,26 @@
 # are very common.
 #
 # Our implicit casts do not coincide with PostgreSQL. In particular we
-# do not implicitly cast floats into decimals. The philosophy behind
-# that is that using decimal arithmetic should be opt-in. On the other
-# hand, if decimals are used they should not be accidentally switched
-# to floating point arithmetic. One of the consequences of this is
-# that we need to explicitly define operators for every legal
-# combination of floats and decimals (this concerns comparison
-# operators) as unlike PostgreSQL we cannot rely on every kind of
-# number casting implicitly into decimal.
+# do not implicitly cast between decimals and floats. The philosophy
+# behind that is that using decimal arithmetic should be opt-in. On
+# the other hand, if decimals are used they should not be accidentally
+# switched to floating point arithmetic. One of the consequences of
+# this is that we need to explicitly define arithmetic operators for
+# every legal combination of floats and decimals as unlike PostgreSQL
+# we cannot rely on implicit casts between decimals and other numeric
+# types.
+#
+# Floating point numbers are inherently imprecise. This means that
+# casting a given float into another representation and back may yield
+# a different value. This is especially important with float and
+# decimal casts as both directions can lose precision. Discussion
+# about precision loss of float to numeric casts can be found here:
+# https://www.postgresql.org/message-id/5A937D7E.60305%40anastigmatix.net
+# The practical consequence is that whenever the cast is needed, such
+# as for comparison operators, it is preferable to cast decimal into
+# float and not vice-versa. So we can go with Postgres behavior in
+# regards to the comparison operators (but not arithmetic) with
+# decimal as one of the operands.
 
 # EQUALITY
 
@@ -453,53 +465,13 @@ std::`>` (l: std::decimal, r: std::decimal) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::int16, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR '>(numeric,numeric)';
+std::`>` (l: std::anyreal, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR r'>';
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::int32, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR '>(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`>` (l: std::int64, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR '>(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`>` (l: std::float32, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR '>(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`>` (l: std::float64, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR '>(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`>` (l: std::decimal, r: std::int16) -> std::bool
-    FROM SQL OPERATOR '>(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`>` (l: std::decimal, r: std::int32) -> std::bool
-    FROM SQL OPERATOR '>(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`>` (l: std::decimal, r: std::int64) -> std::bool
-    FROM SQL OPERATOR '>(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`>` (l: std::decimal, r: std::float32) -> std::bool
-    FROM SQL OPERATOR '>(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`>` (l: std::decimal, r: std::float64) -> std::bool
-    FROM SQL OPERATOR '>(numeric,numeric)';
+std::`>` (l: std::decimal, r: std::anyreal) -> std::bool
+    FROM SQL OPERATOR r'>';
 
 
 # GREATER OR EQUAL
@@ -595,53 +567,13 @@ std::`>=` (l: std::decimal, r: std::decimal) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::int16, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR '>=(numeric,numeric)';
+std::`>=` (l: std::anyreal, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR r'>=';
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::int32, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR '>=(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`>=` (l: std::int64, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR '>=(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`>=` (l: std::float32, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR '>=(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`>=` (l: std::float64, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR '>=(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`>=` (l: std::decimal, r: std::int16) -> std::bool
-    FROM SQL OPERATOR '>=(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`>=` (l: std::decimal, r: std::int32) -> std::bool
-    FROM SQL OPERATOR '>=(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`>=` (l: std::decimal, r: std::int64) -> std::bool
-    FROM SQL OPERATOR '>=(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`>=` (l: std::decimal, r: std::float32) -> std::bool
-    FROM SQL OPERATOR '>=(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`>=` (l: std::decimal, r: std::float64) -> std::bool
-    FROM SQL OPERATOR '>=(numeric,numeric)';
+std::`>=` (l: std::decimal, r: std::anyreal) -> std::bool
+    FROM SQL OPERATOR r'>=';
 
 
 # LESS THAN
@@ -737,53 +669,13 @@ std::`<` (l: std::decimal, r: std::decimal) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::int16, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR '<(numeric,numeric)';
+std::`<` (l: std::anyreal, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR r'<';
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::int32, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR '<(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`<` (l: std::int64, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR '<(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`<` (l: std::float32, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR '<(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`<` (l: std::float64, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR '<(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`<` (l: std::decimal, r: std::int16) -> std::bool
-    FROM SQL OPERATOR '<(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`<` (l: std::decimal, r: std::int32) -> std::bool
-    FROM SQL OPERATOR '<(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`<` (l: std::decimal, r: std::int64) -> std::bool
-    FROM SQL OPERATOR '<(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`<` (l: std::decimal, r: std::float32) -> std::bool
-    FROM SQL OPERATOR '<(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`<` (l: std::decimal, r: std::float64) -> std::bool
-    FROM SQL OPERATOR '<(numeric,numeric)';
+std::`<` (l: std::decimal, r: std::anyreal) -> std::bool
+    FROM SQL OPERATOR r'<';
 
 
 # LESS THAN OR EQUAL
@@ -879,53 +771,13 @@ std::`<=` (l: std::decimal, r: std::decimal) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::int16, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR r'<=(numeric,numeric)';
+std::`<=` (l: std::anyreal, r: std::decimal) -> std::bool
+    FROM SQL OPERATOR r'<=';
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::int32, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR '<=(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`<=` (l: std::int64, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR '<=(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`<=` (l: std::float32, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR '<=(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`<=` (l: std::float64, r: std::decimal) -> std::bool
-    FROM SQL OPERATOR '<=(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`<=` (l: std::decimal, r: std::int16) -> std::bool
-    FROM SQL OPERATOR '<=(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`<=` (l: std::decimal, r: std::int32) -> std::bool
-    FROM SQL OPERATOR '<=(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`<=` (l: std::decimal, r: std::int64) -> std::bool
-    FROM SQL OPERATOR '<=(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`<=` (l: std::decimal, r: std::float32) -> std::bool
-    FROM SQL OPERATOR '<=(numeric,numeric)';
-
-
-CREATE INFIX OPERATOR
-std::`<=` (l: std::decimal, r: std::float64) -> std::bool
-    FROM SQL OPERATOR '<=(numeric,numeric)';
+std::`<=` (l: std::decimal, r: std::anyreal) -> std::bool
+    FROM SQL OPERATOR r'<=';
 
 
 # INFIX PLUS
