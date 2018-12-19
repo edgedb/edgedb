@@ -19,16 +19,11 @@
 
 """Abstractions for low-level database DDL and DML operations."""
 
-from edb.lang.schema import name as sn
 from edb.lang.schema import objects as s_obj
-
 from edb.lang.common import adapter
-
-from edb.lang import edgeql
 
 from edb.server.pgsql import common
 from edb.server.pgsql import dbops
-from edb.server.pgsql import metaschema
 
 
 class SchemaDBObjectMeta(adapter.Adapter, type(s_obj.Object)):
@@ -608,80 +603,3 @@ class AlterTableDropInheritableConstraint(AlterTableInheritableConstraintBase):
         if not self._constraint.is_abstract:
             self.drop_constraint(self._constraint)
         super().generate(block)
-
-
-class MappingIndex(dbops.Index):
-    def __init__(self, name_prefix, cardinality, link_names, table_name):
-        super().__init__(None, table_name, True)
-        self.link_names = link_names
-        self.name_prefix = name_prefix
-        self.cardinality = cardinality
-
-    async def creation_code(self, context):
-        link_map = await context.get_class_map()
-
-        ids = tuple(sorted(list(link_map[n] for n in self.link_names)))
-        id_str = '_'.join(str(i) for i in ids)
-
-        name = '%s_%s_%s_cardinality_idx' % (
-            self.name_prefix, id_str, self.cardinality)
-        name = common.edgedb_name_to_pg_name(name)
-        predicate = 'ptr_item_id IN (%s)' % ', '.join(str(id) for id in ids)
-
-        code = '''
-            CREATE {unique} INDEX {name} ON {table}s ({cols}) {predicate}
-        '''.format(unique='UNIQUE',
-                   name=common.qname(name),
-                   table=common.qname(*self.table_name),
-                   cols=', '.join(common.quote_ident(c) for c in self.columns),
-                   predicate=('WHERE {}'.format(predicate)))
-
-        return code
-
-    def __repr__(self):
-        name = '%s_%s_%s_cardinality_idx' % (
-            self.name_prefix, '<HASH>', self.cardinality)
-        predicate = 'ptr_item_id IN (%s)' % ', '.join(
-            str(n) for n in self.link_names)
-
-        return \
-            '<{mod.{cls} name="{name}" cols=({cols}) unique={uniq} ' \
-            'predicate={pred}>'.format(
-                mod=self.__class__.__module__,
-                cls=self.__class__.__name__,
-                name=name,
-                cols=','.join(self.columns),
-                uniq=self.unique,
-                pred=predicate)
-
-
-class MangleExprObjectRefs(dbops.Command):
-    def __init__(self, *, scls, field, expr,
-                 conditions=None, neg_conditions=None, priority=0,
-                 schema):
-        super().__init__(
-            conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
-
-        self.name = scls.get_name(schema)
-        self.table = metaschema.get_metaclass_table(scls.__class__)
-        self.field = common.edgedb_name_to_pg_name(field)
-        self.expr = expr
-
-    async def execute(self, context):
-        class_map = await context._get_class_map()
-
-        def _cb(name):
-            clsid = class_map.get(name)
-            if clsid:
-                return sn.Name(module='__class__', name=str(clsid))
-            else:
-                return name
-        expr = edgeql.rewrite_refs(self.expr, _cb)
-
-        rec = self.table.record()
-        setattr(rec, self.field, expr)
-        condition = [('name', str(self.name))]
-        upd = dbops.Update(table=self.table, record=rec, condition=condition)
-
-        await upd.execute(context)

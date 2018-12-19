@@ -119,10 +119,7 @@ class Backend:
         return self.schema
 
     def create_context(self, cmds=None, stdmode=None):
-        if cmds is not None:
-            context = cmds.CommandContext(self.connection)
-        else:
-            context = sd.CommandContext()
+        context = sd.CommandContext()
         context.testmode = self.testmode
         if stdmode is not None:
             context.stdmode = stdmode

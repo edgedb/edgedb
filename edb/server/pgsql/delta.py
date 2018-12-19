@@ -55,13 +55,12 @@ from edb.lang.ir import utils as irutils
 
 from edb.server.pgsql import common
 
-from edb.server.pgsql import dbops, deltadbops, metaschema
+from edb.server.pgsql import dbops, metaschema
 
 from . import ast as pg_ast
 from .common import quote_literal as ql
 from . import compiler
 from . import codegen
-from . import datasources
 from . import schemamech
 from . import types
 
@@ -909,17 +908,7 @@ class DeleteConstraint(
 
 
 class ViewCapableObjectMetaCommand(ObjectMetaCommand):
-    def fill_record(self, schema, *, use_defaults=False):
-        rec, updates = super().fill_record(schema, use_defaults=use_defaults)
-        if rec and False:
-            expr = updates.get('expr')
-            if expr:
-                self.pgops.add(
-                    deltadbops.MangleExprObjectRefs(
-                        scls=self.scls, field='expr', expr=expr, priority=3,
-                        schema=schema))
-
-        return rec, updates
+    pass
 
 
 class ScalarTypeMetaCommand(ViewCapableObjectMetaCommand):
@@ -3022,29 +3011,6 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     trigger_name=trigger_name, table_name=table_name
                 )]
             ))
-
-
-class CommandContext(sd.CommandContext):
-    def __init__(self, db):
-        super().__init__()
-        self.db = db
-        self.class_name_to_id_map = None
-
-    async def _get_class_map(self, reverse=False):
-        classes = await datasources.schema.objects.fetch(self.db)
-        grouped = itertools.groupby(classes, key=lambda i: i['id'])
-        if reverse:
-            class_map = {k: next(i)['name'] for k, i in grouped}
-        else:
-            class_map = {next(i)['name']: k for k, i in grouped}
-        return class_map
-
-    async def get_class_map(self):
-        class_map = self.class_name_to_id_map
-        if not class_map:
-            class_map = await self._get_class_map()
-            self.class_name_to_id_map = class_map
-        return class_map
 
 
 class ModuleMetaCommand(ObjectMetaCommand):
