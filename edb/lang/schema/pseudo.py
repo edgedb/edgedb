@@ -140,6 +140,9 @@ class AnyTuple(PseudoType):
         else:
             return concrete_type
 
+    def _to_nonpolymorphic(self, schema, concrete_type: s_types.Type):
+        return concrete_type
+
 
 class AnyTupleRef(so.ObjectRef):
 

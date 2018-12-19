@@ -681,7 +681,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
     async def test_edgeql_casts_numeric_01(self):
         # Casting to decimal and back should be lossless for any other
-        # numeric type.
+        # integer type.
         await self.assert_query_result(r'''
             # technically we're already casting a literal int64 to int16 first
             WITH x := <int16>{-32768, -32767, -100, 0, 13, 32766, 32767}
@@ -714,7 +714,8 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
     async def test_edgeql_casts_numeric_02(self):
         # Casting to decimal and back should be lossless for any other
-        # numeric type.
+        # float type of low precision (a couple of digits less than
+        # the maximum possible float precision).
         await self.assert_query_result(r'''
             # technically we're already casting a literal int64 or
             # float64 to float32 first
@@ -839,6 +840,30 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             ''', [
                 [1],
             ])
+
+    async def test_edgeql_casts_numeric_08(self):
+        # Casting a float into a decimal (also true for json and str)
+        # is not lossless for arbitrary floats.
+        await self.assert_query_result(r'''
+            SELECT <float64><decimal>(20/29) = (20/29);
+            SELECT <float32><decimal>(<float32>20/<float32>29) =
+                (<float32>20/<float32>29);
+
+            SELECT <float64><json>(20/29) = (20/29);
+            SELECT <float32><json>(<float32>20/<float32>29) =
+                (<float32>20/<float32>29);
+
+            SELECT <float64><str>(20/29) = (20/29);
+            SELECT <float32><str>(<float32>20/<float32>29) =
+                (<float32>20/<float32>29);
+        ''', [
+            [False],
+            [False],
+            [False],
+            [False],
+            [False],
+            [False],
+        ])
 
     # casting into an abstract scalar should be illegal
     async def test_edgeql_casts_illegal_01(self):

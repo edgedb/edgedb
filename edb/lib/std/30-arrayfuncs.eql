@@ -101,6 +101,30 @@ std::`?!=` (l: OPTIONAL array<anytype>,
     FROM SQL EXPRESSION;
 
 
+CREATE INFIX OPERATOR
+std::`>=` (l: OPTIONAL array<anytype>,
+           r: OPTIONAL array<anytype>) -> std::bool
+    FROM SQL OPERATOR '>=';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: OPTIONAL array<anytype>,
+          r: OPTIONAL array<anytype>) -> std::bool
+    FROM SQL OPERATOR '>';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: OPTIONAL array<anytype>,
+           r: OPTIONAL array<anytype>) -> std::bool
+    FROM SQL OPERATOR '<=';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: OPTIONAL array<anytype>,
+          r: OPTIONAL array<anytype>) -> std::bool
+    FROM SQL OPERATOR '<';
+
+
 # Concatenation
 CREATE INFIX OPERATOR
 std::`++` (l: array<anytype>, r: array<anytype>) -> array<anytype>

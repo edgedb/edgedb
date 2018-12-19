@@ -56,3 +56,23 @@ std::`?!=` (l: OPTIONAL std::bytes, r: OPTIONAL std::bytes) -> std::bool
 CREATE INFIX OPERATOR
 std::`++` (l: std::bytes, r: std::bytes) -> std::bytes
     FROM SQL OPERATOR r'||';
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: std::bytes, r: std::bytes) -> std::bool
+    FROM SQL OPERATOR '>=';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::bytes, r: std::bytes) -> std::bool
+    FROM SQL OPERATOR '>';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::bytes, r: std::bytes) -> std::bool
+    FROM SQL OPERATOR '<=';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::bytes, r: std::bytes) -> std::bool
+    FROM SQL OPERATOR '<';

@@ -250,3 +250,23 @@ std::`!=` (l: anytuple, r: anytuple) -> std::bool
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL anytuple, r: OPTIONAL anytuple) -> std::bool
     FROM SQL EXPRESSION;
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: anytuple, r: anytuple) -> std::bool
+    FROM SQL OPERATOR '>=';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: anytuple, r: anytuple) -> std::bool
+    FROM SQL OPERATOR '>';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: anytuple, r: anytuple) -> std::bool
+    FROM SQL OPERATOR '<=';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: anytuple, r: anytuple) -> std::bool
+    FROM SQL OPERATOR '<';

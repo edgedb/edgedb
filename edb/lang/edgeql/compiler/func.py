@@ -351,15 +351,17 @@ def finalize_args(bound_call: polyres.BoundCall, *,
                 pathctx.register_set_in_scope(arg, ctx=ctx)
                 pathctx.mark_path_as_optional(arg.path_id, ctx=ctx)
 
-        paramtype = param.get_type(ctx.env.schema)
+        paramtype = barg.param_type
         param_kind = param.get_kind(ctx.env.schema)
         if param_kind is ft.ParameterKind.VARIADIC:
             # For variadic params, paramtype would be array<T>,
             # and we need T to cast the arguments.
             paramtype = list(paramtype.get_subtypes())[0]
 
-        if (not barg.valtype.issubclass(ctx.env.schema, paramtype)
-                and not paramtype.is_polymorphic(ctx.env.schema)):
+        val_material_type = barg.valtype.material_type(ctx.env.schema)
+        param_material_type = paramtype.material_type(ctx.env.schema)
+        if not val_material_type.issubclass(
+                ctx.env.schema, param_material_type):
             # The callable form was chosen via an implicit cast,
             # cast the arguments so that the backend has no
             # wiggle room to apply its own (potentially different)

@@ -407,6 +407,21 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT (10 + math::floor(random()))^309;
             """)
 
+    async def test_edgeql_expr_op_21(self):
+        # There was a bug that caused `=` to not always be equivalent
+        # to `>= AND <=` due to difference in casting decimals to
+        # floats or floats into decimal.
+        await self.assert_query_result(r'''
+            SELECT <decimal>0.797693134862311111111 = 0.797693134862311111111;
+            SELECT
+                <decimal>0.797693134862311111111 >= 0.797693134862311111111
+                AND
+                <decimal>0.797693134862311111111 <= 0.797693134862311111111;
+        ''', [
+            [False],
+            [False],
+        ])
+
     async def _test_boolop(self, left, right, op, not_op, result):
         if isinstance(result, bool):
             # this operation should be valid and produce opposite
@@ -424,13 +439,11 @@ class TestExpressions(tb.QueryTestCase):
                     await self.query(query)
 
     # type casts for literals help recovering type info for tests
-    unorderable = [
+    onlyorderable = [
+        '<json>"Hello"',
         '<bool>True',
         '<uuid>"d4288330-eea3-11e8-bc5f-7faf132b1d84"',
         '<bytes>b"Hello"',
-        '<json>"Hello"',
-    ]
-    onlyorderable = [
         '<str>"Hello"',
     ]
     datetime = [
@@ -450,8 +463,9 @@ class TestExpressions(tb.QueryTestCase):
     ]
     orderable = onlyorderable + datetime + numeric
     orderable_nonnumeric = onlyorderable + datetime
-    nonnumeric = unorderable + onlyorderable + datetime
-    scalar_samples = unorderable + orderable
+    nonnumeric = onlyorderable + datetime
+    # for now everything is orderable
+    scalar_samples = orderable
 
     async def test_edgeql_expr_valid_eq_01(self):
         # compare all numerics to all other scalars via equality
@@ -483,16 +497,6 @@ class TestExpressions(tb.QueryTestCase):
                         True if left == right else expected_error_msg
                     )
 
-    async def test_edgeql_expr_valid_comp_01(self):
-        # compare all unorderable scalars to every scalar via ordering operator
-        for left in self.unorderable:
-            for right in self.scalar_samples:
-                for op, not_op in [('>=', '<'), ('<=', '>')]:
-                    await self._test_boolop(
-                        left, right, op, not_op,
-                        'cannot be applied to operands'
-                    )
-
     async def test_edgeql_expr_valid_comp_02(self):
         expected_error_msg = 'cannot be applied to operands'
         # compare all orderable non-numerics to all scalars via
@@ -515,6 +519,242 @@ class TestExpressions(tb.QueryTestCase):
                         left, right, op, not_op,
                         True if right.endswith('>1') else expected_error_msg
                     )
+
+    async def test_edgeql_expr_valid_comp_04(self):
+        # bytes and uuids are orderable in the same way as a "similar"
+        # ascii string. For uuid this works out because ord('9') < ord('a').
+        #
+        # Motivation: In some sense str and uuid are a special kind of
+        # byte-string. A different way of representing them would be
+        # as arrays (sequences) of bytes. Conceptually, as long as the
+        # individual elements of these arrays are orderable (and a
+        # total ordering can be naturally defined on actual bytes),
+        # the array of these elements is also orderable.
+
+        # "ordered" uuid-like strings
+        uuids = [
+            '04b4318e-1a01-41e4-b29c-b57b94db9402',
+            '94b4318e-1a01-41e4-b29c-b57b94db9402',
+            'a4b4318e-1a01-41e4-b29c-b57b94db9402',
+            'a5b4318e-1a01-41e4-b29c-b57b94db9402',
+            'f4b4318e-1a01-41e4-b29c-b57b94db9402',
+            'f4b4318e-1a01-41e4-b29c-b67b94db9402',
+            'f4b4318e-1a01-41e4-b29c-b68b94db9402',
+        ]
+
+        for left in uuids[:-1]:
+            for right in uuids[1:]:
+                for op, not_op in [('>=', '<'), ('<=', '>')]:
+                    query = f'''
+                        SELECT (b'{left}' {op} b'{right}') =
+                            ('{left}' {op} '{right}');
+                    '''
+                    await self.assert_query_result(query, [{True}], msg=query)
+
+                    query = f'''
+                        SELECT (<uuid>'{left}' {op} <uuid>'{right}') =
+                            ('{left}' {op} '{right}');
+                    '''
+                    await self.assert_query_result(query, [{True}], msg=query)
+
+    async def test_edgeql_expr_valid_comp_05(self):
+        # just some ascii strings that can be simple byte literals
+        raw_ascii = [
+            R'hello',
+            R'94b4318e-1a01-41e4-b29c-b57b94db9402',
+            R'hello world',
+            R'123',
+            R'',
+            R'&*%#',
+            R'&*@#',
+        ]
+        raw_ascii.sort()
+
+        # we want to see that the sorting worked out the same way for
+        # bytes and str
+        for left in raw_ascii[:-1]:
+            for right in raw_ascii[1:]:
+                for op, not_op in [('>=', '<'), ('<=', '>')]:
+                    query = f'''
+                        SELECT (b'{left}' {op} b'{right}') =
+                            ('{left}' {op} '{right}');
+                    '''
+                    await self.assert_query_result(query, [{True}], msg=query)
+
+    async def test_edgeql_expr_valid_order_01(self):
+        # JSON ordering is a bit difficult to conceptualize across
+        # non-homogeneous JSON types, but it is stable and can be used
+        # reliably in ORDER BY clauses. In fact, many tests rely on this.
+        await self.assert_query_result(r'''
+            SELECT <json>2 < <json>'2';
+
+            WITH X := {<json>1, <json>True, <json>'1'}
+            SELECT X ORDER BY X;
+
+            WITH X := {
+                <json>1,
+                <json>2,
+                <json>'b',
+                to_json('{"a":1,"b":2}'),
+                to_json('{"b":3,"a":1,"b":2}'),
+                to_json('["a", 1, "b", 2]')
+            }
+            SELECT X ORDER BY X;
+        ''', [
+            [False],
+            ['1', 1, True],
+            ['b', 1, 2, ['a', 1, 'b', 2], {'a': 1, 'b': 2}, {'a': 1, 'b': 2}],
+        ])
+
+    async def test_edgeql_expr_valid_order_02(self):
+        # test bool ordering
+        await self.assert_query_result(r'''
+            SELECT False < True;
+            SELECT X := {True, False, True, False} ORDER BY X;
+            SELECT X := {True, False, True, False} ORDER BY X DESC;
+        ''', [
+            [True],
+            [False, False, True, True],
+            [True, True, False, False],
+        ])
+
+    async def test_edgeql_expr_valid_order_03(self):
+        # "unordered" uuid-like strings
+        uuids = [
+            '04b4318e-1a01-41e4-b29c-b57b94db9402',
+            'f4b4318e-1a01-41e4-b29c-b57b94db9402',
+            'a4b4318e-1a01-41e4-b29c-b57b94db9402',
+            'f4b4318e-1a01-41e4-b29c-b68b94db9402',
+            'a5b4318e-1a01-41e4-b29c-b57b94db9402',
+            '94b4318e-1a01-41e4-b29c-b57b94db9402',
+            'f4b4318e-1a01-41e4-b29c-b67b94db9402',
+        ]
+
+        await self.assert_query_result(f'''
+            WITH A := <uuid>{{
+                '{"', '".join(uuids)}'
+            }}
+            SELECT array_agg(A ORDER BY A) =
+                [<uuid>'{"', <uuid>'".join(sorted(uuids))}'];
+        ''', [
+            {True},
+        ])
+
+    async def test_edgeql_expr_valid_order_04(self):
+        # just some ascii strings that can be simple byte literals
+        raw_ascii = [
+            R'hello',
+            R'94b4318e-1a01-41e4-b29c-b57b94db9402',
+            R'hello world',
+            R'123',
+            R'',
+            R'&*%#',
+            R'&*@#',
+        ]
+
+        await self.assert_query_result(f'''
+            WITH A := {{
+                b'{"', b'".join(raw_ascii)}'
+            }}
+            SELECT array_agg(A ORDER BY A) =
+                [b'{"', b'".join(sorted(raw_ascii))}'];
+        ''', [
+            {True},
+        ])
+
+    async def test_edgeql_expr_valid_order_05(self):
+        # just some ascii strings that can be simple byte literals
+        raw_ascii = [
+            R'hello',
+            R'94b4318e-1a01-41e4-b29c-b57b94db9402',
+            R'hello world',
+            R'123',
+            R'',
+            R'&*%#',
+            R'&*@#',
+        ]
+
+        await self.assert_query_result(f'''
+            WITH A := {{
+                '{"', '".join(raw_ascii)}'
+            }}
+            SELECT A ORDER BY A;
+        ''', [
+            sorted(raw_ascii),
+        ])
+
+    async def test_edgeql_expr_valid_order_06(self):
+        # make sure various date&time scalaras are usable in order by clause
+        await self.assert_query_result(r'''
+            WITH A := <datetime>{
+                "2018-05-07T20:01:22.306916+00:00",
+                "2017-05-07T20:01:22.306916+00:00"
+            }
+            SELECT A ORDER BY A;
+
+            WITH A := <naive_datetime>{
+                "2018-05-07T20:01:22.306916",
+                "2017-05-07T20:01:22.306916"
+            }
+            SELECT A ORDER BY A;
+
+            WITH A := <naive_date>{
+                "2018-05-07",
+                "2017-05-07"
+            }
+            SELECT A ORDER BY A;
+
+            WITH A := <naive_time>{
+                "20:01:22.306916",
+                "19:01:22.306916"
+            }
+            SELECT A ORDER BY A;
+
+            WITH A := <timedelta>{
+                "20:01:22.306916",
+                "19:01:22.306916"
+            }
+            SELECT A ORDER BY A;
+        ''', [
+            [
+                "2017-05-07T20:01:22.306916+00:00",
+                "2018-05-07T20:01:22.306916+00:00",
+            ],
+            [
+                "2017-05-07T20:01:22.306916",
+                "2018-05-07T20:01:22.306916",
+            ],
+            [
+                "2017-05-07",
+                "2018-05-07",
+            ],
+            [
+                "19:01:22.306916",
+                "20:01:22.306916",
+            ],
+            [
+                "19:01:22.306916",
+                "20:01:22.306916",
+            ]
+        ])
+
+    async def test_edgeql_expr_valid_order_07(self):
+        # make sure that any numeric type is orderable and produces
+        # expected result
+        numbers = list(range(-4, 5))
+        str_numbers = ', '.join([str(n) for n in numbers])
+
+        # ensure that unorderable scalars cannot be used in 'ORDER BY'
+        for val in self.numeric:
+            ntype = val[:-1]
+            query = f'''
+                WITH X := {ntype}{{ {str_numbers} }}
+                SELECT X ORDER BY X DESC;
+            '''
+            await self.assert_query_result(
+                query,
+                [sorted(numbers, reverse=True)],
+                msg=query)
 
     async def test_edgeql_expr_valid_bool_01(self):
         expected_error_msg = 'cannot be applied to operands'

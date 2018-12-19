@@ -25,8 +25,12 @@ import typing
 from edb.lang.edgeql import ast as qlast
 from edb.lang.ir import ast as irast
 
+from edb import errors
+
 from . import context
 from . import dispatch
+from . import inference
+from . import polyres
 from . import setgen
 from . import stmtctx
 
@@ -70,6 +74,44 @@ def compile_orderby_clause(
                     ir_sortexpr, force_reassign=True, ctx=exprctx)
                 ir_sortexpr.context = sortexpr.context
                 stmtctx.enforce_singleton(ir_sortexpr, ctx=exprctx)
+
+                # Check that the sortexpr type is actually orderable
+                # with either '>' or '<' based on the DESC or ASC sort
+                # order.
+                env = exprctx.env
+                sort_type = inference.infer_type(ir_sortexpr, env)
+                # Postgres by default treats ASC as using '<' and DESC
+                # as using '>'. We should do the same.
+                if sortexpr.direction == qlast.SortDesc:
+                    op_name = '>'
+                else:
+                    op_name = '<'
+                opers = env.schema.get_operators(
+                    op_name, module_aliases=exprctx.modaliases)
+
+                # Verify that a comparison operator is defined for 2
+                # sort_type expressions.
+                matched = polyres.find_callable(
+                    opers,
+                    args=[(sort_type, ir_sortexpr), (sort_type, ir_sortexpr)],
+                    kwargs={},
+                    ctx=exprctx)
+                if len(matched) != 1:
+                    sort_type_name = sort_type.material_type(env.schema) \
+                                              .get_displayname(env.schema)
+                    if len(matched) == 0:
+                        raise errors.EdgeQLError(
+                            f'type {sort_type_name!r} cannot be used in '
+                            f'ORDER BY clause because ordering is not '
+                            f'defined for it',
+                            context=sortexpr.context)
+
+                    elif len(matched) > 1:
+                        raise errors.EdgeQLError(
+                            f'type {sort_type_name!r} cannot be used in '
+                            f'ORDER BY clause because ordering is '
+                            f'ambiguous for it',
+                            context=sortexpr.context)
 
             result.append(
                 irast.SortExpr(

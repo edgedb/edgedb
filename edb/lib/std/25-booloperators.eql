@@ -72,6 +72,26 @@ std::`?!=` (l: OPTIONAL std::bool, r: OPTIONAL std::bool) -> std::bool
     FROM SQL EXPRESSION;
 
 
+CREATE INFIX OPERATOR
+std::`>=` (l: std::bool, r: std::bool) -> std::bool
+    FROM SQL OPERATOR '>=';
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: std::bool, r: std::bool) -> std::bool
+    FROM SQL OPERATOR '>';
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: std::bool, r: std::bool) -> std::bool
+    FROM SQL OPERATOR '<=';
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: std::bool, r: std::bool) -> std::bool
+    FROM SQL OPERATOR '<';
+
+
 ## Boolean casts
 ## -------------
 

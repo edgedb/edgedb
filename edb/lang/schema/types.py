@@ -520,6 +520,21 @@ class Array(Collection, s_abc.Array):
         return cls.create(schema, element_type=element_type,
                           dimensions=dimensions, name=name)
 
+    def material_type(self, schema):
+        # We need to resolve material types based on the subtype recursively.
+        new_material_type = False
+
+        st = self.element_type
+        subtypes = [st.material_type(schema)]
+        if subtypes[0] is not st:
+            new_material_type = True
+
+        if new_material_type:
+            return self.__class__.from_subtypes(
+                schema, subtypes, typemods=self.get_typemods())
+        else:
+            return self
+
     def __hash__(self):
         return hash((
             self.__class__,
@@ -808,6 +823,22 @@ class Tuple(Collection, s_abc.Tuple):
             for st_name, st in self.element_types.items():
                 subtypes[st_name] = st._resolve_ref(schema)
 
+            return self.__class__.from_subtypes(
+                schema, subtypes, typemods=self.get_typemods())
+        else:
+            return self
+
+    def material_type(self, schema):
+        # We need to resolve material types of all the subtypes recursively.
+        new_material_type = False
+        subtypes = {}
+
+        for st_name, st in self.element_types.items():
+            subtypes[st_name] = st.material_type(schema)
+            if subtypes[st_name] is not st:
+                new_material_type = True
+
+        if new_material_type:
             return self.__class__.from_subtypes(
                 schema, subtypes, typemods=self.get_typemods())
         else:

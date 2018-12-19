@@ -559,6 +559,16 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             ['number', 'string', 'array', 'object', 'null'],
         ])
 
+    async def test_edgeql_json_object_01(self):
+        await self.assert_query_result(r'''
+            SELECT to_json('{"a":1,"b":2}') = to_json('{"b":2,"a":1}');
+            SELECT to_json('{"a":1,"b":2}') =
+                to_json('{"b":3,"a":1,"b":2}');
+        ''', [
+            [True],
+            [True],
+        ])
+
     async def test_edgeql_json_object_unpack_01(self):
         await self.assert_sorted_query_result(r'''
             SELECT json_object_unpack(to_json('{

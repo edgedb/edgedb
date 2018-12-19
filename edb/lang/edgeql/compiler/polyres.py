@@ -41,6 +41,7 @@ from . import setgen
 class BoundArg(typing.NamedTuple):
 
     param: typing.Optional[s_func.Parameter]
+    param_type: s_types.Type
     val: typing.Optional[irast.Base]
     valtype: s_types.Type
     cast_distance: int
@@ -173,7 +174,14 @@ def try_bind_call_args(
             ct = resolved_poly_base_type.find_common_implicitly_castable_type(
                 resolved, ctx.env.schema)
 
-            return 0 if ct is not None else -1
+            if ct is not None:
+                # If we found a common implicitly castable type, we
+                # refine our resolved_poly_base_type to be that as the
+                # more general case.
+                resolved_poly_base_type = ct
+                return 0
+            else:
+                return -1
 
         if arg_type.issubclass(schema, param_type):
             return 0
@@ -207,7 +215,7 @@ def try_bind_call_args(
                         typeref=irtyputils.type_to_typeref(schema, bytes_t)),
                     typehint=bytes_t,
                     ctx=ctx)
-                args = [BoundArg(None, argval, bytes_t, 0)]
+                args = [BoundArg(None, bytes_t, argval, bytes_t, 0)]
             return BoundCall(
                 func, args, set(),
                 func.get_return_type(schema),
@@ -248,16 +256,17 @@ def try_bind_call_args(
         pi += 1
 
         param_shortname = param.get_shortname(schema)
+        param_type = param.get_type(schema)
         if param_shortname in kwargs:
             matched_kwargs += 1
 
             arg_type, arg_val = kwargs[param_shortname]
-            cd = _get_cast_distance(arg_val, arg_type, param.get_type(schema))
+            cd = _get_cast_distance(arg_val, arg_type, param_type)
             if cd < 0:
                 return _NO_MATCH
 
             bound_param_args.append(
-                BoundArg(param, arg_val, arg_type, cd))
+                BoundArg(param, param_type, arg_val, arg_type, cd))
 
         else:
             if param.get_default(schema) is None:
@@ -267,7 +276,7 @@ def try_bind_call_args(
 
             has_missing_args = True
             bound_param_args.append(
-                BoundArg(param, None, param.get_type(schema), 0))
+                BoundArg(param, param_type, None, param_type, 0))
 
     if matched_kwargs != len(kwargs):
         # extra kwargs?
@@ -283,6 +292,7 @@ def try_bind_call_args(
                 # too many positional arguments
                 return _NO_MATCH
             param = params[pi]
+            param_type = param.get_type(schema)
             param_kind = param.get_kind(schema)
             pi += 1
 
@@ -297,7 +307,7 @@ def try_bind_call_args(
                     return _NO_MATCH
 
                 bound_param_args.append(
-                    BoundArg(param, arg_val, arg_type, cd))
+                    BoundArg(param, param_type, arg_val, arg_type, cd))
 
                 for arg_type, arg_val in args[ai:]:
                     cd = _get_cast_distance(arg_val, arg_type, var_type)
@@ -305,7 +315,7 @@ def try_bind_call_args(
                         return _NO_MATCH
 
                     bound_param_args.append(
-                        BoundArg(param, arg_val, arg_type, cd))
+                        BoundArg(param, param_type, arg_val, arg_type, cd))
 
                 break
 
@@ -314,7 +324,7 @@ def try_bind_call_args(
                 return _NO_MATCH
 
             bound_param_args.append(
-                BoundArg(param, arg_val, arg_type, cd))
+                BoundArg(param, param_type, arg_val, arg_type, cd))
 
         else:
             break
@@ -333,7 +343,7 @@ def try_bind_call_args(
             has_missing_args = True
             param_type = param.get_type(schema)
             bound_param_args.append(
-                BoundArg(param, None, param_type, 0))
+                BoundArg(param, param_type, None, param_type, 0))
 
         elif param_kind is _VARIADIC:
             has_empty_variadic = True
@@ -398,6 +408,7 @@ def try_bind_call_args(
 
                 bound_param_args[i] = BoundArg(
                     param,
+                    param_type,
                     default,
                     barg.valtype,
                     barg.cast_distance,
@@ -417,7 +428,7 @@ def try_bind_call_args(
                 value=bm.decode('ascii'),
                 typeref=irtyputils.type_to_typeref(ctx.env.schema, bytes_t)),
             typehint=bytes_t, ctx=ctx)
-        bound_param_args.insert(0, BoundArg(None, bm_set, bytes_t, 0))
+        bound_param_args.insert(0, BoundArg(None, bytes_t, bm_set, bytes_t, 0))
 
     return_type = func.get_return_type(schema)
     if return_type.is_polymorphic(schema):
@@ -426,6 +437,20 @@ def try_bind_call_args(
                 schema, resolved_poly_base_type)
         elif not in_polymorphic_func:
             return _NO_MATCH
+
+    # resolved_poly_base_type may be legitimately None within
+    # bodies of polymorphic functions
+    if resolved_poly_base_type is not None:
+        for i, barg in enumerate(bound_param_args):
+            if barg.param_type.is_polymorphic(schema):
+                bound_param_args[i] = BoundArg(
+                    barg.param,
+                    barg.param_type.to_nonpolymorphic(
+                        schema, resolved_poly_base_type),
+                    barg.val,
+                    barg.valtype,
+                    barg.cast_distance,
+                )
 
     return BoundCall(
         func, bound_param_args, null_args, return_type, has_empty_variadic)
