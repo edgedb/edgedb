@@ -455,42 +455,30 @@ CREATE CAST FROM std::naive_datetime TO std::naive_time
     FROM SQL CAST;
 
 
-CREATE CAST FROM std::naive_date TO std::naive_datetime {
+CREATE CAST FROM std::naive_date TO std::naive_datetime
     FROM SQL CAST;
-    ALLOW ASSIGNMENT;
-};
 
 
 ## String casts
 
-CREATE CAST FROM std::str TO std::datetime {
+CREATE CAST FROM std::str TO std::datetime
     FROM SQL CAST;
-    ALLOW ASSIGNMENT;
-};
 
 
-CREATE CAST FROM std::str TO std::naive_datetime {
+CREATE CAST FROM std::str TO std::naive_datetime
     FROM SQL CAST;
-    ALLOW ASSIGNMENT;
-};
 
 
-CREATE CAST FROM std::str TO std::naive_date {
+CREATE CAST FROM std::str TO std::naive_date
     FROM SQL CAST;
-    ALLOW ASSIGNMENT;
-};
 
 
-CREATE CAST FROM std::str TO std::naive_time {
+CREATE CAST FROM std::str TO std::naive_time
     FROM SQL CAST;
-    ALLOW ASSIGNMENT;
-};
 
 
-CREATE CAST FROM std::str TO std::timedelta {
+CREATE CAST FROM std::str TO std::timedelta
     FROM SQL CAST;
-    ALLOW ASSIGNMENT;
-};
 
 
 # Normalize [naive] datetime to text conversion to have

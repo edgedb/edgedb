@@ -108,8 +108,20 @@ def find_common_castable_type(
 @functools.lru_cache()
 def is_assignment_castable(
         schema, source: s_types.Type, target: s_types.Type) -> bool:
-    dist = _is_reachable(schema, {'assignment': True}, source, target, 0)
-    return dist != _NOT_REACHABLE
+
+    # Implicitly castable implies assignment castable.
+    if is_implicitly_castable(schema, source, target):
+        return True
+
+    # Assignment casts are valid only as one-hop casts.
+    casts = schema.get_casts_to_type(target, assignment=True)
+    if not casts:
+        return False
+
+    for c in casts:
+        if c.get_from_type(schema) == source:
+            return True
+    return False
 
 
 def get_cast_shortname(

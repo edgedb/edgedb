@@ -1165,7 +1165,6 @@ CREATE CAST FROM std::float32 TO std::float64 {
 
 CREATE CAST FROM std::int32 TO std::int16 {
     FROM SQL CAST;
-    ALLOW ASSIGNMENT;
 };
 
 
@@ -1195,93 +1194,98 @@ CREATE CAST FROM std::float64 TO std::float32 {
 
 CREATE CAST FROM std::decimal TO std::int16 {
     FROM SQL CAST;
-    ALLOW ASSIGNMENT;
 };
 
 
-CREATE CAST FROM std::decimal TO std::int32
+CREATE CAST FROM std::decimal TO std::int32 {
     FROM SQL CAST;
+};
 
 
-CREATE CAST FROM std::decimal TO std::int64
+CREATE CAST FROM std::decimal TO std::int64 {
     FROM SQL CAST;
+};
 
 
-CREATE CAST FROM std::decimal TO std::float64
+CREATE CAST FROM std::decimal TO std::float64 {
     FROM SQL CAST;
+};
 
 
-CREATE CAST FROM std::decimal TO std::float32
+CREATE CAST FROM std::decimal TO std::float32 {
     FROM SQL CAST;
+};
 
 
-CREATE CAST FROM std::float32 TO std::int16
+CREATE CAST FROM std::float32 TO std::int16 {
     FROM SQL CAST;
+};
 
 
-CREATE CAST FROM std::float32 TO std::int32
+CREATE CAST FROM std::float32 TO std::int32 {
     FROM SQL CAST;
+};
 
 
-CREATE CAST FROM std::float32 TO std::int64
+CREATE CAST FROM std::float32 TO std::int64 {
     FROM SQL CAST;
+};
 
 
-CREATE CAST FROM std::float32 TO std::decimal
+CREATE CAST FROM std::float32 TO std::decimal {
     FROM SQL CAST;
+};
 
 
-CREATE CAST FROM std::float64 TO std::int16
+CREATE CAST FROM std::float64 TO std::int16 {
     FROM SQL CAST;
+};
 
 
-CREATE CAST FROM std::float64 TO std::int32
+CREATE CAST FROM std::float64 TO std::int32 {
     FROM SQL CAST;
+};
 
 
-CREATE CAST FROM std::float64 TO std::int64
+CREATE CAST FROM std::float64 TO std::int64 {
     FROM SQL CAST;
+};
 
 
-CREATE CAST FROM std::float64 TO std::decimal
+CREATE CAST FROM std::float64 TO std::decimal {
     FROM SQL CAST;
+};
 
 
 ## String casts.
 
 CREATE CAST FROM std::str TO std::int16 {
     FROM SQL CAST;
-    ALLOW ASSIGNMENT;
 };
 
 
 CREATE CAST FROM std::str TO std::int32 {
     FROM SQL CAST;
-    ALLOW ASSIGNMENT;
 };
 
 
 CREATE CAST FROM std::str TO std::int64 {
     FROM SQL CAST;
-    ALLOW ASSIGNMENT;
 };
 
 
 CREATE CAST FROM std::str TO std::float32 {
     FROM SQL CAST;
-    ALLOW ASSIGNMENT;
 };
 
 
 CREATE CAST FROM std::str TO std::float64 {
     FROM SQL CAST;
-    ALLOW ASSIGNMENT;
 };
 
 
 CREATE CAST FROM std::str TO std::decimal {
     FROM SQL CAST;
-    ALLOW ASSIGNMENT;
 };
 
 

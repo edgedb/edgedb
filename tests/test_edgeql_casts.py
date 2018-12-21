@@ -1138,3 +1138,93 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             [True],
             [True],
         ])
+
+    async def test_edgeql_casts_assignment_01(self):
+        async with self.con.transaction():
+            res = await self.query(r'''
+                SET MODULE test;
+
+                # int64 is assignment castable or implicitly castable
+                # into any other numeric type
+                INSERT ScalarTest {
+                    p_int16 := 1,
+                    p_int32 := 1,
+                    p_int64 := 1,
+                    p_float32 := 1,
+                    p_float64 := 1,
+                    p_decimal := 1,
+                };
+
+                SELECT ScalarTest {
+                    p_int16,
+                    p_int32,
+                    p_int64,
+                    p_float32,
+                    p_float64,
+                    p_decimal,
+                };
+
+                DELETE (SELECT ScalarTest FILTER EXISTS (.p_int16 + .p_int32));
+            ''')
+
+            self.assert_data_shape(
+                res[-2],
+                [{
+                    'p_int16': 1,
+                    'p_int32': 1,
+                    'p_int64': 1,
+                    'p_float32': 1,
+                    'p_float64': 1,
+                    'p_decimal': 1,
+                }],
+            )
+
+    async def test_edgeql_casts_assignment_02(self):
+        async with self.con.transaction():
+            res = await self.query(r'''
+                SET MODULE test;
+
+                # float64 is assignment castable to float32
+                INSERT ScalarTest {
+                    p_float32 := 1.5,
+                };
+
+                SELECT ScalarTest {
+                    p_float32,
+                };
+
+                DELETE (SELECT ScalarTest FILTER .p_float32 = 1.5);
+            ''')
+
+            self.assert_data_shape(
+                res[-2],
+                [{
+                    'p_float32': 1.5,
+                }],
+            )
+
+    async def test_edgeql_casts_assignment_03(self):
+        # in particular, decimal is not assignment-castable
+        # into any other numeric type
+        for typename in ['int16',
+                         'int32',
+                         'int64',
+                         'float32',
+                         'float64']:
+
+            query = f'''
+                INSERT test::ScalarTest {{
+                    p_{typename} := <decimal>3,
+                    p_decimal := 1001,
+                }};
+            '''
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    r'invalid target for property',
+                    msg=query):
+                await self.query(query + r'''
+                    # clean up, so other tests can proceed
+                    DELETE (
+                        SELECT test::ScalarTest FILTER .p_decimal = 1001
+                    );
+                ''')
