@@ -69,10 +69,8 @@ std::`<` (l: std::uuid, r: std::uuid) -> std::bool
 
 ## String casts.
 
-CREATE CAST FROM std::str TO std::uuid {
+CREATE CAST FROM std::str TO std::uuid
     FROM SQL CAST;
-    ALLOW ASSIGNMENT;
-};
 
 
 CREATE CAST FROM std::uuid TO std::str

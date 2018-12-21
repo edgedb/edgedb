@@ -95,10 +95,8 @@ std::`<` (l: std::bool, r: std::bool) -> std::bool
 ## Boolean casts
 ## -------------
 
-CREATE CAST FROM std::str TO std::bool {
+CREATE CAST FROM std::str TO std::bool
     FROM SQL CAST;
-    ALLOW ASSIGNMENT;
-};
 
 
 CREATE CAST FROM std::bool TO std::str

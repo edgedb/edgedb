@@ -32,6 +32,7 @@ type Test:
     property p_float64 -> float64
     property p_decimal -> decimal
 
+
 type JSONTest:
     property j_bool -> json
     property j_str -> json
@@ -46,3 +47,21 @@ type JSONTest:
     property j_float32 -> json
     property j_float64 -> json
     property j_decimal -> json
+
+
+type ScalarTest:
+    property p_bool -> bool
+    property p_uuid -> uuid
+    property p_str -> str
+    property p_datetime -> datetime
+    property p_naive_datetime -> naive_datetime
+    property p_naive_date -> naive_date
+    property p_naive_time -> naive_time
+    property p_timedelta -> timedelta
+    property p_int16 -> int16
+    property p_int32 -> int32
+    property p_int64 -> int64
+    property p_float32 -> float32
+    property p_float64 -> float64
+    property p_decimal -> decimal
+    property p_json -> json
