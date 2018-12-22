@@ -17,7 +17,7 @@
 #
 
 
-__all__ = 'create_pool',
+__all__ = 'create_manager',
 
 
-from .pool import create_pool, create_manager  # NoQA
+from .pool import create_manager
