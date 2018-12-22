@@ -88,7 +88,7 @@ class Compiler:
         self._data_dir = pathlib.Path(data_dir)
         self._dbname = None
         self._cached_db = None
-        self._cached_std_schema = None
+        self._std_schema = self._get_std_schema()
         self._current_db_state = None
 
     async def _get_database(self, dbver: int) -> CompilerDatabaseState:
@@ -105,7 +105,7 @@ class Compiler:
         try:
             im = intromech.IntrospectionMech(con)
             schema = await im.readschema(
-                schema=self._get_std_schema(),
+                schema=self._std_schema,
                 exclude_modules=s_schema.STD_MODULES)
 
             db = CompilerDatabaseState(
@@ -119,17 +119,12 @@ class Compiler:
             await con.close()
 
     def _get_std_schema(self):
-        if self._cached_std_schema is not None:
-            return self._cached_std_schema
-
         with open(self._data_dir / 'stdschema.pickle', 'rb') as f:
             try:
-                self._cached_std_schema = pickle.load(f)
+                return pickle.load(f)
             except Exception as e:
                 raise RuntimeError(
                     'could not load std schema pickle') from e
-
-        return self._cached_std_schema
 
     def _hash_sql(self, sql: bytes, **kwargs: bytes):
         h = hashlib.sha1(sql)
