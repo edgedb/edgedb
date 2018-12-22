@@ -48,7 +48,7 @@ class Backend:
 
     async def close(self):
         self._pgcon.terminate()
-        self._compiler.close()
+        await self._compiler.close()
 
 
 class BackendManager:

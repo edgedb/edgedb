@@ -42,36 +42,39 @@ def load_class(cls_name):
 
 async def worker(cls, cls_args, sockname):
     con = await amsg.worker_connect(sockname)
-    worker = cls(*cls_args)
+    try:
+        worker = cls(*cls_args)
 
-    while True:
-        req = await con.next_request()
-
-        try:
-            methname, args = pickle.loads(req)
-        except Exception as ex:
-            data = (1, ex, traceback.format_exc())
-        else:
-            meth = getattr(worker, methname)
+        while True:
+            req = await con.next_request()
 
             try:
-                res = await meth(*args)
-                data = (0, res)
+                methname, args = pickle.loads(req)
             except Exception as ex:
-                if debug.flags.server:
-                    markup.dump(ex, marker="exception in methname()",
-                                file=sys.stderr)
-                ex_str = str(ex)
                 data = (1, ex, traceback.format_exc())
+            else:
+                meth = getattr(worker, methname)
 
-        try:
-            pickled = pickle.dumps(data)
-        except Exception as ex:
-            ex_tb = traceback.format_exc()
-            ex_str = f'{ex}:\n\n{ex_tb}'
-            pickled = pickle.dumps((2, ex_str))
+                try:
+                    res = await meth(*args)
+                    data = (0, res)
+                except Exception as ex:
+                    if debug.flags.server:
+                        markup.dump(ex, marker="exception in methname()",
+                                    file=sys.stderr)
+                    ex_str = str(ex)
+                    data = (1, ex, traceback.format_exc())
 
-        await con.reply(pickled)
+            try:
+                pickled = pickle.dumps(data)
+            except Exception as ex:
+                ex_tb = traceback.format_exc()
+                ex_str = f'{ex}:\n\n{ex_tb}'
+                pickled = pickle.dumps((2, ex_str))
+
+            await con.reply(pickled)
+    finally:
+        con.abort()
 
 
 def run_worker(cls, cls_args, sockname):

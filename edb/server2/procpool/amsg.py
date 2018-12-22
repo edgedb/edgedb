@@ -159,6 +159,9 @@ class HubConnection:
         self._protocol.send(waiter, data)
         return await waiter
 
+    def abort(self):
+        self._transport.abort()
+
 
 class WorkerConnection:
 
@@ -166,6 +169,7 @@ class WorkerConnection:
         self._loop = loop
         self._msgs = asyncio.Queue(loop=loop)
         self._protocol = None
+        self._transport = None
         self._con_lost_fut = loop.create_future()
 
     def is_closed(self):
@@ -193,6 +197,9 @@ class WorkerConnection:
 
         return getter.result()
 
+    def abort(self):
+        self._transport.abort()
+
 
 async def worker_connect(sockname):
     loop = asyncio.get_running_loop()
@@ -202,6 +209,7 @@ async def worker_connect(sockname):
         lambda: WorkerProtocol(loop=loop, con_waiter=waiter, con=con),
         path=sockname)
     con._protocol = pr
+    con._transport = tr
     await waiter
     return con
 
@@ -241,3 +249,5 @@ class Server:
     async def stop(self):
         self._srv.close()
         await self._srv.wait_closed()
+        for con in self._pids.values():
+            con.abort()

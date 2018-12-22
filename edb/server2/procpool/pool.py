@@ -51,6 +51,7 @@ class Worker:
         self._proc = None
         self._con = None
         self._last_used = time.monotonic()
+        self._closed = False
 
     async def _kill_proc(self, proc):
         try:
@@ -87,6 +88,8 @@ class Worker:
         return self._proc.pid
 
     async def call(self, method_name, *args):
+        assert not self._closed
+
         if self._con.is_closed():
             await self._spawn()
 
@@ -105,10 +108,14 @@ class Worker:
         else:
             raise RuntimeError(data[0])
 
-    def close(self):
+    async def close(self):
+        if self._closed:
+            return
+        self._closed = True
         self._manager._stats_killed += 1
         self._manager._workers.discard(self)
         self._proc.kill()
+        await self._proc.wait()
 
 
 class Manager:
@@ -170,8 +177,10 @@ class Manager:
         await self._server.stop()
         self._server = None
 
-        for worker in list(self._workers):
-            worker.close()
+        async with taskgroup.TaskGroup(
+                name=f'{self._name}-manager-stop') as g:
+            for worker in list(self._workers):
+                g.create_task(worker.close())
 
         self._workers.clear()
         self._running = False
