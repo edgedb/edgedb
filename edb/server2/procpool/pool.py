@@ -19,18 +19,20 @@
 
 import asyncio
 import base64
+import collections
 import os.path
 import pickle
 import subprocess
 import sys
 import time
 
+from edb.lang.common import supervisor
 from edb.lang.common import taskgroup
 
 from . import amsg
 
 
-GC_INTERVAL = 60.0 * 3
+BUFFER_POOL_SIZE = 4
 PROCESS_INITIAL_RESPONSE_TIMEOUT = 10.0
 KILL_TIMEOUT = 10.0
 WORKER_MOD = __name__.rpartition('.')[0] + '.worker'
@@ -52,6 +54,7 @@ class Worker:
         self._con = None
         self._last_used = time.monotonic()
         self._closed = False
+        self._sup = None
 
     async def _kill_proc(self, proc):
         try:
@@ -69,7 +72,7 @@ class Worker:
         self._manager._stats_spawned += 1
 
         if self._proc is not None:
-            asyncio.create_task(self._kill_proc(self._proc))
+            self._manager._sup.create_task(self._kill_proc(self._proc))
             self._proc = None
 
         self._proc = await asyncio.create_subprocess_exec(
@@ -120,7 +123,8 @@ class Worker:
 
 class Manager:
 
-    def __init__(self, *, worker_cls, worker_args, loop, name, runstate_dir):
+    def __init__(self, *, worker_cls, worker_args,
+                 loop, name, runstate_dir, pool_size=BUFFER_POOL_SIZE):
 
         self._worker_cls = worker_cls
         self._worker_args = worker_args
@@ -133,6 +137,8 @@ class Manager:
         self._poolsock_name = os.path.join(
             self._runstate_dir, f'{name}.socket')
 
+        self._pool_size = pool_size
+        self._workers_pool = collections.deque()
         self._workers = set()
 
         self._server = amsg.Server(self._poolsock_name, loop)
@@ -141,6 +147,8 @@ class Manager:
 
         self._stats_spawned = 0
         self._stats_killed = 0
+
+        self._sup = None
 
         self._worker_command_args = [
             sys.executable, '-m', WORKER_MOD,
@@ -158,21 +166,45 @@ class Manager:
     def is_running(self):
         return self._running
 
+    async def _spawn_worker(self):
+        worker = Worker(self, self._server, self._worker_command_args)
+        await worker._spawn()
+        return worker
+
+    async def _spawn_for_pool(self):
+        worker = await self._spawn_worker()
+        self._workers_pool.appendleft(worker)
+        return worker
+
     async def spawn_worker(self):
         if not self._running:
             raise RuntimeError('cannot spawn a worker: not running')
-        worker = Worker(self, self._server, self._worker_command_args)
-        await worker._spawn()
+
+        if self._workers_pool:
+            worker = self._workers_pool.pop()
+            self._sup.create_task(self._spawn_for_pool())
+        else:
+            worker = await self._spawn_worker()
+
         self._workers.add(worker)
         return worker
 
     async def start(self):
+        self._sup = await supervisor.Supervisor.create()
+
         await self._server.start()
         self._running = True
+
+        if self._pool_size:
+            async with taskgroup.TaskGroup(name='manager-start') as g:
+                for _ in range(self._pool_size):
+                    g.create_task(self._spawn_for_pool())
 
     async def stop(self):
         if not self._running:
             return
+
+        await self._sup.wait()
 
         await self._server.stop()
         self._server = None
@@ -182,6 +214,10 @@ class Manager:
             for worker in list(self._workers):
                 g.create_task(worker.close())
 
+            for worker in list(self._workers_pool):
+                g.create_task(worker.close())
+
+        self._workers_pool.clear()
         self._workers.clear()
         self._running = False
 
