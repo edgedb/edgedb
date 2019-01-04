@@ -4,7 +4,7 @@ set -e -x
 
 git clone https://github.com/edgedb/edgedb-python.git edgedb
 cd edgedb
-git submodule update --init --depth 1
+git submodule update --init --depth 50
 pip install --verbose -e .
 cd ../
 
