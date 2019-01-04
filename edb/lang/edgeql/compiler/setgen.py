@@ -372,7 +372,6 @@ def resolve_ptr(
             pointer_name,
             direction=direction,
             look_in_children=False,
-            include_inherited=True,
             far_endpoint=target)
 
         if ptr is None:

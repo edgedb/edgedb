@@ -58,13 +58,18 @@ class ObjectType(BaseObjectType, constraints.ConsistencySubject,
                 raise ValueError(
                     'references to concrete pointers must not be qualified')
 
-            ptrs = set()
+            ptrs = {
+                l for l in schema.get_referrers(source, scls_type=links.Link,
+                                                field_name='target')
+                if l.get_shortname(schema).name == name
+            }
 
-            for link in schema.get_objects(type=links.Link):
-                if (link.get_shortname(schema).name == name and
-                        link.get_target(schema) is not None and
-                        source.issubclass(schema, link.get_target(schema))):
-                    ptrs.add(link)
+            for obj in source.get_mro(schema).objects(schema):
+                ptrs.update(
+                    l for l in schema.get_referrers(obj, scls_type=links.Link,
+                                                    field_name='target')
+                    if l.get_shortname(schema).name == name
+                )
 
             return ptrs
 

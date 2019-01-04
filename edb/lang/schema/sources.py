@@ -92,21 +92,10 @@ class Source(indexes.IndexableSubject):
     def _getptr_inherited_from(self, schema, name, resolver):
         ptrs = set()
 
-        ptr_names = []
-        if not sn.Name.is_qualified(name):
-            ptr_names.append(
-                sn.Name(module=self.get_name(schema).module, name=name))
-            ptr_names.append(
-                sn.Name(module='std', name=name))
-        else:
-            ptr_names.append(name)
-
-        for ptr_name in ptr_names:
-            base_ptr_class = schema.get(ptr_name, default=None)
-            if base_ptr_class:
-                ptrs = resolver.getptr_inherited_from(
-                    self, schema, base_ptr_class, False)
-                break
+        for ptr in self.get_pointers(schema).objects(schema):
+            if name in {o.get_shortname(schema).name
+                        for o in ptr.get_mro(schema).objects(schema)}:
+                ptrs.add(ptr)
 
         return ptrs
 
