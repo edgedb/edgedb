@@ -185,7 +185,7 @@ class Compiler:
         if ctx.single_query_mode or ctx.legacy_mode:
             if ctx.output_format is pg_compiler.OutputFormat.NATIVE:
                 out_type_data, out_type_id = sertypes.TypeSerializer.describe(
-                    ir.schema, ir.expr.stype, ir.view_shapes)
+                    ir.schema, ir.stype, ir.view_shapes)
             else:
                 out_type_data, out_type_id = \
                     sertypes.TypeSerializer.describe_json()

@@ -486,7 +486,8 @@ def compile_TypeCast(
                     context=expr.expr.context)
 
         param = irast.Parameter(
-            typeref=pt, name=param_name, context=expr.expr.context)
+            typeref=irtyputils.type_to_typeref(ctx.env.schema, pt),
+            name=param_name, context=expr.expr.context)
         return setgen.ensure_set(param, ctx=ctx)
 
     else:
