@@ -132,12 +132,6 @@ def _run_server(cluster, args, runstate_dir):
                 protocol_factory,
                 host=args['bind_address'], port=args['port']))
 
-        loop.add_signal_handler(signal.SIGTERM, terminate_server, srv, loop)
-        logger.info('Serving on %s:%s', args['bind_address'], args['port'])
-
-        # Notify systemd that we've started up.
-        _sd_notify('READY=1')
-
         ss = server2.Server(
             loop=loop,
             cluster=cluster,
@@ -148,6 +142,12 @@ def _run_server(cluster, args, runstate_dir):
         logger.info(
             'Serving EDGE on %s:%s',
             args['bind_address'], args['port'] + 1)
+
+        loop.add_signal_handler(signal.SIGTERM, terminate_server, srv, loop)
+        logger.info('Serving on %s:%s', args['bind_address'], args['port'])
+
+        # Notify systemd that we've started up.
+        _sd_notify('READY=1')
 
         try:
             loop.run_forever()
