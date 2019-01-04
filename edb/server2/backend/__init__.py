@@ -79,28 +79,21 @@ class BackendManager:
             await self._compiler_manager.stop()
 
     async def new_backend(self, *, dbname: str, dbver: int):
-        try:
-            compiler = None
-            async with taskgroup.TaskGroup() as g:
-                new_pgcon = g.create_task(
-                    pgcon.connect(self._pgaddr, dbname))
-
-                compiler = await self._compiler_manager.spawn_worker()
-                g.create_task(
-                    compiler.call('connect', dbname, dbver))
-
-        except Exception:
+        async def new_compiler():
+            compiler_worker = await self._compiler_manager.spawn_worker()
             try:
-                if compiler is not None:
-                    compiler.close()
-            finally:
-                if (new_pgcon.done() and
-                        not new_pgcon.cancelled() and
-                        not new_pgcon.exception()):
-                    con = new_pgcon.result()
-                    con.abort()
-            raise
+                await compiler_worker.call('connect', dbname, dbver)
+            except Exception:
+                await compiler_worker.close()
+                raise
+            return compiler_worker
 
-        backend = Backend(new_pgcon.result(), compiler)
+        async with taskgroup.TaskGroup() as g:
+            new_pgcon_task = g.create_task(
+                pgcon.connect(self._pgaddr, dbname))
+
+            compiler_task = g.create_task(new_compiler())
+
+        backend = Backend(new_pgcon_task.result(), compiler_task.result())
         self._backends.add(backend)
         return backend

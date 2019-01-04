@@ -39,6 +39,7 @@ from edb.lang.common import debug
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import compiler as ql_compiler
 from edb.lang.edgeql import quote as ql_quote
+from edb.lang.edgeql import parser as ql_parser
 
 from edb.lang.ir import staeval as ireval
 
@@ -88,8 +89,11 @@ class Compiler:
         self._data_dir = pathlib.Path(data_dir)
         self._dbname = None
         self._cached_db = None
-        self._std_schema = self._get_std_schema()
         self._current_db_state = None
+        self._std_schema = self._get_std_schema()
+
+        # Preload parsers.
+        ql_parser.EdgeQLBlockParser().get_parser_spec()
 
     async def _get_database(self, dbver: int) -> CompilerDatabaseState:
         if self._cached_db is not None and self._cached_db.dbver == dbver:
@@ -555,13 +559,7 @@ class Compiler:
                                   single_query_mode: bool,
                                   legacy_mode: bool,
                                   graphql_mode: bool=False):
-        if (self._current_db_state is None or
-                self._current_db_state.current_tx().id != txid):
-            self._current_db_state = None
-            raise RuntimeError(
-                f'failed to lookup transaction with id={txid}')
-
-        state = self._current_db_state
+        state = self._load_state(txid)
 
         if json_mode:
             of = pg_compiler.OutputFormat.JSON
@@ -576,6 +574,14 @@ class Compiler:
             graphql_mode=graphql_mode)
 
         return ctx
+
+    def _load_state(self, txid: int):
+        if (self._current_db_state is None or
+                self._current_db_state.current_tx().id != txid):
+            self._current_db_state = None
+            raise RuntimeError(
+                f'failed to lookup transaction with id={txid}')
+        return self._current_db_state
 
     # API
 
