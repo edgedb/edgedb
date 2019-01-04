@@ -44,14 +44,14 @@ class TestRunner:
         return TestResult()
 
 
-def execute(tests_dir, conns):
+def execute(tests_dir, conn, num_workers):
     runner = TestRunner()
     unittest.main(
         module=None,
         argv=['unittest', 'discover', '-s', tests_dir],
         testRunner=runner, exit=False)
 
-    tb.setup_test_cases(runner.cases, conns)
+    tb.setup_test_cases(runner.cases, conn, num_workers)
 
 
 def die(msg):
@@ -93,14 +93,16 @@ def inittestdb(*, data_dir, jobs, tests_dir):
             shutil.rmtree(data_dir)
         raise
 
-    servers, conns = tb.start_worker_servers(cluster, num_workers=jobs)
+    conn = cluster.get_connect_args()
     destroy_cluster = False
 
     try:
-        execute(tests_dir, conns)
+        execute(tests_dir, conn, num_workers=jobs)
         print(f'Initialized and populated test EdgeDB instance in {data_dir}')
     except BaseException:
         destroy_cluster = True
         raise
     finally:
-        tb.shutdown_worker_servers(servers, destroy=destroy_cluster)
+        cluster.stop()
+        if destroy_cluster:
+            cluster.destroy()

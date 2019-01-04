@@ -58,8 +58,9 @@ def init_worker(param_queue, result_queue):
     if not param_queue.empty():
         server_addr = param_queue.get()
 
-        cluster = edgedb_cluster.RunningCluster(**server_addr)
-        tb._set_default_cluster(cluster)
+        if server_addr is not None:
+            cluster = edgedb_cluster.RunningCluster(**server_addr)
+            tb._set_default_cluster(cluster)
 
 
 class StreamingTestSuite(unittest.TestSuite):
@@ -188,9 +189,9 @@ def monitor_thread(queue, result):
 
 
 class ParallelTestSuite(unittest.TestSuite):
-    def __init__(self, tests, server_conns, num_workers):
+    def __init__(self, tests, server_conn, num_workers):
         self.tests = tests
-        self.server_conns = server_conns
+        self.server_conn = server_conn
         self.num_workers = num_workers
         self.stop_requested = False
 
@@ -203,8 +204,8 @@ class ParallelTestSuite(unittest.TestSuite):
 
         # Prepopulate the worker param queue with server connection
         # information.
-        for server_conn in self.server_conns:
-            worker_param_queue.put(server_conn)
+        for _ in range(self.num_workers):
+            worker_param_queue.put(self.server_conn)
 
         result_thread = threading.Thread(
             name='test-monitor', target=monitor_thread,
@@ -245,15 +246,14 @@ class ParallelTestSuite(unittest.TestSuite):
 
 
 class SequentialTestSuite(unittest.TestSuite):
-    def __init__(self, tests, server_conns):
+    def __init__(self, tests, server_conn):
         self.tests = tests
-        self.server_conns = server_conns
+        self.server_conn = server_conn
         self.stop_requested = False
 
     def run(self, result):
-        if self.server_conns:
-            server_addr = next(iter(self.server_conns))
-            cluster = edgedb_cluster.RunningCluster(**server_addr)
+        if self.server_conn:
+            cluster = edgedb_cluster.RunningCluster(**self.server_conn)
             tb._set_default_cluster(cluster)
 
         suite = StreamingTestSuite()
@@ -593,28 +593,24 @@ class ParallelTextTestRunner:
         session_start = time.monotonic()
         cases = tb.get_test_cases([test])
         setup = tb.get_test_cases_setup(cases)
-        servers = []
-        conns = []
         bootstrap_time_taken = 0
         tests_time_taken = 0
         result = None
+        cluster = None
+        conn = None
 
         try:
             if setup:
                 self._echo('Populating test databases... ',
                            fg='white', nl=False)
 
-                max_conns = max(100, self.num_workers * len(setup) * 2)
-                cluster = tb._init_cluster(init_settings={
-                    # Make sure the server accomodates the possible
-                    # number of connections from all test classes.
-                    'max_connections': max_conns,
-                }, cleanup_atexit=False)
+                cluster = tb._init_cluster(cleanup_atexit=False)
 
-                servers, conns = tb.start_worker_servers(
-                    cluster, self.num_workers)
-
-                tb.setup_test_cases(cases, conns)
+                conn = cluster.get_connect_args()
+                tb.setup_test_cases(
+                    cases,
+                    conn,
+                    self.num_workers)
 
                 os.environ.update({
                     'EDGEDB_TEST_CASES_SET_UP': "1"
@@ -631,12 +627,12 @@ class ParallelTextTestRunner:
             if self.num_workers > 1:
                 suite = ParallelTestSuite(
                     self._sort_tests(cases),
-                    conns,
+                    conn,
                     self.num_workers)
             else:
                 suite = SequentialTestSuite(
                     self._sort_tests(cases),
-                    conns
+                    conn
                 )
 
             result = ParallelTextTestResult(
@@ -661,7 +657,9 @@ class ParallelTextTestRunner:
             if setup:
                 self._echo()
                 self._echo('Shutting down test cluster... ', nl=False)
-                tb.shutdown_worker_servers(servers)
+                if cluster is not None:
+                    cluster.stop()
+                    cluster.destroy()
                 self._echo('OK.')
 
         if result is not None:

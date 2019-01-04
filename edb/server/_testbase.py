@@ -31,10 +31,10 @@ import unittest
 
 import edgedb
 
-from edb import client as edgedb_client
-from edb.client import connect_utils
 from edb.server import cluster as edgedb_cluster
 from edb.server import defines as edgedb_defines
+
+from edb.lang.common import taskgroup
 
 
 def get_test_cases(tests):
@@ -198,9 +198,7 @@ class RollbackChanges:
         await self._tx.rollback()
 
 
-class ConnectedTestCase(ClusterTestCase):
-
-    BASE_TEST_CLASS = True
+class ConnectedTestCaseMixin:
 
     @classmethod
     def connect(cls, loop, cluster, database=None):
@@ -208,6 +206,14 @@ class ConnectedTestCase(ClusterTestCase):
         conargs.update(dict(
             user='edgedb', database=database, port=conargs['port'] + 1))
         return loop.run_until_complete(edgedb.connect(**conargs))
+
+    def _run_and_rollback(self):
+        return RollbackChanges(self)
+
+
+class ConnectedTestCase(ClusterTestCase, ConnectedTestCaseMixin):
+
+    BASE_TEST_CLASS = True
 
     @classmethod
     def setUpClass(cls):
@@ -225,11 +231,8 @@ class ConnectedTestCase(ClusterTestCase):
         finally:
             super().tearDownClass()
 
-    def _run_and_rollback(self):
-        return RollbackChanges(self)
 
-
-class DatabaseTestCase(ConnectedTestCase):
+class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     SETUP = None
     TEARDOWN = None
     SCHEMA = None
@@ -279,16 +282,22 @@ class DatabaseTestCase(ConnectedTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.admin_conn = cls.con
         dbname = cls.get_database_name()
 
-        if not os.environ.get('EDGEDB_TEST_CASES_SET_UP'):
+        cls.admin_conn = None
+        cls.con = None
+
+        class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP')
+
+        # Only open an extra admin connection if necessary.
+        if not class_set_up:
             script = f'CREATE DATABASE {dbname};'
+            cls.admin_conn = cls.connect(cls.loop, cls.cluster)
             cls.loop.run_until_complete(cls.admin_conn._legacy_execute(script))
 
         cls.con = cls.connect(cls.loop, cls.cluster, database=dbname)
 
-        if not os.environ.get('EDGEDB_TEST_CASES_SET_UP'):
+        if not class_set_up:
             script = cls.get_setup_script()
             if script:
                 cls.loop.run_until_complete(cls.con._legacy_execute(script))
@@ -358,10 +367,9 @@ class DatabaseTestCase(ConnectedTestCase):
                 cls.loop.run_until_complete(
                     cls.con._legacy_execute(script))
         finally:
-            cls.loop.run_until_complete(cls.con.close())
-            cls.con = cls.admin_conn
-
             try:
+                cls.loop.run_until_complete(cls.con.close())
+
                 if not class_set_up:
                     dbname = cls.get_database_name()
                     script = f'DROP DATABASE {dbname};'
@@ -369,11 +377,10 @@ class DatabaseTestCase(ConnectedTestCase):
                     cls.loop.run_until_complete(
                         cls.admin_conn._legacy_execute(script))
 
-                cls.loop.run_until_complete(
-                    cls.con.close())
-
             finally:
-                super().tearDownClass()
+                if cls.admin_conn is not None:
+                    cls.loop.run_until_complete(
+                        cls.admin_conn.close())
 
 
 class nullable:
@@ -604,67 +611,38 @@ def get_test_cases_setup(cases):
     return result
 
 
-def start_worker_servers(master_cluster, num_workers):
-    servers = [master_cluster]
-    conns = []
-
-    pg_conn_args = dict(master_cluster._pg_cluster.get_connection_spec())
-    pg_conn_args['user'] = edgedb_defines.EDGEDB_SUPERUSER
-    pg_dsn = connect_utils.render_dsn('postgres', pg_conn_args)
-    data_dir = master_cluster.get_data_dir()
-
-    if num_workers > 1:
-        for i in range(num_workers - 1):
-            server = _init_cluster(
-                data_dir=data_dir, pg_cluster=pg_dsn, cleanup_atexit=False)
-            servers.append(server)
-
-    for server in servers:
-        conn_args = dict(server.get_connect_args())
-        conn_args['user'] = edgedb_defines.EDGEDB_SUPERUSER
-        conns.append(conn_args)
-
-    return servers, conns
-
-
-def shutdown_worker_servers(servers, *, destroy=True):
-    for server in servers:
-        server.stop()
-
-    if destroy:
-        for server in servers:
-            if server._data_dir:
-                server.destroy()
-
-
-def setup_test_cases(cases, conns):
+def setup_test_cases(cases, conn, num_jobs):
     setup = get_test_cases_setup(cases)
 
     async def _run():
-        tasks = []
-
-        if len(conns) == 1:
+        if num_jobs == 1:
             # Special case for --jobs=1
             for case, dbname, setup_script in setup:
-                await _setup_database(dbname, setup_script, conns[0])
+                await _setup_database(dbname, setup_script, conn)
         else:
-            ci = 0
-            for case, dbname, setup_script in setup:
-                conn_args = conns[ci]
-                task = asyncio.create_task(
-                    _setup_database(dbname, setup_script, conn_args))
-                tasks.append(task)
-                ci += 1
-                if ci == len(conns):
-                    ci = 0
+            async with taskgroup.TaskGroup(name='setup test cases') as g:
+                # Use a semaphore to limit the concurrency of bootstrap
+                # tasks to the number of jobs (bootstrap is heavy, having
+                # more tasks than `--jobs` won't necessarily make
+                # things faster.)
+                sem = asyncio.BoundedSemaphore(num_jobs)
 
-            await asyncio.gather(*tasks)
+                async def controller(coro):
+                    async with sem:
+                        await coro
+
+                for case, dbname, setup_script in setup:
+                    g.create_task(controller(
+                        _setup_database(dbname, setup_script, conn)))
 
     return asyncio.run(_run())
 
 
 async def _setup_database(dbname, setup_script, conn_args):
-    admin_conn = await edgedb_client.connect(
+    conn_args = conn_args.copy()
+    conn_args.update(dict(port=conn_args['port'] + 1))
+
+    admin_conn = await edgedb.connect(
         database=edgedb_defines.EDGEDB_SUPERUSER_DB, **conn_args)
 
     try:
@@ -672,7 +650,7 @@ async def _setup_database(dbname, setup_script, conn_args):
     finally:
         await admin_conn.close()
 
-    dbconn = await edgedb_client.connect(database=dbname, **conn_args)
+    dbconn = await edgedb.connect(database=dbname, **conn_args)
     try:
         await dbconn._legacy_execute(setup_script)
     finally:

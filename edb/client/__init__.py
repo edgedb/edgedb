@@ -53,9 +53,6 @@ class Connection:
             graphql=graphql,
             flags=flags)
 
-    async def _legacy_execute(self, *args, **kwargs):
-        return await self.execute(*args, **kwargs)
-
     def get_last_timings(self):
         return self._protocol._last_timings
 
