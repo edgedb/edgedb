@@ -243,6 +243,7 @@ cdef class EdgeConnection:
         packet.write_buffer(msg.end_message())
         packet.write_buffer(self.pgcon_last_sync_status())
         self.write(packet)
+        self.flush()
 
     async def parse(self):
         json_mode = False
