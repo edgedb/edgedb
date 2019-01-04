@@ -19,7 +19,6 @@
 """Low level introspection of the schema."""
 
 
-import collections
 import json
 
 from edb import errors
@@ -100,10 +99,8 @@ class IntrospectionMech:
             schema = await self.read_attribute_values(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
 
-            schema = await self.order_attributes(schema)
             schema = await self.order_scalars(schema)
             schema = await self.order_operators(schema)
-            schema = await self.order_functions(schema)
             schema = await self.order_link_properties(schema)
             schema = await self.order_links(schema)
             schema = await self.order_objtypes(schema)
@@ -362,16 +359,12 @@ class IntrospectionMech:
 
         return schema
 
-    async def order_functions(self, schema):
-        return schema
-
     async def read_constraints(self, schema, only_modules, exclude_modules):
         ds = datasources.schema
         constraints_list = await ds.constraints.fetch(
             self.connection, modules=only_modules,
             exclude_modules=exclude_modules)
-        constraints_list = collections.OrderedDict(
-            (sn.Name(r['name']), r) for r in constraints_list)
+        constraints_list = {sn.Name(r['name']): r for r in constraints_list}
         param_list = await ds.functions.fetch_params(
             self.connection, modules=only_modules,
             exclude_modules=exclude_modules)
@@ -431,9 +424,6 @@ class IntrospectionMech:
 
         return schema
 
-    async def order_constraints(self, schema):
-        pass
-
     def _unpack_typedesc_node(self, typemap, id, schema):
         t = typemap[id]
 
@@ -450,7 +440,7 @@ class IntrospectionMech:
 
             named = all(s[0] is not None for s in subtypes)
             if issubclass(coll_type, s_abc.Tuple) and named:
-                st = collections.OrderedDict(subtypes)
+                st = dict(subtypes)
                 typemods = {'named': named}
             else:
                 st = [st[1] for st in subtypes]
@@ -561,8 +551,7 @@ class IntrospectionMech:
         links_list = await datasources.schema.links.fetch(
             self.connection, modules=only_modules,
             exclude_modules=exclude_modules)
-        links_list = collections.OrderedDict((sn.Name(r['name']), r)
-                                             for r in links_list)
+        links_list = {sn.Name(r['name']): r for r in links_list}
 
         basemap = {}
 
@@ -665,8 +654,7 @@ class IntrospectionMech:
         link_props = await datasources.schema.links.fetch_properties(
             self.connection, modules=only_modules,
             exclude_modules=exclude_modules)
-        link_props = collections.OrderedDict((sn.Name(r['name']), r)
-                                             for r in link_props)
+        link_props = {sn.Name(r['name']): r for r in link_props}
         basemap = {}
 
         for name, r in link_props.items():
@@ -765,9 +753,6 @@ class IntrospectionMech:
 
         return schema
 
-    async def order_attributes(self, schema):
-        return schema
-
     async def read_attribute_values(
             self, schema, only_modules, exclude_modules):
         attributes = await datasources.schema.attributes.fetch_values(
@@ -798,8 +783,7 @@ class IntrospectionMech:
         objtype_list = await datasources.schema.objtypes.fetch(
             self.connection, modules=only_modules,
             exclude_modules=exclude_modules)
-        objtype_list = collections.OrderedDict((sn.Name(row['name']), row)
-                                               for row in objtype_list)
+        objtype_list = {sn.Name(row['name']): row for row in objtype_list}
 
         basemap = {}
 
