@@ -51,7 +51,6 @@ from edb.server.pgsql import dbops
 from . import datasources
 from .datasources import introspection
 
-from . import errormech
 from . import parser
 from . import schemamech
 from . import types
@@ -883,7 +882,3 @@ class IntrospectionMech:
                     self.connection, typname, *typmods)
             return name, constraints
         return None
-
-    async def translate_pg_error(self, schema, query, error):
-        return await errormech.ErrorMech._interpret_db_error(
-            schema, self, self._constr_mech, error)

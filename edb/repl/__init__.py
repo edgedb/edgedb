@@ -27,6 +27,8 @@ import select
 import subprocess
 import sys
 
+import edgedb
+
 from prompt_toolkit import application as pt_app
 from prompt_toolkit import buffer as pt_buffer
 from prompt_toolkit import enums as pt_enums
@@ -40,8 +42,6 @@ from prompt_toolkit import styles as pt_styles
 from prompt_toolkit import token as pt_token
 from prompt_toolkit.layout import lexers as pt_lexers
 
-from edb import client
-from edb.lang.common import datetime
 from edb.lang.common import devmode
 from edb.lang.common import lexer as core_lexer
 from edb.lang.common import markup
@@ -256,11 +256,11 @@ class Cli:
 
     async def connect(self, args):
         try:
-            con = await client.connect(**args)
+            con = await edgedb.connect(**args)
         except Exception:
             return None
         else:
-            self.cur_db = con._dbname
+            self.cur_db = con.dbname
             return con
 
     def ensure_connection(self, args):
@@ -366,7 +366,7 @@ class Cli:
                     if self.graphql:
                         command = command.rstrip(';')
                     result = self.run_coroutine(
-                        self.connection.execute(
+                        self.connection._legacy_execute(
                             command, graphql=self.graphql))
                 except KeyboardInterrupt:
                     continue
@@ -378,42 +378,13 @@ class Cli:
                     entry_mkup = markup._serialize(entry)
                     markup_term.render(entry_mkup, renderer=ResultRenderer)
 
-                self.print_timings(self.connection.get_last_timings())
-
         except EOFError:
             return
 
-    def print_timings(self, timings):
-        timings = self.connection.get_last_timings()
-        if timings is None:
-            return
-
-        r = datetime.humanize_time_delta
-        buf = {}
-        if timings.get('graphql_translation'):
-            buf['GraphQL->EdgeQL'] = r(timings.get('graphql_translation'))
-        if timings.get('parse_eql'):
-            buf['Parse'] = r(timings.get('parse_eql'))
-        if timings.get('compile_eql_to_ir'):
-            buf['EdgeQL->IR'] = r(timings.get('compile_eql_to_ir'))
-        if timings.get('compile_ir_to_sql'):
-            buf['IR->SQL'] = r(timings.get('compile_ir_to_sql'))
-        if timings.get('execution'):
-            buf['Exec'] = r(timings.get('execution'))
-
-        if buf:
-            tokens = []
-            for k, v in buf.items():
-                tokens.append((pt_token.Token.Timing.Key, f'{k}: '))
-                tokens.append((pt_token.Token.Timing.Value, f'{v}  '))
-
-            pt_shortcuts.print_tokens(tokens, style=self.style)
-            print()
-
 
 async def execute(conn_args, data):
-    con = await client.connect(**conn_args)
-    result = await con.execute(data)
+    con = await edgedb.connect(**conn_args)
+    result = await con._legacy_execute(data)
 
     for entry in result:
         entry_mkup = markup._serialize(entry)
