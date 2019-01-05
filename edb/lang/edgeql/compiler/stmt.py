@@ -25,7 +25,6 @@ import typing
 from edb import errors
 
 from edb.lang.ir import ast as irast
-from edb.lang.ir import staeval as ireval
 from edb.lang.ir import typeutils as irtyputils
 
 from edb.lang.schema import links as s_links
@@ -357,56 +356,6 @@ def compile_DeleteQuery(
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
     return result
-
-
-@dispatch.compile.register(qlast.SetSessionState)
-def compile_SetSessionState(
-        decl: qlast.SetSessionState, *,
-        ctx: context.ContextLevel) -> irast.SessionStateCmd:
-
-    aliases = {}
-    testmode = False
-
-    for item in decl.items:
-        if isinstance(item, qlast.SessionSettingModuleDecl):
-            try:
-                module = ctx.env.schema.get(item.module)
-            except errors.InvalidReferenceError:
-                raise errors.QueryError(
-                    f'module {item.module!r} does not exist',
-                    context=item.context
-                )
-
-            aliases[item.alias] = module
-
-        elif (isinstance(item, qlast.SessionSettingConfigDecl) and
-                item.alias == '__internal_testmode'):
-            try:
-                testmode_ir = dispatch.compile(item.expr, ctx=ctx)
-                testmode = ireval.evaluate_to_python_val(
-                    testmode_ir, schema=ctx.env.schema)
-            except ireval.StaticEvaluationError as e:
-                raise errors.QueryError('invalid SET expression',
-                                        context=item.context) from e
-            else:
-                if not isinstance(testmode, bool):
-                    testmode_ir_stype = setgen.get_set_type(
-                        testmode_ir, ctx=ctx)
-                    dispname = testmode_ir_stype.get_displayname(
-                        ctx.env.schema)
-                    raise errors.QueryError(
-                        f'expected a boolean value, got {dispname!r}',
-                        context=item.context)
-        else:
-            raise errors.QueryError(
-                f'expression aliases in SET are not supported yet',
-                context=item.context
-            )
-
-    return irast.SessionStateCmd(
-        modaliases=aliases,
-        testmode=testmode,
-    )
 
 
 @dispatch.compile.register(qlast.Shape)
