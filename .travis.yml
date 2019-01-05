@@ -25,7 +25,7 @@ cache:
         - build
 
 before_install:
-    git submodule update --init --depth 1
+    git submodule update --init --depth 50
 
 install:
     - .ci/travis-install.sh
