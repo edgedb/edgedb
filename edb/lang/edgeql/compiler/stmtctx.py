@@ -358,11 +358,13 @@ def _infer_pointer_cardinality(
         ctx: context.ContextLevel) -> None:
 
     inferred_card = infer_expr_cardinality(irexpr=irexpr, ctx=ctx)
-    if specified_card is not None:
+    if specified_card is None or inferred_card is specified_card:
+        ptr_card = inferred_card
+    else:
         if specified_card is irast.Cardinality.MANY:
             # Explicit many foo := <expr>, just take it.
             ptr_card = specified_card
-        elif inferred_card is not specified_card:
+        else:
             # Specified cardinality is ONE, but we inferred MANY, this
             # is an error.
             raise errors.QueryError(
@@ -373,8 +375,6 @@ def _infer_pointer_cardinality(
                 f"declared as 'single'",
                 context=source_ctx
             )
-    else:
-        ptr_card = inferred_card
 
     ctx.env.schema = ptrcls.set_field_value(
         ctx.env.schema, 'cardinality', ptr_card)

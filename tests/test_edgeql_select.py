@@ -431,6 +431,25 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 FILTER Issue.number = '1';
             """)
 
+    async def test_edgeql_select_computable_16(self):
+        await self.assert_query_result(r"""
+            WITH MODULE test
+            SELECT Issue{
+                name,
+                number,
+                single foo := <int64>{},
+                single bar := 11,
+            }
+            FILTER Issue.number = '1';
+        """, [
+            [{
+                'name': 'Release EdgeDB',
+                'number': '1',
+                'foo': None,
+                'bar': 11,
+            }]
+        ])
+
     async def test_edgeql_select_match_01(self):
         await self.assert_query_result(r"""
             WITH MODULE test
