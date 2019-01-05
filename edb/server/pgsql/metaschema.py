@@ -31,6 +31,7 @@ from edb.lang.common import exceptions
 from edb.lang.schema import abc as s_abc
 from edb.lang.schema import constraints as s_constraints
 from edb.lang.schema import database as s_db
+from edb.lang.schema import deltas  # NoQA
 from edb.lang.schema import expr as s_expr
 from edb.lang.schema import inheriting as s_inheriting
 from edb.lang.schema import name as sn

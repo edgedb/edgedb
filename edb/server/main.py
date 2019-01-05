@@ -81,9 +81,7 @@ def _runstate_dir(path):
 
 
 def _init_cluster(cluster, args):
-    loop = asyncio.get_event_loop()
-
-    from edb.server import pgsql as backend
+    from edb.server.pgsql import bootstrap
 
     bootstrap_args = {
         'default_database': (args['default_database'] or
@@ -91,8 +89,7 @@ def _init_cluster(cluster, args):
         'default_database_user': args['default_database_user'],
     }
 
-    loop.run_until_complete(backend.bootstrap(
-        cluster, bootstrap_args))
+    asyncio.run(bootstrap.bootstrap(cluster, bootstrap_args))
 
     global _server_initialized
     _server_initialized = True
@@ -117,33 +114,19 @@ def _sd_notify(message):
 
 def _run_server(cluster, args, runstate_dir):
     loop = asyncio.get_event_loop()
-    srv = None
 
     _init_cluster(cluster, args)
 
-    from edb.server import protocol as edgedb_protocol
-
-    def protocol_factory():
-        return edgedb_protocol.Protocol(cluster, loop=loop)
-
     try:
-        srv = loop.run_until_complete(
-            loop.create_server(
-                protocol_factory,
-                host=args['bind_address'], port=args['port']))
-
         ss = server2.Server(
             loop=loop,
             cluster=cluster,
             runstate_dir=runstate_dir,
             max_backend_connections=args['max_backend_connections'])
-        ss.add_binary_interface(args['bind_address'], args['port'] + 1)
+        ss.add_binary_interface(args['bind_address'], args['port'])
         loop.run_until_complete(ss.start())
-        logger.info(
-            'Serving EDGE on %s:%s',
-            args['bind_address'], args['port'] + 1)
 
-        loop.add_signal_handler(signal.SIGTERM, terminate_server, srv, loop)
+        loop.add_signal_handler(signal.SIGTERM, terminate_server, ss, loop)
         logger.info('Serving on %s:%s', args['bind_address'], args['port'])
 
         # Notify systemd that we've started up.
@@ -157,14 +140,6 @@ def _run_server(cluster, args, runstate_dir):
     except KeyboardInterrupt:
         logger.info('Shutting down.')
         _sd_notify('STOPPING=1')
-        srv.close()
-        loop.run_until_complete(srv.wait_closed())
-        srv = None
-
-    finally:
-        if srv is not None:
-            logger.info('Shutting down.')
-            srv.close()
 
 
 def run_server(args):

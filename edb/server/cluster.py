@@ -32,10 +32,10 @@ from asyncpg import cluster as pg_cluster
 import edgedb
 
 import edb
-from edb import client as edgedb_client
-from edb.client import connect_utils
 from edb.lang.common import devmode
 from edb.server import defines as edgedb_defines
+
+from . import render_dsn
 
 
 def find_available_port(port_range=(49152, 65535), max_tries=1000):
@@ -134,14 +134,14 @@ class Cluster:
             pg_conn_spec['user'] = pg_superuser
 
             if self._pg_dsn is None:
-                self._pg_dsn = connect_utils.render_dsn(
+                self._pg_dsn = render_dsn.render_dsn(
                     'postgres', pg_conn_spec)
 
             reduced_spec = {
                 k: v for k, v in pg_conn_spec.items()
                 if k in ('dsn', 'host', 'port')
             }
-            self._location = connect_utils.render_dsn('postgres', reduced_spec)
+            self._location = render_dsn.render_dsn('postgres', reduced_spec)
 
             self._edgedb_cmd.extend(['-P', self._pg_dsn])
         else:
@@ -197,7 +197,7 @@ class Cluster:
         connect_args = self.get_connect_args().copy()
         connect_args.update(kwargs)
 
-        return await edgedb_client.connect(**connect_args)
+        return await edgedb.connect(**connect_args)
 
     def init(self, *, server_settings={}):
         cluster_status = self.get_status()
@@ -273,7 +273,7 @@ class Cluster:
             try:
                 conn = await edgedb.connect(
                     host='localhost',
-                    port=self._effective_port + 1,
+                    port=self._effective_port,
                     database='edgedb',
                     user='edgedb',
                     retry_on_failure=True,

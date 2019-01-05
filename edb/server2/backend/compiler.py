@@ -78,6 +78,35 @@ class CompileContext(typing.NamedTuple):
 EMPTY_MAP = immutables.Map()
 
 
+def compile_bootstrap_script(std_schema: s_schema.Schema,
+                             schema: s_schema.Schema,
+                             eql: str):
+
+    state = dbstate.CompilerConnectionState(
+        0,
+        schema,
+        EMPTY_MAP,
+        EMPTY_MAP)
+
+    ctx = CompileContext(
+        state=state,
+        output_format=pg_compiler.OutputFormat.JSON,
+        single_query_mode=False,
+        legacy_mode=False,
+        graphql_mode=False)
+
+    compiler = Compiler(None, None)
+    compiler._std_schema = std_schema
+    compiler._std_mode = True
+
+    units = compiler._compile(ctx=ctx, eql=eql.encode())
+
+    sql = b'\n'.join(getattr(u, 'sql', b'') for u in units)
+    new_schema = state.current_tx().get_schema()
+
+    return new_schema, sql.decode()
+
+
 class Compiler:
 
     _connect_args: dict
@@ -86,11 +115,17 @@ class Compiler:
 
     def __init__(self, connect_args: dict, data_dir: str):
         self._connect_args = connect_args
-        self._data_dir = pathlib.Path(data_dir)
         self._dbname = None
         self._cached_db = None
         self._current_db_state = None
-        self._std_schema = self._get_std_schema()
+        self._std_mode = False
+
+        if data_dir is not None:
+            self._data_dir = pathlib.Path(data_dir)
+            self._std_schema = self._get_std_schema()
+        else:
+            self._data_dir = None
+            self._std_schema = None
 
         # Preload parsers.
         ql_parser.EdgeQLBlockParser().get_parser_spec()
@@ -123,6 +158,9 @@ class Compiler:
             await con.close()
 
     def _get_std_schema(self):
+        if self._data_dir is None:
+            raise RuntimeError('data_dir is not set')
+
         with open(self._data_dir / 'stdschema.pickle', 'rb') as f:
             try:
                 return pickle.load(f)
@@ -143,6 +181,7 @@ class Compiler:
 
         context = s_delta.CommandContext()
         context.testmode = bool(config.get('__internal_testmode'))
+        context.stdmode = self._std_mode
 
         return context
 
