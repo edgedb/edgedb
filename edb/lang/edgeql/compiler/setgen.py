@@ -80,7 +80,7 @@ def new_empty_set(*, stype: typing.Optional[s_types.Type]=None, alias: str,
     else:
         path_id_scls = stype
 
-    typename = s_name.Name(module='__expr__', name=alias)
+    typename = s_name.Name(module='__derived__', name=alias)
     path_id = irast.PathId.from_type(ctx.env.schema, path_id_scls,
                                      typename=typename)
     ir_set = irast.EmptySet(path_id=path_id)
@@ -191,8 +191,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     path_scope = ctx.path_scope_map.get(view_set)
                     extra_scopes[path_tip] = path_scope.copy()
 
-                view_scls = ctx.class_view_overrides.get(
-                    stype.get_name(ctx.env.schema))
+                view_scls = ctx.class_view_overrides.get(stype.id)
                 if view_scls is not None:
                     update_set_type(path_tip, view_scls, ctx=ctx)
 
@@ -572,7 +571,7 @@ def generated_set(
 def get_expression_path_id(
         t: s_types.Type, alias: str, *,
         ctx: context.ContextLevel) -> irast.PathId:
-    typename = s_name.Name(module='__expr__', name=alias)
+    typename = s_name.Name(module='__derived__', name=alias)
     return pathctx.get_path_id(t, typename=typename, ctx=ctx)
 
 

@@ -43,9 +43,9 @@ def range_for_material_objtype(
         typeref = typeref.material_type
 
     table_schema_name, table_name = common.get_objtype_backend_name(
-        typeref.id, typeref.name, catenate=False)
+        typeref.id, typeref.module_id, catenate=False)
 
-    if typeref.name.module == 'schema':
+    if typeref.name_hint.module == 'schema':
         # Redirect all queries to schema tables to edgedbss
         table_schema_name = 'edgedbss'
 
@@ -58,11 +58,11 @@ def range_for_material_objtype(
     rvar = pgast.RangeVar(
         relation=relation,
         alias=pgast.Alias(
-            aliasname=env.aliases.get(typeref.name.name)
+            aliasname=env.aliases.get(typeref.name_hint.name)
         )
     )
 
-    overlays = env.rel_overlays.get(typeref.name)
+    overlays = env.rel_overlays.get(str(typeref.id))
     if overlays and include_overlays:
         set_ops = []
 
@@ -94,7 +94,7 @@ def range_for_material_objtype(
 
             set_ops.append((op, qry))
 
-        rvar = range_from_queryset(set_ops, typeref.name, env=env)
+        rvar = range_from_queryset(set_ops, typeref.name_hint, env=env)
 
     return rvar
 
@@ -129,7 +129,7 @@ def range_for_typeref(
 
             set_ops.append(('union', qry))
 
-        rvar = range_from_queryset(set_ops, typeref.name, env=env)
+        rvar = range_from_queryset(set_ops, typeref.name_hint, env=env)
 
     rvar.query.path_id = path_id
 
@@ -150,7 +150,7 @@ def table_from_ptrref(
         env: context.Environment) -> pgast.RangeVar:
     """Return a Table corresponding to a given Link."""
     table_schema_name, table_name = common.get_pointer_backend_name(
-        ptrref.id, ptrref.name, catenate=False)
+        ptrref.id, ptrref.module_id, catenate=False)
 
     if ptrref.shortname.module == 'schema':
         # Redirect all queries to schema tables to edgedbss
@@ -413,9 +413,9 @@ def strip_output_var(
 
 
 def add_rel_overlay(
-        typename: str, op: str, rel: pgast.BaseRelation, *,
+        typeid: str, op: str, rel: pgast.BaseRelation, *,
         env: context.Environment) -> None:
-    overlays = env.rel_overlays[typename]
+    overlays = env.rel_overlays[typeid]
     overlays.append((op, rel))
 
 

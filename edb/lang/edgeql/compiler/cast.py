@@ -53,9 +53,10 @@ def compile_cast(
     if isinstance(ir_expr, irast.EmptySet):
         # For the common case of casting an empty set, we simply
         # generate a new EmptySet node of the requested type.
-        return setgen.new_empty_set(stype=new_stype,
-                                    alias=ir_expr.path_id.target_name.name,
-                                    ctx=ctx)
+        return setgen.new_empty_set(
+            stype=new_stype,
+            alias=ir_expr.path_id.target_name_hint.name,
+            ctx=ctx)
 
     elif irutils.is_untyped_empty_array_expr(ir_expr):
         # Ditto for empty arrays.
@@ -146,11 +147,13 @@ def _cast_to_ir(
 
     orig_typeref = irtyputils.type_to_typeref(ctx.env.schema, orig_stype)
     new_typeref = irtyputils.type_to_typeref(ctx.env.schema, new_stype)
+    cast_name = cast.get_name(ctx.env.schema)
     cast_ir = irast.TypeCast(
         expr=ir_set,
         from_type=orig_typeref,
         to_type=new_typeref,
-        cast_name=cast.get_name(ctx.env.schema),
+        cast_name=cast_name,
+        cast_module_id=ctx.env.schema.get(cast_name.module).id,
         sql_function=cast.get_from_function(ctx.env.schema),
         sql_cast=cast.get_from_cast(ctx.env.schema),
         sql_expr=bool(cast.get_code(ctx.env.schema)),

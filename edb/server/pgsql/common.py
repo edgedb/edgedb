@@ -101,8 +101,8 @@ def quote_type(type_):
     return first + last
 
 
-def _edgedb_module_name_to_schema_name(module, prefix='edgedb_'):
-    return edgedb_name_to_pg_name(prefix + module, len(prefix))
+def get_module_backend_name(module, prefix='edgedb_'):
+    return edgedb_name_to_pg_name(f'{prefix}{module}', len(prefix))
 
 
 def edgedb_name_to_pg_name(name, prefix_length=0):
@@ -127,7 +127,7 @@ def edgedb_name_to_pg_name(name, prefix_length=0):
 
 
 def convert_name(name, suffix='', catenate=True, prefix='edgedb_'):
-    schema = _edgedb_module_name_to_schema_name(name.module, prefix=prefix)
+    schema = get_module_backend_name(name.module, prefix=prefix)
     if suffix:
         sname = f'{name.name}_{suffix}'
     else:
@@ -141,17 +141,17 @@ def convert_name(name, suffix='', catenate=True, prefix='edgedb_'):
         return schema, dbname
 
 
-def _scalar_name_to_domain_name(name, catenate=True, prefix='edgedb_', *,
-                                aspect=None):
+def get_scalar_backend_name(id, module_id, catenate=True, *, aspect=None):
     if aspect is None:
         aspect = 'domain'
     if aspect not in ('domain', 'sequence'):
         raise ValueError(
             f'unexpected aspect for scalar backend name: {aspect!r}')
+    name = s_name.Name(module=str(module_id), name=str(id))
     return convert_name(name, aspect, catenate)
 
 
-def get_objtype_backend_name(id, name, *, catenate=True, aspect=None):
+def get_objtype_backend_name(id, module_id, *, catenate=True, aspect=None):
     if aspect is None:
         aspect = 'table'
     if aspect not in (
@@ -163,7 +163,7 @@ def get_objtype_backend_name(id, name, *, catenate=True, aspect=None):
         raise ValueError(
             f'unexpected aspect for object type backend name: {aspect!r}')
 
-    name = s_name.Name(module=name.module, name=str(id))
+    name = s_name.Name(module=str(module_id), name=str(id))
 
     if aspect != 'table':
         suffix = aspect
@@ -173,16 +173,9 @@ def get_objtype_backend_name(id, name, *, catenate=True, aspect=None):
     return convert_name(name, suffix=suffix, catenate=catenate)
 
 
-def get_pointer_backend_name(id, name, *, catenate=False):
-    name = s_name.Name(module=name.module, name=str(id))
+def get_pointer_backend_name(id, module_id, *, catenate=False):
+    name = s_name.Name(module=str(module_id), name=str(id))
     return convert_name(name, suffix='', catenate=catenate)
-
-
-def schema_name_to_pg_name(name: s_name.Name):
-    return (
-        _edgedb_module_name_to_schema_name(name.module),
-        edgedb_name_to_pg_name(name.name)
-    )
 
 
 _operator_map = {
@@ -197,21 +190,20 @@ _operator_map = {
 }
 
 
-def get_backend_operator_name(name, catenate=False, *, aspect=None):
+def get_operator_backend_name(name, module_id, catenate=False, *, aspect=None):
     if aspect is None:
         aspect = 'operator'
 
     if aspect == 'function':
-        return convert_name(name, 'f', catenate=catenate)
+        fullname = s_name.Name(module=str(module_id), name=name.name)
+        return convert_name(fullname, 'f', catenate=catenate)
     elif aspect != 'operator':
         raise ValueError(
             f'unexpected aspect for operator backend name: {aspect!r}')
 
     oper_name = _operator_map.get(name)
-    if oper_name is not None:
-        schema = ''
-    else:
-        schema, oper_name = convert_name(name, catenate=False)
+    if oper_name is None:
+        oper_name = name.name
         if re.search(r'[a-zA-Z]', oper_name):
             # Alphanumeric operator, cannot be expressed in Postgres as-is
             # Since this is a rare occasion, we hard-code the translation
@@ -223,6 +215,9 @@ def get_backend_operator_name(name, catenate=False, *, aspect=None):
                     f'cannot represent operator {oper_name} in Postgres')
 
         oper_name = f'`{oper_name}`'
+        schema = get_module_backend_name(module_id)
+    else:
+        schema = ''
 
     if catenate:
         return qname(schema, oper_name)
@@ -230,64 +225,77 @@ def get_backend_operator_name(name, catenate=False, *, aspect=None):
         return schema, oper_name
 
 
-def get_backend_cast_name(name, catenate=False, *, aspect=None):
+def get_cast_backend_name(name, module_id, catenate=False, *, aspect=None):
     if aspect == 'function':
-        return convert_name(name, 'f', catenate=catenate)
+        fullname = s_name.Name(module=str(module_id), name=name.name)
+        return convert_name(fullname, 'f', catenate=catenate)
     else:
         raise ValueError(
             f'unexpected aspect for cast backend name: {aspect!r}')
 
 
-def _get_backend_function_name(name, catenate=False):
-    schema, func_name = convert_name(name, catenate=False)
+def get_function_backend_name(name, module_id, catenate=False):
+    fullname = s_name.Name(module=str(module_id), name=name.name)
+    schema, func_name = convert_name(fullname, catenate=False)
     if catenate:
         return qname(schema, func_name)
     else:
         return schema, func_name
 
 
-def _get_backend_constraint_name(
-        schema, constraint, catenate=True, prefix='edgedb_', *, aspect=None):
+def get_constraint_backend_name(id, module_id, catenate=True, *, aspect=None):
     if aspect not in ('trigproc',):
         raise ValueError(
             f'unexpected aspect for constraint backend name: {aspect!r}')
 
-    name = s_name.Name(module=constraint.get_name(schema).module,
-                       name=str(constraint.id))
-
-    return convert_name(name, aspect, catenate, prefix=prefix)
+    name = s_name.Name(module=str(module_id), name=str(id))
+    return convert_name(name, aspect, catenate)
 
 
 def get_backend_name(schema, obj, catenate=True, *, aspect=None):
     if isinstance(obj, s_objtypes.ObjectType):
+        name = obj.get_name(schema)
+        module = schema.get(name.module)
         return get_objtype_backend_name(
-            obj.id, obj.get_name(schema), catenate=catenate, aspect=aspect)
+            obj.id, module.id, catenate=catenate, aspect=aspect)
 
     elif isinstance(obj, s_pointers.PointerLike):
-        return get_pointer_backend_name(obj.id, obj.get_name(schema),
-                                        catenate=catenate)
+        name = obj.get_name(schema)
+        module = schema.get(name.module)
+        return get_pointer_backend_name(obj.id, module.id, catenate=catenate)
 
     elif isinstance(obj, s_scalars.ScalarType):
-        return _scalar_name_to_domain_name(
-            obj.get_name(schema), catenate, aspect=aspect)
+        name = obj.get_name(schema)
+        module = schema.get(name.module)
+        return get_scalar_backend_name(obj.id, module.id, catenate=catenate,
+                                       aspect=aspect)
 
     elif isinstance(obj, s_opers.Operator):
-        return get_backend_operator_name(
-            obj.get_shortname(schema), catenate, aspect=aspect)
+        name = obj.get_shortname(schema)
+        module = schema.get(name.module)
+        return get_operator_backend_name(
+            name, module.id, catenate, aspect=aspect)
 
     elif isinstance(obj, s_casts.Cast):
-        return get_backend_cast_name(
-            obj.get_name(schema), catenate, aspect=aspect)
+        name = obj.get_name(schema)
+        module = schema.get(name.module)
+        return get_cast_backend_name(
+            name, module.id, catenate, aspect=aspect)
 
     elif isinstance(obj, s_func.Function):
-        return _get_backend_function_name(obj.get_shortname(schema), catenate)
+        name = obj.get_shortname(schema)
+        module = schema.get(name.module)
+        return get_function_backend_name(
+            name, module.id, catenate)
 
     elif isinstance(obj, s_mod.Module):
-        return _edgedb_module_name_to_schema_name(obj.get_name(schema))
+        return get_module_backend_name(str(obj.id))
 
     elif isinstance(obj, s_constr.Constraint):
-        return _get_backend_constraint_name(
-            schema, obj, catenate, aspect=aspect)
+        name = obj.get_name(schema)
+        module = schema.get(name.module)
+        return get_constraint_backend_name(
+            obj.id, module.id, catenate, aspect=aspect)
 
     else:
         raise ValueError(f'cannot determine backend name for {obj!r}')

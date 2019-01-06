@@ -105,10 +105,12 @@ def compile_FunctionCall(
         env.schema)
 
     func = matched_call.func
+    func_name = func.get_shortname(env.schema)
 
     node = irast.FunctionCall(
         args=args,
-        func_shortname=func.get_shortname(env.schema),
+        func_module_id=env.schema.get(func_name.module).id,
+        func_shortname=func_name,
         func_polymorphic=is_polymorphic,
         func_sql_function=func.get_from_function(env.schema),
         force_return_cast=func.get_force_return_cast(env.schema),
@@ -236,9 +238,11 @@ def compile_operator(
     else:
         sql_operator = None
 
+    oper_name = oper.get_shortname(env.schema)
     node = irast.OperatorCall(
         args=args,
-        func_shortname=oper.get_shortname(env.schema),
+        func_module_id=env.schema.get(oper_name.module).id,
+        func_shortname=oper_name,
         func_polymorphic=is_polymorphic,
         func_sql_function=oper.get_from_function(env.schema),
         sql_operator=sql_operator,

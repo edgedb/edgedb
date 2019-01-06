@@ -25,6 +25,8 @@ import typing
 
 from edb.lang.edgeql import functypes as ql_ft
 
+from edb.lang.schema import objects as s_obj
+
 from edb.lang.ir import ast as irast
 from edb.lang.ir import typeutils as irtyputils
 from edb.lang.ir import utils as irutils
@@ -532,11 +534,11 @@ def get_set_rel_alias(ir_set: irast.Set, *,
                       ctx: context.CompilerContextLevel) -> str:
     if ir_set.rptr is not None and ir_set.rptr.source.typeref is not None:
         alias_hint = '{}_{}'.format(
-            ir_set.rptr.source.typeref.name.name,
+            ir_set.rptr.source.typeref.name_hint.name,
             ir_set.rptr.ptrref.shortname.name
         )
     else:
-        _, _, dname = ir_set.path_id.target_name.rpartition('::')
+        _, _, dname = ir_set.path_id.target_name_hint.rpartition('::')
         alias_hint = dname.replace('~', '-')
 
     return alias_hint
@@ -1228,7 +1230,8 @@ def process_set_as_type_cast(
         ctx: context.CompilerContextLevel) -> SetRVars:
 
     inner_set = ir_set.expr.expr
-    is_json_cast = ir_set.expr.to_type.name == 'std::json'
+    is_json_cast = (
+        ir_set.expr.to_type.id == s_obj.get_known_type_id('std::json'))
 
     with ctx.new() as subctx:
         ctx.rel.view_path_id_map[ir_set.path_id] = inner_set.path_id
@@ -1314,7 +1317,8 @@ def process_set_as_func_expr(
         elif expr.func_sql_function:
             name = (expr.func_sql_function,)
         else:
-            name = common.schema_name_to_pg_name(expr.func_shortname)
+            name = common.get_function_backend_name(expr.func_shortname,
+                                                    expr.func_module_id)
 
         if expr.has_empty_variadic:
             var = pgast.TypeCast(
@@ -1534,7 +1538,8 @@ def process_set_as_agg_expr(
         if expr.func_sql_function:
             name = (expr.func_sql_function,)
         else:
-            name = common.schema_name_to_pg_name(expr.func_shortname)
+            name = common.get_function_backend_name(expr.func_shortname,
+                                                    expr.func_module_id)
 
         set_expr = pgast.FuncCall(
             name=name, args=args, agg_order=agg_sort, agg_filter=agg_filter,

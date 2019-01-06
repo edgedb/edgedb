@@ -22,6 +22,7 @@
 import collections
 import enum
 import typing
+import uuid
 
 from edb.lang.common import compiler
 from edb.lang.common import parsing
@@ -164,7 +165,7 @@ class ContextLevel(compiler.ContextLevel):
                                   s_nodes.Node]
     """Type cache for shape expressions."""
 
-    class_view_overrides: typing.Dict[s_name.SchemaName, s_nodes.Node]
+    class_view_overrides: typing.Dict[uuid.UUID, s_nodes.Node]
     """Object mapping used by implicit view override in SELECT."""
 
     clause: str

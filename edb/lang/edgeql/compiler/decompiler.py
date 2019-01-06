@@ -83,10 +83,14 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                         typeref = rptr.target.typeref.material_type
                     else:
                         typeref = rptr.target.typeref
+
+                    stype = self.context.schema.get_by_id(typeref.id)
+                    stype_name = stype.get_name(self.context.schema)
+
                     target = qlast.TypeName(
                         maintype=qlast.ObjectRef(
-                            name=typeref.name.name,
-                            module=typeref.name.module))
+                            name=stype_name.name,
+                            module=stype_name.module))
                 else:
                     target = None
 
@@ -115,7 +119,9 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                     typeref = node.typeref.material_type
                 else:
                     typeref = node.typeref
-                scls_shortname = typeref.name
+
+                stype = self.context.schema.get_by_id(typeref.id)
+                scls_shortname = stype.get_shortname(self.context.schema)
                 step = qlast.ObjectRef(name=scls_shortname.name,
                                        module=scls_shortname.module)
 
@@ -246,7 +252,8 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                 ]
             )
         else:
-            mtn = node.to_type.name
+            to_type = self.context.schema.get_by_id(node.to_type.id)
+            mtn = to_type.get_name(self.context.schema)
             mt = qlast.ObjectRef(module=mtn.module, name=mtn.name)
             typ = qlast.TypeName(maintype=mt)
 

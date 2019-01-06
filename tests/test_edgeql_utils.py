@@ -51,9 +51,11 @@ class TestEdgeQLUtils(tb.BaseEdgeQLCompilerTest):
                                expected_const_type=None, *,
                                anchors=None, inline_anchors=False):
         edgeql_tree = eql_parser.parse(text)
+        schema = self.__class__.schema
         ir, _, normalized = eql_utils.normalize_tree(
-            edgeql_tree, self.__class__.schema,
-            anchors=anchors, inline_anchors=inline_anchors)
+            edgeql_tree, schema,
+            anchors=anchors,
+            inline_anchors=inline_anchors)
 
         self.assertEqual(
             textwrap.dedent(normalized).strip(),
@@ -62,7 +64,7 @@ class TestEdgeQLUtils(tb.BaseEdgeQLCompilerTest):
 
         if expected_const_type is not None:
             self.assertEqual(
-                ir.expr.typeref.displayname,
+                schema.get_by_id(ir.expr.typeref.id).get_displayname(schema),
                 expected_const_type)
 
     def test_edgeql_utils_normalize_02(self):

@@ -63,11 +63,11 @@ class Base(ast.AST):
 class TypeRef(Base):
     # The id of the referenced type
     id: uuid.UUID
-    # Full name of the type, not necessarily schema-addressable.
-    name: str
-    # Display name of the type.  Used in error messages
-    # and other user-visible output.
-    displayname: str
+    # The module id of the referenced type
+    module_id: uuid.UUID
+    # Full name of the type, not necessarily schema-addressable,
+    # used for annotations only.
+    name_hint: str
     # The ref of the underlying material type, if this is a view type,
     # else None.
     material_type: typing.Optional['TypeRef']
@@ -105,7 +105,6 @@ class BasePointerRef(Base):
 
     name: sn.Name
     shortname: sn.Name
-    displayname: str
     dir_source: TypeRef
     dir_target: TypeRef
     out_source: TypeRef
@@ -127,6 +126,7 @@ class BasePointerRef(Base):
 class PointerRef(BasePointerRef):
 
     id: uuid.UUID
+    module_id: uuid.UUID
 
 
 class TupleIndirectionLink(s_pointers.PointerLike):
@@ -452,6 +452,9 @@ class Call(Expr):
     # Bound callable's name.
     func_shortname: sn.Name
 
+    # The id of the module in which the callable is defined.
+    func_module_id: uuid.UUID
+
     # If the bound callable is a "FROM SQL" callable, this
     # attribute will be set to the name of the SQL function.
     func_sql_function: typing.Optional[str]
@@ -529,6 +532,7 @@ class TypeCast(Expr):
     """<Type>Expr"""
 
     expr: Base
+    cast_module_id: uuid.UUID
     cast_name: str
     from_type: TypeRef
     to_type: TypeRef

@@ -188,12 +188,9 @@ def tuple_var_as_json_object(tvar, *, path_id, env):
 
         for element in tvar.elements:
             rptr = element.path_id.rptr()
-            if rptr is None:
-                name = element.path_id.target_name.name
-            else:
-                name = rptr.shortname.name
-                if rptr.parent_ptr is not None:
-                    name = '@' + name
+            name = rptr.shortname.name
+            if rptr.parent_ptr is not None:
+                name = '@' + name
             keyvals.append(pgast.StringConstant(val=name))
             if isinstance(element.val, pgast.TupleVar):
                 val = serialize_expr(

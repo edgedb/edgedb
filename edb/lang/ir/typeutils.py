@@ -77,19 +77,18 @@ def is_abstract(typeref: irast.TypeRef) -> bool:
     return typeref.is_abstract
 
 
-def type_to_typeref(schema, t: s_types.Type, *, _name=None) -> irast.TypeRef:
+def type_to_typeref(schema, t: s_types.Type, *,
+                    _name=None, typename=None) -> irast.TypeRef:
 
     if t.is_anytuple():
         result = irast.AnyTupleRef(
             id=t.id,
-            name=t.get_name(schema),
-            displayname=t.get_displayname(schema),
+            name_hint=typename or t.get_name(schema),
         )
     elif t.is_any():
         result = irast.AnyTypeRef(
             id=t.id,
-            name=t.get_name(schema),
-            displayname=t.get_displayname(schema),
+            name_hint=typename or t.get_name(schema),
         )
     elif not isinstance(t, s_abc.Collection):
         if t.get_is_virtual(schema):
@@ -115,12 +114,18 @@ def type_to_typeref(schema, t: s_types.Type, *, _name=None) -> irast.TypeRef:
         else:
             base_typeref = None
 
+        if typename is not None:
+            name = typename
+        else:
+            name = t.get_name(schema)
+        module = schema.get(name.module)
+
         result = irast.TypeRef(
             id=t.id,
-            name=t.get_name(schema),
+            module_id=module.id,
+            name_hint=name,
             material_type=material_typeref,
             base_type=base_typeref,
-            displayname=t.get_displayname(schema),
             children=children,
             element_name=_name,
             is_scalar=t.is_scalar(),
@@ -130,8 +135,7 @@ def type_to_typeref(schema, t: s_types.Type, *, _name=None) -> irast.TypeRef:
     elif isinstance(t, s_abc.Tuple) and t.named:
         result = irast.TypeRef(
             id=t.id,
-            name=t.get_name(schema),
-            displayname=t.get_displayname(schema),
+            name_hint=typename or t.get_name(schema),
             element_name=_name,
             collection=t.schema_name,
             subtypes=tuple(
@@ -142,8 +146,7 @@ def type_to_typeref(schema, t: s_types.Type, *, _name=None) -> irast.TypeRef:
     else:
         result = irast.TypeRef(
             id=t.id,
-            name=t.get_name(schema),
-            displayname=t.get_displayname(schema),
+            name_hint=typename or t.get_name(schema),
             element_name=_name,
             collection=t.schema_name,
             subtypes=tuple(
@@ -207,6 +210,8 @@ def ptrref_from_ptrcls(
     else:
         ircls = irast.PointerRef
         kwargs['id'] = ptrcls.id
+        name = ptrcls.get_name(schema)
+        kwargs['module_id'] = schema.get(name.module).id
 
     if direction is s_pointers.PointerDirection.Inbound:
         out_source = target_ref
@@ -278,7 +283,6 @@ def ptrref_from_ptrcls(
         out_target=out_target,
         name=ptrcls.get_name(schema),
         shortname=ptrcls.get_shortname(schema),
-        displayname=ptrcls.get_displayname(schema),
         direction=direction,
         parent_ptr=parent_ptr,
         material_ptr=material_ptr,
@@ -303,8 +307,8 @@ def ptrcls_from_ptrref(
         )
     elif isinstance(ptrref, irast.TypeIndirectionPointerRef):
         ptrcls = irast.TypeIndirectionLink(
-            source=schema.get(ptrref.out_source.name),
-            target=schema.get(ptrref.out_target.name),
+            source=schema.get_by_id(ptrref.out_source.id),
+            target=schema.get_by_id(ptrref.out_target.id),
             optional=ptrref.optional,
             cardinality=ptrref.out_cardinality,
         )

@@ -161,8 +161,7 @@ class ConstraintMech:
         if isinstance(subject, s_scalars.ScalarType):
             # Domain constraint, replace <scalar_name> with VALUE
 
-            subject_pg_name = common.edgedb_name_to_pg_name(
-                subject.get_name(schema))
+            subject_pg_name = common.edgedb_name_to_pg_name(str(subject.id))
 
             for ref in refs:
                 if ref.name != [subject_pg_name]:

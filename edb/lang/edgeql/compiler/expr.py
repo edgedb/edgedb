@@ -240,6 +240,7 @@ def try_fold_associative_binop(
                 new_const = ireval.evaluate(
                     irast.OperatorCall(
                         args=[other_const, my_const],
+                        func_module_id=opcall.func_module_id,
                         func_shortname=op,
                         func_polymorphic=opcall.func_polymorphic,
                         func_sql_function=opcall.func_sql_function,
@@ -261,6 +262,7 @@ def try_fold_associative_binop(
                         setgen.ensure_set(new_const, ctx=ctx),
                         other_binop_node
                     ],
+                    func_module_id=opcall.func_module_id,
                     func_shortname=op,
                     func_polymorphic=opcall.func_polymorphic,
                     func_sql_function=opcall.func_sql_function,

@@ -162,10 +162,10 @@ def fini_dml_stmt(
     # referencing this class yields the expected results.
     if isinstance(ir_stmt, irast.InsertStmt):
         dbobj.add_rel_overlay(
-            ir_stmt.subject.typeref.name, 'union', dml_cte, env=ctx.env)
+            str(ir_stmt.subject.typeref.id), 'union', dml_cte, env=ctx.env)
     elif isinstance(ir_stmt, irast.DeleteStmt):
         dbobj.add_rel_overlay(
-            ir_stmt.subject.typeref.name, 'except', dml_cte, env=ctx.env)
+            str(ir_stmt.subject.typeref.id), 'except', dml_cte, env=ctx.env)
 
     if parent_ctx.toplevel_stmt is wrapper:
         ret_ref = pathctx.get_path_identity_var(
@@ -897,10 +897,7 @@ def process_link_values(
         for element in shape_tuple.elements:
             if not element.path_id.is_linkprop_path():
                 continue
-            name = element.path_id.rptr_name()
-            if name is None:
-                name = element.path_id.target_name
-            colname = name.name
+            colname = element.path_id.rptr_name().name
             val = pathctx.get_rvar_path_value_var(
                 input_rvar, element.path_id, env=ctx.env)
             source_data.setdefault(colname, val)

@@ -37,22 +37,22 @@ from .common import quote_literal as ql
 
 
 base_type_name_map = {
-    sn.Name('std::str'): 'text',
-    sn.Name('std::int64'): 'bigint',
-    sn.Name('std::int32'): 'integer',
-    sn.Name('std::int16'): 'smallint',
-    sn.Name('std::decimal'): 'numeric',
-    sn.Name('std::bool'): 'boolean',
-    sn.Name('std::float64'): 'float8',
-    sn.Name('std::float32'): 'float4',
-    sn.Name('std::uuid'): 'uuid',
-    sn.Name('std::datetime'): 'timestamptz',
-    sn.Name('std::naive_datetime'): 'timestamp',
-    sn.Name('std::naive_date'): 'date',
-    sn.Name('std::naive_time'): 'time',
-    sn.Name('std::timedelta'): 'interval',
-    sn.Name('std::bytes'): 'bytea',
-    sn.Name('std::json'): 'jsonb',
+    s_obj.get_known_type_id('std::str'): 'text',
+    s_obj.get_known_type_id('std::int64'): 'bigint',
+    s_obj.get_known_type_id('std::int32'): 'integer',
+    s_obj.get_known_type_id('std::int16'): 'smallint',
+    s_obj.get_known_type_id('std::decimal'): 'numeric',
+    s_obj.get_known_type_id('std::bool'): 'boolean',
+    s_obj.get_known_type_id('std::float64'): 'float8',
+    s_obj.get_known_type_id('std::float32'): 'float4',
+    s_obj.get_known_type_id('std::uuid'): 'uuid',
+    s_obj.get_known_type_id('std::datetime'): 'timestamptz',
+    s_obj.get_known_type_id('std::naive_datetime'): 'timestamp',
+    s_obj.get_known_type_id('std::naive_date'): 'date',
+    s_obj.get_known_type_id('std::naive_time'): 'time',
+    s_obj.get_known_type_id('std::timedelta'): 'interval',
+    s_obj.get_known_type_id('std::bytes'): 'bytea',
+    s_obj.get_known_type_id('std::json'): 'jsonb',
 }
 
 base_type_name_map_r = {
@@ -85,7 +85,7 @@ base_type_name_map_r = {
 
 
 def get_scalar_base(schema, scalar):
-    base = base_type_name_map.get(scalar.get_name(schema))
+    base = base_type_name_map.get(scalar.id)
     if base is not None:
         return base
 
@@ -94,7 +94,7 @@ def get_scalar_base(schema, scalar):
             # Check if base is fundamental, if not, then it is
             # another domain.
             try:
-                base = base_type_name_map[ancestor.get_name(schema)]
+                base = base_type_name_map[ancestor.id]
             except KeyError:
                 base = common.get_backend_name(schema, ancestor)
 
@@ -120,14 +120,14 @@ def pg_type_from_scalar(
         base = get_scalar_base(schema, scalar.material_type(schema))
 
     if topbase:
-        column_type = base_type_name_map.get(base.get_name(schema))
+        column_type = base_type_name_map.get(base.id)
         if not column_type:
             base_class = base.get_bases(schema).first(schema)
             column_type = (base_type_name_map[base_class.adapts],)
         else:
             column_type = (column_type,)
     else:
-        column_type = base_type_name_map.get(scalar.get_name(schema))
+        column_type = base_type_name_map.get(scalar.id)
         if column_type:
             column_type = (base,)
         else:
@@ -200,10 +200,10 @@ def pg_type_from_ir_typeref(
         elif irtyputils.is_object(material):
             return ('uuid',)
         else:
-            pg_type = base_type_name_map.get(material.name)
+            pg_type = base_type_name_map.get(material.id)
             if pg_type is None:
                 raise ValueError(f'could not determine Postgres type for '
-                                 f'{material.name!r}')
+                                 f'{material.id!r}')
             return (pg_type,)
 
 
@@ -383,7 +383,7 @@ def get_ptrref_storage_info(
         col_name = ptrref.shortname.name
 
     elif is_lprop:
-        table = common.get_pointer_backend_name(source.id, source.name)
+        table = common.get_pointer_backend_name(source.id, source.module_id)
         table_type = 'link'
         col_name = ptrref.shortname.name
     else:
@@ -394,12 +394,14 @@ def get_ptrref_storage_info(
             col_name = None
 
         elif _storable_in_source(ptrref) and not link_bias:
-            table = common.get_objtype_backend_name(source.id, source.name)
+            table = common.get_objtype_backend_name(
+                source.id, source.module_id)
             col_name = ptrref.shortname.name
             table_type = 'ObjectType'
 
         elif _storable_in_pointer(ptrref):
-            table = common.get_pointer_backend_name(ptrref.id, ptrref.name)
+            table = common.get_pointer_backend_name(
+                ptrref.id, ptrref.module_id)
             col_name = 'target'
             table_type = 'link'
 
@@ -442,7 +444,7 @@ def _storable_in_source(ptrref: irast.PointerRef) -> bool:
             'schema::key_type',
         } or
         (ptrref.shortname == 'schema::type' and
-            source.name != 'schema::Parameter')
+            source.name_hint != 'schema::Parameter')
     )
 
 

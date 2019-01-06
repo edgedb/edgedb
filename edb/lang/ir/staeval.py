@@ -118,7 +118,8 @@ def int_const_to_python(
         ir: irast.IntegerConstant,
         schema: s_schema.Schema) -> object:
 
-    if ir.typeref.name == 'std::decimal':
+    stype = schema.get_by_id(ir.typeref.id)
+    if stype.issubclass(schema, schema.get('std::decimal')):
         return decimal.Decimal(ir.value)
     else:
         return int(ir.value)
@@ -129,7 +130,8 @@ def float_const_to_python(
         ir: irast.FloatConstant,
         schema: s_schema.Schema) -> object:
 
-    if ir.typeref.name == 'std::decimal':
+    stype = schema.get_by_id(ir.typeref.id)
+    if stype.issubclass(schema, schema.get('std::decimal')):
         return decimal.Decimal(ir.value)
     else:
         return float(ir.value)

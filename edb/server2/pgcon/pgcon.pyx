@@ -24,6 +24,7 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
                          int32_t, uint32_t, int64_t, uint64_t, \
                          UINT32_MAX
 
+from edb.lang.schema import objects as s_obj
 from edb.server import defines
 
 from edb.server.pgsql import common as pg_common
@@ -382,7 +383,7 @@ cdef class PGProto:
 
         buf.write_bytestring(b'search_path')
         buf.write_utf8('edgedb, {}'.format(
-            pg_common._edgedb_module_name_to_schema_name('std')))
+            pg_common.get_module_backend_name(s_obj.get_known_type_id('std'))))
 
         buf.write_utf8('user')
         buf.write_utf8(defines.EDGEDB_SUPERUSER)

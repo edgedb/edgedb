@@ -188,8 +188,8 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(__expr__::expr~5).>(test::friends)[IS test::User]": {
-                "(__expr__::expr~5)": {
+            "(__derived__::expr~5).>(test::friends)[IS test::User]": {
+                "(__derived__::expr~5)": {
                     "FENCE": {
                         "(test::User)",
                         "FENCE": {
@@ -250,9 +250,9 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(__expr__::expr~3)",
+            "(__derived__::expr~3)",
             "FENCE": {
-                "(__expr__::expr~3).>(schema::foo)[IS std::str]"
+                "(__derived__::expr~3).>(schema::foo)[IS std::str]"
             },
             "FENCE": {
                 "(schema::Type)"
@@ -322,8 +322,8 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(__expr__::expr~10)",
-            "(__expr__::expr~5)",
+            "(__derived__::expr~10)",
+            "(__derived__::expr~5)",
             "FENCE": {
                 "(test::Card)",
                 "FENCE": {
@@ -415,8 +415,8 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "(test::User)",
             "FENCE": {
-                "(__expr__::expr~7).>(test::name)[IS std::str]": {
-                    "(__expr__::expr~7)": {
+                "(__derived__::expr~7).>(test::name)[IS std::str]": {
+                    "(__derived__::expr~7)": {
                         "FENCE": {
                             "FENCE": {
                                 "(test::User).>(test::friends)[IS test::User]",
@@ -506,8 +506,8 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(__expr__::expr~6).>(test::name)[IS std::str]": {
-                "(__expr__::expr~6)"
+            "(__derived__::expr~6).>(test::name)[IS std::str]": {
+                "(__derived__::expr~6)"
             },
             "(test::Card)",
             "(test::Card).>(test::element)[IS std::str]"

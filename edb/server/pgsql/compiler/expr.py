@@ -223,8 +223,8 @@ def compile_TypeCast(
         # Cast implemented as a function.
 
         if expr.sql_expr:
-            func_name = common.get_backend_cast_name(
-                expr.cast_name, aspect='function')
+            func_name = common.get_cast_backend_name(
+                expr.cast_name, expr.cast_module_id, aspect='function')
         else:
             func_name = (expr.sql_function,)
 
@@ -335,7 +335,8 @@ def compile_OperatorCall(
                     )
                 )
     else:
-        sql_oper = common.get_backend_operator_name(expr.func_shortname)[1]
+        sql_oper = common.get_operator_backend_name(
+            expr.func_shortname, expr.func_module_id)[1]
 
     result = pgast.Expr(
         kind=pgast.ExprKind.OP,
@@ -449,9 +450,11 @@ def compile_TypeRef(
     if expr.collection:
         raise NotImplementedError()
     else:
-        result = pgast.FuncCall(
-            name=('edgedb', '_resolve_type_id'),
-            args=[pgast.StringConstant(val=expr.name)],
+        result = pgast.TypeCast(
+            arg=pgast.StringConstant(val=str(expr.id)),
+            type_name=pgast.TypeName(
+                name=('uuid',)
+            )
         )
 
     return result
@@ -480,7 +483,8 @@ def compile_FunctionCall(
     if expr.func_sql_function:
         name = (expr.func_sql_function,)
     else:
-        name = common.schema_name_to_pg_name(expr.func_shortname)
+        name = common.get_function_backend_name(expr.func_shortname,
+                                                expr.func_module_id)
 
     result = pgast.FuncCall(name=name, args=args)
 
@@ -579,13 +583,13 @@ def _compile_set_in_singleton_mode(
         elif irtyputils.is_scalar(node.typeref):
             colref = pgast.ColumnRef(
                 name=[
-                    common.edgedb_name_to_pg_name(node.typeref.name)
+                    common.edgedb_name_to_pg_name(str(node.typeref.id))
                 ]
             )
         else:
             colref = pgast.ColumnRef(
                 name=[
-                    common.edgedb_name_to_pg_name(node.typeref.name)
+                    common.edgedb_name_to_pg_name(str(node.typeref.id))
                 ]
             )
 

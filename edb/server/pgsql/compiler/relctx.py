@@ -448,8 +448,8 @@ def new_static_class_rvar(
     source = ir_set.rptr.source.typeref
     if source.material_type is not None:
         source = source.material_type
-    clsname = pgast.StringConstant(val=source.name)
-    nameref = dbobj.get_column(set_rvar, 'name', nullable=False)
+    clsname = pgast.StringConstant(val=str(source.id))
+    nameref = dbobj.get_column(set_rvar, 'id', nullable=False)
     condition = astutils.new_binop(nameref, clsname, op='=')
     substmt = pgast.SelectStmt()
     include_rvar(substmt, set_rvar, ir_set.path_id, ctx=ctx)

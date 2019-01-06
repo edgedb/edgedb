@@ -22,7 +22,6 @@ from __future__ import annotations
 from . import typeutils
 
 from edb.lang.schema import abc as s_abc
-from edb.lang.schema import name as sn
 from edb.lang.schema import pointers as s_pointers
 from edb.lang.schema import types as s_types
 
@@ -60,7 +59,8 @@ class PathId:
             raise ValueError(
                 f'invalid PathId: bad source: {initializer!r}')
 
-        initializer = typeutils.type_to_typeref(schema, initializer)
+        initializer = typeutils.type_to_typeref(
+            schema, initializer, typename=typename)
         return cls.from_typeref(initializer, namespace=namespace,
                                 typename=typename)
 
@@ -69,7 +69,7 @@ class PathId:
         pid = cls()
         pid._path = (initializer,)
         if typename is None:
-            typename = initializer.name
+            typename = initializer.id
         pid._norm_path = (typename,)
         pid._namespace = frozenset(namespace) if namespace else None
         return pid
@@ -215,18 +215,23 @@ class PathId:
 
             result += f'{"@".join(ns_str)}@@'
 
-        path = self._norm_path
+        path = self._path
 
-        result += f'({path[0]})'
+        result += f'({path[0].name_hint})'
 
         for i in range(1, len(path) - 1, 2):
             if debug:
-                ptr = path[i][0]
+                ptr = path[i][0].name
             else:
-                ptr = sn.shortname_from_fullname(path[i][0])
+                ptr = path[i][0].shortname
             ptrdir = path[i][1]
-            is_lprop = path[i][2]
-            tgt = path[i + 1]
+            is_lprop = path[i][0].parent_ptr is not None
+
+            if path[i + 1].material_type is not None:
+                mat_tgt = path[i + 1].material_type
+            else:
+                mat_tgt = path[i + 1]
+            tgt = mat_tgt.name_hint
 
             if tgt:
                 lexpr = f'({ptr})[IS {tgt}]'
@@ -252,14 +257,14 @@ class PathId:
         if not self._path:
             return ''
 
-        path = self._norm_path
+        path = self._path
 
-        result += f'{path[0].name}'
+        result += f'{path[0].name_hint.name}'
 
         for i in range(1, len(path) - 1, 2):
-            ptr_name = sn.shortname_from_fullname(path[i][0])
+            ptr_name = path[i][0].shortname
             ptrdir = path[i][1]
-            is_lprop = path[i][2]
+            is_lprop = path[i][0].parent_ptr is not None
 
             if is_lprop:
                 step = '@'
@@ -368,11 +373,6 @@ class PathId:
         else:
             target_ref = target
 
-        if target_ref.material_type is not None:
-            material_name = target_ref.material_type.name
-        else:
-            material_name = target_ref.name
-
         is_linkprop = ptrcls.is_link_property(schema)
         if is_linkprop:
             if not self._is_ptr:
@@ -394,10 +394,14 @@ class PathId:
         result._path = self._path + ((ptr_ref, direction), target_ref)
         link_name = ptrcls.get_path_id_name(schema) or ptrcls.get_name(schema)
         lnk = (link_name, direction, is_linkprop)
-        result._norm_path = (
-            self._norm_path + (lnk, material_name)
-        )
         result._is_linkprop = is_linkprop
+
+        if target_ref.material_type is not None:
+            material_type = target_ref.material_type
+        else:
+            material_type = target_ref
+
+        result._norm_path = (self._norm_path + (lnk, material_type.id))
 
         if ns:
             if self._namespace:
@@ -427,8 +431,12 @@ class PathId:
         return self._path[-1]
 
     @property
-    def target_name(self):
-        return self._norm_path[-1]
+    def target_name_hint(self):
+        if self.target.material_type is not None:
+            material_type = self.target.material_type
+        else:
+            material_type = self.target
+        return material_type.name_hint
 
     def is_objtype_path(self):
         return not self.is_ptr_path() and typeutils.is_object(self.target)

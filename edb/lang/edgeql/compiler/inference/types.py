@@ -39,8 +39,8 @@ from .. import context
 
 def amend_empty_set_type(es: irast.EmptySet, t: s_obj.Object, env) -> None:
     env.set_types[es] = t
-    alias = es.path_id.target_name.name
-    typename = s_name.Name(module='__expr__', name=alias)
+    alias = es.path_id.target_name_hint.name
+    typename = s_name.Name(module='__derived__', name=alias)
     es.path_id = irast.PathId.from_type(env.schema, t, typename=typename)
 
 
@@ -253,7 +253,7 @@ def __infer_typeref(ir, env):
             result = coll.from_subtypes(
                 env.schema, [infer_type(t, env) for t in ir.subtypes])
     else:
-        result = env.schema.get(ir.name)
+        result = env.schema.get_by_id(ir.id)
 
     return result
 
