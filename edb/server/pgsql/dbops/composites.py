@@ -17,7 +17,7 @@
 #
 
 
-from edb.lang.common import ordered
+from edb.common import ordered
 
 from .. import common
 from . import base

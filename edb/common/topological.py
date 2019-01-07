@@ -19,7 +19,7 @@
 
 from collections import defaultdict, OrderedDict
 
-from edb.lang.common.ordered import OrderedSet
+from edb.common.ordered import OrderedSet
 
 
 class UnresolvedReferenceError(Exception):

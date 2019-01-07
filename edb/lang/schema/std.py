@@ -25,7 +25,7 @@ from edb import errors
 
 from edb.lang import edgeql
 from edb.lang import schema
-from edb.lang.common import devmode
+from edb.common import devmode
 from edb.lang.edgeql import compiler as qlcompiler
 from edb.lang.schema import delta as s_delta
 

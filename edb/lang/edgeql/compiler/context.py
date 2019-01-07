@@ -24,8 +24,8 @@ import enum
 import typing
 import uuid
 
-from edb.lang.common import compiler
-from edb.lang.common import parsing
+from edb.common import compiler
+from edb.common import parsing
 
 from edb.lang.edgeql import ast as qlast
 from edb.lang.ir import ast as irast

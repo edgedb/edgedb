@@ -19,7 +19,7 @@
 
 import textwrap
 
-from edb.lang.common import ordered
+from edb.common import ordered
 
 from ..common import qname as qn
 from ..common import quote_ident as qi

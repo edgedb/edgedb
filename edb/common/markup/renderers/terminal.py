@@ -20,8 +20,8 @@
 import sys
 import contextlib
 
-from edb.lang.common import term
-from edb.lang.common.markup.format import xrepr
+from edb.common import term
+from edb.common.markup.format import xrepr
 
 from .. import elements
 from . import styles as styles_module

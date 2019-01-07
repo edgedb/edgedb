@@ -25,7 +25,7 @@ import logging.handlers
 import sys
 import warnings
 
-from edb.lang.common import term
+from edb.common import term
 
 
 LOG_LEVELS = {

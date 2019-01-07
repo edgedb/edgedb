@@ -22,7 +22,7 @@ import itertools
 import typing
 
 from edb import errors
-from edb.lang.common import ast
+from edb.common import ast
 
 from . import ast as qlast
 from . import codegen

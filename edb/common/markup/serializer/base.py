@@ -26,9 +26,9 @@ import weakref
 
 from .. import elements
 
-from edb.lang.common import exceptions
-from edb.lang.common.markup.format import xrepr
-from edb.lang.common import debug
+from edb.common import exceptions
+from edb.common.markup.format import xrepr
+from edb.common import debug
 
 from . import settings
 

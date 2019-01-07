@@ -27,8 +27,8 @@ import traceback
 
 import uvloop
 
-from edb.lang.common import debug
-from edb.lang.common import markup
+from edb.common import debug
+from edb.common import markup
 
 from . import amsg
 

@@ -22,8 +22,8 @@ import re
 import textwrap
 import typing
 
-from edb.lang.common import parsing, context
-from edb.lang.common.exceptions import get_context
+from edb.common import parsing, context
+from edb.common.exceptions import get_context
 
 from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast

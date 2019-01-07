@@ -28,8 +28,8 @@ from edb.errors import EdgeQLSyntaxError
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import functypes as ft
 
-from edb.lang.common import parsing, context
-from edb.lang.common.parsing import ListNonterm
+from edb.common import parsing, context
+from edb.common.parsing import ListNonterm
 
 from .expressions import Nonterm
 from . import tokens
@@ -455,7 +455,7 @@ class OptDeltaTarget(Nonterm):
 
 class CreateDeltaStmt(Nonterm):
     def _parse_schema_decl(self, tok):
-        from edb.lang.common.exceptions import get_context
+        from edb.common.exceptions import get_context
         from edb.lang.schema import parser
 
         ctx = tok.context

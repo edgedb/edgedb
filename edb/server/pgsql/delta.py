@@ -49,8 +49,8 @@ from edb.lang.schema import referencing as s_referencing
 from edb.lang.schema import sources as s_sources
 from edb.lang.schema import types as s_types
 
-from edb.lang.common import ordered
-from edb.lang.common import markup
+from edb.common import ordered
+from edb.common import markup
 
 from edb.lang.ir import utils as irutils
 

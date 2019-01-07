@@ -21,9 +21,9 @@ import binascii
 
 from edb.server.pgsql import common
 from edb.server.pgsql import ast as pgast
-from edb.lang.common.ast import codegen
-from edb.lang.common import markup
-from edb.lang.common import exceptions as edgedb_error
+from edb.common.ast import codegen
+from edb.common import markup
+from edb.common import exceptions as edgedb_error
 
 
 class SQLSourceGeneratorContext(markup.MarkupExceptionContext):

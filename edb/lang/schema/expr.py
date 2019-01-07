@@ -17,7 +17,7 @@
 #
 
 
-from edb.lang.common import typed
+from edb.common import typed
 
 
 class ExpressionText(str):

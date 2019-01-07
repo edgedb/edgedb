@@ -17,7 +17,7 @@
 #
 
 
-from edb.lang.common import ast
+from edb.common import ast
 
 from edb.lang.schema import name as sn
 

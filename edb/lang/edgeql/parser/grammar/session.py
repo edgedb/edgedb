@@ -17,7 +17,7 @@
 #
 
 
-from edb.lang.common.parsing import ListNonterm
+from edb.common.parsing import ListNonterm
 from edb.lang.edgeql import ast as qlast
 
 from . import tokens

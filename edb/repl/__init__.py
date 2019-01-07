@@ -42,10 +42,10 @@ from prompt_toolkit import styles as pt_styles
 from prompt_toolkit import token as pt_token
 from prompt_toolkit.layout import lexers as pt_lexers
 
-from edb.lang.common import devmode
-from edb.lang.common import lexer as core_lexer
-from edb.lang.common import markup
-from edb.lang.common.markup.renderers import terminal as markup_term
+from edb.common import devmode
+from edb.common import lexer as core_lexer
+from edb.common import markup
+from edb.common.markup.renderers import terminal as markup_term
 from edb.lang.edgeql.parser.grammar import lexer as edgeql_lexer
 from edb.lang.edgeql import pygments as eql_pygments
 

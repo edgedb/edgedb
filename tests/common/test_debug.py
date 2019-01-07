@@ -19,7 +19,7 @@
 
 import unittest
 
-from edb.lang.common import debug
+from edb.common import debug
 
 
 class DebugTests(unittest.TestCase):

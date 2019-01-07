@@ -30,7 +30,7 @@ from edb.lang.edgeql import ast as qlast
 
 from edb.lang.schema import scalars as s_scalars
 
-from edb.lang.common import ast
+from edb.common import ast
 
 from . import ast as pg_ast
 from . import dbops

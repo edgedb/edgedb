@@ -26,10 +26,10 @@ from edb import errors
 
 from edb.lang import edgeql
 
-from edb.lang.common import context as parser_context
-from edb.lang.common import debug
-from edb.lang.common import devmode
-from edb.lang.common import exceptions
+from edb.common import context as parser_context
+from edb.common import debug
+from edb.common import devmode
+from edb.common import exceptions
 
 from edb.lang.schema import database as s_db
 from edb.lang.schema import ddl as s_ddl

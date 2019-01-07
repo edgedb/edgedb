@@ -26,8 +26,8 @@ import subprocess
 import sys
 import time
 
-from edb.lang.common import supervisor
-from edb.lang.common import taskgroup
+from edb.common import supervisor
+from edb.common import taskgroup
 
 from . import amsg
 

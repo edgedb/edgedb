@@ -17,8 +17,8 @@
 #
 
 
-from edb.lang.common.struct import Struct, Field
-from edb.lang.common import typed
+from edb.common.struct import Struct, Field
+from edb.common import typed
 
 
 class MarkupMeta(type(Struct)):

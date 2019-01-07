@@ -19,8 +19,8 @@
 
 import typing
 
-from edb.lang.common import enum as s_enum
-from edb.lang.common import ast, parsing
+from edb.common import enum as s_enum
+from edb.common import ast, parsing
 
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import functypes as qlft

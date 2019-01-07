@@ -21,7 +21,7 @@ import typing
 
 from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
-from edb.lang.common import enum
+from edb.common import enum
 
 from edb import errors
 

@@ -19,8 +19,8 @@
 
 import linecache
 
-from edb.lang.common.struct import Field
-from edb.lang.common import typed
+from edb.common.struct import Field
+from edb.common import typed
 from . import base
 
 

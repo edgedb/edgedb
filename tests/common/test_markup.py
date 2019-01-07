@@ -20,9 +20,9 @@
 import collections
 import unittest
 
-from edb.lang.common import markup
-from edb.lang.common.markup.format import xrepr
-from edb.lang.common.struct import Field
+from edb.common import markup
+from edb.common.markup.format import xrepr
+from edb.common.struct import Field
 
 
 class SpecialList(list):
@@ -112,7 +112,7 @@ class MarkupTests(unittest.TestCase):
         assert not issubclass(
             markup.elements.base.Markup, markup.elements.lang.TreeNode)
 
-        from edb.lang.common.markup.serializer.base \
+        from edb.common.markup.serializer.base \
             import OVERFLOW_BARIER, Context
 
         def gen(deep):

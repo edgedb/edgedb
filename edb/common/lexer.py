@@ -20,7 +20,7 @@
 import collections
 import re
 
-from edb.lang.common import context as pctx
+from edb.common import context as pctx
 
 
 class LexError(Exception):

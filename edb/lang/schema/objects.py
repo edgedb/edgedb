@@ -25,13 +25,13 @@ import uuid
 
 from edb import errors
 
-from edb.lang.common import markup
-from edb.lang.common import ordered
-from edb.lang.common import parsing
-from edb.lang.common import struct
-from edb.lang.common import topological
-from edb.lang.common import typed
-from edb.lang.common import uuidgen
+from edb.common import markup
+from edb.common import ordered
+from edb.common import parsing
+from edb.common import struct
+from edb.common import topological
+from edb.common import typed
+from edb.common import uuidgen
 
 from . import abc as s_abc
 from . import name as sn

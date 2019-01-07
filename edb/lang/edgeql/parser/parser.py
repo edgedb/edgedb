@@ -17,7 +17,7 @@
 #
 
 from edb import errors
-from edb.lang.common import debug, parsing
+from edb.common import debug, parsing
 
 from .grammar import lexer
 

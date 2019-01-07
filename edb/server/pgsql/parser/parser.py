@@ -17,7 +17,7 @@
 #
 
 
-from edb.lang.common import debug, parsing
+from edb.common import debug, parsing
 from .error import PgSQLParserError
 
 from . import lexer

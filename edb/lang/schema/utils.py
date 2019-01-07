@@ -23,7 +23,7 @@ import typing
 
 from edb import errors
 
-from edb.lang.common import levenshtein
+from edb.common import levenshtein
 from edb.lang.edgeql import ast as ql_ast
 
 from . import abc as s_abc

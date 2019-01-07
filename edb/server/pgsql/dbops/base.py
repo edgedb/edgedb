@@ -24,8 +24,8 @@ import numbers
 import textwrap
 import typing
 
-from edb.lang.common import markup
-from edb.lang.common import typeutils
+from edb.common import markup
+from edb.common import typeutils
 
 from ..common import quote_ident as qi
 from ..common import quote_literal as ql

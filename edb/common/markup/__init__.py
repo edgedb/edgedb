@@ -20,7 +20,7 @@
 import abc
 import sys
 
-from edb.lang.common import exceptions
+from edb.common import exceptions
 from . import elements, serializer, renderers
 from .serializer import serialize
 from .serializer import base as _base_serializer

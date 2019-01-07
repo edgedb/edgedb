@@ -23,7 +23,7 @@
 import functools
 import typing
 
-from edb.lang.common import enum as s_enum
+from edb.common import enum as s_enum
 
 from edb.lang.ir import ast as irast
 

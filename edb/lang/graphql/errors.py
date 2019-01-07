@@ -20,7 +20,7 @@
 from edb import errors
 
 
-from edb.lang.common.exceptions import add_context
+from edb.common.exceptions import add_context
 
 
 class GraphQLError(errors.QueryError):

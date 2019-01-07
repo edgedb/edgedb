@@ -23,7 +23,7 @@ import json
 
 from edb import errors
 
-from edb.lang.common import topological
+from edb.common import topological
 
 from edb.lang import schema as so
 

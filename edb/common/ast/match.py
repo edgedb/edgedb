@@ -22,7 +22,7 @@
 import collections.abc
 import types
 
-from edb.lang.common import adapter, ast
+from edb.common import adapter, ast
 
 
 class MatchASTMeta(adapter.Adapter, ast.MetaAST):

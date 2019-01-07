@@ -21,7 +21,7 @@ import ast
 import sys
 import types
 
-from edb.lang.common import parsing
+from edb.common import parsing
 
 from . import keywords
 from . import precedence

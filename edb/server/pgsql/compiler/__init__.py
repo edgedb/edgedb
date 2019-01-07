@@ -21,8 +21,8 @@ import typing
 
 from edb import errors
 
-from edb.lang.common import debug
-from edb.lang.common import exceptions as edgedb_error
+from edb.common import debug
+from edb.common import exceptions as edgedb_error
 
 from edb.lang.ir import ast as irast
 

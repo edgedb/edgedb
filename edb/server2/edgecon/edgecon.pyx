@@ -43,7 +43,7 @@ from edb.server2.pgcon import errors as pgerror
 import asyncio
 
 from edb import errors
-from edb.lang.common import debug
+from edb.common import debug
 
 
 DEF FLUSH_BUFFER_AFTER = 100_000

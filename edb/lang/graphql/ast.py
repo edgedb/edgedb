@@ -19,7 +19,7 @@
 
 import typing
 
-from edb.lang.common import ast, parsing
+from edb.common import ast, parsing
 from edb.lang.edgeql import quote as eql_quote
 
 

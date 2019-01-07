@@ -19,8 +19,8 @@
 
 import re
 
-from edb.lang.common.exceptions import EdgeDBError
-from edb.lang.common.ast import codegen, base
+from edb.common.exceptions import EdgeDBError
+from edb.common.ast import codegen, base
 
 from . import ast as edgeql_ast
 from . import quote as edgeql_quote

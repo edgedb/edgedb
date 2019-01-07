@@ -26,8 +26,8 @@ import termios
 import struct
 import functools
 
-from edb.lang.common.colorsys import rgb_distance as color_distance
-from edb.lang.common.colorsys import Color
+from edb.common.colorsys import rgb_distance as color_distance
+from edb.common.colorsys import Color
 
 
 def isatty(fileno):

@@ -22,7 +22,7 @@ import typing
 
 from edb import errors
 
-from edb.lang.common import ast
+from edb.common import ast
 
 from edb.lang.edgeql import functypes as ft
 

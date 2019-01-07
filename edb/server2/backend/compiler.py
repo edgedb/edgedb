@@ -34,7 +34,7 @@ from edb.server.pgsql import intromech
 
 from edb.lang import edgeql
 from edb.lang import graphql
-from edb.lang.common import debug
+from edb.common import debug
 
 from edb.lang.edgeql import ast as qlast
 from edb.lang.edgeql import compiler as ql_compiler

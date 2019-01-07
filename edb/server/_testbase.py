@@ -34,7 +34,7 @@ import edgedb
 from edb.server import cluster as edgedb_cluster
 from edb.server import defines as edgedb_defines
 
-from edb.lang.common import taskgroup
+from edb.common import taskgroup
 
 
 def get_test_cases(tests):

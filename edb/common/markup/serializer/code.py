@@ -17,7 +17,7 @@
 #
 
 
-from edb.lang.common.markup.elements import code as code_el
+from edb.common.markup.elements import code as code_el
 
 try:
     from pygments import token, lexers

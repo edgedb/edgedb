@@ -17,8 +17,8 @@
 #
 
 
-from edb.lang.common.exceptions import EdgeDBError
-from edb.lang.common.ast import codegen
+from edb.common.exceptions import EdgeDBError
+from edb.common.ast import codegen
 
 
 class GraphQLSourceGeneratorError(EdgeDBError):

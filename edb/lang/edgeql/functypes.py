@@ -17,7 +17,7 @@
 #
 
 
-from edb.lang.common import enum as s_enum
+from edb.common import enum as s_enum
 
 
 class ParameterKind(s_enum.StrEnum):

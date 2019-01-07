@@ -22,7 +22,7 @@
 import collections
 import enum
 
-from edb.lang.common import compiler
+from edb.common import compiler
 
 from edb.server.pgsql import ast as pgast
 

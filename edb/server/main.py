@@ -34,8 +34,8 @@ import uvloop
 import click
 from asyncpg import cluster as pg_cluster
 
-from edb.lang.common import devmode
-from edb.lang.common import exceptions
+from edb.common import devmode
+from edb.common import exceptions
 
 from .. import server2
 

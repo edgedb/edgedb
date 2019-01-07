@@ -19,7 +19,7 @@
 
 import asyncio
 
-from edb.lang.common import taskgroup
+from edb.common import taskgroup
 from edb.server import _testbase as tb
 
 

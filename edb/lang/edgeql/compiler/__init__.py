@@ -24,8 +24,8 @@ from edb import errors
 
 from edb.lang.edgeql import parser as ql_parser
 
-from edb.lang.common import debug
-from edb.lang.common import markup  # NOQA
+from edb.common import debug
+from edb.common import markup  # NOQA
 
 from edb.lang.schema import functions as s_func
 

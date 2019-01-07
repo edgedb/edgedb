@@ -20,8 +20,8 @@
 import enum
 import typing
 
-from edb.lang.common import ast
-from edb.lang.common import typeutils
+from edb.common import ast
+from edb.common import typeutils
 from edb.lang.edgeql import ast as qlast
 from edb.lang.ir import ast as irast
 

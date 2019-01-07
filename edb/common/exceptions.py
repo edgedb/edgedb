@@ -164,7 +164,7 @@ _old_excepthook = sys.excepthook
 
 def excepthook(exctype, exc, tb):
     try:
-        from edb.lang.common import markup
+        from edb.common import markup
         markup.dump(exc, file=sys.stderr)
 
     except Exception as ex:

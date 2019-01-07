@@ -33,9 +33,9 @@ contexts through the AST structure.
 
 import bisect
 
-from edb.lang.common import ast
-from edb.lang.common import markup
-from edb.lang.common import typeutils
+from edb.common import ast
+from edb.common import markup
+from edb.common import typeutils
 
 
 class SourcePoint:

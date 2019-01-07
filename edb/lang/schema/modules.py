@@ -17,7 +17,7 @@
 #
 
 
-from edb.lang.common import struct
+from edb.common import struct
 from edb.lang.edgeql import ast as qlast
 
 from . import attributes

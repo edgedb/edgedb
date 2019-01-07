@@ -19,8 +19,8 @@
 
 from edb import errors
 
-from edb.lang.common import debug, parsing
-from edb.lang.common.ast import NodeVisitor
+from edb.common import debug, parsing
+from edb.common.ast import NodeVisitor
 from edb.lang.graphql import ast as gqlast
 
 from .grammar import lexer

@@ -22,7 +22,7 @@ import os
 import re
 import unittest
 
-from edb.lang.common import markup, context
+from edb.common import markup, context
 
 from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast

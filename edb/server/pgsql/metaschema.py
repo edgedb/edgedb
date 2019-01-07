@@ -24,9 +24,9 @@ import re
 import textwrap
 import uuid
 
-from edb.lang.common import adapter, debug, typed
-from edb.lang.common import context as parser_context
-from edb.lang.common import exceptions
+from edb.common import adapter, debug, typed
+from edb.common import context as parser_context
+from edb.common import exceptions
 
 from edb.lang.schema import abc as s_abc
 from edb.lang.schema import constraints as s_constraints

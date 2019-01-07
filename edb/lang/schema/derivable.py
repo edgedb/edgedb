@@ -17,7 +17,7 @@
 #
 
 
-from edb.lang.common import uuidgen
+from edb.common import uuidgen
 
 from . import abc as s_abc
 from . import name as sn

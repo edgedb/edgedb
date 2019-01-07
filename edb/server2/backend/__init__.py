@@ -19,7 +19,7 @@
 
 import weakref
 
-from edb.lang.common import taskgroup
+from edb.common import taskgroup
 
 from edb.server2 import pgcon
 from edb.server2 import procpool

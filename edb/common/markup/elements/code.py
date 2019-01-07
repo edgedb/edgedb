@@ -17,7 +17,7 @@
 #
 
 
-from edb.lang.common import struct, typed
+from edb.common import struct, typed
 from . import base
 
 

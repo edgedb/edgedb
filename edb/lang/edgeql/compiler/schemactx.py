@@ -24,7 +24,7 @@ import typing
 
 from edb import errors
 
-from edb.lang.common import parsing
+from edb.common import parsing
 
 from edb.lang.schema import abc as s_abc
 from edb.lang.schema import name as sn

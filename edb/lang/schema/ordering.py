@@ -17,8 +17,8 @@
 #
 
 
-from edb.lang.common import ordered
-from edb.lang.common import topological
+from edb.common import ordered
+from edb.common import topological
 
 
 def get_global_dep_order():

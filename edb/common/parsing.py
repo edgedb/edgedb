@@ -25,9 +25,9 @@ import parsing
 
 from edb import errors
 
-from edb.lang.common.exceptions import add_context, get_context
-from edb.lang.common import context as pctx
-from edb.lang.common import lexer
+from edb.common.exceptions import add_context, get_context
+from edb.common import context as pctx
+from edb.common import lexer
 
 ParserContext = pctx.ParserContext
 
@@ -342,7 +342,7 @@ class Parser:
         """Return an initialized lexer.
 
         The lexer must implement 'setinputstr' and 'token' methods.
-        A lexer derived from edb.lang.common.lexer.Lexer will satisfy these
+        A lexer derived from edb.common.lexer.Lexer will satisfy these
         criteria.
         """
         raise NotImplementedError

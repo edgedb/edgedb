@@ -20,8 +20,8 @@
 import decimal
 import typing
 
-from edb.lang.common import enum as s_enum
-from edb.lang.common import ast, parsing
+from edb.common import enum as s_enum
+from edb.common import ast, parsing
 
 from . import functypes as ft
 from . import quote

@@ -20,8 +20,8 @@
 import typing
 import uuid
 
-from edb.lang.common.exceptions import EdgeDBError
-from edb.lang.common import ast, compiler, parsing
+from edb.common.exceptions import EdgeDBError
+from edb.common import ast, compiler, parsing
 
 from edb.lang.schema import modules as s_modules
 from edb.lang.schema import name as sn

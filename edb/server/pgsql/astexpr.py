@@ -17,7 +17,7 @@
 #
 
 
-from edb.lang.common.ast import match as astmatch
+from edb.common.ast import match as astmatch
 from . import ast as pgast  # NOQA
 from . import astmatch as pgastmatch
 

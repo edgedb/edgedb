@@ -25,8 +25,8 @@ import typing
 
 import typing_inspect
 
-from edb.lang.common import markup
-from edb.lang.common import typeutils
+from edb.common import markup
+from edb.common import typeutils
 
 
 class ASTError(Exception):

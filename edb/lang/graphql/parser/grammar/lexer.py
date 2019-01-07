@@ -19,7 +19,7 @@
 
 import re
 
-from edb.lang.common import lexer
+from edb.common import lexer
 from .keywords import graphql_keywords
 
 

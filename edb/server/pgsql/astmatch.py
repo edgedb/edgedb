@@ -19,8 +19,8 @@
 
 import sys
 
-from edb.lang.common import ast
-from edb.lang.common.ast import match as astmatch
+from edb.common import ast
+from edb.common.ast import match as astmatch
 from . import ast as pgast
 
 for name, cls in pgast.__dict__.items():

@@ -17,7 +17,7 @@
 #
 
 
-from edb.lang.common import parsing
+from edb.common import parsing
 
 
 class PgSQLParserError(parsing.ParserError):

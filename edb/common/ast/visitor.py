@@ -17,7 +17,7 @@
 #
 
 
-from edb.lang.common import typeutils
+from edb.common import typeutils
 
 from . import base
 

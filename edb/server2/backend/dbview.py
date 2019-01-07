@@ -23,7 +23,7 @@ import typing
 import immutables
 
 from edb.server import defines
-from edb.lang.common import lru
+from edb.common import lru
 
 from . import dbstate
 

@@ -19,8 +19,8 @@
 
 import typing
 
-from edb.lang.common import context as pctx
-from edb.lang.common import exceptions as ex
+from edb.common import context as pctx
+from edb.common import exceptions as ex
 
 
 __all__ = (

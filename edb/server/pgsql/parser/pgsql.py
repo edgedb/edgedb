@@ -19,7 +19,7 @@
 
 import sys
 
-from edb.lang.common import parsing
+from edb.common import parsing
 from .. import ast as pgast
 
 from . import keywords

@@ -17,7 +17,7 @@
 #
 
 
-from edb.lang.common import compiler
+from edb.common import compiler
 from edb.server.pgsql import common
 
 

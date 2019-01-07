@@ -17,7 +17,7 @@
 #
 
 
-from edb.lang.common.ast import match as astmatch
+from edb.common.ast import match as astmatch
 
 from . import astmatch as irastmatch
 

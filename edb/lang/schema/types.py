@@ -25,7 +25,7 @@ import uuid
 
 from edb import errors
 
-from edb.lang.common import typed
+from edb.common import typed
 
 from . import abc as s_abc
 from . import derivable

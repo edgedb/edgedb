@@ -25,7 +25,7 @@ import typing
 
 from edb import errors
 
-from edb.lang.common import parsing
+from edb.common import parsing
 
 from edb.lang.ir import ast as irast
 

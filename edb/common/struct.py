@@ -166,7 +166,7 @@ class Struct(metaclass=StructMeta):
 
     .. code-block:: pycon
 
-        >>> from edb.lang.common.struct import Struct, Field
+        >>> from edb.common.struct import Struct, Field
 
         >>> class MyStruct(Struct):
         ...    name = Field(type=str)

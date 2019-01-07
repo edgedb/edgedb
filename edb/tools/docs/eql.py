@@ -187,7 +187,7 @@ from edb.lang.edgeql.pygments import EdgeQLLexer
 from edb.lang.edgeql.parser import parser as edgeql_parser
 from edb.lang.edgeql import ast as ql_ast
 from edb.lang.edgeql import codegen as ql_gen
-from edb.lang.common import markup  # NoQA
+from edb.common import markup  # NoQA
 
 from docutils import nodes as d_nodes
 from docutils.parsers import rst as d_rst

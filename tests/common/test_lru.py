@@ -20,7 +20,7 @@
 import dataclasses
 import unittest
 
-from edb.lang.common import lru
+from edb.common import lru
 
 
 @dataclasses.dataclass(frozen=True)

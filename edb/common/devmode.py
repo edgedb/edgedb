@@ -40,7 +40,7 @@ def is_in_dev_mode() -> bool:
 
 def get_dev_mode_cache_dir() -> os.PathLike:
     if is_in_dev_mode():
-        root = pathlib.Path(__file__).parent.parent.parent.parent
+        root = pathlib.Path(__file__).parent.parent.parent
         cache_dir = (root / 'build' / 'cache')
         cache_dir.mkdir(exist_ok=True)
         return cache_dir

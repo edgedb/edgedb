@@ -17,7 +17,7 @@
 #
 
 
-from edb.lang.common import ast
+from edb.common import ast
 
 from edb.lang.ir import ast as irast
 from edb.lang.ir import typeutils as irtyputils

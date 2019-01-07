@@ -18,9 +18,9 @@
 
 from edb import errors
 
-from edb.lang.common import exceptions
-from edb.lang.common import parsing
-from edb.lang.common.lexer import LexError
+from edb.common import exceptions
+from edb.common import parsing
+from edb.common.lexer import LexError
 from .grammar import lexer
 
 

@@ -19,7 +19,7 @@
 
 import click
 
-from edb.lang.common import devmode
+from edb.common import devmode
 
 
 @click.group()

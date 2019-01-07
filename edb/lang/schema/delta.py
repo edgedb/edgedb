@@ -22,11 +22,11 @@ import collections.abc
 
 from edb import errors
 
-from edb.lang.common import adapter
+from edb.common import adapter
 from edb.lang import edgeql
 from edb.lang.edgeql import ast as qlast
 
-from edb.lang.common import markup, ordered, struct, typed
+from edb.common import markup, ordered, struct, typed
 
 from . import expr as s_expr
 from . import name as sn
