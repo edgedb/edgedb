@@ -76,27 +76,6 @@ def evaluate_BaseConstant(
 
 
 op_table = {
-    # Arithmetic
-    ('PREFIX', 'std::+'): lambda a: a,
-    ('PREFIX', 'std::-'): lambda a: -a,
-    ('INFIX', 'std::+'): lambda a, b: a + b,
-    ('INFIX', 'std::-'): lambda a, b: a - b,
-    ('INFIX', 'std::*'): lambda a, b: a * b,
-    ('INFIX', 'std::/'): lambda a, b: a / b,
-    ('INFIX', 'std:://'): lambda a, b: a // b,
-    ('INFIX', 'std::%'): lambda a, b: a % b,
-    ('INFIX', 'std::^'): lambda a, b: (
-        decimal.Decimal(a) ** decimal.Decimal(b)
-        if isinstance(a, int) else a ** b),
-
-    # Comparison
-    ('INFIX', 'std::='): lambda a, b: a == b,
-    ('INFIX', 'std::!='): lambda a, b: a != b,
-    ('INFIX', 'std::>'): lambda a, b: a > b,
-    ('INFIX', 'std::>='): lambda a, b: a >= b,
-    ('INFIX', 'std::<'): lambda a, b: a < b,
-    ('INFIX', 'std::<='): lambda a, b: a <= b,
-
     # Concatenation
     ('INFIX', 'std::++'): lambda a, b: a + b,
 }

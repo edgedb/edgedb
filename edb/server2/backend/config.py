@@ -32,5 +32,6 @@ class setting(typing.NamedTuple):
 
 
 configs = immutables.Map(
+    __internal_no_const_folding=setting(type=bool, default=False),
     __internal_testmode=setting(type=bool, default=False),
 )

@@ -110,7 +110,8 @@ def compile_ast_to_ir(tree,
                       result_view_name=None,
                       modaliases=None,
                       implicit_id_in_shapes=False,
-                      schema_view_mode=False):
+                      schema_view_mode=False,
+                      disable_constant_folding=False):
     """Compile given EdgeQL AST into EdgeDB IR."""
 
     if debug.flags.edgeql_compile:
@@ -123,7 +124,8 @@ def compile_ast_to_ir(tree,
         func=func, derived_target_module=derived_target_module,
         result_view_name=result_view_name,
         implicit_id_in_shapes=implicit_id_in_shapes,
-        schema_view_mode=schema_view_mode)
+        schema_view_mode=schema_view_mode,
+        disable_constant_folding=disable_constant_folding)
 
     ir_set = dispatch.compile(tree, ctx=ctx)
     ir_expr = stmtctx.fini_expression(ir_set, ctx=ctx)

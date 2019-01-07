@@ -80,9 +80,10 @@ def compile_BinOp(
         op_node = func.compile_operator(
             expr, op_name=expr.op, qlargs=[expr.left, expr.right], ctx=ctx)
 
-        folded = try_fold_binop(op_node.expr, ctx=ctx)
-        if folded is not None:
-            return folded
+        if ctx.env.constant_folding:
+            folded = try_fold_binop(op_node.expr, ctx=ctx)
+            if folded is not None:
+                return folded
 
     return setgen.ensure_set(op_node, ctx=ctx)
 

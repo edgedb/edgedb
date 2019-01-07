@@ -60,6 +60,7 @@ def init_context(
         derived_target_module: typing.Optional[str]=None,
         result_view_name: typing.Optional[str]=None,
         schema_view_mode: bool=False,
+        disable_constant_folding: bool=False,
         implicit_id_in_shapes: bool=False) -> \
         context.ContextLevel:
     stack = context.CompilerContext()
@@ -69,6 +70,7 @@ def init_context(
     ctx.env = context.Environment(
         schema=schema,
         path_scope=irast.new_scope_tree(),
+        constant_folding=not disable_constant_folding,
         schema_view_mode=schema_view_mode)
 
     if singletons:

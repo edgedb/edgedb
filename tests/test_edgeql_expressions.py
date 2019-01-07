@@ -17,13 +17,153 @@
 #
 
 
+import functools
 import os.path
+import typing
 import unittest
 
 import edgedb
 
 from edb.server import _testbase as tb
-from edb.tools import test
+
+
+class value(typing.NamedTuple):
+    typename: str
+
+    anyreal: bool
+    anyint: bool
+    anyfloat: bool
+    decimal: bool
+
+    signed: bool
+    datetime: bool
+
+
+VALUES = {
+    '<bool>True':
+        value(typename='bool',
+              anyreal=False, anyint=False, anyfloat=False,
+              datetime=False, signed=False, decimal=False),
+
+    '<uuid>"d4288330-eea3-11e8-bc5f-7faf132b1d84"':
+        value(typename='uuid',
+              anyreal=False, anyint=False, anyfloat=False,
+              datetime=False, signed=False, decimal=False),
+
+    '<bytes>b"Hello"':
+        value(typename='bytes',
+              anyreal=False, anyint=False, anyfloat=False,
+              datetime=False, signed=False, decimal=False),
+
+    '<str>"Hello"':
+        value(typename='str',
+              anyreal=False, anyint=False, anyfloat=False,
+              datetime=False, signed=False, decimal=False),
+
+    '<json>"Hello"':
+        value(typename='json',
+              anyreal=False, anyint=False, anyfloat=False,
+              datetime=False, signed=False, decimal=False),
+
+    '<datetime>"2018-05-07T20:01:22.306916+00:00"':
+        value(typename='datetime',
+              anyreal=False, anyint=False, anyfloat=False,
+              datetime=True, signed=False, decimal=False),
+
+    '<naive_datetime>"2018-05-07T20:01:22.306916"':
+        value(typename='naive_datetime',
+              anyreal=False, anyint=False, anyfloat=False,
+              datetime=True, signed=False, decimal=False),
+
+    '<naive_date>"2018-05-07"':
+        value(typename='naive_date',
+              anyreal=False, anyint=False, anyfloat=False,
+              datetime=True, signed=False, decimal=False),
+
+    '<naive_time>"20:01:22.306916"':
+        value(typename='naive_time',
+              anyreal=False, anyint=False, anyfloat=False,
+              datetime=True, signed=False, decimal=False),
+
+    '<timedelta>"20:01:22.306916"':
+        value(typename='timedelta',
+              anyreal=False, anyint=False, anyfloat=False,
+              datetime=True, signed=True, decimal=False),
+
+    '<int16>1':
+        value(typename='int16',
+              anyreal=True, anyint=True, anyfloat=False,
+              datetime=False, signed=True, decimal=False),
+
+    '<int32>1':
+        value(typename='int32',
+              anyreal=True, anyint=True, anyfloat=False,
+              datetime=False, signed=True, decimal=False),
+
+    '<int64>1':
+        value(typename='int64',
+              anyreal=True, anyint=True, anyfloat=False,
+              datetime=False, signed=True, decimal=False),
+
+    '1':  # same as <int64>1
+        value(typename='int64',
+              anyreal=True, anyint=True, anyfloat=False,
+              datetime=False, signed=True, decimal=False),
+
+    '<float32>1':
+        value(typename='float32',
+              anyreal=True, anyint=False, anyfloat=True,
+              datetime=False, signed=True, decimal=False),
+
+    '<float64>1':
+        value(typename='float64',
+              anyreal=True, anyint=False, anyfloat=True,
+              datetime=False, signed=True, decimal=False),
+
+    '1.0':  # same as <float64>1
+        value(typename='float64',
+              anyreal=True, anyint=False, anyfloat=True,
+              datetime=False, signed=True, decimal=False),
+
+    '<decimal>1':
+        value(typename='decimal',
+              anyreal=True, anyint=False, anyfloat=False,
+              datetime=False, signed=True, decimal=True),
+}
+
+
+@functools.lru_cache()
+def get_test_values(**flags):
+    res = []
+    for val, desc in VALUES.items():
+        if all(bool(getattr(desc, fname)) == bool(fval)
+               for fname, fval in flags.items()):
+            res.append(val)
+    return tuple(res)
+
+
+@functools.lru_cache()
+def get_test_items(**flags):
+    res = []
+    for val, desc in VALUES.items():
+        if all(bool(getattr(desc, fname)) == bool(fval)
+               for fname, fval in flags.items()):
+            res.append((val, desc))
+    return tuple(res)
+
+
+class TestExpressionsWithoutConstantFolding(tb.QueryTestCase):
+
+    SETUP = """
+        SET CONFIG __internal_no_const_folding := true;
+    """
+
+    async def test_edgeql_no_const_folding_str_concat(self):
+        await self.assert_query_result(r"""
+            SELECT 'aaaa' ++ 'bbbb';
+        """, [
+            ['aaaabbbb'],
+        ])
 
 
 class TestExpressions(tb.QueryTestCase):
@@ -438,39 +578,10 @@ class TestExpressions(tb.QueryTestCase):
                                             msg=query):
                     await self.query(query)
 
-    # type casts for literals help recovering type info for tests
-    onlyorderable = [
-        '<json>"Hello"',
-        '<bool>True',
-        '<uuid>"d4288330-eea3-11e8-bc5f-7faf132b1d84"',
-        '<bytes>b"Hello"',
-        '<str>"Hello"',
-    ]
-    datetime = [
-        '<datetime>"2018-05-07T20:01:22.306916+00:00"',
-        '<naive_datetime>"2018-05-07T20:01:22.306916"',
-        '<naive_date>"2018-05-07"',
-        '<naive_time>"20:01:22.306916"',
-        '<timedelta>"20:01:22.306916"',
-    ]
-    numeric = [
-        '<int16>1',
-        '<int32>1',
-        '<int64>1',
-        '<float32>1',
-        '<float64>1',
-        '<decimal>1',
-    ]
-    orderable = onlyorderable + datetime + numeric
-    orderable_nonnumeric = onlyorderable + datetime
-    nonnumeric = onlyorderable + datetime
-    # for now everything is orderable
-    scalar_samples = orderable
-
     async def test_edgeql_expr_valid_eq_01(self):
         # compare all numerics to all other scalars via equality
-        for left in self.numeric:
-            for right in self.nonnumeric:
+        for left in get_test_values(anyreal=True):
+            for right in get_test_values(anyreal=False):
                 for op, not_op in [('=', '!='), ('?=', '?!=')]:
                     await self._test_boolop(
                         left, right, op, not_op,
@@ -479,8 +590,8 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_valid_eq_02(self):
         # compare all numerics to each other via equality
-        for left in self.numeric:
-            for right in self.numeric:
+        for left in get_test_values(anyreal=True):
+            for right in get_test_values(anyreal=True):
                 for op, not_op in [('=', '!='), ('?=', '?!=')]:
                     await self._test_boolop(
                         left, right, op, not_op, True
@@ -489,8 +600,8 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_valid_eq_03(self):
         expected_error_msg = 'cannot be applied to operands'
         # compare all non-numerics to all scalars via equality
-        for left in self.nonnumeric:
-            for right in self.scalar_samples:
+        for left in get_test_values(anyreal=False):
+            for right in get_test_values():
                 for op, not_op in [('=', '!='), ('?=', '?!=')]:
                     await self._test_boolop(
                         left, right, op, not_op,
@@ -501,8 +612,8 @@ class TestExpressions(tb.QueryTestCase):
         expected_error_msg = 'cannot be applied to operands'
         # compare all orderable non-numerics to all scalars via
         # ordering operator
-        for left in self.orderable_nonnumeric:
-            for right in self.scalar_samples:
+        for left in get_test_values(anyreal=False):
+            for right in get_test_values():
                 for op, not_op in [('>=', '<'), ('<=', '>')]:
                     await self._test_boolop(
                         left, right, op, not_op,
@@ -512,12 +623,12 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_valid_comp_03(self):
         expected_error_msg = 'cannot be applied to operands'
         # compare numerics to all scalars via ordering comparators
-        for left in self.numeric:
-            for right in self.scalar_samples:
+        for left in get_test_values(anyreal=True):
+            for right, rdesc in get_test_items():
                 for op, not_op in [('>=', '<'), ('<=', '>')]:
                     await self._test_boolop(
                         left, right, op, not_op,
-                        True if right.endswith('>1') else expected_error_msg
+                        True if rdesc.anyreal else expected_error_msg
                     )
 
     async def test_edgeql_expr_valid_comp_04(self):
@@ -745,10 +856,9 @@ class TestExpressions(tb.QueryTestCase):
         str_numbers = ', '.join([str(n) for n in numbers])
 
         # ensure that unorderable scalars cannot be used in 'ORDER BY'
-        for val in self.numeric:
-            ntype = val[:-1]
+        for val, vdesc in get_test_items(anyreal=True):
             query = f'''
-                WITH X := {ntype}{{ {str_numbers} }}
+                WITH X := <{vdesc.typename}>{{ {str_numbers} }}
                 SELECT X ORDER BY X DESC;
             '''
             await self.assert_query_result(
@@ -756,336 +866,16 @@ class TestExpressions(tb.QueryTestCase):
                 [sorted(numbers, reverse=True)],
                 msg=query)
 
-    async def test_edgeql_expr_valid_bool_01(self):
-        expected_error_msg = 'cannot be applied to operands'
-        # use every scalar combination with AND and OR
-        for left in self.scalar_samples:
-            for right in self.scalar_samples:
-                for op in ['AND', 'OR']:
-                    query = f"""SELECT {left} {op} {right};"""
-                    if left == right == '<bool>True':
-                        # this operation should be valid and True
-                        await self.assert_query_result(query, [{True}])
-                    else:
-                        # every combination except for bool OP bool is invalid
-                        with self.assertRaisesRegex(edgedb.QueryError,
-                                                    expected_error_msg,
-                                                    msg=query):
-                            await self.query(query)
-
-    async def test_edgeql_expr_valid_bool_02(self):
-        expected_error_msg = 'cannot be applied to operands'
-        # use every scalar with NOT
-        for right in self.scalar_samples:
-            query = f"""SELECT NOT {right};"""
-            if right == '<bool>True':
-                # this operation should be valid and False
-                await self.assert_query_result(query, [{False}])
-            else:
-                # every other scalar must produce an error
-                with self.assertRaisesRegex(edgedb.QueryError,
-                                            expected_error_msg,
-                                            msg=query):
-                    await self.query(query)
-
-    async def test_edgeql_expr_valid_setbool_01(self):
-        # Use scalar combinations with IN and NOT IN. The expressions
-        # are trivial and are equivalent to = and != so there's a
-        # one-to-one correspondence between these and "expr_eq" tests.
-        for left in self.numeric:
-            for right in self.nonnumeric:
-                for op, not_op in [('IN', 'NOT IN')]:
-                    await self._test_boolop(
-                        left, right, op, not_op,
-                        'cannot be applied to operands'
-                    )
-
-    async def test_edgeql_expr_valid_setbool_02(self):
-        # Use scalar combinations with IN and NOT IN. The expressions
-        # are trivial and are equivalent to = and != so there's a
-        # one-to-one correspondence between these and "expr_eq" tests.
-        for left in self.numeric:
-            for right in self.numeric:
-                for op, not_op in [('IN', 'NOT IN')]:
-                    await self._test_boolop(
-                        left, right, op, not_op, True
-                    )
-
-    async def test_edgeql_expr_valid_setbool_03(self):
-        expected_error_msg = 'cannot be applied to operands'
-        # Use scalar combinations with IN and NOT IN. The expressions
-        # are trivial and are equivalent to = and != so there's a
-        # one-to-one correspondence between these and "expr_eq" tests.
-        for left in self.nonnumeric:
-            for right in self.scalar_samples:
-                for op, not_op in [('IN', 'NOT IN')]:
-                    await self._test_boolop(
-                        left, right, op, not_op,
-                        True if left == right else expected_error_msg
-                    )
-
-    async def test_edgeql_expr_valid_setbool_04(self):
-        # use every scalar with EXISTS
-        for right in self.scalar_samples:
-            query = f"""SELECT EXISTS {right};"""
-            # this operation should always be valid and True
-            await self.assert_query_result(query, [{True}])
-
-    async def test_edgeql_expr_valid_setop_01(self):
-        # use every scalar with DISTINCT
-        for right in self.scalar_samples:
-            query = f"""SELECT count(DISTINCT {{{right}, {right}}});"""
-            # this operation should always be valid and get count of 1
-            await self.assert_query_result(query, [{1}])
-
-            rtype = right.split('>')[0][1:]
-            query = f"""SELECT (DISTINCT {{{right}, {right}}}) IS {rtype};"""
-            # this operation should always be valid
-            await self.assert_query_result(query, [{True}])
-
-    async def test_edgeql_expr_valid_setop_02(self):
-        expected_error_msg = 'could not determine expression type'
-        # UNION all non-decimal numerics with all other scalars
-        for left in self.numeric[:-1]:
-            for right in self.nonnumeric:
-                query = f"""SELECT {left} UNION {right};"""
-                # every combination must produce an error
-                with self.assertRaisesRegex(edgedb.QueryError,
-                                            expected_error_msg,
-                                            msg=query):
-                    await self.query(query)
-
-    async def test_edgeql_expr_valid_setop_03(self):
-        # UNION all non-decimal numerics with each other
-        for left in self.numeric[:-1]:
-            for right in self.numeric[:-1]:
-                query = f"""SELECT {left} UNION {right};"""
-                # every combination must be valid and be {1, 1}
-                await self.assert_query_result(query, [[1, 1]])
-
-                types = [left.split('>')[0][1:], right.split('>')[0][1:]]
-                types.sort()
-
-                # Two floats upcast to the longer float.
-                # Two ints upcast to the longer int.
-                #
-                # int16 and float32 upcast to float32, all other
-                # float and int combos upcast to float64.
-                if types[0][0] == types[1][0]:
-                    # same category, so we just pick the longer one
-                    rtype = types[1]
-                else:
-                    # it's a mix, so check if it's special
-                    if types == ['float32', 'int16']:
-                        rtype = 'float32'
-                    else:
-                        rtype = 'float64'
-
-                query = f"""SELECT ({left} UNION {right}) IS {rtype};"""
-                # this operation should always be valid
-                await self.assert_query_result(query, [{True}])
-
-    async def test_edgeql_expr_valid_setop_04(self):
-        expected_error_msg = 'could not determine expression type'
-        # UNION all non-numerics with all scalars
-        for left in self.nonnumeric:
-            for right in self.scalar_samples:
-                query = f"""SELECT count({left} UNION {right});"""
-
-                if left == right:
-                    # these scalars can only be UNIONed with
-                    # themselves implicitly
-                    await self.assert_query_result(query, [[2]])
-
-                    rtype = right.split('>')[0][1:]
-                    query = f"""SELECT ({left} UNION {right}) IS {rtype};"""
-                    # this operation should always be valid
-                    await self.assert_query_result(query, [{True}])
-
-                else:
-                    # every other combination must produce an error
-                    with self.assertRaisesRegex(edgedb.QueryError,
-                                                expected_error_msg,
-                                                msg=query):
-                        await self.query(query)
-
-    async def test_edgeql_expr_valid_setop_05(self):
-        # decimals are tricky because integers implicitly cast into
-        # them and floats don't
-        expected_error_msg = 'could not determine expression type'
-        # decimal UNION non-numerics
-        for left in self.numeric[-1:]:
-            for right in self.nonnumeric:
-                query = f"""SELECT {left} UNION {right};"""
-                # every combination must produce an error
-                with self.assertRaisesRegex(edgedb.QueryError,
-                                            expected_error_msg,
-                                            msg=query):
-                    await self.query(query)
-
-    async def test_edgeql_expr_valid_setop_06(self):
-        # decimals are tricky because integers implicitly cast into
-        # them and floats don't
-        expected_error_msg = 'could not determine expression type'
-        # decimal UNION numerics
-        for left in self.numeric[-1:]:
-            for right in self.numeric:
-                query = f"""SELECT count({left} UNION {right});"""
-                if right.startswith('<float'):
-                    # decimal UNION float is illegal
-                    with self.assertRaisesRegex(edgedb.QueryError,
-                                                expected_error_msg,
-                                                msg=query):
-                        await self.query(query)
-                else:
-                    # decimals and integers can be UNIONed in any
-                    # combination
-                    await self.assert_query_result(query, [[2]])
-
-                    query = f"""SELECT ({left} UNION {right}) IS decimal;"""
-                    # this operation should always be valid
-                    await self.assert_query_result(query, [{True}])
-
-    async def test_edgeql_expr_valid_setop_07(self):
-        expected_error_msg = 'condition must be of type std::bool'
-        # IF ELSE with every scalar as the condition
-        for val in self.scalar_samples:
-            query = f"""SELECT 1 IF {val} ELSE 2;"""
-            if val == '<bool>True':
-                await self.assert_query_result(query, [[1]])
-            else:
-                # every other combination must produce an error
-                with self.assertRaisesRegex(edgedb.QueryError,
-                                            expected_error_msg,
-                                            msg=query):
-                    await self.query(query)
-
-    # Operator '??' should work just like UNION in terms of types.
-    # Operator A IF C ELSE B should work exactly like A UNION B in
-    # terms of types.
-    async def test_edgeql_expr_valid_setop_08(self):
-        expected_error_msg = 'of related types'
-        # test all non-decimal numerics with all other scalars
-        for left in self.numeric[:-1]:
-            for right in self.nonnumeric:
-                # random is used in the IF to prevent constant
-                # folding, because we really care about both of the
-                # outer operands being processed
-                for op in ['??', 'IF random() > 0.5 ELSE']:
-                    query = f"""SELECT {left} {op} {right};"""
-                    # every combination must produce an error
-                    with self.assertRaisesRegex(edgedb.QueryError,
-                                                expected_error_msg,
-                                                msg=query):
-                        await self.query(query)
-
-    async def test_edgeql_expr_valid_setop_09(self):
-        # test all non-decimal numerics with each other
-        for left in self.numeric[:-1]:
-            for right in self.numeric[:-1]:
-                for op in ['??', 'IF random() > 0.5 ELSE']:
-                    query = f"""SELECT {left} {op} {right};"""
-                    # every combination must be valid and be 1
-                    await self.assert_query_result(query, [[1]])
-
-                    types = [left.split('>')[0][1:], right.split('>')[0][1:]]
-                    types.sort()
-
-                    # Two floats upcast to the longer float.
-                    # Two ints upcast to the longer int.
-                    #
-                    # int16 and float32 upcast to float32, all other
-                    # float and int combos upcast to float64.
-                    if types[0][0] == types[1][0]:
-                        # same category, so we just pick the longer one
-                        rtype = types[1]
-                    else:
-                        # it's a mix, so check if it's special
-                        if types == ['float32', 'int16']:
-                            rtype = 'float32'
-                        else:
-                            rtype = 'float64'
-
-                    query = f"""SELECT ({left} {op} {right}) IS {rtype};"""
-                    # this operation should always be valid
-                    await self.assert_query_result(query, [{True}])
-
-    async def test_edgeql_expr_valid_setop_10(self):
-        expected_error_msg = 'of related types'
-        # test all non-numerics with all scalars
-        for left in self.nonnumeric:
-            for right in self.scalar_samples:
-                for op in ['??', 'IF random() > 0.5 ELSE']:
-                    query = f"""SELECT count({left} {op} {right});"""
-
-                    if left == right:
-                        # these scalars can only be combined with
-                        # themselves implicitly
-                        await self.assert_query_result(query, [[1]])
-
-                        rtype = right.split('>')[0][1:]
-                        query = f"""SELECT ({left} {op} {right}) IS {rtype};"""
-                        # this operation should always be valid
-                        await self.assert_query_result(query, [{True}])
-
-                    else:
-                        # every other combination must produce an error
-                        with self.assertRaisesRegex(edgedb.QueryError,
-                                                    expected_error_msg,
-                                                    msg=query):
-                            await self.query(query)
-
-    async def test_edgeql_expr_valid_setop_11(self):
-        # decimals are tricky because integers implicitly cast into
-        # them and floats don't
-        expected_error_msg = 'of related types'
-        # decimal combined with non-numerics
-        for left in self.numeric[-1:]:
-            for right in self.nonnumeric:
-                for op in ['??', 'IF random() > 0.5 ELSE']:
-                    query = f"""SELECT {left} {op} {right};"""
-                    # every combination must produce an error
-                    with self.assertRaisesRegex(edgedb.QueryError,
-                                                expected_error_msg,
-                                                msg=query):
-                        await self.query(query)
-
-    async def test_edgeql_expr_valid_setop_12(self):
-        # decimals are tricky because integers implicitly cast into
-        # them and floats don't
-        expected_error_msg = 'of related types'
-        # decimal combined with numerics
-        for left in self.numeric[-1:]:
-            for right in self.numeric:
-                for op in ['??', 'IF random() > 0.5 ELSE']:
-                    query = f"""SELECT {left} {op} {right};"""
-                    if right.startswith('<float'):
-                        # decimal combined with float is illegal
-                        with self.assertRaisesRegex(edgedb.QueryError,
-                                                    expected_error_msg,
-                                                    msg=query):
-                            await self.query(query)
-                    else:
-                        # decimals and integers can be UNIONed in any
-                        # combination
-                        await self.assert_query_result(query, [[1]])
-
-                        query = f"""SELECT ({left} {op} {right}) IS decimal;"""
-                        # this operation should always be valid
-                        await self.assert_query_result(query, [{True}])
-
     async def test_edgeql_expr_valid_arithmetic_01(self):
-        scalars = self.scalar_samples
         # unary minus should work for numeric scalars and timedelta
-        for right in scalars[-7:]:
+        for right in get_test_values(signed=True):
             query = f"""SELECT count(-{right});"""
             await self.assert_query_result(query, [[1]])
 
     async def test_edgeql_expr_valid_arithmetic_02(self):
-        scalars = self.scalar_samples
         expected_error_msg = 'cannot be applied to operands'
         # unary minus should not work for other scalars
-        for right in scalars[:-7]:
+        for right in get_test_values(signed=False):
             query = f"""SELECT -{right};"""
             with self.assertRaisesRegex(edgedb.QueryError,
                                         expected_error_msg,
@@ -1116,7 +906,6 @@ class TestExpressions(tb.QueryTestCase):
     #    explicit cast. As far as types are concerned the operators
     #    `+` and `-` are "commutative".
     async def test_edgeql_expr_valid_arithmetic_03(self):
-        scalars = self.scalar_samples
         expected_error_msg = 'cannot be applied to operands'
         # Test (1) - scalars that don't support + and - at all.
         #
@@ -1126,8 +915,8 @@ class TestExpressions(tb.QueryTestCase):
         #
         # In particular, `str` and `bytes` don't support `*` with
         # meaning of "repeated concatenation".
-        for left in scalars[:5]:
-            for right in self.scalar_samples:
+        for left in get_test_values(datetime=False, anyreal=False):
+            for right in get_test_values():
                 for op in ['+', '-', '*', '/', '//', '%', '^']:
                     query = f"""SELECT {left} {op} {right};"""
                     # every other combination must produce an error
@@ -1139,13 +928,13 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_valid_arithmetic_04(self):
         # Tests (2), (3), (4) - various date/time with non-date/time
         # combinations.
-        dts = self.datetime
+        dts = get_test_values(datetime=True)
         expected_error_msg = 'cannot be applied to operands'
 
         # none of the date/time scalars support '+', '-', '*', '/',
         # '//', '%', '^' with non-date/time
         for left in dts:
-            for right in self.scalar_samples:
+            for right in get_test_values():
                 if right in dts:
                     continue
                 for op in ['+', '-', '*', '/', '//', '%', '^']:
@@ -1158,19 +947,17 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_valid_arithmetic_05(self):
         # Tests (2) - various date/time combinations.
-        dts = self.datetime
-        tdelta = dts[-1]
         expected_error_msg = 'cannot be applied to operands'
 
-        for left in dts:
-            for right in dts:
+        for left, ldesc in get_test_items(datetime=True):
+            for right, rdesc in get_test_items(datetime=True):
                 query = f"""SELECT count({left} + {right});"""
                 restype = None
 
-                if left == tdelta:
-                    restype = right[1:].split('>')[0]
-                elif right == tdelta:
-                    restype = left[1:].split('>')[0]
+                if ldesc.signed:  # timedelta
+                    restype = rdesc.typename
+                elif rdesc.signed:  # timedelta
+                    restype = ldesc.typename
 
                 if restype:
                     await self.assert_query_result(query, [[1]])
@@ -1186,19 +973,18 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_valid_arithmetic_06(self):
         # Tests (3), (4) - various date/time combinations.
-        dts = self.datetime
-        tdelta = dts[-1]
         expected_error_msg = 'cannot be applied to operands'
 
-        for left in dts:
-            for right in dts:
+        for left, ldesc in get_test_items(datetime=True):
+            for right, rdesc in get_test_items(datetime=True):
                 query = f"""SELECT count({left} - {right});"""
-                restype = None
 
-                if right == tdelta:
-                    restype = left[1:].split('>')[0]
-                elif right == left:
+                if rdesc.signed:  # timedelta
+                    restype = ldesc.typename
+                elif rdesc.typename == ldesc.typename:
                     restype = 'timedelta'
+                else:
+                    restype = None
 
                 if restype:
                     await self.assert_query_result(query, [[1]])
@@ -1215,7 +1001,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_valid_arithmetic_07(self):
         # various date/time combinations don't define '*', '/', '//',
         # '%', '^'.
-        dts = self.datetime
+        dts = get_test_values(datetime=True)
         expected_error_msg = 'cannot be applied to operands'
 
         for left in dts:
@@ -1232,21 +1018,22 @@ class TestExpressions(tb.QueryTestCase):
         # Test (5) - decimal is incompatible with everything except integers
         expected_error_msg = 'cannot be applied to operands'
 
-        left = self.numeric[-1]
-        for right in self.scalar_samples[:-1]:
-            for op in ['+', '-', '*', '/', '//', '%', '^']:
-                if right.startswith('<int'):
-                    # decimal is "contagious"
-                    await self.assert_query_result(
-                        f"""SELECT ({left} {op} {right}) IS decimal;""",
-                        [[True]])
-                else:
-                    # every other combination must produce an error
+        for left in get_test_values(decimal=True):
+            for right in get_test_values(anyint=False, decimal=False):
+                for op in ['+', '-', '*', '/', '//', '%', '^']:
                     query = f"""SELECT {left} {op} {right};"""
                     with self.assertRaisesRegex(edgedb.QueryError,
                                                 expected_error_msg,
                                                 msg=query):
                         await self.query(query)
+
+        for left in get_test_values(decimal=True):
+            for right in get_test_values(anyint=True):
+                for op in ['+', '-', '*', '/', '//', '%', '^']:
+                    # decimal is "contagious"
+                    await self.assert_query_result(
+                        f"""SELECT ({left} {op} {right}) IS decimal;""",
+                        [[True]])
 
     async def test_edgeql_expr_valid_arithmetic_09(self):
         # Test (5) '+', '-', '*' for non-decimals. These operators are
@@ -1260,10 +1047,10 @@ class TestExpressions(tb.QueryTestCase):
         # the result is always smaller in magnitude than either
         # operand and can be represented in terms of operand types.
 
-        for left in self.numeric[:-1]:
-            for right in self.numeric[:-1]:
+        for left, ldesc in get_test_items(anyreal=True, decimal=False):
+            for right, rdesc in get_test_items(anyreal=True, decimal=False):
                 for op in ['+', '-', '*', '//', '%']:
-                    types = [left.split('>')[0][1:], right.split('>')[0][1:]]
+                    types = [ldesc.typename, rdesc.typename]
                     types.sort()
 
                     # Two floats upcast to the longer float.
@@ -1287,8 +1074,8 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_valid_arithmetic_10(self):
         # Test (5) '/', '^' for non-decimals.
 
-        for left in self.numeric[:-1]:
-            for right in self.numeric[:-1]:
+        for left, ldesc in get_test_items(anyreal=True, decimal=False):
+            for right, rdesc in get_test_items(anyreal=True, decimal=False):
                 for op in ['/', '^']:
                     # The result type is always a float because power
                     # can act as division.
@@ -1296,7 +1083,7 @@ class TestExpressions(tb.QueryTestCase):
                     # If the operands are int16 or float32, then the
                     # result is float32.
                     # In all other cases the result is a float64.
-                    types = {left.split('>')[0][1:], right.split('>')[0][1:]}
+                    types = {ldesc.typename, rdesc.typename}
 
                     if types.issubset({'int16', 'float32'}):
                         rtype = 'float32'
@@ -1306,43 +1093,333 @@ class TestExpressions(tb.QueryTestCase):
                     query = f"""SELECT ({left} {op} {right}) IS {rtype};"""
                     await self.assert_query_result(query, [[True]], msg=query)
 
-    @test.xfail('''
-        The result of aggregate `sum` is not cast back into the same
-        type as the argument set.
+    async def test_edgeql_expr_valid_setop_01(self):
+        # use every scalar with DISTINCT
+        for right, desc in get_test_items():
+            query = f"""SELECT count(DISTINCT {{{right}, {right}}});"""
+            # this operation should always be valid and get count of 1
+            await self.assert_query_result(query, [{1}])
 
-        Until this validation is added "fixing" it in std is going to
-        mask the issue.
-    ''')
-    async def test_edgeql_expr_valid_arithmetic_11(self):
-        # A special test for type of 'sum'. In principle the type of
-        # the result of aggregate sum should not be different from the
-        # '+' operator:
-        #
-        #   SELECT sum({1, 2.2, 3});
-        #   SELECT 1 + 2.2 + 3;
-        #
-        # Both of the above should produce the same type of result and
-        # ideally the same value. Although, it is possible to get
-        # different value due to rounding errors with floats.
-        #
-        # This is even more obvious for type of `sum(a)` vs type of `a`.
-        #
-        # We trust that the implicit casts for the set work as tested
-        # by UNION so we only test that a sum of a singleton set
-        # preserves the type.
-        expected_error_msg = 'could not find a function variant sum'
+            query = f"""
+                SELECT (DISTINCT {{{right}, {right}}}) IS {desc.typename};
+            """
+            # this operation should always be valid
+            await self.assert_query_result(query, [{True}])
 
-        for val in self.scalar_samples:
-            if val in self.numeric:
-                rtype = val.split('>')[0][1:]
-                query = f"""SELECT sum({val}) IS {rtype};"""
-                await self.assert_query_result(query, [[True]], msg=query)
-            else:
-                query = f"""SELECT sum({val});"""
+    async def test_edgeql_expr_valid_setop_02(self):
+        expected_error_msg = 'could not determine expression type'
+        # UNION all non-decimal numerics with all other scalars
+        for left in get_test_values(anyreal=True, decimal=False):
+            for right in get_test_values(anyreal=False):
+                query = f"""SELECT {left} UNION {right};"""
+                # every combination must produce an error
                 with self.assertRaisesRegex(edgedb.QueryError,
                                             expected_error_msg,
                                             msg=query):
                     await self.query(query)
+
+    async def test_edgeql_expr_valid_setop_03(self):
+        # UNION all non-decimal numerics with each other
+        for left, ldesc in get_test_items(anyreal=True, decimal=False):
+            for right, rdesc in get_test_items(anyreal=True, decimal=False):
+                query = f"""SELECT {left} UNION {right};"""
+                # every combination must be valid and be {1, 1}
+                await self.assert_query_result(query, [[1, 1]])
+
+                types = [ldesc.typename, rdesc.typename]
+                types.sort()
+
+                # Two floats upcast to the longer float.
+                # Two ints upcast to the longer int.
+                #
+                # int16 and float32 upcast to float32, all other
+                # float and int combos upcast to float64.
+                if types[0][0] == types[1][0]:
+                    # same category, so we just pick the longer one
+                    rtype = types[1]
+                else:
+                    # it's a mix, so check if it's special
+                    if types == ['float32', 'int16']:
+                        rtype = 'float32'
+                    else:
+                        rtype = 'float64'
+
+                query = f"""SELECT ({left} UNION {right}) IS {rtype};"""
+                # this operation should always be valid
+                await self.assert_query_result(query, [{True}])
+
+    async def test_edgeql_expr_valid_setop_04(self):
+        expected_error_msg = 'could not determine expression type'
+        # UNION all non-numerics with all scalars
+        for left, ldesc in get_test_items(anyreal=False):
+            for right, rdesc in get_test_items():
+                query = f"""SELECT count({left} UNION {right});"""
+
+                if ldesc.typename == rdesc.typename:
+                    # these scalars can only be UNIONed with
+                    # themselves implicitly
+                    await self.assert_query_result(query, [[2]])
+
+                    query = f"""
+                        SELECT ({left} UNION {right}) IS {rdesc.typename};
+                    """
+                    # this operation should always be valid
+                    await self.assert_query_result(query, [{True}])
+
+                else:
+                    # every other combination must produce an error
+                    with self.assertRaisesRegex(edgedb.QueryError,
+                                                expected_error_msg,
+                                                msg=query):
+                        await self.query(query)
+
+    async def test_edgeql_expr_valid_setop_05(self):
+        # decimals are tricky because integers implicitly cast into
+        # them and floats don't
+        expected_error_msg = 'could not determine expression type'
+        # decimal UNION non-numerics
+        for left in get_test_values(decimal=True):
+            for right in get_test_values(anyreal=False):
+                query = f"""SELECT {left} UNION {right};"""
+                # every combination must produce an error
+                with self.assertRaisesRegex(edgedb.QueryError,
+                                            expected_error_msg,
+                                            msg=query):
+                    await self.query(query)
+
+    async def test_edgeql_expr_valid_setop_06(self):
+        # decimals are tricky because integers implicitly cast into
+        # them and floats don't
+        expected_error_msg = 'could not determine expression type'
+        # decimal UNION numerics
+        for left in get_test_values(decimal=True):
+            for right in get_test_values(anyint=True):
+                query = f"""SELECT count({left} UNION {right});"""
+                # decimals and integers can be UNIONed in any
+                # combination
+                await self.assert_query_result(query, [[2]])
+
+                query = f"""SELECT ({left} UNION {right}) IS decimal;"""
+                # this operation should always be valid
+                await self.assert_query_result(query, [{True}])
+
+        for left in get_test_values(decimal=True):
+            for right in get_test_values(anyfloat=True):
+                query = f"""SELECT count({left} UNION {right});"""
+
+                # decimal UNION float is illegal
+                with self.assertRaisesRegex(edgedb.QueryError,
+                                            expected_error_msg,
+                                            msg=query):
+                    await self.query(query)
+
+    async def test_edgeql_expr_valid_setop_07(self):
+        expected_error_msg = 'condition must be of type std::bool'
+        # IF ELSE with every scalar as the condition
+        for val in get_test_values():
+            query = f"""SELECT 1 IF {val} ELSE 2;"""
+            if val == '<bool>True':
+                await self.assert_query_result(query, [[1]])
+            else:
+                # every other combination must produce an error
+                with self.assertRaisesRegex(edgedb.QueryError,
+                                            expected_error_msg,
+                                            msg=query):
+                    await self.query(query)
+
+    # Operator '??' should work just like UNION in terms of types.
+    # Operator A IF C ELSE B should work exactly like A UNION B in
+    # terms of types.
+    async def test_edgeql_expr_valid_setop_08(self):
+        expected_error_msg = 'of related types'
+        # test all non-decimal numerics with all other scalars
+        for left in get_test_values(anyreal=True, decimal=False):
+            for right in get_test_values(anyreal=False):
+                # random is used in the IF to prevent constant
+                # folding, because we really care about both of the
+                # outer operands being processed
+                for op in ['??', 'IF random() > 0.5 ELSE']:
+                    query = f"""SELECT {left} {op} {right};"""
+                    # every combination must produce an error
+                    with self.assertRaisesRegex(edgedb.QueryError,
+                                                expected_error_msg,
+                                                msg=query):
+                        await self.query(query)
+
+    async def test_edgeql_expr_valid_setop_09(self):
+        # test all non-decimal numerics with each other
+        for left, ldesc in get_test_items(anyreal=True, decimal=False):
+            for right, rdesc in get_test_items(anyreal=True, decimal=False):
+                for op in ['??', 'IF random() > 0.5 ELSE']:
+                    query = f"""SELECT {left} {op} {right};"""
+                    # every combination must be valid and be 1
+                    await self.assert_query_result(query, [[1]])
+
+                    types = [ldesc.typename, rdesc.typename]
+                    types.sort()
+
+                    # Two floats upcast to the longer float.
+                    # Two ints upcast to the longer int.
+                    #
+                    # int16 and float32 upcast to float32, all other
+                    # float and int combos upcast to float64.
+                    if types[0][0] == types[1][0]:
+                        # same category, so we just pick the longer one
+                        rtype = types[1]
+                    else:
+                        # it's a mix, so check if it's special
+                        if types == ['float32', 'int16']:
+                            rtype = 'float32'
+                        else:
+                            rtype = 'float64'
+
+                    query = f"""SELECT ({left} {op} {right}) IS {rtype};"""
+                    # this operation should always be valid
+                    await self.assert_query_result(query, [{True}])
+
+    async def test_edgeql_expr_valid_setop_10(self):
+        expected_error_msg = 'of related types'
+        # test all non-numerics with all scalars
+        for left in get_test_values(anyreal=False):
+            for right, rdesc in get_test_items():
+                for op in ['??', 'IF random() > 0.5 ELSE']:
+                    query = f"""SELECT count({left} {op} {right});"""
+
+                    if left == right:
+                        # these scalars can only be combined with
+                        # themselves implicitly
+                        await self.assert_query_result(query, [[1]])
+
+                        query = f"""
+                            SELECT ({left} {op} {right}) IS {rdesc.typename};
+                        """
+                        # this operation should always be valid
+                        await self.assert_query_result(query, [{True}])
+
+                    else:
+                        # every other combination must produce an error
+                        with self.assertRaisesRegex(edgedb.QueryError,
+                                                    expected_error_msg,
+                                                    msg=query):
+                            await self.query(query)
+
+    async def test_edgeql_expr_valid_setop_11(self):
+        # decimals are tricky because integers implicitly cast into
+        # them and floats don't
+        expected_error_msg = 'of related types'
+        # decimal combined with non-numerics
+        for left in get_test_values(decimal=True):
+            for right in get_test_values(anyreal=False):
+                for op in ['??', 'IF random() > 0.5 ELSE']:
+                    query = f"""SELECT {left} {op} {right};"""
+                    # every combination must produce an error
+                    with self.assertRaisesRegex(edgedb.QueryError,
+                                                expected_error_msg,
+                                                msg=query):
+                        await self.query(query)
+
+    async def test_edgeql_expr_valid_setop_12(self):
+        # decimals are tricky because integers implicitly cast into
+        # them and floats don't
+        expected_error_msg = 'of related types'
+        # decimal combined with numerics
+        for left in get_test_values(decimal=True):
+            for right in get_test_values(anyfloat=True):
+                for op in ['??', 'IF random() > 0.5 ELSE']:
+                    query = f"""SELECT {left} {op} {right};"""
+                    # decimal combined with float is illegal
+                    with self.assertRaisesRegex(edgedb.QueryError,
+                                                expected_error_msg,
+                                                msg=query):
+                        await self.query(query)
+
+        for left in get_test_values(decimal=True):
+            for right in get_test_values(anyreal=True, anyfloat=False):
+                for op in ['??', 'IF random() > 0.5 ELSE']:
+                    query = f"""SELECT {left} {op} {right};"""
+
+                    # decimals and integers can be UNIONed in any
+                    # combination
+                    await self.assert_query_result(query, [[1]])
+
+                    query = f"""SELECT ({left} {op} {right}) IS decimal;"""
+                    # this operation should always be valid
+                    await self.assert_query_result(query, [{True}])
+
+    async def test_edgeql_expr_valid_bool_01(self):
+        expected_error_msg = 'cannot be applied to operands'
+        # use every scalar combination with AND and OR
+        for left in get_test_values():
+            for right in get_test_values():
+                for op in ['AND', 'OR']:
+                    query = f"""SELECT {left} {op} {right};"""
+                    if left == right == '<bool>True':
+                        # this operation should be valid and True
+                        await self.assert_query_result(query, [{True}])
+                    else:
+                        # every combination except for bool OP bool is invalid
+                        with self.assertRaisesRegex(edgedb.QueryError,
+                                                    expected_error_msg,
+                                                    msg=query):
+                            await self.query(query)
+
+    async def test_edgeql_expr_valid_bool_02(self):
+        expected_error_msg = 'cannot be applied to operands'
+        # use every scalar with NOT
+        for right in get_test_values():
+            query = f"""SELECT NOT {right};"""
+            if right == '<bool>True':
+                # this operation should be valid and False
+                await self.assert_query_result(query, [{False}])
+            else:
+                # every other scalar must produce an error
+                with self.assertRaisesRegex(edgedb.QueryError,
+                                            expected_error_msg,
+                                            msg=query):
+                    await self.query(query)
+
+    async def test_edgeql_expr_valid_setbool_01(self):
+        # Use scalar combinations with IN and NOT IN. The expressions
+        # are trivial and are equivalent to = and != so there's a
+        # one-to-one correspondence between these and "expr_eq" tests.
+        for left in get_test_values(anyreal=True):
+            for right in get_test_values(anyreal=False):
+                for op, not_op in [('IN', 'NOT IN')]:
+                    await self._test_boolop(
+                        left, right, op, not_op,
+                        'cannot be applied to operands'
+                    )
+
+    async def test_edgeql_expr_valid_setbool_02(self):
+        # Use scalar combinations with IN and NOT IN. The expressions
+        # are trivial and are equivalent to = and != so there's a
+        # one-to-one correspondence between these and "expr_eq" tests.
+        for left in get_test_values(anyreal=True):
+            for right in get_test_values(anyreal=True):
+                for op, not_op in [('IN', 'NOT IN')]:
+                    await self._test_boolop(
+                        left, right, op, not_op, True
+                    )
+
+    async def test_edgeql_expr_valid_setbool_03(self):
+        expected_error_msg = 'cannot be applied to operands'
+        # Use scalar combinations with IN and NOT IN. The expressions
+        # are trivial and are equivalent to = and != so there's a
+        # one-to-one correspondence between these and "expr_eq" tests.
+        for left in get_test_values(anyreal=False):
+            for right in get_test_values():
+                for op, not_op in [('IN', 'NOT IN')]:
+                    await self._test_boolop(
+                        left, right, op, not_op,
+                        True if left == right else expected_error_msg
+                    )
+
+    async def test_edgeql_expr_valid_setbool_04(self):
+        # use every scalar with EXISTS
+        for right in get_test_values():
+            query = f"""SELECT EXISTS {right};"""
+            # this operation should always be valid and True
+            await self.assert_query_result(query, [{True}])
 
     async def test_edgeql_expr_bytes_op_01(self):
         await self.assert_query_result(r'''

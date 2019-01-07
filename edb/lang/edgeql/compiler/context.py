@@ -103,13 +103,19 @@ class Environment:
     set_types: typing.Dict[irast.Set, s_types.Type]
     """A dictionary of all Set instances and their schema types."""
 
-    def __init__(self, *, schema, path_scope, schema_view_mode: bool=False):
+    constant_folding: bool
+    """Enables constant folding optimization (enabled by default)."""
+
+    def __init__(self, *, schema, path_scope,
+                 schema_view_mode: bool=False,
+                 constant_folding: bool=True):
         self.schema = schema
         self.path_scope = path_scope
         self.schema_view_cache = {}
         self.query_parameters = {}
         self.schema_view_mode = schema_view_mode
         self.set_types = {}
+        self.constant_folding = constant_folding
 
 
 class ContextLevel(compiler.ContextLevel):

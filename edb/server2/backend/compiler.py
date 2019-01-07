@@ -207,12 +207,17 @@ class Compiler:
             ql: qlast.Base) -> dbstate.BaseQuery:
 
         current_tx = ctx.state.current_tx()
+        config = current_tx.get_config()
+
+        disable_constant_folding = config.get(
+            '__internal_no_const_folding', False)
 
         ir = ql_compiler.compile_ast_to_ir(
             ql,
             schema=current_tx.get_schema(),
             modaliases=current_tx.get_modaliases(),
-            implicit_id_in_shapes=False)
+            implicit_id_in_shapes=False,
+            disable_constant_folding=disable_constant_folding)
 
         sql_text, argmap = pg_compiler.compile_ir_to_sql(
             ir,

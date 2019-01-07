@@ -65,13 +65,6 @@ class TestEdgeQLUtils(tb.BaseEdgeQLCompilerTest):
                 ir.expr.typeref.displayname,
                 expected_const_type)
 
-    def test_edgeql_utils_normalize_01(self):
-        self._assert_normalize_expr(
-            """SELECT 40 + 2""",
-            """SELECT 42""",
-            'std::int64',
-        )
-
     def test_edgeql_utils_normalize_02(self):
         self._assert_normalize_expr(
             """SELECT -10""",
@@ -110,55 +103,9 @@ class TestEdgeQLUtils(tb.BaseEdgeQLCompilerTest):
             """SELECT ('aaa')[2]"""
         )
 
-    def test_edgeql_utils_normalize_08(self):
-        self._assert_normalize_expr(
-            """SELECT 40 + 2 - 20 * +2 + (-10 // 2)""",
-            """SELECT -3""",
-            'std::int64',
-        )
-
-    def test_edgeql_utils_normalize_09(self):
-        self._assert_normalize_expr(
-            """SELECT 2 + (len('a')+1)""",
-            """SELECT (3 + std::len('a'))""",
-        )
-
-        self._assert_normalize_expr(
-            """SELECT (1 + len('a')) + 2""",
-            """SELECT (3 + std::len('a'))""",
-        )
-
-        self._assert_normalize_expr(
-            """SELECT 2 * (len('a')*1)""",
-            """SELECT (2 * std::len('a'))""",
-        )
-
-        self._assert_normalize_expr(
-            """SELECT (1 * len('a')) * 2""",
-            """SELECT (2 * std::len('a'))""",
-        )
-
-    def test_edgeql_utils_normalize_10(self):
-        self._assert_normalize_expr(
-            """SELECT 1 > 2""",
-            """SELECT false""",
-            'std::bool',
-        )
-
-        self._assert_normalize_expr(
-            """SELECT 1 = 1""",
-            """SELECT true""",
-            'std::bool',
-        )
-
-        self._assert_normalize_expr(
-            """SELECT 1 < (1 + 1)""",
-            """SELECT true""",
-            'std::bool',
-        )
-
     def test_edgeql_utils_normalize_11(self):
         self._assert_normalize_expr(
-            """SELECT 5 // 2""",
-            """SELECT 2""",
+            """SELECT 'a' ++ 'b'""",
+            """SELECT 'ab'""",
+            'std::str',
         )
