@@ -21,7 +21,7 @@ import asyncio
 
 from edb.common import supervisor
 from edb.common import taskgroup
-from edb.server import _testbase as tb
+from edb.testbase import server as tb
 
 
 class TestSupervisor(tb.TestCase):

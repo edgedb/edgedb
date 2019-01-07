@@ -22,7 +22,7 @@ import unittest  # NOQA
 
 from edb import errors
 
-from edb.lang import _testbase as tb
+from edb.testbase import lang as tb
 from edb.edgeql import generate_source as edgeql_to_source
 from edb.edgeql.parser import parser as edgeql_parser
 

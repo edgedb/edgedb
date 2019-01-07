@@ -20,7 +20,7 @@
 import asyncio
 
 from edb.common import taskgroup
-from edb.server import _testbase as tb
+from edb.testbase import server as tb
 
 
 class MyExc(Exception):

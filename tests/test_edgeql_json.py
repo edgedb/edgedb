@@ -23,7 +23,7 @@ import unittest  # NOQA
 
 import edgedb
 
-from edb.server import _testbase as tb
+from edb.testbase import server as tb
 
 
 class TestEdgeQLJSON(tb.QueryTestCase):

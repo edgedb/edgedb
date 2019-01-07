@@ -23,7 +23,7 @@ import textwrap
 
 from edb import errors
 
-from edb.lang import _testbase as tb
+from edb.testbase import lang as tb
 
 from edb.edgeql import compiler
 

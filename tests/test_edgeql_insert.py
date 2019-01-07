@@ -23,7 +23,7 @@ import uuid
 
 import edgedb
 
-from edb.server import _testbase as tb
+from edb.testbase import server as tb
 
 
 class TestInsert(tb.QueryTestCase):

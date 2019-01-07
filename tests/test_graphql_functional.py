@@ -21,7 +21,7 @@ import os
 import unittest  # NOQA
 import uuid
 
-from edb.server import _testbase as tb
+from edb.testbase import server as tb
 
 
 class TestGraphQLFunctional(tb.QueryTestCase):

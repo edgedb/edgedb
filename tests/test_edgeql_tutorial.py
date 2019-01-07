@@ -19,7 +19,7 @@
 
 import unittest  # NOQA
 
-from edb.server import _testbase as tb
+from edb.testbase import server as tb
 
 
 class TestEdgeQLTutorial(tb.QueryTestCase):

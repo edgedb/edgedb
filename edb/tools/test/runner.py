@@ -37,7 +37,7 @@ import warnings
 
 import click
 
-from edb.server import _testbase as tb
+from edb.testbase import server as tb
 from edb.server import cluster as edgedb_cluster
 
 from . import styles

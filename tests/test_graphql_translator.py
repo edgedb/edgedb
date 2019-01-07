@@ -23,7 +23,7 @@ import re
 import textwrap
 import unittest  # NOQA
 
-from edb.lang import _testbase as tb
+from edb.testbase import lang as tb
 from edb import graphql as edge_graphql
 from edb import edgeql as edge_edgeql
 from edb.graphql.errors import GraphQLCoreError

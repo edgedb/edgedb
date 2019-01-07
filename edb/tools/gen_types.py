@@ -35,7 +35,7 @@ def main():
     for p in edb.__path__:
         ep = pathlib.Path(p) / 'api' / 'types.txt'
         if ep.exists():
-            out_fn = pathlib.Path(p) / 'lang' / 'schema' / '_types.py'
+            out_fn = pathlib.Path(p) / 'schema' / '_types.py'
             break
     else:
         die('Unable to find the "edb/api/types.txt" file')

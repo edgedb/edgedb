@@ -24,10 +24,10 @@ import edgedb
 
 from edb import errors
 
-from edb.lang import _testbase as tb
+from edb.testbase import lang as tb
 from edb.schema import links as s_links
 
-from edb.server import _testbase as stb
+from edb.testbase import server as stb
 
 
 class TestLinkTargetDeleteSchema(tb.BaseSchemaLoadTest):

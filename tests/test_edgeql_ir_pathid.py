@@ -19,7 +19,7 @@
 
 import os.path
 
-from edb.lang import _testbase as tb
+from edb.testbase import lang as tb
 from edb.ir import pathid
 from edb.schema import pointers as s_pointers
 

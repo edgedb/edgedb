@@ -22,7 +22,7 @@ import unittest  # NoQA
 
 from edb import errors
 
-from edb.lang import _testbase as tb
+from edb.testbase import lang as tb
 from edb.schema import generate_source as eschema_to_source
 from edb.schema.parser import parser as eschema_parser
 

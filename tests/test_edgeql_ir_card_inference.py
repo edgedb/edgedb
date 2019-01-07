@@ -20,7 +20,7 @@
 import os.path
 import textwrap
 
-from edb.lang import _testbase as tb
+from edb.testbase import lang as tb
 
 from edb.edgeql import compiler
 from edb.edgeql.compiler import context

@@ -22,7 +22,7 @@ import textwrap
 from edb.edgeql import parser as eql_parser
 from edb.edgeql import utils as eql_utils
 
-from edb.lang import _testbase as tb
+from edb.testbase import lang as tb
 
 
 class TestEdgeQLUtils(tb.BaseEdgeQLCompilerTest):

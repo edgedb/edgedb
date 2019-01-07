@@ -19,7 +19,7 @@
 
 from edb import errors
 
-from edb.lang import _testbase as tb
+from edb.testbase import lang as tb
 
 from edb.schema import links as s_links
 from edb.schema import objtypes as s_objtypes
