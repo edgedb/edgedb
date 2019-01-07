@@ -24,8 +24,8 @@ import typing
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 
-from edb.server.pgsql import ast as pgast
-from edb.server.pgsql import types as pgtypes
+from edb.pgsql import ast as pgast
+from edb.pgsql import types as pgtypes
 
 from . import context
 

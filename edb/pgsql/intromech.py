@@ -45,8 +45,8 @@ from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
 from edb.schema import types as s_types
 
-from edb.server.pgsql import common
-from edb.server.pgsql import dbops
+from edb.pgsql import common
+from edb.pgsql import dbops
 
 from . import datasources
 from .datasources import introspection

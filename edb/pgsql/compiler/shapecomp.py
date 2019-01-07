@@ -24,7 +24,7 @@ import typing
 from edb.ir import ast as irast
 from edb.ir import utils as irutils
 
-from edb.server.pgsql import ast as pgast
+from edb.pgsql import ast as pgast
 
 from . import astutils
 from . import context

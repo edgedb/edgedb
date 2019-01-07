@@ -54,9 +54,9 @@ from edb.common import markup
 
 from edb.ir import utils as irutils
 
-from edb.server.pgsql import common
+from edb.pgsql import common
 
-from edb.server.pgsql import dbops, metaschema
+from edb.pgsql import dbops, metaschema
 
 from . import ast as pg_ast
 from .common import quote_literal as ql

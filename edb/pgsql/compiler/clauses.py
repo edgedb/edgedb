@@ -20,7 +20,7 @@
 import typing
 
 from edb.ir import ast as irast
-from edb.server.pgsql import ast as pgast
+from edb.pgsql import ast as pgast
 
 from . import context
 from . import dispatch

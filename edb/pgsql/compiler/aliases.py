@@ -17,26 +17,11 @@
 #
 
 
-import functools
-
-from edb.ir import ast as irast
-
-from edb.server.pgsql import ast as pgast
-
-from . import context
+from edb.common import compiler
+from edb.pgsql import common
 
 
-@functools.singledispatch
-def compile(
-        ir: irast.Base, *,
-        ctx: context.CompilerContextLevel) -> pgast.Base:
-    raise NotImplementedError(
-        f'no IR compiler handler for {ir.__class__}')
-
-
-@functools.singledispatch
-def visit(
-        ir: irast.Base, *,
-        ctx: context.CompilerContextLevel) -> None:
-    """A compilation version that does not pull the value eagerly."""
-    compile(ir, ctx=ctx)
+class AliasGenerator(compiler.AliasGenerator):
+    def get(self, hint=None):
+        alias = super().get(hint)
+        return common.edgedb_name_to_pg_name(alias)

@@ -22,8 +22,8 @@
 from edb.schema import objects as s_obj
 from edb.common import adapter
 
-from edb.server.pgsql import common
-from edb.server.pgsql import dbops
+from edb.pgsql import common
+from edb.pgsql import dbops
 
 
 class SchemaDBObjectMeta(adapter.Adapter, type(s_obj.Object)):

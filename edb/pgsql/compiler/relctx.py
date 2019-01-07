@@ -28,8 +28,8 @@ from edb.ir import utils as irutils
 
 from edb.schema import pointers as s_pointers
 
-from edb.server.pgsql import ast as pgast
-from edb.server.pgsql import types as pg_types
+from edb.pgsql import ast as pgast
+from edb.pgsql import types as pg_types
 
 from . import astutils
 from . import context

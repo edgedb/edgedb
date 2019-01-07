@@ -24,7 +24,7 @@ import enum
 
 from edb.common import compiler
 
-from edb.server.pgsql import ast as pgast
+from edb.pgsql import ast as pgast
 
 from . import aliases
 

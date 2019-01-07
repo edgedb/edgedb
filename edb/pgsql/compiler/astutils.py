@@ -19,7 +19,7 @@
 
 import typing
 
-from edb.server.pgsql import ast as pgast
+from edb.pgsql import ast as pgast
 
 
 def tuple_element_for_shape_el(shape_el, value, *, ctx):

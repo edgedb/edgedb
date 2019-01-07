@@ -77,11 +77,11 @@ if platform.uname().system != 'Windows':
 def _compile_parsers(build_lib, inplace=False):
     import parsing
 
-    import edb.lang.edgeql.parser.grammar.single as edgeql_spec
-    import edb.lang.edgeql.parser.grammar.block as edgeql_spec2
-    import edb.server.pgsql.parser.pgsql as pgsql_spec
-    import edb.lang.schema.parser.grammar.declarations as schema_spec
-    import edb.lang.graphql.parser.grammar.document as graphql_spec
+    import edb.edgeql.parser.grammar.single as edgeql_spec
+    import edb.edgeql.parser.grammar.block as edgeql_spec2
+    import edb.pgsql.parser.pgsql as pgsql_spec
+    import edb.eschema.parser.grammar.declarations as schema_spec
+    import edb.graphql.parser.grammar.document as graphql_spec
 
     base_path = pathlib.Path(__file__).parent.resolve()
 

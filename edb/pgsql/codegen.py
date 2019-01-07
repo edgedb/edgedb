@@ -19,8 +19,8 @@
 
 import binascii
 
-from edb.server.pgsql import common
-from edb.server.pgsql import ast as pgast
+from edb.pgsql import common
+from edb.pgsql import ast as pgast
 from edb.common.ast import codegen
 from edb.common import markup
 from edb.common import exceptions as edgedb_error

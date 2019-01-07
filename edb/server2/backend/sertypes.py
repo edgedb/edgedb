@@ -22,7 +22,7 @@ import uuid
 
 from edb import errors
 
-from edb.server.pgsql import types as pg_types
+from edb.pgsql import types as pg_types
 
 from edb.schema import objects as s_obj
 from edb.schema import types as s_types

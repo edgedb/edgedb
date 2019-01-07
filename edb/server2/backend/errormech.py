@@ -27,7 +27,7 @@ from edb import errors
 from edb.schema import name as sn
 from edb.schema import objtypes as s_objtypes
 
-from edb.server.pgsql import common
+from edb.pgsql import common
 
 
 class PGError(enum.Enum):

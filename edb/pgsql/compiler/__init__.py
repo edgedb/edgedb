@@ -26,8 +26,8 @@ from edb.common import exceptions as edgedb_error
 
 from edb.ir import ast as irast
 
-from edb.server.pgsql import ast as pgast
-from edb.server.pgsql import codegen as pgcodegen
+from edb.pgsql import ast as pgast
+from edb.pgsql import codegen as pgcodegen
 
 from . import expr as _expr_compiler  # NOQA
 from . import stmt as _stmt_compiler  # NOQA

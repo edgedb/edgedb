@@ -29,8 +29,8 @@ import immutables
 from edb import errors
 
 from edb.server import defines
-from edb.server.pgsql import compiler as pg_compiler
-from edb.server.pgsql import intromech
+from edb.pgsql import compiler as pg_compiler
+from edb.pgsql import intromech
 
 from edb import edgeql
 from edb import graphql
@@ -50,8 +50,8 @@ from edb.schema import deltas as s_deltas
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 
-from edb.server.pgsql import delta as pg_delta
-from edb.server.pgsql import dbops as pg_dbops
+from edb.pgsql import delta as pg_delta
+from edb.pgsql import dbops as pg_dbops
 
 from . import config
 from . import dbstate

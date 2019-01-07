@@ -27,7 +27,7 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
 from edb.schema import objects as s_obj
 from edb.server import defines
 
-from edb.server.pgsql import common as pg_common
+from edb.pgsql import common as pg_common
 
 from edb.server2.pgproto cimport hton
 from edb.server2.pgproto.pgproto cimport (
