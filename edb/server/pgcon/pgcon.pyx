@@ -29,8 +29,8 @@ from edb.server import defines
 
 from edb.pgsql import common as pg_common
 
-from edb.server2.pgproto cimport hton
-from edb.server2.pgproto.pgproto cimport (
+from edb.server.pgproto cimport hton
+from edb.server.pgproto.pgproto cimport (
     WriteBuffer,
     ReadBuffer,
     FRBuffer,
@@ -38,7 +38,7 @@ from edb.server2.pgproto.pgproto cimport (
     frb_read,
 )
 
-from edb.server2.edgecon cimport edgecon
+from edb.server.edgecon cimport edgecon
 
 
 import asyncio

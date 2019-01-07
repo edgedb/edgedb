@@ -37,12 +37,11 @@ from asyncpg import cluster as pg_cluster
 from edb.common import devmode
 from edb.common import exceptions
 
-from .. import server2
-
 from . import cluster as edgedb_cluster
 from . import daemon
 from . import defines
 from . import logsetup
+from . import server
 
 
 logger = logging.getLogger('edb.server')
@@ -118,7 +117,7 @@ def _run_server(cluster, args, runstate_dir):
     _init_cluster(cluster, args)
 
     try:
-        ss = server2.Server(
+        ss = server.Server(
             loop=loop,
             cluster=cluster,
             runstate_dir=runstate_dir,

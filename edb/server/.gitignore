@@ -1,1 +1,3 @@
 /_buildmeta.py
+*.c
+*.html

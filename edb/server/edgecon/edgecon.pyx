@@ -25,8 +25,8 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
 
 import immutables
 
-from edb.server2.pgproto cimport hton
-from edb.server2.pgproto.pgproto cimport (
+from edb.server.pgproto cimport hton
+from edb.server.pgproto.pgproto cimport (
     WriteBuffer,
     ReadBuffer,
 
@@ -37,8 +37,8 @@ from edb.server2.pgproto.pgproto cimport (
     frb_get_len,
 )
 
-from edb.server2.pgcon cimport pgcon
-from edb.server2.pgcon import errors as pgerror
+from edb.server.pgcon cimport pgcon
+from edb.server.pgcon import errors as pgerror
 
 import asyncio
 

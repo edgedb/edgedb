@@ -21,8 +21,8 @@ import weakref
 
 from edb.common import taskgroup
 
-from edb.server2 import pgcon
-from edb.server2 import procpool
+from edb.server import pgcon
+from edb.server import procpool
 
 from . import compiler
 

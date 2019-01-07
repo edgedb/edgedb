@@ -38,7 +38,7 @@ from edb.schema import schema as s_schema
 from edb.schema import std as s_std
 
 from edb.server import defines as edgedb_defines
-from edb.server2.backend import compiler
+from edb.server.backend import compiler
 
 from . import dbops
 from . import delta as delta_cmds

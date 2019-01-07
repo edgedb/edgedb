@@ -383,7 +383,7 @@ class build_ext(distutils_build_ext.build_ext):
             self.distribution.ext_modules,
             compiler_directives=directives,
             annotate=self.cython_annotate,
-            include_path=["edb/server2/pgproto/"])
+            include_path=["edb/server/pgproto/"])
 
         super(build_ext, self).finalize_options()
 
@@ -413,20 +413,20 @@ setuptools.setup(
     },
     ext_modules=[
         distutils_extension.Extension(
-            "edb.server2.pgproto.pgproto",
-            ["edb/server2/pgproto/pgproto.pyx"],
+            "edb.server.pgproto.pgproto",
+            ["edb/server/pgproto/pgproto.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
 
         distutils_extension.Extension(
-            "edb.server2.edgecon.edgecon",
-            ["edb/server2/edgecon/edgecon.pyx"],
+            "edb.server.edgecon.edgecon",
+            ["edb/server/edgecon/edgecon.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
 
         distutils_extension.Extension(
-            "edb.server2.pgcon.pgcon",
-            ["edb/server2/pgcon/pgcon.pyx"],
+            "edb.server.pgcon.pgcon",
+            ["edb/server/pgcon/pgcon.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
     ],
