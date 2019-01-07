@@ -24,7 +24,7 @@ from edb import errors
 from edb.common import debug
 from edb.common import exceptions as edgedb_error
 
-from edb.lang.ir import ast as irast
+from edb.ir import ast as irast
 
 from edb.server.pgsql import ast as pgast
 from edb.server.pgsql import codegen as pgcodegen

@@ -28,7 +28,7 @@ from edb.common import compiler
 from edb.common import parsing
 
 from edb.edgeql import ast as qlast
-from edb.lang.ir import ast as irast
+from edb.ir import ast as irast
 
 from edb.lang.schema import functions as s_func
 from edb.lang.schema import name as s_name

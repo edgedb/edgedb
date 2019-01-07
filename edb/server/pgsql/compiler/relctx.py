@@ -22,9 +22,9 @@
 
 import typing
 
-from edb.lang.ir import ast as irast
-from edb.lang.ir import typeutils as irtyputils
-from edb.lang.ir import utils as irutils
+from edb.ir import ast as irast
+from edb.ir import typeutils as irtyputils
+from edb.ir import utils as irutils
 
 from edb.lang.schema import pointers as s_pointers
 

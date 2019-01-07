@@ -41,7 +41,7 @@ from edb.edgeql import compiler as ql_compiler
 from edb.edgeql import quote as ql_quote
 from edb.edgeql import parser as ql_parser
 
-from edb.lang.ir import staeval as ireval
+from edb.ir import staeval as ireval
 
 from edb.lang.schema import database as s_db
 from edb.lang.schema import ddl as s_ddl

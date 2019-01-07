@@ -19,7 +19,7 @@
 
 import functools
 
-from edb.lang.ir import ast as irast
+from edb.ir import ast as irast
 
 from edb.server.pgsql import ast as pgast
 

@@ -23,7 +23,7 @@ import typing
 from edb.common import ast
 from edb.common import typeutils
 from edb.edgeql import ast as qlast
-from edb.lang.ir import ast as irast
+from edb.ir import ast as irast
 
 
 # The structure of the nodes mostly follows that of Postgres'

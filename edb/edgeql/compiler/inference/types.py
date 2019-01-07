@@ -31,8 +31,8 @@ from edb.lang.schema import scalars as s_scalars
 from edb.lang.schema import types as s_types
 from edb.lang.schema import utils as s_utils
 
-from edb.lang.ir import ast as irast
-from edb.lang.ir import typeutils as irtyputils
+from edb.ir import ast as irast
+from edb.ir import typeutils as irtyputils
 
 from .. import context
 

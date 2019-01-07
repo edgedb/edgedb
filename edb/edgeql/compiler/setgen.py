@@ -28,9 +28,9 @@ from edb import errors
 
 from edb.common import parsing
 
-from edb.lang.ir import ast as irast
-from edb.lang.ir import typeutils as irtyputils
-from edb.lang.ir import utils as irutils
+from edb.ir import ast as irast
+from edb.ir import typeutils as irtyputils
+from edb.ir import utils as irutils
 
 from edb.lang.schema import abc as s_abc
 from edb.lang.schema import expr as s_expr

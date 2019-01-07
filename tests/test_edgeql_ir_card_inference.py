@@ -26,7 +26,7 @@ from edb.edgeql import compiler
 from edb.edgeql.compiler import context
 from edb.edgeql.compiler import inference
 
-from edb.lang.ir import ast as irast
+from edb.ir import ast as irast
 
 
 class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):

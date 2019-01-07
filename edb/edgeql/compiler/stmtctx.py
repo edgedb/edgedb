@@ -27,7 +27,7 @@ from edb import errors
 
 from edb.common import parsing
 
-from edb.lang.ir import ast as irast
+from edb.ir import ast as irast
 
 from edb.lang.schema import abc as s_abc
 from edb.lang.schema import functions as s_func

@@ -21,8 +21,8 @@
 
 import typing
 
-from edb.lang.ir import ast as irast
-from edb.lang.ir import utils as irutils
+from edb.ir import ast as irast
+from edb.ir import utils as irutils
 
 from edb.server.pgsql import ast as pgast
 

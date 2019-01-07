@@ -19,7 +19,7 @@
 
 import typing
 
-from edb.lang.ir import ast as irast
+from edb.ir import ast as irast
 
 from edb.lang.schema import name as sn
 

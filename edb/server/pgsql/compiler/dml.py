@@ -33,8 +33,8 @@
 import collections
 import typing
 
-from edb.lang.ir import ast as irast
-from edb.lang.ir import typeutils as irtyputils
+from edb.ir import ast as irast
+from edb.ir import typeutils as irtyputils
 
 from edb.server.pgsql import ast as pgast
 from edb.server.pgsql import types as pg_types

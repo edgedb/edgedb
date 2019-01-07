@@ -52,7 +52,7 @@ from edb.lang.schema import types as s_types
 from edb.common import ordered
 from edb.common import markup
 
-from edb.lang.ir import utils as irutils
+from edb.ir import utils as irutils
 
 from edb.server.pgsql import common
 

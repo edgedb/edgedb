@@ -21,10 +21,10 @@ import itertools
 
 from edb import errors
 
-from edb.lang.ir import ast as irast
-from edb.lang.ir import astexpr as irastexpr
-from edb.lang.ir import typeutils as irtyputils
-from edb.lang.ir import utils as ir_utils
+from edb.ir import ast as irast
+from edb.ir import astexpr as irastexpr
+from edb.ir import typeutils as irtyputils
+from edb.ir import utils as ir_utils
 from edb.edgeql import compiler as ql_compiler
 from edb.edgeql import ast as qlast
 

@@ -22,8 +22,8 @@ import functools
 import typing
 import uuid
 
-from edb.lang.ir import ast as irast
-from edb.lang.ir import typeutils as irtyputils
+from edb.ir import ast as irast
+from edb.ir import typeutils as irtyputils
 
 from edb.lang.schema import abc as s_abc
 from edb.lang.schema import scalars as s_scalars

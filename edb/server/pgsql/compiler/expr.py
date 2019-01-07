@@ -25,9 +25,9 @@ from edb import errors
 
 from edb.edgeql import functypes as ql_ft
 
-from edb.lang.ir import ast as irast
-from edb.lang.ir import typeutils as irtyputils
-from edb.lang.ir import utils as irutils
+from edb.ir import ast as irast
+from edb.ir import typeutils as irtyputils
+from edb.ir import utils as irutils
 
 from edb.server.pgsql import ast as pgast
 from edb.server.pgsql import common

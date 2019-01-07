@@ -214,7 +214,7 @@ class Parameter(so.Object, s_abc.Parameter):
             return None
 
         from edb.edgeql import compiler as ql_compiler
-        from edb.lang.ir import utils as irutils
+        from edb.ir import utils as irutils
 
         ql_default = self.get_ql_default(schema)
 
@@ -595,7 +595,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
     astnode = qlast.CreateFunction
 
     def _create_begin(self, schema, context):
-        from edb.lang.ir import utils as irutils
+        from edb.ir import utils as irutils
 
         fullname = self.classname
         shortname = sn.shortname_from_fullname(fullname)

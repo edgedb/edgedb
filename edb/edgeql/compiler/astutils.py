@@ -24,8 +24,8 @@ import typing
 
 from edb.edgeql import ast as qlast
 
-from edb.lang.ir import ast as irast
-from edb.lang.ir import typeutils as irtyputils
+from edb.ir import ast as irast
+from edb.ir import typeutils as irtyputils
 
 from . import context
 from . import inference

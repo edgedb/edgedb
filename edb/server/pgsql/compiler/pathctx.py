@@ -25,7 +25,7 @@ import typing
 
 from edb.common import enum as s_enum
 
-from edb.lang.ir import ast as irast
+from edb.ir import ast as irast
 
 from edb.lang.schema import pointers as s_pointers
 

@@ -26,9 +26,9 @@ from edb import errors
 
 from edb.edgeql import functypes as ft
 
-from edb.lang.ir import ast as irast
-from edb.lang.ir import staeval as ireval
-from edb.lang.ir import typeutils as irtyputils
+from edb.ir import ast as irast
+from edb.ir import staeval as ireval
+from edb.ir import typeutils as irtyputils
 
 from edb.lang.schema import abc as s_abc
 from edb.lang.schema import objtypes as s_objtypes

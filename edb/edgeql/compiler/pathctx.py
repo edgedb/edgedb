@@ -24,7 +24,7 @@ import typing
 
 from edb import errors
 
-from edb.lang.ir import ast as irast
+from edb.ir import ast as irast
 
 from edb.lang.schema import objects as s_obj
 from edb.lang.schema import pointers as s_pointers

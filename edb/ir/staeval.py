@@ -29,7 +29,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as ql_compiler
 from edb.edgeql.parser.grammar import lexutils as ql_lexutils
 
-from edb.lang.ir import ast as irast
+from edb.ir import ast as irast
 
 from edb.lang.schema import schema as s_schema
 
