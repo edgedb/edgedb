@@ -24,9 +24,9 @@ import textwrap
 import unittest  # NOQA
 
 from edb.lang import _testbase as tb
-from edb.lang import graphql as edge_graphql
+from edb import graphql as edge_graphql
 from edb import edgeql as edge_edgeql
-from edb.lang.graphql.errors import GraphQLCoreError
+from edb.graphql.errors import GraphQLCoreError
 
 
 def with_variables(**kwargs):

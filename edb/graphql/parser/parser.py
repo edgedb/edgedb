@@ -21,7 +21,7 @@ from edb import errors
 
 from edb.common import debug, parsing
 from edb.common.ast import NodeVisitor
-from edb.lang.graphql import ast as gqlast
+from edb.graphql import ast as gqlast
 
 from .grammar import lexer
 

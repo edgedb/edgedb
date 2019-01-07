@@ -22,8 +22,8 @@ import re
 from edb import errors
 
 from edb.lang import _testbase as tb
-from edb.lang.graphql import generate_source as gql_to_source
-from edb.lang.graphql.parser import parser as gql_parser
+from edb.graphql import generate_source as gql_to_source
+from edb.graphql.parser import parser as gql_parser
 
 
 class GraphQLSyntaxTest(tb.BaseSyntaxTest):

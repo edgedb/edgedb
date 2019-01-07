@@ -22,7 +22,7 @@ import re
 from edb import errors
 
 from edb.common import parsing
-from edb.lang.graphql import ast as gqlast
+from edb.graphql import ast as gqlast
 
 from .tokens import *  # NOQA
 from . import keywords

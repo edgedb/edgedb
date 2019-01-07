@@ -33,7 +33,7 @@ from edb.server.pgsql import compiler as pg_compiler
 from edb.server.pgsql import intromech
 
 from edb import edgeql
-from edb.lang import graphql
+from edb import graphql
 from edb.common import debug
 
 from edb.edgeql import ast as qlast

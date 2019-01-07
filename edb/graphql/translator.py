@@ -28,7 +28,7 @@ from edb import edgeql
 from edb.common import ast
 from edb.common import typeutils
 from edb.edgeql import ast as qlast
-from edb.lang.graphql import ast as gqlast, parser as gqlparser
+from edb.graphql import ast as gqlast, parser as gqlparser
 
 from . import types as gt
 from . import errors as g_errors

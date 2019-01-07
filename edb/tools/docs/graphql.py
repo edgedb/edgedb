@@ -1,4 +1,4 @@
-from edb.lang.graphql.pygments import GraphQLLexer
+from edb.graphql.pygments import GraphQLLexer
 
 
 def setup_domain(app):
