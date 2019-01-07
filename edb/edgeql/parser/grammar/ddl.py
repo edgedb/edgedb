@@ -456,7 +456,7 @@ class OptDeltaTarget(Nonterm):
 class CreateDeltaStmt(Nonterm):
     def _parse_schema_decl(self, tok):
         from edb.common.exceptions import get_context
-        from edb.schema import parser
+        from edb.eschema import parser
 
         ctx = tok.context
 

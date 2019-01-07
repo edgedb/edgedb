@@ -27,8 +27,9 @@ from edb.common import markup, context
 from edb import edgeql
 from edb.edgeql import ast as qlast
 
+from edb.eschema import declarative as s_decl
+
 from edb.schema import ddl as s_ddl
-from edb.schema import declarative as s_decl
 from edb.schema import delta as sd
 from edb.schema import deltas as s_deltas  # noqa
 from edb.schema import std as s_std

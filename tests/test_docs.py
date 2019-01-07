@@ -22,7 +22,7 @@ except ImportError:
 
 from edb.edgeql import parser as edgeql_parser
 from edb.graphql import parser as graphql_parser
-from edb.schema import parser as schema_parser
+from edb.eschema import parser as schema_parser
 
 
 def find_edgedb_root():

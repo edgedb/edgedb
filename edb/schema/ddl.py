@@ -20,6 +20,8 @@
 from edb import edgeql
 from edb.schema import delta as s_delta
 
+from edb.eschema import declarative as s_decl
+
 from . import schema as s_schema
 
 # The below must be imported here to make sure we have all
@@ -28,7 +30,6 @@ from . import schema as s_schema
 from . import scalars  # NOQA
 from . import attributes  # NOQA
 from . import casts  # NOQA
-from . import declarative as s_decl
 from . import delta as sd
 from . import objtypes  # NOQA
 from . import constraints  # NOQA

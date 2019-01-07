@@ -32,28 +32,28 @@ from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import functypes as ft
 from edb.edgeql import utils as qlutils
 
-from . import ast as s_ast
-from . import parser as s_parser
+from edb.eschema import ast as s_ast
+from edb.eschema import parser as s_parser
 
-from . import abc as s_abc
-from . import attributes as s_attrs
-from . import delta as s_delta
-from . import objtypes as s_objtypes
-from . import constraints as s_constr
-from . import expr as s_expr
-from . import functions as s_func
-from . import indexes as s_indexes
-from . import links as s_links
-from . import lproperties as s_props
-from . import modules as s_mod
-from . import name as s_name
-from . import objects as s_obj
-from . import ordering as s_ordering
-from . import pointers as s_pointers
-from . import pseudo as s_pseudo
-from . import scalars as s_scalars
-from . import types as s_types
-from . import utils as s_utils
+from edb.schema import abc as s_abc
+from edb.schema import attributes as s_attrs
+from edb.schema import delta as s_delta
+from edb.schema import objtypes as s_objtypes
+from edb.schema import constraints as s_constr
+from edb.schema import expr as s_expr
+from edb.schema import functions as s_func
+from edb.schema import indexes as s_indexes
+from edb.schema import links as s_links
+from edb.schema import lproperties as s_props
+from edb.schema import modules as s_mod
+from edb.schema import name as s_name
+from edb.schema import objects as s_obj
+from edb.schema import ordering as s_ordering
+from edb.schema import pointers as s_pointers
+from edb.schema import pseudo as s_pseudo
+from edb.schema import scalars as s_scalars
+from edb.schema import types as s_types
+from edb.schema import utils as s_utils
 
 
 _DECL_MAP = {
