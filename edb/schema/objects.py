@@ -984,7 +984,7 @@ class Object(s_abc.Object, metaclass=ObjectMeta):
     @classmethod
     def delta_properties(cls, delta, old, new, *, context=None,
                          old_schema, new_schema):
-        from edb.lang.schema import delta as sd
+        from edb.schema import delta as sd
 
         ff = type(new).get_fields(sorted=True).items()
         fields = [fn for fn, f in ff
@@ -1068,8 +1068,8 @@ class Object(s_abc.Object, metaclass=ObjectMeta):
     @classmethod
     def _delta_sets(cls, old, new, context=None, *,
                     old_schema, new_schema):
-        from edb.lang.schema import delta as sd
-        from edb.lang.schema import inheriting as s_inh
+        from edb.schema import delta as sd
+        from edb.schema import inheriting as s_inh
 
         adds_mods = sd.DeltaRoot()
         dels = sd.DeltaRoot()

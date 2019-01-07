@@ -329,7 +329,7 @@ class ShapePath(Nonterm):
     #   [IS Link]@prop - currently not supported
 
     def reduce_PathStepName(self, *kids):
-        from edb.lang.schema import pointers as s_pointers
+        from edb.schema import pointers as s_pointers
 
         self.val = qlast.Path(
             steps=[
@@ -351,7 +351,7 @@ class ShapePath(Nonterm):
         )
 
     def reduce_ShapePathPtr_DOT_PathStepName(self, *kids):
-        from edb.lang.schema import pointers as s_pointers
+        from edb.schema import pointers as s_pointers
 
         self.val = qlast.Path(
             steps=[
@@ -1014,7 +1014,7 @@ class Path(Nonterm):
             partial=True)
 
     def _float_to_path(self, token, context):
-        from edb.lang.schema import pointers as s_pointers
+        from edb.schema import pointers as s_pointers
 
         # make sure that the float is of the type 0.1
         parts = token.val.split('.')
@@ -1046,7 +1046,7 @@ class Path(Nonterm):
 
 class PathStep(Nonterm):
     def reduce_DOT_PathStepName(self, *kids):
-        from edb.lang.schema import pointers as s_pointers
+        from edb.schema import pointers as s_pointers
 
         self.val = qlast.Ptr(
             ptr=kids[1].val,
@@ -1055,7 +1055,7 @@ class PathStep(Nonterm):
 
     def reduce_DOT_ICONST(self, *kids):
         # this is a valid link-like syntax for accessing unnamed tuples
-        from edb.lang.schema import pointers as s_pointers
+        from edb.schema import pointers as s_pointers
 
         self.val = qlast.Ptr(
             ptr=qlast.ObjectRef(name=kids[1].val),
@@ -1063,7 +1063,7 @@ class PathStep(Nonterm):
         )
 
     def reduce_DOTFW_PathStepName(self, *kids):
-        from edb.lang.schema import pointers as s_pointers
+        from edb.schema import pointers as s_pointers
 
         self.val = qlast.Ptr(
             ptr=kids[1].val,
@@ -1071,7 +1071,7 @@ class PathStep(Nonterm):
         )
 
     def reduce_DOTBW_PathStepName(self, *kids):
-        from edb.lang.schema import pointers as s_pointers
+        from edb.schema import pointers as s_pointers
 
         self.val = qlast.Ptr(
             ptr=kids[1].val,
@@ -1079,7 +1079,7 @@ class PathStep(Nonterm):
         )
 
     def reduce_AT_ShortNodeName(self, *kids):
-        from edb.lang.schema import pointers as s_pointers
+        from edb.schema import pointers as s_pointers
 
         self.val = qlast.Ptr(
             ptr=kids[1].val,

@@ -31,11 +31,11 @@ from edb.common import debug
 from edb.common import devmode
 from edb.common import exceptions
 
-from edb.lang.schema import database as s_db
-from edb.lang.schema import ddl as s_ddl
-from edb.lang.schema import delta as sd
-from edb.lang.schema import schema as s_schema
-from edb.lang.schema import std as s_std
+from edb.schema import database as s_db
+from edb.schema import ddl as s_ddl
+from edb.schema import delta as sd
+from edb.schema import schema as s_schema
+from edb.schema import std as s_std
 
 from edb.server import defines as edgedb_defines
 from edb.server2.backend import compiler

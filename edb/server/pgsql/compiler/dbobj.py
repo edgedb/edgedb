@@ -21,7 +21,7 @@ import typing
 
 from edb.ir import ast as irast
 
-from edb.lang.schema import name as sn
+from edb.schema import name as sn
 
 from edb.server.pgsql import ast as pgast
 from edb.server.pgsql import common

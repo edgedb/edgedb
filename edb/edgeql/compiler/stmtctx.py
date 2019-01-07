@@ -29,14 +29,14 @@ from edb.common import parsing
 
 from edb.ir import ast as irast
 
-from edb.lang.schema import abc as s_abc
-from edb.lang.schema import functions as s_func
-from edb.lang.schema import modules as s_mod
-from edb.lang.schema import name as s_name
-from edb.lang.schema import objects as s_obj
-from edb.lang.schema import pointers as s_pointers
-from edb.lang.schema import schema as s_schema
-from edb.lang.schema import types as s_types
+from edb.schema import abc as s_abc
+from edb.schema import functions as s_func
+from edb.schema import modules as s_mod
+from edb.schema import name as s_name
+from edb.schema import objects as s_obj
+from edb.schema import pointers as s_pointers
+from edb.schema import schema as s_schema
+from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import parser as qlparser

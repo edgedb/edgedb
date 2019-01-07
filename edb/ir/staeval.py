@@ -31,7 +31,7 @@ from edb.edgeql.parser.grammar import lexutils as ql_lexutils
 
 from edb.ir import ast as irast
 
-from edb.lang.schema import schema as s_schema
+from edb.schema import schema as s_schema
 
 
 class StaticEvaluationError(errors.QueryError):

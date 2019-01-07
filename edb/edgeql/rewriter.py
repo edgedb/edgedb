@@ -19,7 +19,7 @@
 
 from edb.common import ast
 
-from edb.lang.schema import name as sn
+from edb.schema import name as sn
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen

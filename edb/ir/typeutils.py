@@ -21,11 +21,11 @@ from __future__ import annotations
 
 import typing
 
-from edb.lang.schema import abc as s_abc
-from edb.lang.schema import objtypes as s_objtypes
-from edb.lang.schema import pointers as s_pointers
-from edb.lang.schema import pseudo as s_pseudo
-from edb.lang.schema import types as s_types
+from edb.schema import abc as s_abc
+from edb.schema import objtypes as s_objtypes
+from edb.schema import pointers as s_pointers
+from edb.schema import pseudo as s_pseudo
+from edb.schema import types as s_types
 
 from . import ast as irast
 

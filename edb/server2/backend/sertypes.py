@@ -24,8 +24,8 @@ from edb import errors
 
 from edb.server.pgsql import types as pg_types
 
-from edb.lang.schema import objects as s_obj
-from edb.lang.schema import types as s_types
+from edb.schema import objects as s_obj
+from edb.schema import types as s_types
 
 
 _uint16_packer = struct.Struct('!H').pack

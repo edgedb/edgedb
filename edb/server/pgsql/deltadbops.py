@@ -19,7 +19,7 @@
 
 """Abstractions for low-level database DDL and DML operations."""
 
-from edb.lang.schema import objects as s_obj
+from edb.schema import objects as s_obj
 from edb.common import adapter
 
 from edb.server.pgsql import common

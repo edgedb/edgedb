@@ -23,12 +23,12 @@ import uuid
 from edb.common.exceptions import EdgeDBError
 from edb.common import ast, compiler, parsing
 
-from edb.lang.schema import modules as s_modules
-from edb.lang.schema import name as sn
-from edb.lang.schema import objects as so
-from edb.lang.schema import pointers as s_pointers
-from edb.lang.schema import schema as s_schema
-from edb.lang.schema import types as s_types
+from edb.schema import modules as s_modules
+from edb.schema import name as sn
+from edb.schema import objects as so
+from edb.schema import pointers as s_pointers
+from edb.schema import schema as s_schema
+from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import functypes as ft

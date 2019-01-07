@@ -21,9 +21,9 @@ from edb import errors
 
 from edb.lang import _testbase as tb
 
-from edb.lang.schema import links as s_links
-from edb.lang.schema import objtypes as s_objtypes
-from edb.lang.schema import pointers as s_pointers
+from edb.schema import links as s_links
+from edb.schema import objtypes as s_objtypes
+from edb.schema import pointers as s_pointers
 
 
 class TestSchema(tb.BaseSchemaLoadTest):

@@ -71,7 +71,7 @@ def main():
 
 @edbcommands.command('gen-types')
 def gen_types():
-    """Generate edb/lang/schema/_types.py from edb/api/types.txt"""
+    """Generate edb/schema/_types.py from edb/api/types.txt"""
     try:
         main()
     except Exception as ex:

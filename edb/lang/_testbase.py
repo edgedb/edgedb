@@ -27,11 +27,11 @@ from edb.common import markup, context
 from edb import edgeql
 from edb.edgeql import ast as qlast
 
-from edb.lang.schema import ddl as s_ddl
-from edb.lang.schema import declarative as s_decl
-from edb.lang.schema import delta as sd
-from edb.lang.schema import deltas as s_deltas  # noqa
-from edb.lang.schema import std as s_std
+from edb.schema import ddl as s_ddl
+from edb.schema import declarative as s_decl
+from edb.schema import delta as sd
+from edb.schema import deltas as s_deltas  # noqa
+from edb.schema import std as s_std
 
 
 def must_fail(exc_type, exc_msg_re=None, **kwargs):

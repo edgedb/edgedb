@@ -32,17 +32,17 @@ from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
 
-from edb.lang.schema import abc as s_abc
-from edb.lang.schema import expr as s_expr
-from edb.lang.schema import links as s_links
-from edb.lang.schema import name as s_name
-from edb.lang.schema import nodes as s_nodes
-from edb.lang.schema import objtypes as s_objtypes
-from edb.lang.schema import pointers as s_pointers
-from edb.lang.schema import pseudo as s_pseudo
-from edb.lang.schema import sources as s_sources
-from edb.lang.schema import types as s_types
-from edb.lang.schema import utils as s_utils
+from edb.schema import abc as s_abc
+from edb.schema import expr as s_expr
+from edb.schema import links as s_links
+from edb.schema import name as s_name
+from edb.schema import nodes as s_nodes
+from edb.schema import objtypes as s_objtypes
+from edb.schema import pointers as s_pointers
+from edb.schema import pseudo as s_pseudo
+from edb.schema import sources as s_sources
+from edb.schema import types as s_types
+from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import parser as qlparser

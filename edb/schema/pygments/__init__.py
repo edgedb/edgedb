@@ -19,7 +19,7 @@
 
 from pygments import lexer, token
 from edb.edgeql.parser.grammar import keywords as eql_keywords
-from edb.lang.schema.parser.grammar import keywords as sch_keywords
+from edb.schema.parser.grammar import keywords as sch_keywords
 
 __all__ = ['EdgeSchemaLexer']
 

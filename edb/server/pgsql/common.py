@@ -22,15 +22,15 @@ import base64
 import re
 import uuid
 
-from edb.lang.schema import casts as s_casts
-from edb.lang.schema import constraints as s_constr
-from edb.lang.schema import functions as s_func
-from edb.lang.schema import modules as s_mod
-from edb.lang.schema import name as s_name
-from edb.lang.schema import objtypes as s_objtypes
-from edb.lang.schema import operators as s_opers
-from edb.lang.schema import pointers as s_pointers
-from edb.lang.schema import scalars as s_scalars
+from edb.schema import casts as s_casts
+from edb.schema import constraints as s_constr
+from edb.schema import functions as s_func
+from edb.schema import modules as s_mod
+from edb.schema import name as s_name
+from edb.schema import objtypes as s_objtypes
+from edb.schema import operators as s_opers
+from edb.schema import pointers as s_pointers
+from edb.schema import scalars as s_scalars
 
 from edb.server.pgsql.parser import keywords as pg_keywords
 

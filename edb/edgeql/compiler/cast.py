@@ -30,9 +30,9 @@ from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
 
-from edb.lang.schema import casts as s_casts
-from edb.lang.schema import functions as s_func
-from edb.lang.schema import types as s_types
+from edb.schema import casts as s_casts
+from edb.schema import functions as s_func
+from edb.schema import types as s_types
 
 from edb.edgeql import functypes as ft
 

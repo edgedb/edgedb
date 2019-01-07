@@ -21,7 +21,7 @@ import os.path
 
 from edb.lang import _testbase as tb
 from edb.ir import pathid
-from edb.lang.schema import pointers as s_pointers
+from edb.schema import pointers as s_pointers
 
 
 class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):

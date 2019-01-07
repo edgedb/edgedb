@@ -1,4 +1,4 @@
-from edb.lang.schema.pygments import EdgeSchemaLexer
+from edb.schema.pygments import EdgeSchemaLexer
 
 from sphinx import domains as s_domains
 from sphinx.directives import code as s_code

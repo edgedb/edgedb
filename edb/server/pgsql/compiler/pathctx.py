@@ -27,7 +27,7 @@ from edb.common import enum as s_enum
 
 from edb.ir import ast as irast
 
-from edb.lang.schema import pointers as s_pointers
+from edb.schema import pointers as s_pointers
 
 from edb.server.pgsql import ast as pgast
 from edb.server.pgsql import types as pg_types

@@ -25,7 +25,7 @@ import typing
 
 from edb.edgeql import functypes as ql_ft
 
-from edb.lang.schema import objects as s_obj
+from edb.schema import objects as s_obj
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils

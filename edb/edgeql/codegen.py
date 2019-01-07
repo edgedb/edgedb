@@ -788,7 +788,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
             if node.target:
                 self.write(' TO ', node.language, ' ')
-                from edb.lang.schema import generate_source as schema_sg
+                from edb.schema import generate_source as schema_sg
                 self.write(edgeql_quote.dollar_quote_literal(
                     schema_sg(node.target)))
         self._visit_CreateObject(node, 'MIGRATION', after_name=after_name)

@@ -25,7 +25,7 @@ import edgedb
 from edb import errors
 
 from edb.lang import _testbase as tb
-from edb.lang.schema import links as s_links
+from edb.schema import links as s_links
 
 from edb.server import _testbase as stb
 

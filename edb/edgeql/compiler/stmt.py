@@ -27,11 +27,11 @@ from edb import errors
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 
-from edb.lang.schema import links as s_links
-from edb.lang.schema import lproperties as s_props
-from edb.lang.schema import objtypes as s_objtypes
-from edb.lang.schema import name as s_name
-from edb.lang.schema import types as s_types
+from edb.schema import links as s_links
+from edb.schema import lproperties as s_props
+from edb.schema import objtypes as s_objtypes
+from edb.schema import name as s_name
+from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
 

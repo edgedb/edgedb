@@ -27,7 +27,7 @@ from edb.common.exceptions import get_context
 
 from edb import edgeql
 from edb.edgeql import ast as qlast
-from edb.lang.schema import ast as esast
+from edb.schema import ast as esast
 
 from edb.errors import SchemaSyntaxError, EdgeQLSyntaxError
 

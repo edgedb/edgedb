@@ -23,8 +23,8 @@ import unittest  # NoQA
 from edb import errors
 
 from edb.lang import _testbase as tb
-from edb.lang.schema import generate_source as eschema_to_source
-from edb.lang.schema.parser import parser as eschema_parser
+from edb.schema import generate_source as eschema_to_source
+from edb.schema.parser import parser as eschema_parser
 
 
 class SchemaSyntaxTest(tb.BaseSyntaxTest):

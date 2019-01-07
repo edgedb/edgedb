@@ -25,25 +25,25 @@ from edb import errors
 
 from edb.common import topological
 
-from edb.lang import schema as so
+from edb import schema as so
 
-from edb.lang.schema import abc as s_abc
-from edb.lang.schema import attributes as s_attrs
-from edb.lang.schema import casts as s_casts
-from edb.lang.schema import scalars as s_scalars
-from edb.lang.schema import objtypes as s_objtypes
-from edb.lang.schema import constraints as s_constr
-from edb.lang.schema import expr as s_expr
-from edb.lang.schema import functions as s_funcs
-from edb.lang.schema import indexes as s_indexes
-from edb.lang.schema import links as s_links
-from edb.lang.schema import lproperties as s_props
-from edb.lang.schema import modules as s_mod
-from edb.lang.schema import name as sn
-from edb.lang.schema import operators as s_opers
-from edb.lang.schema import pointers as s_pointers
-from edb.lang.schema import pseudo as s_pseudo
-from edb.lang.schema import types as s_types
+from edb.schema import abc as s_abc
+from edb.schema import attributes as s_attrs
+from edb.schema import casts as s_casts
+from edb.schema import scalars as s_scalars
+from edb.schema import objtypes as s_objtypes
+from edb.schema import constraints as s_constr
+from edb.schema import expr as s_expr
+from edb.schema import functions as s_funcs
+from edb.schema import indexes as s_indexes
+from edb.schema import links as s_links
+from edb.schema import lproperties as s_props
+from edb.schema import modules as s_mod
+from edb.schema import name as sn
+from edb.schema import operators as s_opers
+from edb.schema import pointers as s_pointers
+from edb.schema import pseudo as s_pseudo
+from edb.schema import types as s_types
 
 from edb.server.pgsql import common
 from edb.server.pgsql import dbops

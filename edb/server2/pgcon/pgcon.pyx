@@ -24,7 +24,7 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
                          int32_t, uint32_t, int64_t, uint64_t, \
                          UINT32_MAX
 
-from edb.lang.schema import objects as s_obj
+from edb.schema import objects as s_obj
 from edb.server import defines
 
 from edb.server.pgsql import common as pg_common

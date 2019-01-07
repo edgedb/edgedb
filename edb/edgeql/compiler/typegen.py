@@ -28,9 +28,9 @@ from edb import errors
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 
-from edb.lang.schema import abc as s_abc
-from edb.lang.schema import objects as s_obj
-from edb.lang.schema import types as s_types
+from edb.schema import abc as s_abc
+from edb.schema import objects as s_obj
+from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
 

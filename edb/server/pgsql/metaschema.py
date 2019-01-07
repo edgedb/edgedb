@@ -28,15 +28,15 @@ from edb.common import adapter, debug, typed
 from edb.common import context as parser_context
 from edb.common import exceptions
 
-from edb.lang.schema import abc as s_abc
-from edb.lang.schema import constraints as s_constraints
-from edb.lang.schema import database as s_db
-from edb.lang.schema import deltas  # NoQA
-from edb.lang.schema import expr as s_expr
-from edb.lang.schema import inheriting as s_inheriting
-from edb.lang.schema import name as sn
-from edb.lang.schema import objects as s_obj
-from edb.lang.schema import pseudo as s_pseudo
+from edb.schema import abc as s_abc
+from edb.schema import constraints as s_constraints
+from edb.schema import database as s_db
+from edb.schema import deltas  # NoQA
+from edb.schema import expr as s_expr
+from edb.schema import inheriting as s_inheriting
+from edb.schema import name as sn
+from edb.schema import objects as s_obj
+from edb.schema import pseudo as s_pseudo
 
 from . import common
 from . import dbops

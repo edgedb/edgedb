@@ -28,12 +28,12 @@ from edb import errors
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 
-from edb.lang.schema import links as s_links
-from edb.lang.schema import name as sn
-from edb.lang.schema import nodes as s_nodes
-from edb.lang.schema import pointers as s_pointers
-from edb.lang.schema import sources as s_sources
-from edb.lang.schema import types as s_types
+from edb.schema import links as s_links
+from edb.schema import name as sn
+from edb.schema import nodes as s_nodes
+from edb.schema import pointers as s_pointers
+from edb.schema import sources as s_sources
+from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
 

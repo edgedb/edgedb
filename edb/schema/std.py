@@ -24,10 +24,10 @@ from edb import lib as stdlib
 from edb import errors
 
 from edb import edgeql
-from edb.lang import schema
+from edb import schema
 from edb.common import devmode
 from edb.edgeql import compiler as qlcompiler
-from edb.lang.schema import delta as s_delta
+from edb.schema import delta as s_delta
 
 from . import ddl as s_ddl
 from . import schema as s_schema

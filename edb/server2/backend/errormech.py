@@ -24,8 +24,8 @@ import uuid
 
 from edb import errors
 
-from edb.lang.schema import name as sn
-from edb.lang.schema import objtypes as s_objtypes
+from edb.schema import name as sn
+from edb.schema import objtypes as s_objtypes
 
 from edb.server.pgsql import common
 

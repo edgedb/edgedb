@@ -21,9 +21,9 @@ from __future__ import annotations
 
 from . import typeutils
 
-from edb.lang.schema import abc as s_abc
-from edb.lang.schema import pointers as s_pointers
-from edb.lang.schema import types as s_types
+from edb.schema import abc as s_abc
+from edb.schema import pointers as s_pointers
+from edb.schema import types as s_types
 
 
 class PathId:

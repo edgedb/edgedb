@@ -28,7 +28,7 @@ from edb.ir import utils as ir_utils
 from edb.edgeql import compiler as ql_compiler
 from edb.edgeql import ast as qlast
 
-from edb.lang.schema import scalars as s_scalars
+from edb.schema import scalars as s_scalars
 
 from edb.common import ast
 

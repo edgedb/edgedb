@@ -27,7 +27,7 @@ from edb.edgeql import parser as ql_parser
 from edb.common import debug
 from edb.common import markup  # NOQA
 
-from edb.lang.schema import functions as s_func
+from edb.schema import functions as s_func
 
 from edb.edgeql import ast as qlast
 from edb.ir import ast as irast

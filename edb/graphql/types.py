@@ -43,11 +43,11 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import codegen
 from edb.edgeql.parser import parse_fragment
 
-from edb.lang.schema import abc as s_abc
-from edb.lang.schema import modules as s_mod
-from edb.lang.schema import pointers as s_pointers
-from edb.lang.schema import objtypes as s_objtypes
-from edb.lang.schema import scalars as s_scalars
+from edb.schema import abc as s_abc
+from edb.schema import modules as s_mod
+from edb.schema import pointers as s_pointers
+from edb.schema import objtypes as s_objtypes
+from edb.schema import scalars as s_scalars
 
 from . import errors as g_errors
 

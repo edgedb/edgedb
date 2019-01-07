@@ -43,12 +43,12 @@ from edb.edgeql import parser as ql_parser
 
 from edb.ir import staeval as ireval
 
-from edb.lang.schema import database as s_db
-from edb.lang.schema import ddl as s_ddl
-from edb.lang.schema import delta as s_delta
-from edb.lang.schema import deltas as s_deltas
-from edb.lang.schema import schema as s_schema
-from edb.lang.schema import types as s_types
+from edb.schema import database as s_db
+from edb.schema import ddl as s_ddl
+from edb.schema import delta as s_delta
+from edb.schema import deltas as s_deltas
+from edb.schema import schema as s_schema
+from edb.schema import types as s_types
 
 from edb.server.pgsql import delta as pg_delta
 from edb.server.pgsql import dbops as pg_dbops

@@ -30,9 +30,9 @@ from edb.ir import ast as irast
 from edb.ir import staeval as ireval
 from edb.ir import typeutils as irtyputils
 
-from edb.lang.schema import abc as s_abc
-from edb.lang.schema import objtypes as s_objtypes
-from edb.lang.schema import pointers as s_pointers
+from edb.schema import abc as s_abc
+from edb.schema import objtypes as s_objtypes
+from edb.schema import pointers as s_pointers
 
 from edb.edgeql import ast as qlast
 

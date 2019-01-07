@@ -24,7 +24,7 @@ import typing
 
 import immutables
 
-from edb.lang.schema import schema as s_schema
+from edb.schema import schema as s_schema
 
 
 class TxAction(enum.IntEnum):

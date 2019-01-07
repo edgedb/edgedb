@@ -26,9 +26,9 @@ from edb import errors
 
 from edb.ir import ast as irast
 
-from edb.lang.schema import objects as s_obj
-from edb.lang.schema import pointers as s_pointers
-from edb.lang.schema import types as s_types
+from edb.schema import objects as s_obj
+from edb.schema import pointers as s_pointers
+from edb.schema import types as s_types
 
 from . import context
 from . import stmtctx

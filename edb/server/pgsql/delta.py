@@ -29,25 +29,25 @@ from edb.edgeql import ast as ql_ast
 from edb.edgeql import compiler as ql_compiler
 from edb.edgeql import functypes as ql_ft
 
-from edb.lang.schema import attributes as s_attrs
-from edb.lang.schema import casts as s_casts
-from edb.lang.schema import scalars as s_scalars
-from edb.lang.schema import objtypes as s_objtypes
-from edb.lang.schema import constraints as s_constr
-from edb.lang.schema import database as s_db
-from edb.lang.schema import delta as sd
-from edb.lang.schema import expr as s_expr
-from edb.lang.schema import functions as s_funcs
-from edb.lang.schema import indexes as s_indexes
-from edb.lang.schema import links as s_links
-from edb.lang.schema import lproperties as s_props
-from edb.lang.schema import modules as s_mod
-from edb.lang.schema import name as sn
-from edb.lang.schema import objects as s_obj
-from edb.lang.schema import operators as s_opers
-from edb.lang.schema import referencing as s_referencing
-from edb.lang.schema import sources as s_sources
-from edb.lang.schema import types as s_types
+from edb.schema import attributes as s_attrs
+from edb.schema import casts as s_casts
+from edb.schema import scalars as s_scalars
+from edb.schema import objtypes as s_objtypes
+from edb.schema import constraints as s_constr
+from edb.schema import database as s_db
+from edb.schema import delta as sd
+from edb.schema import expr as s_expr
+from edb.schema import functions as s_funcs
+from edb.schema import indexes as s_indexes
+from edb.schema import links as s_links
+from edb.schema import lproperties as s_props
+from edb.schema import modules as s_mod
+from edb.schema import name as sn
+from edb.schema import objects as s_obj
+from edb.schema import operators as s_opers
+from edb.schema import referencing as s_referencing
+from edb.schema import sources as s_sources
+from edb.schema import types as s_types
 
 from edb.common import ordered
 from edb.common import markup
