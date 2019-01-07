@@ -23,8 +23,8 @@ import collections.abc
 from edb import errors
 
 from edb.common import adapter
-from edb.lang import edgeql
-from edb.lang.edgeql import ast as qlast
+from edb import edgeql
+from edb.edgeql import ast as qlast
 
 from edb.common import markup, ordered, struct, typed
 
@@ -1136,7 +1136,7 @@ class AlterObjectProperty(Command):
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
-        from edb.lang.edgeql import compiler as qlcompiler
+        from edb.edgeql import compiler as qlcompiler
 
         propname = astnode.name.name
 

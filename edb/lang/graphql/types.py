@@ -39,9 +39,9 @@ from graphql import (
 from graphql.type import GraphQLEnumValue
 import itertools
 
-from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import codegen
-from edb.lang.edgeql.parser import parse_fragment
+from edb.edgeql import ast as qlast
+from edb.edgeql import codegen
+from edb.edgeql.parser import parse_fragment
 
 from edb.lang.schema import abc as s_abc
 from edb.lang.schema import modules as s_mod

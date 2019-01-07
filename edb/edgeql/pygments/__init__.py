@@ -19,7 +19,7 @@
 
 from pygments.lexer import RegexLexer, include
 from pygments import token
-from edb.lang.edgeql.parser.grammar import keywords
+from edb.edgeql.parser.grammar import keywords
 
 
 __all__ = ['EdgeQLLexer']

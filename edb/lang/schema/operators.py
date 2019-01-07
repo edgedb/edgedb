@@ -21,8 +21,8 @@ import typing
 
 from edb import errors
 
-from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import functypes as ft
+from edb.edgeql import ast as qlast
+from edb.edgeql import functypes as ft
 
 from . import abc as s_abc
 from . import delta as sd

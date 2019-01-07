@@ -21,9 +21,9 @@ import hashlib
 
 from edb import errors
 
-from edb.lang import edgeql
-from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import functypes as ft
+from edb import edgeql
+from edb.edgeql import ast as qlast
+from edb.edgeql import functypes as ft
 
 from . import abc as s_abc
 from . import attributes
@@ -129,8 +129,8 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
     def _normalize_constraint_expr(
             cls, schema, module_aliases, expr, subject, *,
             inline_anchors=False):
-        from edb.lang.edgeql import parser as edgeql_parser
-        from edb.lang.edgeql import utils as edgeql_utils
+        from edb.edgeql import parser as edgeql_parser
+        from edb.edgeql import utils as edgeql_utils
 
         if isinstance(expr, str):
             tree = edgeql_parser.parse(expr, module_aliases)
@@ -173,8 +173,8 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
     def get_concrete_constraint_attrs(
             cls, schema, subject, *, name, subjectexpr=None,
             sourcectx=None, args=[], modaliases=None, **kwargs):
-        from edb.lang.edgeql import utils as edgeql_utils
-        from edb.lang.edgeql import parser as edgeql_parser
+        from edb.edgeql import utils as edgeql_utils
+        from edb.edgeql import parser as edgeql_parser
 
         constr_base = schema.get(name, module_aliases=modaliases)
         module_aliases = {}

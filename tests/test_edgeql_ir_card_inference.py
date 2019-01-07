@@ -22,9 +22,9 @@ import textwrap
 
 from edb.lang import _testbase as tb
 
-from edb.lang.edgeql import compiler
-from edb.lang.edgeql.compiler import context
-from edb.lang.edgeql.compiler import inference
+from edb.edgeql import compiler
+from edb.edgeql.compiler import context
+from edb.edgeql.compiler import inference
 
 from edb.lang.ir import ast as irast
 

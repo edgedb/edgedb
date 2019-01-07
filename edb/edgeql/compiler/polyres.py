@@ -31,7 +31,7 @@ from edb.lang.ir import utils as irutils
 from edb.lang.schema import functions as s_func
 from edb.lang.schema import types as s_types
 
-from edb.lang.edgeql import functypes as ft
+from edb.edgeql import functypes as ft
 
 from . import context
 from . import dispatch

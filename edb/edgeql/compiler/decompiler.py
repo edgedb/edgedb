@@ -22,8 +22,8 @@ from edb.common import ast
 from edb.lang.ir import ast as irast
 from edb.lang.ir import typeutils as irtyputils
 
-from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import functypes as ft
+from edb.edgeql import ast as qlast
+from edb.edgeql import functypes as ft
 
 
 class IRDecompilerContext:

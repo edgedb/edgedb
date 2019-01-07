@@ -23,8 +23,8 @@ import unittest  # NOQA
 from edb import errors
 
 from edb.lang import _testbase as tb
-from edb.lang.edgeql import generate_source as edgeql_to_source
-from edb.lang.edgeql.parser import parser as edgeql_parser
+from edb.edgeql import generate_source as edgeql_to_source
+from edb.edgeql.parser import parser as edgeql_parser
 
 
 class EdgeQLSyntaxTest(tb.BaseSyntaxTest):

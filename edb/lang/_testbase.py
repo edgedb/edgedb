@@ -24,8 +24,8 @@ import unittest
 
 from edb.common import markup, context
 
-from edb.lang import edgeql
-from edb.lang.edgeql import ast as qlast
+from edb import edgeql
+from edb.edgeql import ast as qlast
 
 from edb.lang.schema import ddl as s_ddl
 from edb.lang.schema import declarative as s_decl

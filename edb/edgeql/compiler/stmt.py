@@ -33,7 +33,7 @@ from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import name as s_name
 from edb.lang.schema import types as s_types
 
-from edb.lang.edgeql import ast as qlast
+from edb.edgeql import ast as qlast
 
 from . import astutils
 from . import clauses

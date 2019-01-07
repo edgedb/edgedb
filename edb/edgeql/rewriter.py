@@ -21,9 +21,9 @@ from edb.common import ast
 
 from edb.lang.schema import name as sn
 
-from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import codegen as qlcodegen
-from edb.lang.edgeql import parser as qlparser
+from edb.edgeql import ast as qlast
+from edb.edgeql import codegen as qlcodegen
+from edb.edgeql import parser as qlparser
 
 
 def rewrite_refs(expr, callback):

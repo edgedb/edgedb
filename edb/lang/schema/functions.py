@@ -22,9 +22,9 @@ import typing
 
 from edb import errors
 
-from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import codegen
-from edb.lang.edgeql import functypes as ft
+from edb.edgeql import ast as qlast
+from edb.edgeql import codegen
+from edb.edgeql import functypes as ft
 
 from . import abc as s_abc
 from . import attributes
@@ -206,14 +206,14 @@ class Parameter(so.Object, s_abc.Parameter):
         return self.paramname_from_fullname(fullname)
 
     def get_ql_default(self, schema):
-        from edb.lang.edgeql import parser as ql_parser
+        from edb.edgeql import parser as ql_parser
         return ql_parser.parse_fragment(self.get_default(schema))
 
     def get_ir_default(self, *, schema):
         if self.get_default(schema) is None:
             return None
 
-        from edb.lang.edgeql import compiler as ql_compiler
+        from edb.edgeql import compiler as ql_compiler
         from edb.lang.ir import utils as irutils
 
         ql_default = self.get_ql_default(schema)

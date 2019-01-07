@@ -20,7 +20,7 @@ try:
 except ImportError:
     docutils = None
 
-from edb.lang.edgeql import parser as edgeql_parser
+from edb.edgeql import parser as edgeql_parser
 from edb.lang.graphql import parser as graphql_parser
 from edb.lang.schema import parser as schema_parser
 

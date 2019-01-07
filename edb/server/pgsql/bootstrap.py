@@ -24,7 +24,7 @@ import re
 
 from edb import errors
 
-from edb.lang import edgeql
+from edb import edgeql
 
 from edb.common import context as parser_context
 from edb.common import debug

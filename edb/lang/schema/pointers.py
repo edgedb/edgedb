@@ -19,8 +19,8 @@
 
 import typing
 
-from edb.lang import edgeql
-from edb.lang.edgeql import ast as qlast
+from edb import edgeql
+from edb.edgeql import ast as qlast
 from edb.common import enum
 
 from edb import errors
@@ -484,7 +484,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
         return super()._create_begin(schema, context)
 
     def _parse_computable(self, expr, schema, context) -> so.ObjectRef:
-        from edb.lang.edgeql import utils as ql_utils
+        from edb.edgeql import utils as ql_utils
         from . import sources as s_sources
 
         # "source" attribute is set automatically as a refdict back-attr

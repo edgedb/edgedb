@@ -46,8 +46,8 @@ from edb.common import devmode
 from edb.common import lexer as core_lexer
 from edb.common import markup
 from edb.common.markup.renderers import terminal as markup_term
-from edb.lang.edgeql.parser.grammar import lexer as edgeql_lexer
-from edb.lang.edgeql import pygments as eql_pygments
+from edb.edgeql.parser.grammar import lexer as edgeql_lexer
+from edb.edgeql import pygments as eql_pygments
 
 from edb.server import cluster as edgedb_cluster
 

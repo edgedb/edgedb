@@ -44,8 +44,8 @@ from edb.lang.schema import sources as s_sources
 from edb.lang.schema import types as s_types
 from edb.lang.schema import utils as s_utils
 
-from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import parser as qlparser
+from edb.edgeql import ast as qlast
+from edb.edgeql import parser as qlparser
 
 from . import astutils
 from . import context

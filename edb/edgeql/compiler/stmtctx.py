@@ -38,8 +38,8 @@ from edb.lang.schema import pointers as s_pointers
 from edb.lang.schema import schema as s_schema
 from edb.lang.schema import types as s_types
 
-from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import parser as qlparser
+from edb.edgeql import ast as qlast
+from edb.edgeql import parser as qlparser
 
 from . import astutils
 from . import context

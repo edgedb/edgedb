@@ -21,7 +21,7 @@ import typing
 
 from edb import errors
 
-from edb.lang.edgeql import ast as qlast
+from edb.edgeql import ast as qlast
 
 from . import delta as sd
 from . import inheriting
@@ -97,7 +97,7 @@ class NodeCommand(sd.ObjectCommand):
 
     @classmethod
     def _compile_view_expr(cls, expr, classname, schema, context):
-        from edb.lang.edgeql import compiler as qlcompiler
+        from edb.edgeql import compiler as qlcompiler
 
         ir = context.get_cached((expr, classname))
         if ir is None:

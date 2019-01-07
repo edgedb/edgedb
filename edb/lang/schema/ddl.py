@@ -17,7 +17,7 @@
 #
 
 
-from edb.lang import edgeql
+from edb import edgeql
 from edb.lang.schema import delta as s_delta
 
 from . import schema as s_schema

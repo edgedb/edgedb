@@ -21,7 +21,7 @@ import textwrap
 
 from edb.common.exceptions import EdgeDBError
 from edb.common.ast import codegen
-from edb.lang.edgeql import generate_source as edgeql_source, ast as eqlast
+from edb.edgeql import generate_source as edgeql_source, ast as eqlast
 from . import quote as eschema_quote
 
 

@@ -19,8 +19,8 @@
 
 import textwrap
 
-from edb.lang.edgeql import parser as eql_parser
-from edb.lang.edgeql import utils as eql_utils
+from edb.edgeql import parser as eql_parser
+from edb.edgeql import utils as eql_utils
 
 from edb.lang import _testbase as tb
 

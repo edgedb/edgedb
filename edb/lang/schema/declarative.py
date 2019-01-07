@@ -25,12 +25,12 @@ import typing
 
 from edb import errors
 
-from edb.lang import edgeql
-from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import codegen as qlcodegen
-from edb.lang.edgeql import compiler as qlcompiler
-from edb.lang.edgeql import functypes as ft
-from edb.lang.edgeql import utils as qlutils
+from edb import edgeql
+from edb.edgeql import ast as qlast
+from edb.edgeql import codegen as qlcodegen
+from edb.edgeql import compiler as qlcompiler
+from edb.edgeql import functypes as ft
+from edb.edgeql import utils as qlutils
 
 from . import ast as s_ast
 from . import parser as s_parser

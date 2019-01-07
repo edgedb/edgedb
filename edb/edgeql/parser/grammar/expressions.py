@@ -23,7 +23,7 @@ import typing
 
 from edb.common import parsing, context
 
-from edb.lang.edgeql import ast as qlast
+from edb.edgeql import ast as qlast
 
 from edb.errors import EdgeQLSyntaxError
 

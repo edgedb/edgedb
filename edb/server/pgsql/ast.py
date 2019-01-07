@@ -22,7 +22,7 @@ import typing
 
 from edb.common import ast
 from edb.common import typeutils
-from edb.lang.edgeql import ast as qlast
+from edb.edgeql import ast as qlast
 from edb.lang.ir import ast as irast
 
 

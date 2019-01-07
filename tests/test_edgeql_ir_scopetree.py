@@ -25,7 +25,7 @@ from edb import errors
 
 from edb.lang import _testbase as tb
 
-from edb.lang.edgeql import compiler
+from edb.edgeql import compiler
 
 
 class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):

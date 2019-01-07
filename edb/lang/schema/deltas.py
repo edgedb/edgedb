@@ -20,7 +20,7 @@
 """Implementation of MIGRATION objects."""
 
 
-from edb.lang.edgeql import ast as qlast
+from edb.edgeql import ast as qlast
 
 from . import abc as s_abc
 from . import ast as s_ast

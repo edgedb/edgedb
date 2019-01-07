@@ -19,7 +19,7 @@
 
 import typing
 
-from edb.lang.edgeql.parser.grammar import keywords as eql_keywords
+from edb.edgeql.parser.grammar import keywords as eql_keywords
 
 
 # NOTE: Please update the pygments lexer with any keyword changes made here

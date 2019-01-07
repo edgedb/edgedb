@@ -31,9 +31,9 @@ from edb.lang.ir import utils as irutils
 from edb.lang.schema import name as sn
 from edb.lang.schema import types as s_types
 
-from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import functypes as ft
-from edb.lang.edgeql import parser as qlparser
+from edb.edgeql import ast as qlast
+from edb.edgeql import functypes as ft
+from edb.edgeql import parser as qlparser
 
 from . import astutils
 from . import cast

@@ -19,7 +19,7 @@
 
 import functools
 
-from edb.lang.edgeql import ast as qlast
+from edb.edgeql import ast as qlast
 from edb.lang.ir import ast as irast
 
 from . import context

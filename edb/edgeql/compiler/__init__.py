@@ -22,14 +22,14 @@
 
 from edb import errors
 
-from edb.lang.edgeql import parser as ql_parser
+from edb.edgeql import parser as ql_parser
 
 from edb.common import debug
 from edb.common import markup  # NOQA
 
 from edb.lang.schema import functions as s_func
 
-from edb.lang.edgeql import ast as qlast
+from edb.edgeql import ast as qlast
 from edb.lang.ir import ast as irast
 from edb.lang.ir import staeval as ireval
 from edb.lang.ir import typeutils as irtyputils

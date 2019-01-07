@@ -23,10 +23,10 @@ import typing
 from edb import lib as stdlib
 from edb import errors
 
-from edb.lang import edgeql
+from edb import edgeql
 from edb.lang import schema
 from edb.common import devmode
-from edb.lang.edgeql import compiler as qlcompiler
+from edb.edgeql import compiler as qlcompiler
 from edb.lang.schema import delta as s_delta
 
 from . import ddl as s_ddl

@@ -22,8 +22,8 @@ import typing
 from edb.common import enum as s_enum
 from edb.common import ast, parsing
 
-from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import functypes as qlft
+from edb.edgeql import ast as qlast
+from edb.edgeql import functypes as qlft
 
 
 class Base(ast.AST):

@@ -25,8 +25,8 @@ from edb.lang.ir import ast as irast
 from edb.lang.ir import astexpr as irastexpr
 from edb.lang.ir import typeutils as irtyputils
 from edb.lang.ir import utils as ir_utils
-from edb.lang.edgeql import compiler as ql_compiler
-from edb.lang.edgeql import ast as qlast
+from edb.edgeql import compiler as ql_compiler
+from edb.edgeql import ast as qlast
 
 from edb.lang.schema import scalars as s_scalars
 

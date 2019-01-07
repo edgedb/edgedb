@@ -32,14 +32,14 @@ from edb.server import defines
 from edb.server.pgsql import compiler as pg_compiler
 from edb.server.pgsql import intromech
 
-from edb.lang import edgeql
+from edb import edgeql
 from edb.lang import graphql
 from edb.common import debug
 
-from edb.lang.edgeql import ast as qlast
-from edb.lang.edgeql import compiler as ql_compiler
-from edb.lang.edgeql import quote as ql_quote
-from edb.lang.edgeql import parser as ql_parser
+from edb.edgeql import ast as qlast
+from edb.edgeql import compiler as ql_compiler
+from edb.edgeql import quote as ql_quote
+from edb.edgeql import parser as ql_parser
 
 from edb.lang.ir import staeval as ireval
 

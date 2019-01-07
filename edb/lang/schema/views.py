@@ -17,7 +17,7 @@
 #
 
 
-from edb.lang.edgeql import ast as qlast
+from edb.edgeql import ast as qlast
 
 from . import scalars as s_scalars
 from . import attributes

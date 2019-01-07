@@ -32,7 +32,7 @@ from edb.lang.schema import abc as s_abc
 from edb.lang.schema import objects as s_obj
 from edb.lang.schema import types as s_types
 
-from edb.lang.edgeql import ast as qlast
+from edb.edgeql import ast as qlast
 
 from . import context
 from . import schemactx

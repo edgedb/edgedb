@@ -24,7 +24,7 @@ import typing
 
 from edb import errors
 
-from edb.lang.edgeql import functypes as ft
+from edb.edgeql import functypes as ft
 
 from edb.lang.ir import ast as irast
 from edb.lang.ir import staeval as ireval
@@ -34,7 +34,7 @@ from edb.lang.schema import abc as s_abc
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import pointers as s_pointers
 
-from edb.lang.edgeql import ast as qlast
+from edb.edgeql import ast as qlast
 
 from . import astutils
 from . import cast

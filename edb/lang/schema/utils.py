@@ -24,7 +24,7 @@ import typing
 from edb import errors
 
 from edb.common import levenshtein
-from edb.lang.edgeql import ast as ql_ast
+from edb.edgeql import ast as ql_ast
 
 from . import abc as s_abc
 from . import name as sn

@@ -25,9 +25,9 @@ import typing
 
 from edb import errors
 
-from edb.lang.edgeql import ast as ql_ast
-from edb.lang.edgeql import compiler as ql_compiler
-from edb.lang.edgeql import functypes as ql_ft
+from edb.edgeql import ast as ql_ast
+from edb.edgeql import compiler as ql_compiler
+from edb.edgeql import functypes as ql_ft
 
 from edb.lang.schema import attributes as s_attrs
 from edb.lang.schema import casts as s_casts

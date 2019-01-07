@@ -22,7 +22,7 @@ import typing
 
 from edb import errors
 
-from edb.lang.edgeql import functypes as ql_ft
+from edb.edgeql import functypes as ql_ft
 
 from edb.lang.schema import objtypes as s_objtypes
 from edb.lang.schema import pointers as s_pointers

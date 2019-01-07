@@ -17,8 +17,8 @@
 #
 
 
-from edb.lang import edgeql
-from edb.lang.edgeql import ast as qlast
+from edb import edgeql
+from edb.edgeql import ast as qlast
 
 from . import delta as sd
 from . import expr as s_expr

@@ -23,7 +23,7 @@ import typing
 
 from edb import errors
 
-from edb.lang.edgeql import functypes as ql_ft
+from edb.edgeql import functypes as ql_ft
 
 from edb.lang.ir import ast as irast
 from edb.lang.ir import typeutils as irtyputils

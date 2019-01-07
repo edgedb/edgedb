@@ -24,10 +24,10 @@ import re
 
 from edb import errors
 
-from edb.lang import edgeql
+from edb import edgeql
 from edb.common import ast
 from edb.common import typeutils
-from edb.lang.edgeql import ast as qlast
+from edb.edgeql import ast as qlast
 from edb.lang.graphql import ast as gqlast, parser as gqlparser
 
 from . import types as gt

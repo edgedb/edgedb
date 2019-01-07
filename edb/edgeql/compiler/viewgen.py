@@ -35,7 +35,7 @@ from edb.lang.schema import pointers as s_pointers
 from edb.lang.schema import sources as s_sources
 from edb.lang.schema import types as s_types
 
-from edb.lang.edgeql import ast as qlast
+from edb.edgeql import ast as qlast
 
 from . import astutils
 from . import context

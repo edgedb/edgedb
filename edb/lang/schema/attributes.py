@@ -22,7 +22,7 @@ import typing
 
 from edb import errors
 
-from edb.lang.edgeql import ast as qlast
+from edb.edgeql import ast as qlast
 
 from . import delta as sd
 from . import inheriting
@@ -205,7 +205,7 @@ class CreateAttributeValue(AttributeValueCommand, sd.CreateObject):
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
-        from edb.lang.edgeql import compiler as qlcompiler
+        from edb.edgeql import compiler as qlcompiler
 
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         propname = sn.shortname_from_fullname(cmd.classname)

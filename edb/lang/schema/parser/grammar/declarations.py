@@ -25,8 +25,8 @@ import typing
 from edb.common import parsing, context
 from edb.common.exceptions import get_context
 
-from edb.lang import edgeql
-from edb.lang.edgeql import ast as qlast
+from edb import edgeql
+from edb.edgeql import ast as qlast
 from edb.lang.schema import ast as esast
 
 from edb.errors import SchemaSyntaxError, EdgeQLSyntaxError
