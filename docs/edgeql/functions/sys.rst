@@ -24,3 +24,33 @@ System
 
         db> SELECT sys::sleep(<timedelta>'5 seconds');
         {True}
+
+
+.. eql:function:: sys::advisory_lock(key: int64) -> bool
+
+    Obtain an exclusive session-level advisory lock.
+
+    Advisory locks behave like semaphores, so multiple calls
+    for the same *key* stack.  If another session already holds
+    a lock for the same *key*, this function will wait until
+    the lock is released.
+
+    The function always returns ``true``.
+
+
+.. eql:function:: sys::advisory_unlock(key: int64) -> bool
+
+    Release an exclusive session-level advisory lock.
+
+    The function returns ``true`` if the lock was successfully
+    released, and ``false`` if the lock was not held.
+
+
+.. eql:function:: sys::advisory_unlock_all() -> bool
+
+    Release all session-level advisory locks held by the current session.
+
+    The function returns ``true`` if the lock was successfully
+    released, and ``false`` if the lock was not held.
+
+    The function always returns ``true``.

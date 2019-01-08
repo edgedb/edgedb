@@ -36,3 +36,28 @@ sys::sleep(duration: std::timedelta) -> std::bool
     SELECT pg_sleep_for("duration") IS NOT NULL;
     $$;
 };
+
+
+CREATE FUNCTION
+sys::advisory_lock(key: std::int64) -> std::bool
+{
+    FROM SQL $$
+    SELECT pg_advisory_lock("key") IS NOT NULL;
+    $$;
+};
+
+
+CREATE FUNCTION
+sys::advisory_unlock(key: std::int64) -> std::bool
+{
+    FROM SQL FUNCTION 'pg_advisory_unlock';
+};
+
+
+CREATE FUNCTION
+sys::advisory_unlock_all() -> std::bool
+{
+    FROM SQL $$
+    SELECT pg_advisory_unlock_all() IS NOT NULL;
+    $$;
+};
