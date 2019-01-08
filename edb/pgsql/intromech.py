@@ -51,7 +51,6 @@ from edb.pgsql import dbops
 from . import datasources
 from .datasources import introspection
 
-from . import parser
 from . import schemamech
 from . import types
 
@@ -60,8 +59,6 @@ class IntrospectionMech:
 
     def __init__(self, connection):
         self._constr_mech = schemamech.ConstraintMech()
-
-        self.parser = parser.PgSQLParser()
 
         self._operator_commutators = {}
 
