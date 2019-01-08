@@ -33,7 +33,6 @@ from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
 
 from edb.schema import abc as s_abc
-from edb.schema import expr as s_expr
 from edb.schema import links as s_links
 from edb.schema import name as s_name
 from edb.schema import nodes as s_nodes
@@ -719,11 +718,7 @@ def computable_ptr_set(
             raise ValueError(
                 f'{ptrcls_sn!r} is not a computable pointer')
 
-        if isinstance(ptrcls_default, s_expr.ExpressionText):
-            qlexpr = astutils.ensure_qlstmt(qlparser.parse(ptrcls_default))
-        else:
-            qlexpr = qlast.BaseConstant.from_python(ptrcls_default)
-
+        qlexpr = astutils.ensure_qlstmt(qlparser.parse(ptrcls_default.text))
         qlctx = None
         inner_source_path_id = None
         path_id_ns = None

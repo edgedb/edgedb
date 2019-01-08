@@ -25,6 +25,7 @@ import textwrap
 import typing
 
 from edb.common import markup
+from edb.common import struct
 from edb.common import typeutils
 
 from ..common import quote_ident as qi
@@ -39,6 +40,9 @@ def encode_value(val: object) -> str:
         val = val.to_sql_expr()
     elif isinstance(val, tuple):
         val_list = [encode_value(el) for el in val]
+        val = f'ROW({", ".join(val_list)})'
+    elif isinstance(val, struct.Struct):
+        val_list = [encode_value(el) for el in val.as_tuple()]
         val = f'ROW({", ".join(val_list)})'
     elif typeutils.is_container(val):
         val_list = [encode_value(el) for el in val]

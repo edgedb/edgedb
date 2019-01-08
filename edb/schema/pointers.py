@@ -29,7 +29,7 @@ from . import abc as s_abc
 from . import attributes
 from . import constraints
 from . import delta as sd
-from . import expr as sexpr
+from . import expr as s_expr
 from . import inheriting
 from . import name as sn
 from . import objects as so
@@ -129,7 +129,7 @@ class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
         merge_fn=utils.merge_weak_bool)
 
     default = so.SchemaField(
-        sexpr.ExpressionText,
+        s_expr.Expression,
         allow_ddl_set=True,
         default=None, coerce=True, compcoef=0.909)
 
@@ -439,13 +439,13 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
     def _encode_default(self, schema, context, node, op):
         if op.new_value:
             expr = op.new_value
-            if not isinstance(expr, sexpr.ExpressionText):
+            if not isinstance(expr, s_expr.Expression):
                 expr_t = qlast.SelectQuery(
                     result=qlast.BaseConstant.from_python(expr)
                 )
                 expr = edgeql.generate_source(expr_t, pretty=False)
 
-                op.new_value = sexpr.ExpressionText(expr)
+                op.new_value = s_expr.Expression(expr)
             super()._apply_field_ast(schema, context, node, op)
 
     def _create_begin(self, schema, context):
@@ -508,7 +508,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
         self.add(
             sd.AlterObjectProperty(
                 property='default',
-                new_value=target_expr
+                new_value=s_expr.Expression(text=target_expr)
             )
         )
 

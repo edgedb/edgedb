@@ -563,7 +563,7 @@ class Function(CallableObject, s_abc.Function):
         bool, default=False, compcoef=0.9, introspectable=False)
 
     initial_value = so.SchemaField(
-        expr.ExpressionText, default=None, compcoef=0.4, coerce=True,
+        expr.Expression, default=None, compcoef=0.4, coerce=True,
         allow_ddl_set=True)
 
     def has_inlined_defaults(self, schema):

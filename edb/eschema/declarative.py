@@ -299,14 +299,14 @@ class DeclarationLoader:
             expr = attrs.pop('expr', None)
             if expr is not None:
                 self._schema = constraint.set_field_value(
-                    self._schema, 'expr', s_expr.ExpressionText(
-                        qlcodegen.generate_source(expr)))
+                    self._schema, 'expr', s_expr.Expression(
+                        text=qlcodegen.generate_source(expr)))
 
             subjexpr = decl.subject
             if subjexpr is not None:
                 self._schema = constraint.set_field_value(
-                    self._schema, 'subjectexpr', s_expr.ExpressionText(
-                        qlcodegen.generate_source(subjexpr)))
+                    self._schema, 'subjectexpr', s_expr.Expression(
+                        text=qlcodegen.generate_source(subjexpr)))
 
             self._schema, params = s_func.FuncParameterList.from_ast(
                 self._schema, decl, self._mod_aliases,
@@ -499,9 +499,9 @@ class DeclarationLoader:
                     f'unexpected field {fieldname}',
                     context=field_decl.context)
 
-            if issubclass(attrfield.type, s_expr.ExpressionText):
-                updates[fieldname] = qlcodegen.generate_source(
-                    field_decl.value)
+            if issubclass(attrfield.type, s_expr.Expression):
+                updates[fieldname] = s_expr.Expression(
+                    text=qlcodegen.generate_source(field_decl.value))
 
             else:
                 updates[fieldname] = qlcompiler.evaluate_ast_to_python_val(
@@ -522,13 +522,20 @@ class DeclarationLoader:
             constr_name = self._get_ref_name(constrdecl.name)
             if constrdecl.args:
                 args = [
-                    qlcodegen.generate_source(arg, pretty=False)
+                    s_expr.Expression(
+                        text=qlcodegen.generate_source(arg, pretty=False))
                     for arg in constrdecl.args
                 ]
             else:
                 args = []
 
             modaliases = {None: subject.get_name(self._schema).module}
+            if constrdecl.subject is not None:
+                subjectexpr = s_expr.Expression(
+                    text=qlcodegen.generate_source(constrdecl.subject))
+            else:
+                subjectexpr = None
+
             self._schema, c, _ = \
                 s_constr.Constraint.create_concrete_constraint(
                     self._schema,
@@ -536,7 +543,7 @@ class DeclarationLoader:
                     name=constr_name,
                     is_abstract=constrdecl.delegated,
                     sourcectx=constrdecl.context,
-                    subjectexpr=constrdecl.subject,
+                    subjectexpr=subjectexpr,
                     args=args,
                     modaliases=modaliases,
                 )
@@ -564,7 +571,7 @@ class DeclarationLoader:
             self._schema, index = s_indexes.SourceIndex.create_in_schema(
                 self._schema,
                 name=der_name,
-                expr=index_expr,
+                expr=s_expr.Expression(text=index_expr),
                 subject=subject
             )
 
@@ -742,7 +749,8 @@ class DeclarationLoader:
                         _, _, default = qlutils.normalize_tree(
                             expr, self._schema)
                         self._schema = spec_link.set_field_value(
-                            self._schema, 'default', default)
+                            self._schema, 'default',
+                            s_expr.Expression(text=default))
 
     def _normalize_ptr_default(self, expr, source, ptr, ptrdecl):
         module_aliases = {None: source.get_name(self._schema).module}
@@ -755,7 +763,8 @@ class DeclarationLoader:
 
         expr_type = ir.stype
 
-        self._schema = ptr.set_field_value(self._schema, 'default', expr_text)
+        self._schema = ptr.set_field_value(
+            self._schema, 'default', s_expr.Expression(text=expr_text))
 
         if ptr.is_pure_computable(self._schema):
             # Pure computable without explicit target.

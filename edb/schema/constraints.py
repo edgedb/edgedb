@@ -42,15 +42,15 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
                  s_abc.Constraint):
 
     expr = so.SchemaField(
-        s_expr.ExpressionText, default=None, compcoef=0.909,
+        s_expr.Expression, default=None, compcoef=0.909,
         coerce=True)
 
     subjectexpr = so.SchemaField(
-        s_expr.ExpressionText,
+        s_expr.Expression,
         default=None, compcoef=0.833, coerce=True)
 
     finalexpr = so.SchemaField(
-        s_expr.ExpressionText,
+        s_expr.Expression,
         default=None, compcoef=0.909, coerce=True)
 
     subject = so.SchemaField(
@@ -111,7 +111,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
         else:
             finalexpr = self.get_field_value(schema, 'finalexpr')
 
-        return (self._name_qual_from_expr(schema, finalexpr),)
+        return (self._name_qual_from_expr(schema, finalexpr.text),)
 
     @classmethod
     def _name_qual_from_expr(self, schema, expr):
@@ -183,21 +183,22 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
         base_subjectexpr = constr_base.get_field_value(schema, 'subjectexpr')
         if subjectexpr is None:
             subjectexpr = base_subjectexpr
-        elif base_subjectexpr is not None and subjectexpr != base_subjectexpr:
+        elif (base_subjectexpr is not None
+                and subjectexpr.text != base_subjectexpr.text):
             raise errors.InvalidConstraintDefinitionError(
                 'subjectexpr is already defined for ' +
                 f'{str(name)!r}')
 
         if subjectexpr is not None:
             subject, _ = cls._normalize_constraint_expr(
-                schema, {}, subjectexpr, subject)
+                schema, {}, subjectexpr.text, subject)
 
-        expr = constr_base.get_field_value(schema, 'expr')
+        expr: s_expr.Expression = constr_base.get_field_value(schema, 'expr')
         if not expr:
             raise errors.InvalidConstraintDefinitionError(
                 f'missing constraint expression in {name!r}')
 
-        expr_ql = edgeql_parser.parse(expr, module_aliases)
+        expr_ql = edgeql_parser.parse(expr.text, module_aliases)
 
         if not args:
             args = constr_base.get_field_value(schema, 'args')
@@ -207,7 +208,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
         args_map = None
         if args:
             args_ql = [
-                edgeql_parser.parse(arg, module_aliases) for arg in args
+                edgeql_parser.parse(arg.text, module_aliases) for arg in args
             ]
 
             args_map = edgeql_utils.index_parameters(
@@ -226,8 +227,6 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
 
             attrs['errmessage'] = errmessage.format(
                 __subject__='{__subject__}', **args_map)
-
-            args = list(args_map.values())
 
         attrs['args'] = args
 
@@ -254,7 +253,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
             enforce_boolean=True,
             expr_context=expr_context)
 
-        attrs['finalexpr'] = expr_text
+        attrs['finalexpr'] = s_expr.Expression(text=expr_text)
 
         return constr_base, attrs
 
@@ -460,8 +459,8 @@ class CreateConstraint(ConstraintCommand,
 
         if astnode.args:
             for arg in astnode.args:
-                arg_expr = s_expr.ExpressionText(
-                    edgeql.generate_source(arg.arg, pretty=False))
+                arg_expr = s_expr.Expression(
+                    text=edgeql.generate_source(arg.arg, pretty=False))
                 args.append(arg_expr)
 
         return args
@@ -477,16 +476,17 @@ class CreateConstraint(ConstraintCommand,
         args = cls._constraint_args_from_ast(schema, astnode)
         if args:
             props['args'] = args
-        if astnode.subject:
-            props['subjectexpr'] = s_expr.ExpressionText(
-                edgeql.generate_source(astnode.subject, pretty=False))
+        if astnode.subjectexpr:
+            props['subjectexpr'] = s_expr.Expression(
+                text=edgeql.generate_source(astnode.subject, pretty=False))
 
         _, attrs = Constraint.get_concrete_constraint_attrs(
             schema, subject, name=base_name,
             sourcectx=astnode.context,
             modaliases=context.modaliases, **props)
 
-        return (Constraint._name_qual_from_expr(schema, attrs['finalexpr']),)
+        return (Constraint._name_qual_from_expr(
+            schema, attrs['finalexpr'].text),)
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
@@ -533,10 +533,10 @@ class CreateConstraint(ConstraintCommand,
                 new_value=ft.TypeModifier.SINGLETON,
             ))
 
-        # 'subject' can be present in either astnode type
-        if astnode.subject:
-            subjectexpr = s_expr.ExpressionText(
-                edgeql.generate_source(astnode.subject, pretty=False))
+        # 'subjectexpr' can be present in either astnode type
+        if astnode.subjectexpr:
+            subjectexpr = s_expr.Expression(
+                text=edgeql.generate_source(astnode.subjectexpr, pretty=False))
 
             cmd.add(sd.AlterObjectProperty(
                 property='subjectexpr',
@@ -552,7 +552,7 @@ class CreateConstraint(ConstraintCommand,
             pass
         elif op.property == 'is_abstract':
             node.is_abstract = op.new_value
-        elif op.property == 'subject':
+        elif op.property == 'subjectexpr':
             pass
         else:
             super()._apply_field_ast(schema, context, node, op)

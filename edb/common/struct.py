@@ -221,16 +221,20 @@ class Struct(metaclass=StructMeta):
             self._in_init_ = False
 
     def __setstate__(self, state):
-        if isinstance(state, tuple) and len(state) == 2:
-            state, slotstate = state
-        else:
-            slotstate = None
+        self._in_init_ = True
+        try:
+            if isinstance(state, tuple) and len(state) == 2:
+                state, slotstate = state
+            else:
+                slotstate = None
 
-        if state:
-            self.update(**state)
+            if state:
+                self.update(**state)
 
-        if slotstate:
-            self.update(**slotstate)
+            if slotstate:
+                self.update(**slotstate)
+        finally:
+            self._in_init_ = False
 
     def update(self, *args, **kwargs):
         """Update the field values."""
@@ -281,6 +285,12 @@ class Struct(metaclass=StructMeta):
     def items(self):
         for field in self.__class__._fields:
             yield field, getattr(self, field, None)
+
+    def as_tuple(self):
+        result = []
+        for field in self.__class__._fields:
+            result.append(getattr(self, field, None))
+        return tuple(result)
 
     __copy__ = copy
 

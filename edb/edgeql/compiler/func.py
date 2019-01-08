@@ -126,7 +126,7 @@ def compile_FunctionCall(
     if matched_func_initial_value is not None:
         rtype = inference.infer_type(node, env=ctx.env)
         iv_ql = qlast.TypeCast(
-            expr=qlparser.parse_fragment(matched_func_initial_value),
+            expr=qlparser.parse_fragment(matched_func_initial_value.text),
             type=typegen.type_to_ql_typeref(rtype, ctx=ctx)
         )
         node.func_initial_value = dispatch.compile(iv_ql, ctx=ctx)

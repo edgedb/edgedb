@@ -206,7 +206,7 @@ class ConstraintMech:
         assert constraint.get_subject(schema) is not None
 
         ir = ql_compiler.compile_to_ir(
-            constraint.get_finalexpr(schema),
+            constraint.get_finalexpr(schema).text,
             schema,
             anchors={qlast.Subject: subject})
 
@@ -395,7 +395,7 @@ class SchemaTableConstraint:
 
 def ptr_default_to_col_default(schema, ptr, expr):
     try:
-        ir = ql_compiler.compile_to_ir(expr, schema)
+        ir = ql_compiler.compile_to_ir(expr.text, schema)
     except errors.SchemaError:
         # Referene errors mean that is is a non-constant default
         # referring to a not-yet-existing objects.

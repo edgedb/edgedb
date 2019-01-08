@@ -17,14 +17,33 @@
 #
 
 
+from edb.common import struct
 from edb.common import typed
+from edb.edgeql import ast as ql_ast
+
+from . import objects as so
 
 
-class ExpressionText(str):
-    pass
+class Expression(struct.Struct):
+    text = struct.Field(str, frozen=True)
+    qlast = struct.Field(ql_ast.Base, default=None, frozen=True)
+    irast = struct.Field(object, default=None, frozen=True)
+    refs = struct.Field(so.ObjectSet, coerce=True, default=None, frozen=True)
+
+    @classmethod
+    def compare_values(cls, ours, theirs, *,
+                       our_schema, their_schema, context, compcoef):
+        if not ours and not theirs:
+            return 1.0
+        elif not ours or not theirs:
+            return compcoef
+        elif ours.text == theirs.text:
+            return 1.0
+        else:
+            return compcoef
 
 
-class ExpressionList(typed.FrozenTypedList, type=ExpressionText):
+class ExpressionList(typed.FrozenTypedList, type=Expression):
 
     @classmethod
     def merge_values(cls, target, sources, field_name, *, schema):

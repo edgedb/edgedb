@@ -20,13 +20,13 @@
 import typing
 
 from edb import errors
+from edb.common import typed
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import functypes as ft
 
 from . import abc as s_abc
 from . import delta as sd
-from . import expr as s_expr
 from . import functions as s_func
 from . import name as sn
 from . import objects as so
@@ -42,7 +42,7 @@ class Operator(s_func.CallableObject, s_abc.Operator):
         qlast.Language, default=None, compcoef=0.4, coerce=True)
 
     from_operator = so.SchemaField(
-        s_expr.ExpressionList, coerce=True,
+        typed.StrList, coerce=True,
         default=None, compcoef=0.4, introspectable=False)
 
     from_function = so.SchemaField(

@@ -222,18 +222,6 @@ class ObjectMetaCommand(MetaCommand, sd.ObjectCommand,
 
         return rec, updates
 
-    def pack_default(self, value):
-        if value is not None:
-            if isinstance(value, s_expr.ExpressionText):
-                valtype = 'expr'
-            else:
-                valtype = 'literal'
-            val = {'type': valtype, 'value': value}
-            result = json.dumps(val)
-        else:
-            result = None
-        return result
-
     def create_object(self, schema, scls):
         rec, updates = self.fill_record(schema, use_defaults=True)
         self.pgops.add(
@@ -921,17 +909,6 @@ class ScalarTypeMetaCommand(ViewCapableObjectMetaCommand):
         seq = schema.get('std::sequence', default=None)
         return seq is not None and scalar.issubclass(schema, seq)
 
-    def fill_record(self, schema, *, use_defaults=False):
-        table = self.get_table(schema)
-        rec, updates = super().fill_record(schema, use_defaults=use_defaults)
-        default = updates.get('default')
-        if default:
-            if not rec:
-                rec = table.record()
-            rec.default = self.pack_default(default)
-
-        return rec, updates
-
     def alter_scalar_type(self, scalar, schema, new_type, intent):
 
         users = []
@@ -1022,7 +999,7 @@ class CreateScalarType(ScalarTypeMetaCommand,
         if default:
             if (
                     default is not None and
-                    not isinstance(default, s_expr.ExpressionText)):
+                    not isinstance(default, s_expr.Expression)):
                 # We only care to support literal defaults here.  Supporting
                 # defaults based on queries has no sense on the database level
                 # since the database forbids queries for DEFAULT and pre-
@@ -1128,7 +1105,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                 default_delta = updates.get('default')
                 if default_delta:
                     if (default_delta is None or
-                            isinstance(default_delta, s_expr.ExpressionText)):
+                            isinstance(default_delta, s_expr.Expression)):
                         new_default = None
                     else:
                         new_default = default_delta
@@ -1555,7 +1532,7 @@ class CreateSourceIndex(SourceIndexCommand, CreateObject,
         table_name = common.get_backend_name(
             schema, source.scls, catenate=False)
         ir = ql_compiler.compile_fragment_to_ir(
-            index.get_field_value(schema, 'expr'),
+            index.get_field_value(schema, 'expr').text,
             schema,
             location='selector')
 
@@ -1890,12 +1867,6 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             if not rec:
                 rec = table.record()
 
-        default = updates.get('default')
-        if default:
-            if not rec:
-                rec = table.record()
-            rec.default = self.pack_default(default)
-
         return rec, updates
 
     def alter_host_table_column(
@@ -1958,7 +1929,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
         default_value = None
 
         if default is not None:
-            if isinstance(default, s_expr.ExpressionText):
+            if isinstance(default, s_expr.Expression):
                 default_value = schemamech.ptr_default_to_col_default(
                     schema, ptr, default)
             else:
@@ -1984,7 +1955,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             if not default:
                 new_default = None
             else:
-                if not isinstance(default, s_expr.ExpressionText):
+                if not isinstance(default, s_expr.Expression):
                     new_default = default
                 else:
                     have_new_default = False

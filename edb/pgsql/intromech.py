@@ -19,8 +19,6 @@
 """Low level introspection of the schema."""
 
 
-import json
-
 from edb import errors
 
 from edb.common import topological
@@ -172,12 +170,11 @@ class IntrospectionMech:
                 'view_type': (s_types.ViewType(row['view_type'])
                               if row['view_type'] else None),
                 'bases': row['bases'],
-                'default': row['default'],
-                'expr': (s_expr.ExpressionText(row['expr'])
+                'default': (s_expr.Expression(**row['default'])
+                            if row['default'] else None),
+                'expr': (s_expr.Expression(**row['expr'])
                          if row['expr'] else None)
             }
-
-            scalar_data['default'] = self.unpack_default(row['default'])
 
             if scalar_data['bases']:
                 basemap[name] = scalar_data.pop('bases')
@@ -235,7 +232,8 @@ class IntrospectionMech:
                     id=param_data['id'],
                     num=param_data['num'],
                     name=sn.Name(param_data['name']),
-                    default=param_data['default'],
+                    default=(s_expr.Expression(**param_data['default'])
+                             if param_data['default'] else None),
                     type=self.unpack_typeref(param_data['type'], schema),
                     typemod=param_data['typemod'],
                     kind=param_data['kind'])
@@ -394,11 +392,15 @@ class IntrospectionMech:
                 subject=subject,
                 params=params,
                 is_abstract=r['is_abstract'],
-                is_final=r['is_final'], expr=r['expr'],
-                subjectexpr=r['subjectexpr'],
-                finalexpr=r['finalexpr'],
+                is_final=r['is_final'],
+                expr=s_expr.Expression(**r['expr']) if r['expr'] else None,
+                subjectexpr=(s_expr.Expression(**r['subjectexpr'])
+                             if r['subjectexpr'] else None),
+                finalexpr=(s_expr.Expression(**r['finalexpr'])
+                           if r['finalexpr'] else None),
                 errmessage=r['errmessage'],
-                args=r['args'],
+                args=([s_expr.Expression(**arg) for arg in r['args']]
+                      if r['args'] is not None else None),
                 return_type=self.unpack_typeref(r['return_type'], schema),
                 return_typemod=r['return_typemod'],
             )
@@ -474,16 +476,6 @@ class IntrospectionMech:
             if result:
                 return result[0][1]
 
-    def unpack_default(self, value):
-        result = None
-        if value is not None:
-            val = json.loads(value)
-            if val['type'] == 'expr':
-                result = s_expr.ExpressionText(val['value'])
-            else:
-                result = val['value']
-        return result
-
     def interpret_indexes(self, table_name, indexes):
         for idx_data in indexes:
             yield dbops.Index.from_introspection(table_name, idx_data)
@@ -526,7 +518,7 @@ class IntrospectionMech:
                 id=index_data['id'],
                 name=index_name,
                 subject=subj,
-                expr=index_data['expr'])
+                expr=s_expr.Expression(**index_data['expr']))
 
             schema = subj.add_index(schema, index)
 
@@ -574,7 +566,10 @@ class IntrospectionMech:
                 spectargets = None
                 target = self.unpack_typeref(r['target'], schema)
 
-            default = self.unpack_default(r['default'])
+            if r['default']:
+                default = s_expr.Expression(**r['default'])
+            else:
+                default = None
 
             required = r['required']
 
@@ -671,7 +666,10 @@ class IntrospectionMech:
             else:
                 derived_from = None
 
-            default = self.unpack_default(r['default'])
+            if r['default']:
+                default = s_expr.Expression(**r['default'])
+            else:
+                default = None
 
             required = r['required']
             target = self.unpack_typeref(r['target'], schema)
@@ -791,7 +789,7 @@ class IntrospectionMech:
                 'is_final': row['is_final'],
                 'view_type': (s_types.ViewType(row['view_type'])
                               if row['view_type'] else None),
-                'expr': (s_expr.ExpressionText(row['expr'])
+                'expr': (s_expr.Expression(**row['expr'])
                          if row['expr'] else None)
             }
 
@@ -824,6 +822,8 @@ class IntrospectionMech:
             attrs['bases'] = [schema.get(b) for b in attrs['bases']]
             attrs['view_type'] = (s_types.ViewType(attrs['view_type'])
                                   if attrs['view_type'] else None)
+            attrs['expr'] = (s_expr.Expression(**row['expr'])
+                             if row['expr'] else None)
             attrs['is_derived'] = True
             schema, objtype = s_objtypes.ObjectType.create_in_schema(
                 schema, **attrs)

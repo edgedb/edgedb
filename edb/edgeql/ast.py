@@ -501,10 +501,6 @@ class Position(DDL):
     position: str
 
 
-class ExpressionText(DDL):
-    expr: Expr
-
-
 class AlterAddInherit(DDL):
     bases: typing.Union[typing.List[TypeName], typing.List[ObjectRef]]
     position: Position
@@ -670,7 +666,6 @@ class DropConcreteProperty(AlterObject):
 class SetSpecialField(DDL):
     name: str
     value: object
-    as_expr: bool = False
 
 
 class CreateObjectType(CreateExtendingObject):
@@ -726,7 +721,7 @@ class CallableObject(ObjectDDL):
 
 
 class CreateConstraint(CreateExtendingObject, CallableObject):
-    subject: typing.Optional[Expr]
+    subjectexpr: typing.Optional[Expr]
 
 
 class AlterConstraint(AlterObject):
@@ -740,7 +735,7 @@ class DropConstraint(DropObject):
 class CreateConcreteConstraint(CreateObject):
     args: typing.List[FuncArg]
     is_abstract: bool = False
-    subject: typing.Optional[Expr]
+    subjectexpr: typing.Optional[Expr]
 
 
 class AlterConcreteConstraint(AlterObject):
@@ -761,7 +756,6 @@ class DropIndex(DropObject):
 
 class BaseSetField(ObjectDDL):
     value: Expr
-    as_expr: bool = False
 
 
 class SetField(BaseSetField):

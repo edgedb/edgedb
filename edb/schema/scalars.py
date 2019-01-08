@@ -38,7 +38,7 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
                  attributes.AttributeSubject, s_abc.ScalarType):
 
     default = so.SchemaField(
-        expr.ExpressionText, default=None,
+        expr.Expression, default=None,
         coerce=True, compcoef=0.909)
 
     def _get_deps(self, schema):

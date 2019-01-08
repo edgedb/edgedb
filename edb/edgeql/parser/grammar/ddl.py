@@ -309,14 +309,9 @@ class SchemaItemClass(Nonterm):
 class SetFieldStmt(Nonterm):
     # field := <expr>
     def reduce_SET_NodeName_ASSIGN_Expr(self, *kids):
-        # if the expression is trivial (a literal or variable), it
-        # should be treated as an eager expression
-        eager = isinstance(kids[3].val,
-                           (qlast.BaseConstant, qlast.Tuple))
         self.val = qlast.SetField(
             name=kids[1].val,
             value=kids[3].val,
-            as_expr=not eager
         )
 
     def reduce_SET_NodeName_AS_SchemaItemClass_NodeName(self, *kids):
@@ -650,7 +645,7 @@ class CreateConstraintStmt(Nonterm):
                     OptExtending OptCreateCommandsBlock"""
         self.val = qlast.CreateConstraint(
             name=kids[3].val,
-            subject=kids[4].val,
+            subjectexpr=kids[4].val,
             bases=kids[5].val,
             commands=kids[6].val,
         )
@@ -661,7 +656,7 @@ class CreateConstraintStmt(Nonterm):
         self.val = qlast.CreateConstraint(
             name=kids[3].val,
             params=kids[4].val,
-            subject=kids[5].val,
+            subjectexpr=kids[5].val,
             bases=kids[6].val,
             commands=kids[7].val,
         )
@@ -723,7 +718,7 @@ class CreateConcreteConstraintStmt(Nonterm):
             is_abstract=kids[1].val,
             name=kids[3].val,
             args=kids[4].val,
-            subject=kids[5].val,
+            subjectexpr=kids[5].val,
             commands=kids[6].val,
         )
 
@@ -1389,7 +1384,6 @@ class CreateViewStmt(Nonterm):
                 qlast.SetField(
                     name=qlast.ObjectRef(name='expr'),
                     value=kids[4].val,
-                    as_expr=True
                 )
             ]
         )

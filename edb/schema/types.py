@@ -56,7 +56,7 @@ class Type(so.Object, derivable.DerivableObjectBase, s_abc.Type):
     # If this type is a view, expr may contain an expression that
     # defines the view set.
     expr = so.SchemaField(
-        s_expr.ExpressionText,
+        s_expr.Expression,
         default=None, coerce=True, allow_ddl_set=True, compcoef=0.909)
 
     # If this type is a view defined by a nested shape expression,
@@ -205,7 +205,7 @@ class Collection(Type, s_abc.Collection):
         default=None, ephemeral=True)
 
     expr = so.Field(
-        s_expr.ExpressionText,
+        s_expr.Expression,
         default=None, ephemeral=True)
 
     rptr = so.Field(

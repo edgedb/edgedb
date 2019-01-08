@@ -253,16 +253,13 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             return None
 
     def set_attribute_value(self, attr_name, value):
-        as_expr = isinstance(value, s_expr.ExpressionText)
-
         for op in self.get_subcommands(type=AlterObjectProperty):
             if op.property == attr_name:
                 op.new_value = value
-                op.as_expr = as_expr
                 break
         else:
             self.add(AlterObjectProperty(
-                property=attr_name, new_value=value, as_expr=as_expr))
+                property=attr_name, new_value=value))
 
     def discard_attribute(self, attr_name):
         for op in self.get_subcommands(type=AlterObjectProperty):
@@ -1156,9 +1153,9 @@ class AlterObjectProperty(Command):
                 f'{propname!r} is not a valid field',
                 context=astnode.context)
 
-        if astnode.as_expr:
-            new_value = s_expr.ExpressionText(
-                edgeql.generate_source(astnode.value, pretty=False))
+        if field.type is s_expr.Expression:
+            new_value = s_expr.Expression(
+                text=edgeql.generate_source(astnode.value, pretty=False))
         else:
             if isinstance(astnode.value, qlast.BaseConstant):
                 new_value = qlcompiler.evaluate_ast_to_python_val(
@@ -1179,7 +1176,8 @@ class AlterObjectProperty(Command):
 
             else:
                 raise ValueError(
-                    f'unexpected value in attribute: {astnode.value!r}')
+                    f'unexpected value in attribute {propname}: '
+                    f'{astnode.value!r}')
 
         return cls(property=propname, new_value=new_value)
 
@@ -1203,8 +1201,8 @@ class AlterObjectProperty(Command):
         if new_value_empty and old_value_empty:
             return
 
-        if isinstance(value, s_expr.ExpressionText):
-            value = edgeql.parse(str(value))
+        if isinstance(value, s_expr.Expression):
+            value = edgeql.parse(value.text)
         elif utils.is_nontrivial_container(value):
             value = qlast.Tuple(elements=[
                 qlast.BaseConstant.from_python(el) for el in value
@@ -1212,10 +1210,9 @@ class AlterObjectProperty(Command):
         else:
             value = qlast.BaseConstant.from_python(value)
 
-        as_expr = isinstance(value, qlast.ExpressionText)
         op = qlast.SetField(
             name=qlast.ObjectRef(module='', name=self.property),
-            value=value, as_expr=as_expr)
+            value=value)
         return op
 
     def __repr__(self):

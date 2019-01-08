@@ -34,7 +34,7 @@ class SourceIndex(inheriting.InheritingObject):
     subject = so.SchemaField(so.Object)
 
     expr = so.SchemaField(
-        s_expr.ExpressionText, coerce=True, compcoef=0.909,
+        s_expr.Expression, coerce=True, compcoef=0.909,
         allow_ddl_set=True)
 
     def __repr__(self):
@@ -111,8 +111,8 @@ class CreateSourceIndex(SourceIndexCommand, sd.CreateObject):
             ),
             sd.AlterObjectProperty(
                 property='expr',
-                new_value=s_expr.ExpressionText(
-                    edgeql.generate_source(astnode.expr, pretty=False))
+                new_value=s_expr.Expression(
+                    text=edgeql.generate_source(astnode.expr, pretty=False))
             )
         ))
 

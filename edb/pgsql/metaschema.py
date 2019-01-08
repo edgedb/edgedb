@@ -103,6 +103,18 @@ class TypeDescType(dbops.CompositeType):
         ])
 
 
+class ExpressionType(dbops.CompositeType):
+    def __init__(self):
+        super().__init__(name=('edgedb', 'expression_t'))
+
+        self.add_columns([
+            dbops.Column(name='text', type='text'),
+            dbops.Column(name='qlast', type='bytea'),
+            dbops.Column(name='irast', type='bytea'),
+            dbops.Column(name='refs', type='uuid[]'),
+        ])
+
+
 class RaiseExceptionFunction(dbops.Function):
     text = '''
     BEGIN
@@ -1388,8 +1400,11 @@ def _field_to_column(field):
     elif issubclass(ftype, (s_obj.Object, s_obj.ObjectCollection)):
         coltype = 'edgedb.type_t'
 
+    elif issubclass(ftype, s_expr.Expression):
+        coltype = 'edgedb.expression_t'
+
     elif issubclass(ftype, s_expr.ExpressionList):
-        coltype = 'text[]'
+        coltype = 'edgedb.expression_t[]'
 
     elif issubclass(ftype, typed.TypedList) and issubclass(ftype.type, str):
         coltype = 'text[]'
@@ -1515,7 +1530,7 @@ async def bootstrap(conn):
         dbops.CreateCompositeType(TypeType()),
         dbops.CreateCompositeType(TypeDescNodeType()),
         dbops.CreateCompositeType(TypeDescType()),
-        dbops.CreateDomain(('edgedb', 'known_record_marker_t'), 'text'),
+        dbops.CreateCompositeType(ExpressionType()),
     ])
 
     commands.add_commands(
@@ -1718,7 +1733,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
 
                         LEFT JOIN
                             LATERAL UNNEST(s.args)
-                                WITH ORDINALITY AS tv(value, num)
+                                WITH ORDINALITY AS tv(value, _, _, _, num)
                             ON (p.num = tv.num)
                     ) AS q
             '''
@@ -1991,6 +2006,14 @@ async def generate_views(conn, schema):
                 if pn == 'name' and issubclass(mcls, s_obj.Object):
                     col_expr = 'edgedb.shortname_from_fullname(t.{})'.format(
                         q(ptrstor.column_name))
+                elif field.type is s_expr.Expression:
+                    col_expr = f'(t.{q(ptrstor.column_name)}).text'
+                elif field.type is s_expr.ExpressionList:
+                    col_expr = f'''
+                        (SELECT array_agg(q.text)
+                         FROM unnest(t.{q(ptrstor.column_name)})
+                                AS q(text, _, _, _))
+                    '''
                 else:
                     col_expr = f't.{q(ptrstor.column_name)}'
 

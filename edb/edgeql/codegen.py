@@ -660,9 +660,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     # DDL nodes
 
-    def visit_ExpressionText(self, node):
-        self.write('(', node.expr, ')')
-
     def visit_Position(self, node):
         self.write(node.position)
         if node.ref:
@@ -864,9 +861,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write('(')
                 self.visit_list(node.params, newlines=False)
                 self.write(')')
-            if node.subject:
+            if node.subjectexpr:
                 self.write(' ON (')
-                self.visit(node.subject)
+                self.visit(node.subjectexpr)
                 self.write(')')
 
             self._ddl_visit_bases(node)
@@ -886,9 +883,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write('(')
                 self.visit_list(node.args, newlines=False)
                 self.write(')')
-            if node.subject:
+            if node.subjectexpr:
                 self.write(' on (')
-                self.visit(node.subject)
+                self.visit(node.subjectexpr)
                 self.write(')')
 
         keywords = []

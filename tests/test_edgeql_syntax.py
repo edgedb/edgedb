@@ -2761,6 +2761,14 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_constraint_08(self):
+        """
+        CREATE ABSTRACT CONSTRAINT test::len_fail(f: std::str) {
+            SET expr := (__subject__ <= f);
+            SET subjectexpr := len(__subject__);
+        };
+        """
+
     def test_edgeql_syntax_ddl_function_01(self):
         """
         CREATE FUNCTION std::strlen(string: std::str) -> std::int64
