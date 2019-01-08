@@ -360,6 +360,24 @@ class TestEqlFunction(unittest.TestCase, BaseDomainTest):
             x.xpath('//desc_signature/@eql-signature'),
             ['std::test(NAMED ONLY v: in64 = 42) -> OPTIONAL int64'])
 
+    def test_eql_func_9(self):
+        src = '''
+        .. eql:function:: sys::sleep(duration: timedelta) -> bool
+                          sys::sleep(duration: float64) -> bool
+
+            :index: sleep delay
+
+            blah
+        '''
+
+        out = self.build(src, format='xml')
+        x = requests_xml.XML(xml=out)
+
+        self.assertEqual(
+            x.xpath('//desc_signature/@eql-signature'),
+            ['sys::sleep(duration: timedelta) ->  bool',
+             'sys::sleep(duration: float64) ->  bool'])
+
 
 class TestEqlConstraint(unittest.TestCase, BaseDomainTest):
 

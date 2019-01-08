@@ -34,8 +34,8 @@ from . import operators as s_oper
 from . import types as s_types
 
 
-STD_LIB = ['std', 'schema', 'math']
-STD_MODULES = {'std', 'schema', 'stdgraphql', 'math'}
+STD_LIB = ['std', 'schema', 'math', 'sys']
+STD_MODULES = {'std', 'schema', 'stdgraphql', 'math', 'sys'}
 
 
 _void = object()

@@ -60,3 +60,4 @@ singletons. Examples of aggregate functions include built-ins such as
     string
     datetime
     json
+    sys
