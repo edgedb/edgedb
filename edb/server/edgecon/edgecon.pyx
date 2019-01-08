@@ -1,5 +1,5 @@
 #
-# This sowurce file is part of the EdgeDB open source project.
+# This source file is part of the EdgeDB open source project.
 #
 # Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
 #
