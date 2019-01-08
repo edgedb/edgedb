@@ -15,6 +15,8 @@ System
     *duration* can either be a number of seconds specified
     as a floating point number, or a :eql:type:`std::timedelta`.
 
+    The function always returns ``true``.
+
     .. code-block:: edgeql-repl
 
         db> SELECT sys::sleep(1);
