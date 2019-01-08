@@ -113,6 +113,7 @@ future_reserved_keywords = frozenset([
     "notify",
     "prepare",
     "partition",
+    "raise",
     "refresh",
     "reindex",
     "reset",
