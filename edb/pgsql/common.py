@@ -32,7 +32,7 @@ from edb.schema import operators as s_opers
 from edb.schema import pointers as s_pointers
 from edb.schema import scalars as s_scalars
 
-from edb.pgsql.parser import keywords as pg_keywords
+from . import keywords as pg_keywords
 
 
 def quote_e_literal(string):
