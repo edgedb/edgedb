@@ -217,6 +217,7 @@ class Compiler:
             schema=current_tx.get_schema(),
             modaliases=current_tx.get_modaliases(),
             implicit_id_in_shapes=False,
+            implicit_tid_in_shapes=False,
             disable_constant_folding=disable_constant_folding)
 
         sql_text, argmap = pg_compiler.compile_ir_to_sql(

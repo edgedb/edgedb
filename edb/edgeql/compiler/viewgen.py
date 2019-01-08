@@ -637,6 +637,40 @@ def _get_shape_configuration(
                 shape_ptrs.insert(0, (ir_set, ptr))
                 break
 
+    if (ir_set.typeref is not None
+            and irtyputils.is_object(ir_set.typeref)
+            and parent_view_type is not s_types.ViewType.Insert
+            and parent_view_type is not s_types.ViewType.Update
+            and ctx.implicit_tid_in_shapes):
+        ql = qlast.ShapeElement(
+            expr=qlast.Path(
+                steps=[qlast.Ptr(
+                    ptr=qlast.ObjectRef(name='__tid__'),
+                    direction=s_pointers.PointerDirection.Outbound,
+                )],
+            ),
+            compexpr=qlast.Path(
+                steps=[
+                    qlast.Source(),
+                    qlast.Ptr(
+                        ptr=qlast.ObjectRef(name='__type__'),
+                        direction=s_pointers.PointerDirection.Outbound,
+                    ),
+                    qlast.Ptr(
+                        ptr=qlast.ObjectRef(name='id'),
+                        direction=s_pointers.PointerDirection.Outbound,
+                    )
+                ]
+            )
+        )
+        with ctx.newscope(fenced=True) as scopectx:
+            scopectx.anchors = scopectx.anchors.copy()
+            scopectx.anchors[qlast.Source] = ir_set
+            ptr = _normalize_view_ptr_expr(
+                ql, stype, path_id=ir_set.path_id, ctx=scopectx)
+            ctx.class_shapes[stype].insert(0, ptr)
+            shape_ptrs.insert(0, (ir_set, ptr))
+
     return shape_ptrs
 
 

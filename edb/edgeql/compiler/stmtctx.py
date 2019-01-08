@@ -61,7 +61,8 @@ def init_context(
         result_view_name: typing.Optional[str]=None,
         schema_view_mode: bool=False,
         disable_constant_folding: bool=False,
-        implicit_id_in_shapes: bool=False) -> \
+        implicit_id_in_shapes: bool=False,
+        implicit_tid_in_shapes: bool=False) -> \
         context.ContextLevel:
     stack = context.CompilerContext()
     ctx = stack.current
@@ -95,6 +96,7 @@ def init_context(
     ctx.derived_target_module = derived_target_module
     ctx.toplevel_result_view_name = result_view_name
     ctx.implicit_id_in_shapes = implicit_id_in_shapes
+    ctx.implicit_tid_in_shapes = implicit_tid_in_shapes
 
     return ctx
 

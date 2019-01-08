@@ -84,7 +84,8 @@ def compile_to_ir(expr,
                   anchors=None,
                   security_context=None,
                   modaliases=None,
-                  implicit_id_in_shapes=False):
+                  implicit_id_in_shapes=False,
+                  implicit_tid_in_shapes=False):
     """Compile given EdgeQL statement into EdgeDB IR."""
 
     if debug.flags.edgeql_compile:
@@ -96,7 +97,8 @@ def compile_to_ir(expr,
     return compile_ast_to_ir(
         tree, schema, anchors=anchors,
         security_context=security_context, modaliases=modaliases,
-        implicit_id_in_shapes=implicit_id_in_shapes)
+        implicit_id_in_shapes=implicit_id_in_shapes,
+        implicit_tid_in_shapes=implicit_tid_in_shapes)
 
 
 def compile_ast_to_ir(tree,
@@ -110,6 +112,7 @@ def compile_ast_to_ir(tree,
                       result_view_name=None,
                       modaliases=None,
                       implicit_id_in_shapes=False,
+                      implicit_tid_in_shapes=False,
                       schema_view_mode=False,
                       disable_constant_folding=False):
     """Compile given EdgeQL AST into EdgeDB IR."""
@@ -124,6 +127,7 @@ def compile_ast_to_ir(tree,
         func=func, derived_target_module=derived_target_module,
         result_view_name=result_view_name,
         implicit_id_in_shapes=implicit_id_in_shapes,
+        implicit_tid_in_shapes=implicit_tid_in_shapes,
         schema_view_mode=schema_view_mode,
         disable_constant_folding=disable_constant_folding)
 
@@ -163,7 +167,8 @@ def compile_func_to_ir(func, schema, *,
                        anchors=None,
                        security_context=None,
                        modaliases=None,
-                       implicit_id_in_shapes=False):
+                       implicit_id_in_shapes=False,
+                       implicit_tid_in_shapes=False):
     """Compile an EdgeQL function into EdgeDB IR."""
 
     if debug.flags.edgeql_compile:
@@ -222,7 +227,8 @@ def compile_func_to_ir(func, schema, *,
     ir = compile_ast_to_ir(
         tree, schema, anchors=anchors, func=func,
         security_context=security_context, modaliases=modaliases,
-        implicit_id_in_shapes=implicit_id_in_shapes)
+        implicit_id_in_shapes=implicit_id_in_shapes,
+        implicit_tid_in_shapes=implicit_tid_in_shapes)
 
     return ir
 

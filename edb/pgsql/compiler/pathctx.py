@@ -26,6 +26,7 @@ import typing
 from edb.common import enum as s_enum
 
 from edb.ir import ast as irast
+from edb.ir import typeutils as irtyputils
 
 from edb.schema import pointers as s_pointers
 
@@ -122,6 +123,14 @@ def get_path_var(
             src_path_id = path_id
         else:
             src_path_id = path_id.src_path()
+            if irtyputils.is_id_ptrref(ptrref):
+                src_rptr = src_path_id.rptr()
+                if src_rptr is not None:
+                    src_ptr_info = pg_types.get_ptrref_storage_info(
+                        src_rptr, resolve_type=False, link_bias=False)
+                    if src_ptr_info.table_type == 'ObjectType':
+                        src_path_id = src_path_id.src_path()
+                        ptr_info = src_ptr_info
 
     else:
         ptr_info = None
@@ -644,8 +653,9 @@ def _get_rel_path_output(
             raise ValueError(
                 f'could not resolve trailing pointer class for {path_id}')
 
-        ptr_info = pg_types.get_ptrref_storage_info(
-            ptrref, resolve_type=False, link_bias=False)
+        if ptr_info is None:
+            ptr_info = pg_types.get_ptrref_storage_info(
+                ptrref, resolve_type=False, link_bias=False)
 
         result = pgast.ColumnRef(
             name=[ptr_info.column_name],

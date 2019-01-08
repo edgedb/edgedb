@@ -316,3 +316,8 @@ def ptrcls_from_ptrref(
         ptrcls = schema.get_by_id(ptrref.id)
 
     return ptrcls
+
+
+def is_id_ptrref(
+        ptrref: irast.BasePointerRef):
+    return ptrref.shortname == 'std::id'

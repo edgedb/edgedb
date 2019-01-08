@@ -654,6 +654,14 @@ def process_set_as_path(
         not (is_linkprop or is_scalar_ref)
     )
 
+    source_rptr = ir_source.rptr
+    if irtyputils.is_id_ptrref(ptrref) and source_rptr is not None:
+        source_ptr_info = pg_types.get_ptrref_storage_info(
+            source_rptr.ptrref, resolve_type=False, link_bias=False)
+        is_id_ref_to_inline_source = source_ptr_info.table_type == 'ObjectType'
+    else:
+        is_id_ref_to_inline_source = False
+
     if semi_join:
         with ctx.subrel() as srcctx:
             srcctx.expr_exposed = False
@@ -661,6 +669,10 @@ def process_set_as_path(
             set_rvar = relctx.semi_join(stmt, ir_set, src_rvar, ctx=srcctx)
             rvars.append(SetRVar(set_rvar, ir_set.path_id,
                                  ['value', 'source']))
+
+    elif is_id_ref_to_inline_source:
+        ir_source = ir_source.rptr.source
+        src_rvar = get_set_rvar(ir_source, ctx=ctx)
 
     elif not source_is_visible:
         with ctx.subrel() as srcctx:
@@ -696,6 +708,13 @@ def process_set_as_path(
         srvars = process_set_as_link_property_ref(ir_set, stmt, ctx=ctx)
         main_rvar = srvars.main
         rvars.extend(srvars.new)
+
+    elif is_id_ref_to_inline_source:
+        main_rvar = SetRVar(
+            relctx.ensure_source_rvar(ir_source, stmt, ctx=ctx),
+            path_id=ir_set.path_id,
+            aspects=['value']
+        )
 
     elif is_inline_scalar_ref:
         main_rvar = SetRVar(
