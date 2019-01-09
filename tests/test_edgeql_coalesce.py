@@ -873,6 +873,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                 number,
                 time_spent_log := (
                     SELECT x := (Issue.time_spent_log ?? DUMMY) {
+                        id,
                         spent_time
                     }
                     ORDER BY x.spent_time
@@ -966,6 +967,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                 ??
                 DUMMY
             ) {
+                id,
                 spent_time
             };
         ''', [
@@ -984,6 +986,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                     FILTER Issue.status.name = 'Open'
                 )
             SELECT (I.time_spent_log ?? DUMMY) {
+                id,
                 spent_time
             };
         ''', [

@@ -711,6 +711,14 @@ def _get_path_output(
     if result is not None:
         return result
 
+    rptr = path_id.rptr()
+    if rptr is not None and irtyputils.is_id_ptrref(rptr):
+        src_path_id = path_id.src_path()
+        id_output = rel.path_outputs.get((src_path_id, 'value'))
+        if id_output is not None:
+            rel.path_outputs[path_id, aspect] = id_output
+            return id_output
+
     if is_terminal_relation(rel):
         return _get_rel_path_output(rel, path_id, aspect=aspect,
                                     ptr_info=ptr_info, env=env)
