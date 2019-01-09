@@ -204,3 +204,25 @@ def get_source_context_as_json(
         details = None
 
     return details
+
+
+def is_type_indirection_reference(ir_expr):
+    if not isinstance(ir_expr, irast.Set):
+        return False
+
+    rptr = ir_expr.rptr
+    if rptr is None:
+        return False
+
+    ir_source = rptr.source
+
+    if ir_source.path_id.is_type_indirection_path():
+        source_is_type_indirection = True
+    elif ir_source.expr is not None:
+        src_expr_path_id = ir_source.expr.result.path_id.src_path()
+        source_is_type_indirection = (
+            src_expr_path_id and src_expr_path_id.is_type_indirection_path())
+    else:
+        source_is_type_indirection = False
+
+    return source_is_type_indirection

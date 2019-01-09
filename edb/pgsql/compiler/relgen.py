@@ -655,7 +655,16 @@ def process_set_as_path(
     )
 
     source_rptr = ir_source.rptr
-    if irtyputils.is_id_ptrref(ptrref) and source_rptr is not None:
+    if (irtyputils.is_id_ptrref(ptrref) and source_rptr is not None
+            and not irutils.is_type_indirection_reference(ir_set)):
+        # When there is a reference to the id property of
+        # an object which is linked to by a link stored
+        # inline, we want to route the reference to the
+        # inline attribute.  For example,
+        # Foo.__type__.id gets resolved to the Foo.__type__
+        # column.  However, this optimization must not be
+        # applied if the source is a type indirection, e.g
+        # __type__[IS Array].id.
         source_ptr_info = pg_types.get_ptrref_storage_info(
             source_rptr.ptrref, resolve_type=False, link_bias=False)
         is_id_ref_to_inline_source = source_ptr_info.table_type == 'ObjectType'

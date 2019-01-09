@@ -1361,7 +1361,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH
                 MODULE test,
                 Obj := (SELECT Issue UNION Comment)
-            SELECT Obj[IS Text] { body }
+            SELECT Obj[IS Text] { id, body }
             ORDER BY Obj[IS Text].body;
         ''')
 

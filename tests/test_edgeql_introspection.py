@@ -341,6 +341,7 @@ class TestIntrospection(tb.QueryTestCase):
                     type: {
                         name,
                         [IS schema::Array].element_type: {
+                            id,
                             name
                         }
                     }
