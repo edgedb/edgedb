@@ -272,6 +272,7 @@ class IntrospectionMech:
                 'from_expr': row['from_expr'],
                 'force_return_cast': row['force_return_cast'],
                 'code': row['code'],
+                'recursive': row['recursive'],
                 'return_type': self.unpack_typeref(row['return_type'], schema)
             }
 

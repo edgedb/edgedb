@@ -80,50 +80,61 @@ std::array_get(
 
 
 CREATE INFIX OPERATOR
-std::`=` (l: array<anytype>, r: array<anytype>) -> std::bool
+std::`=` (l: array<anytype>, r: array<anytype>) -> std::bool {
     FROM SQL OPERATOR '=';
+    SET recursive := true;
+};
 
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL array<anytype>,
-           r: OPTIONAL array<anytype>) -> std::bool
+           r: OPTIONAL array<anytype>) -> std::bool {
     FROM SQL EXPRESSION;
+    SET recursive := true;
+};
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: array<anytype>, r: array<anytype>) -> std::bool
+std::`!=` (l: array<anytype>, r: array<anytype>) -> std::bool {
     FROM SQL OPERATOR '<>';
+    SET recursive := true;
+};
 
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL array<anytype>,
-            r: OPTIONAL array<anytype>) -> std::bool
+            r: OPTIONAL array<anytype>) -> std::bool {
     FROM SQL EXPRESSION;
-
+    SET recursive := true;
+};
 
 CREATE INFIX OPERATOR
 std::`>=` (l: OPTIONAL array<anytype>,
-           r: OPTIONAL array<anytype>) -> std::bool
+           r: OPTIONAL array<anytype>) -> std::bool {
     FROM SQL OPERATOR '>=';
-
+    SET recursive := true;
+};
 
 CREATE INFIX OPERATOR
 std::`>` (l: OPTIONAL array<anytype>,
-          r: OPTIONAL array<anytype>) -> std::bool
+          r: OPTIONAL array<anytype>) -> std::bool {
     FROM SQL OPERATOR '>';
-
+    SET recursive := true;
+};
 
 CREATE INFIX OPERATOR
 std::`<=` (l: OPTIONAL array<anytype>,
-           r: OPTIONAL array<anytype>) -> std::bool
+           r: OPTIONAL array<anytype>) -> std::bool {
     FROM SQL OPERATOR '<=';
-
+    SET recursive := true;
+};
 
 CREATE INFIX OPERATOR
 std::`<` (l: OPTIONAL array<anytype>,
-          r: OPTIONAL array<anytype>) -> std::bool
+          r: OPTIONAL array<anytype>) -> std::bool {
     FROM SQL OPERATOR '<';
-
+    SET recursive := true;
+};
 
 # Concatenation
 CREATE INFIX OPERATOR

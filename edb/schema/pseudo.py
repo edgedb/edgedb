@@ -127,6 +127,9 @@ class AnyTuple(PseudoType):
     def is_anytuple(self):
         return True
 
+    def is_tuple(self):
+        return True
+
     def implicitly_castable_to(self, other: s_types.Type, schema) -> bool:
         return other.is_anytuple()
 
