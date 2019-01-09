@@ -613,29 +613,32 @@ def _get_shape_configuration(
             if source is stype and ptr.is_id_pointer(ctx.env.schema):
                 id_present_in_shape = True
 
-    implicit_id = (
-        # source expression is an object
-        is_objtype and
-        (
-            # shape is unspecified
-            not shape_ptrs or
+    if is_objtype and not id_present_in_shape:
+        view_type = stype.get_view_type(ctx.env.schema)
+        is_mutation = view_type in (s_types.ViewType.Insert,
+                                    s_types.ViewType.Update)
+        is_parent_update = parent_view_type is s_types.ViewType.Update
+
+        implicit_id = (
+            # shape is not specified at all
+            not shape_ptrs
             # implicit ids are always wanted
-            ctx.implicit_id_in_shapes or
+            or (ctx.implicit_id_in_shapes and not is_mutation)
             # we are inside an UPDATE shape and this is
             # an explicit expression (link target update)
-            (parent_view_type == s_types.ViewType.Update and
-             ir_set.expr is not None)
+            or (is_parent_update and ir_set.expr is not None)
         )
-    )
 
-    if implicit_id and not id_present_in_shape:
-        # We want the id in this shape and it's not already there,
-        # so insert it in the first position.
-        for ptr in stype.get_pointers(ctx.env.schema).objects(ctx.env.schema):
-            if ptr.is_id_pointer(ctx.env.schema):
-                ctx.class_shapes[stype].insert(0, ptr)
-                shape_ptrs.insert(0, (ir_set, ptr))
-                break
+        if implicit_id:
+            # We want the id in this shape and it's not already there,
+            # so insert it in the first position.
+            pointers = stype.get_pointers(ctx.env.schema).objects(
+                ctx.env.schema)
+            for ptr in pointers:
+                if ptr.is_id_pointer(ctx.env.schema):
+                    ctx.class_shapes[stype].insert(0, ptr)
+                    shape_ptrs.insert(0, (ir_set, ptr))
+                    break
 
     if (ir_set.typeref is not None
             and irtyputils.is_object(ir_set.typeref)
@@ -710,9 +713,9 @@ def _compile_view_shapes_in_set(
             pathctx.register_set_in_scope(ir_set, ctx=ctx)
 
         stype = setgen.get_set_type(ir_set, ctx=ctx)
-
-        is_mutation = stype.get_view_type(ctx.env.schema) in (
-            s_types.ViewType.Update, s_types.ViewType.Insert)
+        view_type = stype.get_view_type(ctx.env.schema)
+        is_mutation = view_type in (s_types.ViewType.Update,
+                                    s_types.ViewType.Insert)
 
         for path_tip, ptr in shape_ptrs:
             element = setgen.extend_path(
