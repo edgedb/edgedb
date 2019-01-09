@@ -634,7 +634,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_TypeName(self, node):
         parenthesize = (
-            isinstance(node.parent, (edgeql_ast.IsOp, edgeql_ast.TypeOp)) and
+            isinstance(node.parent, (edgeql_ast.IsOp, edgeql_ast.TypeOp,
+                                     edgeql_ast.Introspect)) and
             node.subtypes is not None
         )
         if parenthesize:
@@ -657,6 +658,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('>')
         if parenthesize:
             self.write(')')
+
+    def visit_Introspect(self, node):
+        self.write('INTROSPECT ')
+        self.visit(node.type)
+
+    def visit_TypeOf(self, node):
+        self.write('TYPEOF ')
+        self.visit(node.expr)
 
     # DDL nodes
 

@@ -282,20 +282,23 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
 
     async def test_edgeql_calls_10(self):
         await self.assert_query_result(r'''
-            SELECT sum({1, 2, 3}).__type__.name;
-            SELECT sum({<int32>1, 2, 3}).__type__.name;
-            SELECT sum({<float32>1, 2, 3}).__type__.name;
+            SELECT (INTROSPECT TYPEOF sum({1, 2, 3})).name;
+            SELECT (INTROSPECT TYPEOF sum({<int32>1, 2, 3})).name;
+            SELECT (INTROSPECT TYPEOF sum({<float32>1, 2, 3})).name;
 
-            SELECT sum({<float32>1, <int32>2, 3}).__type__.name;
-            SELECT sum({<int16>1, <int32>2, <decimal>3}).__type__.name;
+            SELECT (INTROSPECT TYPEOF sum({<float32>1, <int32>2, 3})).name;
+            SELECT (INTROSPECT TYPEOF
+                        sum({<int16>1, <int32>2, <decimal>3})).name;
 
-            SELECT sum({<int16>1, 2, <decimal>3}).__type__.name;
-            SELECT sum({1, <float32>2.1, <float64>3}).__type__.name;
-            SELECT sum({1.1, 2.2, 3.3}).__type__.name;
+            SELECT (INTROSPECT TYPEOF sum({<int16>1, 2, <decimal>3})).name;
+            SELECT (INTROSPECT TYPEOF sum({1, <float32>2.1, <float64>3})).name;
+            SELECT (INTROSPECT TYPEOF sum({1.1, 2.2, 3.3})).name;
 
-            SELECT sum({<float32>1, <int32>2, <float32>3}).__type__.name;
-            SELECT sum({<float32>1, <float32>2, <float32>3}).__type__.name;
-            SELECT sum({1.1, 2.2, 3}).__type__.name;
+            SELECT (INTROSPECT TYPEOF
+                        sum({<float32>1, <int32>2, <float32>3})).name;
+            SELECT (INTROSPECT TYPEOF
+                        sum({<float32>1, <float32>2, <float32>3})).name;
+            SELECT (INTROSPECT TYPEOF sum({1.1, 2.2, 3})).name;
         ''', [
             {'std::int64'},
             {'std::int64'},

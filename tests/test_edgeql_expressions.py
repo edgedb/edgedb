@@ -251,12 +251,12 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_literals_01(self):
         await self.assert_query_result(r"""
-            SELECT (1).__type__.name;
-            SELECT (1.0).__type__.name;
-            SELECT (9223372036854775807).__type__.name;
-            SELECT (-9223372036854775808).__type__.name;
-            SELECT (9223372036854775808).__type__.name;
-            SELECT (-9223372036854775809).__type__.name;
+            SELECT (INTROSPECT TYPEOF 1).name;
+            SELECT (INTROSPECT TYPEOF 1.0).name;
+            SELECT (INTROSPECT TYPEOF 9223372036854775807).name;
+            SELECT (INTROSPECT TYPEOF -9223372036854775808).name;
+            SELECT (INTROSPECT TYPEOF 9223372036854775808).name;
+            SELECT (INTROSPECT TYPEOF -9223372036854775809).name;
         """, [
             {'std::int64'},
             {'std::float64'},
@@ -315,9 +315,9 @@ class TestExpressions(tb.QueryTestCase):
             SELECT 0.2 / -1;
             SELECT 5 // 2;
             SELECT 5.5 // 1.2;
-            SELECT (5.5 // 1.2).__type__.name;
+            SELECT (INTROSPECT TYPEOF (5.5 // 1.2)).name;
             SELECT -9.6 // 2;
-            SELECT (<float32>-9.6 // 2).__type__.name;
+            SELECT (INTROSPECT TYPEOF (<float32>-9.6 // 2)).name;
         """, [
             [-3],
             [False],
@@ -1683,16 +1683,16 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_implicit_cast_01(self):
         await self.assert_query_result(r"""
-            SELECT (<int32>1 + 3).__type__.name;
-            SELECT (<int16>1 + 3).__type__.name;
-            SELECT (<int16>1 + <int32>3).__type__.name;
-            SELECT (1 + <float32>3.1).__type__.name;
-            SELECT (<int16>1 + <float32>3.1).__type__.name;
-            SELECT (<int16>1 + <float64>3.1).__type__.name;
-            SELECT {1, <float32>2.1}.__type__.name;
-            SELECT {1, 2.1}.__type__.name;
-            SELECT (-2.1).__type__.name;
-            SELECT {1, <decimal>2.1}.__type__.name;
+            SELECT (INTROSPECT TYPEOF(<int32>1 + 3)).name;
+            SELECT (INTROSPECT TYPEOF(<int16>1 + 3)).name;
+            SELECT (INTROSPECT TYPEOF(<int16>1 + <int32>3)).name;
+            SELECT (INTROSPECT TYPEOF(1 + <float32>3.1)).name;
+            SELECT (INTROSPECT TYPEOF(<int16>1 + <float32>3.1)).name;
+            SELECT (INTROSPECT TYPEOF(<int16>1 + <float64>3.1)).name;
+            SELECT (INTROSPECT TYPEOF({1, <float32>2.1})).name;
+            SELECT (INTROSPECT TYPEOF({1, 2.1})).name;
+            SELECT (INTROSPECT TYPEOF(-2.1)).name;
+            SELECT (INTROSPECT TYPEOF({1, <decimal>2.1})).name;
         """, [
             ['std::int64'],
             ['std::int64'],
@@ -1711,9 +1711,9 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_implicit_cast_02(self):
         await self.assert_query_result(r"""
-            SELECT (<float32>1 + <float64>2).__type__.name;
-            SELECT (<int32>1 + <float32>2).__type__.name;
-            SELECT (<int64>1 + <float32>2).__type__.name;
+            SELECT (INTROSPECT TYPEOF(<float32>1 + <float64>2)).name;
+            SELECT (INTROSPECT TYPEOF(<int32>1 + <float32>2)).name;
+            SELECT (INTROSPECT TYPEOF(<int64>1 + <float32>2)).name;
         """, [
             ['std::float64'],
             ['std::float64'],
@@ -1725,10 +1725,10 @@ class TestExpressions(tb.QueryTestCase):
         # upcast to the right one even if the right one is never
         # technically evaluated (function not called, etc.)
         await self.assert_query_result(r"""
-            SELECT (3 // 2).__type__.name;
-            SELECT ((3 // 2) ?? <float64>{}).__type__.name;
-            SELECT (3 / 2 ?? <decimal>{}).__type__.name;
-            SELECT (3 // 2 ?? sum({1, 2.0})).__type__.name;
+            SELECT (INTROSPECT TYPEOF(3 // 2)).name;
+            SELECT (INTROSPECT TYPEOF((3 // 2) ?? <float64>{})).name;
+            SELECT (INTROSPECT TYPEOF(3 / 2 ?? <decimal>{})).name;
+            SELECT (INTROSPECT TYPEOF(3 // 2 ?? sum({1, 2.0}))).name;
         """, [
             ['std::int64'],
             ['std::float64'],
@@ -1822,19 +1822,55 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT {1.0, <decimal>2.0};
             ''')
 
-    async def test_edgeql_expr_type_01(self):
+    async def test_edgeql_expr_introspect_01(self):
         await self.assert_query_result(r"""
-            SELECT 'foo'.__type__.name;
+            SELECT (INTROSPECT TYPEOF 'foo').name;
         """, [
             ['std::str'],
         ])
 
-    async def test_edgeql_expr_type_02(self):
+    async def test_edgeql_expr_introspect_02(self):
         await self.assert_query_result(r"""
-            SELECT (1.0 + 2).__type__.name;
+            SELECT (INTROSPECT std::float64).name;
         """, [
             ['std::float64'],
         ])
+
+    async def test_edgeql_expr_introspect_03(self):
+        await self.assert_query_result(r"""
+            SELECT (INTROSPECT TYPEOF schema::ObjectType).name;
+        """, [
+            ['schema::ObjectType'],
+        ])
+
+    async def test_edgeql_expr_introspect_04(self):
+        await self.assert_query_result(r"""
+            WITH A := {1.0, 2.0}
+            SELECT (count(A), (INTROSPECT TYPEOF A).name);
+        """, [
+            [[2, 'std::float64']],
+        ])
+
+    async def test_edgeql_expr_introspect_bad_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'cannot introspect collection types'):
+            await self.assert_query_result(r"""
+                SELECT (INTROSPECT (tuple<int64>)).name;
+            """, [
+                ['tuple<std::int64>'],
+            ])
+
+    async def test_edgeql_expr_introspect_bad_02(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'cannot introspect views'):
+            await self.assert_query_result(r"""
+                WITH A := (SELECT schema::Type { foo := 'bar' })
+                SELECT 'foo' IN (INTROSPECT A).pointers.name;
+            """, [
+                [True],
+            ])
 
     async def test_edgeql_expr_set_01(self):
         await self.assert_query_result("""

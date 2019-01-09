@@ -35,7 +35,9 @@ from edb.schema import types as s_types
 from edb.edgeql import ast as qlast
 
 from . import context
+from . import dispatch
 from . import schemactx
+from . import setgen
 
 
 def type_to_ql_typeref(t: s_obj.Object, *,
@@ -92,8 +94,15 @@ def _ql_typeexpr_to_ir_typeref(
         ql_t: qlast.TypeExpr, *,
         ctx: context.ContextLevel) -> typing.List[irast.TypeRef]:
 
-    # FIXME: currently this only handles type union
-    if isinstance(ql_t, qlast.TypeOp):
+    if isinstance(ql_t, qlast.TypeOf):
+        with ctx.newscope(fenced=True, temporary=True) as subctx:
+            ir_set = setgen.ensure_set(dispatch.compile(ql_t.expr, ctx=subctx),
+                                       ctx=subctx)
+            stype = setgen.get_set_type(ir_set, ctx=subctx)
+
+        return [irtyputils.type_to_typeref(subctx.env.schema, stype)]
+
+    elif isinstance(ql_t, qlast.TypeOp):
         if ql_t.op == '|':
             return (_ql_typeexpr_to_ir_typeref(ql_t.left, ctx=ctx) +
                     _ql_typeexpr_to_ir_typeref(ql_t.right, ctx=ctx))

@@ -85,6 +85,11 @@ def __infer_typeref(ir, scope_tree, env):
     return ONE
 
 
+@_infer_cardinality.register(irast.TypeIntrospection)
+def __infer_type_introspection(ir, scope_tree, env):
+    return ONE
+
+
 @_infer_cardinality.register(irast.Set)
 def __infer_set(ir, scope_tree, env):
     parent_fence = scope_tree.parent_fence

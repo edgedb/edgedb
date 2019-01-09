@@ -2459,6 +2459,34 @@ aa';
         SELECT ();
         """
 
+    def test_edgeql_syntax_introspect_01(self):
+        """
+        SELECT INTROSPECT std::int64;
+        """
+
+    def test_edgeql_syntax_introspect_02(self):
+        """
+        SELECT INTROSPECT (tuple<str>);
+        """
+
+    def test_edgeql_syntax_introspect_03(self):
+        """
+        SELECT INTROSPECT TYPEOF '1';
+        """
+
+    def test_edgeql_syntax_introspect_04(self):
+        """
+        SELECT INTROSPECT TYPEOF (3 + 2);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected '>'",
+                  line=2, col=38)
+    def test_edgeql_syntax_introspect_05(self):
+        """
+        SELECT INTROSPECT tuple<int64>;
+        """
+
     # DDL
     #
 

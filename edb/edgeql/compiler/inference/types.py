@@ -127,6 +127,21 @@ def __infer_set(ir, env):
     return env.set_types[ir]
 
 
+@_infer_type.register(irast.TypeIntrospection)
+def __infer_type_introspection(ir, env):
+    if irtyputils.is_scalar(ir.typeref):
+        return env.schema.get('schema::ScalarType')
+    elif irtyputils.is_object(ir.typeref):
+        return env.schema.get('schema::ObjectType')
+    elif irtyputils.is_array(ir.typeref):
+        return env.schema.get('schema::Array')
+    elif irtyputils.is_tuple(ir.typeref):
+        return env.schema.get('schema::Tuple')
+    else:
+        raise errors.QueryError(
+            'unexpected type in INTROSPECT', context=ir.context)
+
+
 @_infer_type.register(irast.OperatorCall)
 @_infer_type.register(irast.FunctionCall)
 def __infer_func_call(ir, env):

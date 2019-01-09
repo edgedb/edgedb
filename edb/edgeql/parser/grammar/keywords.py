@@ -104,7 +104,6 @@ future_reserved_keywords = frozenset([
     "global",
     "grant",
     "import",
-    "introspect",
     "listen",
     "load",
     "lock",
@@ -120,7 +119,6 @@ future_reserved_keywords = frozenset([
     "revoke",
     "savepoint",
     "over",
-    "typeof",
     "when",
 ])
 
@@ -152,6 +150,7 @@ reserved_keywords = future_reserved_keywords | frozenset([
     "ilike",
     "in",
     "insert",
+    "introspect",
     "is",
     "like",
     "limit",
@@ -166,6 +165,7 @@ reserved_keywords = future_reserved_keywords | frozenset([
     "set",
     "start",
     "true",
+    "typeof",
     "update",
     "union",
     "variadic",

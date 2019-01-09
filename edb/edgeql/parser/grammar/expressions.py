@@ -1269,7 +1269,9 @@ class TypeName(Nonterm):
         self.val = kids[0].val
 
 
-# This is a type expression without angle brackets or parentheses
+# This is a type expression without angle brackets, so it
+# can be used without parentheses in a context where the
+# angle bracket has a different meaning.
 class TypeExpr(Nonterm):
     def reduce_SimpleTypeName(self, *kids):
         self.val = kids[0].val
@@ -1289,11 +1291,18 @@ class TypeExpr(Nonterm):
                                 right=kids[2].val)
 
 
-# This is a type expression with everything, it is meant to be used
-# inside parentheses or angle brackets.
+# This is a type expression which includes collection types,
+# so it can only be directly used in a context where the
+# angle bracket is unambiguous.
 class FullTypeExpr(Nonterm):
     def reduce_TypeName(self, *kids):
         self.val = kids[0].val
+
+    def reduce_TYPEOF_Expr(self, *kids):
+        self.val = qlast.TypeOf(expr=kids[1].val)
+
+    def reduce_LPAREN_FullTypeExpr_RPAREN(self, *kids):
+        self.val = kids[1].val
 
     def reduce_FullTypeExpr_PIPE_FullTypeExpr(self, *kids):
         self.val = qlast.TypeOp(left=kids[0].val, op='|',

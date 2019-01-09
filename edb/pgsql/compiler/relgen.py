@@ -270,6 +270,10 @@ def _get_set_rvar(
         # Type cast: <foo>expr
         rvars = process_set_as_type_cast(ir_set, stmt, ctx=ctx)
 
+    elif isinstance(ir_set.expr, irast.TypeIntrospection):
+        # INTROSPECT <type-expr>
+        rvars = process_set_as_type_introspection(ir_set, stmt, ctx=ctx)
+
     elif ir_set.expr is not None:
         # All other expressions.
         rvars = process_set_as_expr(ir_set, stmt, ctx=ctx)
@@ -1304,6 +1308,28 @@ def process_set_as_type_cast(
 
     rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
     return new_simple_set_rvar(ir_set, rvar)
+
+
+def process_set_as_type_introspection(
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> SetRVars:
+
+    typeref = ir_set.expr.typeref
+    type_rvar = dbobj.range_for_typeref(ir_set.typeref,
+                                        ir_set.path_id, env=ctx.env)
+    pathctx.put_rvar_path_bond(type_rvar, ir_set.path_id)
+    type_rvar.value_scope.add(ir_set.path_id)
+    clsname = pgast.StringConstant(val=str(typeref.id))
+    nameref = dbobj.get_column(type_rvar, 'id', nullable=False)
+
+    condition = astutils.new_binop(nameref, clsname, op='=')
+    substmt = pgast.SelectStmt()
+    relctx.include_rvar(substmt, type_rvar, ir_set.path_id, ctx=ctx)
+    substmt.where_clause = astutils.extend_binop(
+        substmt.where_clause, condition)
+    set_rvar = relctx.new_rel_rvar(ir_set, substmt, ctx=ctx)
+
+    return new_simple_set_rvar(ir_set, set_rvar, ['value', 'source'])
 
 
 def process_set_as_expr(

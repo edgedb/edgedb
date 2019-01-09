@@ -38,8 +38,11 @@ heterogeneous data.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT ('foo', 42).__type__.name;
-        {"std::tuple<std::str, std::int64>"}
+        db> SELECT ('foo', 42);
+        {('foo', 42)}
+
+        db> SELECT (INTROSPECT TYPEOF ('foo', 42)).name;
+        {"tuple<std::str, std::int64>"}
 
     Two tuples are equal if all of their elements are equal and in the same
     order.  Note that element names in named tuples are not significant for
@@ -75,5 +78,8 @@ heterogeneous data.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT [1, 2].__type__;
-        {"std::array<std::int64>"}
+        db> SELECT [1, 2];
+        {[1, 2]}
+
+        db> SELECT (INTROSPECT TYPEOF [1, 2]).name;
+        {"array<std::int64>"}

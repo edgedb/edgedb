@@ -29,8 +29,8 @@ A tuple constructor automatically creates a corresponding
 
 .. code-block:: edgeql-repl
 
-    db> SELECT ('foo', 42).__type__.name;
-    std::tuple<std::str, std::int64>
+    db> SELECT (INTROSPECT TYPEOF ('foo', 42)).name;
+    tuple<std::str, std::int64>
 
 
 .. _ref_eql_expr_tuple_elref:

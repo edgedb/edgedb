@@ -292,6 +292,11 @@ class TypeIndirectionPointer(Pointer):
     optional: bool
 
 
+class TypeIntrospection(Base):
+
+    typeref: TypeRef
+
+
 class Set(Base):
 
     path_id: PathId

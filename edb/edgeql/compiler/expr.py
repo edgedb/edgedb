@@ -535,6 +535,30 @@ def compile_TypeFilter(
     return setgen.class_indirection_set(arg, typ, optional=False, ctx=ctx)
 
 
+@dispatch.compile.register(qlast.Introspect)
+def compile_Introspect(
+        expr: qlast.Introspect, *, ctx: context.ContextLevel) -> irast.Base:
+
+    typeref = typegen.ql_typeref_to_ir_typeref(expr.type, ctx=ctx)
+    if typeref.material_type and not irtyputils.is_object(typeref):
+        typeref = typeref.material_type
+
+    if irtyputils.is_view(typeref):
+        raise errors.QueryError(
+            f'cannot introspect views',
+            context=expr.type.context)
+    if irtyputils.is_collection(typeref):
+        raise errors.QueryError(
+            f'cannot introspect collection types',
+            context=expr.type.context)
+    if irtyputils.is_generic(typeref):
+        raise errors.QueryError(
+            f'cannot introspect generic types',
+            context=expr.type.context)
+
+    return irast.TypeIntrospection(typeref=typeref)
+
+
 @dispatch.compile.register(qlast.Indirection)
 def compile_Indirection(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
