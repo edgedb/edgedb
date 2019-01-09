@@ -112,7 +112,10 @@ def compile_cast(
                 ir_set.path_id.is_objtype_path()):
             # JSON casts of objects are special: we want the full shape
             # and not just an identity.
-            viewgen.compile_view_shapes(ir_set, ctx=ctx)
+            with ctx.new() as subctx:
+                subctx.implicit_id_in_shapes = False
+                subctx.implicit_tid_in_shapes = False
+                viewgen.compile_view_shapes(ir_set, ctx=subctx)
 
         return _compile_cast(
             ir_expr, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
