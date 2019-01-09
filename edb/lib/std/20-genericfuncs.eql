@@ -233,40 +233,56 @@ std::find(haystack: array<anytype>, needle: anytype,
 # ----------------------------
 
 CREATE INFIX OPERATOR
-std::`=` (l: anytuple, r: anytuple) -> std::bool
+std::`=` (l: anytuple, r: anytuple) -> std::bool {
     FROM SQL OPERATOR '=';
+    SET recursive := true;
+};
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL anytuple, r: OPTIONAL anytuple) -> std::bool
+std::`?=` (l: OPTIONAL anytuple, r: OPTIONAL anytuple) -> std::bool {
     FROM SQL EXPRESSION;
+    SET recursive := true;
+};
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: anytuple, r: anytuple) -> std::bool
+std::`!=` (l: anytuple, r: anytuple) -> std::bool {
     FROM SQL OPERATOR '<>';
+    SET recursive := true;
+};
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL anytuple, r: OPTIONAL anytuple) -> std::bool
+std::`?!=` (l: OPTIONAL anytuple, r: OPTIONAL anytuple) -> std::bool {
     FROM SQL EXPRESSION;
+    SET recursive := true;
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: anytuple, r: anytuple) -> std::bool
+std::`>=` (l: anytuple, r: anytuple) -> std::bool {
     FROM SQL OPERATOR '>=';
+    SET recursive := true;
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: anytuple, r: anytuple) -> std::bool
+std::`>` (l: anytuple, r: anytuple) -> std::bool {
     FROM SQL OPERATOR '>';
+    SET recursive := true;
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: anytuple, r: anytuple) -> std::bool
+std::`<=` (l: anytuple, r: anytuple) -> std::bool {
     FROM SQL OPERATOR '<=';
+    SET recursive := true;
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: anytuple, r: anytuple) -> std::bool
+std::`<` (l: anytuple, r: anytuple) -> std::bool {
     FROM SQL OPERATOR '<';
+    SET recursive := true;
+};

@@ -28,6 +28,7 @@ from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
 
+from edb.schema import functions as s_func
 from edb.schema import name as sn
 from edb.schema import types as s_types
 
@@ -149,7 +150,8 @@ def compile_operator(
         ctx: context.ContextLevel) -> irast.OperatorCall:
 
     env = ctx.env
-    opers = env.schema.get_operators(op_name, module_aliases=ctx.modaliases)
+    schema = env.schema
+    opers = schema.get_operators(op_name, module_aliases=ctx.modaliases)
 
     if opers is None:
         raise errors.QueryError(
@@ -179,7 +181,66 @@ def compile_operator(
 
         args.append((arg_type, arg_ir))
 
-    matched = polyres.find_callable(opers, args=args, kwargs={}, ctx=ctx)
+    matched = None
+    # Some 2-operand operators are special when their operands are
+    # arrays or tuples.
+    if len(args) == 2:
+        coll_opers = None
+        # If both of the args are arrays or tuples, potentially
+        # compile the operator for them differently than for other
+        # combinations.
+        if args[0][0].is_tuple() and args[1][0].is_tuple():
+            # Out of the candidate operators, find the ones that
+            # correspond to tuples.
+            coll_opers = [op for op in opers
+                          if all(param.get_type(schema).is_tuple() for param
+                                 in op.get_params(schema).objects(schema))]
+
+        elif args[0][0].is_array() and args[1][0].is_array():
+            # Out of the candidate operators, find the ones that
+            # correspond to arrays.
+            coll_opers = [op for op in opers
+                          if all(param.get_type(schema).is_array() for param
+                                 in op.get_params(schema).objects(schema))]
+
+        # Proceed only if we have a special case of collection operators.
+        if coll_opers is not None:
+            # Then check if they are recursive (i.e. validation must be
+            # done recursively for the subtypes). We rely on the fact that
+            # it is forbidden to define an operator that has both
+            # recursive and non-recursive versions.
+            if not coll_opers[0].get_recursive(schema):
+                # The operator is non-recursive, so regular processing
+                # is needed.
+                matched = polyres.find_callable(
+                    coll_opers, args=args, kwargs={}, ctx=ctx)
+
+            else:
+                # Ultimately the operator will be the same, regardless of the
+                # specific operand types, as long as it passed validation, so
+                # we just use the first operand type for the purpose of
+                # finding the callable.
+                matched = polyres.find_callable(
+                    coll_opers,
+                    args=[(args[0][0], args[0][1]), (args[0][0], args[1][1])],
+                    kwargs={}, ctx=ctx)
+
+                # Now that we have an operator, we need to validate that it
+                # can be applied to the tuple or array elements.
+                submatched = validate_recursive_operator(
+                    opers, args[0], args[1], ctx=ctx)
+
+                if len(submatched) != 1:
+                    # This is an error. We want the error message to
+                    # reflect whether no matches were found or too
+                    # many, so we preserve the submatches found for
+                    # this purpose.
+                    matched = submatched
+
+    # No special handling match was necessary, find a normal match.
+    if matched is None:
+        matched = polyres.find_callable(opers, args=args, kwargs={}, ctx=ctx)
+
     if len(matched) == 1:
         matched_call = matched[0]
     else:
@@ -256,6 +317,32 @@ def compile_operator(
     )
 
     return setgen.ensure_set(node, typehint=matched_call.return_type, ctx=ctx)
+
+
+def validate_recursive_operator(
+        opers: typing.Iterable[s_func.CallableObject],
+        larg: typing.Tuple[s_types.Type, irast.Base],
+        rarg: typing.Tuple[s_types.Type, irast.Base], *,
+        ctx: context.ContextLevel) -> typing.List[polyres.BoundCall]:
+
+    matched = []
+
+    # if larg and rarg are tuples or arrays, recurse into their subtypes
+    if (larg[0].is_tuple() and rarg[0].is_tuple() or
+            larg[0].is_array() and rarg[0].is_array()):
+        for rsub, lsub in zip(larg[0].get_subtypes(), rarg[0].get_subtypes()):
+            matched = validate_recursive_operator(
+                opers, (lsub, larg[1]), (rsub, rarg[1]), ctx=ctx)
+            if len(matched) != 1:
+                # this is an error already
+                break
+
+    else:
+        # we just have a pair of non-containers to compare
+        matched = polyres.find_callable(
+            opers, args=[larg, rarg], kwargs={}, ctx=ctx)
+
+    return matched
 
 
 def compile_call_arg(arg: qlast.FuncArg, *,

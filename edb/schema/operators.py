@@ -60,6 +60,9 @@ class Operator(s_func.CallableObject, s_abc.Operator):
     commutator = so.SchemaField(
         so.Object, default=None, compcoef=0.99)
 
+    recursive = so.SchemaField(
+        bool, default=False, compcoef=0.4, introspectable=False)
+
     def get_display_signature(self, schema):
         params = [
             p.get_type(schema).get_displayname(schema)
@@ -162,8 +165,33 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
         shortname = sn.shortname_from_fullname(fullname)
         return_type = self.scls.get_return_type(schema)
         return_typemod = self.scls.get_return_typemod(schema)
+        recursive = self.scls.get_recursive(schema)
 
         get_signature = lambda: f'{shortname}{params.as_str(schema)}'
+
+        # an operator must have operands
+        if len(params) == 0:
+            raise errors.InvalidOperatorDefinitionError(
+                f'cannot create the `{signature}` operator: '
+                f'an operator must have operands',
+                context=self.source_context)
+
+        # We'll need to make sure that there's no mix of recursive and
+        # non-recursive operators being overloaded.
+        all_arrays = all_tuples = True
+        for param in params.objects(schema):
+            ptype = param.get_type(schema)
+            all_arrays = all_arrays and ptype.is_array()
+            all_tuples = all_tuples and ptype.is_tuple()
+
+        # It's illegal to declare an operator as recursive unless all
+        # of its operands are the same basic type of collection.
+        if recursive and not (all_arrays or all_tuples):
+            raise errors.InvalidOperatorDefinitionError(
+                f'cannot create the `{signature}` operator: '
+                f'operands of a recursive operator must either be '
+                f'all arrays or all tuples',
+                context=self.source_context)
 
         for oper in schema.get_operators(shortname, ()):
             oper_return_typemod = oper.get_return_typemod(schema)
@@ -175,6 +203,30 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
                     f'return type {oper_return_typemod.to_edgeql()} '
                     f'{oper.get_return_type(schema).name}',
                     context=self.source_context)
+
+            # Check if there is a recursive/non-recursive operator
+            # overloading.
+            oper_recursive = oper.get_recursive(schema)
+            if recursive != oper_recursive:
+                oper_signature = oper.get_display_signature(schema)
+                oper_all_arrays = oper_all_tuples = True
+                for param in oper.get_params(schema).objects(schema):
+                    ptype = param.get_type(schema)
+                    oper_all_arrays = oper_all_arrays and ptype.is_array()
+                    oper_all_tuples = oper_all_tuples and ptype.is_tuple()
+
+                if (all_arrays == oper_all_arrays and
+                        all_tuples == oper_all_tuples):
+                    new_rec = 'recursive' if recursive else 'non-recursive'
+                    oper_rec = \
+                        'recursive' if oper_recursive else 'non-recursive'
+
+                    raise errors.InvalidOperatorDefinitionError(
+                        f'cannot create the {new_rec} `{signature}` operator: '
+                        f'overloading a {oper_rec} operator '
+                        f'`{oper_signature}` with a {new_rec} one '
+                        f'is not allowed',
+                        context=self.source_context)
 
         return schema
 

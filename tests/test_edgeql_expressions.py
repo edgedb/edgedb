@@ -25,6 +25,7 @@ import unittest
 import edgedb
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class value(typing.NamedTuple):
@@ -1420,6 +1421,294 @@ class TestExpressions(tb.QueryTestCase):
             query = f"""SELECT EXISTS {right};"""
             # this operation should always be valid and True
             await self.assert_query_result(query, [{True}])
+
+    # FIXME: once the arrays and tuples work fully with the following
+    # tests, we can integrate tests of the comparison operators for
+    # them into the _test_boolop. For now it's better to have
+    # non-exhaustive, but simple to view tests of some basic
+    # functionality.
+
+    # The naked scalars should produce the same result as these
+    # scalars wrapped in a tuple or an array. The purpose of the
+    # wrapping test is to make sure that tuples and arrays of
+    # compatible types (like numeric types) can resolve the
+    # comparison operator (e.g. [1] = [1.0]).
+    @test.xfail('''
+        Fails in Postgres:
+        operator does not exist: bigint[] = numeric[]
+    ''')
+    async def test_edgeql_expr_valid_collection_01(self):
+        await self.assert_query_result(r'''
+            SELECT [1] = [<decimal>1];
+        ''', [
+            [True]
+        ])
+
+    @test.xfail('''
+        Fails in Postgres:
+        operator does not exist: double precision[] = numeric[]
+    ''')
+    async def test_edgeql_expr_valid_collection_02(self):
+        await self.assert_query_result(r'''
+            SELECT [1.0] = [<decimal>1];
+        ''', [
+            [True]
+        ])
+
+    async def test_edgeql_expr_valid_collection_03(self):
+        await self.assert_query_result(r'''
+            SELECT (1,) = (<decimal>1,);
+        ''', [
+            [True]
+        ])
+
+    async def test_edgeql_expr_valid_collection_04(self):
+        await self.assert_query_result(r'''
+            SELECT (1.0,) = (<decimal>1,);
+        ''', [
+            [True]
+        ])
+
+    async def test_edgeql_expr_valid_collection_05(self):
+        await self.assert_query_result(r'''
+            SELECT (1, <int32>2, <int16>3, <float32>4, 5.0) =
+                (<decimal>1, <decimal>2, <decimal>3, <decimal>4, <decimal>5);
+        ''', [
+            [True]
+        ])
+
+    @test.xfail('''
+        Fails in Postgres:
+        cannot compare dissimilar column types bigint and numeric at
+        record column 1
+    ''')
+    async def test_edgeql_expr_valid_collection_06(self):
+        await self.assert_query_result('''
+            SELECT
+                [([(1,          )],)] =
+                [([(<decimal>1, )],)];
+        ''', [
+            [True]
+        ])
+
+    @test.xfail('''
+        Fails in Postgres:
+        cannot compare dissimilar column types smallint and numeric at
+        record column 1
+    ''')
+    async def test_edgeql_expr_valid_collection_07(self):
+        await self.assert_query_result(r'''
+            SELECT
+                (1, <int32>2, (
+                    (<int16>3, <float32>4), 5.0)) =
+                (<decimal>1, <decimal>2, (
+                    (<decimal>3, <decimal>4), <decimal>5));
+        ''', [
+            [True]
+        ])
+
+    @test.xfail('''
+        Fails in Postgres:
+        cannot compare dissimilar column types real[] and numeric[] at
+        record column 1
+    ''')
+    async def test_edgeql_expr_valid_collection_08(self):
+        await self.assert_query_result(r'''
+            SELECT
+                (1, <int32>2, (
+                    [<int16>3, <float32>4], 5.0)) =
+                (<decimal>1, <decimal>2, (
+                    [<decimal>3, <decimal>4], <decimal>5));
+        ''', [
+            [True]
+        ])
+
+    # and now the same tests for ?=
+    @test.xfail('''
+        Fails in Postgres:
+        operator does not exist: bigint[] = numeric[]
+    ''')
+    async def test_edgeql_expr_valid_collection_11(self):
+        await self.assert_query_result(r'''
+            SELECT [1] ?= [<decimal>1];
+        ''', [
+            [True]
+        ])
+
+    @test.xfail('''
+        Fails in Postgres:
+        operator does not exist: double precision[] = numeric[]
+    ''')
+    async def test_edgeql_expr_valid_collection_12(self):
+        await self.assert_query_result(r'''
+            SELECT [1.0] ?= [<decimal>1];
+        ''', [
+            [True]
+        ])
+
+    @test.xfail('''
+        Fails in Postgres:
+        each UNION query must have the same number of columns
+    ''')
+    async def test_edgeql_expr_valid_collection_13(self):
+        await self.assert_query_result(r'''
+            SELECT (1,) ?= (<decimal>1,);
+        ''', [
+            [True]
+        ])
+
+    @test.xfail('''
+        Fails in Postgres:
+        each UNION query must have the same number of columns
+    ''')
+    async def test_edgeql_expr_valid_collection_14(self):
+        await self.assert_query_result(r'''
+            SELECT (1.0,) ?= (<decimal>1,);
+        ''', [
+            [True]
+        ])
+
+    @test.xfail('''
+        Fails in Postgres:
+        each UNION query must have the same number of columns
+    ''')
+    async def test_edgeql_expr_valid_collection_15(self):
+        await self.assert_query_result(r'''
+            SELECT (1, <int32>2, <int16>3, <float32>4, 5.0) ?=
+                (<decimal>1, <decimal>2, <decimal>3, <decimal>4, <decimal>5);
+        ''', [
+            [True]
+        ])
+
+    @test.xfail('''
+        Fails in Postgres:
+        cannot compare dissimilar column types bigint and numeric at
+        record column 1
+    ''')
+    async def test_edgeql_expr_valid_collection_16(self):
+        await self.assert_query_result('''
+            SELECT
+                [([(1,          )],)] ?=
+                [([(<decimal>1, )],)];
+        ''', [
+            [True]
+        ])
+
+    @test.xfail('''
+        Fails in Postgres:
+        each UNION query must have the same number of columns
+    ''')
+    async def test_edgeql_expr_valid_collection_17(self):
+        await self.assert_query_result(r'''
+            SELECT
+                (1, <int32>2, (
+                    (<int16>3, <float32>4), 5.0)) ?=
+                (<decimal>1, <decimal>2, (
+                    (<decimal>3, <decimal>4), <decimal>5));
+        ''', [
+            [True]
+        ])
+
+    @test.xfail('''
+        Fails in Postgres:
+        each UNION query must have the same number of columns
+    ''')
+    async def test_edgeql_expr_valid_collection_18(self):
+        await self.assert_query_result(r'''
+            SELECT
+                (1, <int32>2, (
+                    [<int16>3, <float32>4], 5.0)) ?=
+                (<decimal>1, <decimal>2, (
+                    [<decimal>3, <decimal>4], <decimal>5));
+        ''', [
+            [True]
+        ])
+
+    # and now the same tests for IN
+    @test.xfail('''
+        Fails in Postgres:
+        operator does not exist: bigint[] = numeric[]
+    ''')
+    async def test_edgeql_expr_valid_collection_21(self):
+        await self.assert_query_result(r'''
+            SELECT [1] IN [<decimal>1];
+        ''', [
+            [True]
+        ])
+
+    @test.xfail('''
+        Fails in Postgres:
+        operator does not exist: double precision[] = numeric[]
+    ''')
+    async def test_edgeql_expr_valid_collection_22(self):
+        await self.assert_query_result(r'''
+            SELECT [1.0] IN [<decimal>1];
+        ''', [
+            [True]
+        ])
+
+    @test.xfail('No method to generate code for TupleVar')
+    async def test_edgeql_expr_valid_collection_23(self):
+        await self.assert_query_result(r'''
+            SELECT (1,) IN (<decimal>1,);
+        ''', [
+            [True]
+        ])
+
+    @test.xfail('No method to generate code for TupleVar')
+    async def test_edgeql_expr_valid_collection_24(self):
+        await self.assert_query_result(r'''
+            SELECT (1.0,) IN (<decimal>1,);
+        ''', [
+            [True]
+        ])
+
+    @test.xfail('No method to generate code for TupleVar')
+    async def test_edgeql_expr_valid_collection_25(self):
+        await self.assert_query_result(r'''
+            SELECT (1, <int32>2, <int16>3, <float32>4, 5.0) IN
+                (<decimal>1, <decimal>2, <decimal>3, <decimal>4, <decimal>5);
+        ''', [
+            [True]
+        ])
+
+    @test.xfail('No method to generate code for TupleVar')
+    async def test_edgeql_expr_valid_collection_26(self):
+        await self.assert_query_result('''
+            SELECT
+                [([(1,          )],)] IN
+                [([(<decimal>1, )],)];
+        ''', [
+            [True]
+        ])
+
+    @test.xfail('''
+        Fails in Postgres:
+        cannot compare dissimilar column types smallint and numeric at
+        record column 1
+    ''')
+    async def test_edgeql_expr_valid_collection_27(self):
+        await self.assert_query_result(r'''
+            SELECT
+                (1, <int32>2, (
+                    (<int16>3, <float32>4), 5.0)) IN
+                (<decimal>1, <decimal>2, (
+                    (<decimal>3, <decimal>4), <decimal>5));
+        ''', [
+            [True]
+        ])
+
+    @test.xfail('No method to generate code for TupleVar')
+    async def test_edgeql_expr_valid_collection_28(self):
+        await self.assert_query_result(r'''
+            SELECT
+                (1, <int32>2, (
+                    [<int16>3, <float32>4], 5.0)) IN
+                (<decimal>1, <decimal>2, (
+                    [<decimal>3, <decimal>4], <decimal>5));
+        ''', [
+            [True]
+        ])
 
     async def test_edgeql_expr_bytes_op_01(self):
         await self.assert_query_result(r'''

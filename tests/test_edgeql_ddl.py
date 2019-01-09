@@ -1164,6 +1164,88 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     (operand: int64);
             ''')
 
+    async def test_edgeql_ddl_operator_03(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidOperatorDefinitionError,
+                r'cannot create the `test::NOT\(\)` operator: '
+                r'an operator must have operands'):
+            await self.query('''
+                CREATE PREFIX OPERATOR test::`NOT`() -> bool
+                    FROM SQL EXPRESSION;
+            ''')
+
+    async def test_edgeql_ddl_operator_04(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidOperatorDefinitionError,
+                r'cannot create the '
+                r'`test::=\(l: std::array<anytype>, r: std::str\)` operator: '
+                r'operands of a recursive operator must either be '
+                r'all arrays or all tuples'):
+            await self.query('''
+                CREATE INFIX OPERATOR
+                test::`=` (l: array<anytype>, r: str) -> std::bool {
+                    FROM SQL EXPRESSION;
+                    SET recursive := true;
+                };
+            ''')
+
+    async def test_edgeql_ddl_operator_05(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidOperatorDefinitionError,
+                r'cannot create the '
+                r'`test::=\(l: std::array<anytype>, r: anytuple\)` operator: '
+                r'operands of a recursive operator must either be '
+                r'all arrays or all tuples'):
+            await self.query('''
+                CREATE INFIX OPERATOR
+                test::`=` (l: array<anytype>, r: anytuple) -> std::bool {
+                    FROM SQL EXPRESSION;
+                    SET recursive := true;
+                };
+            ''')
+
+    async def test_edgeql_ddl_operator_06(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidOperatorDefinitionError,
+                r'cannot create the non-recursive '
+                r'`std::=\(l: std::array<std::int64>, '
+                r'r: std::array<std::int64>\)` operator: '
+                r'overloading a recursive operator '
+                r'`array<anytype> = array<anytype>` with a non-recursive one '
+                r'is not allowed'):
+            # attempt to overload a recursive `=` from std with a
+            # non-recursive version
+            await self.query('''
+                CREATE INFIX OPERATOR
+                std::`=` (l: array<int64>, r: array<int64>) -> std::bool {
+                    FROM SQL EXPRESSION;
+                };
+            ''')
+
+    async def test_edgeql_ddl_operator_07(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidOperatorDefinitionError,
+                r'cannot create the recursive '
+                r'`test::=\(l: std::array<std::int64>, '
+                r'r: std::array<std::int64>\)` operator: '
+                r'overloading a non-recursive operator '
+                r'`array<anytype> = array<anytype>` with a recursive one '
+                r'is not allowed'):
+            # create 2 operators in test: non-recursive first, then a
+            # recursive one
+            await self.query('''
+                CREATE INFIX OPERATOR
+                test::`=` (l: array<anytype>, r: array<anytype>) -> std::bool {
+                    FROM SQL EXPRESSION;
+                };
+
+                CREATE INFIX OPERATOR
+                test::`=` (l: array<int64>, r: array<int64>) -> std::bool {
+                    FROM SQL EXPRESSION;
+                    SET recursive := true;
+                };
+            ''')
+
     async def test_edgeql_ddl_cast_01(self):
         await self.query('''
             CREATE SCALAR TYPE test::type_a EXTENDING std::str;
