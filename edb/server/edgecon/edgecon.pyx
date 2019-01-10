@@ -214,8 +214,8 @@ cdef class EdgeConnection:
 
         lang = self.buffer.read_byte()
         graphql = lang == b'g'
-
         eql = self.buffer.read_null_str()
+        self.buffer.finish_message()
         if not eql:
             raise errors.BinaryProtocolError('empty query')
 
@@ -256,6 +256,46 @@ cdef class EdgeConnection:
 
         packet = WriteBuffer.new()
         packet.write_buffer(msg.end_message())
+        packet.write_buffer(self.pgcon_last_sync_status())
+        self.write(packet)
+        self.flush()
+
+    async def simple_query(self):
+        cdef:
+            WriteBuffer msg
+            WriteBuffer packet
+
+        eql = self.buffer.read_null_str()
+        self.buffer.finish_message()
+        if not eql:
+            raise errors.BinaryProtocolError('empty query')
+
+        units = await self._compile_script(eql, False, False, False)
+
+        for unit in units:
+            self.dbview.start(unit)
+            if unit.sql:
+                try:
+                    await self.backend.pgcon.simple_query(
+                        unit.sql, ignore_data=True)
+                except Exception as ex:
+                    self.dbview.on_error(unit)
+                    if not self.backend.pgcon.in_tx():
+                        # COMMIT command can fail, in which case the
+                        # transaction is finished.  This check workarounds
+                        # that (until a better solution is found.)
+                        self.dbview._new_tx_state()
+                    raise
+                else:
+                    self.dbview.on_success(unit)
+
+            else:
+                # SET command or something else that doesn't involve
+                # executing SQL.
+                self.dbview.on_success(unit)
+
+        packet = WriteBuffer.new()
+        packet.write_buffer(WriteBuffer.new_message(b'C').end_message())
         packet.write_buffer(self.pgcon_last_sync_status())
         self.write(packet)
         self.flush()
@@ -569,6 +609,10 @@ cdef class EdgeConnection:
 
                     elif mtype == b'O':
                         await self.opportunistic_execute()
+
+                    elif mtype == b'Q':
+                        flush_sync_on_error = True
+                        await self.simple_query()
 
                     elif mtype == b'S':
                         await self.sync()
