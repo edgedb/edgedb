@@ -66,6 +66,7 @@ cdef class EdgeConnection:
 
     cdef write(self, WriteBuffer buf)
     cdef flush(self)
+    cdef abort(self)
 
     cdef fallthrough(self, bint ignore_unhandled)
 

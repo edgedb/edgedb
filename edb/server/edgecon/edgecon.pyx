@@ -88,7 +88,18 @@ cdef class EdgeConnection:
         else:
             self._write_buf = buf
 
+    cdef abort(self):
+        self._con_status = EDGECON_BAD
+        if self._transport is None:
+            return
+        self._transport.abort()
+        self._transport = None
+
     cdef flush(self):
+        if self._transport is None:
+            # could be if the connection is lost and a coroutine
+            # method is finalizing.
+            raise ConnectionAbortedError
         if self._write_buf is not None and self._write_buf.len():
             buf = self._write_buf
             self._write_buf = None
@@ -524,7 +535,7 @@ cdef class EdgeConnection:
             await self.auth()
         except Exception as ex:
             await self.write_error(ex)
-            self._transport.abort()
+            self.abort()
 
             self.loop.call_exception_handler({
                 'message': (
@@ -544,7 +555,7 @@ cdef class EdgeConnection:
                     await self.wait_for_message()
                 mtype = self.buffer.get_message_type()
 
-                legacy_mode = False
+                flush_sync_on_error = False
 
                 try:
                     if mtype == b'P':
@@ -563,12 +574,15 @@ cdef class EdgeConnection:
                         await self.sync()
 
                     elif mtype == b'L':
-                        legacy_mode = True
+                        flush_sync_on_error = True
                         await self.legacy()
                         self.flush()
 
                     else:
                         self.fallthrough(False)
+
+                except ConnectionAbortedError:
+                    raise
 
                 except Exception as ex:
                     self.dbview.tx_error()
@@ -576,7 +590,7 @@ cdef class EdgeConnection:
 
                     await self.write_error(ex)
 
-                    if legacy_mode:
+                    if flush_sync_on_error:
                         self.write(self.pgcon_last_sync_status())
                         self.flush()
                     else:
@@ -604,7 +618,7 @@ cdef class EdgeConnection:
                 'task': self._main_task,
             })
 
-            self._transport.abort()
+            self.abort()
 
     async def recover_from_error(self):
         # Consume all messages until sync.
