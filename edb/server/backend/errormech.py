@@ -42,6 +42,8 @@ class PGError(enum.Enum):
 
     NumericValueOutOfRange = '22003'
 
+    DivisionByZeroError = '22012'
+
 
 constraint_errors = frozenset({
     PGError.IntegrityConstraintViolationError,
@@ -173,5 +175,8 @@ def interpret_backend_error(schema, fields):
 
     elif code == PGError.NumericValueOutOfRange:
         return errors.NumericOutOfRangeError(message)
+
+    elif code == PGError.DivisionByZeroError:
+        return errors.DivisionByZeroError(message)
 
     return errors.InternalServerError(message)
