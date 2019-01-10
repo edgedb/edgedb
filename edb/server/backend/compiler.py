@@ -208,10 +208,16 @@ class Compiler:
 
         current_tx = ctx.state.current_tx()
         config = current_tx.get_config()
+
         native_out_format = (
             ctx.output_format is pg_compiler.OutputFormat.NATIVE
         )
-        implicit_fields = native_out_format and not ctx.legacy_mode
+
+        implicit_fields = (
+            native_out_format and
+            not ctx.legacy_mode and
+            ctx.single_query_mode
+        )
 
         disable_constant_folding = config.get(
             '__internal_no_const_folding', False)
@@ -536,24 +542,22 @@ class Compiler:
                     unit.sql = comp.sql
                     unit.sql_hash = comp.sql_hash
 
-                    unit.ignore_out_data = False
-
                     unit.out_type_data = comp.out_type_data
                     unit.out_type_id = comp.out_type_id
                     unit.in_type_data = comp.in_type_data
                     unit.in_type_id = comp.in_type_id
                 else:
-                    unit.sql += comp.sql
+                    unit.sql += comp.sql + b';'
 
             elif isinstance(comp, dbstate.SimpleQuery):
-                unit.sql += comp.sql
+                unit.sql += comp.sql + b';'
 
             elif isinstance(comp, dbstate.DDLQuery):
-                unit.sql += comp.sql
+                unit.sql += comp.sql + b';'
                 unit.has_ddl = True
 
             elif isinstance(comp, dbstate.TxControlQuery):
-                unit.sql += comp.sql
+                unit.sql += comp.sql + b';'
 
                 if comp.action == dbstate.TxAction.START:
                     unit.starts_tx = True
