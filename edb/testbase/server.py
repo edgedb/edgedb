@@ -252,16 +252,15 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     def setUp(self):
         if self.INTERNAL_TESTMODE:
             self.loop.run_until_complete(
-                self.con._legacy_execute(
-                    'SET CONFIG __internal_testmode := true;'))
+                self.con.execute('SET CONFIG __internal_testmode := true;'))
 
         if self.ISOLATED_METHODS:
             self.loop.run_until_complete(
-                self.con._legacy_execute('START TRANSACTION;'))
+                self.con.execute('START TRANSACTION;'))
 
         if self.SETUP_METHOD:
             self.loop.run_until_complete(
-                self.con._legacy_execute(self.SETUP_METHOD))
+                self.con.execute(self.SETUP_METHOD))
 
         super().setUp()
 
@@ -269,12 +268,12 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         try:
             if self.TEARDOWN_METHOD:
                 self.loop.run_until_complete(
-                    self.con._legacy_execute(self.TEARDOWN_METHOD))
+                    self.con.execute(self.TEARDOWN_METHOD))
         finally:
             try:
                 if self.ISOLATED_METHODS:
                     self.loop.run_until_complete(
-                        self.con._legacy_execute('ROLLBACK;'))
+                        self.con.execute('ROLLBACK;'))
             finally:
                 super().tearDown()
 
@@ -292,14 +291,14 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         if not class_set_up:
             script = f'CREATE DATABASE {dbname};'
             cls.admin_conn = cls.connect(cls.loop, cls.cluster)
-            cls.loop.run_until_complete(cls.admin_conn._legacy_execute(script))
+            cls.loop.run_until_complete(cls.admin_conn.execute(script))
 
         cls.con = cls.connect(cls.loop, cls.cluster, database=dbname)
 
         if not class_set_up:
             script = cls.get_setup_script()
             if script:
-                cls.loop.run_until_complete(cls.con._legacy_execute(script))
+                cls.loop.run_until_complete(cls.con.execute(script))
 
     @classmethod
     def get_database_name(cls):
@@ -364,7 +363,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         try:
             if script:
                 cls.loop.run_until_complete(
-                    cls.con._legacy_execute(script))
+                    cls.con.execute(script))
         finally:
             try:
                 cls.loop.run_until_complete(cls.con.close())
@@ -374,7 +373,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     script = f'DROP DATABASE {dbname};'
 
                     cls.loop.run_until_complete(
-                        cls.admin_conn._legacy_execute(script))
+                        cls.admin_conn.execute(script))
 
             finally:
                 if cls.admin_conn is not None:
@@ -626,13 +625,13 @@ def setup_test_cases(cases, conn, num_jobs):
                 # things faster.)
                 sem = asyncio.BoundedSemaphore(num_jobs)
 
-                async def controller(coro):
+                async def controller(coro, *args):
                     async with sem:
-                        await coro
+                        await coro(*args)
 
                 for case, dbname, setup_script in setup:
                     g.create_task(controller(
-                        _setup_database(dbname, setup_script, conn)))
+                        _setup_database, dbname, setup_script, conn))
 
     return asyncio.run(_run())
 
@@ -642,13 +641,13 @@ async def _setup_database(dbname, setup_script, conn_args):
         database=edgedb_defines.EDGEDB_SUPERUSER_DB, **conn_args)
 
     try:
-        await admin_conn._legacy_execute(f'CREATE DATABASE {dbname};')
+        await admin_conn.execute(f'CREATE DATABASE {dbname};')
     finally:
         await admin_conn.close()
 
     dbconn = await edgedb.connect(database=dbname, **conn_args)
     try:
-        await dbconn._legacy_execute(setup_script)
+        await dbconn.execute(setup_script)
     finally:
         await dbconn.close()
 
