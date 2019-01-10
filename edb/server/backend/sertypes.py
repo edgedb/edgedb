@@ -32,6 +32,13 @@ _uint16_packer = struct.Struct('!H').pack
 _uint8_packer = struct.Struct('!B').pack
 
 
+EMPTY_TUPLE_ID = s_obj.get_known_type_id('empty-tuple').bytes
+EMPTY_TUPLE_DESC = b'\x04' + EMPTY_TUPLE_ID + b'\x00\x00'
+
+NULL_TYPE_ID = b'\x00' * 16
+NULL_TYPE_DESC = b''
+
+
 class TypeSerializer:
 
     EDGE_POINTER_IS_IMPLICIT = 1 << 0

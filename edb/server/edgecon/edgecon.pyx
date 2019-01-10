@@ -40,6 +40,8 @@ from edb.server.pgproto.pgproto cimport (
 from edb.server.pgcon cimport pgcon
 from edb.server.pgcon import errors as pgerror
 
+from edb.schema import objects as s_obj
+
 import asyncio
 
 from edb import errors
@@ -47,6 +49,8 @@ from edb.common import debug
 
 
 DEF FLUSH_BUFFER_AFTER = 100_000
+cdef bytes ZERO_UUID = b'\x00' * 16
+cdef bytes EMPTY_TUPLE_UUID = s_obj.get_known_type_id('empty-tuple').bytes
 
 
 @cython.final

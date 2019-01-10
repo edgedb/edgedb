@@ -26,6 +26,8 @@ import immutables
 
 from edb.schema import schema as s_schema
 
+from . import sertypes
+
 
 class TxAction(enum.IntEnum):
 
@@ -96,10 +98,11 @@ class QueryUnit:
     rollbacks_tx: bool = False
     starts_tx: bool = False
 
-    out_type_data: bytes = b''
-    out_type_id: bytes = b''
-    in_type_data: bytes = b''
-    in_type_id: bytes = b''
+    ignore_out_data: bool = True
+    out_type_data: bytes = sertypes.NULL_TYPE_DESC
+    out_type_id: bytes = sertypes.NULL_TYPE_ID
+    in_type_data: bytes = sertypes.EMPTY_TUPLE_DESC
+    in_type_id: bytes = sertypes.EMPTY_TUPLE_ID
 
     config: typing.Optional[immutables.Map] = None
     modaliases: typing.Optional[immutables.Map] = None
