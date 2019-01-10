@@ -270,7 +270,14 @@ cdef class EdgeConnection:
             compiled = await self._compile(eql, json_mode)
 
         await self.backend.pgcon.parse_execute(
-            1, 0, compiled, self, None, 0, 0)
+            1,          # =parse
+            0,          # =execute
+            compiled,   # =query
+            self,       # =edgecon
+            None,       # =bind_data
+            0,          # =send_sync
+            0,          # =use_prep_stmt
+        )
 
         if not cached and compiled.is_preparable():
             self.dbview.cache_compiled_query(eql, json_mode, compiled)
@@ -333,7 +340,7 @@ cdef class EdgeConnection:
     async def execute(self):
         cdef:
             WriteBuffer bound_args_buf
-            bint send_sync
+            bint process_sync
 
         stmt_name = self.buffer.read_utf8()
         bind_args = self.buffer.consume_message()
@@ -351,45 +358,57 @@ cdef class EdgeConnection:
 
         bound_args_buf = self.recode_bind_args(bind_args)
 
-        send_sync = False
+        process_sync = False
         if self.buffer.take_message_type(b'S'):
             # A "Sync" message follows this "Execute" message;
             # send it right away.
-            send_sync = True
-            self.buffer.finish_message()
+            process_sync = True
 
-        self.dbview.start(compiled)
-        if compiled.sql:
-            try:
-                await self.backend.pgcon.parse_execute(
-                    0, 1, compiled,
-                    self, bound_args_buf,
-                    send_sync, 0)
-            except Exception:
-                self.dbview.on_error(compiled)
-                if not self.backend.pgcon.in_tx():
-                    # COMMIT command can fail, in which case the
-                    # transaction is finished.  This check workarounds
-                    # that (until a better solution is found.)
-                    self.dbview._new_tx_state()
-                raise
+        try:
+            self.dbview.start(compiled)
+            if compiled.sql:
+                try:
+                    await self.backend.pgcon.parse_execute(
+                        0,                  # =parse
+                        1,                  # =execute
+                        compiled,           # =query
+                        self,               # =edgecon
+                        bound_args_buf,     # =bind_data
+                        process_sync,       # =send_sync
+                        0,                  # =use_prep_stmt
+                    )
+                except Exception as ex:
+                    self.dbview.on_error(compiled)
+                    if not self.backend.pgcon.in_tx():
+                        # COMMIT command can fail, in which case the
+                        # transaction is finished.  This check workarounds
+                        # that (until a better solution is found.)
+                        self.dbview._new_tx_state()
+                    raise
+                else:
+                    self.dbview.on_success(compiled)
             else:
+                # SET command or something else that doesn't involve
+                # executing SQL.
                 self.dbview.on_success(compiled)
+
+            self.write(WriteBuffer.new_message(b'C').end_message())
+
+            if process_sync:
+                self.write(self.pgcon_last_sync_status())
+                self.flush()
+        except Exception:
+            if process_sync:
+                self.buffer.put_message()
+            raise
         else:
-            # SET command or something else that doesn't involve
-            # executing SQL.
-            self.dbview.on_success(compiled)
-
-        self.write(WriteBuffer.new_message(b'C').end_message())
-
-        if send_sync:
-            self.write(self.pgcon_last_sync_status())
-            self.flush()
+            if process_sync:
+                self.buffer.finish_message()
 
     async def opportunistic_execute(self):
         cdef:
             WriteBuffer bound_args_buf
-            bint send_sync
+            bint process_sync
             bytes in_tid
             bytes out_tid
             bytes bound_args
@@ -421,18 +440,18 @@ cdef class EdgeConnection:
             if not cached and compiled.is_preparable():
                 self.dbview.cache_compiled_query(query, json_mode, compiled)
 
-            send_sync = False
-            if self.buffer.take_message_type(b'S'):
-                # A "Sync" message follows this "Execute" message;
-                # send it right away.
-                send_sync = True
-                self.buffer.finish_message()
-
             self.dbview.start(compiled)
             if compiled.sql:
                 try:
                     await self.backend.pgcon.parse_execute(
-                        1, 0, compiled, self, None, 0, 0)
+                        1,          # =parse
+                        0,          # =execute
+                        compiled,   # =query
+                        self,       # =edgecon
+                        None,       # =bind_data
+                        0,          # =send_sync
+                        0,          # =use_prep_stmt
+                    )
                 except Exception:
                     self.dbview.on_error(compiled)
                     if not self.backend.pgcon.in_tx():
@@ -447,54 +466,50 @@ cdef class EdgeConnection:
                 self.dbview.on_success(compiled)
 
             self.write(self.make_describe_response(compiled))
-            if send_sync:
-                self.write(self.pgcon_last_sync_status())
-                self.flush()
-
-            while True:
-                if not self.buffer.take_message():
-                    await self.wait_for_message()
-                mtype = self.buffer.get_message_type()
-
-                try:
-                    if mtype == b'E':
-                        await self.execute()
-                        return
-                    else:
-                        self.fallthrough(False)
-                finally:
-                    self.buffer.finish_message()
 
         else:
-            send_sync = False
+            process_sync = False
             if self.buffer.take_message_type(b'S'):
                 # A "Sync" message follows this "Execute" message;
                 # send it right away.
-                send_sync = True
-                self.buffer.finish_message()
+                process_sync = True
 
-            if compiled.sql:
-                try:
-                    await self.backend.pgcon.parse_execute(
-                        1, 1,
-                        compiled, self,
-                        self.recode_bind_args(bound_args),
-                        send_sync, compiled.is_preparable())
-                except Exception:
-                    self.dbview.on_error(compiled)
-                    raise
+            try:
+                if compiled.sql:
+                    try:
+                        await self.backend.pgcon.parse_execute(
+                            1,                          # =parse
+                            1,                          # =execute
+                            compiled,                   # =query
+                            self,                       # =edgecon
+                            self.recode_bind_args(bound_args),  # =bind_data
+                            process_sync,               # =send_sync
+                            compiled.is_preparable()    # =use_prep_stmt
+                        )
+                    except Exception as ex:
+                        self.dbview.on_error(compiled)
+                        raise
+                    else:
+                        self.dbview.on_success(compiled)
                 else:
                     self.dbview.on_success(compiled)
-            else:
-                self.dbview.on_success(compiled)
 
-            if send_sync:
-                self.write(self.pgcon_last_sync_status())
-                self.flush()
+                if process_sync:
+                    self.write(self.pgcon_last_sync_status())
+                    self.flush()
+            except Exception:
+                if process_sync:
+                    self.buffer.put_message()
+                raise
+            else:
+                if process_sync:
+                    self.buffer.finish_message()
 
     async def sync(self):
         cdef:
             WriteBuffer buf
+
+        self.buffer.consume_message()
 
         await self.backend.pgcon.sync()
         self.write(self.pgcon_last_sync_status())
@@ -599,11 +614,11 @@ cdef class EdgeConnection:
                 await self.wait_for_message()
             mtype = self.buffer.get_message_type()
 
-            if mtype == b'Z':
-                self.sync()
+            if mtype == b'S':
+                await self.sync()
                 return
             else:
-                self.fallthrough(True)
+                self.buffer.discard_message()
 
     async def write_error(self, exc):
         cdef:

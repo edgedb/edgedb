@@ -536,6 +536,8 @@ class Compiler:
                     unit.sql = comp.sql
                     unit.sql_hash = comp.sql_hash
 
+                    unit.ignore_out_data = False
+
                     unit.out_type_data = comp.out_type_data
                     unit.out_type_id = comp.out_type_id
                     unit.in_type_data = comp.in_type_data
