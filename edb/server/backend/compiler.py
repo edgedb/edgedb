@@ -505,6 +505,8 @@ class Compiler:
                 ctx.state.current_tx().get_schema(),
                 eql,
                 variables={}) + ';'
+        else:
+            eql += ';'
 
         statements = edgeql.parse_block(eql)
 
