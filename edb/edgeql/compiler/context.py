@@ -20,6 +20,7 @@
 """EdgeQL to IR compiler context."""
 
 import collections
+import dataclasses
 import enum
 import typing
 import uuid
@@ -65,13 +66,10 @@ class ViewRPtr:
         self.is_update = is_update
 
 
+@dataclasses.dataclass
 class StatementMetadata:
-    is_unnest_fence: bool
-    ignore_offset_limit: bool
-
-    def __init__(self, *, is_unnest_fence=False, ignore_offset_limit=False):
-        self.is_unnest_fence = is_unnest_fence
-        self.ignore_offset_limit = ignore_offset_limit
+    is_unnest_fence: bool = False
+    ignore_offset_limit: bool = False
 
 
 class PendingCardinality(typing.NamedTuple):
@@ -107,6 +105,12 @@ class Environment:
     constant_folding: bool
     """Enables constant folding optimization (enabled by default)."""
 
+    view_shapes: typing.Dict[s_types.Type,
+                             typing.List[s_pointers.Pointer]]
+    """Object output or modification shapes."""
+
+    view_shapes_metadata: typing.Dict[s_types.Type, irast.ViewShapeMetadata]
+
     def __init__(self, *, schema, path_scope,
                  schema_view_mode: bool=False,
                  constant_folding: bool=True):
@@ -117,6 +121,9 @@ class Environment:
         self.schema_view_mode = schema_view_mode
         self.set_types = {}
         self.constant_folding = constant_folding
+        self.view_shapes = collections.defaultdict(list)
+        self.view_shapes_metadata = collections.defaultdict(
+            irast.ViewShapeMetadata)
 
 
 class ContextLevel(compiler.ContextLevel):
@@ -192,10 +199,6 @@ class ContextLevel(compiler.ContextLevel):
     view_map: typing.Dict[irast.PathId, irast.Set]
     """Set translation map.  Used for views."""
 
-    class_shapes: typing.Dict[s_types.Type,
-                              typing.List[s_pointers.Pointer]]
-    """Object output or modification shapes."""
-
     completion_work: typing.List[typing.Callable]
     """A list of callbacks to execute when the whole query has been seen."""
 
@@ -269,7 +272,6 @@ class ContextLevel(compiler.ContextLevel):
             self.pending_stmt_own_path_id_namespace = frozenset()
             self.pending_stmt_full_path_id_namespace = frozenset()
             self.view_map = collections.ChainMap()
-            self.class_shapes = collections.defaultdict(list)
             self.path_scope = None
             self.path_scope_is_temp = False
             self.path_scope_map = {}
@@ -307,7 +309,6 @@ class ContextLevel(compiler.ContextLevel):
             self.pending_stmt_full_path_id_namespace = \
                 prevlevel.pending_stmt_full_path_id_namespace
             self.view_map = prevlevel.view_map
-            self.class_shapes = prevlevel.class_shapes
             self.path_scope = prevlevel.path_scope
             self.path_scope_is_temp = prevlevel.path_scope_is_temp
             self.path_scope_map = prevlevel.path_scope_map

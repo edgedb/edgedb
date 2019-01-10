@@ -162,7 +162,8 @@ def fini_expression(
         scope_tree=ctx.path_scope,
         cardinality=cardinality,
         stype=expr_type,
-        view_shapes=ctx.class_shapes,
+        view_shapes=ctx.env.view_shapes,
+        view_shapes_metadata=ctx.env.view_shapes_metadata,
         schema=ctx.env.schema,
     )
     return result

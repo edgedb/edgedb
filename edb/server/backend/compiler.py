@@ -208,6 +208,10 @@ class Compiler:
 
         current_tx = ctx.state.current_tx()
         config = current_tx.get_config()
+        native_out_format = (
+            ctx.output_format is pg_compiler.OutputFormat.NATIVE
+        )
+        implicit_fields = native_out_format and not ctx.legacy_mode
 
         disable_constant_folding = config.get(
             '__internal_no_const_folding', False)
@@ -216,8 +220,8 @@ class Compiler:
             ql,
             schema=current_tx.get_schema(),
             modaliases=current_tx.get_modaliases(),
-            implicit_id_in_shapes=False,
-            implicit_tid_in_shapes=False,
+            implicit_tid_in_shapes=implicit_fields,
+            implicit_id_in_shapes=implicit_fields,
             disable_constant_folding=disable_constant_folding)
 
         sql_text, argmap = pg_compiler.compile_ir_to_sql(
@@ -228,9 +232,10 @@ class Compiler:
         sql_bytes = sql_text.encode(defines.EDGEDB_ENCODING)
 
         if ctx.single_query_mode or ctx.legacy_mode:
-            if ctx.output_format is pg_compiler.OutputFormat.NATIVE:
+            if native_out_format:
                 out_type_data, out_type_id = sertypes.TypeSerializer.describe(
-                    ir.schema, ir.stype, ir.view_shapes)
+                    ir.schema, ir.stype,
+                    ir.view_shapes, ir.view_shapes_metadata)
             else:
                 out_type_data, out_type_id = \
                     sertypes.TypeSerializer.describe_json()
@@ -257,7 +262,7 @@ class Compiler:
                     ir.schema, element_types={}, named=False)
 
             in_type_data, in_type_id = sertypes.TypeSerializer.describe(
-                ir.schema, params_type, {})
+                ir.schema, params_type, {}, {})
 
             sql_hash = self._hash_sql(
                 sql_bytes, mode=str(ctx.output_format).encode())

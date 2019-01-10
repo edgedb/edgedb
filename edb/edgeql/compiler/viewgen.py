@@ -172,7 +172,7 @@ def _process_view(
                     view_rptr, target_scls=view_scls,
                     transparent=True, ctx=ctx)
 
-            ctx.class_shapes[source].append(ptrcls)
+            ctx.env.view_shapes[source].append(ptrcls)
 
     if (view_rptr is not None and view_rptr.derived_ptrcls is not None and
             view_scls is not stype):
@@ -551,7 +551,7 @@ def _link_has_shape(
 
     for p in ptrcls.get_pointers(ctx.env.schema).objects(ctx.env.schema):
         if (p.is_special_pointer(ctx.env.schema) or
-                p not in ctx.class_shapes[ptrcls]):
+                p not in ctx.env.view_shapes[ptrcls]):
             continue
         else:
             return True
@@ -601,7 +601,7 @@ def _get_shape_configuration(
     id_present_in_shape = False
 
     for source in sources:
-        for ptr in ctx.class_shapes[source]:
+        for ptr in ctx.env.view_shapes[source]:
             if (ptr.is_link_property(ctx.env.schema) and
                     ir_set.path_id != rptr.target.path_id):
                 path_tip = rptr.target
@@ -636,7 +636,8 @@ def _get_shape_configuration(
                 ctx.env.schema)
             for ptr in pointers:
                 if ptr.is_id_pointer(ctx.env.schema):
-                    ctx.class_shapes[stype].insert(0, ptr)
+                    ctx.env.view_shapes[stype].insert(0, ptr)
+                    ctx.env.view_shapes_metadata[stype].has_implicit_id = True
                     shape_ptrs.insert(0, (ir_set, ptr))
                     break
 
@@ -671,7 +672,7 @@ def _get_shape_configuration(
             scopectx.anchors[qlast.Source] = ir_set
             ptr = _normalize_view_ptr_expr(
                 ql, stype, path_id=ir_set.path_id, ctx=scopectx)
-            ctx.class_shapes[stype].insert(0, ptr)
+            ctx.env.view_shapes[stype].insert(0, ptr)
             shape_ptrs.insert(0, (ir_set, ptr))
 
     return shape_ptrs

@@ -60,6 +60,11 @@ class Base(ast.AST):
         )
 
 
+class ViewShapeMetadata(Base):
+
+    has_implicit_id: bool = False
+
+
 class TypeRef(Base):
     # The id of the referenced type
     id: uuid.UUID
@@ -327,6 +332,7 @@ class Statement(Command):
     cardinality: Cardinality
     stype: s_types.Type
     view_shapes: typing.Dict[so.Object, typing.List[s_pointers.Pointer]]
+    view_shapes_metadata: typing.Dict[so.Object, ViewShapeMetadata]
     schema: s_schema.Schema
     scope_tree: ScopeTreeNode
     source_map: typing.Dict[s_pointers.Pointer,

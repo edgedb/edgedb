@@ -69,8 +69,8 @@ class TypeSerializer:
         if type_id not in self.uuid_to_pos:
             self.uuid_to_pos[type_id] = len(self.uuid_to_pos)
 
-    def _describe_set(self, t, view_shapes):
-        type_id = self._describe_type(t, view_shapes)
+    def _describe_set(self, t, view_shapes, view_shapes_metadata):
+        type_id = self._describe_type(t, view_shapes, view_shapes_metadata)
         set_id = self._get_set_type_id(type_id)
         if set_id in self.uuid_to_pos:
             return set_id
@@ -82,13 +82,14 @@ class TypeSerializer:
         self._register_type_id(set_id)
         return set_id
 
-    def _describe_type(self, t, view_shapes):
+    def _describe_type(self, t, view_shapes, view_shapes_metadata):
         # The encoding format is documented in edb/api/types.txt.
 
         buf = self.buffer
 
         if isinstance(t, s_types.Tuple):
-            subtypes = [self._describe_type(st, view_shapes)
+            subtypes = [self._describe_type(st, view_shapes,
+                                            view_shapes_metadata)
                         for st in t.get_subtypes()]
 
             if t.named:
@@ -126,7 +127,8 @@ class TypeSerializer:
             return type_id
 
         elif isinstance(t, s_types.Array):
-            subtypes = [self._describe_type(st, view_shapes)
+            subtypes = [self._describe_type(st, view_shapes,
+                                            view_shapes_metadata)
                         for st in t.get_subtypes()]
 
             assert len(subtypes) == 1
@@ -157,13 +159,18 @@ class TypeSerializer:
             element_names = []
             link_props = []
 
+            metadata = view_shapes_metadata.get(t)
+            implicit_id = metadata is not None and metadata.has_implicit_id
+
             for ptr in view_shapes[t]:
                 if ptr.singular(self.schema):
                     subtype_id = self._describe_type(
-                        ptr.get_target(self.schema), view_shapes)
+                        ptr.get_target(self.schema), view_shapes,
+                        view_shapes_metadata)
                 else:
                     subtype_id = self._describe_set(
-                        ptr.get_target(self.schema), view_shapes)
+                        ptr.get_target(self.schema), view_shapes,
+                        view_shapes_metadata)
                 subtypes.append(subtype_id)
                 element_names.append(ptr.get_shortname(self.schema).name)
                 link_props.append(False)
@@ -174,10 +181,12 @@ class TypeSerializer:
                 for ptr in view_shapes[t_rptr]:
                     if ptr.singular(self.schema):
                         subtype_id = self._describe_type(
-                            ptr.get_target(self.schema), view_shapes)
+                            ptr.get_target(self.schema), view_shapes,
+                            view_shapes_metadata)
                     else:
                         subtype_id = self._describe_set(
-                            ptr.get_target(self.schema), view_shapes)
+                            ptr.get_target(self.schema), view_shapes,
+                            view_shapes_metadata)
                     subtypes.append(subtype_id)
                     element_names.append(
                         ptr.get_shortname(self.schema).name)
@@ -200,6 +209,8 @@ class TypeSerializer:
                 flags = 0
                 if el_lp:
                     flags |= self.EDGE_POINTER_IS_LINKPROP
+                if (implicit_id and el_name == 'id') or el_name == '__tid__':
+                    flags |= self.EDGE_POINTER_IS_IMPLICIT
                 buf.append(_uint8_packer(flags))
 
                 el_name_bytes = el_name.encode('utf-8')
@@ -229,7 +240,8 @@ class TypeSerializer:
                 return type_id
 
             else:
-                bt_id = self._describe_type(base_type, view_shapes)
+                bt_id = self._describe_type(
+                    base_type, view_shapes, view_shapes_metadata)
                 type_id = mt.id
 
                 if type_id in self.uuid_to_pos:
@@ -243,9 +255,10 @@ class TypeSerializer:
                 return type_id
 
     @classmethod
-    def describe(cls, schema, typ, view_shapes):
+    def describe(cls, schema, typ, view_shapes, view_shapes_metadata):
         builder = cls(schema)
-        type_id = builder._describe_type(typ, view_shapes)
+        type_id = builder._describe_type(
+            typ, view_shapes, view_shapes_metadata)
         return b''.join(builder.buffer), type_id
 
     @classmethod
