@@ -549,10 +549,22 @@ class GraphQLTranslator(ast.NodeVisitor):
                 for step in psteps]
 
         # find the first shadowed root
+        prev_base = None
         for i, step in enumerate(path):
             base = step.type
-            if isinstance(base, gt.GQLShadowType):
+
+            # if the field is specifically shadowed, then this is
+            # appropriate shadow base
+            if (prev_base is not None and
+                    prev_base.is_field_shadowed(step.name)):
+                base = prev_base
                 break
+
+            # otherwise the base must be shadowing an entire type
+            elif isinstance(base, gt.GQLShadowType):
+                break
+
+            prev_base = base
 
         # trim the rest of the path
         path = path[i + 1:end_trim]
@@ -563,6 +575,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             qlast.Ptr(ptr=qlast.ObjectRef(name=step.name))
             for step in path
         )
+
         return prefix
 
     def visit_ListLiteral(self, node):

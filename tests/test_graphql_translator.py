@@ -2502,7 +2502,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT stdgraphql::Query {
-            foo := stdgraphql::short_name(std::str.__type__.name),
+            foo := (SELECT stdgraphql::Query.__typename),
             User := (SELECT
                 test::User {
                     name,

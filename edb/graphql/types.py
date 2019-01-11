@@ -587,7 +587,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
         if self.dummy:
             return eql, shape, filterable
 
-        if name == '__typename':
+        if name == '__typename' and not self.is_field_shadowed(name):
             eql = parse_fragment(
                 f'''stdgraphql::short_name(
                     {codegen.generate_source(parent)}.__type__.name)''')
@@ -623,10 +623,6 @@ class GQLQuery(GQLBaseType):
         super().__init__(schema, **kwargs)
         self._shadow_fields = ('__typename',)
 
-    @property
-    def short_name(self):
-        return self._name.rsplit('--', 1)[-1]
-
     def get_field_type(self, name, argsmap=None):
         fkey = (name, self.dummy)
         target = None
@@ -659,7 +655,3 @@ class GQLMutation(GQLBaseType):
     def __init__(self, schema, **kwargs):
         self.modules = schema.modules
         super().__init__(schema, **kwargs)
-
-    @property
-    def short_name(self):
-        return self._name.rsplit('--', 1)[-1]
