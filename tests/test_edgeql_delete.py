@@ -62,8 +62,8 @@ class TestDelete(tb.QueryTestCase):
         """)
 
         self.assert_data_shape(result, [
-            [1],
-            [1]
+            [{}],
+            [{}]
         ])
 
     async def test_edgeql_delete_simple02(self):
@@ -106,7 +106,7 @@ class TestDelete(tb.QueryTestCase):
             WITH MODULE test
             SELECT DeleteTest ORDER BY DeleteTest.name;
         """, [
-            [0],
+            [],
             [{'id': id1}, {'id': id2}],
 
             [{'id': id1}],
@@ -177,9 +177,9 @@ class TestDelete(tb.QueryTestCase):
             WITH D := (DELETE test::DeleteTest)
             SELECT count(D);
         """, [
-            [1],
-            [1],
-            [1],
+            [{}],
+            [{}],
+            [{}],
             [3],
         ])
 
@@ -214,11 +214,11 @@ class TestDelete(tb.QueryTestCase):
             WITH MODULE test
             SELECT (DELETE DeleteTest2) { name };
         """, [
-            [1],
-            [1],
-            [1],
-            [1],
-            [1],
+            [{}],
+            [{}],
+            [{}],
+            [{}],
+            [{}],
             [{
                 'name': 'dt2.1',
                 'foo': 'bar',
@@ -255,10 +255,10 @@ class TestDelete(tb.QueryTestCase):
             WITH MODULE test
             SELECT (DELETE DeleteTest2) {name};
         """, [
-            [1],
-            [1],
-            [1],
-            [1],
+            [{}],
+            [{}],
+            [{}],
+            [{}],
             [{
                 'name': 'dt2.1',
                 'count': 3,
@@ -298,10 +298,10 @@ class TestDelete(tb.QueryTestCase):
             WITH MODULE test
             SELECT (DELETE DeleteTest2) {name};
         """, [
-            [1],
-            [1],
-            [1],
-            [1],
+            [{}],
+            [{}],
+            [{}],
+            [{}],
             [{
                 'name': 'dt2.1',
                 'count': 3

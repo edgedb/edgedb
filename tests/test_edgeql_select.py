@@ -2980,7 +2980,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 <str>Issue.time_estimate
             );
             """, [
-            [1],
+            [{}],
         ])
 
     async def test_edgeql_select_cross_13(self):
@@ -2993,7 +2993,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 (Issue, count(Issue.watchers))
             );
             """, [
-            [1],
+            [{}],
             [4],
         ])
 

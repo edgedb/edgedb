@@ -823,12 +823,12 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             SELECT <float64>1;
             SELECT <decimal>1;
         ''', [
-            [1],
-            [1],
-            [1],
-            [1],
-            [1],
-            [1],
+            [{}],
+            [{}],
+            [{}],
+            [{}],
+            [{}],
+            [{}],
         ])
 
     async def test_edgeql_casts_numeric_07(self):
@@ -838,7 +838,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             await self.assert_query_result(f'''
                 SELECT <{t1}><{t2}>1;
             ''', [
-                [1],
+                [{}],
             ])
 
     async def test_edgeql_casts_numeric_08(self):

@@ -280,9 +280,17 @@ def compile_InsertQuery(
             ctx=ictx)
 
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
-        stmt.result = setgen.class_set(
+
+        result = setgen.class_set(
             stmt_subject_stype.material_type(ctx.env.schema),
             path_id=stmt.subject.path_id, ctx=ctx)
+
+        stmt.result = compile_query_subject(
+            result,
+            view_scls=ctx.view_scls,
+            view_name=ctx.toplevel_result_view_name,
+            compile_views=ictx.stmt is ictx.toplevel_stmt,
+            ctx=ictx)
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
@@ -314,9 +322,17 @@ def compile_UpdateQuery(
             ctx=ictx)
 
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
-        stmt.result = setgen.class_set(
+
+        result = setgen.class_set(
             stmt_subject_stype.material_type(ctx.env.schema),
             path_id=stmt.subject.path_id, ctx=ctx)
+
+        stmt.result = compile_query_subject(
+            result,
+            view_scls=ctx.view_scls,
+            view_name=ctx.toplevel_result_view_name,
+            compile_views=ictx.stmt is ictx.toplevel_stmt,
+            ctx=ictx)
 
         stmt.where = clauses.compile_where_clause(
             expr.where, ctx=ictx)
@@ -349,9 +365,16 @@ def compile_DeleteQuery(
             subject, shape=None, result_alias=expr.subject_alias, ctx=ictx)
 
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
-        stmt.result = setgen.class_set(
+        result = setgen.class_set(
             stmt_subject_stype.material_type(ctx.env.schema),
             path_id=stmt.subject.path_id, ctx=ctx)
+
+        stmt.result = compile_query_subject(
+            result,
+            view_scls=ctx.view_scls,
+            view_name=ctx.toplevel_result_view_name,
+            compile_views=ictx.stmt is ictx.toplevel_stmt,
+            ctx=ictx)
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 

@@ -63,7 +63,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             }');
         """, [
             ['qwerty'],
-            [1],
+            [{}],
             [0.023],
 
             [True],
@@ -98,7 +98,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             SELECT <bool>to_json('false');
         """, [
             ['qwerty'],
-            [1],
+            [{}],
             [0.023],
 
             [True],

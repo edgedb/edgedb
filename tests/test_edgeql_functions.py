@@ -130,7 +130,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT array_agg({3, 3, 2})[-1];
         ''')
         self.assert_data_shape(res, [
-            [1],
+            [{}],
             [2],
             [2],
         ])
@@ -428,7 +428,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT array_enumerate([(x:=(a:=2))]).0.x.a;
         ''', [
             [{"x": 1}],
-            [1],
+            [{}],
 
             [{"x": {"a": 2}}],
             [{"a": 2}],
@@ -483,8 +483,8 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT array_get([1, 2, 3], 20) ?? 42;
             SELECT array_get([1, 2, 3], -20) ?? 42;
         ''', [
-            [1],
-            [1],
+            [{}],
+            [{}],
             [2],
             [42],
             [42],
@@ -1290,7 +1290,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT len({['hello'], ['hello', 'world']});
         ''', [
             [0],
-            [1],
+            [{}],
             [2],
             [5],
             {1, 2},
@@ -1379,7 +1379,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ''', [
             ['Elvis'],
             [3000],
-            [1],
+            [{}],
         ])
 
     async def test_edgeql_functions_max_01(self):
@@ -1624,11 +1624,11 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT round(<decimal>2.5);
         ''', [
             [],
-            [1],
-            [1],
-            [1],
+            [{}],
+            [{}],
+            [{}],
             [-1],
-            [1],
+            [{}],
             [-1],
 
             [-2],
@@ -1641,7 +1641,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [-3],
             [-2],
             [-1],
-            [1],
+            [{}],
             [2],
             [3],
         ])

@@ -121,9 +121,9 @@ class TestEdgeQLDT(tb.QueryTestCase):
             SELECT Obj { seq_prop } ORDER BY Obj.seq_prop;
             SELECT Obj2 { seq_prop };
         ''', [
-            [1],
-            [1],
-            [1],
+            [{}],
+            [{}],
+            [{}],
             [
                 {'seq_prop': 1}, {'seq_prop': 2}
             ],

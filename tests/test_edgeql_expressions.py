@@ -2169,7 +2169,7 @@ class TestExpressions(tb.QueryTestCase):
             SELECT {1} = 1;
         """, [
             [],
-            [1],
+            [{}],
             ['foo'],
             [True],
         ])
@@ -2798,7 +2798,7 @@ class TestExpressions(tb.QueryTestCase):
             SELECT (1, ('a', 'b', (0.1, 0.2)), 2, 3).1.2;
             SELECT (1, ('a', 'b', (0.1, 0.2)), 2, 3).1.2.0;
         """, [
-            [1],
+            [{}],
             [['a', 'b', [0.1, 0.2]]],
             [[0.1, 0.2]],
             [0.1],
@@ -2811,7 +2811,7 @@ class TestExpressions(tb.QueryTestCase):
             WITH A := (1, ('a', 'b', (0.1, 0.2)), 2, 3) SELECT A.1.2;
             WITH A := (1, ('a', 'b', (0.1, 0.2)), 2, 3) SELECT A.1.2.0;
         """, [
-            [1],
+            [{}],
             [['a', 'b', [0.1, 0.2]]],
             [[0.1, 0.2]],
             [0.1],
@@ -2893,8 +2893,8 @@ class TestExpressions(tb.QueryTestCase):
             [{"e": 1}],
             [{"e": 1}],
 
-            [1],
-            [1],
+            [{}],
+            [{}],
         ])
 
     async def test_edgeql_expr_tuple_indirection_14(self):
@@ -3356,7 +3356,7 @@ class TestExpressions(tb.QueryTestCase):
             SELECT count({1, 2, 3});
             SELECT count({1, 2, 3, 2, 3});
         """, [
-            [1],
+            [{}],
             [3],
             [3],
 

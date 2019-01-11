@@ -214,13 +214,13 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
             None,
             None,
             None,
-            [1],
-            [1],
-            [1],
-            [1],
-            [1],
-            [1],
-            [1],
+            [{}],
+            [{}],
+            [{}],
+            [{}],
+            [{}],
+            [{}],
+            [{}],
             [{
                 'assignees': [{'login': 'bob'}, {'login': 'dave'}],
                 'author': {'login': 'carol'},
@@ -243,5 +243,5 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
                 '__type__': {'name': 'default::PullRequest'},
                 'body': 'Several typos fixed.'
             }],
-            [2],
+            [{}, {}],
         ])

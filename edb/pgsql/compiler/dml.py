@@ -167,14 +167,7 @@ def fini_dml_stmt(
         dbobj.add_rel_overlay(
             str(ir_stmt.subject.typeref.id), 'except', dml_cte, env=ctx.env)
 
-    if parent_ctx.toplevel_stmt is wrapper:
-        ret_ref = pathctx.get_path_identity_var(
-            wrapper, ir_stmt.subject.path_id, env=parent_ctx.env)
-        count = pgast.FuncCall(name=('count',), args=[ret_ref])
-        wrapper.target_list = [
-            pgast.ResTarget(val=count)
-        ]
-
+    clauses.compile_output(ir_stmt.result, ctx=ctx)
     clauses.fini_stmt(wrapper, ctx, parent_ctx)
 
     return wrapper

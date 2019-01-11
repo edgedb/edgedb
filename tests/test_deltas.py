@@ -71,9 +71,9 @@ class TestDeltas(tb.DDLTestCase):
 
             None,
 
-            [1],
+            [{}],
 
-            [1],
+            [{}],
 
             [{
                 'related': [{'name': 'Test', '@lang': None}],
@@ -188,8 +188,8 @@ class TestDeltas(tb.DDLTestCase):
             None,
             None,
 
-            [1],
-            [1],
+            [{}],
+            [{}],
 
             [{'номер': 456}, {'номер': 987}]
         ])

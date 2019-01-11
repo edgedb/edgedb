@@ -71,7 +71,7 @@ class TestIndexes(tb.DDLTestCase):
                 }]
             }],
 
-            [1],
+            [{}],
 
             [{
                 'first_name': 'Elon'

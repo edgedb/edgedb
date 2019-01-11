@@ -159,18 +159,18 @@ class TestTransactions(tb.QueryTestCase):
         """, [
             [],
             None,  # transaction start
-            [1],  # insert
-            [1],  # insert
+            [{}],  # insert
+            [{}],  # insert
             {'q1', 'q2'},
 
             None,  # transaction start
-            [1],  # insert
+            [{}],  # insert
             {'q1', 'q2', 'w1'},
             None,  # transaction rollback
             {'q1', 'q2'},
 
             None,  # transaction start
-            [1],  # insert
+            [{}],  # insert
             {'q1', 'q2', 'e1'},
             None,  # transaction commit
             {'q1', 'q2', 'e1'},

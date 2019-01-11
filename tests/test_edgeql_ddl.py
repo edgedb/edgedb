@@ -433,7 +433,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.assert_query_result(r"""
             SELECT test::int_func_1();
         """, [
-            [1],
+            [{}],
         ])
 
     async def test_edgeql_ddl_11(self):
@@ -494,7 +494,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 bar1,
             };
         """, [
-            [1],
+            [{}],
             [{'foo1': 'Victor', 'bar1': 'Victor'}]
         ])
 
@@ -526,9 +526,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 bar2,
             } ORDER BY TestSelfLink2.foo2;
         """, [
-            [1],
-            [1],
-            [1],
+            [{}],
+            [{}],
+            [{}],
             [
                 {'bar2': {}, 'foo2': 'Alice'},
                 {'bar2': {'Alice'}, 'foo2': 'Bob'},
@@ -569,7 +569,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 __typename4,
             };
         """, [
-            [1],
+            [{}],
             [{'__typename4': 'test::TestSelfLink4'}]
         ])
 
@@ -652,8 +652,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ORDER BY View2.foo;
         """, [
             None,
-            [1],
-            [1],
+            [{}],
+            [{}],
 
             [
                 {

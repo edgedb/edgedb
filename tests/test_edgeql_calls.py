@@ -400,10 +400,10 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             SELECT test::call13([1, 2, 3, 4, 5]);
             SELECT test::call13(['a', 'b']);
         ''', [
-            [1],
-            [1],
-            [1],
-            [1],
+            [{}],
+            [{}],
+            [{}],
+            [{}],
         ])
 
         await self.query('''
@@ -429,9 +429,9 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             SELECT test::call13_2(['a', 'b']);
         ''', [
             [2],
-            [1],
-            [1],
-            [1],
+            [{}],
+            [{}],
+            [{}],
         ])
 
     async def test_edgeql_calls_14(self):
@@ -557,7 +557,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             SELECT test::call18(1, 2, 3);
             SELECT test::call18('a', 'b');
         ''', [
-            [1],
+            [{}],
             [3],
             [2],
         ])
@@ -743,7 +743,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             SELECT test::call26(['aaa']);
             SELECT test::call26([b'', b'aa']);
         ''', [
-            [1],
+            [{}],
             [2],
         ])
 
@@ -884,7 +884,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             ['aa'],
 
             [[1, 2]],
-            [1],
+            [{}],
 
             [1001],
             [1002],
@@ -894,9 +894,9 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
 
             [{"a": 1001, "b": 1002}],
 
-            [1],
-            [1],
-            [1],
+            [{}],
+            [{}],
+            [{}],
             [{"x": 1}],
         ])
 

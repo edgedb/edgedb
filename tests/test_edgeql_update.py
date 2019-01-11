@@ -71,7 +71,7 @@ class TestUpdate(tb.QueryTestCase):
                 }
             } ORDER BY .name;
         """, [
-            [0],
+            [],
             self.original,
         ])
 
@@ -96,7 +96,7 @@ class TestUpdate(tb.QueryTestCase):
                 }
             } ORDER BY .name;
         """, [
-            [1],
+            [{}],
             [
                 {
                     'id': orig1['id'],
@@ -128,7 +128,7 @@ class TestUpdate(tb.QueryTestCase):
                 comment,
             } ORDER BY .name;
         """, [
-            [1],
+            [{}],
             [
                 {
                     'id': orig1['id'],
@@ -167,7 +167,7 @@ class TestUpdate(tb.QueryTestCase):
                 }
             } ORDER BY .name;
         """, [
-            [3],
+            [{}, {}, {}],
             [
                 {
                     'id': orig1['id'],
@@ -362,7 +362,7 @@ class TestUpdate(tb.QueryTestCase):
                 }
             } FILTER UpdateTest.name = 'update-test3';
         """, [
-            [1],
+            [{}],
             [
                 {
                     'name': 'update-test3',
@@ -387,7 +387,7 @@ class TestUpdate(tb.QueryTestCase):
             WITH MODULE test
             SELECT UpdateTest.comment;
         """, [
-            [3],
+            [{}, {}, {}],
             ['bad test'] * 3,
         ])
 
@@ -405,7 +405,7 @@ class TestUpdate(tb.QueryTestCase):
             WITH MODULE test
             SELECT UpdateTest.comment;
         """, [
-            [3],
+            [{}, {}, {}],
             ['bad test'] * 3,
         ])
 
@@ -426,7 +426,7 @@ class TestUpdate(tb.QueryTestCase):
                 } ORDER BY .name
             } FILTER UpdateTest.name = 'update-test1';
         """, [
-            [1],
+            [{}],
             [
                 {
                     'name': 'update-test1',
@@ -458,7 +458,7 @@ class TestUpdate(tb.QueryTestCase):
                 } ORDER BY .name
             } FILTER UpdateTest.name = 'update-test1';
         """, [
-            [1],
+            [{}],
             [
                 {
                     'name': 'update-test1',
@@ -486,7 +486,7 @@ class TestUpdate(tb.QueryTestCase):
                 } ORDER BY .name
             } FILTER UpdateTest.name = 'update-test1';
         """, [
-            [1],
+            [{}],
             [
                 {
                     'name': 'update-test1',
@@ -540,14 +540,14 @@ class TestUpdate(tb.QueryTestCase):
                 } ORDER BY .name
             } FILTER UpdateTest.name = 'update-test1';
         """, [
-            [1],
+            [{}],
             [{
                 'name': 'update-test1',
                 'tags': [{
                     'name': 'fun',
                 }],
             }],
-            [1],
+            [{}],
             [{
                 'name': 'update-test1',
                 'tags': [{
@@ -577,7 +577,7 @@ class TestUpdate(tb.QueryTestCase):
                 } ORDER BY .name
             } FILTER UpdateTest.name = 'update-test1';
         """, [
-            [1],
+            [{}],
             [
                 {
                     'name': 'update-test1',
@@ -612,7 +612,7 @@ class TestUpdate(tb.QueryTestCase):
                 } ORDER BY .name
             } FILTER UpdateTest.name = 'update-test1';
         """, [
-            [1],
+            [{}],
             [
                 {
                     'name': 'update-test1',
@@ -651,7 +651,7 @@ class TestUpdate(tb.QueryTestCase):
                 } ORDER BY .name
             } FILTER UpdateTest.name = 'update-test1';
         """, [
-            [1],
+            [{}],
             [
                 {
                     'name': 'update-test1',
@@ -891,7 +891,7 @@ class TestUpdate(tb.QueryTestCase):
                     ],
                 },
             ],
-            [1],
+            [{}],
             [
                 {
                     'name': 'update-test1',
@@ -941,7 +941,7 @@ class TestUpdate(tb.QueryTestCase):
                 } ORDER BY @weight
             } FILTER UpdateTest.name = 'update-test1';
         """, [
-            [1],
+            [{}],
             [
                 {
                     'name': 'update-test1',
@@ -978,7 +978,7 @@ class TestUpdate(tb.QueryTestCase):
                 } ORDER BY @weight
             } FILTER UpdateTest.name = 'update-test1';
         """, [
-            [1],
+            [{}],
             [
                 {
                     'name': 'update-test1',
@@ -1012,7 +1012,7 @@ class TestUpdate(tb.QueryTestCase):
                 } ORDER BY @weight
             } FILTER UpdateTest.name = 'update-test1';
         """, [
-            [1],
+            [{}],
             [
                 {
                     'name': 'update-test1',
@@ -1049,7 +1049,7 @@ class TestUpdate(tb.QueryTestCase):
                 }
             } FILTER UpdateTest.name = 'update-test1';
         """, [
-            [1],
+            [{}],
             [
                 {
                     'name': 'update-test1',
@@ -1083,7 +1083,7 @@ class TestUpdate(tb.QueryTestCase):
                 }
             } FILTER UpdateTest.name = 'update-test1';
         """, [
-            [1],
+            [{}],
             [
                 {
                     'name': 'update-test1',
@@ -1115,7 +1115,7 @@ class TestUpdate(tb.QueryTestCase):
                 }
             } FILTER UpdateTest.name = 'update-test1';
         """, [
-            [1],
+            [{}],
             [
                 {
                     'name': 'update-test1',
@@ -1159,8 +1159,8 @@ class TestUpdate(tb.QueryTestCase):
                 }
             } FILTER UpdateTest.name = 'update-test1';
         """, [
-            [1],
-            [1],
+            [{}],
+            [{}],
             [
                 {
                     'name': 'update-test1',
@@ -1222,7 +1222,7 @@ class TestUpdate(tb.QueryTestCase):
             WITH MODULE test
             SELECT UpdateTest.comment;
         """, [
-            {3},
+            [{}, {}, {}],
             {},
         ])
 
@@ -1264,7 +1264,7 @@ class TestUpdate(tb.QueryTestCase):
             WITH MODULE test
             SELECT UpdateTest.status;
         """, [
-            {3},
+            [{}, {}, {}],
             {},
         ])
 

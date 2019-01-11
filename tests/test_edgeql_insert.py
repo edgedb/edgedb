@@ -76,13 +76,13 @@ class TestInsert(tb.QueryTestCase):
         """)
 
         self.assert_data_shape(result, [
-            [1],
+            [{}],
 
-            [1],
+            [{}],
 
-            [1],
+            [{}],
 
-            [1],
+            [{}],
 
             [{
                 'l2': 0,
@@ -360,7 +360,7 @@ class TestInsert(tb.QueryTestCase):
         self.assert_data_shape(
             res,
             [
-                [1],
+                [{}],
                 [{
                     'foo': 'ret2',
                 }],
@@ -805,7 +805,7 @@ class TestInsert(tb.QueryTestCase):
 
         self.assert_data_shape(
             res, [
-                [1],
+                [{}],
                 [{
                     'args': {'val': 'something'},
                 }],
@@ -849,7 +849,7 @@ class TestInsert(tb.QueryTestCase):
             } FILTER .l2 = 99;
         """, [
             [{}, ...],
-            {1},
+            [{}],
             [{
                 'l2': 99,
                 'subordinates': [{
@@ -882,7 +882,7 @@ class TestInsert(tb.QueryTestCase):
                 l3
             };
         """, [
-            {1},
+            [{}],
             [{
                 'l1': None,
                 'l2': 99,
@@ -927,7 +927,7 @@ class TestInsert(tb.QueryTestCase):
                 subordinates
             };
         """, [
-            {1},
+            [{}],
             [{
                 'l2': 99,
                 'subordinates': {},
