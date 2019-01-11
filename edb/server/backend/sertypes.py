@@ -228,7 +228,7 @@ class TypeSerializer:
             self._register_type_id(type_id)
             return type_id
 
-        else:
+        elif t.is_scalar():
             # This is a scalar type
 
             mt = t.material_type(self.schema)
@@ -260,6 +260,10 @@ class TypeSerializer:
 
                 self._register_type_id(type_id)
                 return type_id
+
+        else:
+            raise errors.InternalServerError(
+                f'cannot describe type {t.get_name(self.schema)}')
 
     @classmethod
     def describe(cls, schema, typ, view_shapes, view_shapes_metadata):
