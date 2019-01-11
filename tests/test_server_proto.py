@@ -122,6 +122,12 @@ class TestServerProto(tb.NonIsolatedDDLTestCase):
                     edgedb.NamedTuple(a=1, world=("yo", 10)),
                 ]))
 
+    async def test_server_proto_basic_datatypes_02(self):
+        self.assertEqual(
+            await self.con.fetch(
+                r'''select [b"\x00a", b"b", b'', b'\na']'''),
+            edgedb.Set([[b"\x00a", b"b", b'', b'\na']]))
+
     async def test_server_proto_args_01(self):
         self.assertEqual(
             await self.con.fetch(

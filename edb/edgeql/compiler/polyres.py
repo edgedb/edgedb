@@ -211,7 +211,7 @@ def try_bind_call_args(
                 bytes_t = schema.get('std::bytes')
                 argval = setgen.ensure_set(
                     irast.BytesConstant(
-                        value='\x00',
+                        value=b'\x00',
                         typeref=irtyputils.type_to_typeref(schema, bytes_t)),
                     typehint=bytes_t,
                     ctx=ctx)
@@ -425,7 +425,7 @@ def try_bind_call_args(
         bm = defaults_mask.to_bytes(nparams // 8 + 1, 'little')
         bm_set = setgen.ensure_set(
             irast.BytesConstant(
-                value=bm.decode('ascii'),
+                value=bm,
                 typeref=irtyputils.type_to_typeref(ctx.env.schema, bytes_t)),
             typehint=bytes_t, ctx=ctx)
         bound_param_args.insert(0, BoundArg(None, bytes_t, bm_set, bytes_t, 0))

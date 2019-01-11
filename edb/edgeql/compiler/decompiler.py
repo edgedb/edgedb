@@ -175,7 +175,7 @@ class IRDecompiler(ast.visitor.NodeVisitor):
         return qlast.RawStringConstant.from_python(node.value)
 
     def visit_BytesConstant(self, node):
-        return qlast.BytesConstant(value=node.value)
+        return qlast.BytesConstant.from_python(node.value)
 
     def visit_BooleanConstant(self, node):
         return qlast.BooleanConstant(value=node.value)

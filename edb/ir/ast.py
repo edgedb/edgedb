@@ -384,7 +384,8 @@ class BooleanConstant(BaseConstant):
 
 
 class BytesConstant(BaseConstant):
-    pass
+
+    value: bytes
 
 
 class Parameter(Base):
