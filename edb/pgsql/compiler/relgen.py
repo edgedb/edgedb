@@ -1272,7 +1272,11 @@ def process_set_as_type_cast(
                 and (irtyputils.is_collection(inner_set.typeref)
                      or irtyputils.is_object(inner_set.typeref))):
             subctx.expr_exposed = True
-            subctx.output_format = context.OutputFormat.JSON
+            # XXX: this is necessary until pathctx is converted
+            #      to use context levels instead of using env
+            #      directly.
+            orig_output_format = subctx.env.output_format
+            subctx.env.output_format = context.OutputFormat.JSON
             implicit_cast = True
         else:
             implicit_cast = False
@@ -1292,6 +1296,8 @@ def process_set_as_type_cast(
                 pathctx.put_path_value_var(
                     stmt, inner_set.path_id, serialized,
                     force=True, env=subctx.env)
+
+            subctx.env.output_format = orig_output_format
         else:
             set_expr = dispatch.compile(ir_set.expr, ctx=ctx)
 

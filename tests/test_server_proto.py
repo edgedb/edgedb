@@ -135,3 +135,13 @@ class TestServerProto(tb.NonIsolatedDDLTestCase):
                 'select (<array<str>>$0)[0] ++ (<array<str>>$1)[0];',
                 ['aaa'], ['bbb']),
             edgedb.Set(('aaabbb',)))
+
+    async def test_server_proto_json_cast_01(self):
+        self.assertEqual(
+            await self.con.fetch('''
+                select <json>(
+                    select schema::Type{name} filter .name = 'std::bool'
+                )
+            '''),
+            edgedb.Set(('{"name": "std::bool"}',))
+        )
