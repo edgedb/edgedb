@@ -128,6 +128,11 @@ class TestServerProto(tb.NonIsolatedDDLTestCase):
                 r'''select [b"\x00a", b"b", b'', b'\na']'''),
             edgedb.Set([[b"\x00a", b"b", b'', b'\na']]))
 
+        self.assertEqual(
+            await self.con.fetch(
+                r'select <bytes>$0', b'he\x00llo'),
+            edgedb.Set([b'he\x00llo']))
+
     async def test_server_proto_args_01(self):
         self.assertEqual(
             await self.con.fetch(
