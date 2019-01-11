@@ -765,10 +765,13 @@ class InheritingObject(derivable.DerivableObject):
         attr = refdict.attr
         local_attr = refdict.local_attr
 
-        is_inherited = any(b.get_field_value(schema, attr).has(schema, key)
-                           for b in self.get_bases(schema).objects(schema))
+        for base in self.get_bases(schema).objects(schema):
+            base_coll = base.get_field_value(schema, attr)
+            inherited = base_coll.get(schema, key, default=None)
+            if inherited is not None:
+                break
 
-        if not is_inherited:
+        if inherited is not None:
             for descendant in self.descendants(schema):
                 descendant_local_coll = descendant.get_field_value(
                     schema, local_attr)
@@ -779,7 +782,13 @@ class InheritingObject(derivable.DerivableObject):
                     schema = descendant.set_field_value(
                         schema, attr, descendant_coll)
 
-        return super().del_classref(schema, collection, key)
+        schema = super().del_classref(schema, collection, key)
+        if inherited is not None:
+            all_coll = self.get_field_value(schema, attr)
+            schema, all_coll = all_coll.add(schema, inherited)
+            schema = self.set_field_value(schema, attr, all_coll)
+
+        return schema
 
     def get_nearest_non_derived_parent(self, schema):
         obj = self

@@ -2663,10 +2663,13 @@ class DeleteProperty(
         schema, prop = s_props.DeleteProperty.apply(self, schema, context)
         schema, _ = PropertyMetaCommand.apply(self, schema, context)
 
-        link = context.get(s_links.LinkCommandContext)
+        source_ctx = context.get(s_sources.SourceCommandContext)
+        source = source_ctx.scls
+        source_op = source_ctx.op
 
-        if link:
-            alter_table = link.op.get_alter_table(schema, context)
+        if source and not source.getptr(
+                schema, prop.get_shortname(orig_schema).name):
+            alter_table = source_op.get_alter_table(schema, context)
 
             ptr_stor_info = types.get_pointer_storage_info(
                 prop, schema=orig_schema)
