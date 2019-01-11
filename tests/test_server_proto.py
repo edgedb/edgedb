@@ -151,3 +151,106 @@ class TestServerProto(tb.NonIsolatedDDLTestCase):
             '''),
             edgedb.Set(('{"name": "std::bool"}',))
         )
+
+    async def test_server_proto_query_cache_invalidate_01(self):
+        typename = 'CacheInv_01'
+
+        con1 = self.con
+        con2 = await self.cluster.connect(user='edgedb', database=con1.dbname)
+        try:
+            await con2.execute(f'''
+                CREATE TYPE test::{typename} {{
+                    CREATE REQUIRED PROPERTY prop1 -> std::str;
+                }};
+
+                INSERT test::{typename} {{
+                    prop1 := 'aaa'
+                }}
+            ''')
+
+            query = f'SELECT test::{typename}.prop1'
+
+            for _ in range(5):
+                self.assertEqual(
+                    await con1.fetch(query),
+                    edgedb.Set(['aaa']))
+
+            await con2.execute(f'''
+                DELETE (SELECT test::{typename});
+
+                ALTER TYPE test::{typename} {{
+                    DROP PROPERTY prop1;
+                }};
+
+                ALTER TYPE test::{typename} {{
+                    # DROP PROPERTY prop1;
+                    CREATE REQUIRED PROPERTY prop1 -> std::int64;
+                }};
+
+                INSERT test::{typename} {{
+                    prop1 := 123
+                }};
+            ''')
+
+            for _ in range(5):
+                self.assertEqual(
+                    await con1.fetch(query),
+                    edgedb.Set([123]))
+
+        finally:
+            await con2.close()
+
+    async def test_server_proto_query_cache_invalidate_02(self):
+        typename = 'CacheInv_02'
+
+        con1 = self.con
+        con2 = await self.cluster.connect(user='edgedb', database=con1.dbname)
+        try:
+            await con2.fetch(f'''
+                CREATE TYPE test::{typename} {{
+                    CREATE REQUIRED PROPERTY prop1 -> std::str;
+                }};
+            ''')
+
+            await con2.fetch(f'''
+                INSERT test::{typename} {{
+                    prop1 := 'aaa'
+                }}
+            ''')
+
+            query = f'SELECT test::{typename}.prop1'
+
+            for _ in range(5):
+                self.assertEqual(
+                    await con1.fetch(query),
+                    edgedb.Set(['aaa']))
+
+            await con2.fetch(f'''
+                DELETE (SELECT test::{typename});
+            ''')
+
+            await con2.fetch(f'''
+                ALTER TYPE test::{typename} {{
+                    DROP PROPERTY prop1;
+                }};
+            ''')
+
+            await con2.fetch(f'''
+                ALTER TYPE test::{typename} {{
+                    CREATE REQUIRED PROPERTY prop1 -> std::int64;
+                }};
+            ''')
+
+            await con2.fetch(f'''
+                INSERT test::{typename} {{
+                    prop1 := 123
+                }};
+            ''')
+
+            for _ in range(5):
+                self.assertEqual(
+                    await con1.fetch(query),
+                    edgedb.Set([123]))
+
+        finally:
+            await con2.close()
