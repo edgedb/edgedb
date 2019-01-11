@@ -253,6 +253,9 @@ def compile_GroupQuery(
 def compile_InsertQuery(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     with ctx.subquery() as ictx:
+        ictx.implicit_id_in_shapes = False
+        ictx.implicit_tid_in_shapes = False
+
         stmt = irast.InsertStmt()
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
@@ -301,6 +304,9 @@ def compile_InsertQuery(
 def compile_UpdateQuery(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     with ctx.subquery() as ictx:
+        ictx.implicit_id_in_shapes = False
+        ictx.implicit_tid_in_shapes = False
+
         stmt = irast.UpdateStmt()
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
@@ -346,6 +352,9 @@ def compile_UpdateQuery(
 def compile_DeleteQuery(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
     with ctx.subquery() as ictx:
+        ictx.implicit_id_in_shapes = False
+        ictx.implicit_tid_in_shapes = False
+
         stmt = irast.DeleteStmt()
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
