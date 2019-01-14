@@ -3328,3 +3328,14 @@ aa';
 
         DROP INDEX title_name;
         """
+
+    def test_edgeql_transaction_01(self):
+        """
+        START TRANSACTION;
+        ROLLBACK;
+        COMMIT;
+
+        DECLARE SAVEPOINT foo;
+        ROLLBACK TO SAVEPOINT foo;
+        RELEASE SAVEPOINT foo;
+        """

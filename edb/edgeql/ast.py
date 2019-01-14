@@ -484,6 +484,21 @@ class RollbackTransaction(Transaction):
     pass
 
 
+class DeclareSavepoint(Transaction):
+
+    name: str
+
+
+class RollbackToSavepoint(Transaction):
+
+    name: str
+
+
+class ReleaseSavepoint(Transaction):
+
+    name: str
+
+
 # DDL
 #
 

@@ -1101,6 +1101,24 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit_list(node.items)
         self._block_ws(-1)
 
+    def visit_StartTransaction(self, node):
+        self.write('START TRANSACTION')
+
+    def visit_RollbackTransaction(self, node):
+        self.write('ROLLBACK')
+
+    def visit_CommitTransaction(self, node):
+        self.write('COMMIT')
+
+    def visit_DeclareSavepoint(self, node):
+        self.write(f'DECLARE SAVEPOINT {node.name}')
+
+    def visit_RollbackToSavepoint(self, node):
+        self.write(f'ROLLBACK TO SAVEPOINT {node.name}')
+
+    def visit_ReleaseSavepoint(self, node):
+        self.write(f'RELEASE SAVEPOINT {node.name}')
+
     @classmethod
     def to_source(
             cls, node, indent_with=' ' * 4, add_line_information=False,

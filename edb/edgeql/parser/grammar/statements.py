@@ -26,29 +26,28 @@ from .expressions import *  # NOQA
 
 
 class Stmt(Nonterm):
-    def reduce_StartTransactionStmt(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_CommitTransactionStmt(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_RollbackTransactionStmt(self, *kids):
+    def reduce_TransactionStmt(self, *kids):
         self.val = kids[0].val
 
     def reduce_ExprStmt(self, *kids):
         self.val = kids[0].val
 
 
-class StartTransactionStmt(Nonterm):
+class TransactionStmt(Nonterm):
     def reduce_START_TRANSACTION(self, *kids):
         self.val = qlast.StartTransaction()
 
-
-class CommitTransactionStmt(Nonterm):
     def reduce_COMMIT(self, *kids):
         self.val = qlast.CommitTransaction()
 
-
-class RollbackTransactionStmt(Nonterm):
     def reduce_ROLLBACK(self, *kids):
         self.val = qlast.RollbackTransaction()
+
+    def reduce_DECLARE_SAVEPOINT_Identifier(self, *kids):
+        self.val = qlast.DeclareSavepoint(name=kids[2].val)
+
+    def reduce_ROLLBACK_TO_SAVEPOINT_Identifier(self, *kids):
+        self.val = qlast.RollbackToSavepoint(name=kids[3].val)
+
+    def reduce_RELEASE_SAVEPOINT_Identifier(self, *kids):
+        self.val = qlast.ReleaseSavepoint(name=kids[2].val)
