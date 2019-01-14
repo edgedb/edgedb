@@ -17,6 +17,7 @@
 #
 
 
+import logging
 import os
 import sys
 import types
@@ -30,6 +31,8 @@ from edb.common import context as pctx
 from edb.common import lexer
 
 ParserContext = pctx.ParserContext
+
+logger = logging.getLogger('edb.common.parsing')
 
 
 class TokenMeta(type):
@@ -291,6 +294,19 @@ class ParserError(Exception):
             return None
 
 
+class Spec(parsing.Spec):
+
+    def __init__(self, mod, *args, **kwargs):
+        self.__modname = mod.__name__
+        super().__init__(mod, *args, **kwargs)
+
+    def _unpickle(self, *args):
+        ret = super()._unpickle(*args)
+        if ret != 'compatible':
+            logger.info('Rebuilding grammar for %s', self.__modname)
+        return ret
+
+
 class Parser:
     def __init__(self, **parser_data):
         self.lexer = None
@@ -325,7 +341,7 @@ class Parser:
                 return spec
 
         mod = self.get_parser_spec_module()
-        spec = parsing.Spec(
+        spec = Spec(
             mod, pickleFile=self.localpath(mod, "pickle"),
             skinny=not self.get_debug(), logFile=self.localpath(mod, "log"),
             verbose=self.get_debug())
