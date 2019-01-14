@@ -110,6 +110,22 @@ def _sd_notify(message):
         sd_sock.close()
 
 
+def _init_parsers():
+    # Initialize all parsers, rebuilding grammars if
+    # necessary.  Do it earlier than later so that we don't
+    # end up in a situation where all our compiler processes
+    # are building parsers in parallel.
+
+    from edb.edgeql import parser as ql_parser
+    from edb.eschema import parser as e_parser
+    from edb.graphql import parser as gql_parser
+
+    ql_parser.EdgeQLExpressionParser().get_parser_spec()
+    ql_parser.EdgeQLBlockParser().get_parser_spec()
+    e_parser.EdgeSchemaParser().get_parser_spec()
+    gql_parser.GraphQLParser().get_parser_spec()
+
+
 def _run_server(cluster, args, runstate_dir):
     loop = asyncio.get_event_loop()
 
@@ -151,6 +167,8 @@ def run_server(args):
         logger.info('EdgeDB server starting in DEV mode.')
     else:
         logger.info('EdgeDB server starting.')
+
+    _init_parsers()
 
     pg_cluster_init_by_us = False
     pg_cluster_started_by_us = False
