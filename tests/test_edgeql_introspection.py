@@ -20,6 +20,7 @@
 import os.path
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestIntrospection(tb.QueryTestCase):
@@ -426,7 +427,152 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         ])
 
+    @test.xfail('There should be at least 1 Database.')
     async def test_edgeql_introspection_meta_01(self):
+        await self.assert_query_result(r'''
+            SELECT count(schema::Database) > 0;
+        ''', [
+            [True],
+        ])
+
+    async def test_edgeql_introspection_meta_02(self):
+        await self.assert_query_result(r'''
+            SELECT count(schema::Module) > 0;
+            SELECT 'std' IN schema::Module.name;
+        ''', [
+            [True],
+            [True],
+        ])
+
+    @test.xfail('''
+        There should be many more than 10 Objects in the DB due to
+        all the schema objects from standard library.
+    ''')
+    async def test_edgeql_introspection_meta_03(self):
+        await self.assert_query_result(r'''
+            SELECT count(Object) > 10;
+        ''', [
+            [True],
+        ])
+
+    async def test_edgeql_introspection_meta_04(self):
+        await self.assert_query_result(r'''
+            SELECT count(schema::Type) > 0;
+            SELECT count(schema::ScalarType) > 0;
+            SELECT count(schema::ObjectType) > 0;
+
+            SELECT count(schema::ScalarType) < count(schema::Type);
+            SELECT count(schema::ObjectType) < count(schema::Type);
+
+            SELECT DISTINCT (schema::ScalarType IS schema::Type);
+            SELECT DISTINCT (schema::ObjectType IS schema::Type);
+        ''', [
+            [True],
+            [True],
+            [True],
+
+            [True],
+            [True],
+
+            [True],
+            [True],
+        ])
+
+    async def test_edgeql_introspection_meta_05(self):
+        await self.assert_query_result(r'''
+            SELECT count(schema::PseudoType) > 0;
+            SELECT count(schema::PseudoType) < count(schema::Type);
+            SELECT DISTINCT (schema::PseudoType IS schema::Type);
+
+        ''', [
+            [True],
+            [True],
+            [True],
+        ])
+
+    @test.xfail('''
+        ContainerType queries cause the following error:
+        relation "edgedbss.6b1e0cfa-1511-11e9-8f2e-b5ee4369b429" does not exist
+    ''')
+    async def test_edgeql_introspection_meta_06(self):
+        await self.assert_query_result(r'''
+            SELECT count(schema::ContainerType) > 0;
+            SELECT count(schema::Array) > 0;
+            SELECT count(schema::Tuple) > 0;
+
+            SELECT count(schema::ContainerType) < count(schema::Type);
+            SELECT count(schema::Array) < count(schema::ContainerType);
+            SELECT count(schema::Tuple) < count(schema::ContainerType);
+
+            SELECT DISTINCT (schema::ContainerType IS schema::Type);
+            SELECT DISTINCT (schema::Array IS schema::ContainerType);
+            SELECT DISTINCT (schema::Tuple IS schema::ContainerType);
+        ''', [
+            [True],
+            [True],
+            [True],
+
+            [True],
+            [True],
+            [True],
+
+            [True],
+            [True],
+            [True],
+        ])
+
+    async def test_edgeql_introspection_meta_07(self):
+        await self.assert_query_result(r'''
+            SELECT count(schema::Operator) > 0;
+        ''', [
+            [True],
+        ])
+
+    async def test_edgeql_introspection_meta_08(self):
+        await self.assert_query_result(r'''
+            SELECT count(schema::Cast) > 0;
+        ''', [
+            [True],
+        ])
+
+    async def test_edgeql_introspection_meta_09(self):
+        await self.assert_query_result(r'''
+            SELECT count(schema::Constraint) > 0;
+        ''', [
+            [True],
+        ])
+
+    async def test_edgeql_introspection_meta_10(self):
+        await self.assert_query_result(r'''
+            SELECT count(schema::Function) > 0;
+        ''', [
+            [True],
+        ])
+
+    async def test_edgeql_introspection_meta_11(self):
+        await self.assert_query_result(r'''
+            WITH MODULE schema
+            SELECT DISTINCT (
+                SELECT Type IS Array
+                FILTER Type.name = 'array'
+            );
+        ''', [
+            [True],
+        ])
+
+    @test.xfail('Tuples get registered as Arrays.')
+    async def test_edgeql_introspection_meta_12(self):
+        await self.assert_query_result(r'''
+            WITH MODULE schema
+            SELECT DISTINCT (
+                SELECT Type IS Tuple
+                FILTER Type.name = 'tuple'
+            );
+        ''', [
+            [True],
+        ])
+
+    async def test_edgeql_introspection_meta_13(self):
         # make sure that ALL schema Objects are std::Objects
         res = await self.query(r"""
             WITH MODULE schema
@@ -438,7 +584,7 @@ class TestIntrospection(tb.QueryTestCase):
 
         self.assert_data_shape(res[1], [True] * res[0][0])
 
-    async def test_edgeql_introspection_meta_02(self):
+    async def test_edgeql_introspection_meta_14(self):
         await self.assert_query_result(r"""
             WITH MODULE schema
             SELECT InheritingObject {
@@ -460,7 +606,7 @@ class TestIntrospection(tb.QueryTestCase):
             ]
         ])
 
-    async def test_edgeql_introspection_meta_03(self):
+    async def test_edgeql_introspection_meta_15(self):
         res = await self.query(r'''
             WITH MODULE schema
             SELECT `Type`;
@@ -468,7 +614,7 @@ class TestIntrospection(tb.QueryTestCase):
         # just test that there's a non-empty return set for this query
         self.assertTrue(res[0])
 
-    async def test_edgeql_introspection_meta_04(self):
+    async def test_edgeql_introspection_meta_16(self):
         await self.assert_query_result(r'''
             WITH MODULE schema
             SELECT ScalarType[IS Object] IS ScalarType LIMIT 1;
