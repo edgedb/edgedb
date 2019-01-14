@@ -22,7 +22,10 @@ __pycache__/
 docs/_build
 /AUTHORS
 /ChangeLog
+
 /.coverage*
+/htmlcov
+
 !/.coveragerc
 /.vscode
 /.pytest_cache
