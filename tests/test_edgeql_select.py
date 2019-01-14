@@ -1649,35 +1649,90 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         ])
 
-    @test.not_implemented('union types are not implemented')
     async def test_edgeql_select_setops_14(self):
+        await self.assert_sorted_query_result(r"""
+            # The computable in the view is omitted from the duck type
+            # of the UNION because ultimately it's the duck type of
+            # the operands, which are both Issue with the real
+            # property 'number'.
+            WITH MODULE test
+            SELECT {
+                Issue{number := 'foo'}, Issue
+            }.number;
+        """, lambda x: x, [
+            ['1', '1', '2', '2', '3', '3', '4', '4'],
+        ])
+
+    async def test_edgeql_select_setops_15(self):
+        await self.assert_sorted_query_result(r"""
+            # The computable in the view is omitted from the duck type
+            # of the UNION because ultimately it's the duck type of
+            # the operands, which are both Issue with the real
+            # property 'number'.
+            WITH
+                MODULE test,
+                I := Issue{number := 'foo'}
+            SELECT {I, Issue}.number;
+        """, lambda x: x, [
+            ['1', '1', '2', '2', '3', '3', '4', '4'],
+        ])
+
+    async def test_edgeql_select_setops_16(self):
         with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r'.*.>\(number\) does not resolve to any known path'):
+                edgedb.QueryError, r"has no link or property 'number'"):
             await self.query(r"""
-                # The computable in the view is omitted from the duck
-                # type of the UNION because <str> is not compatible
-                # with <int64>.
+                # Named doesn't have a property number.
                 WITH MODULE test
-                SELECT {
-                    Issue{number := 'foo'}, Issue
-                }.number;
+                SELECT Issue[IS Named].number;
             """)
 
-    @test.not_implemented('union types are not implemented')
-    async def test_edgeql_select_setops_15(self):
+    async def test_edgeql_select_setops_17(self):
         with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r'.*.>\(number\) does not resolve to any known path'):
+                edgedb.QueryError, r"has no link or property 'number'"):
             await self.query(r"""
-                # The computable in the view is omitted from the duck
-                # type of the UNION because <str> is not compatible
-                # with <int64>.
-                WITH
-                    MODULE test,
-                    I := Issue{number := 'foo'}
-                SELECT {I, Issue}.number;
+                # UNION between Issue and empty set Named should be
+                # duck-typed to be effectively equivalent to Issue[IS Named].
+                WITH MODULE test
+                SELECT (Issue UNION <Named>{}).number;
             """)
+
+    async def test_edgeql_select_setops_18(self):
+        await self.assert_query_result(r"""
+            # UNION between Issue and empty set Named should be
+            # duck-typed to be effectively equivalent to Issue[IS Named].
+            WITH MODULE test
+            SELECT (Issue UNION <Named>{}).name;
+        """, [
+            {
+                'Release EdgeDB',
+                'Improve EdgeDB repl output rendering.',
+                'Repl tweak.',
+                'Regression.',
+            },
+        ])
+
+    @test.xfail('''
+        This test works for 'name', but not for 'number'.
+    ''')
+    async def test_edgeql_select_setops_19(self):
+        await self.assert_query_result(r"""
+            # UNION between Issue and empty set Issue should be
+            # duck-typed to be effectively equivalent to Issue[IS
+            # Issue], which is just an Issue.
+            WITH MODULE test
+            SELECT (Issue UNION <Issue>{}).name;
+
+            WITH MODULE test
+            SELECT (Issue UNION <Issue>{}).number;
+        """, [
+            {
+                'Release EdgeDB',
+                'Improve EdgeDB repl output rendering.',
+                'Repl tweak.',
+                'Regression.',
+            },
+            {'1', '2', '3', '4'},
+        ])
 
     async def test_edgeql_select_order_01(self):
         await self.assert_query_result(r'''
