@@ -159,11 +159,18 @@ class TestExpressionsWithoutConstantFolding(tb.QueryTestCase):
         SET CONFIG __internal_no_const_folding := true;
     """
 
-    async def test_edgeql_no_const_folding_str_concat(self):
+    async def test_edgeql_no_const_folding_str_concat_01(self):
         await self.assert_query_result(r"""
             SELECT 'aaaa' ++ 'bbbb';
         """, [
             ['aaaabbbb'],
+        ])
+
+    async def test_edgeql_no_const_folding_str_concat_02(self):
+        await self.assert_query_result(r"""
+            SELECT 'aaaa' ++ r'\q' ++ $$\n$$;
+        """, [
+            [R'aaaa\q\n'],
         ])
 
 
@@ -2302,6 +2309,15 @@ class TestExpressions(tb.QueryTestCase):
             await self.query('''
                 SELECT [1, 2] ++ ['a'];
             ''')
+
+    async def test_edgeql_expr_array_concat_03(self):
+        await self.assert_query_result(R'''
+            SELECT [(1, 'a')] ++ [(2.0, $$\$$), (3.0, r'\n')];
+        ''', [
+            [
+                [[1, 'a'], [2, '\\'], [3, R'\n']]
+            ]
+        ])
 
     async def test_edgeql_expr_array_06(self):
         await self.assert_query_result('''
