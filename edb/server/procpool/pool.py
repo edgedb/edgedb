@@ -117,7 +117,7 @@ class Worker:
         self._closed = True
         self._manager._stats_killed += 1
         self._manager._workers.discard(self)
-        self._proc.kill()
+        self._proc.terminate()
         await self._proc.wait()
 
 

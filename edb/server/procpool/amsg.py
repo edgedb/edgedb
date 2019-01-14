@@ -181,6 +181,7 @@ class WorkerConnection:
     def _on_connection_lost(self, exc):
         self._con_lost_fut.set_exception(
             PoolClosedError('connection to the pool is closed'))
+        self._con_lost_fut._log_traceback = False
 
     async def reply(self, data):
         self._protocol.reply(data)

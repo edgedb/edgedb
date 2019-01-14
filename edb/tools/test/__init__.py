@@ -61,8 +61,10 @@ __all__ = ('not_implemented', 'xfail', 'skip')
               help='do not run tests which match the given regular expression')
 @click.option('-x', '--failfast', is_flag=True,
               help='stop tests after a first failure/error')
+@click.option('--cov', type=str, multiple=True,
+              help='file path or package name to measure code coverage for')
 def test(*, files, jobs, include, exclude, verbose, quiet, output_format,
-         warnings, failfast):
+         warnings, failfast, cov):
     """Run EdgeDB test suite.
 
     Discovers and runs tests in the specified files or directories.
@@ -147,9 +149,19 @@ def test(*, files, jobs, include, exclude, verbose, quiet, output_format,
         click.echo(styles.status(
             f'Using up to {jobs} processes to run tests.'))
 
+    if cov:
+        try:
+            import coverage  # NoQA
+        except ImportError:
+            click.secho(
+                'Error: "coverage" package is missing, cannot run tests '
+                'with --cov')
+            sys.exit(1)
+
     test_runner = runner.ParallelTextTestRunner(
         verbosity=verbosity, output_format=output_format,
-        warnings=warnings, num_workers=jobs, failfast=failfast)
+        warnings=warnings, num_workers=jobs, failfast=failfast,
+        coverage=cov)
     result = test_runner.run(suite)
 
     sys.exit(0 if result.wasSuccessful() else 1)

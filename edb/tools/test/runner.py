@@ -23,10 +23,13 @@ import io
 import itertools
 import multiprocessing
 import multiprocessing.reduction
+import multiprocessing.util
 import os
+import pathlib
 import random
 import re
 import sys
+import tempfile
 import threading
 import time
 import types
@@ -36,7 +39,11 @@ import unittest.signals
 import warnings
 
 import click
+import coverage
 
+import edb
+
+from edb.common import devmode
 from edb.testbase import server as tb
 from edb.server import cluster as edgedb_cluster
 
@@ -246,6 +253,7 @@ class ParallelTestSuite(unittest.TestSuite):
 
 
 class SequentialTestSuite(unittest.TestSuite):
+
     def __init__(self, tests, server_conn):
         self.tests = tests
         self.server_conn = server_conn
@@ -579,17 +587,61 @@ class ParallelTextTestResult(unittest.result.TestResult):
 
 
 class ParallelTextTestRunner:
+
     def __init__(self, *, stream=None, num_workers=1, verbosity=1,
                  output_format=OutputFormat.auto, warnings=True,
-                 failfast=False):
+                 failfast=False, coverage=()):
         self.stream = stream if stream is not None else sys.stderr
         self.num_workers = num_workers
         self.verbosity = verbosity
         self.warnings = warnings
         self.failfast = failfast
         self.output_format = output_format
+        self.coverage = coverage
 
     def run(self, test):
+        if self.coverage:
+            for path in edb.__path__:
+                cov_rc = pathlib.Path(path).parent / '.coveragerc'
+                if cov_rc.exists():
+                    break
+            else:
+                raise RuntimeError('cannot locate the .coveragerc file')
+
+            with tempfile.TemporaryDirectory() as td:
+                cov_config = devmode.CoverageConfig(
+                    paths=self.coverage,
+                    config=str(cov_rc),
+                    datadir=td)
+                cov_config.save_to_environ()
+
+                main_cov = cov_config.new_coverage_object()
+                main_cov.start()
+
+                try:
+                    return self._run(test)
+                finally:
+                    main_cov.stop()
+                    main_cov.save()
+
+                    data = coverage.CoverageData()
+
+                    with os.scandir(td) as it:
+                        for entry in it:
+                            new_data = coverage.CoverageData()
+                            new_data.read_file(entry.path)
+                            data.update(new_data)
+
+                    data.write_file('.coverage')
+
+                    report_cov = cov_config.new_custom_coverage_object(
+                        config_file=str(cov_rc))
+                    report_cov.load()
+                    report_cov.report()
+        else:
+            return self._run(test)
+
+    def _run(self, test):
         session_start = time.monotonic()
         cases = tb.get_test_cases([test])
         setup = tb.get_test_cases_setup(cases)

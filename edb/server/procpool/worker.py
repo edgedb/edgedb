@@ -22,12 +22,14 @@ import asyncio
 import importlib
 import base64
 import pickle
+import signal
 import sys
 import traceback
 
 import uvloop
 
 from edb.common import debug
+from edb.common import devmode
 from edb.common import markup
 
 from . import amsg
@@ -41,6 +43,9 @@ def load_class(cls_name):
 
 
 async def worker(cls, cls_args, sockname):
+    loop = asyncio.get_running_loop()
+    loop.add_signal_handler(signal.SIGTERM, on_terminate_worker)
+
     con = await amsg.worker_connect(sockname)
     try:
         worker = cls(*cls_args)
@@ -77,9 +82,14 @@ async def worker(cls, cls_args, sockname):
         con.abort()
 
 
+def on_terminate_worker():
+    raise SystemExit
+
+
 def run_worker(cls, cls_args, sockname):
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
-    asyncio.run(worker(cls, cls_args, sockname))
+    with devmode.CoverageConfig.enable_coverage_if_requested():
+        asyncio.run(worker(cls, cls_args, sockname))
 
 
 def clear_exception_frames(er):

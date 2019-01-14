@@ -41,7 +41,6 @@ from . import cluster as edgedb_cluster
 from . import daemon
 from . import defines
 from . import logsetup
-from . import server
 
 
 logger = logging.getLogger('edb.server')
@@ -117,6 +116,12 @@ def _run_server(cluster, args, runstate_dir):
     _init_cluster(cluster, args)
 
     try:
+        # Import here to make sure that most of imports happen
+        # under coverage (if we're testing with it).  Otherwise
+        # coverage will fail to detect that "import edb..." lines
+        # actually were run.
+        from . import server
+
         ss = server.Server(
             loop=loop,
             cluster=cluster,
@@ -290,7 +295,8 @@ def main(**kwargs):
                 'edgedb-server-{}'.format(kwargs['port']))
             run_server(kwargs)
     else:
-        run_server(kwargs)
+        with devmode.CoverageConfig.enable_coverage_if_requested():
+            run_server(kwargs)
 
 
 def main_dev():
