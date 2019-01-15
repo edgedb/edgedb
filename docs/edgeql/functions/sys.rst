@@ -35,6 +35,8 @@ System
     a lock for the same *key*, this function will wait until
     the lock is released.
 
+    *key* must be a non-negative integer.
+
     The function always returns ``true``.
 
 
@@ -44,6 +46,8 @@ System
 
     The function returns ``true`` if the lock was successfully
     released, and ``false`` if the lock was not held.
+
+    *key* must be a non-negative integer.
 
 
 .. eql:function:: sys::advisory_unlock_all() -> bool
