@@ -1493,6 +1493,9 @@ def init_metaclass_tables():
             table.add_constraint(
                 dbops.PrimaryKey(('edgedb', 'object'), columns=('id',)))
 
+        table.add_constraint(
+            dbops.UniqueConstraint(table, columns=('name',)))
+
         metaclass_tables[mcls] = table
 
 
