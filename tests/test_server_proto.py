@@ -16,8 +16,11 @@
 # limitations under the License.
 #
 
+import asyncio
+
 import edgedb
 
+from edb.common import taskgroup as tg
 from edb.testbase import server as tb
 
 
@@ -156,6 +159,35 @@ class TestServerProto(tb.NonIsolatedDDLTestCase):
             '''),
             edgedb.Set(('{"name": "std::bool"}',))
         )
+
+    async def test_server_proto_wait_cancel_01(self):
+        # Test that client protocol handles waits interrupted
+        # by closing.
+        lock_key = tb.gen_lock_key()
+
+        con2 = await self.cluster.connect(user='edgedb',
+                                          database=self.con.dbname)
+
+        await self.con.fetch('select sys::advisory_lock(<int64>$0)', lock_key)
+
+        try:
+            async with tg.TaskGroup() as g:
+
+                async def exec_to_fail():
+                    with self.assertRaises(ConnectionAbortedError):
+                        await con2.fetch(
+                            'select sys::advisory_lock(<int64>$0)', lock_key)
+
+                g.create_task(exec_to_fail())
+
+                await asyncio.sleep(0.1)
+                await con2.close()
+
+        finally:
+            self.assertEqual(
+                await self.con.fetch(
+                    'select sys::advisory_unlock(<int64>$0)', lock_key),
+                [True])
 
     async def test_server_proto_query_cache_invalidate_01(self):
         typename = 'CacheInv_01'

@@ -652,3 +652,12 @@ async def _setup_database(dbname, setup_script, conn_args):
         await dbconn.close()
 
     return dbname
+
+
+_lock_cnt = 0
+
+
+def gen_lock_key():
+    global _lock_cnt
+    _lock_cnt += 1
+    return os.getpid() * 1000 + _lock_cnt
