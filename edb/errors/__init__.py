@@ -57,6 +57,7 @@ __all__ = base.__all__ + (
     'DuplicateFunctionDefinitionError',
     'DuplicateConstraintDefinitionError',
     'DuplicateCastDefinitionError',
+    'QueryTimeoutError',
     'ExecutionError',
     'InvalidValueError',
     'DivisionByZeroError',
@@ -260,6 +261,10 @@ class DuplicateConstraintDefinitionError(DuplicateDefinitionError):
 
 class DuplicateCastDefinitionError(DuplicateDefinitionError):
     _code = 0x_04_05_02_0A
+
+
+class QueryTimeoutError(QueryError):
+    _code = 0x_04_06_00_00
 
 
 class ExecutionError(EdgeDBError):
