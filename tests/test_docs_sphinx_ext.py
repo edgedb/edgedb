@@ -78,7 +78,7 @@ class BaseDomainTest:
 
 class TestEqlType(unittest.TestCase, BaseDomainTest):
 
-    def test_eql_type_1(self):
+    def test_sphinx_eql_type_01(self):
         src = '''
         .. eql:type:: int64
 
@@ -96,7 +96,7 @@ class TestEqlType(unittest.TestCase, BaseDomainTest):
             '''),
             ['int64'])
 
-    def test_eql_type_2(self):
+    def test_sphinx_eql_type_02(self):
         src = '''
         .. eql:type:: std::int64
         '''
@@ -104,7 +104,7 @@ class TestEqlType(unittest.TestCase, BaseDomainTest):
         with self.assert_fails('the directive must include a description'):
             self.build(src)
 
-    def test_eql_type_3(self):
+    def test_sphinx_eql_type_03(self):
         src = '''
         .. eql:type:: std::int64
 
@@ -117,7 +117,7 @@ class TestEqlType(unittest.TestCase, BaseDomainTest):
                 "cannot resolve :eql:type: targeting 'type::std::int1'"):
             self.build(src)
 
-    def test_eql_type_4(self):
+    def test_sphinx_eql_type_04(self):
         src = '''
         .. eql:type:: std::int64
 
@@ -130,7 +130,7 @@ class TestEqlType(unittest.TestCase, BaseDomainTest):
             self.build(src),
             r'(?x).*<a .* href="#std::int64".*')
 
-    def test_eql_type_5(self):
+    def test_sphinx_eql_type_05(self):
         src = '''
         .. eql:type:: std::int64
 
@@ -143,7 +143,7 @@ class TestEqlType(unittest.TestCase, BaseDomainTest):
         with self.assert_fails("shorter than 80 characters"):
             self.build(src)
 
-    def test_eql_type_6(self):
+    def test_sphinx_eql_type_06(self):
         src = r'''
         .. eql:type:: std::int64
 
@@ -170,7 +170,7 @@ class TestEqlType(unittest.TestCase, BaseDomainTest):
             '''),
             ['XXX', 'array<int64>', 'array<int64>', 'array<array<int64>>'])
 
-    def test_eql_type_7(self):
+    def test_sphinx_eql_type_07(self):
         src = '''
         .. eql:type:: int64
 
@@ -194,7 +194,7 @@ class TestEqlType(unittest.TestCase, BaseDomainTest):
             ['OPTIONAL  int64', 'OPTIONAL int64',
              'SET  OF  int64', 'SET OF int64'])
 
-    def test_eql_type_8(self):
+    def test_sphinx_eql_type_08(self):
         src = '''
         .. eql:type:: SET OF
 
@@ -218,7 +218,7 @@ class TestEqlType(unittest.TestCase, BaseDomainTest):
 
 class TestEqlFunction(unittest.TestCase, BaseDomainTest):
 
-    def test_eql_func_1(self):
+    def test_sphinx_eql_func_01(self):
         src = '''
         .. eql:type:: std::int64
 
@@ -266,7 +266,7 @@ class TestEqlFunction(unittest.TestCase, BaseDomainTest):
             '''),
             ['xxx YyY'])
 
-    def test_eql_func_2(self):
+    def test_sphinx_eql_func_02(self):
         src = '''
         .. eql:function:: std::test() -> any
 
@@ -279,7 +279,7 @@ class TestEqlFunction(unittest.TestCase, BaseDomainTest):
         with self.assert_fails("shorter than 80 characters"):
             self.build(src)
 
-    def test_eql_func_3(self):
+    def test_sphinx_eql_func_03(self):
         src = '''
         .. eql:function:: std::test(v: any) -> any
 
@@ -296,7 +296,7 @@ class TestEqlFunction(unittest.TestCase, BaseDomainTest):
         with self.assert_fails(expected):
             self.build(src)
 
-    def test_eql_func_5(self):
+    def test_sphinx_eql_func_05(self):
         src = '''
         .. eql:function:: std::test(v: any) -> any
 
@@ -306,7 +306,7 @@ class TestEqlFunction(unittest.TestCase, BaseDomainTest):
         with self.assert_fails('the directive must include a description'):
             self.build(src)
 
-    def test_eql_func_6(self):
+    def test_sphinx_eql_func_06(self):
         src = '''
         .. eql:function:: std::test(v: any) -> any
 
@@ -321,7 +321,7 @@ class TestEqlFunction(unittest.TestCase, BaseDomainTest):
                 'fields must be specified before all other content'):
             self.build(src)
 
-    def test_eql_func_7(self):
+    def test_sphinx_eql_func_07(self):
         src = '''
         .. eql:function:: std::test(a: OPTIONAL str, b: SET OF str, \\
                             c: str) -> SET OF str
@@ -342,7 +342,7 @@ class TestEqlFunction(unittest.TestCase, BaseDomainTest):
             ['std::test(a: OPTIONAL str, b: SET OF str, c: str) -> SET OF str']
         )
 
-    def test_eql_func_8(self):
+    def test_sphinx_eql_func_08(self):
         src = '''
         .. eql:function:: std::test(NAMED ONLY v: in64=42) -> OPTIONAL int64
 
@@ -360,7 +360,7 @@ class TestEqlFunction(unittest.TestCase, BaseDomainTest):
             x.xpath('//desc_signature/@eql-signature'),
             ['std::test(NAMED ONLY v: in64 = 42) -> OPTIONAL int64'])
 
-    def test_eql_func_9(self):
+    def test_sphinx_eql_func_09(self):
         src = '''
         .. eql:function:: sys::sleep(duration: timedelta) -> bool
                           sys::sleep(duration: float64) -> bool
@@ -381,7 +381,7 @@ class TestEqlFunction(unittest.TestCase, BaseDomainTest):
 
 class TestEqlConstraint(unittest.TestCase, BaseDomainTest):
 
-    def test_eql_constr_1(self):
+    def test_sphinx_eql_constr_01(self):
         src = '''
         .. eql:type:: std::int64
 
@@ -417,7 +417,7 @@ class TestEqlConstraint(unittest.TestCase, BaseDomainTest):
             '''),
             ['XXX', 'maxlength'])
 
-    def test_eql_constr_2(self):
+    def test_sphinx_eql_constr_02(self):
         src = '''
         .. eql:constraint:: std::length on (len(<std::str>__subject__))
 
@@ -443,7 +443,7 @@ class TestEqlConstraint(unittest.TestCase, BaseDomainTest):
 
 class TestEqlOperator(unittest.TestCase, BaseDomainTest):
 
-    def test_eql_op_1(self):
+    def test_sphinx_eql_op_01(self):
         src = '''
         .. eql:type:: int64
 
@@ -490,7 +490,7 @@ class TestEqlOperator(unittest.TestCase, BaseDomainTest):
             '''),
             ['XXX'])
 
-    def test_eql_op_2(self):
+    def test_sphinx_eql_op_02(self):
         src = '''
         .. eql:type:: any
 
@@ -520,7 +520,7 @@ class TestEqlOperator(unittest.TestCase, BaseDomainTest):
 
 class TestEqlKeyword(unittest.TestCase, BaseDomainTest):
 
-    def test_eql_kw_1(self):
+    def test_sphinx_eql_kw_01(self):
         src = '''
         .. eql:keyword:: SET OF
 
@@ -557,7 +557,7 @@ class TestEqlKeyword(unittest.TestCase, BaseDomainTest):
 
 class TestEqlStatement(unittest.TestCase, BaseDomainTest):
 
-    def test_eql_stmt_5(self):
+    def test_sphinx_eql_stmt_05(self):
         src = '''
 
         CREATE FUNCTION
@@ -625,7 +625,7 @@ class TestEqlStatement(unittest.TestCase, BaseDomainTest):
             '''),
             ['CREATE FUNCTION--creates a function.', 'blah.'])
 
-    def test_eql_stmt_6(self):
+    def test_sphinx_eql_stmt_06(self):
         src = '''
 
         AAAAAA
@@ -641,7 +641,7 @@ class TestEqlStatement(unittest.TestCase, BaseDomainTest):
                 'first paragraph is longer than 79 characters'):
             self.build(src)
 
-    def test_eql_stmt_7(self):
+    def test_sphinx_eql_stmt_07(self):
         src = '''
 
         AA aa
@@ -658,7 +658,7 @@ class TestEqlStatement(unittest.TestCase, BaseDomainTest):
                 'but does not satisfy pattern for valid'):
             self.build(src)
 
-    def test_eql_stmt_8(self):
+    def test_sphinx_eql_stmt_08(self):
         src = '''
 
         AA AA
@@ -680,7 +680,7 @@ class TestEqlStatement(unittest.TestCase, BaseDomainTest):
                 ' has a nested section with a :eql-statement:'):
             self.build(src)
 
-    def test_eql_stmt_9(self):
+    def test_sphinx_eql_stmt_09(self):
         src = '''
 
         AA AA
@@ -701,7 +701,7 @@ class TestEqlStatement(unittest.TestCase, BaseDomainTest):
         with self.assert_fails("duplicate 'AA AA' statement"):
             self.build(src)
 
-    def test_eql_stmt_10(self):
+    def test_sphinx_eql_stmt_10(self):
         src = '''
         =========
         Functions
@@ -746,7 +746,7 @@ class TestEqlStatement(unittest.TestCase, BaseDomainTest):
 
 class TestEqlInlineCode(unittest.TestCase, BaseDomainTest):
 
-    def test_eql_inline_role_1(self):
+    def test_sphinx_eql_inline_role_01(self):
         src = '''
         a test of :eql:synopsis:`WITH <aaaa>`.
         '''
@@ -763,7 +763,7 @@ class TestEqlInlineCode(unittest.TestCase, BaseDomainTest):
 
 class TestBlockquote(unittest.TestCase, BaseDomainTest):
 
-    def test_eql_blockquote_1(self):
+    def test_sphinx_eql_blockquote_01(self):
         src = '''
         blah
 
@@ -777,7 +777,7 @@ class TestBlockquote(unittest.TestCase, BaseDomainTest):
         with self.assert_fails('blockquote found'):
             self.build(src, format='html')
 
-    def test_eql_singlebacktick_1(self):
+    def test_sphinx_eql_singlebacktick_01(self):
         src = '''
         Another use case is for giving short aliases to long module names
         (especially if module names contain `.`).
@@ -792,7 +792,7 @@ class TestBlockquote(unittest.TestCase, BaseDomainTest):
 
 class TestEQLMigration(unittest.TestCase, BaseDomainTest):
 
-    def test_eql_migration_1(self):
+    def test_sphinx_eql_migration_01(self):
         src = '''
         .. eql:migration:: foobar
 
