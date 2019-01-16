@@ -95,6 +95,9 @@ class flags(metaclass=FlagsMeta):
     server = Flag(
         doc="Print server errors.")
 
+    server_proto = Flag(
+        doc="Print server protocol querying messages.")
+
     print_locals = Flag(
         doc="Include values of local variables in tracebacks.")
 

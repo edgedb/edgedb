@@ -22,6 +22,7 @@ import typing
 
 import immutables
 
+from edb import errors
 from edb.server import defines
 from edb.common import lru
 
@@ -50,10 +51,8 @@ class Database:
     def _invalidate_caches(self):
         self._eql_to_compiled.clear()
 
-    def _cache_compiled_query(self, eql: bytes, json_mode: bool,
-                              compiled: dbstate.QueryUnit):
+    def _cache_compiled_query(self, key, compiled: dbstate.QueryUnit):
         assert compiled.is_preparable()
-        key = (eql, json_mode)
         existing = self._eql_to_compiled.get(key)
         if existing is not None and existing.dbver > compiled.dbver:
             # We already have a cached query for a more recent DB version.
@@ -82,19 +81,31 @@ class DatabaseConnectionView:
         self._eql_to_compiled = lru.LRUMapping(
             maxsize=defines._MAX_QUERIES_CACHE)
 
-        self._new_tx_state()
+        self._reset_tx_state()
 
     def _invalidate_local_cache(self):
         self._eql_to_compiled.clear()
 
-    def _new_tx_state(self):
+    def _reset_tx_state(self):
         self._txid = None
         self._in_tx = False
         self._in_tx_with_ddl = False
         self._tx_error = False
 
+        self._config_before_tx = self._config
+        self._modaliases_before_tx = self._modaliases
+
+        self._invalidate_local_cache()
+
+    def abort_tx(self):
+        if not self.in_tx:
+            raise errors.InternalServerError('abort_tx(): not in transaction')
+        self._config = self._config_before_tx
+        self._modaliases = self._modaliases_before_tx
+        self._reset_tx_state()
+
     def rollback(self):
-        self._new_tx_state()
+        self._reset_tx_state()
 
     @property
     def config(self):
@@ -113,6 +124,10 @@ class DatabaseConnectionView:
         return self._in_tx
 
     @property
+    def in_tx_error(self):
+        return self._tx_error
+
+    @property
     def user(self):
         return self._user
 
@@ -127,17 +142,25 @@ class DatabaseConnectionView:
     def cache_compiled_query(self, eql: bytes,
                              json_mode: bool,
                              compiled: dbstate.QueryUnit):
+
+        assert compiled.is_preparable()
+
+        key = (eql, json_mode, self._modaliases, self._config)
+
         if self._in_tx_with_ddl:
-            self._eql_to_compiled[(eql, json_mode)] = compiled
+            self._eql_to_compiled[key] = compiled
         else:
-            self._db._cache_compiled_query(eql, json_mode, compiled)
+            self._db._cache_compiled_query(key, compiled)
 
     def lookup_compiled_query(
             self, eql: bytes,
             json_mode: bool) -> typing.Optional[dbstate.QueryUnit]:
 
+        if self._tx_error:
+            return None
+
         compiled: dbstate.QueryUnit
-        key = (eql, json_mode)
+        key = (eql, json_mode, self._modaliases, self._config)
 
         if self._in_tx_with_ddl:
             compiled = self._eql_to_compiled.get(key)
@@ -153,34 +176,60 @@ class DatabaseConnectionView:
             self._tx_error = True
 
     def start(self, qu: dbstate.QueryUnit):
-        self._txid = qu.txid
+        if self._tx_error:
+            if qu.savepoint_rollbacks or qu.rollbacks_tx:
+                self._tx_error = False
+            else:
+                self.raise_in_tx_error()
+
         if qu.starts_tx:
+            assert not qu.is_preparable()
             self._in_tx = True
-            if qu.has_ddl:
-                self._in_tx_with_ddl
+            self._txid = qu.txid
+
+        if self._in_tx and not self._txid:
+            raise errors.InternalServerError('unset txid in transaction')
+
+        if self._in_tx and qu.has_ddl:
+            self._in_tx_with_ddl = True
 
     def on_error(self, qu: dbstate.QueryUnit):
         self.tx_error()
 
     def on_success(self, qu: dbstate.QueryUnit):
+        if qu.has_ddl or (self._in_tx_with_ddl and qu.savepoint_rollbacks):
+            self._invalidate_local_cache()
+
         if not self._in_tx and qu.has_ddl:
             self._db._signal_ddl()
-
-        if qu.commits_tx:
-            assert self._in_tx
-            if self._in_tx_with_ddl:
-                self._db._signal_ddl()
-            self._new_tx_state()
-
-        elif qu.rollbacks_tx:
-            assert self._in_tx
-            self._new_tx_state()
 
         if qu.config:
             self._config = qu.config
 
         if qu.modaliases:
             self._modaliases = qu.modaliases
+
+        if qu.commits_tx:
+            assert self._in_tx
+            if self._in_tx_with_ddl:
+                self._db._signal_ddl()
+            self._reset_tx_state()
+
+        elif qu.rollbacks_tx:
+            assert self._in_tx
+            assert self._config == self._config_before_tx
+            assert self._modaliases == self._modaliases_before_tx
+            self._reset_tx_state()
+
+        if not self._in_tx:
+            self._config_before_tx = self._config
+            self._modaliases_before_tx = self._modaliases
+
+    @staticmethod
+    def raise_in_tx_error():
+        raise errors.TransactionError(
+            'current transaction is aborted, '
+            'commands ignored until end of transaction block')
 
 
 class DatabaseIndex:

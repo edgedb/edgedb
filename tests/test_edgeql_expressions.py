@@ -584,7 +584,8 @@ class TestExpressions(tb.QueryTestCase):
                 query = f"""SELECT {left} {binop} {right};"""
                 with self.assertRaisesRegex(edgedb.QueryError, result,
                                             msg=query):
-                    await self.query(query)
+                    async with self.con.transaction():
+                        await self.query(query)
 
     async def test_edgeql_expr_valid_eq_01(self):
         # compare all numerics to all other scalars via equality
@@ -888,7 +889,8 @@ class TestExpressions(tb.QueryTestCase):
             with self.assertRaisesRegex(edgedb.QueryError,
                                         expected_error_msg,
                                         msg=query):
-                await self.query(query)
+                async with self.con.transaction():
+                    await self.query(query)
 
     # NOTE: Generalized Binop `+` and `-` rules:
     #
@@ -931,7 +933,8 @@ class TestExpressions(tb.QueryTestCase):
                     with self.assertRaisesRegex(edgedb.QueryError,
                                                 expected_error_msg,
                                                 msg=query):
-                        await self.query(query)
+                        async with self.con.transaction():
+                            await self.query(query)
 
     async def test_edgeql_expr_valid_arithmetic_04(self):
         # Tests (2), (3), (4) - various date/time with non-date/time
@@ -951,7 +954,8 @@ class TestExpressions(tb.QueryTestCase):
                     with self.assertRaisesRegex(edgedb.QueryError,
                                                 expected_error_msg,
                                                 msg=query):
-                        await self.query(query)
+                        async with self.con.transaction():
+                            await self.query(query)
 
     async def test_edgeql_expr_valid_arithmetic_05(self):
         # Tests (2) - various date/time combinations.
@@ -977,7 +981,8 @@ class TestExpressions(tb.QueryTestCase):
                     with self.assertRaisesRegex(edgedb.QueryError,
                                                 expected_error_msg,
                                                 msg=query):
-                        await self.query(query)
+                        async with self.con.transaction():
+                            await self.query(query)
 
     async def test_edgeql_expr_valid_arithmetic_06(self):
         # Tests (3), (4) - various date/time combinations.
@@ -1004,7 +1009,8 @@ class TestExpressions(tb.QueryTestCase):
                     with self.assertRaisesRegex(edgedb.QueryError,
                                                 expected_error_msg,
                                                 msg=query):
-                        await self.query(query)
+                        async with self.con.transaction():
+                            await self.query(query)
 
     async def test_edgeql_expr_valid_arithmetic_07(self):
         # various date/time combinations don't define '*', '/', '//',
@@ -1020,7 +1026,8 @@ class TestExpressions(tb.QueryTestCase):
                     with self.assertRaisesRegex(edgedb.QueryError,
                                                 expected_error_msg,
                                                 msg=query):
-                        await self.query(query)
+                        async with self.con.transaction():
+                            await self.query(query)
 
     async def test_edgeql_expr_valid_arithmetic_08(self):
         # Test (5) - decimal is incompatible with everything except integers
@@ -1033,7 +1040,8 @@ class TestExpressions(tb.QueryTestCase):
                     with self.assertRaisesRegex(edgedb.QueryError,
                                                 expected_error_msg,
                                                 msg=query):
-                        await self.query(query)
+                        async with self.con.transaction():
+                            await self.query(query)
 
         for left in get_test_values(decimal=True):
             for right in get_test_values(anyint=True):
@@ -1124,7 +1132,8 @@ class TestExpressions(tb.QueryTestCase):
                 with self.assertRaisesRegex(edgedb.QueryError,
                                             expected_error_msg,
                                             msg=query):
-                    await self.query(query)
+                    async with self.con.transaction():
+                        await self.query(query)
 
     async def test_edgeql_expr_valid_setop_03(self):
         # UNION all non-decimal numerics with each other
@@ -1179,7 +1188,8 @@ class TestExpressions(tb.QueryTestCase):
                     with self.assertRaisesRegex(edgedb.QueryError,
                                                 expected_error_msg,
                                                 msg=query):
-                        await self.query(query)
+                        async with self.con.transaction():
+                            await self.query(query)
 
     async def test_edgeql_expr_valid_setop_05(self):
         # decimals are tricky because integers implicitly cast into
@@ -1193,7 +1203,8 @@ class TestExpressions(tb.QueryTestCase):
                 with self.assertRaisesRegex(edgedb.QueryError,
                                             expected_error_msg,
                                             msg=query):
-                    await self.query(query)
+                    async with self.con.transaction():
+                        await self.query(query)
 
     async def test_edgeql_expr_valid_setop_06(self):
         # decimals are tricky because integers implicitly cast into
@@ -1219,7 +1230,8 @@ class TestExpressions(tb.QueryTestCase):
                 with self.assertRaisesRegex(edgedb.QueryError,
                                             expected_error_msg,
                                             msg=query):
-                    await self.query(query)
+                    async with self.con.transaction():
+                        await self.query(query)
 
     async def test_edgeql_expr_valid_setop_07(self):
         expected_error_msg = 'condition must be of type std::bool'
@@ -1233,7 +1245,8 @@ class TestExpressions(tb.QueryTestCase):
                 with self.assertRaisesRegex(edgedb.QueryError,
                                             expected_error_msg,
                                             msg=query):
-                    await self.query(query)
+                    async with self.con.transaction():
+                        await self.query(query)
 
     # Operator '??' should work just like UNION in terms of types.
     # Operator A IF C ELSE B should work exactly like A UNION B in
@@ -1252,7 +1265,8 @@ class TestExpressions(tb.QueryTestCase):
                     with self.assertRaisesRegex(edgedb.QueryError,
                                                 expected_error_msg,
                                                 msg=query):
-                        await self.query(query)
+                        async with self.con.transaction():
+                            await self.query(query)
 
     async def test_edgeql_expr_valid_setop_09(self):
         # test all non-decimal numerics with each other
@@ -1309,7 +1323,8 @@ class TestExpressions(tb.QueryTestCase):
                         with self.assertRaisesRegex(edgedb.QueryError,
                                                     expected_error_msg,
                                                     msg=query):
-                            await self.query(query)
+                            async with self.con.transaction():
+                                await self.query(query)
 
     async def test_edgeql_expr_valid_setop_11(self):
         # decimals are tricky because integers implicitly cast into
@@ -1324,7 +1339,8 @@ class TestExpressions(tb.QueryTestCase):
                     with self.assertRaisesRegex(edgedb.QueryError,
                                                 expected_error_msg,
                                                 msg=query):
-                        await self.query(query)
+                        async with self.con.transaction():
+                            await self.query(query)
 
     async def test_edgeql_expr_valid_setop_12(self):
         # decimals are tricky because integers implicitly cast into
@@ -1339,7 +1355,8 @@ class TestExpressions(tb.QueryTestCase):
                     with self.assertRaisesRegex(edgedb.QueryError,
                                                 expected_error_msg,
                                                 msg=query):
-                        await self.query(query)
+                        async with self.con.transaction():
+                            await self.query(query)
 
         for left in get_test_values(decimal=True):
             for right in get_test_values(anyreal=True, anyfloat=False):
@@ -1369,7 +1386,8 @@ class TestExpressions(tb.QueryTestCase):
                         with self.assertRaisesRegex(edgedb.QueryError,
                                                     expected_error_msg,
                                                     msg=query):
-                            await self.query(query)
+                            async with self.con.transaction():
+                                await self.query(query)
 
     async def test_edgeql_expr_valid_bool_02(self):
         expected_error_msg = 'cannot be applied to operands'
@@ -1384,7 +1402,8 @@ class TestExpressions(tb.QueryTestCase):
                 with self.assertRaisesRegex(edgedb.QueryError,
                                             expected_error_msg,
                                             msg=query):
-                    await self.query(query)
+                    async with self.con.transaction():
+                        await self.query(query)
 
     async def test_edgeql_expr_valid_setbool_01(self):
         # Use scalar combinations with IN and NOT IN. The expressions

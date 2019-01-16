@@ -51,7 +51,10 @@ async def worker(cls, cls_args, sockname):
         worker = cls(*cls_args)
 
         while True:
-            req = await con.next_request()
+            try:
+                req = await con.next_request()
+            except amsg.PoolClosedError:
+                raise SystemExit
 
             try:
                 methname, args = pickle.loads(req)

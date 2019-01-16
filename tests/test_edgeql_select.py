@@ -1890,7 +1890,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         with self.assertRaisesRegex(edgedb.QueryError,
                                     'could not find a function variant'):
-            await self.query("SELECT test::concat1('aaa', 'bbb', 2);")
+            async with self.con.transaction():
+                await self.query("SELECT test::concat1('aaa', 'bbb', 2);")
 
         await self.query(r'''
             DROP FUNCTION test::concat1(VARIADIC s: anytype);
@@ -1971,11 +1972,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         with self.assertRaisesRegex(edgedb.QueryError,
                                     'could not find a function'):
-            await self.query(r'SELECT test::concat3(123);')
+            async with self.con.transaction():
+                await self.query(r'SELECT test::concat3(123);')
 
         with self.assertRaisesRegex(edgedb.QueryError,
                                     'could not find a function'):
-            await self.query(r'SELECT test::concat3("a", 123);')
+            async with self.con.transaction():
+                await self.query(r'SELECT test::concat3("a", 123);')
 
         await self.assert_query_result(r'''
             SELECT test::concat3('|', '1', '2');

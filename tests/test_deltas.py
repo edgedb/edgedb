@@ -230,6 +230,8 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
             };
         ''')
 
+        await self.query('DECLARE SAVEPOINT t0;')
+
         with self.assertRaisesRegex(
                 edgedb.InvalidLinkTargetError,
                 r"invalid target for link '\(test::ObjectType01\)\.target': "
@@ -256,6 +258,7 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
             schema = f.read()
 
         await self.query(f'''
+            ROLLBACK TO SAVEPOINT t0;
             CREATE MIGRATION test::d_links01_1 TO eschema $${schema}$$;
             COMMIT MIGRATION test::d_links01_1;
             ''')

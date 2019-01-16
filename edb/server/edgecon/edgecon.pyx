@@ -16,6 +16,8 @@
 # limitations under the License.
 #
 
+import os
+
 cimport cython
 cimport cpython
 
@@ -78,6 +80,11 @@ cdef class EdgeConnection:
         self._last_anon_compiled = None
 
         self._write_buf = None
+
+        self.debug = debug.flags.server_proto
+
+    def debug_print(self, *args):
+        print('::PROTO::', os.getpid(), *args, self.dbview.in_tx)
 
     cdef write(self, WriteBuffer buf):
         # One rule for this method: don't write partial messages.
@@ -170,42 +177,68 @@ cdef class EdgeConnection:
     #############
 
     async def _compile(self, bytes eql, bint json_mode):
-        if self.dbview.in_tx:
-            return await self.backend.compiler.call(
-                'compile_eql_in_tx',
-                self.dbview.txid,
-                eql,
-                json_mode)
-        else:
-            return await self.backend.compiler.call(
-                'compile_eql',
-                self.dbview.dbver,
-                eql,
-                self.dbview.modaliases,
-                self.dbview.config,
-                json_mode)
+        try:
+            if self.dbview.in_tx:
+                unit = await self.backend.compiler.call(
+                    'compile_eql_in_tx',
+                    self.dbview.txid,
+                    eql,
+                    json_mode)
+            else:
+                unit = await self.backend.compiler.call(
+                    'compile_eql',
+                    self.dbview.dbver,
+                    eql,
+                    self.dbview.modaliases,
+                    self.dbview.config,
+                    json_mode)
+        except Exception:
+            if self.dbview.in_tx_error:
+                self.dbview.raise_in_tx_error()
+            else:
+                raise
+
+        if self.dbview.in_tx_error and not (
+                unit.rollbacks_tx or unit.savepoint_rollbacks):
+            self.dbview.raise_in_tx_error()
+
+        return unit
 
     async def _compile_script(self, bytes eql, bint json_mode,
                               bint legacy_mode, bint graphql_mode):
 
-        if self.dbview.in_tx:
-            return await self.backend.compiler.call(
-                'compile_eql_script_in_tx',
-                self.dbview.txid,
-                eql,
-                json_mode,
-                legacy_mode,
-                graphql_mode)
-        else:
-            return await self.backend.compiler.call(
-                'compile_eql_script',
-                self.dbview.dbver,
-                eql,
-                self.dbview.modaliases,
-                self.dbview.config,
-                json_mode,
-                legacy_mode,
-                graphql_mode)
+        try:
+            if self.dbview.in_tx:
+                units = await self.backend.compiler.call(
+                    'compile_eql_script_in_tx',
+                    self.dbview.txid,
+                    eql,
+                    json_mode,
+                    legacy_mode,
+                    graphql_mode)
+            else:
+                units = await self.backend.compiler.call(
+                    'compile_eql_script',
+                    self.dbview.dbver,
+                    eql,
+                    self.dbview.modaliases,
+                    self.dbview.config,
+                    json_mode,
+                    legacy_mode,
+                    graphql_mode)
+        except Exception:
+            if self.dbview.in_tx_error:
+                self.dbview.raise_in_tx_error()
+            else:
+                raise
+
+        assert len(units)
+
+        if self.dbview.in_tx_error and not (
+                units[0].rollbacks_tx or units[0].savepoint_rollbacks):
+            self.dbview.raise_in_tx_error()
+
+        return units
 
     async def legacy(self):
         cdef:
@@ -219,6 +252,9 @@ cdef class EdgeConnection:
         if not eql:
             raise errors.BinaryProtocolError('empty query')
 
+        if self.debug:
+            self.debug_print('LEGACY', eql)
+
         units = await self._compile_script(eql, True, True, graphql)
 
         resbuf = []
@@ -230,11 +266,11 @@ cdef class EdgeConnection:
                         unit.sql, ignore_data=False)
                 except Exception as ex:
                     self.dbview.on_error(unit)
-                    if not self.backend.pgcon.in_tx():
+                    if not self.backend.pgcon.in_tx() and self.dbview.in_tx:
                         # COMMIT command can fail, in which case the
                         # transaction is finished.  This check workarounds
                         # that (until a better solution is found.)
-                        self.dbview._new_tx_state()
+                        self.dbview.abort_tx()
                     raise
                 else:
                     self.dbview.on_success(unit)
@@ -270,6 +306,9 @@ cdef class EdgeConnection:
         if not eql:
             raise errors.BinaryProtocolError('empty query')
 
+        if self.debug:
+            self.debug_print('SIMPLE QUERY', eql)
+
         units = await self._compile_script(eql, False, False, False)
 
         for unit in units:
@@ -280,11 +319,11 @@ cdef class EdgeConnection:
                         unit.sql, ignore_data=True)
                 except Exception as ex:
                     self.dbview.on_error(unit)
-                    if not self.backend.pgcon.in_tx():
+                    if not self.backend.pgcon.in_tx() and self.dbview.in_tx:
                         # COMMIT command can fail, in which case the
                         # transaction is finished.  This check workarounds
                         # that (until a better solution is found.)
-                        self.dbview._new_tx_state()
+                        self.dbview.abort_tx()
                     raise
                 else:
                     self.dbview.on_success(unit)
@@ -313,6 +352,9 @@ cdef class EdgeConnection:
         eql = self.buffer.read_null_str()
         if not eql:
             raise errors.BinaryProtocolError('empty query')
+
+        if self.debug:
+            self.debug_print('PARSE', eql)
 
         compiled = self.dbview.lookup_compiled_query(eql, json_mode)
         cached = True
@@ -407,6 +449,9 @@ cdef class EdgeConnection:
 
             compiled = self._last_anon_compiled
 
+        if self.debug:
+            self.debug_print('EXECUTE')
+
         bound_args_buf = self.recode_bind_args(bind_args)
 
         process_sync = False
@@ -430,11 +475,11 @@ cdef class EdgeConnection:
                     )
                 except Exception as ex:
                     self.dbview.on_error(compiled)
-                    if not self.backend.pgcon.in_tx():
+                    if not self.backend.pgcon.in_tx() and self.dbview.in_tx:
                         # COMMIT command can fail, in which case the
                         # transaction is finished.  This check workarounds
                         # that (until a better solution is found.)
-                        self.dbview._new_tx_state()
+                        self.dbview.abort_tx()
                     raise
                 else:
                     self.dbview.on_success(compiled)
@@ -471,6 +516,9 @@ cdef class EdgeConnection:
         out_tid = self.buffer.read_bytes(16)
         bound_args = self.buffer.consume_message()
 
+        if self.debug:
+            self.debug_print('OPPORTUNISTIC EXECUTE', query)
+
         if not query:
             raise errors.BinaryProtocolError('empty query')
 
@@ -505,11 +553,11 @@ cdef class EdgeConnection:
                     )
                 except Exception:
                     self.dbview.on_error(compiled)
-                    if not self.backend.pgcon.in_tx():
+                    if not self.backend.pgcon.in_tx() and self.dbview.in_tx:
                         # COMMIT command can fail, in which case the
                         # transaction is finished.  This check workarounds
                         # that (until a better solution is found.)
-                        self.dbview._new_tx_state()
+                        self.dbview.abort_tx()
                     raise
                 else:
                     self.dbview.on_success(compiled)
@@ -526,6 +574,7 @@ cdef class EdgeConnection:
                 process_sync = True
 
             try:
+                self.dbview.start(compiled)
                 if compiled.sql:
                     try:
                         await self.backend.pgcon.parse_execute(
@@ -564,6 +613,9 @@ cdef class EdgeConnection:
 
         await self.backend.pgcon.sync()
         self.write(self.pgcon_last_sync_status())
+
+        if self.debug:
+            self.debug_print('SYNC', self.pgcon_last_sync_status())
 
         self.flush()
 

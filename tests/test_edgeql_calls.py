@@ -107,7 +107,8 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.QueryError,
                     r'could not find a function variant'):
-                await self.query(c)
+                async with self.con.transaction():
+                    await self.query(c)
 
     @test.not_implemented(
         'type of the "[]" default cannot be determined for array<anytype>')
@@ -221,7 +222,8 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.QueryError,
                     r'could not find a function variant'):
-                await self.query(c)
+                async with self.con.transaction():
+                    await self.query(c)
 
     async def test_edgeql_calls_08(self):
         await self.query('''
@@ -257,7 +259,8 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'function test::call8 is not unique'):
-            await self.query('SELECT test::call8();')
+            async with self.con.transaction():
+                await self.query('SELECT test::call8();')
 
     async def test_edgeql_calls_09(self):
         await self.assert_query_result(r'''
@@ -346,7 +349,8 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.QueryError,
                     r'could not find a function variant'):
-                await self.query(c)
+                async with self.con.transaction():
+                    await self.query(c)
 
     @test.not_implemented(
         "this results in 2 PG functions: `(anynonarray)->bigint` and "
@@ -566,7 +570,8 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'could not find a function variant'):
 
-            await self.query('SELECT test::call18(1, 2, "a");')
+            async with self.con.transaction():
+                await self.query('SELECT test::call18(1, 2, "a");')
 
     @test.not_implemented(
         "PG fails with 'return type record[] is not supported'")
@@ -621,8 +626,8 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'could not find a function variant'):
-
-            await self.query('SELECT test::call20_1(1, "1");')
+            async with self.con.transaction():
+                await self.query('SELECT test::call20_1(1, "1");')
 
     async def test_edgeql_calls_21(self):
         await self.query('''
@@ -750,8 +755,8 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'could not find a function variant'):
-
-            await self.query('SELECT test::call26([(1, 2)]);')
+            async with self.con.transaction():
+                await self.query('SELECT test::call26([(1, 2)]);')
 
     async def test_edgeql_calls_27(self):
         await self.query('''
@@ -782,8 +787,8 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.QueryError,
                     r'could not find a function variant'):
-
-                await self.query(c)
+                async with self.con.transaction():
+                    await self.query(c)
 
     @test.not_implemented(
         "we get two `(anynonarray)->bigint` PG functions which is ambiguous")

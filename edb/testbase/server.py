@@ -255,8 +255,8 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                 self.con.execute('SET CONFIG __internal_testmode := true;'))
 
         if self.ISOLATED_METHODS:
-            self.loop.run_until_complete(
-                self.con.execute('START TRANSACTION;'))
+            self.xact = self.con.transaction()
+            self.loop.run_until_complete(self.xact.start())
 
         if self.SETUP_METHOD:
             self.loop.run_until_complete(
@@ -272,8 +272,8 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         finally:
             try:
                 if self.ISOLATED_METHODS:
-                    self.loop.run_until_complete(
-                        self.con.execute('ROLLBACK;'))
+                    self.loop.run_until_complete(self.xact.rollback())
+                    del self.xact
             finally:
                 super().tearDown()
 

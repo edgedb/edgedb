@@ -1295,11 +1295,12 @@ class TestEdgeQLScope(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"'User' changes the interpretation of 'User'"):
-            await self.query(r"""
-                WITH MODULE test
-                SELECT User.friends
-                FILTER User.friends@nickname = 'Firefighter';
-            """)
+            async with self.con.transaction():
+                await self.query(r"""
+                    WITH MODULE test
+                    SELECT User.friends
+                    FILTER User.friends@nickname = 'Firefighter';
+                """)
 
         # The above query is illegal, but the reason why may be
         # more obvious with the equivalent query below.
@@ -1495,12 +1496,13 @@ class TestEdgeQLScope(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'only singletons are allowed'):
 
-            await self.query(r"""
-                WITH MODULE test
-                SELECT DETACHED User {name}
-                # a subtle error
-                ORDER BY User.name;
-            """)
+            async with self.con.transaction():
+                await self.query(r"""
+                    WITH MODULE test
+                    SELECT DETACHED User {name}
+                    # a subtle error
+                    ORDER BY User.name;
+                """)
 
         await self.assert_query_result(r'''
             WITH MODULE test

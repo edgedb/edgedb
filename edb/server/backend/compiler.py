@@ -52,6 +52,7 @@ from edb.schema import types as s_types
 
 from edb.pgsql import delta as pg_delta
 from edb.pgsql import dbops as pg_dbops
+from edb.pgsql import common as pg_common
 
 from . import config
 from . import dbstate
@@ -404,18 +405,36 @@ class Compiler:
 
         if isinstance(ql, qlast.StartTransaction):
             ctx.state.start_tx()
-            sql = b'START TRANSACTION;'
+            sql = b'START TRANSACTION'
             action = dbstate.TxAction.START
 
         elif isinstance(ql, qlast.CommitTransaction):
             ctx.state.commit_tx()
-            sql = b'COMMIT;'
+            sql = b'COMMIT'
             action = dbstate.TxAction.COMMIT
 
         elif isinstance(ql, qlast.RollbackTransaction):
             ctx.state.rollback_tx()
-            sql = b'ROLLBACK;'
+            sql = b'ROLLBACK'
             action = dbstate.TxAction.ROLLBACK
+
+        elif isinstance(ql, qlast.DeclareSavepoint):
+            ctx.state.current_tx().declare_savepoint(ql.name)
+            pgname = pg_common.quote_ident(ql.name)
+            sql = f'SAVEPOINT {pgname}'.encode()
+            action = dbstate.TxAction.DECLARE_SAVEPOINT
+
+        elif isinstance(ql, qlast.ReleaseSavepoint):
+            ctx.state.current_tx().release_savepoint(ql.name)
+            pgname = pg_common.quote_ident(ql.name)
+            sql = f'RELEASE SAVEPOINT {pgname}'.encode()
+            action = dbstate.TxAction.RELEASE_SAVEPOINT
+
+        elif isinstance(ql, qlast.RollbackToSavepoint):
+            ctx.state.current_tx().rollback_to_savepoint(ql.name)
+            pgname = pg_common.quote_ident(ql.name)
+            sql = f'ROLLBACK TO SAVEPOINT {pgname}'.encode()
+            action = dbstate.TxAction.ROLLBACK_TO_SAVEPOINT
 
         else:
             raise ValueError(f'expecting transaction node, got {ql!r}')
@@ -523,19 +542,17 @@ class Compiler:
         units = []
         unit = None
 
-        txid = None
-        if not ctx.state.current_tx().is_implicit():
-            txid = ctx.state.current_tx().id
-
         for stmt in statements:
             comp: dbstate.BaseQuery = self._compile_dispatch_ql(ctx, stmt)
 
-            if ctx.legacy_mode and unit is not None:
+            if unit is not None and (
+                    ctx.legacy_mode or
+                    isinstance(comp, dbstate.TxControlQuery)):
                 units.append(unit)
                 unit = None
 
             if unit is None:
-                unit = dbstate.QueryUnit(txid=txid, dbver=ctx.state.dbver)
+                unit = dbstate.QueryUnit(dbver=ctx.state.dbver)
 
             if isinstance(comp, dbstate.Query):
                 if ctx.single_query_mode or ctx.legacy_mode:
@@ -559,17 +576,23 @@ class Compiler:
             elif isinstance(comp, dbstate.TxControlQuery):
                 unit.sql += comp.sql + b';'
 
+                unit.controls_tx = True
+
                 if comp.action == dbstate.TxAction.START:
                     unit.starts_tx = True
-                    unit.txid = txid = ctx.state.current_tx().id
-                else:
-                    if comp.action == dbstate.TxAction.COMMIT:
-                        unit.commits_tx = True
-                    else:
-                        unit.rollbacks_tx = True
+                    unit.txid = ctx.state.current_tx().id
+                elif comp.action == dbstate.TxAction.COMMIT:
+                    unit.commits_tx = True
+                elif comp.action == dbstate.TxAction.ROLLBACK:
+                    unit.rollbacks_tx = True
+                elif comp.action == dbstate.TxAction.ROLLBACK_TO_SAVEPOINT:
+                    unit.savepoint_rollbacks = True
 
-                    units.append(unit)
-                    unit = None
+                unit.config = ctx.state.current_tx().get_config()
+                unit.modaliases = ctx.state.current_tx().get_modaliases()
+
+                units.append(unit)
+                unit = None
 
             elif isinstance(comp, dbstate.SessionStateQuery):
                 unit.config = ctx.state.current_tx().get_config()

@@ -24,6 +24,8 @@ import typing
 
 import immutables
 
+from edb import errors
+
 from edb.schema import schema as s_schema
 
 from . import sertypes
@@ -34,6 +36,10 @@ class TxAction(enum.IntEnum):
     START = 1
     COMMIT = 2
     ROLLBACK = 3
+
+    DECLARE_SAVEPOINT = 4
+    RELEASE_SAVEPOINT = 5
+    ROLLBACK_TO_SAVEPOINT = 6
 
 
 class BaseQuery:
@@ -87,16 +93,18 @@ class TxControlQuery(BaseQuery):
 class QueryUnit:
 
     dbver: int
-    txid: typing.Optional[int]
 
     sql: bytes = b''
     sql_hash: bytes = b''
 
     has_ddl: bool = False
 
+    txid: typing.Optional[int] = None
+    controls_tx: bool = False
     commits_tx: bool = False
     rollbacks_tx: bool = False
     starts_tx: bool = False
+    savepoint_rollbacks: bool = False
 
     ignore_out_data: bool = True
     out_type_data: bytes = sertypes.NULL_TYPE_DESC
@@ -109,14 +117,12 @@ class QueryUnit:
 
     def is_preparable(self):
         """Answers the question: can this query be prepared and cached?"""
-        prep = bool(self.sql and self.sql_hash and self.out_type_data)
+        prep = bool(self.sql and self.sql_hash)
 
         assert not prep or (not self.config and
                             not self.modaliases and
                             not self.has_ddl and
-                            not self.commits_tx and
-                            not self.rollbacks_tx and
-                            not self.starts_tx)
+                            not self.controls_tx)
         return prep
 
 
@@ -162,9 +168,13 @@ class Transaction:
         if self._implicit:
             self._implicit = False
         else:
-            raise RuntimeError('already in explicit transaction')
+            raise errors.TransactionError('already in explicit transaction')
 
-    def make_savepoint(self, name: str):
+    def declare_savepoint(self, name: str):
+        if self.is_implicit():
+            raise errors.TransactionError(
+                'savepoints can only be used in transaction blocks')
+
         self._stack.append(
             TransactionState(
                 name=name,
@@ -172,14 +182,45 @@ class Transaction:
                 modaliases=self.get_modaliases(),
                 config=self.get_config()))
 
-    def restore_savepoint(self, name: str):
+        self._stack.append(
+            TransactionState(
+                name=None,
+                schema=self.get_schema(),
+                modaliases=self.get_modaliases(),
+                config=self.get_config()))
+
+    def rollback_to_savepoint(self, name: str):
+        if self.is_implicit():
+            raise errors.TransactionError(
+                'savepoints can only be used in transaction blocks')
+
         new_stack = self._stack.copy()
         while new_stack:
-            last_state = new_stack.pop()
+            last_state = new_stack[-1]
             if last_state.name == name:
                 self._stack = new_stack
                 return
-        raise RuntimeError(f'there is no {name!r} savepoint')
+            else:
+                new_stack.pop()
+        raise errors.TransactionError(f'there is no {name!r} savepoint')
+
+    def release_savepoint(self, name: str):
+        if self.is_implicit():
+            raise errors.TransactionError(
+                'savepoints can only be used in transaction blocks')
+
+        new_stack = []
+        released = False
+        for st in reversed(self._stack):
+            if not released and st.name == name:
+                released = True
+                continue
+            else:
+                new_stack.append(st)
+        if not released:
+            raise errors.TransactionError(f'there is no {name!r} savepoint')
+        else:
+            self._stack = new_stack[::-1]
 
     def get_schema(self) -> s_schema.Schema:
         return self._stack[-1].schema
@@ -227,17 +268,18 @@ class CompilerConnectionState:
         if self._current_tx.is_implicit():
             self._current_tx.make_explicit()
         else:
-            raise RuntimeError('already in transaction')
+            raise errors.TransactionError('already in transaction')
 
     def rollback_tx(self):
         if self._current_tx.is_implicit():
-            raise RuntimeError('cannot rollback: not in transaction')
+            raise errors.TransactionError(
+                'cannot rollback: not in transaction')
 
         self._init_current_tx()
 
     def commit_tx(self):
         if self._current_tx.is_implicit():
-            raise RuntimeError('cannot commit: not in transaction')
+            raise errors.TransactionError('cannot commit: not in transaction')
 
         self._schema = self._current_tx.get_schema()
         self._modaliases = self._current_tx.get_modaliases()

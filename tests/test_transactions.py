@@ -20,7 +20,6 @@
 import edgedb
 
 from edb.testbase import server as tb
-from edb.tools import test
 
 
 class TestTransactions(tb.QueryTestCase):
@@ -65,7 +64,6 @@ class TestTransactions(tb.QueryTestCase):
 
         self.assertEqual(result[0], [])
 
-    @test.not_implemented('savepoints are not supported yet')
     async def test_transaction_nested_01(self):
         self.assertIsNone(self.con._top_xact)
         tr = self.con.transaction()
@@ -131,7 +129,6 @@ class TestTransactions(tb.QueryTestCase):
         recs = result[0]
         self.assertEqual(len(recs), 0)
 
-    @test.not_implemented('savepoints are not supported yet')
     async def test_transaction_nested_02(self):
         await self.assert_query_result(r"""
             # test some explicit nested transactions without errors
@@ -145,7 +142,7 @@ class TestTransactions(tb.QueryTestCase):
                 DECLARE SAVEPOINT f1;
                     INSERT test::TransactionTest{name:='w1'};
                     SELECT test::TransactionTest.name;
-                RESTORE SAVEPOINT f1;
+                ROLLBACK TO SAVEPOINT f1;
                 SELECT test::TransactionTest.name;
 
                 DECLARE SAVEPOINT f2;

@@ -64,6 +64,8 @@ cdef class EdgeConnection:
         object _last_anon_compiled
         WriteBuffer _write_buf
 
+        bint debug
+
     cdef write(self, WriteBuffer buf)
     cdef flush(self)
     cdef abort(self)

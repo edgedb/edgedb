@@ -233,39 +233,45 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ])
 
     async def test_edgeql_ddl_05(self):
-        with self.assertRaisesRegex(edgedb.DuplicateFunctionDefinitionError,
-                                    r'cannot create.*test::my_lower.*func'):
-
-            await self.query("""
-                CREATE FUNCTION test::my_lower(s: std::str) -> std::str
-                    FROM SQL FUNCTION 'lower';
-
-                CREATE FUNCTION test::my_lower(s: SET OF std::str)
-                    -> std::str {
-                    SET initial_value := '';
-                    FROM SQL FUNCTION 'count';
-                };
-            """)
-
-        await self.query("""
-            DROP FUNCTION test::my_lower(s: std::str);
+        await self.con.execute("""
+            CREATE FUNCTION test::my_lower(s: std::str) -> std::str
+                FROM SQL FUNCTION 'lower';
         """)
 
         with self.assertRaisesRegex(edgedb.DuplicateFunctionDefinitionError,
                                     r'cannot create.*test::my_lower.*func'):
 
-            await self.query("""
-                CREATE FUNCTION test::my_lower(s: SET OF anytype)
-                    -> std::str {
-                    FROM SQL FUNCTION 'count';
-                    SET initial_value := '';
-                };
+            async with self.con.transaction():
+                await self.con.execute("""
+                    CREATE FUNCTION test::my_lower(s: SET OF std::str)
+                        -> std::str {
+                        SET initial_value := '';
+                        FROM SQL FUNCTION 'count';
+                    };
+                """)
 
-                CREATE FUNCTION test::my_lower(s: anytype) -> std::str
-                    FROM SQL FUNCTION 'lower';
-            """)
+        await self.con.execute("""
+            DROP FUNCTION test::my_lower(s: std::str);
+        """)
 
-        await self.query("""
+        await self.con.execute("""
+            CREATE FUNCTION test::my_lower(s: SET OF anytype)
+                -> std::str {
+                FROM SQL FUNCTION 'count';
+                SET initial_value := '';
+            };
+        """)
+
+        with self.assertRaisesRegex(edgedb.DuplicateFunctionDefinitionError,
+                                    r'cannot create.*test::my_lower.*func'):
+
+            async with self.con.transaction():
+                await self.con.execute("""
+                    CREATE FUNCTION test::my_lower(s: anytype) -> std::str
+                        FROM SQL FUNCTION 'lower';
+                """)
+
+        await self.con.execute("""
             DROP FUNCTION test::my_lower(s: anytype);
         """)
 
@@ -744,39 +750,43 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 f'link or property name length exceeds the maximum'):
-            await self.query("""
-                CREATE ABSTRACT LINK test::f123456789_123456789_123456789_\
+            async with self.con.transaction():
+                await self.con.execute("""
+                    CREATE ABSTRACT LINK test::f123456789_123456789_123456789_\
 123456789_123456789_123456789_123456789_123456789;
-            """)
+                """)
 
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 f'link or property name length exceeds the maximum'):
-            await self.query("""
-                CREATE TYPE test::Foo {
-                    CREATE LINK test::f123456789_123456789_123456789_\
+            async with self.con.transaction():
+                await self.con.execute("""
+                    CREATE TYPE test::Foo {
+                        CREATE LINK test::f123456789_123456789_123456789_\
 123456789_123456789_123456789_123456789_123456789 -> test::Foo;
-                };
-            """)
+                    };
+                """)
 
     async def test_edgeql_ddl_prop_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 f'link or property name length exceeds the maximum'):
-            await self.query("""
-                CREATE ABSTRACT PROPERTY test::f123456789_123456789_123456789_\
-123456789_123456789_123456789_123456789_123456789;
-            """)
+            async with self.con.transaction():
+                await self.query("""
+                    CREATE ABSTRACT PROPERTY test::f123456789_123456789_\
+23456789_123456789_123456789_123456789_123456789_123456789;
+                """)
 
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 f'link or property name length exceeds the maximum'):
-            await self.query("""
-                CREATE TYPE test::Foo {
-                    CREATE PROPERTY test::f123456789_123456789_123456789_\
+            async with self.con.transaction():
+                await self.query("""
+                    CREATE TYPE test::Foo {
+                        CREATE PROPERTY test::f123456789_123456789_123456789_\
 123456789_123456789_123456789_123456789_123456789 -> std::str;
-                };
-            """)
+                    };
+                """)
 
     async def test_edgeql_ddl_function_bad_01(self):
         with self.assertRaisesRegex(
@@ -812,13 +822,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 edgedb.DuplicateFunctionDefinitionError,
                 r'already defined'):
 
-            await self.query("""
-                CREATE FUNCTION test::ddlf_2(
-                    NAMED ONLY b: int64,
-                    NAMED ONLY a: int64 = 1
-                ) -> std::str
-                    FROM EdgeQL $$ SELECT "1" $$;
-            """)
+            async with self.con.transaction():
+                await self.query("""
+                    CREATE FUNCTION test::ddlf_2(
+                        NAMED ONLY b: int64,
+                        NAMED ONLY a: int64 = 1
+                    ) -> std::str
+                        FROM EdgeQL $$ SELECT "1" $$;
+                """)
 
         await self.query("""
             CREATE FUNCTION test::ddlf_2(
@@ -906,10 +917,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r'SET OF parameters in user-defined EdgeQL functions are '
                 r'not supported'):
 
-            await self.query(r'''
-                CREATE FUNCTION test::ddlf_7(a: SET OF int64) -> int64
-                    FROM EdgeQL $$ SELECT 11 $$;
-            ''')
+            async with self.con.transaction():
+                await self.query(r'''
+                    CREATE FUNCTION test::ddlf_7(a: SET OF int64) -> int64
+                        FROM EdgeQL $$ SELECT 11 $$;
+                ''')
 
         with self.assertRaises(edgedb.InvalidReferenceError):
             await self.query("""
@@ -973,18 +985,21 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ''')
 
     async def test_edgeql_ddl_38(self):
+        await self.con.execute(r'''
+            CREATE FUNCTION test::ddlf_11(str: std::str) -> int64
+                FROM SQL FUNCTION 'whatever';
+        ''')
+
         with self.assertRaisesRegex(
                 edgedb.InvalidFunctionDefinitionError,
                 r'cannot create.*test::ddlf_11.*'
                 r'overloading "FROM SQL FUNCTION"'):
 
-            await self.query(r'''
-                CREATE FUNCTION test::ddlf_11(str: std::str) -> int64
-                    FROM SQL FUNCTION 'whatever';
-
-                CREATE FUNCTION test::ddlf_11(str: std::int64) -> int64
-                    FROM SQL FUNCTION 'whatever2';
-            ''')
+            async with self.con.transaction():
+                await self.con.execute(r'''
+                    CREATE FUNCTION test::ddlf_11(str: std::int64) -> int64
+                        FROM SQL FUNCTION 'whatever2';
+                ''')
 
         await self.query("""
             DROP FUNCTION test::ddlf_11(str: std::str);
