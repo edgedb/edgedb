@@ -28,11 +28,11 @@ class TestEdgeQLSys(tb.QueryTestCase):
 
     async def test_edgeql_sys_locks(self):
         with self.assertRaisesRegex(edgedb.InternalServerError,
-                                    "key is expected to be >= 0"):
+                                    "lock key cannot be negative"):
             await self.con.execute('select sys::advisory_lock(-1)')
 
         with self.assertRaisesRegex(edgedb.InternalServerError,
-                                    "key is expected to be >= 0"):
+                                    "lock key cannot be negative"):
             await self.con.execute('select sys::advisory_unlock(-1)')
 
         self.assertEqual(
