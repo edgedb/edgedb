@@ -31,6 +31,32 @@ Data modification statements:
 
   Remove objects from a database.
 
+Transaction control statements:
+
+* :ref:`START TRANSACTION <ref_eql_statements_start_tx>`
+
+  Start a transaction.
+
+* :ref:`COMMIT <ref_eql_statements_commit_tx>`
+
+  Commit the current transaction.
+
+* :ref:`ROLLBACK <ref_eql_statements_rollback_tx>`
+
+  Abort the current transaction.
+
+* :ref:`DECLARE SAVEPOINT <ref_eql_statements_declare_savepoint>`
+
+  Declare a savepoint within the current transaction.
+
+* :ref:`ROLLBACK TO SAVEPOINT <ref_eql_statements_rollback_savepoint>`
+
+  Rollback to a savepoint within the current transaction.
+
+* :ref:`RELEASE SAVEPOINT <ref_eql_statements_release_savepoint>`
+
+  Release a previously declared savepoint.
+
 
 .. toctree::
     :maxdepth: 3
@@ -42,3 +68,10 @@ Data modification statements:
     update
     delete
     with
+
+    tx_start
+    tx_commit
+    tx_rollback
+    tx_sp_declare
+    tx_sp_release
+    tx_sp_rollback
