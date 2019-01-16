@@ -155,5 +155,8 @@ def setup_logging(log_level, log_destination):
     # Channel warnings into logging system
     logging.captureWarnings(True)
 
-    # Show DeprecationWarnings by default
+    # Show DeprecationWarnings by default ...
     warnings.simplefilter('default', category=DeprecationWarning)
+    # ... except for the `graphql` module.
+    warnings.filterwarnings('ignore', category=DeprecationWarning,
+                            module='graphql')
