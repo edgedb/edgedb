@@ -36,8 +36,8 @@ of the host object type or link:
     type User:
         property firstname -> str
         property lastname -> str
-        index name_idx on (lower(__subject__.firstname + ' ' +
-                                 __subject__.lastname))
+        index name_idx on (str_lower(__subject__.firstname + ' ' +
+                                     __subject__.lastname))
 
 The index expression must not reference any variables other than
 the properties of the host object type or link.  All functions used

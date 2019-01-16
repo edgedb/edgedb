@@ -4,30 +4,135 @@
 String
 ======
 
-.. eql:function:: std::lower(string: str) -> str
+.. eql:function:: std::str_lower(string: str) -> str
 
-    Return a lowercase copy of the input string.
+    Return a lowercase copy of the input *string*.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT lower('Some Fancy Title');
+        db> SELECT str_lower('Some Fancy Title');
         {'some fancy title'}
 
-.. eql:function:: std::str_to_json(string: str) -> json
+.. eql:function:: std::str_upper(string: str) -> str
 
-    :index: json parse loads
-
-    Return JSON value represented by the input string.
-
-    This is the reverse of :eql:func:`json_to_str`.
+    Return an uppercase copy of the input *string*.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT str_to_json('[1, "foo", null]');
-        {[1, 'foo', None]}
+        db> SELECT str_upper('Some Fancy Title');
+        {'SOME FANCY TITLE'}
 
-        db> SELECT str_to_json('{"hello": "world"}');
-        {{hello: 'world'}}
+.. eql:function:: std::str_title(string: str) -> str
+
+    Return a titlecase copy of the input *string*.
+
+    Every word in the *string* will have the first letter capitalized
+    and the rest converted to lowercase.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT str_title('sOmE fAnCy TiTlE');
+        {'Some Fancy Title'}
+
+.. eql:function:: std::str_lpad(string: str, n: int64, fill: str = ' ') -> str
+
+    Return the input *string* left-padded to the length *n*.
+
+    If the *string* is longer than *n*, then it is truncated to the
+    first *n* characters. Otherwise, the *string* is padded on the
+    left up to the total length *n* using *fill* characters (space by
+    default).
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT str_lpad('short', 10);
+        {'     short'}
+        db> SELECT str_lpad('much too long', 10);
+        {'much too l'}
+        db> SELECT str_lpad('short', 10, '.:');
+        {'.:.:.short'}
+
+.. eql:function:: std::str_rpad(string: str, n: int64, fill: str = ' ') -> str
+
+    Return the input *string* right-padded to the length *n*.
+
+    If the *string* is longer than *n*, then it is truncated to the
+    first *n* characters. Otherwise, the *string* is padded on the
+    right up to the total length *n* using *fill* characters (space by
+    default).
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT str_rpad('short', 10);
+        {'short     '}
+        db> SELECT str_rpad('much too long', 10);
+        {'much too l'}
+        db> SELECT str_rpad('short', 10, '.:');
+        {'short.:.:.'}
+
+.. eql:function:: std::str_ltrim(string: str, trim: str = ' ') -> str
+
+    Return the input *string* with all leftmost *trim* characters removed.
+
+    If the *trim* specifies more than one character they will be
+    removed from the beginning of the *string* regardless of the order
+    in which they appear.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT str_ltrim('     data');
+        {'data'}
+        db> SELECT str_ltrim('.....data', '.:');
+        {'data'}
+        db> SELECT str_ltrim(':::::data', '.:');
+        {'data'}
+        db> SELECT str_ltrim(':...:data', '.:');
+        {'data'}
+        db> SELECT str_ltrim('.:.:.data', '.:');
+        {'data'}
+
+.. eql:function:: std::str_rtrim(string: str, trim: str = ' ') -> str
+
+    Return the input *string* with all rightmost *trim* characters removed.
+
+    If the *trim* specifies more than one character they will be
+    removed from the end of the *string* regardless of the order
+    in which they appear.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT str_rtrim('data     ');
+        {'data'}
+        db> SELECT str_rtrim('data.....', '.:');
+        {'data'}
+        db> SELECT str_rtrim('data:::::', '.:');
+        {'data'}
+        db> SELECT str_rtrim('data:...:', '.:');
+        {'data'}
+        db> SELECT str_rtrim('data.:.:.', '.:');
+        {'data'}
+
+.. eql:function:: std::str_trim(string: str, trim: str = ' ') -> str
+
+    Return the input *string* with *trim* characters removed from both ends.
+
+    If the *trim* specifies more than one character they will be
+    removed from both ends of the *string* regardless of the order
+    in which they appear. This is the same as applying
+    :eql:func:`str_ltrim` and :eql:func:`str_rtrim`.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT str_trim('  data     ');
+        {'data'}
+        db> SELECT str_trim('::data.....', '.:');
+        {'data'}
+        db> SELECT str_trim('..data:::::', '.:');
+        {'data'}
+        db> SELECT str_trim('.:data:...:', '.:');
+        {'data'}
+        db> SELECT str_trim(':.:.data.:.', '.:');
+        {'data'}
 
 .. eql:function:: std::re_match(pattern: str, \
                                 string: str) -> array<str>

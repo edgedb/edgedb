@@ -11,7 +11,7 @@ JSON
 
     Return string representation of the input JSON value.
 
-    This is the reverse of :eql:func:`str_to_json`.
+    This is the reverse of :eql:func:`to_json`.
 
     .. code-block:: edgeql-repl
 
@@ -37,7 +37,7 @@ JSON
 
     .. code-block:: edgeql-repl
 
-        db> SELECT json_array_unpack(str_to_json('[1, "a"]'));
+        db> SELECT json_array_unpack(to_json('[1, "a"]'));
         {1, 'a'}
 
 .. eql:function:: std::json_get(json: json, \
@@ -54,7 +54,7 @@ JSON
 
     .. code-block:: edgeql-repl
 
-        db> SELECT json_get(str_to_json('{
+        db> SELECT json_get(to_json('{
         ...     "q": 1,
         ...     "w": [2, "foo"],
         ...     "e": true
@@ -66,7 +66,7 @@ JSON
 
     .. code-block:: edgeql-repl
 
-        db> SELECT json_get(str_to_json('{
+        db> SELECT json_get(to_json('{
         ...     "q": 1,
         ...     "w": [2, "foo"],
         ...     "e": true
@@ -78,7 +78,7 @@ JSON
 
     .. code-block:: edgeql-repl
 
-        db> SELECT json_get(str_to_json('{
+        db> SELECT json_get(to_json('{
         ...     "q": 1,
         ...     "w": [2, "foo"],
         ...     "e": true
@@ -95,7 +95,7 @@ JSON
 
     .. code-block:: edgeql-repl
 
-        db> SELECT json_object_unpack(str_to_json('{
+        db> SELECT json_object_unpack(to_json('{
         ...     "q": 1,
         ...     "w": [2, "foo"],
         ...     "e": true
@@ -116,8 +116,8 @@ JSON
         db> SELECT json_typeof(<json>2);
         {'number'}
 
-        db> SELECT json_typeof(str_to_json('null'));
+        db> SELECT json_typeof(to_json('null'));
         {'null'}
 
-        db> SELECT json_typeof(str_to_json('{"a": 2}'));
+        db> SELECT json_typeof(to_json('{"a": 2}'));
         {'object'}

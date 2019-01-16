@@ -7,11 +7,11 @@ JSON
 
 JSON in EdgeDB is one of the :ref:`scalar types <ref_datamodel_scalar_types>`.
 This scalar doesn't have its own literal and instead can be obtained
-by casting a value into :eql:type:`json` or by using :eql:func:`str_to_json`:
+by casting a value into :eql:type:`json` or by using :eql:func:`to_json`:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT str_to_json('{"hello": "world"}');
+    db> SELECT to_json('{"hello": "world"}');
     {{hello: 'world'}}
 
     db> SELECT <json>'hello world';
@@ -53,10 +53,10 @@ The contents of JSON *objects* and *arrays* can also be accessed via ``[]``:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT str_to_json('[1, "a", null]')[1];
+    db> SELECT to_json('[1, "a", null]')[1];
     {'a'}
 
-    db> SELECT str_to_json('[1, "a", null]')[-1];
+    db> SELECT to_json('[1, "a", null]')[-1];
     {None}
 
     db> SELECT j := <json>(schema::Object {
