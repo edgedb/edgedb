@@ -33,7 +33,7 @@ from edb.schema import name as sn
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
-from edb.edgeql import functypes as ft
+from edb.edgeql import qltypes as ft
 from edb.edgeql import parser as qlparser
 
 from . import astutils

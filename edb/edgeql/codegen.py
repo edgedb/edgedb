@@ -1104,6 +1104,20 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_StartTransaction(self, node):
         self.write('START TRANSACTION')
 
+        mods = []
+
+        if node.isolation is not None:
+            mods.append(f'ISOLATION {node.isolation.value}')
+
+        if node.access is not None:
+            mods.append(node.access.value)
+
+        if node.deferrable is not None:
+            mods.append(node.deferrable.value)
+
+        if mods:
+            self.write(' ' + ', '.join(mods))
+
     def visit_RollbackTransaction(self, node):
         self.write('ROLLBACK')
 

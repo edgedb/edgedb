@@ -34,7 +34,7 @@ from edb.schema import casts as s_casts
 from edb.schema import functions as s_func
 from edb.schema import types as s_types
 
-from edb.edgeql import functypes as ft
+from edb.edgeql import qltypes as ft
 
 from . import astutils
 from . import context

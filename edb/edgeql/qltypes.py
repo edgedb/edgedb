@@ -52,3 +52,19 @@ class OperatorKind(s_enum.StrEnum):
     INFIX = 'INFIX'
     POSTFIX = 'POSTFIX'
     PREFIX = 'PREFIX'
+
+
+class TransactionIsolationLevel(s_enum.StrEnum):
+    READ_COMMITTED = 'READ COMMITTED'
+    REPEATABLE_READ = 'REPEATABLE READ'
+    SERIALIZABLE = 'SERIALIZABLE'
+
+
+class TransactionAccessMode(s_enum.StrEnum):
+    READ_WRITE = 'READ WRITE'
+    READ_ONLY = 'READ ONLY'
+
+
+class TransactionDeferMode(s_enum.StrEnum):
+    DEFERRABLE = 'DEFERRABLE'
+    NOT_DEFERRABLE = 'NOT DEFERRABLE'

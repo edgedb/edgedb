@@ -23,7 +23,7 @@
 import contextlib
 import typing
 
-from edb.edgeql import functypes as ql_ft
+from edb.edgeql import qltypes as ql_ft
 
 from edb.schema import objects as s_obj
 

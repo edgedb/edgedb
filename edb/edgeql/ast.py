@@ -23,7 +23,7 @@ import typing
 from edb.common import enum as s_enum
 from edb.common import ast, parsing
 
-from . import functypes as ft
+from . import qltypes
 from . import quote
 
 
@@ -301,8 +301,8 @@ class TypeOp(TypeExpr):
 class FuncParam(Base):
     name: str
     type: TypeExpr
-    typemod: ft.TypeModifier = ft.TypeModifier.SINGLETON
-    kind: ft.ParameterKind
+    typemod: qltypes.TypeModifier = qltypes.TypeModifier.SINGLETON
+    kind: qltypes.ParameterKind
     default: Expr
 
 
@@ -473,7 +473,9 @@ class Transaction(Base):
 
 
 class StartTransaction(Transaction):
-    pass
+    isolation: typing.Optional[qltypes.TransactionIsolationLevel] = None
+    access: typing.Optional[qltypes.TransactionAccessMode] = None
+    deferrable: typing.Optional[qltypes.TransactionDeferMode] = None
 
 
 class CommitTransaction(Transaction):
@@ -803,7 +805,7 @@ class FunctionCode(Clause):
 class CreateFunction(CreateObject, CallableObject):
     returning: TypeExpr
     code: FunctionCode
-    returning_typemod: ft.TypeModifier = ft.TypeModifier.SINGLETON
+    returning_typemod: qltypes.TypeModifier = qltypes.TypeModifier.SINGLETON
 
 
 class AlterFunction(AlterObject):
@@ -823,12 +825,12 @@ class OperatorCode(Clause):
 
 
 class OperatorCommand(CallableObject):
-    kind: ft.OperatorKind
+    kind: qltypes.OperatorKind
 
 
 class CreateOperator(CreateObject, OperatorCommand):
     returning: TypeExpr
-    returning_typemod: ft.TypeModifier = ft.TypeModifier.SINGLETON
+    returning_typemod: qltypes.TypeModifier = qltypes.TypeModifier.SINGLETON
     code: OperatorCode
 
 

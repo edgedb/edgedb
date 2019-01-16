@@ -3339,3 +3339,39 @@ aa';
         ROLLBACK TO SAVEPOINT foo;
         RELEASE SAVEPOINT foo;
         """
+
+    def test_edgeql_transaction_02(self):
+        """
+        START TRANSACTION ISOLATION SERIALIZABLE, READ ONLY, DEFERRABLE;
+        START TRANSACTION ISOLATION SERIALIZABLE, READ ONLY;
+        START TRANSACTION ISOLATION REPEATABLE READ, READ ONLY;
+        START TRANSACTION READ ONLY, DEFERRABLE;
+        START TRANSACTION READ ONLY, NOT DEFERRABLE;
+        START TRANSACTION READ WRITE, NOT DEFERRABLE;
+        START TRANSACTION ISOLATION READ COMMITTED, READ WRITE;
+        START TRANSACTION READ WRITE;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'only one isolation level can be specified',
+                  line=2, col=51)
+    def test_edgeql_transaction_03(self):
+        """
+        START TRANSACTION ISOLATION SERIALIZABLE, ISOLATION REPEATABLE READ;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'deferrable mode can only be specified once',
+                  line=2, col=39)
+    def test_edgeql_transaction_04(self):
+        """
+        START TRANSACTION DEFERRABLE, NOT DEFERRABLE;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'only one access mode can be specified',
+                  line=2, col=51)
+    def test_edgeql_transaction_05(self):
+        """
+        START TRANSACTION READ WRITE, DEFERRABLE, READ ONLY;
+        """

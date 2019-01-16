@@ -31,7 +31,7 @@ from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
-from edb.edgeql import functypes as ft
+from edb.edgeql import qltypes as ft
 
 from .pathid import PathId, WeakNamespace
 from .scopetree import InvalidScopeConfiguration, ScopeTreeNode  # noqa

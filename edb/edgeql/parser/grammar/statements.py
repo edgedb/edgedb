@@ -16,13 +16,19 @@
 # limitations under the License.
 #
 
+from edb import errors
+
+from edb.common import parsing
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 
 from .expressions import Nonterm
 from .precedence import *  # NOQA
 from .tokens import *  # NOQA
 from .expressions import *  # NOQA
+
+from . import tokens
 
 
 class Stmt(Nonterm):
@@ -33,9 +39,82 @@ class Stmt(Nonterm):
         self.val = kids[0].val
 
 
+class TransactionMode(Nonterm):
+    def reduce_ISOLATION_SERIALIZABLE(self, *kids):
+        self.val = (qltypes.TransactionIsolationLevel.SERIALIZABLE,
+                    kids[0].context)
+
+    def reduce_ISOLATION_READ_COMMITTED(self, *kids):
+        self.val = (qltypes.TransactionIsolationLevel.READ_COMMITTED,
+                    kids[0].context)
+
+    def reduce_ISOLATION_REPEATABLE_READ(self, *kids):
+        self.val = (qltypes.TransactionIsolationLevel.REPEATABLE_READ,
+                    kids[0].context)
+
+    def reduce_READ_WRITE(self, *kids):
+        self.val = (qltypes.TransactionAccessMode.READ_WRITE,
+                    kids[0].context)
+
+    def reduce_READ_ONLY(self, *kids):
+        self.val = (qltypes.TransactionAccessMode.READ_ONLY,
+                    kids[0].context)
+
+    def reduce_DEFERRABLE(self, *kids):
+        self.val = (qltypes.TransactionDeferMode.DEFERRABLE,
+                    kids[0].context)
+
+    def reduce_NOT_DEFERRABLE(self, *kids):
+        self.val = (qltypes.TransactionDeferMode.NOT_DEFERRABLE,
+                    kids[0].context)
+
+
+class TransactionModeList(parsing.ListNonterm, element=TransactionMode,
+                          separator=tokens.T_COMMA):
+    pass
+
+
+class OptTransactionModeList(Nonterm):
+    def reduce_TransactionModeList(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_empty(self, *kids):
+        self.val = []
+
+
 class TransactionStmt(Nonterm):
-    def reduce_START_TRANSACTION(self, *kids):
-        self.val = qlast.StartTransaction()
+    def reduce_START_TRANSACTION_OptTransactionModeList(self, *kids):
+        modes = kids[2].val
+
+        isolation = None
+        access = None
+        deferrable = None
+
+        for mode, mode_ctx in modes:
+            if isinstance(mode, qltypes.TransactionIsolationLevel):
+                if isolation is not None:
+                    raise errors.EdgeQLSyntaxError(
+                        f"only one isolation level can be specified",
+                        context=mode_ctx)
+                isolation = mode
+
+            elif isinstance(mode, qltypes.TransactionAccessMode):
+                if access is not None:
+                    raise errors.EdgeQLSyntaxError(
+                        f"only one access mode can be specified",
+                        context=mode_ctx)
+                access = mode
+
+            else:
+                assert isinstance(mode, qltypes.TransactionDeferMode)
+                if deferrable is not None:
+                    raise errors.EdgeQLSyntaxError(
+                        f"deferrable mode can only be specified once",
+                        context=mode_ctx)
+                deferrable = mode
+
+        self.val = qlast.StartTransaction(
+            isolation=isolation, access=access, deferrable=deferrable)
 
     def reduce_COMMIT(self, *kids):
         self.val = qlast.CommitTransaction()

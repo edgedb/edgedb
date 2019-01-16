@@ -29,6 +29,16 @@ class TestServerProto(tb.QueryTestCase):
 
     ISOLATED_METHODS = False
 
+    SETUP = '''
+        CREATE TYPE test::Tmp {
+            CREATE REQUIRED PROPERTY tmp -> std::str;
+        };
+    '''
+
+    TEARDOWN = '''
+        DROP TYPE test::Tmp;
+    '''
+
     async def test_server_proto_parse_error_recover_01(self):
         for _ in range(2):
             with self.assertRaises(edgedb.EdgeQLSyntaxError):
@@ -731,6 +741,31 @@ class TestServerProto(tb.QueryTestCase):
             await self.con.execute('''
                 ROLLBACK;
             ''')
+
+    async def test_server_proto_tx_06(self):
+        try:
+            await self.con.execute('''
+                START TRANSACTION ISOLATION SERIALIZABLE, READ ONLY,
+                    DEFERRABLE;
+            ''')
+
+            with self.assertRaisesRegex(
+                    edgedb.TransactionError,
+                    'read-only transaction'):
+
+                await self.con.execute('''
+                    INSERT test::Tmp {
+                        tmp := 'aaa'
+                    };
+                ''')
+        finally:
+            await self.con.execute(f'''
+                ROLLBACK;
+            ''')
+
+        self.assertEqual(
+            await self.con.fetch('SELECT 42'),
+            [42])
 
 
 class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):

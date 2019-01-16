@@ -29,7 +29,7 @@ from edb import edgeql
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import compiler as qlcompiler
-from edb.edgeql import functypes as ft
+from edb.edgeql import qltypes as ft
 from edb.edgeql import utils as qlutils
 
 from edb.eschema import ast as s_ast

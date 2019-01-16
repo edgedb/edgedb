@@ -405,7 +405,14 @@ class Compiler:
 
         if isinstance(ql, qlast.StartTransaction):
             ctx.state.start_tx()
-            sql = b'START TRANSACTION'
+            sql = 'START TRANSACTION'
+            if ql.isolation is not None:
+                sql += f' ISOLATION LEVEL {ql.isolation.value}'
+            if ql.access is not None:
+                sql += f' {ql.access.value}'
+            if ql.deferrable is not None:
+                sql += f' {ql.deferrable.value}'
+            sql = sql.encode()
             action = dbstate.TxAction.START
 
         elif isinstance(ql, qlast.CommitTransaction):

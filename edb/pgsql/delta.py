@@ -27,7 +27,7 @@ from edb import errors
 
 from edb.edgeql import ast as ql_ast
 from edb.edgeql import compiler as ql_compiler
-from edb.edgeql import functypes as ql_ft
+from edb.edgeql import qltypes as ql_ft
 
 from edb.schema import attributes as s_attrs
 from edb.schema import casts as s_casts

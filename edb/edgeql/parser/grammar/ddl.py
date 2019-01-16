@@ -26,7 +26,7 @@ import typing
 from edb.errors import EdgeQLSyntaxError
 
 from edb.edgeql import ast as qlast
-from edb.edgeql import functypes as ft
+from edb.edgeql import qltypes as ft
 
 from edb.common import parsing, context
 from edb.common.parsing import ListNonterm

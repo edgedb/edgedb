@@ -44,6 +44,8 @@ class PGError(enum.Enum):
 
     DivisionByZeroError = '22012'
 
+    ReadOnlySQLTransactionError = '25006'
+
 
 constraint_errors = frozenset({
     PGError.IntegrityConstraintViolationError,
@@ -178,5 +180,9 @@ def interpret_backend_error(schema, fields):
 
     elif code == PGError.DivisionByZeroError:
         return errors.DivisionByZeroError(message)
+
+    elif code == PGError.ReadOnlySQLTransactionError:
+        return errors.TransactionError(
+            'cannot execute query in a read-only transaction')
 
     return errors.InternalServerError(message)

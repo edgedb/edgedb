@@ -23,7 +23,7 @@ from edb import errors
 
 from edb import edgeql
 from edb.edgeql import ast as qlast
-from edb.edgeql import functypes as ft
+from edb.edgeql import qltypes as ft
 
 from . import abc as s_abc
 from . import attributes

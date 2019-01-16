@@ -206,6 +206,7 @@ from edb.edgeql.pygments import EdgeQLLexer
 from edb.edgeql.parser import parser as edgeql_parser
 from edb.edgeql import ast as ql_ast
 from edb.edgeql import codegen as ql_gen
+from edb.edgeql import qltypes
 from edb.common import markup  # NoQA
 
 from docutils import nodes as d_nodes
@@ -719,9 +720,9 @@ class EQLFunctionDirective(BaseEQLDirective):
         signode += s_nodes.desc_name(fullname, fullname)
 
         ret_repr = ql_gen.EdgeQLSourceGenerator.to_source(astnode.returning)
-        if astnode.returning_typemod is ql_ast.ft.TypeModifier.SET_OF:
+        if astnode.returning_typemod is qltypes.TypeModifier.SET_OF:
             ret_repr = f'SET OF {ret_repr}'
-        elif astnode.returning_typemod is ql_ast.ft.TypeModifier.OPTIONAL:
+        elif astnode.returning_typemod is qltypes.TypeModifier.OPTIONAL:
             ret_repr = f'OPTIONAL {ret_repr}'
         signode += s_nodes.desc_returns(ret_repr, ret_repr)
 
