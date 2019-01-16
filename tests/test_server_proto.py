@@ -783,7 +783,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
 
                 INSERT test::{typename} {{
                     prop1 := 'aaa'
-                }}
+                }};
             ''')
 
             query = f'SELECT test::{typename}.prop1'
@@ -832,7 +832,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
             await con2.fetch(f'''
                 INSERT test::{typename} {{
                     prop1 := 'aaa'
-                }}
+                }};
             ''')
 
             query = f'SELECT test::{typename}.prop1'
@@ -872,8 +872,285 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
         finally:
             await con2.close()
 
-    @test.xfail("concurrent DDL isn't yet supported")
     async def test_server_proto_query_cache_invalidate_03(self):
+        typename = 'CacheInv_03'
+
+        con1 = self.con
+        con2 = await self.cluster.connect(user='edgedb', database=con1.dbname)
+        try:
+            await con2.execute(f'''
+                CREATE TYPE test::{typename} {{
+                    CREATE REQUIRED PROPERTY prop1 -> array<std::str>;
+                }};
+
+                INSERT test::{typename} {{
+                    prop1 := ['a', 'aa']
+                }};
+            ''')
+
+            query = f'SELECT test::{typename}.prop1'
+
+            for _ in range(5):
+                self.assertEqual(
+                    await con1.fetch(query),
+                    edgedb.Set([['a', 'aa']]))
+
+            await con2.execute(f'''
+                DELETE (SELECT test::{typename});
+
+                ALTER TYPE test::{typename} {{
+                    DROP PROPERTY prop1;
+                }};
+
+                ALTER TYPE test::{typename} {{
+                    CREATE REQUIRED PROPERTY prop1 -> array<std::int64>;
+                }};
+
+                INSERT test::{typename} {{
+                    prop1 := [1, 23]
+                }};
+            ''')
+
+            for _ in range(5):
+                self.assertEqual(
+                    await con1.fetch(query),
+                    edgedb.Set([[1, 23]]))
+
+        finally:
+            await con2.close()
+
+    async def test_server_proto_query_cache_invalidate_04(self):
+        typename = 'CacheInv_04'
+
+        con1 = self.con
+        con2 = await self.cluster.connect(user='edgedb', database=con1.dbname)
+        try:
+            await con2.execute(f'''
+                CREATE TYPE test::{typename} {{
+                    CREATE REQUIRED PROPERTY prop1 -> std::str;
+                }};
+
+                INSERT test::{typename} {{
+                    prop1 := 'aaa'
+                }};
+            ''')
+
+            query = f'SELECT test::{typename}.prop1'
+
+            for _ in range(5):
+                self.assertEqual(
+                    await con1.fetch(query),
+                    edgedb.Set(['aaa']))
+
+            await con2.execute(f'''
+                DELETE (SELECT test::{typename});
+
+                ALTER TYPE test::{typename} {{
+                    DROP PROPERTY prop1;
+                }};
+
+                ALTER TYPE test::{typename} {{
+                    CREATE REQUIRED MULTI PROPERTY prop1 -> std::str;
+                }};
+
+                INSERT test::{typename} {{
+                    prop1 := {{'bbb', 'ccc'}}
+                }};
+            ''')
+
+            for _ in range(5):
+                self.assertEqual(
+                    await con1.fetch(query),
+                    edgedb.Set(['bbb', 'ccc']))
+
+        finally:
+            await con2.close()
+
+    @test.xfail('''
+        The error is:
+        reference to a non-existent schema item: test::prop1
+    ''')
+    async def test_server_proto_query_cache_invalidate_05(self):
+        typename = 'CacheInv_05'
+
+        con1 = self.con
+        con2 = await self.cluster.connect(user='edgedb', database=con1.dbname)
+        try:
+            await con2.execute(f'''
+                CREATE TYPE test::{typename} {{
+                    CREATE REQUIRED PROPERTY test::prop1 -> std::str;
+                }};
+
+                CREATE TYPE test::Other{typename} {{
+                    CREATE REQUIRED PROPERTY test::prop2 -> std::str;
+                }};
+
+                INSERT test::{typename} {{
+                    prop1 := 'aaa'
+                }};
+
+                INSERT test::Other{typename} {{
+                    prop2 := 'bbb'
+                }};
+            ''')
+
+            query = f'SELECT test::{typename}.prop1'
+
+            for _ in range(5):
+                self.assertEqual(
+                    await con1.fetch(query),
+                    edgedb.Set(['aaa']))
+
+            await con2.execute(f'''
+                DELETE (SELECT test::{typename});
+
+                ALTER TYPE test::{typename} {{
+                    DROP PROPERTY test::prop1;
+                }};
+
+                ALTER TYPE test::{typename} {{
+                    CREATE REQUIRED LINK test::prop1 -> test::Other{typename};
+                }};
+
+                INSERT test::{typename} {{
+                    prop1 := (SELECT test::Other{typename} LIMIT 1)
+                }};
+            ''')
+
+            other = await con1.fetch(f'SELECT test::Other{typename}')
+
+            for _ in range(5):
+                self.assertEqual(
+                    await con1.fetch(query),
+                    other)
+
+        finally:
+            await con2.close()
+
+    async def test_server_proto_query_cache_invalidate_06(self):
+        typename = 'CacheInv_06'
+
+        con1 = self.con
+        con2 = await self.cluster.connect(user='edgedb', database=con1.dbname)
+        try:
+            await con2.execute(f'''
+                CREATE TYPE test::Foo{typename};
+
+                CREATE TYPE test::Bar{typename};
+
+                CREATE TYPE test::{typename} {{
+                    CREATE REQUIRED LINK link1 -> test::Foo{typename};
+                }};
+
+                INSERT test::Foo{typename};
+                INSERT test::Bar{typename};
+
+                INSERT test::{typename} {{
+                    link1 := (SELECT test::Foo{typename} LIMIT 1)
+                }};
+            ''')
+
+            foo = await con1.fetch(f'SELECT test::Foo{typename}')
+            bar = await con1.fetch(f'SELECT test::Bar{typename}')
+
+            query = f'SELECT test::{typename}.link1'
+
+            for _ in range(5):
+                self.assertEqual(
+                    await con1.fetch(query),
+                    foo)
+
+            await con2.execute(f'''
+                DELETE (SELECT test::{typename});
+
+                ALTER TYPE test::{typename} {{
+                    DROP LINK link1;
+                }};
+
+                ALTER TYPE test::{typename} {{
+                    CREATE REQUIRED LINK link1 -> test::Bar{typename};
+                }};
+
+                INSERT test::{typename} {{
+                    link1 := (SELECT test::Bar{typename} LIMIT 1)
+                }};
+            ''')
+
+            for _ in range(5):
+                self.assertEqual(
+                    await con1.fetch(query),
+                    bar)
+
+        finally:
+            await con2.close()
+
+    @test.xfail('''
+        The error is:
+        reference to a non-existent schema item:
+        3c6145d4-192f-11e9-83b3-edb414a0f9bf in schema
+        <Schema gen:4594 at 0x7f5dbfd68198>
+    ''')
+    async def test_server_proto_query_cache_invalidate_07(self):
+        typename = 'CacheInv_07'
+
+        con1 = self.con
+        con2 = await self.cluster.connect(user='edgedb', database=con1.dbname)
+        try:
+            await con2.execute(f'''
+                CREATE TYPE test::Foo{typename};
+
+                CREATE ABSTRACT LINK test::link1 {{
+                    CREATE PROPERTY prop1 -> std::str;
+                }};
+
+                CREATE TYPE test::{typename} {{
+                    CREATE REQUIRED LINK test::link1 -> test::Foo{typename};
+                }};
+
+                INSERT test::Foo{typename};
+
+                INSERT test::{typename} {{
+                    link1 := (
+                        SELECT test::Foo{typename} {{@prop1 := 'aaa'}}
+                    )
+                }};
+            ''')
+
+            query = f'SELECT test::{typename}.link1@prop1'
+
+            for _ in range(5):
+                self.assertEqual(
+                    await con1.fetch(query),
+                    edgedb.Set(['aaa']))
+
+            await con2.execute(f'''
+                DELETE (SELECT test::{typename});
+
+                ALTER ABSTRACT LINK test::link1 {{
+                    DROP PROPERTY prop1;
+                }};
+
+                ALTER ABSTRACT LINK test::link1 {{
+                    CREATE PROPERTY prop1 -> std::int64;
+                }};
+
+                INSERT test::{typename} {{
+                    link1 := (
+                        SELECT test::Foo{typename} {{@prop1 := 123}} LIMIT 1
+                    )
+                }};
+            ''')
+
+            for _ in range(5):
+                self.assertEqual(
+                    await con1.fetch(query),
+                    edgedb.Set([123]))
+
+        finally:
+            await con2.close()
+
+    @test.xfail("concurrent DDL isn't yet supported")
+    async def test_server_proto_query_cache_invalidate_08(self):
         typename_prefix = 'CacheInvMulti_'
         ntasks = 5
 

@@ -22,6 +22,7 @@ import unittest  # NOQA
 import edgedb
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestEdgeQLDDL(tb.DDLTestCase):
@@ -1626,4 +1627,169 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     FILTER .name = 'test::ExtC3').mro.name;
         """, [
             {'std::Object', 'test::ExtB3'}
+        ])
+
+    @test.xfail('''
+        The two types are created in different modules. They shouldn't
+        clash. Currently they clash because the LINK/PROPERTY is given
+        by a short name (much like it would be in eschema) and it
+        expands into "default::clash" for both cases. Which implicitly
+        creates an ABSTRACT LINK and an ABSTRACT PROPERTY with the
+        clashing name in default module.
+
+        Had this been written in eschema it would have worked since
+        the implicit LINK/PROPERTY would have been made in test or
+        test_other module.
+    ''')
+    async def test_edgeql_ddl_modules_01(self):
+        try:
+            await self.query(r"""
+                CREATE MODULE test_other;
+
+                CREATE TYPE test::ModuleTest01 {
+                    CREATE PROPERTY clash -> str;
+                };
+
+                CREATE TYPE test_other::ModuleTest01 {
+                    CREATE LINK clash -> Object;
+                };
+            """)
+
+            await self.query("""
+                DROP TYPE test_other::ModuleTest01;
+            """)
+
+        finally:
+            await self.query("""
+                DROP MODULE test_other;
+            """)
+
+    async def test_edgeql_ddl_rename_01(self):
+        await self.query(r"""
+            CREATE TYPE test::RenameObj01 {
+                CREATE PROPERTY name -> str;
+            };
+
+            INSERT test::RenameObj01 {name := 'rename 01'};
+
+            ALTER TYPE test::RenameObj01 {
+                RENAME TO test::NewNameObj01;
+            };
+        """)
+
+        await self.assert_query_result('''
+            SELECT test::NewNameObj01.name;
+        ''', [
+            ['rename 01']
+        ])
+
+    @test.xfail('''
+        The error is:
+        improperly formed name: module is not specified: new_name_02
+
+        Unlike in other cases "default" is not assumed to be the
+        module for unqualified property name.
+    ''')
+    async def test_edgeql_ddl_rename_02(self):
+        await self.query(r"""
+            CREATE TYPE test::RenameObj02 {
+                CREATE PROPERTY name -> str;
+            };
+
+            INSERT test::RenameObj02 {name := 'rename 02'};
+
+            ALTER TYPE test::RenameObj02 {
+                ALTER PROPERTY name {
+                    RENAME TO new_name_02;
+                };
+            };
+        """)
+
+        await self.assert_query_result('''
+            SELECT test::RenameObj02.new_name_02;
+        ''', [
+            ['rename 02']
+        ])
+
+    @test.xfail('''
+        The error is:
+        column "test::new_name_03" of relation
+        "edgedb_1e143af8-1929-...-8564-fbabda210021"
+        does not exist
+    ''')
+    async def test_edgeql_ddl_rename_03(self):
+        await self.query(r"""
+            CREATE TYPE test::RenameObj03 {
+                CREATE PROPERTY test::name -> str;
+            };
+
+            INSERT test::RenameObj03 {name := 'rename 03'};
+
+            ALTER TYPE test::RenameObj03 {
+                ALTER PROPERTY test::name {
+                    RENAME TO test::new_name_03;
+                };
+            };
+        """)
+
+        await self.assert_query_result('''
+            SELECT test::RenameObj03.new_name_03;
+        ''', [
+            ['rename 03']
+        ])
+
+    @test.xfail('''
+        The error is:
+        column "test::new_prop_04" of relation "..." does not exist
+    ''')
+    async def test_edgeql_ddl_rename_04(self):
+        await self.query("""
+            CREATE ABSTRACT LINK test::rename_link_04 {
+                CREATE PROPERTY test::rename_prop_04 -> std::int64;
+            };
+
+            CREATE TYPE test::LinkedObj04;
+            CREATE TYPE test::RenameObj04 {
+                CREATE MULTI LINK test::rename_link_04 -> test::LinkedObj04;
+            };
+
+            INSERT test::LinkedObj04;
+            INSERT test::RenameObj04 {
+                rename_link_04 := test::LinkedObj04 {@rename_prop_04 := 123}
+            };
+
+            ALTER ABSTRACT LINK test::rename_link_04 {
+                ALTER PROPERTY test::rename_prop_04 {
+                    RENAME TO test::new_prop_04;
+                };
+            };
+        """)
+
+        await self.assert_query_result('''
+            SELECT test::RenameObj04.rename_link_04@new_prop_04;
+        ''', [
+            [123]
+        ])
+
+    @test.xfail('''
+        The error is:
+        relation "edgedb_1e143af8-1929-...-311a41c76d4d" does not exist
+    ''')
+    async def test_edgeql_ddl_rename_05(self):
+        await self.query(r"""
+            CREATE VIEW test::RenameView05 := (
+                SELECT Object {
+                    view_computable := 'rename view 05'
+                }
+            );
+
+            ALTER VIEW test::RenameView05 {
+                RENAME TO test::NewView05;
+            };
+        """)
+
+        await self.assert_query_result('''
+            SELECT test::NewView05.view_computable LIMIT 1;
+        ''', [
+            ['rename view 05']
         ])

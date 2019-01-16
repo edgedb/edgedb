@@ -24,6 +24,7 @@ import uuid
 import edgedb
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestInsert(tb.QueryTestCase):
@@ -334,6 +335,52 @@ class TestInsert(tb.QueryTestCase):
                     'name': 'only subordinate'
                 }]
             }],
+        )
+
+    @test.xfail('''
+        This test fails with the following error:
+        invalid reference to link property in top level shape
+
+        The culprit appears to be specifically the LIMIT 1.
+    ''')
+    async def test_edgeql_insert_nested_06(self):
+        res = await self.query('''
+            WITH MODULE test
+            INSERT Subordinate {
+                name := 'linkprop test target 6'
+            };
+
+            WITH MODULE test
+            INSERT InsertTest {
+                name := 'insert nested 6',
+                l2 := 0,
+                subordinates := (
+                    SELECT Subordinate {
+                        @comment := 'comment 6'
+                    }
+                    LIMIT 1
+                )
+            };
+
+            WITH MODULE test
+            SELECT InsertTest {
+                subordinates: {
+                    name,
+                    @comment,
+                }
+            }
+            FILTER
+                InsertTest.name = 'insert nested 6';
+        ''')
+
+        self.assert_data_shape(
+            res[-1],
+            [{
+                'subordinates': [{
+                    'name': 'linkprop test target 6',
+                    '@comment': 'comment 6'
+                }]
+            }]
         )
 
     async def test_edgeql_insert_returning_01(self):

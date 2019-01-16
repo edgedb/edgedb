@@ -335,6 +335,74 @@ class TestUpdate(tb.QueryTestCase):
             }],
         ])
 
+    async def test_edgeql_update_returning_05(self):
+        # test that plain INSERT and UPDATE return objects they have
+        # manipulated
+        try:
+            data = await self.query(r"""
+                INSERT test::UpdateTest {
+                    name := 'ret5.1'
+                };
+                INSERT test::UpdateTest {
+                    name := 'ret5.2'
+                };
+            """)
+            data = [data[0][0], data[1][0]]
+
+            await self.assert_query_result(r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    id,
+                    name
+                }
+                FILTER .name LIKE '%ret5._'
+                ORDER BY .name;
+            """, [
+                [{
+                    'id': data[0]['id'],
+                    'name': 'ret5.1',
+                }, {
+                    'id': data[1]['id'],
+                    'name': 'ret5.2',
+                }],
+            ])
+
+            await self.assert_sorted_query_result(r"""
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER UpdateTest.name LIKE '%ret5._'
+                SET {
+                    name := 'new ' ++ UpdateTest.name
+                };
+            """, lambda x: x['id'], [
+                sorted(data, key=lambda x: x['id']),
+            ])
+
+            await self.assert_query_result(r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    id,
+                    name
+                }
+                FILTER .name LIKE '%ret5._'
+                ORDER BY .name;
+            """, [
+                [{
+                    'id': data[0]['id'],
+                    'name': 'new ret5.1',
+                }, {
+                    'id': data[1]['id'],
+                    'name': 'new ret5.2',
+                }],
+            ])
+        finally:
+            await self.query(r"""
+                DELETE (
+                    SELECT test::UpdateTest
+                    FILTER .name LIKE '%ret5._'
+                );
+            """)
+
     async def test_edgeql_update_generic_01(self):
         status = await self.query(r"""
             WITH MODULE test
