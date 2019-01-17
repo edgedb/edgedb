@@ -205,3 +205,60 @@ Date and Time
         db> SELECT timedelta_get(
         ...     <timedelta>'365 days 6 hours', 'epoch');
         {31557600}
+
+.. eql:function:: std::datetime_trunc(dt: datetime, unit: str) -> datetime
+
+    Truncate the input datetime to a particular precision.
+
+    The valid *unit* values in order or decreasing precision are:
+
+    - ``'microseconds'``
+    - ``'milliseconds'``
+    - ``'second'``
+    - ``'minute'``
+    - ``'hour'``
+    - ``'day'``
+    - ``'week'``
+    - ``'month'``
+    - ``'quarter'``
+    - ``'year'``
+    - ``'decade'``
+    - ``'century'``
+    - ``'millennium'``
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT datetime_trunc(
+        ...     <datetime>'2018-05-07T15:01:22.306916+00', 'year');
+        {'2018-01-01T00:00:00+00:00'}
+
+        db> SELECT datetime_trunc(
+        ...     <datetime>'2018-05-07T15:01:22.306916+00', 'quarter');
+        {'2018-04-01T00:00:00+00:00'}
+
+        db> SELECT datetime_trunc(
+        ...     <datetime>'2018-05-07T15:01:22.306916+00', 'day');
+        {'2018-05-07T00:00:00+00:00'}
+
+        db> SELECT datetime_trunc(
+        ...     <datetime>'2018-05-07T15:01:22.306916+00', 'hour');
+        {'2018-05-07T15:00:00+00:00'}
+
+.. eql:function:: std::timedelta_trunc(dt: timedelta, unit: str) -> timedelta
+
+    Truncate the input timedelta to a particular precision.
+
+    The valid *unit* values are the same as for :eql:func:`datetime_trunc`.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT timedelta_trunc(
+        ...     <timedelta>'3 days 15:01:22', 'day');
+        {'3 days'}
+
+        db> SELECT timedelta_trunc(
+        ...     <timedelta>'15:01:22.306916', 'minute');
+        {'15:01:00'}
+
+    The usual caveat that :eql:type:`timedelta` doesn't automatically
+    convert units applies to how truncation works.

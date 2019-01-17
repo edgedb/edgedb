@@ -865,6 +865,49 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {3},
         ])
 
+    async def test_edgeql_functions_datetime_trunc_01(self):
+        await self.assert_query_result(r'''
+            SELECT <str>datetime_trunc(
+                <datetime>'2018-05-07T15:01:22.306916-05', 'year');
+            SELECT <str>datetime_trunc(
+                <datetime>'2018-05-07T15:01:22.306916-05', 'quarter');
+            SELECT <str>datetime_trunc(
+                <datetime>'2018-05-07T15:01:22.306916-05', 'month');
+            SELECT <str>datetime_trunc(
+                <datetime>'2018-05-07T15:01:22.306916-05', 'day');
+            SELECT <str>datetime_trunc(
+                <datetime>'2018-05-07T15:01:22.306916-05', 'hour');
+            SELECT <str>datetime_trunc(
+                <datetime>'2018-05-07T15:01:22.306916-05', 'minute');
+            SELECT <str>datetime_trunc(
+                <datetime>'2018-05-07T15:01:22.306916-05', 'second');
+        ''', [
+            {'2018-01-01T00:00:00+00:00'},
+            {'2018-04-01T00:00:00+00:00'},
+            {'2018-05-01T00:00:00+00:00'},
+            {'2018-05-07T00:00:00+00:00'},
+            {'2018-05-07T20:00:00+00:00'},
+            {'2018-05-07T20:01:00+00:00'},
+            {'2018-05-07T20:01:22+00:00'},
+        ])
+
+    async def test_edgeql_functions_timedelta_trunc_01(self):
+        await self.assert_query_result(r'''
+            SELECT <str>timedelta_trunc(
+                <timedelta>'3 days 15:01:22', 'day');
+            SELECT <str>timedelta_trunc(
+                <timedelta>'15:01:22.306916', 'hour');
+            SELECT <str>timedelta_trunc(
+                <timedelta>'15:01:22.306916', 'minute');
+            SELECT <str>timedelta_trunc(
+                <timedelta>'15:01:22.306916', 'second');
+        ''', [
+            {'3 days'},
+            {'15:00:00'},
+            {'15:01:00'},
+            {'15:01:22'},
+        ])
+
     async def test_edgeql_functions_to_datetime_01(self):
         await self.assert_query_result(r'''
             SELECT <str>to_datetime(2018, 5, 7, 15, 1, 22.306916);
