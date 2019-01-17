@@ -17,19 +17,14 @@
 #
 
 
-from .parser import GraphQLParser
+import pathlib
+import pickle
 
 
-def parse_fragment(expr):
-    parser = GraphQLParser()
-    return parser.parse(expr)
-
-
-def parse(expr, module_aliases=None):
-    tree = parse_fragment(expr)
-
-    return tree
-
-
-def preload():
-    GraphQLParser().get_parser_spec()
+def load(data_dir: pathlib.Path):
+    with open(data_dir / 'stdschema.pickle', 'rb') as f:
+        try:
+            return pickle.load(f)
+        except Exception as e:
+            raise RuntimeError(
+                'could not load std schema pickle') from e

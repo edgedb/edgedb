@@ -120,10 +120,9 @@ def _init_parsers():
     from edb.eschema import parser as e_parser
     from edb.graphql import parser as gql_parser
 
-    ql_parser.EdgeQLExpressionParser().get_parser_spec()
-    ql_parser.EdgeQLBlockParser().get_parser_spec()
-    e_parser.EdgeSchemaParser().get_parser_spec()
-    gql_parser.GraphQLParser().get_parser_spec()
+    ql_parser.preload()
+    e_parser.preload()
+    gql_parser.preload()
 
 
 def _run_server(cluster, args, runstate_dir):

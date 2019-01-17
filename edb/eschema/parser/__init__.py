@@ -29,3 +29,7 @@ def parse(expr, module_aliases=None):
     tree = parse_fragment(expr)
 
     return tree
+
+
+def preload():
+    EdgeSchemaParser().get_parser_spec()

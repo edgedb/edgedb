@@ -55,3 +55,8 @@ def parse(expr, module_aliases=None):
 def parse_block(expr):
     parser = EdgeQLBlockParser()
     return parser.parse(expr)
+
+
+def preload():
+    EdgeQLBlockParser().get_parser_spec()
+    EdgeQLExpressionParser().get_parser_spec()

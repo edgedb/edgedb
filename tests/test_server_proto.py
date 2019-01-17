@@ -517,6 +517,7 @@ class TestServerProto(tb.QueryTestCase):
             DECLARE SAVEPOINT t1;
 
             SET ALIAS t1 AS MODULE std;
+            SET ALIAS t1 AS MODULE std;
 
             DECLARE SAVEPOINT t2;
 
@@ -643,31 +644,80 @@ class TestServerProto(tb.QueryTestCase):
         await self.con.execute('SELECT 1;')
 
     async def test_server_proto_tx_02(self):
+        # Test Parse/Execute with ROLLBACK; use new connection
+        # to make sure that Opportunistic Execute isn't used.
 
-        with self.assertRaises(edgedb.DivisionByZeroError):
-            await self.con.execute('''
-                START TRANSACTION;
-                SELECT 1;
-                SELECT 1 / 0;
-            ''')
+        con2 = await self.cluster.connect(user='edgedb',
+                                          database=self.con.dbname)
 
-        with self.assertRaisesRegex(
-                edgedb.TransactionError, "current transaction is aborted"):
-            await self.con.fetch('SELECT 1;')
+        try:
+            with self.assertRaises(edgedb.DivisionByZeroError):
+                await con2.execute('''
+                    START TRANSACTION;
+                    SELECT 1;
+                    SELECT 1 / 0;
+                ''')
 
-        await self.con.fetch('ROLLBACK')
+            with self.assertRaisesRegex(
+                    edgedb.TransactionError,
+                    "current transaction is aborted"):
+                await con2.fetch('SELECT 1;')
 
-        self.assertEqual(
-            await self.con.fetch('SELECT 1;'),
-            [1])
+            await con2.fetch('ROLLBACK')
 
-        with self.assertRaisesRegex(
-                edgedb.TransactionError, 'savepoints can only be used in tra'):
-            await self.con.execute('''
-                DECLARE SAVEPOINT t1;
-            ''')
+            self.assertEqual(
+                await con2.fetch('SELECT 1;'),
+                [1])
+
+            with self.assertRaisesRegex(
+                    edgedb.TransactionError,
+                    'savepoints can only be used in tra'):
+                await con2.execute('''
+                    DECLARE SAVEPOINT t1;
+                ''')
+        finally:
+            await con2.close()
 
     async def test_server_proto_tx_03(self):
+        # Test Opportunistic Execute with ROLLBACK; use new connection
+        # to make sure that "ROLLBACK" is cached.
+
+        con2 = await self.cluster.connect(user='edgedb',
+                                          database=self.con.dbname)
+
+        try:
+            for _ in range(5):
+                await con2.fetch('START TRANSACTION')
+                await con2.fetch('ROLLBACK')
+
+            with self.assertRaises(edgedb.DivisionByZeroError):
+                await con2.execute('''
+                    START TRANSACTION;
+                    SELECT 1;
+                    SELECT 1 / 0;
+                ''')
+
+            with self.assertRaisesRegex(
+                    edgedb.TransactionError,
+                    "current transaction is aborted"):
+                await con2.fetch('SELECT 1;')
+
+            await con2.fetch('ROLLBACK')
+
+            self.assertEqual(
+                await con2.fetch('SELECT 1;'),
+                [1])
+
+            with self.assertRaisesRegex(
+                    edgedb.TransactionError,
+                    'savepoints can only be used in tra'):
+                await con2.execute('''
+                    DECLARE SAVEPOINT t1;
+                ''')
+        finally:
+            await con2.close()
+
+    async def test_server_proto_tx_04(self):
         await self.con.execute('''
             START TRANSACTION;
         ''')
@@ -684,16 +734,16 @@ class TestServerProto(tb.QueryTestCase):
                 ROLLBACK;
             ''')
 
-    async def test_server_proto_tx_04(self):
+    async def test_server_proto_tx_05(self):
         # test that caching of compiled queries doesn't interfere
         # with transactions
 
-        query = 'SELECT 1'
+        query = 'SELECT "test_server_proto_tx_04"'
 
         for _ in range(5):
             self.assertEqual(
                 await self.con.fetch(query),
-                [1])
+                ['test_server_proto_tx_04'])
 
         await self.con.execute('''
             START TRANSACTION;
@@ -702,7 +752,7 @@ class TestServerProto(tb.QueryTestCase):
         for i in range(5):
             self.assertEqual(
                 await self.con.fetch(query),
-                [1])
+                ['test_server_proto_tx_04'])
 
             self.assertEqual(
                 await self.con.fetch('SELECT <int64>$0', i),
@@ -712,7 +762,7 @@ class TestServerProto(tb.QueryTestCase):
             ROLLBACK;
         ''')
 
-    async def test_server_proto_tx_05(self):
+    async def test_server_proto_tx_06(self):
         # test that caching of compiled queries in other connections
         # doesn't interfere with transactions
 
@@ -742,7 +792,7 @@ class TestServerProto(tb.QueryTestCase):
                 ROLLBACK;
             ''')
 
-    async def test_server_proto_tx_06(self):
+    async def test_server_proto_tx_07(self):
         try:
             await self.con.execute('''
                 START TRANSACTION ISOLATION SERIALIZABLE, READ ONLY,
@@ -766,6 +816,72 @@ class TestServerProto(tb.QueryTestCase):
         self.assertEqual(
             await self.con.fetch('SELECT 42'),
             [42])
+
+    async def test_server_proto_tx_08(self):
+        initq = '''
+            INSERT test::Tmp {
+                tmp := 'test_server_proto_tx_07'
+            };
+
+            START TRANSACTION;
+            SELECT 1 / 0;
+        '''
+
+        try:
+            with self.assertRaises(edgedb.DivisionByZeroError):
+                await self.con.execute(initq)
+        finally:
+            await self.con.execute('''
+                ROLLBACK;
+            ''')
+
+        self.assertEqual(
+            await self.con.fetch('''
+                SELECT test::Tmp { tmp }
+                FILTER .tmp = 'test_server_proto_tx_07'
+            '''),
+            [])
+
+    async def test_server_proto_tx_09(self):
+        initq = '''
+            INSERT test::Tmp {
+                tmp := 'test_server_proto_tx_08'
+            };
+
+            START TRANSACTION;
+            SELECT 1 / 0;
+
+            COMMIT;
+
+            INSERT test::Tmp {
+                tmp := 'test_server_proto_tx_08'
+            };
+        '''
+
+        try:
+            with self.assertRaises(edgedb.DivisionByZeroError):
+                await self.con.execute(initq)
+        finally:
+            await self.con.execute('''
+                ROLLBACK;
+
+                INSERT test::Tmp {
+                    tmp := 'test_server_proto_tx_08'
+                };
+            ''')
+
+        self.assertEqual(
+            await self.con.fetch('''
+                SELECT count(
+                    test::Tmp { tmp }
+                    FILTER .tmp = 'test_server_proto_tx_08'
+                )
+            '''),
+            [1])
+
+        await self.con.execute('''
+            DELETE (SELECT test::Tmp);
+        ''')
 
 
 class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):

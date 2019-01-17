@@ -17,9 +17,12 @@
 #
 
 
+import pathlib
 import weakref
 
 from edb.common import taskgroup
+
+from edb.edgeql import parser as ql_parser
 
 from edb.server import pgcon
 from edb.server import procpool
@@ -27,6 +30,7 @@ from edb.server import procpool
 from . import compiler
 
 from .dbview import DatabaseIndex
+from . import stdschema
 
 
 __all__ = ('DatabaseIndex', 'BackendManager')
@@ -34,9 +38,14 @@ __all__ = ('DatabaseIndex', 'BackendManager')
 
 class Backend:
 
-    def __init__(self, pgcon, compiler):
+    def __init__(self, pgcon, compiler, std_schema):
         self._pgcon = pgcon
         self._compiler = compiler
+        self._std_schema = std_schema
+
+    @property
+    def std_schema(self):
+        return self._std_schema
 
     @property
     def pgcon(self):
@@ -63,6 +72,12 @@ class BackendManager:
         self._compiler_manager = None
 
     async def start(self):
+        # Make sure that EdgeQL parser is preloaded; edgecon might use
+        # it to restore config values.
+        ql_parser.preload()
+        # std schema is also needed to restore config values.
+        self._std_schema = stdschema.load(pathlib.Path(self._data_dir))
+
         self._compiler_manager = await procpool.create_manager(
             runstate_dir=self._runstate_dir,
             name='edgedb-compiler',
@@ -94,6 +109,10 @@ class BackendManager:
 
             compiler_task = g.create_task(new_compiler())
 
-        backend = Backend(new_pgcon_task.result(), compiler_task.result())
+        backend = Backend(
+            new_pgcon_task.result(),
+            compiler_task.result(),
+            self._std_schema)
+
         self._backends.add(backend)
         return backend

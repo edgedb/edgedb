@@ -18,9 +18,9 @@
 
 
 import collections
+import enum
 import hashlib
 import pathlib
-import pickle
 import typing
 
 import asyncpg
@@ -38,10 +38,9 @@ from edb.common import debug
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as ql_compiler
+from edb.edgeql import codegen as ql_codegen
 from edb.edgeql import quote as ql_quote
 from edb.edgeql import parser as ql_parser
-
-from edb.ir import staeval as ireval
 
 from edb.schema import database as s_db
 from edb.schema import ddl as s_ddl
@@ -58,6 +57,13 @@ from . import config
 from . import dbstate
 from . import errormech
 from . import sertypes
+from . import stdschema
+
+
+class CompileStatementMode(enum.Enum):
+    SKIP_FIRST = 'skip_first'
+    ALL = 'all'
+    SINGLE = 'single'
 
 
 class CompilerDatabaseState(typing.NamedTuple):
@@ -71,9 +77,9 @@ class CompileContext(typing.NamedTuple):
 
     state: dbstate.CompilerConnectionState
     output_format: pg_compiler.OutputFormat
-    single_query_mode: bool
     legacy_mode: bool
     graphql_mode: bool
+    stmt_mode: CompileStatementMode
 
 
 EMPTY_MAP = immutables.Map()
@@ -92,13 +98,13 @@ def compile_bootstrap_script(std_schema: s_schema.Schema,
     ctx = CompileContext(
         state=state,
         output_format=pg_compiler.OutputFormat.JSON,
-        single_query_mode=False,
         legacy_mode=False,
-        graphql_mode=False)
+        graphql_mode=False,
+        stmt_mode='all')
 
     compiler = Compiler(None, None)
     compiler._std_schema = std_schema
-    compiler._std_mode = True
+    compiler._bootstrap_mode = True
 
     units = compiler._compile(ctx=ctx, eql=eql.encode())
 
@@ -119,21 +125,23 @@ class Compiler:
         self._dbname = None
         self._cached_db = None
         self._current_db_state = None
-        self._std_mode = False
+        self._bootstrap_mode = False
 
         if data_dir is not None:
             self._data_dir = pathlib.Path(data_dir)
-            self._std_schema = self._get_std_schema()
+            self._std_schema = stdschema.load(self._data_dir)
         else:
             self._data_dir = None
             self._std_schema = None
 
         # Preload parsers.
-        ql_parser.EdgeQLBlockParser().get_parser_spec()
+        ql_parser.preload()
 
     async def _get_database(self, dbver: int) -> CompilerDatabaseState:
         if self._cached_db is not None and self._cached_db.dbver == dbver:
             return self._cached_db
+
+        assert self._std_schema is not None
 
         self._cached_db = None
 
@@ -158,17 +166,6 @@ class Compiler:
         finally:
             await con.close()
 
-    def _get_std_schema(self):
-        if self._data_dir is None:
-            raise RuntimeError('data_dir is not set')
-
-        with open(self._data_dir / 'stdschema.pickle', 'rb') as f:
-            try:
-                return pickle.load(f)
-            except Exception as e:
-                raise RuntimeError(
-                    'could not load std schema pickle') from e
-
     def _hash_sql(self, sql: bytes, **kwargs: bytes):
         h = hashlib.sha1(sql)
         for param, val in kwargs.items():
@@ -182,7 +179,7 @@ class Compiler:
 
         context = s_delta.CommandContext()
         context.testmode = bool(config.get('__internal_testmode'))
-        context.stdmode = self._std_mode
+        context.stdmode = self._bootstrap_mode
 
         return context
 
@@ -214,10 +211,12 @@ class Compiler:
             ctx.output_format is pg_compiler.OutputFormat.NATIVE
         )
 
+        single_stmt_mode = ctx.stmt_mode is CompileStatementMode.SINGLE
+
         implicit_fields = (
             native_out_format and
             not ctx.legacy_mode and
-            ctx.single_query_mode
+            single_stmt_mode
         )
 
         disable_constant_folding = config.get(
@@ -238,7 +237,7 @@ class Compiler:
 
         sql_bytes = sql_text.encode(defines.EDGEDB_ENCODING)
 
-        if ctx.single_query_mode or ctx.legacy_mode:
+        if single_stmt_mode or ctx.legacy_mode:
             if native_out_format:
                 out_type_data, out_type_id = sertypes.TypeSerializer.describe(
                     ir.schema, ir.stype,
@@ -319,10 +318,11 @@ class Compiler:
             elif isinstance(cmd, s_deltas.CreateDelta):
                 schema, _ = cmd.apply(schema, context)
                 current_tx.update_schema(schema)
-                return dbstate.DDLQuery(sql=b'')
+                return dbstate.DDLQuery(sql=b'SELECT;')
 
             else:
-                raise RuntimeError(f'unexpected delta command: {cmd!r}')
+                raise errors.InternalServerError(
+                    f'unexpected delta command: {cmd!r}')
 
     def _compile_and_apply_ddl_command(self, ctx: CompileContext, cmd):
         current_tx = ctx.state.current_tx()
@@ -364,7 +364,7 @@ class Compiler:
             return self._compile_and_apply_ddl_command(ctx, cmd)
 
         else:
-            raise RuntimeError(f'unexpected plan {cmd!r}')
+            raise errors.InternalServerError(f'unexpected plan {cmd!r}')
 
     def _compile_ql_ddl(self, ctx: CompileContext, ql: qlast.DDL):
         current_tx = ctx.state.current_tx()
@@ -392,9 +392,10 @@ class Compiler:
         if (isinstance(ql, qlast.CreateDelta) and
                 cmd.get_attribute_value('target')):
 
+            assert self._std_schema is not None
             cmd = s_ddl.compile_migration(
                 cmd,
-                self._get_std_schema(),
+                self._std_schema,
                 current_tx.get_schema())
 
         return self._compile_command(ctx, cmd)
@@ -403,8 +404,12 @@ class Compiler:
             self, ctx: CompileContext,
             ql: qlast.Transaction) -> dbstate.Query:
 
+        cacheable = True
+        single_unit = False
+
         if isinstance(ql, qlast.StartTransaction):
             ctx.state.start_tx()
+
             sql = 'START TRANSACTION'
             if ql.isolation is not None:
                 sql += f' ISOLATION LEVEL {ql.isolation.value}'
@@ -412,23 +417,47 @@ class Compiler:
                 sql += f' {ql.access.value}'
             if ql.deferrable is not None:
                 sql += f' {ql.deferrable.value}'
+            sql += ';'
+
             sql = sql.encode()
             action = dbstate.TxAction.START
+            cacheable = False
 
         elif isinstance(ql, qlast.CommitTransaction):
             ctx.state.commit_tx()
             sql = b'COMMIT'
+            single_unit = True
             action = dbstate.TxAction.COMMIT
 
         elif isinstance(ql, qlast.RollbackTransaction):
             ctx.state.rollback_tx()
             sql = b'ROLLBACK'
+            single_unit = True
             action = dbstate.TxAction.ROLLBACK
 
         elif isinstance(ql, qlast.DeclareSavepoint):
-            ctx.state.current_tx().declare_savepoint(ql.name)
-            pgname = pg_common.quote_ident(ql.name)
-            sql = f'SAVEPOINT {pgname}'.encode()
+            tx = ctx.state.current_tx()
+            sp_id = tx.declare_savepoint(ql.name)
+
+            sql = ''
+
+            if not self._bootstrap_mode:
+                q = lambda o: pg_common.quote_literal(str(o))
+                pgname = pg_common.quote_ident(ql.name)
+                sql += f'''
+                    INSERT INTO _edgecon_current_savepoint(sp_id)
+                    VALUES (
+                        {q(sp_id)}
+                    )
+                    ON CONFLICT (_sentinel) DO
+                    UPDATE
+                        SET sp_id = {q(sp_id)};
+                '''
+
+            sql += f'SAVEPOINT {pgname};'
+            sql = sql.encode()
+
+            cacheable = False
             action = dbstate.TxAction.DECLARE_SAVEPOINT
 
         elif isinstance(ql, qlast.ReleaseSavepoint):
@@ -441,12 +470,17 @@ class Compiler:
             ctx.state.current_tx().rollback_to_savepoint(ql.name)
             pgname = pg_common.quote_ident(ql.name)
             sql = f'ROLLBACK TO SAVEPOINT {pgname}'.encode()
+            single_unit = True
             action = dbstate.TxAction.ROLLBACK_TO_SAVEPOINT
 
         else:
             raise ValueError(f'expecting transaction node, got {ql!r}')
 
-        return dbstate.TxControlQuery(sql=sql, action=action)
+        return dbstate.TxControlQuery(
+            sql=sql,
+            action=action,
+            cacheable=cacheable,
+            single_unit=single_unit)
 
     def _compile_ql_sess_state(self, ctx: CompileContext,
                                ql: qlast.SetSessionState):
@@ -455,6 +489,10 @@ class Compiler:
 
         aliases = {}
         config_vals = {}
+
+        sqlbuf = []
+
+        q = lambda o: pg_common.quote_literal(str(o))
 
         for item in ql.items:
             if isinstance(item, qlast.SessionSettingModuleDecl):
@@ -466,34 +504,44 @@ class Compiler:
 
                 aliases[item.alias] = item.module
 
+                if not self._bootstrap_mode:
+                    sql = f'''
+                        INSERT INTO _edgecon_state(name, value, type)
+                        VALUES (
+                            {q(item.alias or '')},
+                            {q(item.module)},
+                            'A'
+                        )
+                        ON CONFLICT (name, type) DO
+                        UPDATE
+                            SET value = {q(item.module)};
+                        '''
+                    sqlbuf.append(sql.encode())
+
             elif isinstance(item, qlast.SessionSettingConfigDecl):
                 name = item.alias
 
-                try:
-                    desc = config.configs[name]
-                except KeyError:
-                    raise errors.ConfigurationError(
-                        f'invalid SET expression: '
-                        f'unknown CONFIG setting {name!r}')
+                config_vals[name] = config._setting_val_from_qlast(
+                    self._std_schema, name, item.expr)
 
-                try:
-                    val_ir = ql_compiler.compile_ast_fragment_to_ir(
-                        item.expr, schema=schema)
-                    val = ireval.evaluate_to_python_val(
-                        val_ir.expr, schema=schema)
-                except ireval.StaticEvaluationError:
-                    raise RuntimeError('invalid SET expression')
-                else:
-                    if not isinstance(val, desc.type):
-                        dispname = val_ir.stype.get_displayname(schema)
-                        raise errors.ConfigurationError(
-                            f'expected a {desc.type.__name__} value, '
-                            f'got {dispname!r}')
-                    else:
-                        config_vals[name] = val
+                item_expr_ql = ql_codegen.generate_source(item.expr)
+
+                if not self._bootstrap_mode:
+                    sql = f'''
+                        INSERT INTO _edgecon_state(name, value, type)
+                        VALUES (
+                            {q(name)},
+                            {q(item_expr_ql)},
+                            'C'
+                        )
+                        ON CONFLICT (name, type) DO
+                        UPDATE
+                            SET value = {q(item_expr_ql)};
+                        '''
+                    sqlbuf.append(sql.encode())
 
             else:
-                raise RuntimeError(
+                raise errors.InternalServerError(
                     f'unsupported SET command type {type(item)!r}')
 
         aliases = immutables.Map(aliases)
@@ -507,6 +555,7 @@ class Compiler:
                 ctx.state.current_tx().get_config().update(config_vals))
 
         return dbstate.SessionStateQuery(
+            sql=b''.join(sqlbuf),
             sess_set_modaliases=aliases,
             sess_set_config=config_vals)
 
@@ -533,6 +582,7 @@ class Compiler:
 
         eql = eql.decode()
         if ctx.graphql_mode:
+            assert ctx.stmt_mode is CompileStatementMode.ALL
             eql = graphql.translate(
                 ctx.state.current_tx().get_schema(),
                 eql,
@@ -541,8 +591,12 @@ class Compiler:
             eql += ';'
 
         statements = edgeql.parse_block(eql)
-
-        if ctx.single_query_mode and len(statements) > 1:
+        if ctx.stmt_mode is CompileStatementMode.SKIP_FIRST:
+            statements = statements[1:]
+            if not statements:
+                return []
+        elif (ctx.stmt_mode is CompileStatementMode.SINGLE and
+                len(statements) > 1):
             raise errors.ProtocolError(
                 f'expected one statement, got {len(statements)}')
 
@@ -554,7 +608,8 @@ class Compiler:
 
             if unit is not None and (
                     ctx.legacy_mode or
-                    isinstance(comp, dbstate.TxControlQuery)):
+                    (isinstance(comp, dbstate.TxControlQuery) and
+                        comp.single_unit)):
                 units.append(unit)
                 unit = None
 
@@ -562,7 +617,8 @@ class Compiler:
                 unit = dbstate.QueryUnit(dbver=ctx.state.dbver)
 
             if isinstance(comp, dbstate.Query):
-                if ctx.single_query_mode or ctx.legacy_mode:
+                if (ctx.stmt_mode is CompileStatementMode.SINGLE or
+                        ctx.legacy_mode):
                     unit.sql = comp.sql
                     unit.sql_hash = comp.sql_hash
 
@@ -570,6 +626,8 @@ class Compiler:
                     unit.out_type_id = comp.out_type_id
                     unit.in_type_data = comp.in_type_data
                     unit.in_type_id = comp.in_type_id
+
+                    unit.cacheable = True
                 else:
                     unit.sql += comp.sql + b';'
 
@@ -583,41 +641,59 @@ class Compiler:
             elif isinstance(comp, dbstate.TxControlQuery):
                 unit.sql += comp.sql + b';'
 
-                unit.controls_tx = True
+                unit.cacheable = comp.cacheable
 
                 if comp.action == dbstate.TxAction.START:
-                    unit.starts_tx = True
-                    unit.txid = ctx.state.current_tx().id
+                    unit.tx_id = ctx.state.current_tx().id
+
                 elif comp.action == dbstate.TxAction.COMMIT:
-                    unit.commits_tx = True
+                    unit.tx_commit = True
+
+                    unit.config = ctx.state.current_tx().get_config()
+                    unit.modaliases = ctx.state.current_tx().get_modaliases()
+
                 elif comp.action == dbstate.TxAction.ROLLBACK:
-                    unit.rollbacks_tx = True
-                elif comp.action == dbstate.TxAction.ROLLBACK_TO_SAVEPOINT:
-                    unit.savepoint_rollbacks = True
+                    unit.tx_rollback = True
 
-                unit.config = ctx.state.current_tx().get_config()
-                unit.modaliases = ctx.state.current_tx().get_modaliases()
+                    unit.config = ctx.state.current_tx().get_config()
+                    unit.modaliases = ctx.state.current_tx().get_modaliases()
 
-                units.append(unit)
-                unit = None
+                elif comp.action is dbstate.TxAction.ROLLBACK_TO_SAVEPOINT:
+                    unit.tx_savepoint_rollback = True
+
+                if comp.single_unit:
+                    units.append(unit)
+                    unit = None
 
             elif isinstance(comp, dbstate.SessionStateQuery):
+                unit.sql += comp.sql + b';'
+
                 unit.config = ctx.state.current_tx().get_config()
                 unit.modaliases = ctx.state.current_tx().get_modaliases()
 
+                unit.has_set = True
+
             else:
-                raise RuntimeError('unknown compile state')
+                raise errors.InternalServerError('unknown compile state')
 
         if unit is not None:
             units.append(unit)
 
+        for unit in units:
+            if unit.tx_id:
+                unit.config = unit.modaliases = None
+
+            if not unit.sql:
+                raise errors.InternalServerError(
+                    f'QueryUnit {unit!r} has an empty sql field')
+
         return units
 
     async def _ctx_new_con_state(self, *, dbver: int, json_mode: bool,
-                                 single_query_mode: bool,
                                  modaliases, config,
                                  legacy_mode: bool,
-                                 graphql_mode: bool=False):
+                                 graphql_mode: bool,
+                                 stmt_mode: CompileStatementMode):
 
         assert isinstance(modaliases, immutables.Map)
         assert isinstance(config, immutables.Map)
@@ -636,16 +712,16 @@ class Compiler:
         ctx = CompileContext(
             state=state,
             output_format=of,
-            single_query_mode=single_query_mode,
             legacy_mode=legacy_mode,
-            graphql_mode=graphql_mode)
+            graphql_mode=graphql_mode,
+            stmt_mode=stmt_mode)
 
         return ctx
 
     async def _ctx_from_con_state(self, *, txid: int, json_mode: bool,
-                                  single_query_mode: bool,
                                   legacy_mode: bool,
-                                  graphql_mode: bool=False):
+                                  graphql_mode: bool,
+                                  stmt_mode: CompileStatementMode):
         state = self._load_state(txid)
 
         if json_mode:
@@ -656,19 +732,26 @@ class Compiler:
         ctx = CompileContext(
             state=state,
             output_format=of,
-            single_query_mode=single_query_mode,
             legacy_mode=legacy_mode,
-            graphql_mode=graphql_mode)
+            graphql_mode=graphql_mode,
+            stmt_mode=stmt_mode)
 
         return ctx
 
     def _load_state(self, txid: int):
-        if (self._current_db_state is None or
-                self._current_db_state.current_tx().id != txid):
-            self._current_db_state = None
-            raise RuntimeError(
+        if self._current_db_state is None:
+            raise errors.InternalServerError(
                 f'failed to lookup transaction with id={txid}')
-        return self._current_db_state
+
+        if self._current_db_state.current_tx().id == txid:
+            return self._current_db_state
+
+        if self._current_db_state.can_rollback_to_savepoint(txid):
+            self._current_db_state.rollback_to_savepoint(txid)
+            return self._current_db_state
+
+        raise errors.InternalServerError(
+            f'failed to lookup transaction or savepoint with id={txid}')
 
     # API
 
@@ -677,81 +760,82 @@ class Compiler:
         self._cached_db = None
         await self._get_database(dbver)
 
+    async def try_compile_rollback(self, dbver: int, eql: bytes):
+        statements = edgeql.parse_block(eql.decode() + ';')
+
+        stmt = statements[0]
+        unit = None
+        if isinstance(stmt, qlast.RollbackTransaction):
+            sql = b'ROLLBACK;'
+            unit = dbstate.QueryUnit(
+                dbver=dbver,
+                sql=sql,
+                tx_rollback=True,
+                cacheable=True)
+
+        elif isinstance(stmt, qlast.RollbackToSavepoint):
+            sql = f'ROLLBACK TO {pg_common.quote_ident(stmt.name)};'.encode()
+            unit = dbstate.QueryUnit(
+                dbver=dbver,
+                sql=sql,
+                tx_savepoint_rollback=True,
+                cacheable=True)
+
+        if unit is not None:
+            return unit, len(statements) - 1
+
+        raise errors.TransactionError(
+            'expected a ROLLBACK or ROLLBACK TO SAVEPOINT command')
+
     async def compile_eql(
             self,
             dbver: int,
             eql: bytes,
             sess_modaliases: immutables.Map,
             sess_config: immutables.Map,
-            json_mode: bool) -> dbstate.QueryUnit:
+            json_mode: bool,
+            legacy_mode: bool,
+            graphql_mode: bool,
+            stmt_mode: CompileStatementMode) -> typing.List[dbstate.QueryUnit]:
 
         ctx = await self._ctx_new_con_state(
             dbver=dbver,
             json_mode=json_mode,
-            single_query_mode=True,
             modaliases=sess_modaliases,
             config=sess_config,
-            legacy_mode=False)
+            legacy_mode=legacy_mode,
+            graphql_mode=graphql_mode,
+            stmt_mode=CompileStatementMode(stmt_mode))
 
         units = self._compile(ctx=ctx, eql=eql)
+        if stmt_mode is CompileStatementMode.SINGLE and len(units) != 1:
+            raise errors.InternalServerError(
+                f'expected 1 compiled unit; got {len(units)}')
 
-        assert len(units) == 1
-        return units[0]
+        return units
 
     async def compile_eql_in_tx(
             self,
             txid: int,
             eql: bytes,
-            json_mode: bool) -> dbstate.QueryUnit:
+            json_mode: bool,
+            legacy_mode: bool,
+            graphql_mode: bool,
+            stmt_mode: CompileStatementMode) -> typing.List[dbstate.QueryUnit]:
 
         ctx = await self._ctx_from_con_state(
             txid=txid,
             json_mode=json_mode,
-            single_query_mode=True,
-            legacy_mode=False)
+            legacy_mode=legacy_mode,
+            graphql_mode=graphql_mode,
+            stmt_mode=CompileStatementMode(stmt_mode))
 
         units = self._compile(ctx=ctx, eql=eql)
+        if stmt_mode is CompileStatementMode.SINGLE and len(units) != 1:
+            raise errors.InternalServerError(
+                f'expected 1 compiled unit; got {len(units)}')
 
-        assert len(units) == 1
-        return units[0]
-
-    async def compile_eql_script(
-            self,
-            dbver: int,
-            eql: bytes,
-            sess_modaliases: immutables.Map,
-            sess_config: immutables.Map,
-            json_mode: bool,
-            legacy_mode: bool,
-            graphql_mode: bool) -> typing.List[dbstate.QueryUnit]:
-
-        ctx = await self._ctx_new_con_state(
-            dbver=dbver,
-            json_mode=json_mode,
-            single_query_mode=False,
-            modaliases=sess_modaliases,
-            config=sess_config,
-            legacy_mode=legacy_mode,
-            graphql_mode=graphql_mode)
-
-        return self._compile(ctx=ctx, eql=eql)
-
-    async def compile_eql_script_in_tx(
-            self,
-            txid: int,
-            eql: bytes,
-            json_mode: bool,
-            legacy_mode: bool,
-            graphql_mode: bool) -> typing.List[dbstate.QueryUnit]:
-
-        ctx = await self._ctx_from_con_state(
-            txid=txid,
-            json_mode=json_mode,
-            single_query_mode=False,
-            legacy_mode=legacy_mode,
-            graphql_mode=graphql_mode)
-
-        return self._compile(ctx=ctx, eql=eql)
+        return units
 
     async def interpret_backend_error(self, dbver, fields):
         db = await self._get_database(dbver)

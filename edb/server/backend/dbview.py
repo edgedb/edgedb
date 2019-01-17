@@ -52,7 +52,8 @@ class Database:
         self._eql_to_compiled.clear()
 
     def _cache_compiled_query(self, key, compiled: dbstate.QueryUnit):
-        assert compiled.is_preparable()
+        assert compiled.cacheable
+
         existing = self._eql_to_compiled.get(key)
         if existing is not None and existing.dbver > compiled.dbver:
             # We already have a cached query for a more recent DB version.
@@ -90,6 +91,7 @@ class DatabaseConnectionView:
         self._txid = None
         self._in_tx = False
         self._in_tx_with_ddl = False
+        self._in_tx_with_set = False
         self._tx_error = False
 
         self._config_before_tx = self._config
@@ -97,14 +99,16 @@ class DatabaseConnectionView:
 
         self._invalidate_local_cache()
 
+    def rollback_tx_to_savepoint(self, spid):
+        self._tx_error = False
+        self._txid = spid
+        self._invalidate_local_cache()
+
     def abort_tx(self):
         if not self.in_tx:
             raise errors.InternalServerError('abort_tx(): not in transaction')
         self._config = self._config_before_tx
         self._modaliases = self._modaliases_before_tx
-        self._reset_tx_state()
-
-    def rollback(self):
         self._reset_tx_state()
 
     @property
@@ -143,7 +147,7 @@ class DatabaseConnectionView:
                              json_mode: bool,
                              compiled: dbstate.QueryUnit):
 
-        assert compiled.is_preparable()
+        assert compiled.cacheable
 
         key = (eql, json_mode, self._modaliases, self._config)
 
@@ -162,7 +166,7 @@ class DatabaseConnectionView:
         compiled: dbstate.QueryUnit
         key = (eql, json_mode, self._modaliases, self._config)
 
-        if self._in_tx_with_ddl:
+        if self._in_tx_with_ddl or self._in_tx_with_set:
             compiled = self._eql_to_compiled.get(key)
         else:
             compiled = self._db._eql_to_compiled.get(key)
@@ -177,27 +181,28 @@ class DatabaseConnectionView:
 
     def start(self, qu: dbstate.QueryUnit):
         if self._tx_error:
-            if qu.savepoint_rollbacks or qu.rollbacks_tx:
-                self._tx_error = False
-            else:
-                self.raise_in_tx_error()
+            self.raise_in_tx_error()
 
-        if qu.starts_tx:
-            assert not qu.is_preparable()
+        if qu.tx_id is not None:
             self._in_tx = True
-            self._txid = qu.txid
+            self._txid = qu.tx_id
 
         if self._in_tx and not self._txid:
             raise errors.InternalServerError('unset txid in transaction')
 
-        if self._in_tx and qu.has_ddl:
-            self._in_tx_with_ddl = True
+        if self._in_tx:
+            if qu.has_ddl:
+                self._in_tx_with_ddl = True
+            if qu.has_set:
+                self._in_tx_with_set = True
 
     def on_error(self, qu: dbstate.QueryUnit):
         self.tx_error()
 
     def on_success(self, qu: dbstate.QueryUnit):
-        if qu.has_ddl or (self._in_tx_with_ddl and qu.savepoint_rollbacks):
+        if qu.tx_savepoint_rollback:
+            # Need to invalidate the cache in case there were
+            # SET ALIAS/SET CONFIG or DDL commands.
             self._invalidate_local_cache()
 
         if not self._in_tx and qu.has_ddl:
@@ -209,16 +214,10 @@ class DatabaseConnectionView:
         if qu.modaliases:
             self._modaliases = qu.modaliases
 
-        if qu.commits_tx:
+        if qu.tx_commit or qu.tx_rollback:
             assert self._in_tx
-            if self._in_tx_with_ddl:
+            if qu.tx_commit and self._in_tx_with_ddl:
                 self._db._signal_ddl()
-            self._reset_tx_state()
-
-        elif qu.rollbacks_tx:
-            assert self._in_tx
-            assert self._config == self._config_before_tx
-            assert self._modaliases == self._modaliases_before_tx
             self._reset_tx_state()
 
         if not self._in_tx:
@@ -237,11 +236,14 @@ class DatabaseIndex:
     def __init__(self):
         self._dbs = {}
 
-    def new_view(self, dbname: str, *, user: str) -> DatabaseConnectionView:
+    def _get_db(self, dbname):
         try:
             db = self._dbs[dbname]
         except KeyError:
             db = Database(dbname)
             self._dbs[dbname] = db
+        return db
 
+    def new_view(self, dbname: str, *, user: str) -> DatabaseConnectionView:
+        db = self._get_db(dbname)
         return db._new_view(user=user)

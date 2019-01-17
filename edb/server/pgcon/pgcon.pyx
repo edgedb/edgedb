@@ -320,7 +320,10 @@ cdef class PGProto:
                         row = []
                         for i in range(ncol):
                             coll = self.buffer.read_int32()
-                            row.append(self.buffer.read_bytes(coll))
+                            if coll == -1:
+                                row.append(None)
+                            else:
+                                row.append(self.buffer.read_bytes(coll))
                         if result is None:
                             result = []
                         result.append(row)
