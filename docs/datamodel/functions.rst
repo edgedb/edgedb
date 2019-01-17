@@ -19,11 +19,19 @@ A function may be defined in EdgeDB Schema using the ``function`` declaration:
 
     # where <argspec> is:
 
-    [ <argkind> ] $<argname>: [ <typequal> ] <argtype> [ = <default> ]
+    [ <argkind> ] <argname>: [ <typequal> ] <argtype> [ = <default> ]
+
+    # <argkind> is:
+
+    [ { variadic | named only } ]
+
+    # <typequal> is:
+
+    [ { set of | optional } ]
 
     # and <returnspec> is:
 
-    [ { set of | optional } ] <rettype>
+    [ <typequal> ] <rettype>
 
 
 Parameters

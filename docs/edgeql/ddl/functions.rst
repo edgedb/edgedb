@@ -31,11 +31,19 @@ Define a new function.
 
     # where <argspec> is:
 
-    [ <argkind> ] $<argname>: [ <typequal> ] <argtype> [ = <default> ]
+    [ <argkind> ] <argname>: [ <typequal> ] <argtype> [ = <default> ]
+
+    # <argkind> is:
+
+    [ { VARIADIC | NAMED ONLY } ]
+
+    # <typequal> is:
+
+    [ { SET OF | OPTIONAL } ]
 
     # and <returnspec> is:
 
-    [ { SET OF | OPTIONAL } ] <rettype>
+    [ <typequal> ] <rettype>
 
 
 Description
@@ -177,7 +185,7 @@ Remove a function.
 
     # where <argspec> is:
 
-    [ $<argname>: ] [ <argmode> ] <argtype>
+    [ <argname>: ] [ <argmode> ] <argtype>
 
 
 Description
