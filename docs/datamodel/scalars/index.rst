@@ -1,5 +1,6 @@
 .. _ref_datamodel_scalar_types:
 
+============
 Scalar Types
 ============
 
@@ -28,11 +29,12 @@ The standard EdgeDB scalar types are:
 
 - :ref:`Boolean type <ref_datamodel_scalars_bool>`
 
-- :ref:`Date/Time types <ref_datamodel_scalars_datetime>`:
+- :ref:`Date and Time types <ref_datamodel_scalars_datetime>`:
 
   * :eql:type:`datetime`
-  * :eql:type:`date`
-  * :eql:type:`time`
+  * :eql:type:`naive_datetime`
+  * :eql:type:`naive_date`
+  * :eql:type:`naive_time`
   * :eql:type:`timedelta`
 
 - :ref:`UUID type <ref_datamodel_scalars_uuid>`
