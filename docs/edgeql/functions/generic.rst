@@ -4,7 +4,7 @@
 Generic
 =======
 
-This section describes general functions provided by EdgeDB.
+This section describes generic functions provided by EdgeDB.
 
 
 .. eql:function:: std::len(value: str) -> int64
@@ -39,8 +39,7 @@ This section describes general functions provided by EdgeDB.
 
     :index: find position array
 
-    A polymorphic function to find index of an element in an ordered
-    collection.
+    A polymorphic function to find index of an element in a sequence.
 
     When the *haystack* is :eql:type:`str` or :eql:type:`bytes`,
     return the index of the first occurrence of *needle* in it.
@@ -72,8 +71,6 @@ This section describes general functions provided by EdgeDB.
                   std::round(value: float64) -> float64
                   std::round(value: decimal) -> decimal
                   std::round(value: decimal, d: int64) -> decimal
-
-    :index: round
 
     Round to the nearest value.
 
@@ -138,11 +135,12 @@ This section describes general functions provided by EdgeDB.
         {0.62649393780157}
 
 
-.. eql:function:: std::bytes_get_bit(bytes: bytes, n: int64) -> int64
+.. eql:function:: std::bytes_get_bit(bytes: bytes, nth: int64) -> int64
 
-    Get the *n*th bit of the *bytes* value.
+    Get the *nth* bit of the *bytes* value.
 
-    This function counts bits from least to most significant in each byte.
+    When looking for the *nth* bit, this function enumerates bits from
+    least to most significant in each byte.
 
     .. code-block:: edgeql-repl
 

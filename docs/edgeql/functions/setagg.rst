@@ -94,3 +94,8 @@ Aggregates
 Here's a list of aggregate functions covered in other sections:
 
 * :eql:func:`array_agg`
+* :eql:func:`math::mean`
+* :eql:func:`math::stddev`
+* :eql:func:`math::stddev_pop`
+* :eql:func:`math::var`
+* :eql:func:`math::var_pop`

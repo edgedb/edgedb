@@ -9,7 +9,14 @@ Number Types
 
     Any number of arbitrary precision.
 
-    All of the following types can be cast into numeric:
+    The EdgeDB philosophy is that using decimal type should be very
+    explicitly opt-in, but once used the values should not be
+    accidentally cast into a numeric type with less precision. In
+    accordance with this :ref:`the mathematical functions
+    <ref_eql_functions_math>` are designed to keep the separation
+    between decimal values and the rest of the numeric types.
+
+    All of the following types can be explicitly cast into decimal:
     :eql:type:`int16`, :eql:type:`int32`, :eql:type:`int64`,
     :eql:type:`float32`, and :eql:type:`float64`.
 
