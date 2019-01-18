@@ -74,10 +74,11 @@ Parameters
     arbitrary number of arguments of the specified type.  The passed
     arguments will be passed as as array of the argument type.
     Positional arguments cannot follow a ``VARIADIC`` argument.
+    ``VARIADIC`` parameters cannot have a default value.
 
     The ``NAMED ONLY`` modifier indicates that the argument can only
     be passed using that specific name.  Positional arguments cannot
-    follow a ``VARIADIC`` argument.
+    follow a ``NAMED ONLY`` argument.
 
 :eql:synopsis:`<argname>`
     The name of an argument.  If ``NAMED ONLY`` modifier is used this
