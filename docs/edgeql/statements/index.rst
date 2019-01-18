@@ -75,3 +75,6 @@ Transaction control statements:
     tx_sp_declare
     tx_sp_release
     tx_sp_rollback
+
+    sess_set
+    sess_reset
