@@ -198,12 +198,19 @@ class InnerDDLStmt(Nonterm):
 
 class Semicolons(Nonterm):
     # one or more semicolons
-    #
     def reduce_SEMICOLON(self, tok):
         self.val = tok
 
     def reduce_Semicolons_SEMICOLON(self, *kids):
         self.val = kids[0].val
+
+
+class OptSemicolons(Nonterm):
+    def reduce_Semicolons(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_empty(self):
+        self.val = None
 
 
 class InnerDDLStmtBlock(ListNonterm, element=InnerDDLStmt,
@@ -272,10 +279,10 @@ def commands_block(parent, *commands, opt=True):
     #
     #   { [ ; ] CommandsList ; }
     clsdict = collections.OrderedDict()
-    clsdict['reduce_LBRACE_' + cmdlist.__name__ + '_Semicolons_RBRACE'] = \
+    clsdict['reduce_LBRACE_' + cmdlist.__name__ + '_OptSemicolons_RBRACE'] = \
         ProductionHelper._block
     clsdict['reduce_LBRACE_Semicolons_' + cmdlist.__name__ +
-            '_Semicolons_RBRACE'] = \
+            '_OptSemicolons_RBRACE'] = \
         ProductionHelper._block2
     if not opt:
         #
@@ -491,7 +498,7 @@ class CreateDeltaStmt(Nonterm):
 
     def reduce_CreateDelta_Commands(self, *kids):
         r"""%reduce CREATE MIGRATION NodeName \
-                    OptDeltaParents LBRACE InnerDDLStmtBlock Semicolons \
+                    OptDeltaParents LBRACE InnerDDLStmtBlock OptSemicolons \
                     RBRACE
         """
         self.val = qlast.CreateDelta(
