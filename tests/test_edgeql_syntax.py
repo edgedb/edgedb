@@ -75,12 +75,25 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
         SeLeCT 1;
         """
 
-    # this is a statement syntax parser, not expressions, so
-    # semicolons are obligatory terminators
-    #
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=9)
-    def test_edgeql_syntax_nonstatement_01(self):
-        """SELECT 1"""
+    def test_edgeql_syntax_omit_semicolon_01(self):
+        """
+        SELECT 1
+
+% OK %
+
+        SELECT 1;
+        """
+
+    def test_edgeql_syntax_omit_semicolon_02(self):
+        """
+        SELECT 2;
+        SELECT 1
+
+% OK %
+
+        SELECT 2;
+        SELECT 1;
+        """
 
     # 1 + 2 is a valid expression, but it has to have SELECT keyword
     # to be a statement

@@ -17,6 +17,8 @@
 #
 
 
+from edb.common import parsing
+
 from .expressions import Nonterm
 from .precedence import *  # NOQA
 from .tokens import *  # NOQA
@@ -39,14 +41,22 @@ class SingleStatement(Nonterm):
         self.val = kids[0].val
 
 
-class StatementBlock(Nonterm):
+class StatementBlock(parsing.ListNonterm, element=SingleStatement,
+                     separator=Semicolons):  # NOQA, Semicolons are from .ddl
+    pass
+
+
+class EdgeQLBlock(Nonterm):
     "%start"
 
-    def reduce_StatementBlock_SEMICOLON(self, *kids):
+    def reduce_StatementBlock_EOF(self, *kids):
         self.val = kids[0].val
 
-    def reduce_StatementBlock_SingleStatement_SEMICOLON(self, *kids):
-        self.val = kids[0].val + [kids[1].val]
+    def reduce_StatementBlock_Semicolons_EOF(self, *kids):
+        self.val = kids[0].val
 
-    def reduce_empty(self):
+    def reduce_Semicolons_EOF(self, *kids):
+        self.val = []
+
+    def reduce_EOF(self, *kids):
         self.val = []
