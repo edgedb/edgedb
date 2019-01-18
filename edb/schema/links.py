@@ -488,6 +488,20 @@ class RebaseLink(LinkCommand, inheriting.RebaseInheritingObject):
     pass
 
 
+class SetTargetDeletePolicy(sd.Command):
+    astnode = qlast.OnTargetDelete
+
+    @classmethod
+    def _cmd_from_ast(cls, schema, astnode, context):
+        return sd.AlterObjectProperty(property='on_target_delete')
+
+    @classmethod
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        cmd.new_value = astnode.cascade
+        return cmd
+
+
 class AlterTarget(sd.Command):
     astnode = qlast.AlterTarget
 
