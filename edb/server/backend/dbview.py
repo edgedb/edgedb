@@ -103,8 +103,13 @@ class DatabaseConnectionView:
         self._config = config
         self._invalidate_local_cache()
 
+    def recover_aliases_and_config(self, modaliases, config):
+        assert not self._in_tx
+        self._modaliases = modaliases
+        self._config = config
+
     def abort_tx(self):
-        if not self.in_tx:
+        if not self.in_tx():
             raise errors.InternalServerError('abort_tx(): not in transaction')
         self._reset_tx_state()
 
@@ -120,11 +125,9 @@ class DatabaseConnectionView:
     def txid(self):
         return self._txid
 
-    @property
     def in_tx(self):
         return self._in_tx
 
-    @property
     def in_tx_error(self):
         return self._tx_error
 

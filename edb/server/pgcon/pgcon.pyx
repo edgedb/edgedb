@@ -18,7 +18,6 @@
 
 
 import asyncio
-import os
 
 cimport cython
 cimport cpython
@@ -97,7 +96,6 @@ cdef class PGProto:
     def debug_print(self, *args):
         print(
             '::PGPROTO::',
-            f'pid:{os.getpid()}',
             *args,
         )
 

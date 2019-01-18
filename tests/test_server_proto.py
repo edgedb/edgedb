@@ -1222,6 +1222,71 @@ class TestServerProto(tb.QueryTestCase):
 
         await self.con.fetch('ROLLBACK')
 
+    async def test_server_proto_tx_13(self):
+        # Test COMMIT abort
+
+        async def test_funcs(*, working, not_working):
+            for ns in working:
+                self.assertEqual(
+                    await self.con.fetch(f'SELECT {ns}::min({{1}})'),
+                    [1])
+
+            for ns in not_working:
+                with self.assertRaises(edgedb.errors.InvalidReferenceError):
+                    await self.con.fetch(f'SELECT {ns}::min({{1}})')
+
+        for exec_meth in (self.con.execute, self.con.fetch):
+            try:
+                await self.con.execute('''
+                    CREATE TYPE test::Tmp_tx_13 {
+                        CREATE PROPERTY tmp_tx_13_1 -> int64;
+                    };
+
+                    ALTER TYPE test::Tmp_tx_13 {
+                        CREATE LINK tmp_tx_13_2 -> test::Tmp_tx_13 {
+                            ON TARGET DELETE DEFERRED RESTRICT;
+                        };
+                    };
+
+                    INSERT test::Tmp_tx_13 {
+                        tmp_tx_13_1 := 1
+                    };
+
+                    INSERT test::Tmp_tx_13 {
+                        tmp_tx_13_1 := 2,
+                        tmp_tx_13_2 := DETACHED (
+                            SELECT test::Tmp_tx_13
+                            FILTER test::Tmp_tx_13.tmp_tx_13_1 = 1
+                        )
+                    };
+
+                    SET ALIAS f1 AS MODULE std;
+                ''')
+
+                await self.con.execute('''
+                    SET ALIAS f2 AS MODULE std;
+
+                    START TRANSACTION;
+
+                    SET ALIAS f3 AS MODULE std;
+
+                    DELETE (SELECT test::Tmp_tx_13
+                            FILTER test::Tmp_tx_13.tmp_tx_13_1 = 1);
+
+                    SET ALIAS f4 AS MODULE std;
+                ''')
+
+                with self.assertRaises(edgedb.ConstraintViolationError):
+                    await exec_meth('COMMIT')
+
+                await test_funcs(working=['f1'],
+                                 not_working=['f2', 'f3', 'f4'])
+
+            finally:
+                await self.con.execute('''
+                    DROP TYPE test::Tmp_tx_13;
+                ''')
+
 
 class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
 

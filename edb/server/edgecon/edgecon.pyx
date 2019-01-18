@@ -17,7 +17,6 @@
 #
 
 import asyncio
-import os
 
 cimport cython
 cimport cpython
@@ -109,9 +108,9 @@ cdef class EdgeConnection:
     def debug_print(self, *args):
         print(
             '::EDGEPROTO::',
-            f'pid:{os.getpid()}',
-            f'in_tx:{int(self.dbview.in_tx)}',
-            f'tx_error:{int(self.dbview.in_tx_error)}',
+            f'id:{self._id}',
+            f'in_tx:{int(self.dbview.in_tx())}',
+            f'tx_error:{int(self.dbview.in_tx_error())}',
             *args,
         )
 
@@ -240,15 +239,18 @@ cdef class EdgeConnection:
         if self.debug:
             self.debug_print('RECOVER SP/ALIAS/CONF', sp_id, aliases, conf)
 
-        self.dbview.rollback_tx_to_savepoint(sp_id, aliases, conf)
+        if self.dbview.in_tx():
+            self.dbview.rollback_tx_to_savepoint(sp_id, aliases, conf)
+        else:
+            self.dbview.recover_aliases_and_config(aliases, conf)
 
     #############
 
     async def _compile(self, bytes eql, bint json_mode):
-        if self.dbview.in_tx_error:
+        if self.dbview.in_tx_error():
             self.dbview.raise_in_tx_error()
 
-        if self.dbview.in_tx:
+        if self.dbview.in_tx():
             units = await self.backend.compiler.call(
                 'compile_eql_in_tx',
                 self.dbview.txid,
@@ -275,10 +277,10 @@ cdef class EdgeConnection:
                               bint legacy_mode, bint graphql_mode,
                               str stmt_mode):
 
-        if self.dbview.in_tx_error:
+        if self.dbview.in_tx_error():
             self.dbview.raise_in_tx_error()
 
-        if self.dbview.in_tx:
+        if self.dbview.in_tx():
             return await self.backend.compiler.call(
                 'compile_eql_in_tx',
                 self.dbview.txid,
@@ -300,7 +302,7 @@ cdef class EdgeConnection:
                 stmt_mode)
 
     async def _compile_rollback(self, bytes eql):
-        assert self.dbview.in_tx_error
+        assert self.dbview.in_tx_error()
         try:
             return await self.backend.compiler.call(
                 'try_compile_rollback', self.dbview.dbver, eql)
@@ -323,7 +325,7 @@ cdef class EdgeConnection:
             self.debug_print('LEGACY', eql)
 
         stmt_mode = 'all'
-        if self.dbview.in_tx_error:
+        if self.dbview.in_tx_error():
             stmt_mode = await self._recover_script_error(eql)
             if stmt_mode == 'done':
                 msg = WriteBuffer.new_message(b'L')
@@ -348,11 +350,12 @@ cdef class EdgeConnection:
                     b';'.join(unit.sql), ignore_data=False)
             except Exception as ex:
                 self.dbview.on_error(unit)
-                if not self.backend.pgcon.in_tx() and self.dbview.in_tx:
+                if not self.backend.pgcon.in_tx() and self.dbview.in_tx():
                     # COMMIT command can fail, in which case the
                     # transaction is finished.  This check workarounds
                     # that (until a better solution is found.)
                     self.dbview.abort_tx()
+                    await self.recover_current_tx_info()
                 raise
             else:
                 self.dbview.on_success(unit)
@@ -377,7 +380,7 @@ cdef class EdgeConnection:
         self.flush()
 
     async def _recover_script_error(self, eql):
-        assert self.dbview.in_tx_error
+        assert self.dbview.in_tx_error()
 
         compiled, num_remain = await self._compile_rollback(eql)
         await self.backend.pgcon.simple_query(
@@ -412,7 +415,7 @@ cdef class EdgeConnection:
             self.debug_print('SIMPLE QUERY', eql)
 
         stmt_mode = 'all'
-        if self.dbview.in_tx_error:
+        if self.dbview.in_tx_error():
             stmt_mode = await self._recover_script_error(eql)
             if stmt_mode == 'done':
                 packet = WriteBuffer.new()
@@ -432,11 +435,12 @@ cdef class EdgeConnection:
                     b';'.join(unit.sql), ignore_data=True)
             except Exception:
                 self.dbview.on_error(unit)
-                if not self.backend.pgcon.in_tx() and self.dbview.in_tx:
+                if not self.backend.pgcon.in_tx() and self.dbview.in_tx():
                     # COMMIT command can fail, in which case the
                     # transaction is finished.  This check workarounds
                     # that (until a better solution is found.)
                     self.dbview.abort_tx()
+                    await self.recover_current_tx_info()
                 raise
             else:
                 self.dbview.on_success(unit)
@@ -459,7 +463,7 @@ cdef class EdgeConnection:
             # Cache miss; need to compile this query.
             cached = False
 
-            if self.dbview.in_tx_error:
+            if self.dbview.in_tx_error():
                 # The current transaction is aborted; only
                 # ROLLBACK or ROLLBACK TO TRANSACTION could be parsed;
                 # try doing just that.
@@ -470,7 +474,7 @@ cdef class EdgeConnection:
                     self.dbview.raise_in_tx_error()
             else:
                 compiled = await self._compile(eql, json_mode)
-        elif self.dbview.in_tx_error:
+        elif self.dbview.in_tx_error():
             # We have a cached QueryUnit for this 'eql', but the current
             # transaction is aborted.  We can only complete this Parse
             # command if the cached QueryUnit is a 'ROLLBACK' or
@@ -563,7 +567,7 @@ cdef class EdgeConnection:
 
     async def _execute(self, compiled, bind_args,
                        bint parse, bint use_prep_stmt):
-        if self.dbview.in_tx_error:
+        if self.dbview.in_tx_error():
             if not (compiled.tx_savepoint_rollback or compiled.tx_rollback):
                 self.dbview.raise_in_tx_error()
 
@@ -601,11 +605,12 @@ cdef class EdgeConnection:
                 )
             except Exception:
                 self.dbview.on_error(compiled)
-                if not self.backend.pgcon.in_tx() and self.dbview.in_tx:
+                if not self.backend.pgcon.in_tx() and self.dbview.in_tx():
                     # COMMIT command can fail, in which case the
                     # transaction is finished.  This check workarounds
                     # that (until a better solution is found.)
                     self.dbview.abort_tx()
+                    await self.recover_current_tx_info()
                 raise
             else:
                 self.dbview.on_success(compiled)
