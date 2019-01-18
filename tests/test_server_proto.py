@@ -47,6 +47,10 @@ class TestServerProto(tb.QueryTestCase):
             with self.assertRaises(edgedb.EdgeQLSyntaxError):
                 await self.con.fetch('select syntax error')
 
+            with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
+                                        'Unexpected end of line'):
+                await self.con.fetch('select (')
+
             for _ in range(10):
                 self.assertEqual(
                     await self.con.fetch('select 1;'),

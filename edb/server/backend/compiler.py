@@ -635,9 +635,7 @@ class Compiler:
             eql = graphql.translate(
                 ctx.state.current_tx().get_schema(),
                 eql,
-                variables={}) + ';'
-        else:
-            eql += ';'
+                variables={})
 
         statements = edgeql.parse_block(eql)
         if ctx.stmt_mode is CompileStatementMode.SKIP_FIRST:
@@ -814,7 +812,7 @@ class Compiler:
         await self._get_database(dbver)
 
     async def try_compile_rollback(self, dbver: int, eql: bytes):
-        statements = edgeql.parse_block(eql.decode() + ';')
+        statements = edgeql.parse_block(eql.decode())
 
         stmt = statements[0]
         unit = None
