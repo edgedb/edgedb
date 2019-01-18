@@ -9,8 +9,8 @@ Array
 
 .. _ref_eql_expr_array_elref:
 
-Array Element Reference
-=======================
+Accessing Array Elements
+========================
 
 An element of an array can be referenced in the following form:
 
@@ -45,8 +45,8 @@ exception "array index is out of bounds":
 
 .. _ref_eql_expr_array_slice:
 
-Array Slice
-===========
+Slicing Arrays
+==============
 
 An array slice can be referenced in the following form:
 

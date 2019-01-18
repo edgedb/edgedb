@@ -5,23 +5,6 @@
 JSON
 ====
 
-.. eql:function:: std::json_to_str(json: json) -> str
-
-    :index: stringify dumps
-
-    Return string representation of the input JSON value.
-
-    This is the reverse of :eql:func:`to_json`.
-
-    .. code-block:: edgeql-repl
-
-        db> SELECT json_to_str(<json>2);
-        {'2'}
-
-        db> SELECT json_to_str(<json>'hello world');
-        {'"hello world"'}
-
-
 .. eql:function:: std::json_array_unpack(json: json) -> SET OF json
 
     :index: array unpack

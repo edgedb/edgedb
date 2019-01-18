@@ -14,7 +14,7 @@ the functions below allow more options for such conversions.
 
     Return JSON value represented by the input *string*.
 
-    This is the reverse of :eql:func:`json_to_str`.
+    This is the reverse of :eql:func:`to_str`.
 
     .. code-block:: edgeql-repl
 
@@ -23,3 +23,29 @@ the functions below allow more options for such conversions.
 
         db> SELECT to_json('{"hello": "world"}')['hello'];
         {'world'}
+
+.. eql:function:: std::to_str(json: json, fmt: OPTIONAL str={}) -> str
+
+    :index: stringify dumps
+
+    Return string representation of the input value.
+
+    When converting :eql:type:`json`, this function can take
+    ``'pretty'`` as the optional *fmt* argument to produce
+    pretty-formatted JSON string.
+
+    See also :eql:func:`to_json`.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT to_str(<json>2);
+        {'2'}
+
+        db> SELECT to_str(<json>['hello', 'world']);
+        {'["hello", "world"]'}
+
+        db> SELECT to_str(<json>(a := 2, b := 'hello'), 'pretty');
+        {'{
+            "a": 2,
+            "b": "hello"
+        }'}
