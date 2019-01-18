@@ -35,7 +35,7 @@ class EdgeQLParserBase(parsing.Parser):
             if msg.startswith('Unexpected token: '):
                 token = token or getattr(native_err, 'token', None)
 
-                if not token:
+                if not token or token.type == 'EOF':
                     msg = 'Unexpected end of line'
                 elif hasattr(token, 'val'):
                     msg = f'Unexpected {token.val!r}'

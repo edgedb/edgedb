@@ -27,11 +27,11 @@ from .ddl import *  # NOQA
 class SingleStatementOrExpression(Nonterm):
     "%start"
 
-    def reduce_Stmt(self, expr):
-        self.val = expr.val
+    def reduce_Stmt_EOF(self, *kids):
+        self.val = kids[0].val
 
-    def reduce_DDLStmt(self, expr):
-        self.val = expr.val
+    def reduce_DDLStmt_EOF(self, *kids):
+        self.val = kids[0].val
 
-    def reduce_Expr(self, expr):
-        self.val = expr.val
+    def reduce_Expr_EOF(self, *kids):
+        self.val = kids[0].val

@@ -201,6 +201,10 @@ class T_OP(Token):
     pass
 
 
+class T_EOF(Token):
+    pass
+
+
 def _gen_keyword_tokens():
     # Define keyword tokens
 

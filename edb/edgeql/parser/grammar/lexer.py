@@ -219,6 +219,10 @@ class EdgeQLLexer(lexer.Lexer):
         self._possible_long_token = {x[0] for x in self.MERGE_TOKENS}
         self._long_token_match = {x[1]: x[0] for x in self.MERGE_TOKENS}
 
+    def get_eof_token(self):
+        """Return an EOF token or None if no EOF token is wanted."""
+        return self.token_from_text('EOF', '')
+
     def token_from_text(self, rule_token, txt):
         if rule_token == 'BADSCONST':
             raise lexer.UnknownTokenError(
