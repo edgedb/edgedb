@@ -27,6 +27,8 @@ class TestEdgeQLSys(tb.QueryTestCase):
     ISOLATED_METHODS = False
 
     async def test_edgeql_sys_locks(self):
+        lock_key = tb.gen_lock_key()
+
         with self.assertRaisesRegex(edgedb.InternalServerError,
                                     "lock key cannot be negative"):
             await self.con.execute('select sys::advisory_lock(-1)')
@@ -36,14 +38,18 @@ class TestEdgeQLSys(tb.QueryTestCase):
             await self.con.execute('select sys::advisory_unlock(-1)')
 
         self.assertEqual(
-            await self.con.fetch('select sys::advisory_unlock(10000)'),
+            await self.con.fetch('select sys::advisory_unlock(<int64>$0)',
+                                 lock_key),
             [False])
 
-        await self.con.execute('select sys::advisory_lock(10000)')
+        await self.con.fetch('select sys::advisory_lock(<int64>$0)',
+                             lock_key)
 
         self.assertEqual(
-            await self.con.fetch('select sys::advisory_unlock(10000)'),
+            await self.con.fetch('select sys::advisory_unlock(<int64>$0)',
+                                 lock_key),
             [True])
         self.assertEqual(
-            await self.con.fetch('select sys::advisory_unlock(10000)'),
+            await self.con.fetch('select sys::advisory_unlock(<int64>$0)',
+                                 lock_key),
             [False])
