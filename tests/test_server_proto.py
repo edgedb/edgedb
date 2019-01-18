@@ -106,7 +106,15 @@ class TestServerProto(tb.QueryTestCase):
                 with self.assertRaises(edgedb.DivisionByZeroError):
                     await self.con.fetch(f'select 10 // {i};')
 
-    async def test_server_fetch_single_command_01(self):
+    async def test_server_proto_exec_error_recover_05(self):
+        with self.assertRaisesRegex(edgedb.QueryError,
+                                    'cannot accept parameters'):
+            await self.con.execute(f'select <int64>$0')
+        self.assertEqual(
+            await self.con.fetch('SELECT "HELLO"'),
+            ["HELLO"])
+
+    async def test_server_proto_fetch_single_command_01(self):
         r = await self.con.fetch('''
             CREATE TYPE test::server_fetch_single_command_01 {
                 CREATE REQUIRED PROPERTY server_fetch_single_command_01 ->
@@ -120,7 +128,7 @@ class TestServerProto(tb.QueryTestCase):
         ''')
         self.assertEqual(r, [])
 
-    async def test_server_fetch_single_command_02(self):
+    async def test_server_proto_fetch_single_command_02(self):
         r = await self.con.fetch('''
             SET MODULE default;
         ''')
@@ -132,7 +140,7 @@ class TestServerProto(tb.QueryTestCase):
         ''')
         self.assertEqual(r, [])
 
-    async def test_server_fetch_single_command_03(self):
+    async def test_server_proto_fetch_single_command_03(self):
         qs = [
             'START TRANSACTION',
             'DECLARE SAVEPOINT t0',
@@ -148,7 +156,7 @@ class TestServerProto(tb.QueryTestCase):
                 r = await self.con.fetch(q)
                 self.assertEqual(r, [])
 
-    async def test_server_set_reset_alias_01(self):
+    async def test_server_proto_set_reset_alias_01(self):
         await self.con.execute('''
             SET ALIAS foo AS MODULE std;
             SET ALIAS bar AS MODULE std;
@@ -200,7 +208,7 @@ class TestServerProto(tb.QueryTestCase):
                     Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
             ''')
 
-    async def test_server_set_reset_alias_02(self):
+    async def test_server_proto_set_reset_alias_02(self):
         await self.con.execute('''
             SET ALIAS foo AS MODULE std;
             SET ALIAS bar AS MODULE std;
@@ -225,6 +233,31 @@ class TestServerProto(tb.QueryTestCase):
                 SELECT count(
                     Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
             ''')
+
+    async def test_server_proto_set_reset_alias_03(self):
+        with self.assertRaisesRegex(
+                edgedb.UnknownModuleError, "module 'blahhhh' does not exist"):
+            await self.con.execute('''
+                SET ALIAS foo AS MODULE blahhhh;
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.UnknownModuleError, "module 'blahhhh' does not exist"):
+            await self.con.execute('''
+                SET MODULE blahhhh;
+            ''')
+
+        # Test error recovery now
+        await self.con.execute('''
+            SET MODULE test;
+        ''')
+
+        self.assertEqual(
+            await self.con.fetch('''
+                SELECT count(
+                    Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
+            '''),
+            [0])
 
     async def test_server_proto_basic_datatypes_01(self):
         for _ in range(10):

@@ -288,7 +288,7 @@ class Compiler:
         else:
             if ir.params:
                 raise errors.QueryError(
-                    'queries compiled in script mode cannot accept parameters')
+                    'EdgeQL script queries cannot accept parameters')
 
             return dbstate.SimpleQuery(sql=(sql_bytes,))
 
@@ -325,7 +325,7 @@ class Compiler:
 
             else:
                 raise errors.InternalServerError(
-                    f'unexpected delta command: {cmd!r}')
+                    f'unexpected delta command: {cmd!r}')  # pragma: no cover
 
     def _compile_and_apply_ddl_command(self, ctx: CompileContext, cmd):
         current_tx = ctx.state.current_tx()
@@ -367,7 +367,8 @@ class Compiler:
             return self._compile_and_apply_ddl_command(ctx, cmd)
 
         else:
-            raise errors.InternalServerError(f'unexpected plan {cmd!r}')
+            raise errors.InternalServerError(
+                f'unexpected plan {cmd!r}')  # pragma: no cover
 
     def _compile_ql_ddl(self, ctx: CompileContext, ql: qlast.DDL):
         current_tx = ctx.state.current_tx()
@@ -467,7 +468,7 @@ class Compiler:
                     '''.encode(),
                     f'SAVEPOINT {pgname};'.encode()
                 )
-            else:
+            else:  # pragma: no cover
                 sql = (f'SAVEPOINT {pgname};'.encode(),)
 
             cacheable = False
@@ -492,8 +493,8 @@ class Compiler:
             cacheable = False
             action = dbstate.TxAction.ROLLBACK_TO_SAVEPOINT
 
-        else:
-            raise ValueError(f'expecting transaction node, got {ql!r}')
+        else:  # pragma: no cover
+            raise ValueError(f'expected a transaction AST node, got {ql!r}')
 
         return dbstate.TxControlQuery(
             sql=sql,
@@ -586,7 +587,7 @@ class Compiler:
                     '''.encode()
                     sqlbuf.append(sql)
 
-            else:
+            else:  # pragma: no cover
                 raise errors.InternalServerError(
                     f'unsupported SET command type {type(item)!r}')
 
@@ -644,7 +645,7 @@ class Compiler:
             if not statements:
                 return []
         elif (ctx.stmt_mode is CompileStatementMode.SINGLE and
-                len(statements) > 1):
+                len(statements) > 1):  # pragma: no cover
             raise errors.ProtocolError(
                 f'expected one statement, got {len(statements)}')
 
@@ -718,13 +719,13 @@ class Compiler:
 
                 unit.has_set = True
 
-            else:
+            else:  # pragma: no cover
                 raise errors.InternalServerError('unknown compile state')
 
         if unit is not None:
             units.append(unit)
 
-        for unit in units:
+        for unit in units:  # pragma: no cover
             # Sanity checks
             if unit.cacheable and (unit.config is not None or
                                    unit.modaliases is not None):
@@ -790,7 +791,7 @@ class Compiler:
         return ctx
 
     def _load_state(self, txid: int):
-        if self._current_db_state is None:
+        if self._current_db_state is None:  # pragma: no cover
             raise errors.InternalServerError(
                 f'failed to lookup transaction with id={txid}')
 
@@ -802,7 +803,8 @@ class Compiler:
             return self._current_db_state
 
         raise errors.InternalServerError(
-            f'failed to lookup transaction or savepoint with id={txid}')
+            f'failed to lookup transaction or savepoint with id={txid}'
+        )  # pragma: no cover
 
     # API
 
@@ -836,7 +838,8 @@ class Compiler:
             return unit, len(statements) - 1
 
         raise errors.TransactionError(
-            'expected a ROLLBACK or ROLLBACK TO SAVEPOINT command')
+            'expected a ROLLBACK or ROLLBACK TO SAVEPOINT command'
+        )  # pragma: no cover
 
     async def compile_eql(
             self,
@@ -859,7 +862,8 @@ class Compiler:
             stmt_mode=CompileStatementMode(stmt_mode))
 
         units = self._compile(ctx=ctx, eql=eql)
-        if stmt_mode is CompileStatementMode.SINGLE and len(units) != 1:
+        if (stmt_mode is CompileStatementMode.SINGLE and
+                len(units) != 1):  # pragma: no cover
             raise errors.InternalServerError(
                 f'expected 1 compiled unit; got {len(units)}')
 
@@ -882,10 +886,10 @@ class Compiler:
             stmt_mode=CompileStatementMode(stmt_mode))
 
         units = self._compile(ctx=ctx, eql=eql)
-        if stmt_mode is CompileStatementMode.SINGLE and len(units) != 1:
+        if (stmt_mode is CompileStatementMode.SINGLE and
+                len(units) != 1):  # pragma: no cover
             raise errors.InternalServerError(
                 f'expected 1 compiled unit; got {len(units)}')
-
         return units
 
     async def interpret_backend_error(self, dbver, fields):
