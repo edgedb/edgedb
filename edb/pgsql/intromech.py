@@ -67,7 +67,7 @@ class IntrospectionMech:
         if schema is None:
             schema = so.Schema()
 
-        async with self.connection.transaction():
+        async with self.connection.transaction(isolation='repeatable_read'):
             schema = await self.read_modules(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_scalars(
