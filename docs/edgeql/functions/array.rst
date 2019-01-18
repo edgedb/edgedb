@@ -24,6 +24,8 @@ Array
 .. eql:function:: std::array_contains(array: array<anytype>, \
                                       value: anytype) -> bool
 
+    :index: array contains find
+
     Return ``TRUE`` if the array contains the specified element.
 
     .. code-block:: edgeql-repl
