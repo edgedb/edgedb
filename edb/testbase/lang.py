@@ -27,6 +27,8 @@ from edb.common import markup, context
 from edb import edgeql
 from edb.edgeql import ast as qlast
 
+from edb.server import defines
+
 from edb.eschema import declarative as s_decl
 
 from edb.schema import ddl as s_ddl
@@ -233,7 +235,8 @@ class BaseSchemaTest(BaseDocTest):
                     target_schema = _load_std_schema()
 
                 ddl_plan = s_ddl.cmd_from_ddl(
-                    stmt, schema=current_schema, modaliases={None: 'default'})
+                    stmt, schema=current_schema,
+                    modaliases={None: defines.DEFAULT_MODULE_ALIAS})
 
                 ddl_plan = s_ddl.compile_migration(
                     ddl_plan, target_schema, current_schema)
@@ -241,12 +244,14 @@ class BaseSchemaTest(BaseDocTest):
             elif isinstance(stmt, qlast.Delta):
                 # APPLY MIGRATION
                 ddl_plan = s_ddl.cmd_from_ddl(
-                    stmt, schema=current_schema, modaliases={None: 'default'})
+                    stmt, schema=current_schema,
+                    modaliases={None: defines.DEFAULT_MODULE_ALIAS})
 
             elif isinstance(stmt, qlast.DDL):
                 # CREATE/DELETE/ALTER (FUNCTION, TYPE, etc)
                 ddl_plan = s_ddl.delta_from_ddl(
-                    stmt, schema=current_schema, modaliases={None: 'default'})
+                    stmt, schema=current_schema,
+                    modaliases={None: defines.DEFAULT_MODULE_ALIAS})
 
             else:
                 raise ValueError(

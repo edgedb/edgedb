@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import asyncio
 import os
 
 cimport cython
@@ -39,14 +40,12 @@ from edb.server.pgproto.pgproto cimport (
     frb_get_len,
 )
 
+from edb.server import defines
 from edb.server.backend import config
-
 from edb.server.pgcon cimport pgcon
 from edb.server.pgcon import errors as pgerror
 
 from edb.schema import objects as s_obj
-
-import asyncio
 
 from edb import errors
 from edb.common import debug
@@ -55,6 +54,28 @@ from edb.common import debug
 DEF FLUSH_BUFFER_AFTER = 100_000
 cdef bytes ZERO_UUID = b'\x00' * 16
 cdef bytes EMPTY_TUPLE_UUID = s_obj.get_known_type_id('empty-tuple').bytes
+
+
+cdef bytes INIT_CON_SCRIPT = (b'''
+    CREATE TEMPORARY TABLE _edgecon_state (
+        name text NOT NULL,
+        value text NOT NULL,
+        type text NOT NULL CHECK(type = 'C' OR type = 'A'),
+        UNIQUE(name, type)
+    );
+
+    CREATE TEMPORARY TABLE _edgecon_current_savepoint (
+        sp_id bigint NOT NULL,
+        _sentinel bigint DEFAULT -1,
+        UNIQUE(_sentinel)
+    );
+
+    INSERT INTO _edgecon_state(name, value, type)
+    VALUES ('', \'''' +
+       defines.DEFAULT_MODULE_ALIAS.replace("'", "''").encode() +
+    b'''\', 'A');
+    '''
+)
 
 
 @cython.final
@@ -184,23 +205,7 @@ cdef class EdgeConnection:
 
     async def initcon(self):
         await self.backend.pgcon.simple_query(
-            b'''
-            CREATE TEMPORARY TABLE _edgecon_state (
-                name text NOT NULL,
-                value text NOT NULL,
-                type text NOT NULL CHECK(type = 'C' OR type = 'A'),
-                UNIQUE(name, type)
-            );
-
-            CREATE TEMPORARY TABLE _edgecon_current_savepoint (
-                sp_id bigint NOT NULL,
-                _sentinel bigint DEFAULT -1,
-                UNIQUE(_sentinel)
-            );
-
-            INSERT INTO _edgecon_state(name, value, type)
-            VALUES ('', 'default', 'A');
-            ''',
+            INIT_CON_SCRIPT,
             ignore_data=True)
 
     async def read_current_savepoint_id(self):

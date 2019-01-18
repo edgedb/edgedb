@@ -487,38 +487,40 @@ class Compiler:
         current_tx = ctx.state.current_tx()
         schema = current_tx.get_schema()
 
-        aliases = {}
+        aliases = ctx.state.current_tx().get_modaliases()
         config_vals = {}
 
         sqlbuf = []
 
         q = lambda o: pg_common.quote_literal(str(o))
 
+        alias_tpl = lambda alias, module: f'''
+            INSERT INTO _edgecon_state(name, value, type)
+            VALUES (
+                {q(alias or '')},
+                {q(module)},
+                'A'
+            )
+            ON CONFLICT (name, type) DO
+            UPDATE
+                SET value = {q(module)};
+        '''.encode()
+
         for item in ql.items:
-            if isinstance(item, qlast.SessionSettingModuleDecl):
+            if isinstance(item, qlast.SessionSetAliasDecl):
                 try:
                     schema.get(item.module)
                 except errors.InvalidReferenceError:
                     raise errors.UnknownModuleError(
                         f'module {item.module!r} does not exist') from None
 
-                aliases[item.alias] = item.module
+                aliases = aliases.set(item.alias, item.module)
 
                 if not self._bootstrap_mode:
-                    sql = f'''
-                        INSERT INTO _edgecon_state(name, value, type)
-                        VALUES (
-                            {q(item.alias or '')},
-                            {q(item.module)},
-                            'A'
-                        )
-                        ON CONFLICT (name, type) DO
-                        UPDATE
-                            SET value = {q(item.module)};
-                        '''
-                    sqlbuf.append(sql.encode())
+                    sql = alias_tpl(item.alias, item.module)
+                    sqlbuf.append(sql)
 
-            elif isinstance(item, qlast.SessionSettingConfigDecl):
+            elif isinstance(item, qlast.SessionSetConfigDecl):
                 name = item.alias
 
                 config_vals[name] = config._setting_val_from_qlast(
@@ -540,24 +542,43 @@ class Compiler:
                         '''
                     sqlbuf.append(sql.encode())
 
+            elif isinstance(item, qlast.SessionResetModule):
+                aliases = aliases.set(None, defines.DEFAULT_MODULE_ALIAS)
+
+                if not self._bootstrap_mode:
+                    sql = alias_tpl('', defines.DEFAULT_MODULE_ALIAS)
+                    sqlbuf.append(sql)
+
+            elif isinstance(item, qlast.SessionResetAllAliases):
+                aliases = immutables.Map({None: defines.DEFAULT_MODULE_ALIAS})
+
+                if not self._bootstrap_mode:
+                    sql = b'DELETE FROM _edgecon_state s;'
+                    sql += alias_tpl('', defines.DEFAULT_MODULE_ALIAS)
+                    sqlbuf.append(sql)
+
+            elif isinstance(item, qlast.SessionResetAliasDecl):
+                aliases = aliases.delete(item.alias)
+
+                if not self._bootstrap_mode:
+                    sql = f'''
+                        DELETE FROM _edgecon_state s
+                        WHERE s.name = {q(item.alias)};
+                    '''.encode()
+                    sqlbuf.append(sql)
+
             else:
                 raise errors.InternalServerError(
                     f'unsupported SET command type {type(item)!r}')
 
-        aliases = immutables.Map(aliases)
-        config_vals = immutables.Map(config_vals)
+        ctx.state.current_tx().update_modaliases(aliases)
 
-        if aliases:
-            ctx.state.current_tx().update_modaliases(
-                ctx.state.current_tx().get_modaliases().update(aliases))
         if config_vals:
             ctx.state.current_tx().update_config(
                 ctx.state.current_tx().get_config().update(config_vals))
 
         return dbstate.SessionStateQuery(
-            sql=b''.join(sqlbuf),
-            sess_set_modaliases=aliases,
-            sess_set_config=config_vals)
+            sql=b''.join(sqlbuf))
 
     def _compile_dispatch_ql(self, ctx: CompileContext, ql: qlast.Base):
 
@@ -570,7 +591,7 @@ class Compiler:
         elif isinstance(ql, qlast.Transaction):
             return self._compile_ql_transaction(ctx, ql)
 
-        elif isinstance(ql, qlast.SetSessionState):
+        elif isinstance(ql, (qlast.SetSessionState, qlast.ResetSessionState)):
             return self._compile_ql_sess_state(ctx, ql)
 
         else:

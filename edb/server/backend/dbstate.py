@@ -69,11 +69,6 @@ class SessionStateQuery(BaseQuery):
 
     sql: bytes
 
-    sess_set_modaliases: typing.Mapping[typing.Optional[str], str] = None
-    sess_reset_modaliases: typing.Set[typing.Optional[str]] = None
-    sess_set_config: typing.Mapping[str, typing.Union[str, bool]] = None
-    sess_reset_config: typing.Set[str] = None
-
 
 @dataclasses.dataclass(frozen=True)
 class DDLQuery(BaseQuery):

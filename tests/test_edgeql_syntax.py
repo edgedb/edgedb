@@ -3329,6 +3329,14 @@ aa';
         SET MODULE default, CONFIG foo := (SELECT User);
         """
 
+    def test_edgeql_syntax_reset_command_01(self):
+        """
+        RESET MODULE;
+        RESET ALIAS foo, ALIAS bar;
+        RESET ALIAS foo, MODULE;
+        RESET ALIAS *;
+        """
+
     def test_edgeql_syntax_ddl_view_01(self):
         """
         CREATE VIEW Foo := (SELECT User);

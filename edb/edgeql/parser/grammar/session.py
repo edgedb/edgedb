@@ -30,19 +30,22 @@ class SessionStmt(Nonterm):
     def reduce_SetStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_ResetStmt(self, *kids):
+        self.val = kids[0].val
+
 
 class SetDecl(Nonterm):
     def reduce_ALIAS_Identifier_AS_MODULE_ModuleName(self, *kids):
-        self.val = qlast.SessionSettingModuleDecl(
+        self.val = qlast.SessionSetAliasDecl(
             module='.'.join(kids[4].val),
             alias=kids[1].val)
 
     def reduce_MODULE_ModuleName(self, *kids):
-        self.val = qlast.SessionSettingModuleDecl(
+        self.val = qlast.SessionSetAliasDecl(
             module='.'.join(kids[1].val))
 
     def reduce_CONFIG_Identifier_ASSIGN_Expr(self, *kids):
-        self.val = qlast.SessionSettingConfigDecl(
+        self.val = qlast.SessionSetConfigDecl(
             alias=kids[1].val,
             expr=kids[3].val)
 
@@ -55,5 +58,29 @@ class SetDeclList(ListNonterm, element=SetDecl,
 class SetStmt(Nonterm):
     def reduce_SET_SetDeclList(self, *kids):
         self.val = qlast.SetSessionState(
+            items=kids[1].val
+        )
+
+
+class ResetDecl(Nonterm):
+    def reduce_ALIAS_Identifier(self, *kids):
+        self.val = qlast.SessionResetAliasDecl(
+            alias=kids[1].val)
+
+    def reduce_MODULE(self, *kids):
+        self.val = qlast.SessionResetModule()
+
+    def reduce_ALIAS_STAR(self, *kids):
+        self.val = qlast.SessionResetAllAliases()
+
+
+class ResetDeclList(ListNonterm, element=ResetDecl,
+                    separator=tokens.T_COMMA):
+    pass
+
+
+class ResetStmt(Nonterm):
+    def reduce_RESET_ResetDeclList(self, *kids):
+        self.val = qlast.ResetSessionState(
             items=kids[1].val
         )

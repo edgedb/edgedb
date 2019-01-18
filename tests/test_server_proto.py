@@ -106,6 +106,84 @@ class TestServerProto(tb.QueryTestCase):
                 with self.assertRaises(edgedb.DivisionByZeroError):
                     await self.con.fetch(f'select 10 // {i};')
 
+    async def test_server_set_reset_alias_01(self):
+        await self.con.execute('''
+            SET ALIAS foo AS MODULE std;
+            SET ALIAS bar AS MODULE std;
+            SET MODULE test;
+        ''')
+
+        self.assertEqual(
+            await self.con.fetch('SELECT foo::min({1}) + bar::min({0})'),
+            [1])
+
+        self.assertEqual(
+            await self.con.fetch('''
+                SELECT count(
+                    Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
+            '''),
+            [0])
+
+        await self.con.execute('''
+            RESET ALIAS bar;
+        ''')
+
+        self.assertEqual(
+            await self.con.fetch('SELECT foo::min({1})'),
+            [1])
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidReferenceError,
+                'non-existent function: bar::min'):
+            await self.con.fetch('SELECT bar::min({1})')
+
+        await self.con.execute('''
+            RESET ALIAS *;
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidReferenceError,
+                'non-existent function: foo::min'):
+            await self.con.fetch('SELECT foo::min({3})')
+
+        self.assertEqual(
+            await self.con.fetch('SELECT min({4})'),
+            [4])
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidReferenceError,
+                'non-existent schema item: Tmp'):
+            await self.con.fetch('''
+                SELECT count(
+                    Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
+            ''')
+
+    async def test_server_set_reset_alias_02(self):
+        await self.con.execute('''
+            SET ALIAS foo AS MODULE std;
+            SET ALIAS bar AS MODULE std;
+            SET MODULE test;
+        ''')
+
+        self.assertEqual(
+            await self.con.fetch('''
+                SELECT count(
+                    Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
+            '''),
+            [0])
+
+        await self.con.execute('''
+            RESET MODULE;
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidReferenceError,
+                'non-existent schema item: Tmp'):
+            await self.con.fetch('''
+                SELECT count(
+                    Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
+            ''')
+
     async def test_server_proto_basic_datatypes_01(self):
         for _ in range(10):
             self.assertEqual(

@@ -111,20 +111,40 @@ class ModuleAliasDecl(BaseAlias):
     module: str
 
 
-class BaseSessionSetting:
+class BaseSessionSet:
     pass
 
 
-class SessionSettingModuleDecl(ModuleAliasDecl, BaseSessionSetting):
+class SessionSetAliasDecl(ModuleAliasDecl, BaseSessionSet):
     pass
 
 
-class SessionSettingConfigDecl(AliasedExpr, BaseSessionSetting):
+class SessionSetConfigDecl(AliasedExpr, BaseSessionSet):
     pass
 
 
 class SetSessionState(Expr):
-    items: typing.List[BaseSessionSetting]
+    items: typing.List[BaseSessionSet]
+
+
+class BaseSessionReset:
+    pass
+
+
+class SessionResetAliasDecl(BaseAlias, BaseSessionReset):
+    pass
+
+
+class SessionResetModule(BaseSessionReset):
+    pass
+
+
+class SessionResetAllAliases(BaseSessionReset):
+    pass
+
+
+class ResetSessionState(Expr):
+    items: typing.List[BaseSessionReset]
 
 
 class BaseObjectRef(Expr):

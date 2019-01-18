@@ -1079,13 +1079,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(' = ')
             self.visit(node.default)
 
-    def visit_SessionSettingConfigDecl(self, node):
+    def visit_SessionSetConfigDecl(self, node):
         self.write(' CONFIG ')
         self.write(ident_to_str(node.alias))
         self.write(' := ')
         self.visit(node.expr)
 
-    def visit_SessionSettingModuleDecl(self, node):
+    def visit_SessionSetAliasDecl(self, node):
         if node.alias:
             self.write(' ALIAS ')
             self.write(ident_to_str(node.alias))
@@ -1097,6 +1097,22 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_SetSessionState(self, node):
         self.write('SET')
+        self._block_ws(1)
+        self.visit_list(node.items)
+        self._block_ws(-1)
+
+    def visit_SessionResetAllAliases(self, node):
+        self.write(' ALIAS *')
+
+    def visit_SessionResetModule(self, node):
+        self.write(' MODULE')
+
+    def visit_SessionResetAliasDecl(self, node):
+        self.write(' ALIAS ')
+        self.write(node.alias)
+
+    def visit_ResetSessionState(self, node):
+        self.write('RESET')
         self._block_ws(1)
         self.visit_list(node.items)
         self._block_ws(-1)

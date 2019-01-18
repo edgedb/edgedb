@@ -274,6 +274,9 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                 if self.ISOLATED_METHODS:
                     self.loop.run_until_complete(self.xact.rollback())
                     del self.xact
+                else:
+                    self.loop.run_until_complete(
+                        self.con.execute('RESET ALIAS *;'))
             finally:
                 super().tearDown()
 
@@ -327,7 +330,8 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                 with open(val, 'r') as sf:
                     schema = sf.read()
 
-                if module_name != 'test' and module_name != 'default':
+                if (module_name != 'test' and
+                        module_name != edgedb_defines.DEFAULT_MODULE_ALIAS):
                     script += f'\nCREATE MODULE {module_name};'
 
                 script += f'\nCREATE MIGRATION {module_name}::d1'
