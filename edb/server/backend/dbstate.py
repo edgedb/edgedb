@@ -49,7 +49,7 @@ class BaseQuery:
 @dataclasses.dataclass(frozen=True)
 class Query(BaseQuery):
 
-    sql: bytes
+    sql: typing.Tuple[bytes, ...]
     sql_hash: bytes
 
     out_type_data: bytes
@@ -61,28 +61,31 @@ class Query(BaseQuery):
 @dataclasses.dataclass(frozen=True)
 class SimpleQuery(BaseQuery):
 
-    sql: bytes
+    sql: typing.Tuple[bytes, ...]
 
 
 @dataclasses.dataclass(frozen=True)
 class SessionStateQuery(BaseQuery):
 
-    sql: bytes
+    sql: typing.Tuple[bytes, ...]
 
 
 @dataclasses.dataclass(frozen=True)
 class DDLQuery(BaseQuery):
 
-    sql: bytes
+    sql: typing.Tuple[bytes, ...]
 
 
 @dataclasses.dataclass(frozen=True)
 class TxControlQuery(BaseQuery):
 
-    sql: bytes
+    sql: typing.Tuple[bytes, ...]
     action: TxAction
     single_unit: bool
     cacheable: bool
+
+    config: typing.Optional[immutables.Map]
+    modaliases: typing.Optional[immutables.Map]
 
 
 #############################
@@ -93,7 +96,7 @@ class QueryUnit:
 
     dbver: int
 
-    sql: bytes = b''
+    sql: typing.Tuple[bytes, ...]
 
     # Set only for units that contain queries that can be cached
     # as prepared statements in Postgres.
@@ -140,7 +143,6 @@ class QueryUnit:
 class TransactionState(typing.NamedTuple):
 
     id: int
-    txid: int
     name: str
     schema: s_schema.Schema
     modaliases: immutables.Map
@@ -162,10 +164,21 @@ class Transaction:
         self._implicit = implicit
 
         self._stack = []
+
+        # Save the very first state -- we can use it to rollback
+        # the transaction completely.
         self._stack.append(
             TransactionState(
                 id=self._id,
-                txid=self._id,
+                name=None,
+                schema=schema,
+                modaliases=modaliases,
+                config=config))
+
+        # The top of the stack is the "current" state.
+        self._stack.append(
+            TransactionState(
+                id=self._id,
                 name=None,
                 schema=schema,
                 modaliases=modaliases,
@@ -199,19 +212,19 @@ class Transaction:
 
         sp_id = time.monotonic_ns()
 
+        # Save the savepoint state so that we can rollback to it.
         self._stack.append(
             TransactionState(
                 id=sp_id,
-                txid=self._id,
                 name=name,
                 schema=self.get_schema(),
                 modaliases=self.get_modaliases(),
                 config=self.get_config()))
 
+        # The top of the stack is the "current" state.
         self._stack.append(
             TransactionState(
                 id=sp_id,
-                txid=self._id,
                 name=None,
                 schema=self.get_schema(),
                 modaliases=self.get_modaliases(),
@@ -229,10 +242,13 @@ class Transaction:
 
         new_stack = self._stack.copy()
         while new_stack:
-            last_state = new_stack[-1]
-            if last_state.name == name:
+            top_new_state = new_stack[-1]
+            if top_new_state.name == name:
                 self._stack = new_stack
-                return
+                # Add a nameless copy of the savepoint's state -- new
+                # "working" state.
+                self._stack.append(self._stack[-1]._replace(name=None))
+                return self._stack[-1]
             else:
                 new_stack.pop()
         raise errors.TransactionError(f'there is no {name!r} savepoint')
@@ -278,20 +294,19 @@ class CompilerConnectionState:
 
     _savepoints_log: typing.Mapping[int, Transaction]
 
+    __slots__ = ('_savepoints_log', '_dbver', '_current_tx')
+
     def __init__(self, dbver: int,
                  schema: s_schema.Schema,
                  modaliases: immutables.Map,
                  config: immutables.Map):
         self._dbver = dbver
-        self._schema = schema
-        self._modaliases = modaliases
-        self._config = config
-        self._init_current_tx()
         self._savepoints_log = {}
+        self._init_current_tx(schema, modaliases, config)
 
-    def _init_current_tx(self):
+    def _init_current_tx(self, schema, modaliases, config):
         self._current_tx = Transaction(
-            self, self._schema, self._modaliases, self._config)
+            self, schema, modaliases, config)
 
     def can_rollback_to_savepoint(self, spid):
         return spid in self._savepoints_log
@@ -301,13 +316,21 @@ class CompilerConnectionState:
             raise RuntimeError(
                 f'failed to lookup savepoint with id={spid}')
 
-        self._current_tx = self._savepoints_log[spid]
+        new_tx = self._savepoints_log[spid]
+        # This is tricky -- the server now thinks that this *spid*
+        # is the new ID *of the current transaction* (txid).
+        #
+        # (see DatabaseConnectionView.rollback_tx_to_savepoint())
+        #
+        # This is done this way to avoid one extra call to the compiler
+        # process to infer the "proper" transaction ID; it's easier
+        # to just say that in the case of failed transaction and
+        # ROLLBACK TO SAVEPOINT the ID of transaction changes to that
+        # of the recovered savepoint.
+        new_tx._id = spid
 
-        for id in list(self._savepoints_log):
-            if self._savepoints_log[id].id != self._current_tx.id:
-                # Cleanup all savepoints that belong to transactions
-                # *other than* the transaction we've just rollbacked inside.
-                del self._savepoints_log[id]
+        self._savepoints_log.clear()
+        self._current_tx = new_tx
 
     @property
     def dbver(self):
@@ -327,13 +350,24 @@ class CompilerConnectionState:
             raise errors.TransactionError(
                 'cannot rollback: not in transaction')
 
-        self._init_current_tx()
+        prior_state = self._current_tx._stack[0]
+
+        self._init_current_tx(
+            prior_state.schema,
+            prior_state.modaliases,
+            prior_state.config)
+
+        return prior_state
 
     def commit_tx(self):
         if self._current_tx.is_implicit():
             raise errors.TransactionError('cannot commit: not in transaction')
 
-        self._schema = self._current_tx.get_schema()
-        self._modaliases = self._current_tx.get_modaliases()
-        self._config = self._current_tx.get_config()
-        self._init_current_tx()
+        latest_state = self._current_tx._stack[-1]
+
+        self._init_current_tx(
+            latest_state.schema,
+            latest_state.modaliases,
+            latest_state.config)
+
+        return latest_state

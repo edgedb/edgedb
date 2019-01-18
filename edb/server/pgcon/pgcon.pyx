@@ -17,12 +17,17 @@
 #
 
 
+import asyncio
+import os
+
 cimport cython
 cimport cpython
 
 from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
                          int32_t, uint32_t, int64_t, uint64_t, \
                          UINT32_MAX
+
+from edb import errors
 
 from edb.schema import objects as s_obj
 from edb.server import defines
@@ -40,8 +45,7 @@ from edb.server.pgproto.pgproto cimport (
 
 from edb.server.edgecon cimport edgecon
 
-
-import asyncio
+from edb.common import debug
 
 from . import errors as pgerror
 
@@ -86,6 +90,16 @@ cdef class PGProto:
 
         self.backend_pid = -1
         self.backend_secret = -1
+
+        self.last_parse_prep_stmts = []
+        self.debug = debug.flags.server_proto
+
+    def debug_print(self, *args):
+        print(
+            '::PGPROTO::',
+            f'pid:{os.getpid()}',
+            *args,
+        )
 
     def in_tx(self):
         return (
@@ -162,6 +176,13 @@ cdef class PGProto:
             bytes stmt_name
             bint store_stmt = 0
 
+            bint ignore_data = query.ignore_out_data
+
+            uint64_t msgs_num = len(query.sql)
+            uint64_t msgs_parsed = 0
+            uint64_t msgs_executed = 0
+            uint64_t i
+
         self.before_command()
 
         if not parse and not execute:
@@ -193,25 +214,62 @@ cdef class PGProto:
             stmt_name = b''
 
         if parse:
-            buf = WriteBuffer.new_message(b'P')
-            buf.write_bytestring(stmt_name)
-            buf.write_bytestring(query.sql)
-            buf.write_int16(0)
-            packet.write_buffer(buf.end_message())
+            if len(self.last_parse_prep_stmts):
+                for stmt_name_to_clean in self.last_parse_prep_stmts:
+                    packet.write_buffer(
+                        self.make_clean_stmt_message(stmt_name_to_clean))
+                self.last_parse_prep_stmts.clear()
+
+            if stmt_name == b'' and msgs_num > 1:
+                i = 0
+                for sql in query.sql:
+                    pname = b'__p%d__' % i
+                    self.last_parse_prep_stmts.append(pname)
+                    buf = WriteBuffer.new_message(b'P')
+                    buf.write_bytestring(pname)
+                    buf.write_bytestring(sql)
+                    buf.write_int16(0)
+                    packet.write_buffer(buf.end_message())
+                    i += 1
+            else:
+                if len(query.sql) != 1:
+                    raise errors.InternalServerError(
+                        'cannot PARSE more than one SQL query '
+                        'in non-anonymous mode')
+                msgs_num = 1
+                buf = WriteBuffer.new_message(b'P')
+                buf.write_bytestring(stmt_name)
+                buf.write_bytestring(query.sql[0])
+                buf.write_int16(0)
+                packet.write_buffer(buf.end_message())
 
         if execute:
             assert bind_data is not None
 
-            buf = WriteBuffer.new_message(b'B')
-            buf.write_bytestring(b'')  # portal name
-            buf.write_bytestring(stmt_name)  # statement name
-            buf.write_buffer(bind_data)
-            packet.write_buffer(buf.end_message())
+            if stmt_name == b'' and msgs_num > 1:
+                for s in self.last_parse_prep_stmts:
+                    buf = WriteBuffer.new_message(b'B')
+                    buf.write_bytestring(b'')  # portal name
+                    buf.write_bytestring(s)  # statement name
+                    buf.write_buffer(bind_data)
+                    packet.write_buffer(buf.end_message())
 
-            buf = WriteBuffer.new_message(b'E')
-            buf.write_bytestring(b'')  # portal name
-            buf.write_int32(0)  # limit: number of rows to return; 0 - all
-            packet.write_buffer(buf.end_message())
+                    buf = WriteBuffer.new_message(b'E')
+                    buf.write_bytestring(b'')  # portal name
+                    buf.write_int32(0)  # limit: 0 - return all rows
+                    packet.write_buffer(buf.end_message())
+
+            else:
+                buf = WriteBuffer.new_message(b'B')
+                buf.write_bytestring(b'')  # portal name
+                buf.write_bytestring(stmt_name)  # statement name
+                buf.write_buffer(bind_data)
+                packet.write_buffer(buf.end_message())
+
+                buf = WriteBuffer.new_message(b'E')
+                buf.write_bytestring(b'')  # portal name
+                buf.write_int32(0)  # limit: 0 - return all rows
+                packet.write_buffer(buf.end_message())
 
         if send_sync:
             packet.write_bytes(SYNC_MESSAGE)
@@ -230,13 +288,16 @@ cdef class PGProto:
                 try:
                     if mtype == b'D' and execute:
                         # DataRow
-                        if buf is None:
-                            buf = WriteBuffer.new()
+                        if ignore_data:
+                            self.buffer.discard_message()
+                        else:
+                            if buf is None:
+                                buf = WriteBuffer.new()
 
-                        self.buffer.redirect_messages(buf, b'D')
-                        if buf.len() >= DATA_BUFFER_SIZE:
-                            edgecon.write(buf)
-                            buf = None
+                            self.buffer.redirect_messages(buf, b'D')
+                            if buf.len() >= DATA_BUFFER_SIZE:
+                                edgecon.write(buf)
+                                buf = None
 
                     elif mtype == b'C' and execute:  ## result
                         # CommandComplete
@@ -244,14 +305,17 @@ cdef class PGProto:
                         if buf is not None:
                             edgecon.write(buf)
                             buf = None
-                        return
+                        msgs_executed += 1
+                        if msgs_executed == msgs_num:
+                            return
 
                     elif mtype == b'1' and parse:
                         # ParseComplete
                         self.buffer.discard_message()
                         if store_stmt:
                             self.prep_stmts[stmt_name] = query.dbver
-                        if not execute:
+                        msgs_parsed += 1
+                        if not execute and msgs_parsed == msgs_num:
                             return
 
                     elif mtype == b'E':  ## result
@@ -494,6 +558,9 @@ cdef class PGProto:
             message = self.buffer.read_null_str()
 
             parsed[chr(code)] = message.decode()
+
+        if self.debug:
+            self.debug_print('ERROR', parsed)
 
         self.buffer.finish_message()
         return parsed

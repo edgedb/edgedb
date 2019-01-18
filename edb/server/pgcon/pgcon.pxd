@@ -64,6 +64,9 @@ cdef class PGProto:
         readonly int32_t backend_secret
 
         StatementsCache prep_stmts
+        list last_parse_prep_stmts
+
+        bint debug
 
     cdef write(self, buf)
 

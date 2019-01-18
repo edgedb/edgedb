@@ -85,6 +85,9 @@ class CompileContext(typing.NamedTuple):
 EMPTY_MAP = immutables.Map()
 
 
+pg_ql = lambda o: pg_common.quote_literal(str(o))
+
+
 def compile_bootstrap_script(std_schema: s_schema.Schema,
                              schema: s_schema.Schema,
                              eql: str):
@@ -108,7 +111,7 @@ def compile_bootstrap_script(std_schema: s_schema.Schema,
 
     units = compiler._compile(ctx=ctx, eql=eql.encode())
 
-    sql = b'\n'.join(getattr(u, 'sql', b'') for u in units)
+    sql = b'\n'.join(b''.join(u.sql) for u in units)
     new_schema = state.current_tx().get_schema()
 
     return new_schema, sql.decode()
@@ -274,7 +277,7 @@ class Compiler:
                 sql_bytes, mode=str(ctx.output_format).encode())
 
             return dbstate.Query(
-                sql=sql_bytes,
+                sql=(sql_bytes,),
                 sql_hash=sql_hash,
                 in_type_id=in_type_id.bytes,
                 in_type_data=in_type_data,
@@ -287,7 +290,7 @@ class Compiler:
                 raise errors.QueryError(
                     'queries compiled in script mode cannot accept parameters')
 
-            return dbstate.SimpleQuery(sql=sql_bytes)
+            return dbstate.SimpleQuery(sql=(sql_bytes,))
 
     def _compile_and_apply_delta_command(
             self, ctx: CompileContext, cmd) -> dbstate.BaseQuery:
@@ -318,7 +321,7 @@ class Compiler:
             elif isinstance(cmd, s_deltas.CreateDelta):
                 schema, _ = cmd.apply(schema, context)
                 current_tx.update_schema(schema)
-                return dbstate.DDLQuery(sql=b'SELECT;')
+                return dbstate.DDLQuery(sql=(b'SELECT;',))
 
             else:
                 raise errors.InternalServerError(
@@ -352,7 +355,7 @@ class Compiler:
 
         current_tx.update_schema(schema)
 
-        return dbstate.DDLQuery(sql=sql)
+        return dbstate.DDLQuery(sql=(sql,))
 
     def _compile_command(
             self, ctx: CompileContext, cmd) -> dbstate.BaseQuery:
@@ -407,6 +410,9 @@ class Compiler:
         cacheable = True
         single_unit = False
 
+        config = None
+        modaliases = None
+
         if isinstance(ql, qlast.StartTransaction):
             ctx.state.start_tx()
 
@@ -418,44 +424,51 @@ class Compiler:
             if ql.deferrable is not None:
                 sql += f' {ql.deferrable.value}'
             sql += ';'
+            sql = (sql.encode(),)
 
-            sql = sql.encode()
             action = dbstate.TxAction.START
             cacheable = False
 
         elif isinstance(ql, qlast.CommitTransaction):
-            ctx.state.commit_tx()
-            sql = b'COMMIT'
+            new_state: dbstate.TransactionState = ctx.state.commit_tx()
+            config = new_state.config
+            modaliases = new_state.modaliases
+
+            sql = (b'COMMIT',)
             single_unit = True
+            cacheable = False
             action = dbstate.TxAction.COMMIT
 
         elif isinstance(ql, qlast.RollbackTransaction):
-            ctx.state.rollback_tx()
-            sql = b'ROLLBACK'
+            new_state: dbstate.TransactionState = ctx.state.rollback_tx()
+            config = new_state.config
+            modaliases = new_state.modaliases
+
+            sql = (b'ROLLBACK',)
             single_unit = True
+            cacheable = False
             action = dbstate.TxAction.ROLLBACK
 
         elif isinstance(ql, qlast.DeclareSavepoint):
             tx = ctx.state.current_tx()
             sp_id = tx.declare_savepoint(ql.name)
 
-            sql = ''
-
             if not self._bootstrap_mode:
-                q = lambda o: pg_common.quote_literal(str(o))
                 pgname = pg_common.quote_ident(ql.name)
-                sql += f'''
-                    INSERT INTO _edgecon_current_savepoint(sp_id)
-                    VALUES (
-                        {q(sp_id)}
-                    )
-                    ON CONFLICT (_sentinel) DO
-                    UPDATE
-                        SET sp_id = {q(sp_id)};
-                '''
-
-            sql += f'SAVEPOINT {pgname};'
-            sql = sql.encode()
+                sql = (
+                    f'''
+                        INSERT INTO _edgecon_current_savepoint(sp_id)
+                        VALUES (
+                            {pg_ql(sp_id)}
+                        )
+                        ON CONFLICT (_sentinel) DO
+                        UPDATE
+                            SET sp_id = {pg_ql(sp_id)};
+                    '''.encode(),
+                    f'SAVEPOINT {pgname};'.encode()
+                )
+            else:
+                sql = (f'SAVEPOINT {pgname};'.encode(),)
 
             cacheable = False
             action = dbstate.TxAction.DECLARE_SAVEPOINT
@@ -463,14 +476,20 @@ class Compiler:
         elif isinstance(ql, qlast.ReleaseSavepoint):
             ctx.state.current_tx().release_savepoint(ql.name)
             pgname = pg_common.quote_ident(ql.name)
-            sql = f'RELEASE SAVEPOINT {pgname}'.encode()
+            sql = (f'RELEASE SAVEPOINT {pgname}'.encode(),)
             action = dbstate.TxAction.RELEASE_SAVEPOINT
 
         elif isinstance(ql, qlast.RollbackToSavepoint):
-            ctx.state.current_tx().rollback_to_savepoint(ql.name)
+            tx = ctx.state.current_tx()
+            new_state: dbstate.TransactionState = tx.rollback_to_savepoint(
+                ql.name)
+            config = new_state.config
+            modaliases = new_state.modaliases
+
             pgname = pg_common.quote_ident(ql.name)
-            sql = f'ROLLBACK TO SAVEPOINT {pgname}'.encode()
+            sql = (f'ROLLBACK TO SAVEPOINT {pgname}'.encode(),)
             single_unit = True
+            cacheable = False
             action = dbstate.TxAction.ROLLBACK_TO_SAVEPOINT
 
         else:
@@ -480,7 +499,9 @@ class Compiler:
             sql=sql,
             action=action,
             cacheable=cacheable,
-            single_unit=single_unit)
+            single_unit=single_unit,
+            config=config,
+            modaliases=modaliases)
 
     def _compile_ql_sess_state(self, ctx: CompileContext,
                                ql: qlast.SetSessionState):
@@ -492,18 +513,16 @@ class Compiler:
 
         sqlbuf = []
 
-        q = lambda o: pg_common.quote_literal(str(o))
-
         alias_tpl = lambda alias, module: f'''
             INSERT INTO _edgecon_state(name, value, type)
             VALUES (
-                {q(alias or '')},
-                {q(module)},
+                {pg_ql(alias or '')},
+                {pg_ql(module)},
                 'A'
             )
             ON CONFLICT (name, type) DO
             UPDATE
-                SET value = {q(module)};
+                SET value = {pg_ql(module)};
         '''.encode()
 
         for item in ql.items:
@@ -532,13 +551,13 @@ class Compiler:
                     sql = f'''
                         INSERT INTO _edgecon_state(name, value, type)
                         VALUES (
-                            {q(name)},
-                            {q(item_expr_ql)},
+                            {pg_ql(name)},
+                            {pg_ql(item_expr_ql)},
                             'C'
                         )
                         ON CONFLICT (name, type) DO
                         UPDATE
-                            SET value = {q(item_expr_ql)};
+                            SET value = {pg_ql(item_expr_ql)};
                         '''
                     sqlbuf.append(sql.encode())
 
@@ -563,7 +582,7 @@ class Compiler:
                 if not self._bootstrap_mode:
                     sql = f'''
                         DELETE FROM _edgecon_state s
-                        WHERE s.name = {q(item.alias)};
+                        WHERE s.name = {pg_ql(item.alias)};
                     '''.encode()
                     sqlbuf.append(sql)
 
@@ -577,8 +596,16 @@ class Compiler:
             ctx.state.current_tx().update_config(
                 ctx.state.current_tx().get_config().update(config_vals))
 
-        return dbstate.SessionStateQuery(
-            sql=b''.join(sqlbuf))
+        if len(sqlbuf) == 1:
+            sql = sqlbuf[0]
+        else:
+            sql = b'''
+            DO LANGUAGE plpgsql $$ BEGIN
+            %b
+            END; $$;
+            ''' % (b''.join(sqlbuf))
+
+        return dbstate.SessionStateQuery(sql=(sql,))
 
     def _compile_dispatch_ql(self, ctx: CompileContext, ql: qlast.Base):
 
@@ -635,7 +662,7 @@ class Compiler:
                 unit = None
 
             if unit is None:
-                unit = dbstate.QueryUnit(dbver=ctx.state.dbver)
+                unit = dbstate.QueryUnit(dbver=ctx.state.dbver, sql=())
 
             if isinstance(comp, dbstate.Query):
                 if (ctx.stmt_mode is CompileStatementMode.SINGLE or
@@ -649,36 +676,32 @@ class Compiler:
                     unit.in_type_id = comp.in_type_id
 
                     unit.cacheable = True
+                    unit.ignore_out_data = False
                 else:
-                    unit.sql += comp.sql + b';'
+                    unit.sql += comp.sql
 
             elif isinstance(comp, dbstate.SimpleQuery):
-                unit.sql += comp.sql + b';'
+                unit.sql += comp.sql
 
             elif isinstance(comp, dbstate.DDLQuery):
-                unit.sql += comp.sql + b';'
+                unit.sql += comp.sql
                 unit.has_ddl = True
 
             elif isinstance(comp, dbstate.TxControlQuery):
-                unit.sql += comp.sql + b';'
-
+                unit.sql += comp.sql
                 unit.cacheable = comp.cacheable
+
+                if comp.config is not None:
+                    unit.config = comp.config
+                if comp.modaliases is not None:
+                    unit.modaliases = comp.modaliases
 
                 if comp.action == dbstate.TxAction.START:
                     unit.tx_id = ctx.state.current_tx().id
-
                 elif comp.action == dbstate.TxAction.COMMIT:
                     unit.tx_commit = True
-
-                    unit.config = ctx.state.current_tx().get_config()
-                    unit.modaliases = ctx.state.current_tx().get_modaliases()
-
                 elif comp.action == dbstate.TxAction.ROLLBACK:
                     unit.tx_rollback = True
-
-                    unit.config = ctx.state.current_tx().get_config()
-                    unit.modaliases = ctx.state.current_tx().get_modaliases()
-
                 elif comp.action is dbstate.TxAction.ROLLBACK_TO_SAVEPOINT:
                     unit.tx_savepoint_rollback = True
 
@@ -687,10 +710,11 @@ class Compiler:
                     unit = None
 
             elif isinstance(comp, dbstate.SessionStateQuery):
-                unit.sql += comp.sql + b';'
+                unit.sql += comp.sql
 
-                unit.config = ctx.state.current_tx().get_config()
-                unit.modaliases = ctx.state.current_tx().get_modaliases()
+                if ctx.state.current_tx().is_implicit():
+                    unit.config = ctx.state.current_tx().get_config()
+                    unit.modaliases = ctx.state.current_tx().get_modaliases()
 
                 unit.has_set = True
 
@@ -701,12 +725,18 @@ class Compiler:
             units.append(unit)
 
         for unit in units:
-            if unit.tx_id:
-                unit.config = unit.modaliases = None
-
+            # Sanity checks
+            if unit.cacheable and (unit.config is not None or
+                                   unit.modaliases is not None):
+                raise errors.InternalServerError(
+                    f'QueryUnit {unit!r} is cacheable but has config/aliases')
             if not unit.sql:
                 raise errors.InternalServerError(
-                    f'QueryUnit {unit!r} has an empty sql field')
+                    f'QueryUnit {unit!r} has no SQL commands in it')
+            elif len(unit.sql) > 1 and not unit.ignore_out_data:
+                raise errors.InternalServerError(
+                    f'QueryUnit {unit!r} has multiple SQL commands but '
+                    f'the "ignore_out_data" flag is not set')
 
         return units
 
@@ -790,17 +820,17 @@ class Compiler:
             sql = b'ROLLBACK;'
             unit = dbstate.QueryUnit(
                 dbver=dbver,
-                sql=sql,
+                sql=(sql,),
                 tx_rollback=True,
-                cacheable=True)
+                cacheable=False)
 
         elif isinstance(stmt, qlast.RollbackToSavepoint):
             sql = f'ROLLBACK TO {pg_common.quote_ident(stmt.name)};'.encode()
             unit = dbstate.QueryUnit(
                 dbver=dbver,
-                sql=sql,
+                sql=(sql,),
                 tx_savepoint_rollback=True,
-                cacheable=True)
+                cacheable=False)
 
         if unit is not None:
             return unit, len(statements) - 1

@@ -106,6 +106,48 @@ class TestServerProto(tb.QueryTestCase):
                 with self.assertRaises(edgedb.DivisionByZeroError):
                     await self.con.fetch(f'select 10 // {i};')
 
+    async def test_server_fetch_single_command_01(self):
+        r = await self.con.fetch('''
+            CREATE TYPE test::server_fetch_single_command_01 {
+                CREATE REQUIRED PROPERTY server_fetch_single_command_01 ->
+                    std::str;
+            };
+        ''')
+        self.assertEqual(r, [])
+
+        r = await self.con.fetch('''
+            DROP TYPE test::server_fetch_single_command_01;
+        ''')
+        self.assertEqual(r, [])
+
+    async def test_server_fetch_single_command_02(self):
+        r = await self.con.fetch('''
+            SET MODULE default;
+        ''')
+        self.assertEqual(r, [])
+
+        r = await self.con.fetch('''
+            SET ALIAS foo AS MODULE default,
+                ALIAS bar AS MODULE std;
+        ''')
+        self.assertEqual(r, [])
+
+    async def test_server_fetch_single_command_03(self):
+        qs = [
+            'START TRANSACTION',
+            'DECLARE SAVEPOINT t0',
+            'ROLLBACK TO SAVEPOINT t0',
+            'RELEASE SAVEPOINT t0',
+            'ROLLBACK',
+            'START TRANSACTION',
+            'COMMIT',
+        ]
+
+        for _ in range(3):
+            for q in qs:
+                r = await self.con.fetch(q)
+                self.assertEqual(r, [])
+
     async def test_server_set_reset_alias_01(self):
         await self.con.execute('''
             SET ALIAS foo AS MODULE std;
@@ -281,6 +323,8 @@ class TestServerProto(tb.QueryTestCase):
                 [True])
 
     async def test_server_proto_tx_savepoint_01(self):
+        # Basic test that SAVEPOINTS actually work; test with DML.
+
         typename = 'Savepoint_01'
         query = f'SELECT test::{typename}.prop1'
         con = self.con
@@ -377,8 +421,8 @@ class TestServerProto(tb.QueryTestCase):
             ''')
 
     async def test_server_proto_tx_savepoint_03(self):
-        # test that PARSE/EXECUTE/OPPORTUNISTIC-EXECUTE play nice
-        # with savepoints
+        # Test that PARSE/EXECUTE/OPPORTUNISTIC-EXECUTE play nice
+        # with savepoints.
 
         await self.con.execute('''
             START TRANSACTION;
@@ -440,8 +484,8 @@ class TestServerProto(tb.QueryTestCase):
                 [1])
 
     async def test_server_proto_tx_savepoint_04(self):
-        # test that PARSE/EXECUTE/OPPORTUNISTIC-EXECUTE play nice
-        # with savepoints
+        # Test that PARSE/EXECUTE/OPPORTUNISTIC-EXECUTE play nice
+        # with savepoints.
 
         await self.con.execute('''
             START TRANSACTION;
@@ -489,7 +533,7 @@ class TestServerProto(tb.QueryTestCase):
                 [1])
 
     async def test_server_proto_tx_savepoint_05(self):
-        # test that SIMPLE QUERY plays nice with savepoints
+        # Test RELEASE SAVEPOINT
 
         await self.con.execute('''
             START TRANSACTION;
@@ -545,7 +589,9 @@ class TestServerProto(tb.QueryTestCase):
             await self.con.execute('SELECT 1;')
 
     async def test_server_proto_tx_savepoint_06(self):
-        # test that SIMPLE QUERY plays nice with savepoints
+        # Test that SIMPLE QUERY can combine START TRANSACTION
+        # and DECLARE SAVEPOINT; test basic TransactionError
+        # reflection.
 
         await self.con.execute('''
             START TRANSACTION;
@@ -666,6 +712,10 @@ class TestServerProto(tb.QueryTestCase):
             await con.fetch('SELECT t1::min({1})')
 
     async def test_server_proto_tx_savepoint_09(self):
+        # Test basic SET ALIAS tracking in transactions/savepoints;
+        # test also that ROLLBACK TO SAVEPOINT can be safely combined
+        # with other commands in the same SIMPLE QUERY.
+
         con = self.con
 
         with self.assertRaises(edgedb.DivisionByZeroError):
@@ -813,8 +863,8 @@ class TestServerProto(tb.QueryTestCase):
             ''')
 
     async def test_server_proto_tx_05(self):
-        # test that caching of compiled queries doesn't interfere
-        # with transactions
+        # Test that caching of compiled queries doesn't interfere
+        # with transactions.
 
         query = 'SELECT "test_server_proto_tx_04"'
 
@@ -841,8 +891,8 @@ class TestServerProto(tb.QueryTestCase):
         ''')
 
     async def test_server_proto_tx_06(self):
-        # test that caching of compiled queries in other connections
-        # doesn't interfere with transactions
+        # Test that caching of compiled queries in other connections
+        # doesn't interfere with transactions.
 
         query = 'SELECT 1'
 
@@ -871,6 +921,8 @@ class TestServerProto(tb.QueryTestCase):
             ''')
 
     async def test_server_proto_tx_07(self):
+        # Test that START TRANSACTION reflects its modes.
+
         try:
             await self.con.execute('''
                 START TRANSACTION ISOLATION SERIALIZABLE, READ ONLY,
@@ -896,6 +948,9 @@ class TestServerProto(tb.QueryTestCase):
             [42])
 
     async def test_server_proto_tx_08(self):
+        # Test that the topmost INSERT is executed in
+        # the same transaction with "SELECT 1 / 0"
+
         initq = '''
             INSERT test::Tmp {
                 tmp := 'test_server_proto_tx_07'
@@ -921,6 +976,10 @@ class TestServerProto(tb.QueryTestCase):
             [])
 
     async def test_server_proto_tx_09(self):
+        # Test that the topmost INSERT is executed in
+        # the same transaction with "SELECT 1 / 0"; test
+        # that the later COMMIT is ignored.
+
         initq = '''
             INSERT test::Tmp {
                 tmp := 'test_server_proto_tx_08'
@@ -960,6 +1019,171 @@ class TestServerProto(tb.QueryTestCase):
         await self.con.execute('''
             DELETE (SELECT test::Tmp);
         ''')
+
+    async def test_server_proto_tx_10(self):
+        # Basic test that ROLLBACK works on SET ALIAS changes.
+
+        with self.assertRaises(edgedb.DivisionByZeroError):
+            await self.con.execute('''
+                START TRANSACTION;
+                DECLARE SAVEPOINT c0;
+                SET ALIAS f1 AS MODULE std;
+                DECLARE SAVEPOINT c1;
+                COMMIT;
+
+                SET ALIAS f2 AS MODULE std;
+
+                START TRANSACTION;
+                DECLARE SAVEPOINT a0;
+                SET ALIAS f3 AS MODULE std;
+                DECLARE SAVEPOINT a1;
+                SELECT 1 / 0;
+                COMMIT;
+
+                START TRANSACTION;
+                SET ALIAS f4 AS MODULE std;
+                COMMIT;
+            ''')
+
+        await self.con.fetch('ROLLBACK')
+
+        self.assertEqual(
+            await self.con.fetch('SELECT f1::min({1})'),
+            [1])
+
+        for n in ['f2', 'f3', 'f4']:
+            with self.assertRaises(edgedb.errors.InvalidReferenceError):
+                async with self.con.transaction():
+                    await self.con.fetch(f'SELECT {n}::min({{1}})')
+
+    async def test_server_proto_tx_11(self):
+        # Test that SET ALIAS (and therefore SET CONFIG etc) tracked by
+        # the server behaves exactly like DML tracked by Postgres
+        # when applied around savepoints.
+
+        async def test_funcs(*, count, working, not_working):
+            actual_count = await self.con.fetch(
+                '''SELECT count(
+                    test::Tmp FILTER test::Tmp.tmp = "test_server_proto_tx_11")
+                ''')
+            self.assertEqual(actual_count[0], count)
+
+            for ns in working:
+                self.assertEqual(
+                    await self.con.fetch(f'SELECT {ns}::min({{1}})'),
+                    [1])
+
+            await self.con.execute('DECLARE SAVEPOINT _;')
+            for ns in not_working:
+                with self.assertRaises(edgedb.errors.InvalidReferenceError):
+                    try:
+                        await self.con.fetch(f'SELECT {ns}::min({{1}})')
+                    finally:
+                        await self.con.execute('ROLLBACK TO SAVEPOINT _;')
+            await self.con.execute('RELEASE SAVEPOINT _;')
+
+        with self.assertRaises(edgedb.DivisionByZeroError):
+            await self.con.execute('''
+                START TRANSACTION;
+                    DECLARE SAVEPOINT c0;
+                        SET ALIAS f1 AS MODULE std;
+                        INSERT test::Tmp {
+                            tmp := 'test_server_proto_tx_11'
+                        };
+                    DECLARE SAVEPOINT c1;
+                COMMIT;
+
+                SET ALIAS f2 AS MODULE std;
+                INSERT test::Tmp {
+                    tmp := 'test_server_proto_tx_11'
+                };
+
+                START TRANSACTION;
+                    DECLARE SAVEPOINT a0;
+                        SET ALIAS f3 AS MODULE std;
+                        INSERT test::Tmp {
+                            tmp := 'test_server_proto_tx_11'
+                        };
+                    DECLARE SAVEPOINT a1;
+                        SET ALIAS f4 AS MODULE std;
+                        INSERT test::Tmp {
+                            tmp := 'test_server_proto_tx_11'
+                        };
+                        SELECT 1 / 0;
+                COMMIT;
+
+                START TRANSACTION;  # this never executes
+                    SET ALIAS f5 AS MODULE std;
+                    INSERT test::Tmp {
+                        tmp := 'test_server_proto_tx_11'
+                    };
+                COMMIT;
+            ''')
+
+        await self.con.fetch('ROLLBACK TO SAVEPOINT a1')
+        await test_funcs(
+            count=3,
+            working=['f1', 'f2', 'f3'], not_working=['f4', 'f5'])
+
+        await self.con.fetch('ROLLBACK TO SAVEPOINT a0')
+        await test_funcs(
+            count=2,
+            working=['f1', 'f2'], not_working=['f3', 'f4', 'f5'])
+
+        await self.con.execute('''
+            ROLLBACK;
+            START TRANSACTION;
+        ''')
+
+        await test_funcs(
+            count=1,
+            working=['f1'], not_working=['f2', 'f3', 'f4', 'f5'])
+        await self.con.execute('''
+            COMMIT;
+        ''')
+
+    async def test_server_proto_tx_12(self):
+        # Test that savepoint's state isn't corrupted by repeated
+        # rolling back to it and stacking changes on top.
+
+        await self.con.execute('''
+            START TRANSACTION;
+            DECLARE SAVEPOINT c0;
+            SET ALIAS z1 AS MODULE std;
+            DECLARE SAVEPOINT c1;
+        ''')
+
+        for _ in range(3):
+            with self.assertRaises(edgedb.DivisionByZeroError):
+                await self.con.execute('''
+                    SET ALIAS z2 AS MODULE std;
+                    SELECT 1 / 0;
+                ''')
+            await self.con.fetch('ROLLBACK TO SAVEPOINT c1')
+
+            await self.con.fetch('''
+                SET ALIAS z3 AS MODULE std;
+            ''')
+            await self.con.fetch('ROLLBACK TO SAVEPOINT c1')
+
+        self.assertEqual(
+            await self.con.fetch('SELECT z1::min({1})'),
+            [1])
+
+        await self.con.fetch('DECLARE SAVEPOINT _;')
+        for ns in ['z2', 'z3']:
+            with self.assertRaises(edgedb.errors.InvalidReferenceError):
+                try:
+                    await self.con.fetch(f'SELECT {ns}::min({{1}})')
+                finally:
+                    await self.con.fetch('ROLLBACK TO SAVEPOINT _;')
+        await self.con.fetch('RELEASE SAVEPOINT _;')
+
+        self.assertEqual(
+            await self.con.fetch('SELECT z1::min({1})'),
+            [1])
+
+        await self.con.fetch('ROLLBACK')
 
 
 class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):

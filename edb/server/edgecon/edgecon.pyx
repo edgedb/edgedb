@@ -108,7 +108,7 @@ cdef class EdgeConnection:
 
     def debug_print(self, *args):
         print(
-            '::PROTO::',
+            '::EDGEPROTO::',
             f'pid:{os.getpid()}',
             f'in_tx:{int(self.dbview.in_tx)}',
             f'tx_error:{int(self.dbview.in_tx_error)}',
@@ -208,22 +208,17 @@ cdef class EdgeConnection:
             INIT_CON_SCRIPT,
             ignore_data=True)
 
-    async def read_current_savepoint_id(self):
-        ret = await self.backend.pgcon.simple_query(
-            b'SELECT s.sp_id FROM _edgecon_current_savepoint s;',
-            ignore_data=False)
-
-        if not ret:
-            return
-
-        return int(ret[0][0].decode())
-
-    async def restore_state(self):
-        ret = await self.backend.pgcon.simple_query(
-            b'SELECT s.name, s.value, s.type FROM _edgecon_state s;',
-            ignore_data=False)
+    async def recover_current_tx_info(self):
+        ret = await self.backend.pgcon.simple_query(b'''
+            SELECT s1.name AS n, s1.value AS v, s1.type AS t
+                FROM _edgecon_state s1
+            UNION ALL
+            SELECT '' AS n, s2.sp_id::text AS v, 'S' AS t
+                FROM _edgecon_current_savepoint s2;
+        ''', ignore_data=False)
 
         conf = aliases = immutables.Map()
+        sp_id = None
 
         if ret:
             for sname, svalue, stype in ret:
@@ -234,12 +229,18 @@ cdef class EdgeConnection:
                     pyval = config._setting_val_from_eql(
                         self.backend.std_schema, sname, svalue)
                     conf = conf.set(sname, pyval)
-                else:
+                elif stype == b'A':
                     if not sname:
                         sname = None
                     aliases = aliases.set(sname, svalue)
+                else:
+                    assert stype == b'S' and not sname
+                    sp_id = int(svalue)
 
-        return conf, aliases
+        if self.debug:
+            self.debug_print('RECOVER SP/ALIAS/CONF', sp_id, aliases, conf)
+
+        self.dbview.rollback_tx_to_savepoint(sp_id, aliases, conf)
 
     #############
 
@@ -342,34 +343,27 @@ cdef class EdgeConnection:
         resbuf = []
         for unit in units:
             self.dbview.start(unit)
-            if unit.sql:
-                try:
-                    res = await self.backend.pgcon.simple_query(
-                        unit.sql, ignore_data=False)
-                except Exception as ex:
-                    self.dbview.on_error(unit)
-                    if not self.backend.pgcon.in_tx() and self.dbview.in_tx:
-                        # COMMIT command can fail, in which case the
-                        # transaction is finished.  This check workarounds
-                        # that (until a better solution is found.)
-                        self.dbview.abort_tx()
-                    raise
-                else:
-                    self.dbview.on_success(unit)
+            try:
+                res = await self.backend.pgcon.simple_query(
+                    b';'.join(unit.sql), ignore_data=False)
+            except Exception as ex:
+                self.dbview.on_error(unit)
+                if not self.backend.pgcon.in_tx() and self.dbview.in_tx:
+                    # COMMIT command can fail, in which case the
+                    # transaction is finished.  This check workarounds
+                    # that (until a better solution is found.)
+                    self.dbview.abort_tx()
+                raise
+            else:
+                self.dbview.on_success(unit)
 
-                if res is not None:
-                    out = list(r[0] for r in res if r)
-                    if out:
-                        resbuf.extend(out)
-                    else:
-                        resbuf.append(b'null')
+            if res is not None:
+                out = list(r[0] for r in res if r)
+                if out:
+                    resbuf.extend(out)
                 else:
                     resbuf.append(b'null')
-
             else:
-                # SET command or something else that doesn't involve
-                # executing SQL.
-                self.dbview.on_success(unit)
                 resbuf.append(b'null')
 
         resbuf = b'[' + b', '.join(resbuf) + b']'
@@ -387,13 +381,12 @@ cdef class EdgeConnection:
 
         compiled, num_remain = await self._compile_rollback(eql)
         await self.backend.pgcon.simple_query(
-            compiled.sql, ignore_data=True)
+            b';'.join(compiled.sql), ignore_data=True)
 
         if compiled.tx_savepoint_rollback:
-            spid = await self.read_current_savepoint_id()
             if self.debug:
-                self.debug_print(f'== RECOVERY: ROLLBACK TO SP {spid}')
-            self.dbview.rollback_tx_to_savepoint(spid)
+                self.debug_print(f'== RECOVERY: ROLLBACK TO SP')
+            await self.recover_current_tx_info()
         else:
             if self.debug:
                 self.debug_print('== RECOVERY: ROLLBACK')
@@ -434,24 +427,18 @@ cdef class EdgeConnection:
 
         for unit in units:
             self.dbview.start(unit)
-            if unit.sql:
-                try:
-                    await self.backend.pgcon.simple_query(
-                        unit.sql, ignore_data=True)
-                except Exception:
-                    self.dbview.on_error(unit)
-                    if not self.backend.pgcon.in_tx() and self.dbview.in_tx:
-                        # COMMIT command can fail, in which case the
-                        # transaction is finished.  This check workarounds
-                        # that (until a better solution is found.)
-                        self.dbview.abort_tx()
-                    raise
-                else:
-                    self.dbview.on_success(unit)
-
+            try:
+                await self.backend.pgcon.simple_query(
+                    b';'.join(unit.sql), ignore_data=True)
+            except Exception:
+                self.dbview.on_error(unit)
+                if not self.backend.pgcon.in_tx() and self.dbview.in_tx:
+                    # COMMIT command can fail, in which case the
+                    # transaction is finished.  This check workarounds
+                    # that (until a better solution is found.)
+                    self.dbview.abort_tx()
+                raise
             else:
-                # SET command or something else that doesn't involve
-                # executing SQL.
                 self.dbview.on_success(unit)
 
         packet = WriteBuffer.new()
@@ -462,6 +449,9 @@ cdef class EdgeConnection:
 
     async def _parse(self, eql):
         json_mode = False
+
+        if self.debug:
+            self.debug_print('PARSE', eql)
 
         compiled = self.dbview.lookup_compiled_query(eql, json_mode)
         cached = True
@@ -515,9 +505,6 @@ cdef class EdgeConnection:
         eql = self.buffer.read_null_str()
         if not eql:
             raise errors.BinaryProtocolError('empty query')
-
-        if self.debug:
-            self.debug_print('PARSE', eql)
 
         compiled = await self._parse(eql)
 
@@ -581,11 +568,10 @@ cdef class EdgeConnection:
                 self.dbview.raise_in_tx_error()
 
             await self.backend.pgcon.simple_query(
-                compiled.sql, ignore_data=True)
+                b';'.join(compiled.sql), ignore_data=True)
 
             if compiled.tx_savepoint_rollback:
-                spid = await self.read_current_savepoint_id()
-                self.dbview.rollback_tx_to_savepoint(spid)
+                await self.recover_current_tx_info()
             else:
                 assert compiled.tx_rollback
                 self.dbview.abort_tx()
@@ -603,30 +589,25 @@ cdef class EdgeConnection:
 
         try:
             self.dbview.start(compiled)
-            if compiled.sql:
-                try:
-                    await self.backend.pgcon.parse_execute(
-                        parse,              # =parse
-                        1,                  # =execute
-                        compiled,           # =query
-                        self,               # =edgecon
-                        bound_args_buf,     # =bind_data
-                        process_sync,       # =send_sync
-                        use_prep_stmt,      # =use_prep_stmt
-                    )
-                except Exception:
-                    self.dbview.on_error(compiled)
-                    if not self.backend.pgcon.in_tx() and self.dbview.in_tx:
-                        # COMMIT command can fail, in which case the
-                        # transaction is finished.  This check workarounds
-                        # that (until a better solution is found.)
-                        self.dbview.abort_tx()
-                    raise
-                else:
-                    self.dbview.on_success(compiled)
+            try:
+                await self.backend.pgcon.parse_execute(
+                    parse,              # =parse
+                    1,                  # =execute
+                    compiled,           # =query
+                    self,               # =edgecon
+                    bound_args_buf,     # =bind_data
+                    process_sync,       # =send_sync
+                    use_prep_stmt,      # =use_prep_stmt
+                )
+            except Exception:
+                self.dbview.on_error(compiled)
+                if not self.backend.pgcon.in_tx() and self.dbview.in_tx:
+                    # COMMIT command can fail, in which case the
+                    # transaction is finished.  This check workarounds
+                    # that (until a better solution is found.)
+                    self.dbview.abort_tx()
+                raise
             else:
-                # SET command or something else that doesn't involve
-                # executing SQL.
                 self.dbview.on_success(compiled)
 
             self.write(WriteBuffer.new_message(b'C').end_message())
@@ -697,14 +678,17 @@ cdef class EdgeConnection:
 
             self._last_anon_compiled = None
             compiled = await self._parse(query)
-            self.write(self.make_describe_response(compiled))
 
-        else:
-            if self.debug:
-                self.debug_print('OPPORTUNISTIC EXECUTE', query)
+            if (compiled.in_type_id != in_tid or
+                    compiled.out_type_id != out_tid):
+                self.write(self.make_describe_response(compiled))
+                return
 
-            await self._execute(
-                compiled, bind_args, True, bool(compiled.sql_hash))
+        if self.debug:
+            self.debug_print('OPPORTUNISTIC EXECUTE', query)
+
+        await self._execute(
+            compiled, bind_args, True, bool(compiled.sql_hash))
 
     async def sync(self):
         cdef:

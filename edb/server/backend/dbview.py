@@ -93,22 +93,19 @@ class DatabaseConnectionView:
         self._in_tx_with_ddl = False
         self._in_tx_with_set = False
         self._tx_error = False
-
-        self._config_before_tx = self._config
-        self._modaliases_before_tx = self._modaliases
-
         self._invalidate_local_cache()
 
-    def rollback_tx_to_savepoint(self, spid):
+    def rollback_tx_to_savepoint(self, spid, modaliases, config):
         self._tx_error = False
+        # See also CompilerConnectionState.rollback_to_savepoint().
         self._txid = spid
+        self._modaliases = modaliases
+        self._config = config
         self._invalidate_local_cache()
 
     def abort_tx(self):
         if not self.in_tx:
             raise errors.InternalServerError('abort_tx(): not in transaction')
-        self._config = self._config_before_tx
-        self._modaliases = self._modaliases_before_tx
         self._reset_tx_state()
 
     @property
@@ -208,21 +205,21 @@ class DatabaseConnectionView:
         if not self._in_tx and qu.has_ddl:
             self._db._signal_ddl()
 
-        if qu.config:
+        if qu.config is not None:
             self._config = qu.config
 
-        if qu.modaliases:
+        if qu.modaliases is not None:
             self._modaliases = qu.modaliases
 
-        if qu.tx_commit or qu.tx_rollback:
+        if qu.tx_commit:
             assert self._in_tx
-            if qu.tx_commit and self._in_tx_with_ddl:
+            if self._in_tx_with_ddl:
                 self._db._signal_ddl()
             self._reset_tx_state()
 
-        if not self._in_tx:
-            self._config_before_tx = self._config
-            self._modaliases_before_tx = self._modaliases
+        elif qu.tx_rollback:
+            assert self._in_tx
+            self._reset_tx_state()
 
     @staticmethod
     def raise_in_tx_error():
