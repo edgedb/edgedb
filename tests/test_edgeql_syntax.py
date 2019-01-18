@@ -3188,6 +3188,20 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_property_05(self):
+        # omit optional semicolons
+        """
+        CREATE ABSTRACT PROPERTY std::property {
+            SET title := 'Base property'
+        }
+
+% OK %
+
+        CREATE ABSTRACT PROPERTY std::property {
+            SET title := 'Base property';
+        };
+        """
+
     def test_edgeql_syntax_ddl_module_01(self):
         """
         CREATE MODULE foo;
@@ -3278,6 +3292,22 @@ aa';
 
     def test_edgeql_syntax_ddl_type_08(self):
         """
+        ALTER TYPE mymod::Foo ALTER LINK foo {
+            SET MULTI;
+            DROP REQUIRED;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_09(self):
+        # omit optional semicolons
+        """
+        ALTER TYPE mymod::Foo ALTER LINK foo {
+            SET MULTI;
+            DROP REQUIRED
+        }
+
+% OK %
+
         ALTER TYPE mymod::Foo ALTER LINK foo {
             SET MULTI;
             DROP REQUIRED;

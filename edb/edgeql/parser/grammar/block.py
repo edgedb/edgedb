@@ -49,14 +49,8 @@ class StatementBlock(parsing.ListNonterm, element=SingleStatement,
 class EdgeQLBlock(Nonterm):
     "%start"
 
-    def reduce_StatementBlock_EOF(self, *kids):
+    def reduce_StatementBlock_OptSemicolons_EOF(self, *kids):
         self.val = kids[0].val
 
-    def reduce_StatementBlock_Semicolons_EOF(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_Semicolons_EOF(self, *kids):
-        self.val = []
-
-    def reduce_EOF(self, *kids):
+    def reduce_OptSemicolons_EOF(self, *kids):
         self.val = []
