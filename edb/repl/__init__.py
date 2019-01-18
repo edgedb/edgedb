@@ -114,7 +114,7 @@ class InputBuffer(pt_buffer.Buffer):
             except core_lexer.UnknownTokenError:
                 return True
 
-            if toks[-1].type == ';':
+            if toks[-1].type == 'EOF':
                 return False
 
         return True
