@@ -125,10 +125,12 @@ cdef class EdgeConnection:
 
     cdef abort(self):
         self._con_status = EDGECON_BAD
-        if self._transport is None:
-            return
-        self._transport.abort()
-        self._transport = None
+        if self._transport is not None:
+            self._transport.abort()
+            self._transport = None
+        if self.backend is not None:
+            self.loop.create_task(self.backend.close())
+            self.backend = None
 
     cdef flush(self):
         if self._transport is None:
@@ -778,6 +780,9 @@ cdef class EdgeConnection:
                 except ConnectionAbortedError:
                     raise
 
+                except asyncio.CancelledError:
+                    raise
+
                 except Exception as ex:
                     self.dbview.tx_error()
                     self.buffer.finish_message()
@@ -792,6 +797,14 @@ cdef class EdgeConnection:
 
                 else:
                     self.buffer.finish_message()
+
+        except asyncio.CancelledError:
+            # Happens when the connection is aborted, the backend is
+            # being closed and propagates CancelledError to all
+            # EdgeCon methods that await on, say, the compiler process.
+            # We shouldn't have CancelledErrors otherwise, therefore,
+            # in this situation we just silently exit.
+            self.abort()
 
         except ConnectionAbortedError:
             return
@@ -952,7 +965,6 @@ cdef class EdgeConnection:
                 'invalid connection status while establishing the connection')
         self._transport = transport
         self._main_task = self.loop.create_task(self.main())
-        # self.server.edgecon_register(self)
 
     def connection_lost(self, exc):
         if (self._msg_take_waiter is not None and
@@ -960,10 +972,7 @@ cdef class EdgeConnection:
             self._msg_take_waiter.set_exception(ConnectionAbortedError())
             self._msg_take_waiter = None
 
-        self._transport = None
-
-        if self.backend is not None:
-            self.loop.create_task(self.backend.close())
+        self.abort()
 
     def pause_writing(self):
         pass
