@@ -119,7 +119,7 @@ std::random() -> std::float64
 # --------
 
 CREATE FUNCTION
-std::min(vals: SET OF anytype) -> anytype
+std::min(vals: SET OF anytype) -> OPTIONAL anytype
 {
     FROM SQL FUNCTION 'min';
 };
@@ -129,7 +129,7 @@ std::min(vals: SET OF anytype) -> anytype
 # --------
 
 CREATE FUNCTION
-std::max(vals: SET OF anytype) -> anytype
+std::max(vals: SET OF anytype) -> OPTIONAL anytype
 {
     FROM SQL FUNCTION 'max';
 };
