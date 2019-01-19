@@ -37,7 +37,7 @@ This section describes generic functions provided by EdgeDB.
                   std::contains(haystack: array<anytype>, needle: anytype) \
                   -> bool
 
-    :index: find array
+    :index: find strpos strstr position array
 
     A polymorphic function to test if a sequence contains a certain element.
 
@@ -65,7 +65,7 @@ This section describes generic functions provided by EdgeDB.
                   std::find(haystack: array<anytype>, needle: anytype, \
                             from_pos: int64=0) -> int32
 
-    :index: position array
+    :index: find strpos strstr position array
 
     A polymorphic function to find index of an element in a sequence.
 
