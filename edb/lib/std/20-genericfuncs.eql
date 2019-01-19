@@ -196,6 +196,40 @@ std::round(val: std::decimal, d: std::int64) -> std::decimal
 };
 
 
+# std::contains
+# ---------
+
+CREATE FUNCTION
+std::contains(haystack: std::str, needle: std::str) -> std::bool
+{
+    FROM SQL $$
+    SELECT strpos("haystack", "needle") != 0
+    $$;
+};
+
+
+CREATE FUNCTION
+std::contains(haystack: std::bytes, needle: std::bytes) -> std::bool
+{
+    FROM SQL $$
+    SELECT position("needle" in "haystack") != 0
+    $$;
+};
+
+
+CREATE FUNCTION
+std::contains(haystack: array<anytype>, needle: anytype) -> std::bool
+{
+    FROM SQL $$
+    SELECT
+        CASE
+            WHEN "needle" IS NULL THEN NULL
+            ELSE array_position("haystack", "needle") IS NOT NULL
+        END;
+    $$;
+};
+
+
 # std::find
 # ---------
 

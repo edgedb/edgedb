@@ -21,21 +21,6 @@ Array
         db> SELECT array_agg(User.name ORDER BY User.name);
         {['Alice', 'Bob', 'Joe', 'Sam']}
 
-.. eql:function:: std::array_contains(array: array<anytype>, \
-                                      value: anytype) -> bool
-
-    :index: array contains find
-
-    Return ``TRUE`` if the array contains the specified element.
-
-    .. code-block:: edgeql-repl
-
-        db> SELECT array_contains([2, 3, 5], 2);
-        {True}
-
-        db> SELECT array_contains(['foo', 'bar'], 'baz');
-        {False}
-
 .. eql:function:: std::array_enumerate(array: array<anytype>) -> \
                   SET OF tuple<anytype, int64>
 

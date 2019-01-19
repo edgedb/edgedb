@@ -425,12 +425,12 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                                 # specific links included in the final
                                 # result
                                 SELECT C2{name, cost}
-                                FILTER array_contains(X, C2)
+                                FILTER contains(X, C2)
                                 ORDER BY C2.cost
                             )
                         }
                     # the leader is selected from among the elemental array
-                    FILTER array_contains(X, Card)
+                    FILTER contains(X, Card)
                     # the leader is defined as the one with the highest cost
                     ORDER BY Card.cost DESC
                     LIMIT 1
@@ -506,7 +506,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                                 ORDER BY C2.cost
                             )
                         }
-                    FILTER array_contains(X, Card)
+                    FILTER contains(X, Card)
                     ORDER BY Card.cost DESC
                     LIMIT 1
                 )

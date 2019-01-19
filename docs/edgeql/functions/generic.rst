@@ -32,12 +32,40 @@ This section describes generic functions provided by EdgeDB.
         {3}
 
 
+.. eql:function:: std::contains(haystack: str, needle: str) -> bool
+                  std::contains(haystack: bytes, needle: bytes) -> bool
+                  std::contains(haystack: array<anytype>, needle: anytype) \
+                  -> bool
+
+    :index: find array
+
+    A polymorphic function to test if a sequence contains a certain element.
+
+    When the *haystack* is :eql:type:`str` or :eql:type:`bytes`,
+    return ``TRUE`` if *needle* is contained as a subsequence in it
+    and ``FALSE`` otherwise.
+
+    When the *haystack* is an :eql:type:`array`, return ``TRUE`` if
+    the array contains the specified element and ``FALSE`` otherwise.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT contains('qwerty', 'we');
+        {True}
+
+        db> SELECT contains(b'qwerty', b'42');
+        {False}
+
+        db> SELECT contains([2, 5, 7, 2, 100], 2);
+        {True}
+
+
 .. eql:function:: std::find(haystack: str, needle: str) -> int32
                   std::find(haystack: bytes, needle: bytes) -> int32
                   std::find(haystack: array<anytype>, needle: anytype, \
                             from_pos: int64=0) -> int32
 
-    :index: find position array
+    :index: position array
 
     A polymorphic function to find index of an element in a sequence.
 

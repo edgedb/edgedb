@@ -32,37 +32,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'issues_setup.eql')
 
-    async def test_edgeql_functions_array_contains_01(self):
-        await self.assert_query_result(r'''
-            SELECT std::array_contains(<array<int64>>[], {1, 3});
-            SELECT array_contains([1], {1, 3});
-            SELECT array_contains([1, 2], 1);
-            SELECT array_contains([1, 2], 3);
-            SELECT array_contains(['a'], <std::str>{});
-        ''', [
-            [False, False],
-            [True, False],
-            [True],
-            [False],
-            [],
-        ])
-
-    async def test_edgeql_functions_array_contains_02(self):
-        await self.assert_query_result('''
-            WITH x := [3, 1, 2]
-            SELECT array_contains(x, 2);
-
-            WITH x := [3, 1, 2]
-            SELECT array_contains(x, 5);
-
-            WITH x := [3, 1, 2]
-            SELECT array_contains(x, 5);
-        ''', [
-            [True],
-            [False],
-            [False],
-        ])
-
     async def test_edgeql_functions_count_01(self):
         await self.assert_query_result(r"""
             WITH
@@ -150,13 +119,13 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_array_agg_04(self):
         await self.assert_query_result('''
             WITH x := {3, 1, 2}
-            SELECT array_contains(array_agg(x ORDER BY x), 2);
+            SELECT contains(array_agg(x ORDER BY x), 2);
 
             WITH x := {3, 1, 2}
-            SELECT array_contains(array_agg(x ORDER BY x), 5);
+            SELECT contains(array_agg(x ORDER BY x), 5);
 
             WITH x := {3, 1, 2}
-            SELECT array_contains(array_agg(x ORDER BY x), 5);
+            SELECT contains(array_agg(x ORDER BY x), 5);
         ''', [
             [True],
             [False],
@@ -1739,6 +1708,87 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ''', [
             [0, 1, 2, 2],
             [1, 1, 2, 2],
+        ])
+
+    async def test_edgeql_functions_contains_01(self):
+        await self.assert_query_result(r'''
+            SELECT std::contains(<array<int64>>[], {1, 3});
+            SELECT contains([1], {1, 3});
+            SELECT contains([1, 2], 1);
+            SELECT contains([1, 2], 3);
+            SELECT contains(['a'], <str>{});
+        ''', [
+            [False, False],
+            [True, False],
+            [True],
+            [False],
+            [],
+        ])
+
+    async def test_edgeql_functions_contains_02(self):
+        await self.assert_query_result('''
+            WITH x := [3, 1, 2]
+            SELECT contains(x, 2);
+
+            WITH x := [3, 1, 2]
+            SELECT contains(x, 5);
+
+            WITH x := [3, 1, 2]
+            SELECT contains(x, 5);
+        ''', [
+            [True],
+            [False],
+            [False],
+        ])
+
+    async def test_edgeql_functions_contains_03(self):
+        await self.assert_query_result(r'''
+            SELECT contains(<str>{}, <str>{});
+            SELECT contains(<str>{}, 'a');
+            SELECT contains('qwerty', <str>{});
+            SELECT contains('qwerty', '');
+            SELECT contains('qwerty', 'q');
+            SELECT contains('qwerty', 'qwe');
+            SELECT contains('qwerty', 'we');
+            SELECT contains('qwerty', 't');
+            SELECT contains('qwerty', 'a');
+            SELECT contains('qwerty', 'azerty');
+        ''', [
+            {},
+            {},
+            {},
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+            {False},
+            {False},
+        ])
+
+    async def test_edgeql_functions_contains_04(self):
+        await self.assert_query_result(r'''
+            SELECT contains(<bytes>{}, <bytes>{});
+            SELECT contains(<bytes>{}, b'a');
+            SELECT contains(b'qwerty', <bytes>{});
+            SELECT contains(b'qwerty', b'');
+            SELECT contains(b'qwerty', b'q');
+            SELECT contains(b'qwerty', b'qwe');
+            SELECT contains(b'qwerty', b'we');
+            SELECT contains(b'qwerty', b't');
+            SELECT contains(b'qwerty', b'a');
+            SELECT contains(b'qwerty', b'azerty');
+        ''', [
+            {},
+            {},
+            {},
+            {True},
+            {True},
+            {True},
+            {True},
+            {True},
+            {False},
+            {False},
         ])
 
     async def test_edgeql_functions_find_01(self):
