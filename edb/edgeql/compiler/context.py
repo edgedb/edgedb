@@ -29,6 +29,7 @@ from edb.common import compiler
 from edb.common import parsing
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 from edb.ir import ast as irast
 
 from edb.schema import functions as s_func
@@ -74,7 +75,7 @@ class StatementMetadata:
 
 class PendingCardinality(typing.NamedTuple):
 
-    specified_cardinality: typing.Optional[irast.Cardinality]
+    specified_cardinality: typing.Optional[qltypes.Cardinality]
     source_ctx: parsing.ParserContext
     from_parent: bool
     callbacks: typing.List[typing.Callable]

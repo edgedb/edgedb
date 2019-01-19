@@ -28,7 +28,9 @@ from edb import edgeql
 from edb.common import ast
 from edb.common import typeutils
 from edb.edgeql import ast as qlast
-from edb.graphql import ast as gqlast, parser as gqlparser
+from edb.edgeql import qltypes
+from edb.graphql import ast as gqlast
+from edb.graphql import parser as gqlparser
 
 from . import types as gt
 from . import errors as g_errors
@@ -419,7 +421,7 @@ class GraphQLTranslator(ast.NodeVisitor):
                     if (limit is not None and
                             (isinstance(filterable, qlast.Statement) or
                              filterable.compexpr is not None)):
-                        spec.cardinality = qlast.Cardinality.MANY
+                        spec.cardinality = qltypes.Cardinality.MANY
 
         path.pop()
         return spec

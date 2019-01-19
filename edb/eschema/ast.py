@@ -23,7 +23,7 @@ from edb.common import enum as s_enum
 from edb.common import ast, parsing
 
 from edb.edgeql import ast as qlast
-from edb.edgeql import qltypes as qlft
+from edb.edgeql import qltypes
 
 
 class Base(ast.AST):
@@ -71,7 +71,7 @@ class Pointer(Spec):
     constraints: typing.List[Constraint]
 
     required: bool = False
-    cardinality: qlast.Cardinality
+    cardinality: qltypes.Cardinality
 
     # Expression of a computable link
     expr: qlast.Base = None
@@ -146,7 +146,7 @@ class FunctionDeclaration(Declaration):
     params: list
     returning: qlast.TypeName
     function_code: FunctionCode
-    returning_typemod: qlft.TypeModifier
+    returning_typemod: qltypes.TypeModifier
 
 
 class BasePointerDeclaration(Declaration):

@@ -68,3 +68,14 @@ class TransactionAccessMode(s_enum.StrEnum):
 class TransactionDeferMode(s_enum.StrEnum):
     DEFERRABLE = 'DEFERRABLE'
     NOT_DEFERRABLE = 'NOT DEFERRABLE'
+
+
+class Cardinality(s_enum.StrEnum):
+    ONE = 'ONE'
+    MANY = 'MANY'
+
+    def as_ptr_qual(self):
+        if self is Cardinality.ONE:
+            return 'single'
+        else:
+            return 'multi'

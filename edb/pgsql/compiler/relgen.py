@@ -23,7 +23,7 @@
 import contextlib
 import typing
 
-from edb.edgeql import qltypes as ql_ft
+from edb.edgeql import qltypes
 
 from edb.schema import objects as s_obj
 
@@ -250,7 +250,7 @@ def _get_set_rvar(
         rvars = process_set_as_tuple_indirection(ir_set, stmt, ctx=ctx)
 
     elif isinstance(ir_set.expr, irast.FunctionCall):
-        if any(pm is ql_ft.TypeModifier.SET_OF
+        if any(pm is qltypes.TypeModifier.SET_OF
                for pm in ir_set.expr.params_typemods):
             # Call to an aggregate function.
             rvars = process_set_as_agg_expr(ir_set, stmt, ctx=ctx)
@@ -979,7 +979,9 @@ def process_set_as_ifelse(
     # SELECT A WHERE Cond UNION ALL SELECT B WHERE NOT Cond
     expr = ir_set.expr
 
-    if 0 and expr.if_expr_card == expr.else_expr_card == irast.Cardinality.ONE:
+    if (0 and
+            expr.if_expr_card == qltypes.Cardinality.ONE and
+            expr.else_expr_card == qltypes.Cardinality.ONE):
         set_expr = pgast.CaseExpr(
             args=[
                 pgast.CaseWhen(
@@ -1042,7 +1044,7 @@ def process_set_as_coalesce(
     with ctx.new() as newctx:
         newctx.expr_exposed = False
 
-        if expr.right_card == irast.Cardinality.ONE:
+        if expr.right_card == qltypes.Cardinality.ONE:
             # Singleton RHS, simply use scalar COALESCE.
             left = dispatch.compile(expr.left, ctx=newctx)
 
@@ -1394,7 +1396,7 @@ def process_set_as_func_expr(
         set_expr = pgast.FuncCall(
             name=name, args=args, with_ordinality=with_ordinality)
 
-    if expr.typemod is ql_ft.TypeModifier.SET_OF:
+    if expr.typemod is qltypes.TypeModifier.SET_OF:
         rtype = expr.typeref
         named_tuple = False
 

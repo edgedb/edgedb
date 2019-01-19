@@ -31,7 +31,7 @@ from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
-from edb.edgeql import qltypes as ft
+from edb.edgeql import qltypes
 
 from .pathid import PathId, WeakNamespace
 from .scopetree import InvalidScopeConfiguration, ScopeTreeNode  # noqa
@@ -39,9 +39,6 @@ from .scopetree import InvalidScopeConfiguration, ScopeTreeNode  # noqa
 
 def new_scope_tree():
     return ScopeTreeNode(fenced=True)
-
-
-Cardinality = qlast.Cardinality
 
 
 class ASTError(EdgeDBError):
@@ -123,9 +120,9 @@ class BasePointerRef(Base):
     required: bool
     # Relation cardinality in the direction specified
     # by *direction*.
-    dir_cardinality: Cardinality
+    dir_cardinality: qltypes.Cardinality
     # Outbound cardinality of the pointer.
-    out_cardinality: Cardinality
+    out_cardinality: qltypes.Cardinality
 
 
 class PointerRef(BasePointerRef):
@@ -165,7 +162,7 @@ class TupleIndirectionLink(s_pointers.PointerLike):
         return True
 
     def get_cardinality(self, schema):
-        return Cardinality.ONE
+        return qltypes.Cardinality.ONE
 
     def get_path_id_name(self, schema):
         return self._name
@@ -259,7 +256,7 @@ class TypeIndirectionLink(s_pointers.PointerLike):
     def singular(self, schema,
                  direction=s_pointers.PointerDirection.Outbound) -> bool:
         if direction is s_pointers.PointerDirection.Outbound:
-            return self.get_cardinality(schema) is Cardinality.ONE
+            return self.get_cardinality(schema) is qltypes.Cardinality.ONE
         else:
             return True
 
@@ -329,7 +326,7 @@ class Statement(Command):
     expr: Set
     views: typing.Dict[sn.Name, s_types.Type]
     params: typing.Dict[str, s_types.Type]
-    cardinality: Cardinality
+    cardinality: qltypes.Cardinality
     stype: s_types.Type
     view_shapes: typing.Dict[so.Object, typing.List[s_pointers.Pointer]]
     view_shapes_metadata: typing.Dict[so.Object, ViewShapeMetadata]
@@ -419,8 +416,8 @@ class SetOp(Expr):
     op: str
     exclusive: bool = False
 
-    left_card: Cardinality
-    right_card: Cardinality
+    left_card: qltypes.Cardinality
+    right_card: qltypes.Cardinality
 
 
 class TypeCheckOp(Expr):
@@ -436,15 +433,15 @@ class IfElseExpr(Expr):
     if_expr: Set
     else_expr: Set
 
-    if_expr_card: Cardinality
-    else_expr_card: Cardinality
+    if_expr_card: qltypes.Cardinality
+    else_expr_card: qltypes.Cardinality
 
 
 class Coalesce(Base):
     left: Set
     right: Set
 
-    right_card: Cardinality
+    right_card: qltypes.Cardinality
 
 
 class SortExpr(Base):
@@ -480,13 +477,13 @@ class Call(Expr):
 
     # Typemods of parameters.  This list corresponds to ".args"
     # (so `zip(args, params_typemods)` is valid.)
-    params_typemods: typing.List[ft.TypeModifier]
+    params_typemods: typing.List[qltypes.TypeModifier]
 
     # Return type and typemod.  In bodies of polymorphic functions
     # the return type can be polymorphic; in queries the return
     # type will be a concrete schema type.
     typeref: TypeRef
-    typemod: ft.TypeModifier
+    typemod: qltypes.TypeModifier
 
     # If the return type is a tuple, this will contain a list
     # of tuple element path ids relative to the call set.
@@ -511,7 +508,7 @@ class FunctionCall(Call):
 class OperatorCall(Call):
 
     # The kind of the bound operator (INFIX, PREFIX, etc.).
-    operator_kind: ft.OperatorKind
+    operator_kind: qltypes.OperatorKind
 
     # If this operator maps directly onto an SQL operator, this
     # will contain the operator name, and, optionally, backend
@@ -557,7 +554,7 @@ class Stmt(Base):
 
     name: str
     result: Base
-    cardinality: Cardinality
+    cardinality: qltypes.Cardinality
     parent_stmt: Base
     iterator_stmt: Base
 

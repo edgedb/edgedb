@@ -23,10 +23,9 @@ import textwrap
 from edb.testbase import lang as tb
 
 from edb.edgeql import compiler
+from edb.edgeql import qltypes
 from edb.edgeql.compiler import context
 from edb.edgeql.compiler import inference
-
-from edb.ir import ast as irast
 
 
 class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
@@ -41,7 +40,7 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
         env = context.Environment(path_scope=ir.scope_tree, schema=self.schema)
         cardinality = inference.infer_cardinality(
             ir, scope_tree=ir.scope_tree, env=env)
-        expected_cardinality = irast.Cardinality(
+        expected_cardinality = qltypes.Cardinality(
             textwrap.dedent(expected).strip(' \n'))
         self.assertEqual(cardinality, expected_cardinality,
                          'unexpected cardinality:\n' + source)

@@ -21,6 +21,7 @@ import typing
 
 from edb import edgeql
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 from edb.common import enum
 
 from edb import errors
@@ -42,8 +43,6 @@ class PointerDirection(enum.StrEnum):
     Outbound = '>'
     Inbound = '<'
 
-
-Cardinality = qlast.Cardinality
 
 MAX_NAME_LENGTH = 63
 
@@ -134,7 +133,7 @@ class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
         default=None, coerce=True, compcoef=0.909)
 
     cardinality = so.SchemaField(
-        qlast.Cardinality,
+        qltypes.Cardinality,
         default=None, compcoef=0.833, coerce=True,
         merge_fn=merge_cardinality)
 
@@ -187,7 +186,7 @@ class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
         if not self.generic(schema) and apply_defaults:
             if self.get_cardinality(schema) is None:
                 schema = self.set_field_value(
-                    schema, 'cardinality', qlast.Cardinality.ONE)
+                    schema, 'cardinality', qltypes.Cardinality.ONE)
 
                 if dctx is not None:
                     from . import delta as sd
@@ -400,7 +399,7 @@ class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
     def singular(self, schema, direction=PointerDirection.Outbound):
         # Determine the cardinality of a given endpoint set.
         if direction == PointerDirection.Outbound:
-            return self.get_cardinality(schema) is qlast.Cardinality.ONE
+            return self.get_cardinality(schema) is qltypes.Cardinality.ONE
         else:
             return self.is_exclusive(schema)
 

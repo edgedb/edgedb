@@ -24,6 +24,7 @@ import typing
 
 from edb import errors
 
+from edb.edgeql import qltypes
 from edb.ir import ast as irast
 
 from edb.schema import objects as s_obj
@@ -57,7 +58,7 @@ def get_tuple_indirection_path_id(
 
 def get_type_indirection_path_id(
         path_id: irast.PathId, target_type: s_types.Type, *,
-        optional: bool, cardinality: irast.Cardinality,
+        optional: bool, cardinality: qltypes.Cardinality,
         ctx: context.CompilerContext) -> irast.PathId:
     return path_id.extend(
         ptrcls=irast.TypeIndirectionLink(

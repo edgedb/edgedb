@@ -24,6 +24,7 @@ from edb.common.ast import codegen, base
 
 from . import ast as edgeql_ast
 from . import quote as edgeql_quote
+from . import qltypes
 
 
 _module_name_re = re.compile(r'^(?!=\d)\w+(\.(?!=\d)\w+)*$')
@@ -453,9 +454,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if node.required:
             quals.append('required')
 
-        if node.cardinality is edgeql_ast.Cardinality.MANY:
+        if node.cardinality is qltypes.Cardinality.MANY:
             quals.append('multi')
-        elif node.cardinality is edgeql_ast.Cardinality.ONE:
+        elif node.cardinality is qltypes.Cardinality.ONE:
             quals.append('single')
 
         if quals:
@@ -748,7 +749,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         elif node.name == 'required':
             self.write('REQUIRED')
         elif node.name == 'cardinality':
-            if node.value is edgeql_ast.Cardinality.ONE:
+            if node.value is qltypes.Cardinality.ONE:
                 self.write('SINGLE')
             else:
                 self.write('MULTI')
@@ -941,9 +942,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         if node.is_required:
             keywords.append('REQUIRED')
-        if node.cardinality is edgeql_ast.Cardinality.ONE:
+        if node.cardinality is qltypes.Cardinality.ONE:
             keywords.append('SINGLE')
-        elif node.cardinality is edgeql_ast.Cardinality.MANY:
+        elif node.cardinality is qltypes.Cardinality.MANY:
             keywords.append('MULTI')
         keywords.append('PROPERTY')
 
@@ -973,9 +974,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         if node.is_required:
             keywords.append('REQUIRED')
-        if node.cardinality is edgeql_ast.Cardinality.ONE:
+        if node.cardinality is qltypes.Cardinality.ONE:
             keywords.append('SINGLE')
-        elif node.cardinality is edgeql_ast.Cardinality.MANY:
+        elif node.cardinality is qltypes.Cardinality.MANY:
             keywords.append('MULTI')
         keywords.append('LINK')
 

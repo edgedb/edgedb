@@ -21,7 +21,9 @@ import textwrap
 
 from edb.common.exceptions import EdgeDBError
 from edb.common.ast import codegen
-from edb.edgeql import generate_source as edgeql_source, ast as eqlast
+from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
+from edb.edgeql import generate_source as edgeql_source
 from . import quote as eschema_quote
 
 
@@ -39,7 +41,7 @@ class EdgeSchemaSourceGeneratorError(EdgeDBError):
 
 class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
     def generic_visit(self, node):
-        if isinstance(node, eqlast.Base):
+        if isinstance(node, qlast.Base):
             self._visit_edgeql(node)
         else:
             raise EdgeSchemaSourceGeneratorError(
@@ -128,9 +130,9 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             quals.append('inherited')
         if node.required:
             quals.append('required')
-        if node.cardinality is eqlast.Cardinality.ONE:
+        if node.cardinality is qltypes.Cardinality.ONE:
             quals.append('single')
-        elif node.cardinality is eqlast.Cardinality.MANY:
+        elif node.cardinality is qltypes.Cardinality.MANY:
             quals.append('multi')
         if quals:
             self.write(*quals, delimiter=' ')
@@ -170,7 +172,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
     def _visit_assignment(self, node):
         self.write(' := ')
 
-        if (isinstance(node, eqlast.BaseConstant) and
+        if (isinstance(node, qlast.BaseConstant) and
                 (not isinstance(node.value, str) or
                  '\n' not in node.value)):
             self._visit_edgeql(node, ident=False)
@@ -305,7 +307,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
 
     def visit_Field(self, node):
         self.visit(node.name)
-        if isinstance(node.value, eqlast.Base):
+        if isinstance(node.value, qlast.Base):
             self._visit_assignment(node.value)
         else:
             self.write(' := ')
@@ -315,7 +317,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
     def visit_Attribute(self, node):
         self.write('attribute ')
         self.visit(node.name)
-        if isinstance(node.value, eqlast.Base):
+        if isinstance(node.value, qlast.Base):
             self._visit_assignment(node.value)
         else:
             self.write(' := ')

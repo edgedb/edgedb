@@ -21,6 +21,8 @@
 
 import typing
 
+from edb.edgeql import qltypes
+
 from edb.ir import ast as irast
 from edb.ir import utils as irutils
 
@@ -62,7 +64,7 @@ def compile_shape(
         for el in shape:
             rptr = el.rptr
             ptrref = rptr.ptrref
-            is_singleton = ptrref.dir_cardinality is irast.Cardinality.ONE
+            is_singleton = ptrref.dir_cardinality is qltypes.Cardinality.ONE
 
             if (irutils.is_subquery_set(el) or
                     el.path_id.is_objtype_path() or

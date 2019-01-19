@@ -29,7 +29,7 @@ from edb import edgeql
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import compiler as qlcompiler
-from edb.edgeql import qltypes as ft
+from edb.edgeql import qltypes
 from edb.edgeql import utils as qlutils
 
 from edb.eschema import ast as s_ast
@@ -112,7 +112,7 @@ class DeclarationLoader:
 
             if objcls is s_constr.Constraint:
                 objcls_kw['return_type'] = self._schema.get('std::bool')
-                objcls_kw['return_typemod'] = ft.TypeModifier.SINGLETON
+                objcls_kw['return_typemod'] = qltypes.TypeModifier.SINGLETON
 
             if issubclass(objcls, s_pointers.Pointer):
                 if len(decl.name) > s_pointers.MAX_NAME_LENGTH:
@@ -313,7 +313,8 @@ class DeclarationLoader:
                 func_fqname=constraint.get_name(self._schema))
 
             for param in params.objects(self._schema):
-                if param.get_kind(self._schema) is ft.ParameterKind.NAMED_ONLY:
+                p_kind = param.get_kind(self._schema)
+                if p_kind is qltypes.ParameterKind.NAMED_ONLY:
                     raise errors.InvalidConstraintDefinitionError(
                         'named only parameters are not allowed '
                         'in this context',
@@ -444,7 +445,7 @@ class DeclarationLoader:
 
             if propdecl.cardinality is None:
                 if propdecl.expr is None:
-                    cardinality = qlast.Cardinality.ONE
+                    cardinality = qltypes.Cardinality.ONE
                 else:
                     cardinality = None
             else:
@@ -660,7 +661,7 @@ class DeclarationLoader:
 
                 if linkdecl.cardinality is None:
                     if linkdecl.expr is None:
-                        cardinality = qlast.Cardinality.ONE
+                        cardinality = qltypes.Cardinality.ONE
                     else:
                         cardinality = None
                 else:
@@ -797,7 +798,7 @@ class DeclarationLoader:
                 self._schema, 'cardinality', ir.cardinality)
 
             if ptrdecl.cardinality is not ptr.get_cardinality(self._schema):
-                if ptrdecl.cardinality is qlast.Cardinality.ONE:
+                if ptrdecl.cardinality is qltypes.Cardinality.ONE:
                     raise errors.SchemaError(
                         f'computable expression possibly returns more than '
                         f'one value, but the {ptr.schema_class_displayname!r} '

@@ -44,6 +44,7 @@ from edb.schema import types as s_types
 from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 from edb.edgeql import parser as qlparser
 
 from . import astutils
@@ -521,10 +522,10 @@ def class_indirection_set(
     poly_set = new_set(stype=target_scls, ctx=ctx)
     rptr = source_set.rptr
     if (rptr is not None
-            and rptr.ptrref.dir_cardinality is irast.Cardinality.MANY):
-        cardinality = irast.Cardinality.MANY
+            and rptr.ptrref.dir_cardinality is qltypes.Cardinality.MANY):
+        cardinality = qltypes.Cardinality.MANY
     else:
-        cardinality = irast.Cardinality.ONE
+        cardinality = qltypes.Cardinality.ONE
     poly_set.path_id = pathctx.get_type_indirection_path_id(
         source_set.path_id, target_scls, optional=optional,
         cardinality=cardinality, ctx=ctx)

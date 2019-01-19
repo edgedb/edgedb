@@ -26,7 +26,7 @@ import typing
 from edb.errors import EdgeQLSyntaxError
 
 from edb.edgeql import ast as qlast
-from edb.edgeql import qltypes as ft
+from edb.edgeql import qltypes
 
 from edb.common import parsing, context
 from edb.common.parsing import ListNonterm
@@ -1002,13 +1002,13 @@ class SetCardinalityStmt(Nonterm):
     def reduce_SET_SINGLE(self, *kids):
         self.val = qlast.SetSpecialField(
             name='cardinality',
-            value=qlast.Cardinality.ONE,
+            value=qltypes.Cardinality.ONE,
         )
 
     def reduce_SET_MULTI(self, *kids):
         self.val = qlast.SetSpecialField(
             name='cardinality',
-            value=qlast.Cardinality.MANY,
+            value=qltypes.Cardinality.MANY,
         )
 
 
@@ -1496,13 +1496,13 @@ class OptDefault(Nonterm):
 class OptParameterKind(Nonterm):
 
     def reduce_empty(self):
-        self.val = ft.ParameterKind.POSITIONAL
+        self.val = qltypes.ParameterKind.POSITIONAL
 
     def reduce_VARIADIC(self, kid):
-        self.val = ft.ParameterKind.VARIADIC
+        self.val = qltypes.ParameterKind.VARIADIC
 
     def reduce_NAMEDONLY(self, *kids):
-        self.val = ft.ParameterKind.NAMED_ONLY
+        self.val = qltypes.ParameterKind.NAMED_ONLY
 
 
 class FuncDeclArgName(Nonterm):
@@ -1565,7 +1565,7 @@ class CreateFunctionArgs(Nonterm):
                     context=arg.context)
             names.add(arg.name)
 
-            if arg.kind is ft.ParameterKind.VARIADIC:
+            if arg.kind is qltypes.ParameterKind.VARIADIC:
                 if variadic_arg is not None:
                     raise EdgeQLSyntaxError(
                         'more than one variadic argument',
@@ -1584,7 +1584,7 @@ class CreateFunctionArgs(Nonterm):
                         f'cannot have a default value',
                         context=arg.context)
 
-            elif arg.kind is ft.ParameterKind.NAMED_ONLY:
+            elif arg.kind is qltypes.ParameterKind.NAMED_ONLY:
                 last_named_arg = arg
 
             else:
@@ -1600,7 +1600,7 @@ class CreateFunctionArgs(Nonterm):
                         f'follows VARIADIC argument `{variadic_arg.name}`',
                         context=arg.context)
 
-            if arg.kind is ft.ParameterKind.POSITIONAL:
+            if arg.kind is qltypes.ParameterKind.POSITIONAL:
                 if arg.default is None:
                     if last_pos_default_arg is not None:
                         raise EdgeQLSyntaxError(
@@ -1685,13 +1685,13 @@ commands_block(
 
 class OptTypeQualifier(Nonterm):
     def reduce_SET_OF(self, *kids):
-        self.val = ft.TypeModifier.SET_OF
+        self.val = qltypes.TypeModifier.SET_OF
 
     def reduce_OPTIONAL(self, *kids):
-        self.val = ft.TypeModifier.OPTIONAL
+        self.val = qltypes.TypeModifier.OPTIONAL
 
     def reduce_empty(self):
-        self.val = ft.TypeModifier.SINGLETON
+        self.val = qltypes.TypeModifier.SINGLETON
 
 
 class CreateFunctionStmt(Nonterm, _ProcessFunctionBlockMixin):
@@ -1810,7 +1810,7 @@ class CreateOperatorStmt(Nonterm):
             CreateOperatorCommandsBlock
         """
         self.val = qlast.CreateOperator(
-            kind=ft.OperatorKind(kids[1].val.upper()),
+            kind=qltypes.OperatorKind(kids[1].val.upper()),
             name=kids[3].val,
             params=kids[4].val,
             returning_typemod=kids[6].val,
@@ -1903,7 +1903,7 @@ class AlterOperatorStmt(Nonterm):
            AlterOperatorCommandsBlock
         """
         self.val = qlast.AlterOperator(
-            kind=ft.OperatorKind(kids[1].val.upper()),
+            kind=qltypes.OperatorKind(kids[1].val.upper()),
             name=kids[3].val,
             params=kids[4].val,
             commands=kids[5].val
@@ -1920,7 +1920,7 @@ class DropOperatorStmt(Nonterm):
            DROP OperatorKind OPERATOR NodeName CreateFunctionArgs
         """
         self.val = qlast.DropOperator(
-            kind=ft.OperatorKind(kids[1].val.upper()),
+            kind=qltypes.OperatorKind(kids[1].val.upper()),
             name=kids[3].val,
             params=kids[4].val,
         )

@@ -21,9 +21,10 @@ from edb import errors
 
 from edb.testbase import lang as tb
 
+from edb.edgeql import qltypes
+
 from edb.schema import links as s_links
 from edb.schema import objtypes as s_objtypes
-from edb.schema import pointers as s_pointers
 
 
 class TestSchema(tb.BaseSchemaLoadTest):
@@ -140,7 +141,7 @@ _123456789_123456789_123456789 -> str
         obj = schema.get('test::Object')
         self.assertEqual(
             obj.getptr(schema, 'foo_plus_bar').get_cardinality(schema),
-            s_pointers.Cardinality.ONE)
+            qltypes.Cardinality.ONE)
 
     def test_schema_computable_cardinality_inference_02(self):
         schema = self.load_schema("""
@@ -153,7 +154,7 @@ _123456789_123456789_123456789 -> str
         obj = schema.get('test::Object')
         self.assertEqual(
             obj.getptr(schema, 'foo_plus_bar').get_cardinality(schema),
-            s_pointers.Cardinality.MANY)
+            qltypes.Cardinality.MANY)
 
     def test_schema_refs_01(self):
         schema = self.load_schema("""

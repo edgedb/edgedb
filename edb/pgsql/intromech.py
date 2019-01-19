@@ -23,8 +23,9 @@ from edb import errors
 
 from edb.common import topological
 
-from edb import schema as so
+from edb.edgeql import qltypes
 
+from edb import schema as so
 from edb.schema import abc as s_abc
 from edb.schema import attributes as s_attrs
 from edb.schema import casts as s_casts
@@ -39,7 +40,6 @@ from edb.schema import lproperties as s_props
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import operators as s_opers
-from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
 from edb.schema import types as s_types
 
@@ -575,7 +575,7 @@ class IntrospectionMech:
             required = r['required']
 
             if r['cardinality']:
-                cardinality = s_pointers.Cardinality(r['cardinality'])
+                cardinality = qltypes.Cardinality(r['cardinality'])
             else:
                 cardinality = None
 
@@ -677,7 +677,7 @@ class IntrospectionMech:
             basemap[name] = bases
 
             if r['cardinality']:
-                cardinality = s_pointers.Cardinality(r['cardinality'])
+                cardinality = qltypes.Cardinality(r['cardinality'])
             else:
                 cardinality = None
 

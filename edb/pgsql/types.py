@@ -22,6 +22,8 @@ import functools
 import typing
 import uuid
 
+from edb.edgeql import qltypes
+
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 
@@ -434,7 +436,7 @@ def _storable_in_source(ptrref: irast.PointerRef) -> bool:
 
     return (
         (
-            ptrref.out_cardinality is irast.Cardinality.ONE
+            ptrref.out_cardinality is qltypes.Cardinality.ONE
             and not irtyputils.is_object(ptrref.out_target)
         ) or
         ptrref.shortname in {
@@ -450,7 +452,7 @@ def _storable_in_source(ptrref: irast.PointerRef) -> bool:
 
 def _storable_in_pointer(ptrref: irast.PointerRef) -> bool:
     return (
-        ptrref.out_cardinality is irast.Cardinality.MANY
+        ptrref.out_cardinality is qltypes.Cardinality.MANY
         or irtyputils.is_object(ptrref.out_target)
         or ptrref.has_properties
     )

@@ -39,6 +39,7 @@ from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 from edb.edgeql import parser as qlparser
 
 from . import astutils
@@ -126,7 +127,7 @@ def fini_expression(
         cardinality = inference.infer_cardinality(
             ir, scope_tree=ctx.path_scope, env=ctx.env)
     else:
-        cardinality = irast.Cardinality.ONE
+        cardinality = qltypes.Cardinality.ONE
 
     if ctx.env.schema_view_mode:
         for view in ctx.view_nodes.values():
@@ -358,7 +359,7 @@ def _infer_pointer_cardinality(
         *,
         ptrcls: s_pointers.Pointer,
         irexpr: irast.Expr,
-        specified_card: typing.Optional[irast.Cardinality] = None,
+        specified_card: typing.Optional[qltypes.Cardinality] = None,
         source_ctx: typing.Optional[parsing.ParserContext] = None,
         ctx: context.ContextLevel) -> None:
 
@@ -366,7 +367,7 @@ def _infer_pointer_cardinality(
     if specified_card is None or inferred_card is specified_card:
         ptr_card = inferred_card
     else:
-        if specified_card is irast.Cardinality.MANY:
+        if specified_card is qltypes.Cardinality.MANY:
             # Explicit many foo := <expr>, just take it.
             ptr_card = specified_card
         else:
@@ -414,7 +415,7 @@ def _update_cardinality_callbacks(
 def pend_pointer_cardinality_inference(
         *,
         ptrcls: s_pointers.Pointer,
-        specified_card: typing.Optional[irast.Cardinality] = None,
+        specified_card: typing.Optional[qltypes.Cardinality] = None,
         from_parent: bool=False,
         source_ctx: typing.Optional[parsing.ParserContext] = None,
         ctx: context.ContextLevel) -> None:
@@ -445,7 +446,7 @@ def get_pointer_cardinality_later(
         *,
         ptrcls: s_pointers.Pointer,
         irexpr: irast.Expr,
-        specified_card: typing.Optional[irast.Cardinality] = None,
+        specified_card: typing.Optional[qltypes.Cardinality] = None,
         source_ctx: typing.Optional[parsing.ParserContext] = None,
         ctx: context.ContextLevel) -> None:
 
@@ -486,9 +487,9 @@ def ensure_ptrref_cardinality(
         # becomes available
         def _update_ref_cardinality(ptrcls, *, ctx):
             if ptrcls.singular(ctx.env.schema, ptrref.direction):
-                ptrref.dir_cardinality = irast.Cardinality.ONE
+                ptrref.dir_cardinality = qltypes.Cardinality.ONE
             else:
-                ptrref.dir_cardinality = irast.Cardinality.MANY
+                ptrref.dir_cardinality = qltypes.Cardinality.MANY
             ptrref.out_cardinality = ptrcls.get_cardinality(ctx.env.schema)
 
         once_pointer_cardinality_is_inferred(
@@ -503,7 +504,7 @@ def enforce_singleton_now(
         scope = ctx.path_scope
     cardinality = inference.infer_cardinality(
         irexpr, scope_tree=scope, env=ctx.env)
-    if cardinality != irast.Cardinality.ONE:
+    if cardinality != qltypes.Cardinality.ONE:
         raise errors.QueryError(
             'possibly more than one element returned by an expression '
             'where only singletons are allowed',

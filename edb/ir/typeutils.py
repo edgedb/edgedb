@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import typing
 
+from edb.edgeql import qltypes
+
 from edb.schema import abc as s_abc
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
@@ -225,9 +227,9 @@ def ptrref_from_ptrcls(
         # The cardinality is not yet known.
         dir_cardinality = None
     elif ptrcls.singular(schema, direction):
-        dir_cardinality = irast.Cardinality.ONE
+        dir_cardinality = qltypes.Cardinality.ONE
     else:
-        dir_cardinality = irast.Cardinality.MANY
+        dir_cardinality = qltypes.Cardinality.MANY
 
     material_ptrcls = ptrcls.material_type(schema)
     if material_ptrcls is not None and material_ptrcls is not ptrcls:

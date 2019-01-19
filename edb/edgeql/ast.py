@@ -46,17 +46,6 @@ NonesFirst = NonesOrder.First
 NonesLast = NonesOrder.Last
 
 
-class Cardinality(s_enum.StrEnum):
-    ONE = 'ONE'
-    MANY = 'MANY'
-
-    def as_ptr_qual(self):
-        if self is Cardinality.ONE:
-            return 'single'
-        else:
-            return 'multi'
-
-
 class LinkTargetDeleteAction(s_enum.StrEnum):
     RESTRICT = 'RESTRICT'
     DELETE_SOURCE = 'DELETE SOURCE'
@@ -475,7 +464,7 @@ class ShapeElement(Expr):
     offset: Expr
     limit: Expr
     compexpr: Expr
-    cardinality: Cardinality
+    cardinality: qltypes.Cardinality
     required: bool = False
 
 
@@ -685,7 +674,7 @@ class CreateConcretePointer(CreateObject):
 
     is_required: bool = False
     target: typing.Union[Expr, TypeExpr]
-    cardinality: Cardinality
+    cardinality: qltypes.Cardinality
 
 
 class CreateConcreteProperty(CreateConcretePointer):

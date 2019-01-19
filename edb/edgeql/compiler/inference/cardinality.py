@@ -22,7 +22,7 @@ import typing
 
 from edb import errors
 
-from edb.edgeql import qltypes as ql_ft
+from edb.edgeql import qltypes
 
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
@@ -30,8 +30,8 @@ from edb.schema import pointers as s_pointers
 from edb.ir import ast as irast
 
 
-ONE = irast.Cardinality.ONE
-MANY = irast.Cardinality.MANY
+ONE = qltypes.Cardinality.ONE
+MANY = qltypes.Cardinality.MANY
 
 
 def _get_set_scope(
@@ -103,7 +103,7 @@ def __infer_set(ir, scope_tree, env):
             return ONE
 
     if ir.rptr is not None:
-        if ir.rptr.ptrref.dir_cardinality is irast.Cardinality.ONE:
+        if ir.rptr.ptrref.dir_cardinality is qltypes.Cardinality.ONE:
             new_scope = _get_set_scope(ir, scope_tree)
             return infer_cardinality(ir.rptr.source, new_scope, env)
         else:
@@ -121,8 +121,8 @@ def __infer_func_call(ir, scope_tree, env):
     # the cardinality of the function call depends on the cardinality
     # of non-SET_OF arguments AND the cardinality of the function
     # return value
-    SET_OF = ql_ft.TypeModifier.SET_OF
-    if ir.typemod is ql_ft.TypeModifier.SET_OF:
+    SET_OF = qltypes.TypeModifier.SET_OF
+    if ir.typemod is qltypes.TypeModifier.SET_OF:
         return MANY
     else:
         # assume that the call is valid and the signature has been matched
@@ -251,7 +251,7 @@ def _extract_filters(
 def _analyse_filter_clause(
         result_set: irast.Set, filter_clause: irast.Set,
         scope_tree: typing.Set[irast.PathId],
-        env) -> irast.Cardinality:
+        env) -> qltypes.Cardinality:
 
     schema = env.schema
     filtered_ptrs = _extract_filters(result_set, filter_clause,
@@ -277,7 +277,7 @@ def _analyse_filter_clause(
 def _infer_stmt_cardinality(
         result_set: irast.Set, filter_clause: typing.Optional[irast.Set],
         scope_tree: typing.Set[irast.PathId],
-        env) -> irast.Cardinality:
+        env) -> qltypes.Cardinality:
     result_card = infer_cardinality(result_set, scope_tree, env)
     if result_card == ONE or filter_clause is None:
         return result_card

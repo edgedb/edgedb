@@ -24,6 +24,7 @@ import typing
 from edb.common import parsing, context
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 
 from edb.errors import EdgeQLSyntaxError
 
@@ -379,7 +380,7 @@ class ShapePointer(Nonterm):
 class PtrQualsSpec(typing.NamedTuple):
 
     required: typing.Optional[bool] = None
-    cardinality: typing.Optional[qlast.Cardinality] = None
+    cardinality: typing.Optional[qltypes.Cardinality] = None
 
 
 class PtrQuals(Nonterm):
@@ -388,18 +389,18 @@ class PtrQuals(Nonterm):
         self.val = PtrQualsSpec(required=True)
 
     def reduce_SINGLE(self, *kids):
-        self.val = PtrQualsSpec(cardinality=qlast.Cardinality.ONE)
+        self.val = PtrQualsSpec(cardinality=qltypes.Cardinality.ONE)
 
     def reduce_MULTI(self, *kids):
-        self.val = PtrQualsSpec(cardinality=qlast.Cardinality.MANY)
+        self.val = PtrQualsSpec(cardinality=qltypes.Cardinality.MANY)
 
     def reduce_REQUIRED_SINGLE(self, *kids):
         self.val = PtrQualsSpec(
-            required=True, cardinality=qlast.Cardinality.ONE)
+            required=True, cardinality=qltypes.Cardinality.ONE)
 
     def reduce_REQUIRED_MULTI(self, *kids):
         self.val = PtrQualsSpec(
-            required=True, cardinality=qlast.Cardinality.MANY)
+            required=True, cardinality=qltypes.Cardinality.MANY)
 
 
 class OptPtrQuals(Nonterm):
@@ -425,24 +426,24 @@ class ComputableShapePointer(Nonterm):
     def reduce_MULTI_ShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[1].val
         self.val.compexpr = kids[3].val
-        self.val.cardinality = qlast.Cardinality.MANY
+        self.val.cardinality = qltypes.Cardinality.MANY
 
     def reduce_SINGLE_ShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[1].val
         self.val.compexpr = kids[3].val
-        self.val.cardinality = qlast.Cardinality.ONE
+        self.val.cardinality = qltypes.Cardinality.ONE
 
     def reduce_REQUIRED_MULTI_ShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[2].val
         self.val.compexpr = kids[4].val
         self.val.required = True
-        self.val.cardinality = qlast.Cardinality.MANY
+        self.val.cardinality = qltypes.Cardinality.MANY
 
     def reduce_REQUIRED_SINGLE_ShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[2].val
         self.val.compexpr = kids[4].val
         self.val.required = True
-        self.val.cardinality = qlast.Cardinality.ONE
+        self.val.cardinality = qltypes.Cardinality.ONE
 
     def reduce_ShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[0].val
