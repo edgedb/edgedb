@@ -81,3 +81,9 @@ Examples
     SET ALIAS foo AS MODULE std, MODULE bar;
 
     SET ALIAS foo AS MODULE std, ALIAS bar AS MODULE sys;
+
+
+See Also
+--------
+
+:ref:`RESET <ref_eql_statements_session_reset>` command.

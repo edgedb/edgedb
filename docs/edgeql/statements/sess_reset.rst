@@ -100,3 +100,9 @@ Examples
     RESET MODULE, ALIAS foo;
 
     RESET ALIAS *;
+
+
+See Also
+--------
+
+:ref:`SET <ref_eql_statements_session_set>` command.
