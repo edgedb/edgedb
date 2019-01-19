@@ -500,6 +500,17 @@ cdef class EdgeConnection:
         self._last_anon_compiled = compiled
         return compiled
 
+    cdef int32_t compute_parse_flags(self, compiled) except -1:
+        cdef:
+            int32_t flags = 0
+
+        if compiled.has_result:
+            flags |= EdgeParseFlags.PARSE_HAS_RESULT
+        if compiled.singleton_result:
+            flags |= EdgeParseFlags.PARSE_SINGLETON_RESULT
+
+        return flags
+
     async def parse(self):
         self._last_anon_compiled = None
 
@@ -515,6 +526,7 @@ cdef class EdgeConnection:
         compiled = await self._parse(eql)
 
         buf = WriteBuffer.new_message(b'1')  # ParseComplete
+        buf.write_int32(self.compute_parse_flags(compiled))
         buf.write_bytes(compiled.in_type_id)
         buf.write_bytes(compiled.out_type_id)
         buf.end_message()
@@ -528,6 +540,8 @@ cdef class EdgeConnection:
             WriteBuffer msg
 
         msg = WriteBuffer.new_message(b'T')
+
+        msg.write_int32(self.compute_parse_flags(compiled))
 
         in_data = compiled.in_type_data
         msg.write_bytes(compiled.in_type_id)
@@ -658,6 +672,7 @@ cdef class EdgeConnection:
         cdef:
             WriteBuffer bound_args_buf
             bint process_sync
+            int32_t parse_flags
             bytes in_tid
             bytes out_tid
             bytes bound_args
@@ -665,6 +680,7 @@ cdef class EdgeConnection:
         json_mode = False
 
         query = self.buffer.read_null_str()
+        parse_flags = self.buffer.read_int32()
         in_tid = self.buffer.read_bytes(16)
         out_tid = self.buffer.read_bytes(16)
         bind_args = self.buffer.consume_message()
@@ -673,23 +689,24 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError('empty query')
 
         compiled = self.dbview.lookup_compiled_query(query, json_mode)
-        if (compiled is None or
-                compiled.in_type_id != in_tid or
-                compiled.out_type_id != out_tid):
-
+        if compiled is None:
             if self.debug:
                 self.debug_print('OPPORTUNISTIC EXECUTE /REPARSE', query)
 
-            # Either the query is no longer cached or the client has
-            # outdated information about type specs.
-
-            self._last_anon_compiled = None
             compiled = await self._parse(query)
 
-            if (compiled.in_type_id != in_tid or
-                    compiled.out_type_id != out_tid):
-                self.write(self.make_describe_response(compiled))
-                return
+        expected_singleton_result = bool(
+            parse_flags & EdgeParseFlags.PARSE_SINGLETON_RESULT)
+
+        if (compiled.in_type_id != in_tid or
+                compiled.out_type_id != out_tid or
+                bool(compiled.singleton_result) != expected_singleton_result):
+            # The client has outdated information about type specs.
+            if self.debug:
+                self.debug_print('OPPORTUNISTIC EXECUTE /MISMATCH', query)
+
+            self.write(self.make_describe_response(compiled))
+            return
 
         if self.debug:
             self.debug_print('OPPORTUNISTIC EXECUTE', query)

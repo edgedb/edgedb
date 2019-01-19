@@ -38,6 +38,11 @@ cdef enum EdgeConnectionStatus:
     EDGECON_BAD = 3
 
 
+cdef enum EdgeParseFlags:
+    PARSE_HAS_RESULT = 1 << 0
+    PARSE_SINGLETON_RESULT = 1 << 1
+
+
 @cython.final
 cdef class EdgeConnection:
 
@@ -65,6 +70,8 @@ cdef class EdgeConnection:
         WriteBuffer _write_buf
 
         bint debug
+
+    cdef int32_t compute_parse_flags(self, compiled) except -1
 
     cdef write(self, WriteBuffer buf)
     cdef flush(self)

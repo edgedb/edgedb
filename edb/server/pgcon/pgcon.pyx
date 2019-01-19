@@ -174,7 +174,7 @@ cdef class PGProto:
             bytes stmt_name
             bint store_stmt = 0
 
-            bint ignore_data = query.ignore_out_data
+            bint has_result = query.has_result
 
             uint64_t msgs_num = len(query.sql)
             uint64_t msgs_parsed = 0
@@ -286,16 +286,19 @@ cdef class PGProto:
                 try:
                     if mtype == b'D' and execute:
                         # DataRow
-                        if ignore_data:
-                            self.buffer.discard_message()
-                        else:
-                            if buf is None:
-                                buf = WriteBuffer.new()
+                        if not has_result:
+                            raise errors.InternalServerError(
+                                f'query that was inferred to have '
+                                f'no data returned received a DATA package; '
+                                f'query: {query.sql}')
 
-                            self.buffer.redirect_messages(buf, b'D')
-                            if buf.len() >= DATA_BUFFER_SIZE:
-                                edgecon.write(buf)
-                                buf = None
+                        if buf is None:
+                            buf = WriteBuffer.new()
+
+                        self.buffer.redirect_messages(buf, b'D')
+                        if buf.len() >= DATA_BUFFER_SIZE:
+                            edgecon.write(buf)
+                            buf = None
 
                     elif mtype == b'C' and execute:  ## result
                         # CommandComplete

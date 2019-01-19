@@ -52,6 +52,8 @@ class Query(BaseQuery):
     sql: typing.Tuple[bytes, ...]
     sql_hash: bytes
 
+    singleton_result: bool
+
     out_type_data: bytes
     out_type_id: bytes
     in_type_data: bytes
@@ -127,7 +129,15 @@ class QueryUnit:
     # True if it is safe to cache this unit.
     cacheable: bool = False
 
-    ignore_out_data: bool = True
+    # Set only for queries compiled for "fetch" (single query).
+    # True when the result set is statically inferred to be
+    # a singleton set.
+    singleton_result: typing.Optional[bool] = None
+
+    # Only some EdgeQL commands have a meaningful result set
+    # (SELECT, UPDATE, etc); whereas commands like SET ALIAS don't.
+    has_result: bool = False
+
     out_type_data: bytes = sertypes.NULL_TYPE_DESC
     out_type_id: bytes = sertypes.NULL_TYPE_ID
     in_type_data: bytes = sertypes.EMPTY_TUPLE_DESC

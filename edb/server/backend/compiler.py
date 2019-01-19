@@ -40,6 +40,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as ql_compiler
 from edb.edgeql import codegen as ql_codegen
 from edb.edgeql import quote as ql_quote
+from edb.edgeql import qltypes
 from edb.edgeql import parser as ql_parser
 
 from edb.schema import database as s_db
@@ -279,6 +280,7 @@ class Compiler:
             return dbstate.Query(
                 sql=(sql_bytes,),
                 sql_hash=sql_hash,
+                singleton_result=ir.cardinality is qltypes.Cardinality.ONE,
                 in_type_id=in_type_id.bytes,
                 in_type_data=in_type_data,
                 out_type_id=out_type_id.bytes,
@@ -629,7 +631,13 @@ class Compiler:
                  ctx: CompileContext,
                  eql: bytes) -> typing.List[dbstate.QueryUnit]:
 
+        # When True it means that we're compiling for "connection.fetch()".
+        # That means that the returned QueryUnit has to have the in/out codec
+        # information, correctly inferred "singleton_result" field etc.
+        single_stmt_mode = ctx.stmt_mode is CompileStatementMode.SINGLE
+
         eql = eql.decode()
+
         if ctx.graphql_mode:
             assert ctx.stmt_mode is CompileStatementMode.ALL
             eql = graphql.translate(
@@ -640,10 +648,13 @@ class Compiler:
         statements = edgeql.parse_block(eql)
         if ctx.stmt_mode is CompileStatementMode.SKIP_FIRST:
             statements = statements[1:]
-            if not statements:
-                return []
-        elif (ctx.stmt_mode is CompileStatementMode.SINGLE and
-                len(statements) > 1):  # pragma: no cover
+            if not statements:  # pragma: no cover
+                # Shouldn't ever happen as the server tracks the number
+                # of statements (via the "try_compile_rollback()" method)
+                # before using SKIP_FIRST.
+                raise errors.ProtocolError(
+                    f'no statements to compile in SKIP_FIRST mode')
+        elif single_stmt_mode and len(statements) > 1:
             raise errors.ProtocolError(
                 f'expected one statement, got {len(statements)}')
 
@@ -664,8 +675,7 @@ class Compiler:
                 unit = dbstate.QueryUnit(dbver=ctx.state.dbver, sql=())
 
             if isinstance(comp, dbstate.Query):
-                if (ctx.stmt_mode is CompileStatementMode.SINGLE or
-                        ctx.legacy_mode):
+                if single_stmt_mode or ctx.legacy_mode:
                     unit.sql = comp.sql
                     unit.sql_hash = comp.sql_hash
 
@@ -675,20 +685,29 @@ class Compiler:
                     unit.in_type_id = comp.in_type_id
 
                     unit.cacheable = True
-                    unit.ignore_out_data = False
+                    unit.has_result = True
+
+                    if single_stmt_mode:
+                        unit.singleton_result = comp.singleton_result
                 else:
                     unit.sql += comp.sql
 
             elif isinstance(comp, dbstate.SimpleQuery):
+                assert not single_stmt_mode
                 unit.sql += comp.sql
 
             elif isinstance(comp, dbstate.DDLQuery):
                 unit.sql += comp.sql
                 unit.has_ddl = True
+                if single_stmt_mode:
+                    unit.singleton_result = True
 
             elif isinstance(comp, dbstate.TxControlQuery):
                 unit.sql += comp.sql
                 unit.cacheable = comp.cacheable
+
+                if single_stmt_mode:
+                    unit.singleton_result = True
 
                 if comp.config is not None:
                     unit.config = comp.config
@@ -711,6 +730,9 @@ class Compiler:
             elif isinstance(comp, dbstate.SessionStateQuery):
                 unit.sql += comp.sql
 
+                if single_stmt_mode:
+                    unit.singleton_result = True
+
                 if ctx.state.current_tx().is_implicit():
                     unit.config = ctx.state.current_tx().get_config()
                     unit.modaliases = ctx.state.current_tx().get_modaliases()
@@ -732,10 +754,10 @@ class Compiler:
             if not unit.sql:
                 raise errors.InternalServerError(
                     f'QueryUnit {unit!r} has no SQL commands in it')
-            elif len(unit.sql) > 1 and not unit.ignore_out_data:
+            elif len(unit.sql) > 1 and unit.has_result:
                 raise errors.InternalServerError(
                     f'QueryUnit {unit!r} has multiple SQL commands but '
-                    f'the "ignore_out_data" flag is not set')
+                    f'the "has_result" flag is set')
 
         return units
 
