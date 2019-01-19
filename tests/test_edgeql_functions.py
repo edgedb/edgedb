@@ -1441,14 +1441,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''SELECT <str>123.456e-20 = to_str(123.456e-20);''',
             [True],
-            # an unambiguous way to define a decimal is by casting
-            # from a string
         )
 
         await self.assert_query_result(
             r'''
             SELECT <str><decimal>'123456789012345678901234567890.1234567890' =
-                to_str(<decimal>'123456789012345678901234567890.1234567890');
+                to_str(123456789012345678901234567890.1234567890n);
             ''',
             [True],
         )
