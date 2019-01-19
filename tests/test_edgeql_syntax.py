@@ -2744,7 +2744,7 @@ aa';
             EXTENDING std::constraint
         {
             SET errmessage := '{subject} must be one of: {p}.';
-            SET expr := array_contains($p, __subject__);
+            SET expr := contains($p, __subject__);
         };
         """
 
@@ -2752,7 +2752,7 @@ aa';
         """
         CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC p: anytype) {
             SET errmessage := '{subject} must be one of: {$p}.';
-            SET expr := array_contains($p, __subject__);
+            SET expr := contains($p, __subject__);
         };
         """
 
@@ -2760,7 +2760,7 @@ aa';
         """
         CREATE ABSTRACT CONSTRAINT std::enum {
             SET errmessage := '{subject} must be one of: {param}.';
-            SET expr := array_contains($param, __subject__);
+            SET expr := contains($param, __subject__);
         };
         """
 
@@ -2768,14 +2768,14 @@ aa';
         """
         CREATE ABSTRACT CONSTRAINT std::enum() {
             SET errmessage := '{subject} must be one of: {param}.';
-            SET expr := array_contains($param, __subject__);
+            SET expr := contains($param, __subject__);
         };
 
 % OK %
 
         CREATE ABSTRACT CONSTRAINT std::enum {
             SET errmessage := '{subject} must be one of: {param}.';
-            SET expr := array_contains($param, __subject__);
+            SET expr := contains($param, __subject__);
         };
         """
 

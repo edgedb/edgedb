@@ -36,19 +36,6 @@ std::array_unpack(array: array<anytype>) -> SET OF anytype
 
 
 CREATE FUNCTION
-std::array_contains(array: array<anytype>, element: anytype) -> std::bool
-{
-    FROM SQL $$
-    SELECT
-        CASE
-            WHEN "element" IS NULL THEN NULL
-            ELSE array_position("array", "element") IS NOT NULL
-        END;
-    $$;
-};
-
-
-CREATE FUNCTION
 std::array_enumerate(
     array: array<anytype>
 ) -> SET OF tuple<element:anytype, index:std::int64>

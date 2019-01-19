@@ -111,4 +111,4 @@ type Publication:
 
 
 abstract constraint my_enum(enum: array<anytype>):
-    expr := array_contains($enum, __subject__)
+    expr := contains($enum, __subject__)

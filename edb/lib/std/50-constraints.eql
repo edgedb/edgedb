@@ -54,7 +54,7 @@ CREATE ABSTRACT CONSTRAINT
 std::enum(VARIADIC vals: anytype) EXTENDING std::constraint
 {
     SET errmessage := '{__subject__} must be one of: {vals}.';
-    SET expr := array_contains(vals, __subject__);
+    SET expr := contains(vals, __subject__);
 };
 
 
