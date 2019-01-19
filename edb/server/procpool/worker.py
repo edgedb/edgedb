@@ -27,7 +27,9 @@ import traceback
 
 import uvloop
 
+from edb.common import debug
 from edb.common import devmode
+from edb.common import markup
 
 from . import amsg
 
@@ -64,6 +66,8 @@ async def worker(cls, cls_args, sockname):
                     res = await meth(*args)
                     data = (0, res)
                 except Exception as ex:
+                    if debug.flags.server:
+                        markup.dump(ex)
                     ex_str = str(ex)
                     data = (1, ex, traceback.format_exc())
 
