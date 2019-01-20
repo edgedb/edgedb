@@ -1228,3 +1228,21 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                         SELECT test::ScalarTest FILTER .p_decimal = 1001
                     );
                 ''')
+
+    async def test_edgeql_casts_custom_scalar_01(self):
+        await self.assert_query_result('''
+            SELECT <test::custom_str_t>'ABC'
+        ''', [
+            ['ABC']
+        ])
+
+        self.assertEqual(
+            await self.con.fetch(
+                "SELECT <test::custom_str_t>'ABC'"),
+            edgedb.Set(['ABC']))
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                'invalid custom_str_t'):
+            await self.con.fetch(
+                "SELECT <test::custom_str_t>'123'")

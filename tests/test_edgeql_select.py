@@ -1711,9 +1711,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             },
         ])
 
-    @test.xfail('''
-        This test works for 'name', but not for 'number'.
-    ''')
     async def test_edgeql_select_setops_19(self):
         await self.assert_query_result(r"""
             # UNION between Issue and empty set Issue should be

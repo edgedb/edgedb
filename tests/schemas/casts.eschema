@@ -17,6 +17,10 @@
 #
 
 
+scalar type custom_str_t extending str:
+    constraint regexp('[A-Z]+')
+
+
 type Test:
     property p_bool -> bool
     property p_str -> str

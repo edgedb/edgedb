@@ -204,9 +204,13 @@ def pg_type_from_ir_typeref(
         else:
             pg_type = base_type_name_map.get(material.id)
             if pg_type is None:
-                raise ValueError(f'could not determine Postgres type for '
-                                 f'{material.id!r}')
-            return (pg_type,)
+                # User-defined scalar type
+                pg_type = common.get_scalar_backend_name(
+                    material.id, material.module_id, catenate=False)
+            else:
+                pg_type = (pg_type,)
+
+            return pg_type
 
 
 class _PointerStorageInfo:
