@@ -264,6 +264,11 @@ def _cast_tuple(
         srcctx: parsing.ParserContext,
         ctx: context.ContextLevel) -> irast.Base:
 
+    # Make sure the source tuple expression is pinned in the scope,
+    # so that we don't generate a cross-product of it by evaluating
+    # the tuple indirections.
+    pathctx.register_set_in_scope(ir_set, ctx=ctx)
+
     direct_cast = _find_cast(orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
     if direct_cast is not None:

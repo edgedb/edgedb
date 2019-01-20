@@ -468,19 +468,17 @@ class TestServerProto(tb.QueryTestCase):
             edgedb.Set(('{"name": "std::bool"}',))
         )
 
-    @test.xfail('Looks like the description of output type is wrong')
     async def test_server_proto_json_cast_02(self):
         self.assertEqual(
             await self.con.fetch(
                 'select <json>{(1, 2), (3, 4)}'),
             ['[1, 2]', '[3, 4]'])
 
-    @test.xfail('Somehow this produces a cross-product of JSON arrays')
     async def test_server_proto_json_cast_03(self):
         self.assertEqual(
             await self.con.fetch_json(
                 'select <json>{(1, 2), (3, 4)}'),
-            '["[1, 2]", "[3, 4]"]')
+            '[[1, 2], [3, 4]]')
 
     async def test_server_proto_wait_cancel_01(self):
         # Test that client protocol handles waits interrupted
