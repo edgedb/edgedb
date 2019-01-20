@@ -447,6 +447,17 @@ class TestServerProto(tb.QueryTestCase):
                 ['aaa'], ['bbb']),
             edgedb.Set(('aaabbb',)))
 
+    async def test_server_proto_args_03(self):
+        with self.assertRaisesRegex(edgedb.QueryError, r'missing \$0'):
+            await self.con.fetch('select <int64>$1;')
+
+        with self.assertRaisesRegex(edgedb.QueryError, r'missing \$1'):
+            await self.con.fetch('select <int64>$0 + <int64>$2;')
+
+        with self.assertRaisesRegex(edgedb.QueryError,
+                                    'combine positional and named parameters'):
+            await self.con.fetch('select <int64>$0 + <int64>$bar;')
+
     async def test_server_proto_json_cast_01(self):
         self.assertEqual(
             await self.con.fetch('''

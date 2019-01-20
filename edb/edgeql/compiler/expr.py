@@ -473,7 +473,8 @@ def compile_TypeCast(
                 if first_key.isdecimal():
                     if not param_name.isdecimal():
                         raise errors.QueryError(
-                            f'expected a positional argument',
+                            f'cannot combine positional and named parameters '
+                            f'in the same query',
                             context=expr.expr.context)
                 else:
                     if param_name.isdecimal():
