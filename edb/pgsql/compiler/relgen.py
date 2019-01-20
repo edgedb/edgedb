@@ -1299,6 +1299,10 @@ def process_set_as_type_cast(
                     stmt, inner_set.path_id, serialized,
                     force=True, env=subctx.env)
 
+                pathctx.put_path_serialized_var(
+                    stmt, inner_set.path_id, serialized,
+                    force=True, env=subctx.env)
+
             subctx.env.output_format = orig_output_format
         else:
             set_expr = dispatch.compile(ir_set.expr, ctx=ctx)
