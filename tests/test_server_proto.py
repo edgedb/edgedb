@@ -51,6 +51,10 @@ class TestServerProto(tb.QueryTestCase):
                                         'Unexpected end of line'):
                 await self.con.fetch('select (')
 
+            with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
+                                        'Unexpected end of line'):
+                await self.con.fetch_json('select (')
+
             for _ in range(10):
                 self.assertEqual(
                     await self.con.fetch('select 1;'),
@@ -145,6 +149,19 @@ class TestServerProto(tb.QueryTestCase):
         ''')
         self.assertIsNone(r)
 
+        r = await self.con.fetch_json('''
+            CREATE TYPE test::server_fetch_single_command_01 {
+                CREATE REQUIRED PROPERTY server_fetch_single_command_01 ->
+                    std::str;
+            };
+        ''')
+        self.assertEqual(r, '[]')
+
+        r = await self.con.fetch_json('''
+            DROP TYPE test::server_fetch_single_command_01;
+        ''')
+        self.assertEqual(r, '[]')
+
     async def test_server_proto_fetch_single_command_02(self):
         r = await self.con.fetch('''
             SET MODULE default;
@@ -168,6 +185,17 @@ class TestServerProto(tb.QueryTestCase):
         ''')
         self.assertIsNone(r)
 
+        r = await self.con.fetch_json('''
+            SET MODULE default;
+        ''')
+        self.assertEqual(r, '[]')
+
+        r = await self.con.fetch_json('''
+            SET ALIAS foo AS MODULE default,
+                ALIAS bar AS MODULE std;
+        ''')
+        self.assertEqual(r, '[]')
+
     async def test_server_proto_fetch_single_command_03(self):
         qs = [
             'START TRANSACTION',
@@ -184,9 +212,35 @@ class TestServerProto(tb.QueryTestCase):
                 r = await self.con.fetch(q)
                 self.assertEqual(r, [])
 
+            for q in qs:
+                r = await self.con.fetch_json(q)
+                self.assertEqual(r, '[]')
+
         for q in qs:
             r = await self.con.fetchval(q)
             self.assertIsNone(r)
+
+    async def test_server_proto_fetch_single_command_04(self):
+        with self.assertRaisesRegex(edgedb.ProtocolError,
+                                    'expected one statement'):
+            await self.con.fetch('''
+                SELECT 1;
+                SET MODULE blah;
+            ''')
+
+        with self.assertRaisesRegex(edgedb.ProtocolError,
+                                    'expected one statement'):
+            await self.con.fetchval('''
+                SELECT 1;
+                SET MODULE blah;
+            ''')
+
+        with self.assertRaisesRegex(edgedb.ProtocolError,
+                                    'expected one statement'):
+            await self.con.fetch_json('''
+                SELECT 1;
+                SET MODULE blah;
+            ''')
 
     async def test_server_proto_set_reset_alias_01(self):
         await self.con.execute('''
@@ -341,6 +395,44 @@ class TestServerProto(tb.QueryTestCase):
                 r'select <bytes>$0', b'he\x00llo'),
             edgedb.Set([b'he\x00llo']))
 
+    async def test_server_proto_basic_datatypes_03(self):
+        for _ in range(10):
+            self.assertEqual(
+                await self.con.fetch_json(
+                    'select ()'),
+                '[[]]')
+
+            self.assertEqual(
+                await self.con.fetch_json(
+                    'select (1,)'),
+                '[[1]]')
+
+            self.assertEqual(
+                await self.con.fetch_json(
+                    'select <array<int64>>[]'),
+                '[[]]')
+
+            self.assertEqual(
+                await self.con.fetch_json(
+                    'select ["a", "b"]'),
+                '[["a", "b"]]')
+
+            self.assertEqual(
+                await self.con.fetch_json('''
+                    SELECT {(a := 1 + 1 + 40, world := ("hello", 32)),
+                            (a:=1, world := ("yo", 10))};
+                '''),
+                '[{"a": 42, "world": ["hello", 32]}, '
+                '{"a": 1, "world": ["yo", 10]}]')
+
+            self.assertEqual(
+                await self.con.fetch_json('SELECT {1, 2}'),
+                '[1, 2]')
+
+            self.assertEqual(
+                await self.con.fetch_json('SELECT <int64>{}'),
+                '[]')
+
     async def test_server_proto_args_01(self):
         self.assertEqual(
             await self.con.fetch(
@@ -364,6 +456,20 @@ class TestServerProto(tb.QueryTestCase):
             '''),
             edgedb.Set(('{"name": "std::bool"}',))
         )
+
+    @test.xfail('Looks like the description of output type is wrong')
+    async def test_server_proto_json_cast_02(self):
+        self.assertEqual(
+            await self.con.fetch(
+                'select <json>{(1, 2), (3, 4)}'),
+            ['[1, 2]', '[3, 4]'])
+
+    @test.xfail('Somehow this produces a cross-product of JSON arrays')
+    async def test_server_proto_json_cast_03(self):
+        self.assertEqual(
+            await self.con.fetch_json(
+                'select <json>{(1, 2), (3, 4)}'),
+            '["[1, 2]", "[3, 4]"]')
 
     async def test_server_proto_wait_cancel_01(self):
         # Test that client protocol handles waits interrupted

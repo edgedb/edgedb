@@ -453,9 +453,7 @@ cdef class EdgeConnection:
         self.write(packet)
         self.flush()
 
-    async def _parse(self, eql):
-        json_mode = False
-
+    async def _parse(self, bytes eql, bint json_mode):
         if self.debug:
             self.debug_print('PARSE', eql)
 
@@ -511,8 +509,25 @@ cdef class EdgeConnection:
 
         return flags
 
+    cdef is_json_mode(self, bytes mode):
+        if mode == b'j':
+            # json
+            return True
+        elif mode == b'b':
+            # binary
+            return False
+        else:
+            raise errors.BinaryProtocolError(
+                f'unknown output mode "{repr(mode)[2:-1]}"')
+
     async def parse(self):
+        cdef:
+            bint json_mode
+            bytes eql
+
         self._last_anon_compiled = None
+
+        json_mode = self.is_json_mode(self.buffer.read_byte())
 
         stmt_name = self.buffer.read_utf8()
         if stmt_name:
@@ -523,7 +538,7 @@ cdef class EdgeConnection:
         if not eql:
             raise errors.BinaryProtocolError('empty query')
 
-        compiled = await self._parse(eql)
+        compiled = await self._parse(eql, json_mode)
 
         buf = WriteBuffer.new_message(b'1')  # ParseComplete
         buf.write_int32(self.compute_parse_flags(compiled))
@@ -677,8 +692,7 @@ cdef class EdgeConnection:
             bytes out_tid
             bytes bound_args
 
-        json_mode = False
-
+        json_mode = self.is_json_mode(self.buffer.read_byte())
         query = self.buffer.read_null_str()
         parse_flags = self.buffer.read_int32()
         in_tid = self.buffer.read_bytes(16)
@@ -693,7 +707,7 @@ cdef class EdgeConnection:
             if self.debug:
                 self.debug_print('OPPORTUNISTIC EXECUTE /REPARSE', query)
 
-            compiled = await self._parse(query)
+            compiled = await self._parse(query, json_mode)
 
         expected_singleton_result = bool(
             parse_flags & EdgeParseFlags.PARSE_SINGLETON_RESULT)

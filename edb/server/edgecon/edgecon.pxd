@@ -72,6 +72,7 @@ cdef class EdgeConnection:
         bint debug
 
     cdef int32_t compute_parse_flags(self, compiled) except -1
+    cdef is_json_mode(self, bytes mode)
 
     cdef write(self, WriteBuffer buf)
     cdef flush(self)
