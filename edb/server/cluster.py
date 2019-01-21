@@ -197,7 +197,7 @@ class Cluster:
         connect_args = self.get_connect_args().copy()
         connect_args.update(kwargs)
 
-        return await edgedb.connect(**connect_args)
+        return await edgedb.async_connect(**connect_args)
 
     def init(self, *, server_settings={}):
         cluster_status = self.get_status()
@@ -271,7 +271,7 @@ class Cluster:
     def _test_connection(self, timeout=60):
         async def test():
             try:
-                conn = await edgedb.connect(
+                conn = await edgedb.async_connect(
                     host='localhost',
                     port=self._effective_port,
                     database='edgedb',

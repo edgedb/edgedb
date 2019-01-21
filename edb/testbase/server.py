@@ -204,7 +204,7 @@ class ConnectedTestCaseMixin:
     def connect(cls, loop, cluster, database=None):
         conargs = cluster.get_connect_args().copy()
         conargs.update(dict(user='edgedb', database=database))
-        return loop.run_until_complete(edgedb.connect(**conargs))
+        return loop.run_until_complete(edgedb.async_connect(**conargs))
 
     def _run_and_rollback(self):
         return RollbackChanges(self)
@@ -650,7 +650,7 @@ def setup_test_cases(cases, conn, num_jobs):
 
 
 async def _setup_database(dbname, setup_script, conn_args):
-    admin_conn = await edgedb.connect(
+    admin_conn = await edgedb.async_connect(
         database=edgedb_defines.EDGEDB_SUPERUSER_DB, **conn_args)
 
     try:
@@ -658,7 +658,7 @@ async def _setup_database(dbname, setup_script, conn_args):
     finally:
         await admin_conn.close()
 
-    dbconn = await edgedb.connect(database=dbname, **conn_args)
+    dbconn = await edgedb.async_connect(database=dbname, **conn_args)
     try:
         await dbconn.execute(setup_script)
     finally:

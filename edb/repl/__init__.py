@@ -256,7 +256,7 @@ class Cli:
 
     async def connect(self, args):
         try:
-            con = await edgedb.connect(**args)
+            con = await edgedb.async_connect(**args)
         except Exception:
             return None
         else:
@@ -383,7 +383,7 @@ class Cli:
 
 
 async def execute(conn_args, data):
-    con = await edgedb.connect(**conn_args)
+    con = await edgedb.async_connect(**conn_args)
     result = await con._legacy_execute(data)
 
     for entry in result:
