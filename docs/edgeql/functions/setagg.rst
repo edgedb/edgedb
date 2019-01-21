@@ -77,6 +77,33 @@ Aggregates
         db> SELECT any({1, 2, 3, 4} < 4);
         {True}
 
+.. eql:function:: std::enumerate(values: SET OF anytype) -> \
+                  SET OF tuple<int64, anytype>
+
+    :index: enumerate
+
+    Return a set of tuples of the form ``(index, element)``.
+
+    The ``enumerate()`` function takes any set and produces a set of
+    tuples containing the zero-based index number and the value for each
+    element.
+
+    .. note::
+
+        The ordering of the returned set is not guaranteed, however
+        the assigned indexes are guaranteed to be in order of the
+        original set.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT enumerate({2, 3, 5});
+        {(1, 3), (0, 2), (2, 5)}
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT enumerate(User.name);
+        {(0, 'Alice'), (1, 'Bob'), (2, 'Dave')}
+
 .. eql:function:: std::min(values: SET OF anytype) -> OPTIONAL anytype
 
     :index: aggregate

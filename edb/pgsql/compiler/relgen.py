@@ -250,8 +250,15 @@ def _get_set_rvar(
         rvars = process_set_as_tuple_indirection(ir_set, stmt, ctx=ctx)
 
     elif isinstance(ir_set.expr, irast.FunctionCall):
-        if any(pm is qltypes.TypeModifier.SET_OF
-               for pm in ir_set.expr.params_typemods):
+        if ir_set.expr.func_shortname == 'std::enumerate':
+            if isinstance(irutils.unwrap_set(ir_set.expr.args[0]).expr,
+                          irast.FunctionCall):
+                # Enumeration of a SET-returning function
+                rvars = process_set_as_func_enumerate(ir_set, stmt, ctx=ctx)
+            else:
+                rvars = process_set_as_enumerate(ir_set, stmt, ctx=ctx)
+        elif any(pm is qltypes.TypeModifier.SET_OF
+                 for pm in ir_set.expr.params_typemods):
             # Call to an aggregate function.
             rvars = process_set_as_agg_expr(ir_set, stmt, ctx=ctx)
         else:
@@ -1362,16 +1369,77 @@ def process_set_as_expr(
     return new_simple_set_rvar(ir_set, rvar)
 
 
+def process_set_as_enumerate(
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> None:
+
+    with ctx.subrel() as newctx:
+        newctx.expr_exposed = False
+
+        expr = ir_set.expr
+        ir_arg = ir_set.expr.args[0]
+
+        arg_ref = dispatch.compile(ir_arg, ctx=newctx)
+        arg_val = output.output_as_value(arg_ref, env=newctx.env)
+        rtype = expr.typeref
+        named_tuple = any(st.element_name for st in rtype.subtypes)
+
+        num_expr = pgast.Expr(
+            kind=pgast.ExprKind.OP,
+            name='-',
+            lexpr=pgast.FuncCall(
+                name=('row_number',),
+                args=[],
+                over=pgast.WindowDef()
+            ),
+            rexpr=pgast.NumericConstant(val='1'),
+            nullable=False,
+        )
+
+        set_expr = pgast.TupleVar(
+            elements=[
+                pgast.TupleElement(
+                    path_id=expr.tuple_path_ids[0],
+                    name=rtype.subtypes[0].element_name or '0',
+                    val=num_expr,
+                ),
+                pgast.TupleElement(
+                    path_id=expr.tuple_path_ids[1],
+                    name=rtype.subtypes[1].element_name or '1',
+                    val=arg_val,
+                ),
+            ],
+            named=named_tuple
+        )
+
+        for element in set_expr.elements:
+            pathctx.put_path_value_var(
+                newctx.rel, element.path_id, element.val, env=newctx.env)
+
+        pathctx.put_path_var_if_not_exists(
+            newctx.rel, ir_set.path_id, set_expr, aspect='value', env=ctx.env)
+
+    aspects = ('value',)
+
+    func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
+    relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
+                        pull_namespace=False, aspects=aspects, ctx=ctx)
+
+    rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
+
+    return new_simple_set_rvar(ir_set, rvar, aspects=aspects)
+
+
 def _process_set_func_with_ordinality(
         ir_set: irast.Set, *,
+        outer_func_set: irast.Set,
         func_name: typing.Tuple[str, ...],
         args: typing.List[pgast.Base],
         ctx: context.CompilerContextLevel) -> None:
 
-    expr = ir_set.expr
-    rtype = expr.typeref
+    rtype = outer_func_set.typeref
     named_tuple = any(st.element_name for st in rtype.subtypes)
-    inner_rtype = rtype.subtypes[1]
+    inner_rtype = ir_set.typeref
 
     coldeflist = []
     arg_is_tuple = irtyputils.is_tuple(inner_rtype)
@@ -1418,7 +1486,8 @@ def _process_set_func_with_ordinality(
         inner_expr = pgast.TupleVar(
             elements=[
                 pgast.TupleElement(
-                    path_id=expr.tuple_path_ids[len(rtype.subtypes) + i],
+                    path_id=outer_func_set.expr.tuple_path_ids[
+                        len(rtype.subtypes) + i],
                     name=n,
                     val=dbobj.get_column(
                         func_rvar, n, nullable=set_expr.nullable)
@@ -1434,7 +1503,7 @@ def _process_set_func_with_ordinality(
     set_expr = pgast.TupleVar(
         elements=[
             pgast.TupleElement(
-                path_id=expr.tuple_path_ids[0],
+                path_id=outer_func_set.expr.tuple_path_ids[0],
                 name=colnames[0],
                 val=pgast.Expr(
                     kind=pgast.ExprKind.OP,
@@ -1446,7 +1515,7 @@ def _process_set_func_with_ordinality(
                 )
             ),
             pgast.TupleElement(
-                path_id=expr.tuple_path_ids[1],
+                path_id=outer_func_set.expr.tuple_path_ids[1],
                 name=rtype.subtypes[1].element_name or '1',
                 val=inner_expr,
             ),
@@ -1536,49 +1605,12 @@ def _process_set_func(
     return set_expr
 
 
-def process_set_as_func_expr(
-        ir_set: irast.Set, stmt: pgast.Query, *,
+def _compile_func_epilogue(
+        ir_set: irast.Set, *,
+        set_expr: pgast.Base,
+        func_rel: pgast.Query,
+        stmt: pgast.Query,
         ctx: context.CompilerContextLevel) -> None:
-
-    with ctx.subrel() as newctx:
-        newctx.expr_exposed = False
-
-        expr = ir_set.expr
-
-        args = []
-
-        for ir_arg in ir_set.expr.args:
-            arg_ref = dispatch.compile(ir_arg, ctx=newctx)
-            args.append(output.output_as_value(arg_ref, env=newctx.env))
-
-        if expr.has_empty_variadic:
-            var = pgast.TypeCast(
-                arg=pgast.ArrayExpr(elements=[]),
-                type_name=pgast.TypeName(
-                    name=pg_types.pg_type_from_ir_typeref(
-                        expr.variadic_param_type)
-                )
-            )
-
-            args.append(pgast.VariadicArgument(expr=var))
-
-        if expr.func_sql_function:
-            name = (expr.func_sql_function,)
-        else:
-            name = common.get_function_backend_name(
-                expr.func_shortname, expr.func_module_id)
-
-    with_ordinality = (expr.func_shortname == 'std::array_enumerate')
-
-    if expr.typemod is qltypes.TypeModifier.SET_OF:
-        if with_ordinality:
-            set_expr = _process_set_func_with_ordinality(
-                ir_set, func_name=name, args=args, ctx=newctx)
-        else:
-            set_expr = _process_set_func(
-                ir_set, func_name=name, args=args, ctx=newctx)
-    else:
-        set_expr = pgast.FuncCall(name=name, args=args)
 
     if (ctx.volatility_ref is not None and
             ctx.volatility_ref is not context.NO_VOLATILITY):
@@ -1589,14 +1621,14 @@ def process_set_as_func_expr(
             values=[pgast.ImplicitRowExpr(args=[ctx.volatility_ref])]
         )
         volatility_rvar = dbobj.rvar_for_rel(volatility_source, env=ctx.env)
-        relctx.rel_join(newctx.rel, volatility_rvar, ctx=ctx)
+        relctx.rel_join(func_rel, volatility_rvar, ctx=ctx)
 
     pathctx.put_path_var_if_not_exists(
-        newctx.rel, ir_set.path_id, set_expr, aspect='value', env=ctx.env)
+        func_rel, ir_set.path_id, set_expr, aspect='value', env=ctx.env)
 
     aspects = ('value',)
 
-    func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
+    func_rvar = relctx.new_rel_rvar(ir_set, func_rel, ctx=ctx)
     relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
                         pull_namespace=False, aspects=aspects, ctx=ctx)
 
@@ -1605,9 +1637,94 @@ def process_set_as_func_expr(
     return new_simple_set_rvar(ir_set, rvar, aspects=aspects)
 
 
+def _compile_func_args(
+        ir_set: irast.Set, *,
+        ctx: context.CompilerContextLevel) -> None:
+
+    expr = ir_set.expr
+
+    args = []
+
+    for ir_arg in ir_set.expr.args:
+        arg_ref = dispatch.compile(ir_arg, ctx=ctx)
+        args.append(output.output_as_value(arg_ref, env=ctx.env))
+
+    if expr.has_empty_variadic:
+        var = pgast.TypeCast(
+            arg=pgast.ArrayExpr(elements=[]),
+            type_name=pgast.TypeName(
+                name=pg_types.pg_type_from_ir_typeref(
+                    expr.variadic_param_type)
+            )
+        )
+
+        args.append(pgast.VariadicArgument(expr=var))
+
+    return args
+
+
+def process_set_as_func_enumerate(
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> SetRVars:
+
+    expr = ir_set.expr
+    inner_func_set = irutils.unwrap_set(expr.args[0])
+    inner_func = inner_func_set.expr
+
+    with ctx.subrel() as newctx:
+        newctx.expr_exposed = False
+        args = _compile_func_args(inner_func_set, ctx=newctx)
+
+        if inner_func.func_sql_function:
+            func_name = (inner_func.func_sql_function,)
+        else:
+            func_name = common.get_function_backend_name(
+                inner_func.func_shortname, inner_func.func_module_id)
+
+        set_expr = _process_set_func_with_ordinality(
+            ir_set=inner_func_set,
+            outer_func_set=ir_set,
+            func_name=func_name,
+            args=args,
+            ctx=newctx)
+
+        func_rel = newctx.rel
+
+    return _compile_func_epilogue(
+        ir_set, set_expr=set_expr, func_rel=func_rel, stmt=stmt, ctx=ctx)
+
+
+def process_set_as_func_expr(
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> SetRVars:
+
+    expr = ir_set.expr
+
+    with ctx.subrel() as newctx:
+        newctx.expr_exposed = False
+        args = _compile_func_args(ir_set, ctx=newctx)
+
+        if expr.func_sql_function:
+            name = (expr.func_sql_function,)
+        else:
+            name = common.get_function_backend_name(
+                expr.func_shortname, expr.func_module_id)
+
+        if expr.typemod is qltypes.TypeModifier.SET_OF:
+            set_expr = _process_set_func(
+                ir_set, func_name=name, args=args, ctx=newctx)
+        else:
+            set_expr = pgast.FuncCall(name=name, args=args)
+
+        func_rel = newctx.rel
+
+    return _compile_func_epilogue(
+        ir_set, set_expr=set_expr, func_rel=func_rel, stmt=stmt, ctx=ctx)
+
+
 def process_set_as_agg_expr(
         ir_set: irast.Set, stmt: pgast.Query, *,
-        ctx: context.CompilerContextLevel) -> None:
+        ctx: context.CompilerContextLevel) -> SetRVars:
     with ctx.newscope() as newctx:
         expr = ir_set.expr
         agg_filter = None

@@ -157,6 +157,18 @@ std::any(vals: SET OF std::bool) -> std::bool
 };
 
 
+# std::enumerate
+# --------------
+
+CREATE FUNCTION
+std::enumerate(
+    vals: SET OF anytype
+) -> SET OF tuple<std::int64, anytype>
+{
+    FROM SQL EXPRESSION;
+};
+
+
 # std::round
 # ----------
 

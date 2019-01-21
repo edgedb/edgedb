@@ -21,26 +21,6 @@ Array
         db> SELECT array_agg(User.name ORDER BY User.name);
         {['Alice', 'Bob', 'Joe', 'Sam']}
 
-.. eql:function:: std::array_enumerate(array: array<anytype>) -> \
-                  SET OF tuple<index: int64, element: sanytype>
-
-    :index: enumerate index array
-
-    Return a set of tuples of the form ``(index, element)``.
-
-    Return a set of tuples where the second element is an array value
-    and the first element is the index of that value for all values
-    in the array.
-
-    .. note::
-
-        The ordering of the returned set is not guaranteed.
-
-    .. code-block:: edgeql-repl
-
-        db> SELECT array_enumerate([2, 3, 5]);
-        {(1, 3), (0, 2), (2, 5)}
-
 .. eql:function:: std::array_get(array: array<anytype>, \
                                  index: int64, \
                                  NAMED ONLY default: anytype = {} \

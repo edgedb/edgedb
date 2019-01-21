@@ -358,37 +358,28 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ],
         ])
 
-    async def test_edgeql_functions_array_enumerate_01(self):
+    async def test_edgeql_functions_enumerate_01(self):
         await self.assert_query_result(r'''
             SELECT [10, 20];
-            SELECT array_enumerate([10,20]);
-            SELECT array_enumerate([10,20]).0 + 100;
-            SELECT array_enumerate([10,20]).index + 100;
+            SELECT enumerate(array_unpack([10,20]));
+            SELECT enumerate(array_unpack([10,20])).0 + 100;
+            SELECT enumerate(array_unpack([10,20])).1 + 100;
         ''', [
             [[10, 20]],
-            [{"element": 10, "index": 0}, {"element": 20, "index": 1}],
+            [[0, 10], [1, 20]],
             [100, 101],
-            [100, 101],
-        ])
-
-    async def test_edgeql_functions_array_enumerate_02(self):
-        await self.assert_query_result(r'''
-            SELECT array_enumerate([10,20]).1 + 100;
-            SELECT array_enumerate([10,20]).element + 1000;
-        ''', [
             [110, 120],
-            [1010, 1020],
         ])
 
-    async def test_edgeql_functions_array_enumerate_03(self):
+    async def test_edgeql_functions_enumerate_02(self):
         await self.assert_query_result(r'''
-            SELECT array_enumerate([(x:=1)]).1;
-            SELECT array_enumerate([(x:=1)]).1.x;
+            SELECT enumerate(array_unpack([(x:=1)])).1;
+            SELECT enumerate(array_unpack([(x:=1)])).1.x;
 
-            SELECT array_enumerate([(x:=(a:=2))]).1;
-            SELECT array_enumerate([(x:=(a:=2))]).1.x;
+            SELECT enumerate(array_unpack([(x:=(a:=2))])).1;
+            SELECT enumerate(array_unpack([(x:=(a:=2))])).1.x;
 
-            SELECT array_enumerate([(x:=(a:=2))]).1.x.a;
+            SELECT enumerate(array_unpack([(x:=(a:=2))])).1.x.a;
         ''', [
             [{"x": 1}],
             [1],
@@ -398,6 +389,32 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
             [2],
         ])
+
+    async def test_edgeql_functions_enumerate_03(self):
+        await self.assert_query_result(r'''
+            SET MODULE test;
+            SELECT enumerate((SELECT User.name ORDER BY User.name));
+            SELECT enumerate({'a', 'b', 'c'});
+            WITH A := {'a', 'b'} SELECT (A, enumerate(A));
+            SELECT enumerate({(1, 2), (3, 4)});
+        ''', [
+            None,
+            [[0, 'Elvis'], [1, 'Yury']],
+            [[0, 'a'], [1, 'b'], [2, 'c']],
+            [['a', [0, 'a']], ['b', [0, 'b']]],
+            [[0, [1, 2]], [1, [3, 4]]],
+        ])
+
+    async def test_edgeql_functions_enumerate_04(self):
+        self.assertEqual(
+            await self.con.fetch(
+                'select <json>enumerate({(1, 2), (3, 4)})'),
+            ['[0, [1, 2]]', '[1, [3, 4]]'])
+
+        self.assertEqual(
+            await self.con.fetch_json(
+                'select <json>enumerate({(1, 2), (3, 4)})'),
+            '[[0, [1, 2]], [1, [3, 4]]]')
 
     async def test_edgeql_functions_array_get_01(self):
         await self.assert_query_result(r'''
