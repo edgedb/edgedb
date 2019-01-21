@@ -94,11 +94,12 @@ def array_as_json_object(expr, *, styperef, env):
                     alias=pgast.Alias(
                         aliasname=env.aliases.get('q'),
                     ),
-                    coldeflist=coldeflist,
+                    is_rowsfrom=True,
                     functions=[
                         pgast.FuncCall(
                             name=('unnest',),
                             args=[expr],
+                            coldeflist=coldeflist,
                         )
                     ]
                 )
@@ -192,11 +193,8 @@ def tuple_var_as_json_object(tvar, *, path_id, env):
             if rptr.parent_ptr is not None:
                 name = '@' + name
             keyvals.append(pgast.StringConstant(val=name))
-            if isinstance(element.val, pgast.TupleVar):
-                val = serialize_expr(
-                    element.val, path_id=element.path_id, nested=True, env=env)
-            else:
-                val = element.val
+            val = serialize_expr(
+                element.val, path_id=element.path_id, nested=True, env=env)
             keyvals.append(val)
 
         return pgast.FuncCall(
@@ -254,12 +252,12 @@ def serialize_expr_to_json(
             name=('jsonb_build_array',), args=expr.args,
             null_safe=True, ser_safe=True,)
 
+    elif path_id.is_collection_path() and not expr.ser_safe:
+        val = coll_as_json_object(expr, styperef=path_id.target, env=env)
+
     elif not nested:
-        if path_id.is_collection_path() and not expr.ser_safe:
-            val = coll_as_json_object(expr, styperef=path_id.target, env=env)
-        else:
-            val = pgast.FuncCall(
-                name=('to_jsonb',), args=[expr], null_safe=True, ser_safe=True)
+        val = pgast.FuncCall(
+            name=('to_jsonb',), args=[expr], null_safe=True, ser_safe=True)
 
     else:
         val = expr

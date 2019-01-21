@@ -34,14 +34,17 @@ from edb.schema import casts as s_casts
 from edb.schema import functions as s_func
 from edb.schema import types as s_types
 
+from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
 
 from . import astutils
 from . import context
+from . import dispatch
 from . import inference
 from . import pathctx
 from . import polyres
 from . import setgen
+from . import typegen
 from . import viewgen
 
 
@@ -396,12 +399,43 @@ def _cast_array(
         return _cast_to_ir(
             ir_set, direct_cast, orig_stype, new_stype, ctx=ctx)
     else:
-        # Functional cast, need to apply element-wise.
-        raise errors.QueryError(
-            f'cannot cast {orig_stype.get_displayname(ctx.env.schema)!r} '
-            f'to {new_stype.get_displayname(ctx.env.schema)!r}: '
-            f'non-trivial array casts are not implemented',
-            context=srcctx) from None
+        pathctx.register_set_in_scope(ir_set, ctx=ctx)
+
+        with ctx.new() as subctx:
+            subctx.anchors = subctx.anchors.copy()
+            source_alias = subctx.aliases.get('a')
+            subctx.anchors[source_alias] = ir_set
+
+            unpacked = qlast.FunctionCall(
+                func=('std', 'array_unpack'),
+                args=[
+                    qlast.FuncArg(
+                        arg=qlast.Path(
+                            steps=[qlast.ObjectRef(name=source_alias)]
+                        )
+                    )
+                ]
+            )
+
+            elements = qlast.FunctionCall(
+                func=('std', 'array_agg'),
+                args=[
+                    qlast.FuncArg(
+                        arg=qlast.TypeCast(
+                            expr=unpacked,
+                            type=typegen.type_to_ql_typeref(
+                                el_type, ctx=subctx)
+                        )
+                    )
+                ]
+            )
+
+            array_ir = dispatch.compile(elements, ctx=subctx)
+
+        array_stype = s_types.Array.from_subtypes(ctx.env.schema, [el_type])
+        return _cast_to_ir(
+            array_ir, direct_cast, array_stype, new_stype, ctx=ctx
+        )
 
 
 def _cast_array_literal(

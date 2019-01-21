@@ -38,6 +38,13 @@ CREATE FUNCTION
 std::json_object_unpack(obj: std::json) -> SET OF tuple<std::str, std::json>
 {
     FROM SQL FUNCTION 'jsonb_each';
+    # jsonb_each is defined as (jsonb, OUT key text, OUT value jsonb),
+    # and, quite perprexingly, would reject a column definition list
+    # with `a column definition list is only allowed for functions
+    # returning "record"`, even though it _is_ returning "record".
+    # Hence, we need this flag to tell the compiler to avoid generating
+    # a coldeflist for this function.
+    SET sql_func_has_out_params := True;
 };
 
 

@@ -500,6 +500,9 @@ class FunctionCall(Call):
     # there are no arguments that are bound to it.
     has_empty_variadic: bool = False
 
+    # The underlying SQL function has OUT parameters.
+    sql_func_has_out_params: bool = False
+
     # Set to the type of the variadic parameter of the bound function
     # (or None, if the function has no variadic parameters.)
     variadic_param_type: typing.Optional[TypeRef]

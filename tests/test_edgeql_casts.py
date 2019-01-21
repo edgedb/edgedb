@@ -1139,6 +1139,53 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             [True],
         ])
 
+    async def test_edgeql_casts_json_04(self):
+        self.assertEqual(
+            await self.con.fetch('''
+                select <json>(
+                    select schema::Type{name} filter .name = 'std::bool'
+                )
+            '''),
+            edgedb.Set(('{"name": "std::bool"}',))
+        )
+
+    async def test_edgeql_casts_json_05(self):
+        self.assertEqual(
+            await self.con.fetch(
+                'select <json>{(1, 2), (3, 4)}'),
+            ['[1, 2]', '[3, 4]'])
+
+        self.assertEqual(
+            await self.con.fetch(
+                'select <json>{(a := 1, b := 2), (a := 3, b := 4)}'),
+            ['{"a": 1, "b": 2}', '{"a": 3, "b": 4}'])
+
+        self.assertEqual(
+            await self.con.fetch(
+                'select <json>{[1, 2], [3, 4]}'),
+            ['[1, 2]', '[3, 4]'])
+
+        self.assertEqual(
+            await self.con.fetch(
+                'select <json>{[(1, 2)], [(3, 4)]}'),
+            ['[[1, 2]]', '[[3, 4]]'])
+
+    async def test_edgeql_casts_json_06(self):
+        self.assertEqual(
+            await self.con.fetch_json(
+                'select <json>{(1, 2), (3, 4)}'),
+            '[[1, 2], [3, 4]]')
+
+        self.assertEqual(
+            await self.con.fetch_json(
+                'select <json>{[1, 2], [3, 4]}'),
+            '[[1, 2], [3, 4]]')
+
+        self.assertEqual(
+            await self.con.fetch_json(
+                'select <json>{[(1, 2)], [(3, 4)]}'),
+            '[[[1, 2]], [[3, 4]]]')
+
     async def test_edgeql_casts_assignment_01(self):
         async with self.con.transaction():
             res = await self.query(r'''

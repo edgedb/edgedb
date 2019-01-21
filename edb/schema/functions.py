@@ -562,6 +562,9 @@ class Function(CallableObject, s_abc.Function):
     force_return_cast = so.SchemaField(
         bool, default=False, compcoef=0.9, introspectable=False)
 
+    sql_func_has_out_params = so.SchemaField(
+        bool, default=False, compcoef=0.9, introspectable=False)
+
     initial_value = so.SchemaField(
         expr.Expression, default=None, compcoef=0.4, coerce=True,
         allow_ddl_set=True)

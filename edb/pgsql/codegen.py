@@ -431,16 +431,20 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if node.lateral:
             self.write('LATERAL ')
 
+        if node.is_rowsfrom:
+            self.write('ROWS FROM (')
+
         self.visit_list(node.functions)
+
+        if node.is_rowsfrom:
+            self.write(')')
+
+        if node.with_ordinality:
+            self.write(' WITH ORDINALITY ')
 
         if node.alias:
             self.write(' AS ')
             self.visit(node.alias)
-
-        if node.coldeflist:
-            self.write('(')
-            self.visit_list(node.coldeflist, newlines=False)
-            self.write(')')
 
     def visit_ColumnRef(self, node):
         names = node.name
@@ -597,6 +601,11 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
         if node.with_ordinality:
             self.write(' WITH ORDINALITY')
+
+        if node.coldeflist:
+            self.write(' AS (')
+            self.visit_list(node.coldeflist, newlines=False)
+            self.write(')')
 
     def visit_NamedFuncArg(self, node):
         self.write(common.quote_ident(node.name), ' => ')

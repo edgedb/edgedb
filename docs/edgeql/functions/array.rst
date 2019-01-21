@@ -22,14 +22,14 @@ Array
         {['Alice', 'Bob', 'Joe', 'Sam']}
 
 .. eql:function:: std::array_enumerate(array: array<anytype>) -> \
-                  SET OF tuple<anytype, int64>
+                  SET OF tuple<index: int64, element: sanytype>
 
     :index: enumerate index array
 
-    Return a set of tuples of the form ``(element, index)``.
+    Return a set of tuples of the form ``(index, element)``.
 
-    Return a set of tuples where the first element is an array value
-    and the second element is the index of that value for all values
+    Return a set of tuples where the second element is an array value
+    and the first element is the index of that value for all values
     in the array.
 
     .. note::
@@ -39,7 +39,7 @@ Array
     .. code-block:: edgeql-repl
 
         db> SELECT array_enumerate([2, 3, 5]);
-        {(3, 1), (2, 0), (5, 2)}
+        {(1, 3), (0, 2), (2, 5)}
 
 .. eql:function:: std::array_get(array: array<anytype>, \
                                  index: int64, \

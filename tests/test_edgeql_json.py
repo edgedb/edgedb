@@ -952,9 +952,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             [1, {"foo": "bar", "name": "std::json"}]
         )
 
-    # Casting of arbitrary arrays to std::json
-    # is not currently implemented.
-    @unittest.expectedFailure
     async def test_edgeql_json_cast_tuple_to_json_02(self):
         res = await self.query("""
             SELECT

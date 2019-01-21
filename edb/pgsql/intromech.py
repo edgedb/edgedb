@@ -345,6 +345,7 @@ class IntrospectionMech:
                 'return_typemod': row['return_typemod'],
                 'from_function': row['from_function'],
                 'force_return_cast': row['force_return_cast'],
+                'sql_func_has_out_params': row['sql_func_has_out_params'],
                 'code': row['code'],
                 'initial_value': row['initial_value'],
                 'return_type': self.unpack_typeref(row['return_type'], schema)

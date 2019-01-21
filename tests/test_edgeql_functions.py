@@ -362,7 +362,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(r'''
             SELECT [10, 20];
             SELECT array_enumerate([10,20]);
-            SELECT array_enumerate([10,20]).1 + 100;
+            SELECT array_enumerate([10,20]).0 + 100;
             SELECT array_enumerate([10,20]).index + 100;
         ''', [
             [[10, 20]],
@@ -373,31 +373,25 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_array_enumerate_02(self):
         await self.assert_query_result(r'''
-            SELECT array_enumerate([10,20]).0 + 100;
+            SELECT array_enumerate([10,20]).1 + 100;
             SELECT array_enumerate([10,20]).element + 1000;
         ''', [
             [110, 120],
             [1010, 1020],
         ])
 
-    @test.xfail('''
-        Every single line of this test produces the same error:
-
-        UnknownEdgeDBError: a column definition list is required for
-        functions returning "record"
-    ''')
     async def test_edgeql_functions_array_enumerate_03(self):
         await self.assert_query_result(r'''
-            SELECT array_enumerate([(x:=1)]).0;
-            SELECT array_enumerate([(x:=1)]).0.x;
+            SELECT array_enumerate([(x:=1)]).1;
+            SELECT array_enumerate([(x:=1)]).1.x;
 
-            SELECT array_enumerate([(x:=(a:=2))]).0;
-            SELECT array_enumerate([(x:=(a:=2))]).0.x;
+            SELECT array_enumerate([(x:=(a:=2))]).1;
+            SELECT array_enumerate([(x:=(a:=2))]).1.x;
 
-            SELECT array_enumerate([(x:=(a:=2))]).0.x.a;
+            SELECT array_enumerate([(x:=(a:=2))]).1.x.a;
         ''', [
             [{"x": 1}],
-            [{}],
+            [1],
 
             [{"x": {"a": 2}}],
             [{"a": 2}],

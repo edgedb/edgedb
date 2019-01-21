@@ -458,28 +458,6 @@ class TestServerProto(tb.QueryTestCase):
                                     'combine positional and named parameters'):
             await self.con.fetch('select <int64>$0 + <int64>$bar;')
 
-    async def test_server_proto_json_cast_01(self):
-        self.assertEqual(
-            await self.con.fetch('''
-                select <json>(
-                    select schema::Type{name} filter .name = 'std::bool'
-                )
-            '''),
-            edgedb.Set(('{"name": "std::bool"}',))
-        )
-
-    async def test_server_proto_json_cast_02(self):
-        self.assertEqual(
-            await self.con.fetch(
-                'select <json>{(1, 2), (3, 4)}'),
-            ['[1, 2]', '[3, 4]'])
-
-    async def test_server_proto_json_cast_03(self):
-        self.assertEqual(
-            await self.con.fetch_json(
-                'select <json>{(1, 2), (3, 4)}'),
-            '[[1, 2], [3, 4]]')
-
     async def test_server_proto_wait_cancel_01(self):
         # Test that client protocol handles waits interrupted
         # by closing.

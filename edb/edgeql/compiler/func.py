@@ -115,6 +115,7 @@ def compile_FunctionCall(
         func_polymorphic=is_polymorphic,
         func_sql_function=func.get_from_function(env.schema),
         force_return_cast=func.get_force_return_cast(env.schema),
+        sql_func_has_out_params=func.get_sql_func_has_out_params(env.schema),
         params_typemods=params_typemods,
         context=expr.context,
         typeref=irtyputils.type_to_typeref(
@@ -137,10 +138,21 @@ def compile_FunctionCall(
 
     if matched_call.return_type.is_tuple():
         node.tuple_path_ids = []
+        nested_path_ids = []
         for n, st in matched_call.return_type.iter_subtypes():
             path_id = pathctx.get_tuple_indirection_path_id(
-                ir_set.path_id, n, st, ctx=ctx)
-            node.tuple_path_ids.append(path_id.strip_weak_namespaces())
+                ir_set.path_id, n, st, ctx=ctx).strip_weak_namespaces()
+
+            if st.is_tuple():
+                nested_path_ids.append([
+                    pathctx.get_tuple_indirection_path_id(
+                        path_id, nn, sst, ctx=ctx).strip_weak_namespaces()
+                    for nn, sst in st.iter_subtypes()
+                ])
+
+            node.tuple_path_ids.append(path_id)
+        for nested in nested_path_ids:
+            node.tuple_path_ids.extend(nested)
 
     return ir_set
 

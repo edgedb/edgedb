@@ -347,6 +347,10 @@ class Query(BaseRelation, EdgeQLPathInfo):
 
     ctes: typing.List[CommonTableExpr]
 
+    @property
+    def ser_safe(self):
+        return all(t.ser_safe for t in self.target_list)
+
 
 class DML(Base):
     """Generic superclass for INSERT/UPDATE/DELETE statements."""
@@ -515,6 +519,18 @@ class VariadicArgument(BaseExpr):
     nullable: bool = False
 
 
+class ColumnDef(ImmutableBase):
+
+    # name of column
+    name: str
+    # type of column
+    typename: TypeName
+    # default value, if any
+    default_expr: Base
+    # COLLATE clause, if any
+    coll_clause: Base
+
+
 class FuncCall(BaseExpr):
 
     # Function name
@@ -533,6 +549,9 @@ class FuncCall(BaseExpr):
     over: Base
     # WITH ORDINALITY
     with_ordinality: bool = False
+    # list of ColumnDef nodes to describe result of
+    # the function returning RECORD.
+    coldeflist: typing.List[ColumnDef]
 
     def __init__(self, *, nullable: typing.Optional[bool]=None,
                  null_safe: bool=False, **kwargs) -> None:
@@ -633,27 +652,14 @@ class RangeSubselect(BaseRangeVar):
             return self.subquery
 
 
-class ColumnDef(ImmutableBase):
-
-    # name of column
-    name: str
-    # type of column
-    typename: TypeName
-    # default value, if any
-    default_expr: Base
-    # COLLATE clause, if any
-    coll_clause: Base
-
-
 class RangeFunction(BaseRangeVar):
 
     lateral: bool
-    ordinality: Base
+    # WITH ORDINALITY
+    with_ordinality: bool = False
+    # ROWS FROM form
     is_rowsfrom: bool
     functions: typing.List[FuncCall]
-    # list of ColumnDef nodes to describe result of
-    # the function returning RECORD.
-    coldeflist: typing.List[ColumnDef]
 
 
 class JoinExpr(BaseRangeVar):

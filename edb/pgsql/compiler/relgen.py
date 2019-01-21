@@ -363,7 +363,8 @@ def set_to_array(
         agg_filter=(
             astutils.new_binop(val, pgast.NullConstant(), 'IS DISTINCT FROM')
             if val.nullable else None
-        )
+        ),
+        ser_safe=val.ser_safe,
     )
 
     agg_expr = pgast.CoalesceExpr(
@@ -373,12 +374,15 @@ def set_to_array(
                 arg=pgast.ArrayExpr(elements=[]),
                 type_name=pgast.TypeName(name=pg_type, array_bounds=[-1])
             )
-        ]
+        ],
+        ser_safe=array_agg.ser_safe,
+        nullable=False,
     )
 
     result.target_list = [
         pgast.ResTarget(
-            val=agg_expr
+            val=agg_expr,
+            ser_safe=array_agg.ser_safe,
         )
     ]
 
@@ -1358,6 +1362,180 @@ def process_set_as_expr(
     return new_simple_set_rvar(ir_set, rvar)
 
 
+def _process_set_func_with_ordinality(
+        ir_set: irast.Set, *,
+        func_name: typing.Tuple[str, ...],
+        args: typing.List[pgast.Base],
+        ctx: context.CompilerContextLevel) -> None:
+
+    expr = ir_set.expr
+    rtype = expr.typeref
+    named_tuple = any(st.element_name for st in rtype.subtypes)
+    inner_rtype = rtype.subtypes[1]
+
+    coldeflist = []
+    arg_is_tuple = irtyputils.is_tuple(inner_rtype)
+
+    if arg_is_tuple:
+        subtypes = {}
+        for i, st in enumerate(inner_rtype.subtypes):
+            colname = st.element_name or str(i)
+            subtypes[colname] = st
+            coldeflist.append(
+                pgast.ColumnDef(
+                    name=colname,
+                    typename=pgast.TypeName(
+                        name=pg_types.pg_type_from_ir_typeref(st)
+                    )
+                )
+            )
+
+        colnames = list(subtypes)
+
+    else:
+        colnames = [ctx.env.aliases.get('v')]
+        coldeflist = []
+
+    set_expr = pgast.FuncCall(name=func_name, args=args, coldeflist=coldeflist)
+
+    colnames.append(
+        rtype.subtypes[0].element_name or '0'
+    )
+
+    func_rvar = pgast.RangeFunction(
+        alias=pgast.Alias(
+            aliasname=ctx.env.aliases.get('f'),
+            colnames=colnames),
+        lateral=True,
+        is_rowsfrom=True,
+        with_ordinality=True,
+        functions=[set_expr])
+
+    ctx.rel.from_clause.append(func_rvar)
+
+    if arg_is_tuple:
+        inner_named_tuple = any(st.element_name for st in inner_rtype.subtypes)
+        inner_expr = pgast.TupleVar(
+            elements=[
+                pgast.TupleElement(
+                    path_id=expr.tuple_path_ids[len(rtype.subtypes) + i],
+                    name=n,
+                    val=dbobj.get_column(
+                        func_rvar, n, nullable=set_expr.nullable)
+                )
+                for i, n in enumerate(colnames[:-1])
+            ],
+            named=inner_named_tuple
+        )
+    else:
+        inner_expr = dbobj.get_column(
+            func_rvar, colnames[0], nullable=set_expr.nullable)
+
+    set_expr = pgast.TupleVar(
+        elements=[
+            pgast.TupleElement(
+                path_id=expr.tuple_path_ids[0],
+                name=colnames[0],
+                val=pgast.Expr(
+                    kind=pgast.ExprKind.OP,
+                    name='-',
+                    lexpr=dbobj.get_column(
+                        func_rvar, colnames[-1], nullable=set_expr.nullable,
+                    ),
+                    rexpr=pgast.NumericConstant(val='1')
+                )
+            ),
+            pgast.TupleElement(
+                path_id=expr.tuple_path_ids[1],
+                name=rtype.subtypes[1].element_name or '1',
+                val=inner_expr,
+            ),
+        ],
+        named=named_tuple
+    )
+
+    for element in set_expr.elements:
+        pathctx.put_path_value_var(
+            ctx.rel, element.path_id, element.val, env=ctx.env)
+
+    if arg_is_tuple:
+        for element in set_expr.elements[1].val.elements:
+            pathctx.put_path_value_var(
+                ctx.rel, element.path_id, element.val, env=ctx.env)
+
+    return set_expr
+
+
+def _process_set_func(
+        ir_set: irast.Set, *,
+        func_name: typing.Tuple[str, ...],
+        args: typing.List[pgast.Base],
+        ctx: context.CompilerContextLevel) -> None:
+
+    expr = ir_set.expr
+    rtype = expr.typeref
+    named_tuple = any(st.element_name for st in rtype.subtypes)
+    coldeflist = []
+
+    if irtyputils.is_tuple(rtype):
+        subtypes = {}
+        for i, st in enumerate(rtype.subtypes):
+            colname = st.element_name or str(i)
+            subtypes[colname] = st
+            coldeflist.append(
+                pgast.ColumnDef(
+                    name=colname,
+                    typename=pgast.TypeName(
+                        name=pg_types.pg_type_from_ir_typeref(st)
+                    )
+                )
+            )
+
+        colnames = list(subtypes)
+    else:
+        colnames = [ctx.env.aliases.get('v')]
+        coldeflist = []
+
+    if expr.sql_func_has_out_params:
+        # SQL functions declared with OUT params reject column definitions.
+        coldeflist = []
+
+    set_expr = pgast.FuncCall(name=func_name, args=args, coldeflist=coldeflist)
+
+    func_rvar = pgast.RangeFunction(
+        alias=pgast.Alias(
+            aliasname=ctx.env.aliases.get('f'),
+            colnames=colnames),
+        lateral=True,
+        is_rowsfrom=True,
+        functions=[set_expr])
+
+    ctx.rel.from_clause.append(func_rvar)
+
+    if len(colnames) == 1:
+        set_expr = dbobj.get_column(
+            func_rvar, colnames[0], nullable=set_expr.nullable)
+    else:
+        set_expr = pgast.TupleVar(
+            elements=[
+                pgast.TupleElement(
+                    path_id=expr.tuple_path_ids[i],
+                    name=n,
+                    val=dbobj.get_column(
+                        func_rvar, n, nullable=set_expr.nullable)
+                )
+                for i, n in enumerate(colnames)
+            ],
+            named=named_tuple
+        )
+
+        for element in set_expr.elements:
+            pathctx.put_path_value_var(
+                ctx.rel, element.path_id, element.val, env=ctx.env)
+
+    return set_expr
+
+
 def process_set_as_func_expr(
         ir_set: irast.Set, stmt: pgast.Query, *,
         ctx: context.CompilerContextLevel) -> None:
@@ -1373,19 +1551,6 @@ def process_set_as_func_expr(
             arg_ref = dispatch.compile(ir_arg, ctx=newctx)
             args.append(output.output_as_value(arg_ref, env=newctx.env))
 
-        with_ordinality = False
-
-        if expr.func_shortname == 'std::array_unpack':
-            name = ('unnest',)
-        elif expr.func_shortname == 'std::array_enumerate':
-            name = ('unnest',)
-            with_ordinality = True
-        elif expr.func_sql_function:
-            name = (expr.func_sql_function,)
-        else:
-            name = common.get_function_backend_name(expr.func_shortname,
-                                                    expr.func_module_id)
-
         if expr.has_empty_variadic:
             var = pgast.TypeCast(
                 arg=pgast.ArrayExpr(elements=[]),
@@ -1397,64 +1562,23 @@ def process_set_as_func_expr(
 
             args.append(pgast.VariadicArgument(expr=var))
 
-        set_expr = pgast.FuncCall(
-            name=name, args=args, with_ordinality=with_ordinality)
+        if expr.func_sql_function:
+            name = (expr.func_sql_function,)
+        else:
+            name = common.get_function_backend_name(
+                expr.func_shortname, expr.func_module_id)
+
+    with_ordinality = (expr.func_shortname == 'std::array_enumerate')
 
     if expr.typemod is qltypes.TypeModifier.SET_OF:
-        rtype = expr.typeref
-        named_tuple = False
-
-        if irtyputils.is_tuple(rtype):
-            subtypes = {}
-            for i, st in enumerate(rtype.subtypes):
-                if st.element_name:
-                    named_tuple = True
-                    subtypes[st.element_name] = st
-                else:
-                    subtypes[f'{i}'] = st
-
-            colnames = list(subtypes)
+        if with_ordinality:
+            set_expr = _process_set_func_with_ordinality(
+                ir_set, func_name=name, args=args, ctx=newctx)
         else:
-            colnames = [ctx.env.aliases.get('v')]
-
-        func_rvar = pgast.RangeFunction(
-            alias=pgast.Alias(
-                aliasname=ctx.env.aliases.get('f'),
-                colnames=colnames),
-            lateral=True,
-            functions=[set_expr])
-
-        newctx.rel.from_clause.append(func_rvar)
-
-        if len(colnames) == 1:
-            set_expr = dbobj.get_column(
-                func_rvar, colnames[0], nullable=set_expr.nullable)
-        else:
-            set_expr = pgast.TupleVar(
-                elements=[
-                    pgast.TupleElement(
-                        path_id=expr.tuple_path_ids[i],
-                        name=n,
-                        val=dbobj.get_column(
-                            func_rvar, n, nullable=set_expr.nullable)
-                    )
-                    for i, n in enumerate(colnames)
-                ],
-                named=named_tuple
-            )
-
-            if expr.func_shortname == 'std::array_enumerate':
-                # Patch index colref to (colref - 1) to make
-                # enumerate indexes start from 0.
-                set_expr.elements[1].val = pgast.Expr(
-                    kind=pgast.ExprKind.OP,
-                    name='-',
-                    lexpr=set_expr.elements[1].val,
-                    rexpr=pgast.NumericConstant(val='1'))
-
-            for element in set_expr.elements:
-                pathctx.put_path_value_var(
-                    newctx.rel, element.path_id, element.val, env=ctx.env)
+            set_expr = _process_set_func(
+                ir_set, func_name=name, args=args, ctx=newctx)
+    else:
+        set_expr = pgast.FuncCall(name=name, args=args)
 
     if (ctx.volatility_ref is not None and
             ctx.volatility_ref is not context.NO_VOLATILITY):

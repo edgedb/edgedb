@@ -220,7 +220,7 @@ def get_path_var(
         else:
             src_aspect = aspect
 
-        if isinstance(src_path_id.rptr(), irast.TupleIndirectionLink):
+        if src_path_id.is_tuple_path():
             rel_rvar = maybe_get_path_rvar(
                 rel, src_path_id, aspect=src_aspect, env=env)
 
@@ -231,7 +231,8 @@ def get_path_var(
             rel_rvar = maybe_get_path_rvar(
                 rel, src_path_id, aspect=src_aspect, env=env)
 
-        if src_aspect != 'source' and path_id != src_path_id:
+        if (rel_rvar is None
+                and src_aspect != 'source' and path_id != src_path_id):
             rel_rvar = maybe_get_path_rvar(
                 rel, src_path_id, aspect='source', env=env)
 

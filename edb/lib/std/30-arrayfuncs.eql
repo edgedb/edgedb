@@ -31,16 +31,16 @@ std::array_agg(s: SET OF anytype) -> array<anytype>
 CREATE FUNCTION
 std::array_unpack(array: array<anytype>) -> SET OF anytype
 {
-    FROM SQL FUNCTION '--system--';
+    FROM SQL FUNCTION 'unnest';
 };
 
 
 CREATE FUNCTION
 std::array_enumerate(
     array: array<anytype>
-) -> SET OF tuple<element:anytype, index:std::int64>
+) -> SET OF tuple<index: std::int64, element: anytype>
 {
-    FROM SQL FUNCTION '--system--';
+    FROM SQL FUNCTION 'unnest';
 };
 
 
