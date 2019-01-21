@@ -117,6 +117,12 @@ class EdgeDBLogHandler(logging.StreamHandler):
         self.setFormatter(fmt)
 
 
+IGNORE_DEPRECATIONS_IN = {
+    'graphql',
+    'promise',
+}
+
+
 def setup_logging(log_level, log_destination):
     log_level = log_level.upper()
     try:
@@ -157,6 +163,7 @@ def setup_logging(log_level, log_destination):
 
     # Show DeprecationWarnings by default ...
     warnings.simplefilter('default', category=DeprecationWarning)
-    # ... except for the `graphql` module.
-    warnings.filterwarnings('ignore', category=DeprecationWarning,
-                            module='graphql')
+    # ... except for some third-party` modules.
+    for ignored_module in IGNORE_DEPRECATIONS_IN:
+        warnings.filterwarnings('ignore', category=DeprecationWarning,
+                                module=ignored_module)
