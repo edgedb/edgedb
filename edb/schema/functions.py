@@ -559,6 +559,9 @@ class Function(CallableObject, s_abc.Function):
     from_function = so.SchemaField(
         str, default=None, compcoef=0.4, introspectable=False)
 
+    from_expr = so.SchemaField(
+        bool, default=False, compcoef=0.4, introspectable=False)
+
     force_return_cast = so.SchemaField(
         bool, default=False, compcoef=0.9, introspectable=False)
 
@@ -773,10 +776,10 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                 property='language',
                 new_value=astnode.code.language
             ))
-            if astnode.code.from_name is not None:
+            if astnode.code.from_function is not None:
                 cmd.add(sd.AlterObjectProperty(
                     property='from_function',
-                    new_value=astnode.code.from_name
+                    new_value=astnode.code.from_function
                 ))
             else:
                 cmd.add(sd.AlterObjectProperty(

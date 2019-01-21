@@ -255,7 +255,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self.indentation -= 1
             self.new_lines = 1
         else:
-            self.write(f' function: {node.from_name}')
+            self.write(f' function: {node.from_function}')
 
     def visit_ObjectName(self, node):
         if node.module:

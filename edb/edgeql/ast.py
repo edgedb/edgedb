@@ -808,7 +808,8 @@ class Language(s_enum.StrEnum):
 class FunctionCode(Clause):
     language: Language
     code: str
-    from_name: str
+    from_function: str
+    from_expr: bool
 
 
 class CreateFunction(CreateObject, CallableObject):

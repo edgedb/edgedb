@@ -2957,7 +2957,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "FROM clause is missing", line=2)
+                  "CREATE FUNCTION requires at least one FROM clause", line=2)
     def test_edgeql_syntax_ddl_function_27(self):
         """
         CREATE FUNCTION foo() -> std::str {
@@ -2966,7 +2966,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "more than one FROM clause", line=5)
+                  "more than one FROM <code> clause", line=5)
     def test_edgeql_syntax_ddl_function_28(self):
         """
         CREATE FUNCTION foo() -> std::str {

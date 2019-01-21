@@ -1040,9 +1040,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.visit_list(node.commands, terminator=';')
                 self.new_lines = 1
 
-            if node.code.from_name:
+            if node.code.from_function:
                 self.write(f' FROM {node.code.language} FUNCTION ')
-                self.write(f'{node.code.from_name!r}')
+                self.write(f'{node.code.from_function!r}')
             else:
                 self.write(f' FROM {node.code.language} ')
                 self.write(edgeql_quote.dollar_quote_literal(

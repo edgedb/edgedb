@@ -34,6 +34,7 @@ async def fetch(
                 f.language,
                 f.code,
                 f.from_function,
+                f.from_expr,
                 f.force_return_cast,
                 f.sql_func_has_out_params,
                 f.initial_value,

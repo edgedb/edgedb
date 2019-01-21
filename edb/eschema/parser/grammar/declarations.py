@@ -624,7 +624,7 @@ class FunctionSpec(Nonterm):
 
     def reduce_FROM_Identifier_FUNCTION_COLON_Identifier_NL(self, *kids):
         self.val = esast.FunctionCode(language=_parse_language(kids[1]),
-                                      from_name=kids[4].val)
+                                      from_function=kids[4].val)
 
     def reduce_DeclarationSpec(self, *kids):
         self.val = kids[0].val

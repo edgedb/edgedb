@@ -139,7 +139,7 @@ class Language(s_enum.StrEnum):
 class FunctionCode(Base):
     language: Language
     code: qlast.Base
-    from_name: str
+    from_function: str
 
 
 class FunctionDeclaration(Declaration):

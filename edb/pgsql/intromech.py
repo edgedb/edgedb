@@ -344,6 +344,7 @@ class IntrospectionMech:
                 'params': params,
                 'return_typemod': row['return_typemod'],
                 'from_function': row['from_function'],
+                'from_expr': row['from_expr'],
                 'force_return_cast': row['force_return_cast'],
                 'sql_func_has_out_params': row['sql_func_has_out_params'],
                 'code': row['code'],
