@@ -22,6 +22,8 @@ import re
 import sys
 import uuid
 
+import click
+
 from edb.tools.edb import edbcommands
 
 
@@ -30,7 +32,7 @@ def die(msg):
     sys.exit(1)
 
 
-def main():
+def main(*, stdout: bool):
     import edb
     for p in edb.__path__:
         ep = pathlib.Path(p) / 'api' / 'types.txt'
@@ -65,14 +67,19 @@ def main():
         f'\n'
     )
 
-    with open(out_fn, 'wt') as f:
-        f.write(code)
+    if stdout:
+        print(code, end='')
+    else:
+        with open(out_fn, 'wt') as f:
+            f.write(code)
 
 
 @edbcommands.command('gen-types')
-def gen_types():
+@click.option(
+    '--stdout', type=bool, default=False, is_flag=True)
+def gen_types(*, stdout):
     """Generate edb/schema/_types.py from edb/api/types.txt"""
     try:
-        main()
+        main(stdout=stdout)
     except Exception as ex:
         die(str(ex))
