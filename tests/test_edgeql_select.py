@@ -660,12 +660,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_type_03(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            SELECT User.name.__type__.name LIMIT 1;
-        ''', [
-            ['std::str']
-        ])
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'invalid property reference'):
+            await self.query(r'''
+                WITH MODULE test
+                SELECT User.name.__type__.name LIMIT 1;
+            ''')
 
     async def test_edgeql_select_type_04(self):
         # Make sure that the __type__ attribute gets the same object
@@ -4620,7 +4621,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True],
         ])
 
-    @test.xfail('IS is currently broken for pseudo types')
     async def test_edgeql_select_is_06(self):
         await self.assert_query_result(r'''
             SELECT 5 IS anytype;
@@ -4636,40 +4636,49 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_is_08(self):
-        await self.query(r'''
+        await self.assert_query_result(r'''
             SELECT 5.5 IS anyfloat;
-        ''')
+        ''', [
+            [True]
+        ])
 
-    @test.xfail('IS is currently broken for pseudo types')
     async def test_edgeql_select_is_09(self):
-        await self.query(r'''
+        await self.assert_query_result(r'''
             SELECT test::Issue.time_estimate IS anytype LIMIT 1;
         ''', [
             [True]
         ])
 
-    @test.xfail('IS is currently broken for collection types')
     async def test_edgeql_select_is_10(self):
-        await self.query(r'''
+        await self.assert_query_result(r'''
             SELECT [5] IS (array<anytype>);
         ''', [
             [True]
         ])
 
-    @test.xfail('IS is currently broken for collection types')
     async def test_edgeql_select_is_11(self):
-        await self.query(r'''
+        await self.assert_query_result(r'''
             SELECT (5, 'hello') IS (tuple<anytype, str>);
         ''', [
             [True]
         ])
 
-    @test.xfail('IS is currently broken for collection types')
-    async def test_edgeql_select_is_14(self):
+    async def test_edgeql_select_is_12(self):
         await self.assert_query_result(r'''
             SELECT [5] IS (array<int64>);
             SELECT (5, 'hello') IS (tuple<int64, str>);
         ''', [
             [True],
+            [True],
+        ])
+
+    @test.xfail('IS is broken for runtime type checks of object collections')
+    async def test_edgeql_select_is_13(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT
+                NOT all([Text] IS (array<Issue>))
+                AND any([Text] IS (array<Issue>));
+        ''', [
             [True],
         ])

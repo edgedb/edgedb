@@ -596,17 +596,28 @@ def compile_Indirection(
 def compile_type_check_op(
         expr: qlast.IsOp, *, ctx: context.ContextLevel) -> irast.TypeCheckOp:
     # <Expr> IS <TypeExpr>
-    left = dispatch.compile(expr.left, ctx=ctx)
-    ltype = inference.infer_type(left, ctx.env)
-    left = setgen.ptr_step_set(
-        left, source=ltype, ptr_name='__type__',
-        direction=s_pointers.PointerDirection.Outbound,
-        source_context=expr.context, ctx=ctx)
+    left = setgen.ensure_set(dispatch.compile(expr.left, ctx=ctx), ctx=ctx)
+    ltype = setgen.get_set_type(left, ctx=ctx)
+    typeref = typegen.ql_typeref_to_ir_typeref(expr.right, ctx=ctx)
 
-    pathctx.register_set_in_scope(left, ctx=ctx)
+    if ltype.is_object_type():
+        left = setgen.ptr_step_set(
+            left, source=ltype, ptr_name='__type__',
+            direction=s_pointers.PointerDirection.Outbound,
+            source_context=expr.context, ctx=ctx)
+        pathctx.register_set_in_scope(left, ctx=ctx)
+        result = None
+    else:
+        if ltype.is_collection() and ltype.contains_object():
+            raise errors.QueryError(
+                f'type checks on non-primitive collections are not supported'
+            )
 
-    right = typegen.ql_typeref_to_ir_typeref(expr.right, ctx=ctx)
-    return irast.TypeCheckOp(left=left, right=right, op=expr.op)
+        test_type = irtyputils.ir_typeref_to_type(ctx.env.schema, typeref)
+        result = ltype.issubclass(ctx.env.schema, test_type)
+
+    return irast.TypeCheckOp(
+        left=left, right=typeref, op=expr.op, result=result)
 
 
 def compile_set_op(

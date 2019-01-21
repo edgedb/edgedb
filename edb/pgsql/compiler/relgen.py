@@ -634,17 +634,6 @@ def process_set_as_path(
 
     rvars = []
 
-    # Path is a __type__ reference of a homogeneous set,
-    # e.g {1, 2}.__type__.
-    is_static_clsref = (
-        irtyputils.is_scalar(ir_source.typeref) and
-        ptrref.shortname == 'std::__type__'
-    )
-
-    if is_static_clsref:
-        rvar = relctx.new_static_class_rvar(ir_set, ctx=ctx)
-        return new_simple_set_rvar(ir_set, rvar, ['value', 'source'])
-
     if ir_set.path_id.is_type_indirection_path():
         get_set_rvar(ir_source, ctx=ctx)
         poly_rvar = relctx.new_poly_rvar(ir_set, ctx=ctx)

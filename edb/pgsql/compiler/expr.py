@@ -367,14 +367,20 @@ def compile_TypeCheckOp(
     with ctx.new() as newctx:
         newctx.expr_exposed = False
         left = dispatch.compile(expr.left, ctx=newctx)
-        right = dispatch.compile(expr.right, ctx=newctx)
+        negated = expr.op == 'IS NOT'
 
-    result = pgast.FuncCall(
-        name=('edgedb', 'issubclass'),
-        args=[left, right])
+        if expr.result is not None:
+            result = pgast.BooleanConstant(
+                val='false' if not expr.result or negated else 'true')
+        else:
+            right = dispatch.compile(expr.right, ctx=newctx)
 
-    if expr.op == 'IS NOT':
-        result = astutils.new_unop('NOT', result)
+            result = pgast.FuncCall(
+                name=('edgedb', 'issubclass'),
+                args=[left, right])
+
+            if negated:
+                result = astutils.new_unop('NOT', result)
 
     return result
 

@@ -440,24 +440,6 @@ def new_rel_rvar(
     return dbobj.rvar_for_rel(stmt, lateral=lateral, env=ctx.env)
 
 
-def new_static_class_rvar(
-        ir_set: irast.Set, *,
-        lateral: bool=True,
-        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
-    set_rvar = new_root_rvar(ir_set, ctx=ctx)
-    source = ir_set.rptr.source.typeref
-    if source.material_type is not None:
-        source = source.material_type
-    clsname = pgast.StringConstant(val=str(source.id))
-    nameref = dbobj.get_column(set_rvar, 'id', nullable=False)
-    condition = astutils.new_binop(nameref, clsname, op='=')
-    substmt = pgast.SelectStmt()
-    include_rvar(substmt, set_rvar, ir_set.path_id, ctx=ctx)
-    substmt.where_clause = astutils.extend_binop(
-        substmt.where_clause, condition)
-    return new_rel_rvar(ir_set, substmt, ctx=ctx)
-
-
 def semi_join(
         stmt: pgast.Query, ir_set: irast.Set, src_rvar: pgast.BaseRangeVar, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:

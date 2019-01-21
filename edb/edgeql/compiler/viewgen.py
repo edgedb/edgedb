@@ -32,7 +32,6 @@ from edb.schema import links as s_links
 from edb.schema import name as sn
 from edb.schema import nodes as s_nodes
 from edb.schema import pointers as s_pointers
-from edb.schema import sources as s_sources
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
@@ -152,10 +151,7 @@ def _process_view(
         else:
             source = view_scls
 
-        if (ptrcls.get_source(ctx.env.schema) is source and
-                isinstance(source, s_sources.Source)):
-            # source may be an ScalarType in shapes that reference __type__,
-            # hence the isinstance check.
+        if ptrcls.get_source(ctx.env.schema) is source:
             ctx.env.schema = source.add_pointer(
                 ctx.env.schema, ptrcls, replace=True)
 

@@ -1161,9 +1161,12 @@ class TestExpressions(tb.QueryTestCase):
                     else:
                         rtype = 'float64'
 
-                query = f"""SELECT ({left} UNION {right}) IS {rtype};"""
+                query = f"""
+                    SELECT (INTROSPECT TYPEOF ({left} UNION {right})).name;
+                """
                 # this operation should always be valid
-                await self.assert_query_result(query, [{True}])
+                await self.assert_query_result(
+                    query, [{f'std::{rtype}'}])
 
     async def test_edgeql_expr_valid_setop_04(self):
         expected_error_msg = 'could not determine expression type'
@@ -1178,10 +1181,11 @@ class TestExpressions(tb.QueryTestCase):
                     await self.assert_query_result(query, [[2]])
 
                     query = f"""
-                        SELECT ({left} UNION {right}) IS {rdesc.typename};
+                        SELECT (INTROSPECT TYPEOF ({left} UNION {right})).name;
                     """
                     # this operation should always be valid
-                    await self.assert_query_result(query, [{True}])
+                    await self.assert_query_result(
+                        query, [{f'std::{rdesc.typename}'}])
 
                 else:
                     # every other combination must produce an error
@@ -1218,9 +1222,11 @@ class TestExpressions(tb.QueryTestCase):
                 # combination
                 await self.assert_query_result(query, [[2]])
 
-                query = f"""SELECT ({left} UNION {right}) IS decimal;"""
+                query = f"""
+                    SELECT (INTROSPECT TYPEOF ({left} UNION {right})).name;
+                """
                 # this operation should always be valid
-                await self.assert_query_result(query, [{True}])
+                await self.assert_query_result(query, [{'std::decimal'}])
 
         for left in get_test_values(decimal=True):
             for right in get_test_values(anyfloat=True):
@@ -1295,9 +1301,11 @@ class TestExpressions(tb.QueryTestCase):
                         else:
                             rtype = 'float64'
 
-                    query = f"""SELECT ({left} {op} {right}) IS {rtype};"""
+                    query = f"""
+                        SELECT (INTROSPECT TYPEOF ({left} {op} {right})).name;
+                    """
                     # this operation should always be valid
-                    await self.assert_query_result(query, [{True}])
+                    await self.assert_query_result(query, [{f'std::{rtype}'}])
 
     async def test_edgeql_expr_valid_setop_10(self):
         expected_error_msg = 'of related types'

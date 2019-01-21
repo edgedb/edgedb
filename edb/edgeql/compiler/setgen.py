@@ -407,14 +407,6 @@ def resolve_ptr(
 
             raise err
 
-    else:
-        if direction == s_pointers.PointerDirection.Outbound:
-            bptr = schemactx.get_schema_ptr(pointer_name, ctx=ctx)
-            schema_cls = ctx.env.schema.get('schema::ScalarType')
-            if bptr.get_shortname(ctx.env.schema) == 'std::__type__':
-                ctx.env.schema, ptr = bptr.derive(
-                    ctx.env.schema, near_endpoint, schema_cls)
-
     if ptr is None:
         # Reference to a property on non-object
         msg = 'invalid property reference on a primitive type expression'

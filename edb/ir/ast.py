@@ -425,6 +425,7 @@ class TypeCheckOp(Expr):
     left: Set
     right: typing.Union[TypeRef, Array]
     op: str
+    result: typing.Optional[bool] = None
 
 
 class IfElseExpr(Expr):

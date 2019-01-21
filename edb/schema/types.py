@@ -234,6 +234,12 @@ class Collection(Type, s_abc.Collection):
     def contains_any(self):
         return any(st.contains_any() for st in self.get_subtypes())
 
+    def contains_object(self):
+        return any(
+            st.contains_object() if st.is_collection() else st.is_object_type()
+            for st in self.get_subtypes()
+        )
+
     def is_collection(self):
         return True
 
@@ -274,7 +280,7 @@ class Collection(Type, s_abc.Collection):
         my_types = self.get_subtypes()
 
         for pt, my in zip(parent_types, my_types):
-            if not pt.is_any() and not pt.issubclass(schema, my):
+            if not pt.is_any() and not my.issubclass(schema, pt):
                 return False
 
         return True
