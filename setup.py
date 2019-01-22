@@ -33,19 +33,19 @@ from setuptools.command import develop as setuptools_develop
 
 
 RUNTIME_DEPS = [
-    'asyncpg',
-    'click',
+    'asyncpg~=0.18.2',
+    'click~=6.7',
     'graphql-core~=2.1.0',
     'immutables>=0.9',
-    'Parsing',
+    'parsing~=1.6.1',
     'prompt_toolkit>=1.0.15,<2.0.0',
-    'pygments',
-    'setproctitle',
+    'Pygments~=2.3.0',
+    'setproctitle~=1.1.10',
     'typing_inspect~=0.3.1',
-    'uvloop~=0.12.0rc1',
+    'uvloop~=0.12.0',
 ]
 
-CYTHON_DEPENDENCY = 'Cython==0.29.0'
+CYTHON_DEPENDENCY = 'Cython==0.29.3'
 
 BUILD_DEPS = [
     CYTHON_DEPENDENCY,
