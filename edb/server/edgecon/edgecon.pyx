@@ -357,6 +357,8 @@ cdef class EdgeConnection:
             try:
                 res = await self.backend.pgcon.simple_query(
                     b';'.join(unit.sql), ignore_data=False)
+            except ConnectionAbortedError:
+                raise
             except Exception as ex:
                 self.dbview.on_error(unit)
                 if not self.backend.pgcon.in_tx() and self.dbview.in_tx():
@@ -442,6 +444,8 @@ cdef class EdgeConnection:
             try:
                 await self.backend.pgcon.simple_query(
                     b';'.join(unit.sql), ignore_data=True)
+            except ConnectionAbortedError:
+                raise
             except Exception:
                 self.dbview.on_error(unit)
                 if not self.backend.pgcon.in_tx() and self.dbview.in_tx():
@@ -641,6 +645,8 @@ cdef class EdgeConnection:
                     process_sync,       # =send_sync
                     use_prep_stmt,      # =use_prep_stmt
                 )
+            except ConnectionAbortedError:
+                raise
             except Exception:
                 self.dbview.on_error(compiled)
                 if not self.backend.pgcon.in_tx() and self.dbview.in_tx():
