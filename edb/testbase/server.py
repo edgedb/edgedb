@@ -426,25 +426,55 @@ class BaseQueryTestCase(DatabaseTestCase):
         query = textwrap.dedent(query)
         return await self.con._legacy_execute(query)
 
+    async def assert_query_result(self, query, result, *, msg=None):
+        res = await self.con._legacy_execute(query)
+        self._assert_data_shape(res, result, message=msg)
+        return res
+
+    async def assert_sorted_query_result(self, query, sort, result, *,
+                                         msg=None):
+        res = await self.con._legacy_execute(query)
+        for r in res:
+            self._sort_results(r, sort)
+        self._assert_data_shape(res, result, message=msg)
+        return res
+
     async def graphql_query(self, query):
         query = textwrap.dedent(query)
         return await self.con._legacy_execute(query, graphql=True)
 
-    async def assert_query_result(self, query, result, *, msg=None):
-        res = await self.con._legacy_execute(query)
-        self.assert_data_shape(res, result, message=msg)
+    async def assert_graphql_query_result(self, query, result, *, msg=None):
+        res = await self.con._legacy_execute(query, graphql=True)
+        self._assert_data_shape(res, result, message=msg)
         return res
 
-    async def assert_sorted_query_result(self, query, key, result, *,
-                                         msg=None):
-        res = await self.con._legacy_execute(query)
-        # sort the query result by using the supplied key
-        for r in res:
-            # don't bother sorting empty things
-            if r:
-                r.sort(key=key)
-        self.assert_data_shape(res, result, message=msg)
-        return res
+    async def assert_sorted_graphql_query_result(self, query, sort, result, *,
+                                                 msg=None):
+        gql = await self.con._legacy_execute(query, graphql=True)
+        # GQL will always have a single object returned. The data is
+        # in the top-level fields, so that's what needs to be sorted.
+        res = gql[0][0]
+        for r in res.values():
+            self._sort_results(r, sort)
+        self._assert_data_shape(gql, result, message=msg)
+        return gql
+
+    def _sort_results(self, results, sort):
+        # don't bother sorting empty things
+        if results:
+            # sort can be either a key function or a dict
+            if isinstance(sort, dict):
+                # the keys in the dict indicate the fields that
+                # actually must be sorted
+                for key, val in sort.items():
+                    if isinstance(results, list):
+                        for r in results:
+                            self._sort_results(r[key], val)
+                    else:
+                        self._sort_results(results[key], val)
+
+            else:
+                results.sort(key=sort)
 
     @contextlib.contextmanager
     def assertRaisesRegex(self, exception, regex, msg=None,
@@ -463,7 +493,7 @@ class BaseQueryTestCase(DatabaseTestCase):
                                 f'{expected_val!r})') from e
                 raise
 
-    def assert_data_shape(self, data, shape, message=None):
+    def _assert_data_shape(self, data, shape, message=None):
         _void = object()
 
         def _assert_type_shape(data, shape):
@@ -487,7 +517,7 @@ class BaseQueryTestCase(DatabaseTestCase):
                         '{}: key {!r} is missing\n{}'.format(
                             message, sk, pprint.pformat(data)))
 
-                _assert_data_shape(data[sk], sv)
+                _assert_generic_shape(data[sk], sv)
 
         def _list_shape_iter(shape):
             last_shape = _void
@@ -524,7 +554,7 @@ class BaseQueryTestCase(DatabaseTestCase):
                         '{}: unexpected trailing elements in list'.format(
                             message))
 
-                _assert_data_shape(el, el_shape)
+                _assert_generic_shape(el, el_shape)
 
             if len(shape) > i + 1:
                 if shape[i + 1] is not Ellipsis:
@@ -550,7 +580,7 @@ class BaseQueryTestCase(DatabaseTestCase):
                         '{}: unexpected trailing elements in set'.format(
                             message))
 
-                _assert_data_shape(el, el_shape)
+                _assert_generic_shape(el, el_shape)
 
             if len(shape) > i + 1:
                 if Ellipsis not in shape:
@@ -558,7 +588,7 @@ class BaseQueryTestCase(DatabaseTestCase):
                         '{}: expecting more elements in set'.format(
                             message))
 
-        def _assert_data_shape(data, shape):
+        def _assert_generic_shape(data, shape):
             if isinstance(shape, nullable):
                 if data is None:
                     return
@@ -585,7 +615,7 @@ class BaseQueryTestCase(DatabaseTestCase):
                 raise ValueError('unsupported shape type {}'.format(shape))
 
         message = message or 'data shape differs'
-        return _assert_data_shape(data, shape)
+        return _assert_generic_shape(data, shape)
 
 
 class DDLTestCase(BaseQueryTestCase):

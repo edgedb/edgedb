@@ -30,7 +30,7 @@ from edb.testbase import server as tb
 class TestDeltas(tb.DDLTestCase):
 
     async def test_delta_simple_01(self):
-        result = await self.query("""
+        await self.con.execute("""
             # setup delta
             #
             CREATE MIGRATION test::d1 TO eschema $$
@@ -63,18 +63,20 @@ class TestDeltas(tb.DDLTestCase):
                 }
             FILTER
                 test::NamedObject.name = 'Test 2';
-
             """)
 
-        self.assert_data_shape(result, [
-            None,
+        await self.assert_query_result(r"""
+            SELECT
+                test::NamedObject {
+                    related: {
+                        name,
+                        @lang
+                    }
+                }
+            FILTER
+                test::NamedObject.name = 'Test 2';
 
-            None,
-
-            [{}],
-
-            [{}],
-
+            """, [
             [{
                 'related': [{'name': 'Test', '@lang': None}],
             }]
@@ -83,7 +85,7 @@ class TestDeltas(tb.DDLTestCase):
     async def test_delta_drop_01(self):
         # Check that constraints defined on scalars being dropped are
         # dropped.
-        result = await self.query("""
+        await self.con.execute("""
             CREATE SCALAR TYPE test::a1 EXTENDING std::str;
 
             ALTER SCALAR TYPE test::a1 {
@@ -92,74 +94,73 @@ class TestDeltas(tb.DDLTestCase):
                         'test_delta_drop_01_constraint';
                 };
             };
-
-            WITH MODULE schema
-            SELECT Constraint {name}
-            FILTER
-                .attributes.name = 'std::description'
-                AND .attributes@value = 'test_delta_drop_01_constraint';
-
-            DROP SCALAR TYPE test::a1;
-
-            WITH MODULE schema
-            SELECT Constraint {name}
-            FILTER
-                .attributes.name = 'std::description'
-                AND .attributes@value = 'test_delta_drop_01_constraint';
         """)
 
-        self.assert_data_shape(result, [
-            None,
-            None,
-
+        await self.assert_query_result(r"""
+            WITH MODULE schema
+            SELECT Constraint {name}
+            FILTER
+                .attributes.name = 'std::description'
+                AND .attributes@value = 'test_delta_drop_01_constraint';
+        """, [
             [{
                 'name': 'std::enum',
             }],
+        ])
 
-            None,
+        await self.con.execute("""
+            DROP SCALAR TYPE test::a1;
+        """)
 
+        await self.assert_query_result(r"""
+            WITH MODULE schema
+            SELECT Constraint {name}
+            FILTER
+                .attributes.name = 'std::description'
+                AND .attributes@value = 'test_delta_drop_01_constraint';
+        """, [
             []
         ])
 
     async def test_delta_drop_02(self):
         # Check that links defined on types being dropped are
         # dropped.
-        result = await self.query("""
+        await self.con.execute("""
             CREATE TYPE test::C1 {
                 CREATE PROPERTY test::l1 -> std::str {
                     SET ATTRIBUTE description := 'test_delta_drop_02_link';
                 };
             };
-
-            WITH MODULE schema
-            SELECT Property {name}
-            FILTER
-                .attributes.name = 'std::description'
-                AND .attributes@value = 'test_delta_drop_02_link';
-
-            DROP TYPE test::C1;
-
-            WITH MODULE schema
-            SELECT Property {name}
-            FILTER
-                .attributes.name = 'std::description'
-                AND .attributes@value = 'test_delta_drop_02_link';
         """)
 
-        self.assert_data_shape(result, [
-            None,
-
+        await self.assert_query_result(r"""
+            WITH MODULE schema
+            SELECT Property {name}
+            FILTER
+                .attributes.name = 'std::description'
+                AND .attributes@value = 'test_delta_drop_02_link';
+        """, [
             [{
                 'name': 'test::l1',
             }],
+        ])
 
-            None,
+        await self.con.execute("""
+            DROP TYPE test::C1;
+        """)
 
+        await self.assert_query_result(r"""
+            WITH MODULE schema
+            SELECT Property {name}
+            FILTER
+                .attributes.name = 'std::description'
+                AND .attributes@value = 'test_delta_drop_02_link';
+        """, [
             []
         ])
 
     async def test_delta_unicode_01(self):
-        result = await self.query(r"""
+        await self.con.execute(r"""
             # setup delta
             CREATE MIGRATION test::u1 TO eschema $$
                 type Пример:
@@ -174,23 +175,16 @@ class TestDeltas(tb.DDLTestCase):
             INSERT Пример {
                 номер := 456
             };
+        """)
 
+        await self.assert_query_result(r"""
             SELECT
                 Пример {
                     номер
                 }
             ORDER BY
                 Пример.номер;
-            """)
-
-        self.assert_data_shape(result, [
-            None,
-            None,
-            None,
-
-            [{}],
-            [{}],
-
+            """, [
             [{'номер': 456}, {'номер': 987}]
         ])
 

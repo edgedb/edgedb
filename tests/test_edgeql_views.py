@@ -436,7 +436,14 @@ class TestEdgeQLViews(tb.QueryTestCase):
         ])
 
     async def test_edgeql_views_if_else_03(self):
-        res = await self.query(r"""
+        res = [
+            ['Air', 'Air', 'Air', 'Earth', 'Earth', 'Fire', 'Fire', 'Water',
+             'Water'],
+            ['1', '1', '1', '2', '2', '3', '3', '4', '5'],
+            [False, False, False, True, True],
+        ]
+
+        await self.assert_query_result(r"""
             # get the data that this test relies upon in a format
             # that's easy to analyze
             WITH MODULE test
@@ -450,14 +457,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             WITH MODULE test
             SELECT _ := {User.name[0] = 'A', EXISTS User.friends}
             ORDER BY _;
-        """)
-
-        self.assert_data_shape(res, [
-            ['Air', 'Air', 'Air', 'Earth', 'Earth', 'Fire', 'Fire', 'Water',
-             'Water'],
-            ['1', '1', '1', '2', '2', '3', '3', '4', '5'],
-            [False, False, False, True, True],
-        ])
+        """, res)
 
         await self.assert_query_result(r"""
             # results and conditions are sets

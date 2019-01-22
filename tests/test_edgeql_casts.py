@@ -1188,7 +1188,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
     async def test_edgeql_casts_assignment_01(self):
         async with self.con.transaction():
-            res = await self.query(r'''
+            await self.con.execute(r"""
                 SET MODULE test;
 
                 # int64 is assignment castable or implicitly castable
@@ -1201,7 +1201,9 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     p_float64 := 1,
                     p_decimal := 1,
                 };
+            """)
 
+            await self.assert_query_result(r"""
                 SELECT ScalarTest {
                     p_int16,
                     p_int32,
@@ -1210,12 +1212,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     p_float64,
                     p_decimal,
                 };
-
-                DELETE (SELECT ScalarTest FILTER EXISTS (.p_int16 + .p_int32));
-            ''')
-
-            self.assert_data_shape(
-                res[-2],
+            """, [
                 [{
                     'p_int16': 1,
                     'p_int32': 1,
@@ -1224,31 +1221,36 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     'p_float64': 1,
                     'p_decimal': 1,
                 }],
-            )
+            ])
+
+            await self.con.execute(r"""
+                DELETE (SELECT ScalarTest FILTER EXISTS (.p_int16 + .p_int32));
+            """)
 
     async def test_edgeql_casts_assignment_02(self):
         async with self.con.transaction():
-            res = await self.query(r'''
+            await self.con.execute(r"""
                 SET MODULE test;
 
                 # float64 is assignment castable to float32
                 INSERT ScalarTest {
                     p_float32 := 1.5,
                 };
+            """)
 
+            await self.assert_query_result(r"""
                 SELECT ScalarTest {
                     p_float32,
                 };
-
-                DELETE (SELECT ScalarTest FILTER .p_float32 = 1.5);
-            ''')
-
-            self.assert_data_shape(
-                res[-2],
+            """, [
                 [{
                     'p_float32': 1.5,
                 }],
-            )
+            ])
+
+            await self.con.execute(r"""
+                DELETE (SELECT ScalarTest FILTER .p_float32 = 1.5);
+            """)
 
     async def test_edgeql_casts_assignment_03(self):
         # in particular, decimal is not assignment-castable

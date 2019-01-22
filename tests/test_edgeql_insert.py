@@ -42,7 +42,7 @@ class TestInsert(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_insert_simple_01(self):
-        result = await self.query(r"""
+        await self.con.execute(r"""
             INSERT test::InsertTest {
                 name := 'insert simple 01',
                 l2 := 0,
@@ -65,7 +65,9 @@ class TestInsert(tb.QueryTestCase):
                 l3 := '\"Test\'3\'\"',
                 l2 := 3
             };
+        """)
 
+        await self.assert_query_result(r"""
             SELECT
                 test::InsertTest {
                     l2, l3
@@ -74,17 +76,7 @@ class TestInsert(tb.QueryTestCase):
                 test::InsertTest.name = 'insert simple 01'
             ORDER BY
                 test::InsertTest.l2;
-        """)
-
-        self.assert_data_shape(result, [
-            [{}],
-
-            [{}],
-
-            [{}],
-
-            [{}],
-
+        """, [
             [{
                 'l2': 0,
                 'l3': 'test',
@@ -101,25 +93,24 @@ class TestInsert(tb.QueryTestCase):
         ])
 
     async def test_edgeql_insert_simple_02(self):
-        res = await self.query('''
+        await self.con.execute('''
             WITH MODULE test
             INSERT DefaultTest1 { foo := '02' };
 
             INSERT test::DefaultTest1 { foo := '02' };
 
             INSERT test::DefaultTest1 { foo := '02' };
-
-            WITH MODULE test
-            SELECT DefaultTest1 { num } FILTER DefaultTest1.foo = '02';
         ''')
 
-        self.assert_data_shape(
-            res[-1],
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT DefaultTest1 { num } FILTER DefaultTest1.foo = '02';
+        ''', [
             [{'num': 42}, {'num': 42}, {'num': 42}],
-        )
+        ])
 
     async def test_edgeql_insert_simple_03(self):
-        res = await self.query('''
+        await self.con.execute('''
             INSERT test::DefaultTest1 { num := 100 };
 
             WITH MODULE test
@@ -132,19 +123,18 @@ class TestInsert(tb.QueryTestCase):
             INSERT test::DefaultTest1 { num := 102 };
 
             INSERT test::DefaultTest2;
+        ''')
 
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT DefaultTest2 { num }
             ORDER BY DefaultTest2.num;
-        ''')
-
-        self.assert_data_shape(
-            res[-1],
+        ''', [
             [{'num': 101}, {'num': 102}, {'num': 103}],
-        )
+        ])
 
     async def test_edgeql_insert_nested_01(self):
-        res = await self.query('''
+        await self.con.execute('''
             INSERT test::Subordinate {
                 name := 'subtest 1'
             };
@@ -161,7 +151,9 @@ class TestInsert(tb.QueryTestCase):
                     FILTER test::Subordinate.name LIKE 'subtest%'
                 )
             };
+        ''')
 
+        await self.assert_query_result(r'''
             SELECT test::InsertTest {
                 subordinates: {
                     name,
@@ -170,10 +162,7 @@ class TestInsert(tb.QueryTestCase):
             }
             FILTER
                 test::InsertTest.name = 'insert nested';
-        ''')
-
-        self.assert_data_shape(
-            res[-1],
+        ''', [
             [{
                 'subordinates': [{
                     'name': 'subtest 1',
@@ -183,10 +172,10 @@ class TestInsert(tb.QueryTestCase):
                     '@comment': None,
                 }]
             }]
-        )
+        ])
 
     async def test_edgeql_insert_nested_02(self):
-        res = await self.query('''
+        await self.con.execute('''
             WITH MODULE test
             INSERT Subordinate {
                 name := 'subtest 3'
@@ -208,7 +197,9 @@ class TestInsert(tb.QueryTestCase):
                     FILTER Subordinate.name IN {'subtest 3', 'subtest 4'}
                 )
             };
+        ''')
 
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT InsertTest {
                 subordinates: {
@@ -218,10 +209,7 @@ class TestInsert(tb.QueryTestCase):
             }
             FILTER
                 InsertTest.name = 'insert nested 2';
-        ''')
-
-        self.assert_data_shape(
-            res[-1],
+        ''', [
             [{
                 'subordinates': [{
                     'name': 'subtest 3',
@@ -231,10 +219,10 @@ class TestInsert(tb.QueryTestCase):
                     '@comment': 'comment subtest 4',
                 }]
             }]
-        )
+        ])
 
     async def test_edgeql_insert_nested_03(self):
-        res = await self.query('''
+        await self.con.execute('''
             WITH MODULE test
             INSERT InsertTest {
                 name := 'insert nested 3',
@@ -243,7 +231,9 @@ class TestInsert(tb.QueryTestCase):
                     name := 'nested sub 3.1'
                 }
             };
+        ''')
 
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT InsertTest {
                 subordinates: {
@@ -252,19 +242,16 @@ class TestInsert(tb.QueryTestCase):
             }
             FILTER
                 InsertTest.name = 'insert nested 3';
-        ''')
-
-        self.assert_data_shape(
-            res[-1],
+        ''', [
             [{
                 'subordinates': [{
                     'name': 'nested sub 3.1'
                 }]
             }]
-        )
+        ])
 
     async def test_edgeql_insert_nested_04(self):
-        res = await self.query('''
+        await self.con.execute('''
             WITH MODULE test
             INSERT InsertTest {
                 name := 'insert nested 4',
@@ -274,7 +261,9 @@ class TestInsert(tb.QueryTestCase):
                     @comment := 'comment 4.1',
                 }
             };
+        ''')
 
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT InsertTest {
                 subordinates: {
@@ -284,20 +273,17 @@ class TestInsert(tb.QueryTestCase):
             }
             FILTER
                 InsertTest.name = 'insert nested 4';
-        ''')
-
-        self.assert_data_shape(
-            res[-1],
+        ''', [
             [{
                 'subordinates': [{
                     'name': 'nested sub 4.1',
                     '@comment': 'comment 4.1'
                 }]
             }]
-        )
+        ])
 
     async def test_edgeql_insert_nested_05(self):
-        res = await self.query('''
+        await self.con.execute('''
             INSERT test::Subordinate {
                 name := 'only subordinate'
             };
@@ -315,7 +301,9 @@ class TestInsert(tb.QueryTestCase):
                     FILTER Subordinate.name = 'only subordinate'
                 )
             };
+        ''')
 
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT InsertTest {
                 name,
@@ -324,10 +312,7 @@ class TestInsert(tb.QueryTestCase):
                     name
                 }
             } FILTER InsertTest.name = 'insert nested 5';
-        ''')
-
-        self.assert_data_shape(
-            res[-1],
+        ''', [
             [{
                 'name': 'insert nested 5',
                 'l2': 0,
@@ -335,7 +320,7 @@ class TestInsert(tb.QueryTestCase):
                     'name': 'only subordinate'
                 }]
             }],
-        )
+        ])
 
     @test.xfail('''
         This test fails with the following error:
@@ -344,7 +329,7 @@ class TestInsert(tb.QueryTestCase):
         The culprit appears to be specifically the LIMIT 1.
     ''')
     async def test_edgeql_insert_nested_06(self):
-        res = await self.query('''
+        await self.con.execute('''
             WITH MODULE test
             INSERT Subordinate {
                 name := 'linkprop test target 6'
@@ -361,7 +346,9 @@ class TestInsert(tb.QueryTestCase):
                     LIMIT 1
                 )
             };
+        ''')
 
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT InsertTest {
                 subordinates: {
@@ -371,26 +358,25 @@ class TestInsert(tb.QueryTestCase):
             }
             FILTER
                 InsertTest.name = 'insert nested 6';
-        ''')
-
-        self.assert_data_shape(
-            res[-1],
+        ''', [
             [{
                 'subordinates': [{
                     'name': 'linkprop test target 6',
                     '@comment': 'comment 6'
                 }]
             }]
-        )
+        ])
 
     async def test_edgeql_insert_returning_01(self):
-        res = await self.query('''
+        await self.con.execute('''
             WITH MODULE test
             INSERT DefaultTest1 {
                 foo := 'ret1',
                 num := 1,
             };
+        ''')
 
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT (INSERT DefaultTest1 {
                 foo := 'ret2',
@@ -402,21 +388,15 @@ class TestInsert(tb.QueryTestCase):
                 foo := 'ret3',
                 num := 3,
             }).num;
-        ''')
-
-        self.assert_data_shape(
-            res,
-            [
-                [{}],
-                [{
-                    'foo': 'ret2',
-                }],
-                [3],
-            ]
-        )
+        ''', [
+            [{
+                'foo': 'ret2',
+            }],
+            [3],
+        ])
 
     async def test_edgeql_insert_returning_02(self):
-        res = await self.query('''
+        await self.assert_query_result('''
             WITH MODULE test
             SELECT (INSERT DefaultTest1 {
                 foo := 'ret1',
@@ -434,27 +414,24 @@ class TestInsert(tb.QueryTestCase):
                 foo := 'ret3',
                 num := 3,
             }).num;
-        ''')
-
-        self.assert_data_shape(
-            res,
-            [
-                [{
-                    'id': uuid.UUID,
-                }],
-                [{
-                    'foo': 'ret2',
-                }],
-                [3],
-            ]
-        )
+        ''', [
+            [{
+                'id': uuid.UUID,
+            }],
+            [{
+                'foo': 'ret2',
+            }],
+            [3],
+        ])
 
     async def test_edgeql_insert_returning_03(self):
-        res = await self.query('''
+        await self.con.execute('''
             INSERT test::Subordinate {
                 name := 'sub returning 3'
             };
+        ''')
 
+        await self.assert_query_result(r'''
             WITH
                 MODULE test,
                 I := (INSERT InsertTest {
@@ -472,10 +449,7 @@ class TestInsert(tb.QueryTestCase):
                     name
                 }
             };
-        ''')
-
-        self.assert_data_shape(
-            res[-1],
+        ''', [
             [{
                 'name': 'insert nested returning 3',
                 'l2': 0,
@@ -483,7 +457,7 @@ class TestInsert(tb.QueryTestCase):
                     'name': 'sub returning 3'
                 }]
             }],
-        )
+        ])
 
     async def test_edgeql_insert_returning_04(self):
         await self.assert_query_result(r'''
@@ -525,7 +499,7 @@ class TestInsert(tb.QueryTestCase):
         ])
 
     async def test_edgeql_insert_for_01(self):
-        res = await self.query(r'''
+        await self.con.execute(r'''
             WITH MODULE test
             FOR x IN {3, 5, 7, 2}
             UNION (INSERT InsertTest {
@@ -541,15 +515,15 @@ class TestInsert(tb.QueryTestCase):
                 l2 := 35 % Q.l2,
                 l3 := Q.foo,
             });
+        ''')
 
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT InsertTest{name, l2, l3}
             FILTER .name = 'insert for 1'
             ORDER BY .l2 THEN .l3;
-        ''')
-
-        self.assert_data_shape(
-            res[-1], [
+        ''', [
+            [
                 # insertion based on existing data
                 {
                     'name': 'insert for 1',
@@ -593,16 +567,18 @@ class TestInsert(tb.QueryTestCase):
                     'l3': 'test',
                 },
             ]
-        )
+        ])
 
     async def test_edgeql_insert_for_02(self):
-        res = await self.query(r'''
+        await self.con.execute(r'''
             # create 10 DefaultTest3 objects, each object is defined
             # as having a randomly generated value for 'foo'
             WITH MODULE test
             FOR x IN {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
             UNION (INSERT DefaultTest3);
+        ''')
 
+        await self.assert_query_result(r'''
             # statistically, randomly generated value for 'foo' should not be
             # identical for all 10 records
             WITH
@@ -610,14 +586,12 @@ class TestInsert(tb.QueryTestCase):
                 DT3 := DefaultTest3
             SELECT count(
                 DefaultTest3 FILTER DefaultTest3.foo != DT3.foo) > 0;
-        ''')
-
-        self.assert_data_shape(
-            res[-1], [True]
-        )
+        ''', [
+            {True}
+        ])
 
     async def test_edgeql_insert_for_03(self):
-        res = await self.query(r'''
+        await self.con.execute(r'''
             # Create 5 DefaultTest4 objects. The default value for
             # 'bar' is technically evaluated for each object, but
             # because it is deterministic it will be same for all 5
@@ -625,18 +599,18 @@ class TestInsert(tb.QueryTestCase):
             WITH MODULE test
             FOR x IN {1, 2, 3, 4, 5}
             UNION (INSERT DefaultTest4);
+        ''')
 
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT DefaultTest4.bar
             ORDER BY DefaultTest4.bar;
-        ''')
-
-        self.assert_data_shape(
-            res[-1], [0, 0, 0, 0, 0]
-        )
+        ''', [
+            [0, 0, 0, 0, 0]
+        ])
 
     async def test_edgeql_insert_default_01(self):
-        res = await self.query(r'''
+        await self.con.execute(r'''
             # create 10 DefaultTest3 objects, each object is defined
             # as having a randomly generated value for 'foo'
             INSERT test::DefaultTest3;
@@ -650,7 +624,9 @@ class TestInsert(tb.QueryTestCase):
             INSERT test::DefaultTest3;
             INSERT test::DefaultTest3;
             INSERT test::DefaultTest3;
+        ''')
 
+        await self.assert_query_result(r'''
             # statistically, randomly generated value for 'foo' should not be
             # identical for all 10 records
             WITH
@@ -658,14 +634,12 @@ class TestInsert(tb.QueryTestCase):
                 DT3 := DefaultTest3
             SELECT count(
                 DefaultTest3 FILTER DefaultTest3.foo != DT3.foo) > 0;
-        ''')
-
-        self.assert_data_shape(
-            res[-1], [True]
-        )
+        ''', [
+            {True}
+        ])
 
     async def test_edgeql_insert_default_02(self):
-        res = await self.query(r'''
+        await self.con.execute(r'''
             # by default the 'bar' value is simply going to be "indexing" the
             # created objects
             INSERT test::DefaultTest4;
@@ -673,14 +647,14 @@ class TestInsert(tb.QueryTestCase):
             INSERT test::DefaultTest4;
             INSERT test::DefaultTest4;
             INSERT test::DefaultTest4;
+        ''')
 
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT DefaultTest4 { bar }
             ORDER BY DefaultTest4.bar;
-        ''')
-
-        self.assert_data_shape(
-            res[-1], [{
+        ''', [
+            [{
                 'bar': 0,
             }, {
                 'bar': 1,
@@ -691,33 +665,33 @@ class TestInsert(tb.QueryTestCase):
             }, {
                 'bar': 4,
             }]
-        )
+        ])
 
     async def test_edgeql_insert_default_03(self):
-        res = await self.query(r'''
+        await self.con.execute(r'''
             # by default the 'bar' value is simply going to be "indexing" the
             # created objects
             INSERT test::DefaultTest4 { bar:= 10 };
             INSERT test::DefaultTest4;
             INSERT test::DefaultTest4;
+        ''')
 
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT DefaultTest4 { bar }
             ORDER BY DefaultTest4.bar;
-        ''')
-
-        self.assert_data_shape(
-            res[-1], [{
+        ''', [
+            [{
                 'bar': 1,
             }, {
                 'bar': 2,
             }, {
                 'bar': 10,
             }]
-        )
+        ])
 
     async def test_edgeql_insert_default_04(self):
-        res = await self.query(r'''
+        await self.con.execute(r'''
             # by default the 'bar' value is simply going to be "indexing" the
             # created objects
             INSERT test::DefaultTest4;
@@ -725,14 +699,14 @@ class TestInsert(tb.QueryTestCase):
             INSERT test::DefaultTest4 { bar:= 0 };
             INSERT test::DefaultTest4;
             INSERT test::DefaultTest4;
+        ''')
 
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT DefaultTest4 { bar }
             ORDER BY DefaultTest4.bar;
-        ''')
-
-        self.assert_data_shape(
-            res[-1], [{
+        ''', [
+            [{
                 'bar': 0,
             }, {
                 'bar': 0,
@@ -743,11 +717,11 @@ class TestInsert(tb.QueryTestCase):
             }, {
                 'bar': 4,
             }]
-        )
+        ])
 
     @unittest.expectedFailure
     async def test_edgeql_insert_as_expr_01(self):
-        res = await self.query(r'''
+        await self.con.execute(r'''
             # insert several objects, then annotate one of the inserted batch
             WITH MODULE test
             FOR x IN {(
@@ -764,7 +738,9 @@ class TestInsert(tb.QueryTestCase):
                 note := 'largest ' + <str>x.l2,
                 subject := x
             });
+        ''')
 
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT
                 InsertTest {
@@ -778,10 +754,8 @@ class TestInsert(tb.QueryTestCase):
                 }
             FILTER .name = 'insert expr 1'
             ORDER BY .l2;
-        ''')
-
-        self.assert_data_shape(
-            res[-1], [
+        ''', [
+            [
                 # inserted based on static data
                 {
                     'name': 'insert expr 1',
@@ -811,18 +785,20 @@ class TestInsert(tb.QueryTestCase):
                     }]
                 },
             ]
-        )
+        ])
 
     @unittest.expectedFailure
     async def test_edgeql_insert_polymorphic_01(self):
-        res = await self.query(r'''
+        await self.con.execute(r'''
             WITH MODULE test
             INSERT Directive {
                 args: {
                     val := "something"
                 },
             };
+        ''')
 
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Callable {
                 args: {
@@ -848,26 +824,21 @@ class TestInsert(tb.QueryTestCase):
             SELECT InputValue {
                 val
             };
-        ''')
-
-        self.assert_data_shape(
-            res, [
-                [{}],
-                [{
-                    'args': {'val': 'something'},
-                }],
-                [],
-                [{
-                    'args': {'val': 'something'},
-                }],
-                [{
-                    'val': 'something',
-                }],
-            ]
-        )
+        ''', [
+            [{
+                'args': {'val': 'something'},
+            }],
+            [],
+            [{
+                'args': {'val': 'something'},
+            }],
+            [{
+                'val': 'something',
+            }],
+        ])
 
     async def test_edgeql_insert_linkprops_with_for_01(self):
-        await self.assert_query_result(r"""
+        await self.con.execute(r"""
             WITH MODULE test
             FOR i IN {'1', '2', '3'} UNION (
                 INSERT Subordinate {
@@ -885,7 +856,9 @@ class TestInsert(tb.QueryTestCase):
                     )
                 )
             };
+        """)
 
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT InsertTest {
                 l2,
@@ -895,8 +868,6 @@ class TestInsert(tb.QueryTestCase):
                 } ORDER BY InsertTest.subordinates.name
             } FILTER .l2 = 99;
         """, [
-            [{}, ...],
-            [{}],
             [{
                 'l2': 99,
                 'subordinates': [{
@@ -913,7 +884,7 @@ class TestInsert(tb.QueryTestCase):
         ])
 
     async def test_edgeql_insert_empty_01(self):
-        await self.assert_query_result(r"""
+        await self.con.execute(r"""
             WITH MODULE test
             INSERT InsertTest {
                 l1 := {},
@@ -921,7 +892,9 @@ class TestInsert(tb.QueryTestCase):
                 # l3 has a default value
                 l3 := {},
             };
+        """)
 
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT InsertTest {
                 l1,
@@ -929,7 +902,6 @@ class TestInsert(tb.QueryTestCase):
                 l3
             };
         """, [
-            [{}],
             [{
                 'l1': None,
                 'l2': 99,

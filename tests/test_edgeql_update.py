@@ -221,7 +221,7 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_returning_02(self):
         orig1, orig2, orig3 = self.original
 
-        res = await self.query(r"""
+        self.assert_sorted_query_result(r"""
             WITH MODULE test
             SELECT (
                 UPDATE UpdateTest
@@ -237,32 +237,31 @@ class TestUpdate(tb.QueryTestCase):
                     name
                 }
             };
-        """)
-
-        res[-1].sort(key=lambda x: x['name'])
-        self.assert_data_shape(res[-1], [
-            {
-                'id': orig1['id'],
-                'name': 'update-test1',
-                'comment': None,
-                'status': {
-                    'name': 'Closed'
-                }
-            }, {
-                'id': orig2['id'],
-                'name': 'update-test2',
-                'comment': 'second!',
-                'status': {
-                    'name': 'Closed'
-                }
-            }, {
-                'id': orig3['id'],
-                'name': 'update-test3',
-                'comment': 'third!',
-                'status': {
-                    'name': 'Closed'
-                }
-            },
+        """, lambda x: x['name'], [
+            [
+                {
+                    'id': orig1['id'],
+                    'name': 'update-test1',
+                    'comment': None,
+                    'status': {
+                        'name': 'Closed'
+                    }
+                }, {
+                    'id': orig2['id'],
+                    'name': 'update-test2',
+                    'comment': 'second!',
+                    'status': {
+                        'name': 'Closed'
+                    }
+                }, {
+                    'id': orig3['id'],
+                    'name': 'update-test3',
+                    'comment': 'third!',
+                    'status': {
+                        'name': 'Closed'
+                    }
+                },
+            ]
         ])
 
     async def test_edgeql_update_returning_03(self):

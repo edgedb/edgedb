@@ -81,24 +81,22 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_array_agg_01(self):
-        res = await self.query('''
+        await self.assert_query_result('''
             SELECT array_agg({1, 2, 3});
             SELECT array_agg({3, 2, 3});
             SELECT array_agg({3, 3, 2});
-        ''')
-        self.assert_data_shape(res, [
+        ''', [
             [[1, 2, 3]],
             [[3, 2, 3]],
             [[3, 3, 2]],
         ])
 
     async def test_edgeql_functions_array_agg_02(self):
-        res = await self.query('''
+        await self.assert_query_result('''
             SELECT array_agg({1, 2, 3})[0];
             SELECT array_agg({3, 2, 3})[1];
             SELECT array_agg({3, 3, 2})[-1];
-        ''')
-        self.assert_data_shape(res, [
+        ''', [
             [{}],
             [2],
             [2],

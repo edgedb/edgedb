@@ -23,7 +23,7 @@ from edb.testbase import server as tb
 class TestIndexes(tb.DDLTestCase):
 
     async def test_index_01(self):
-        result = await self.query("""
+        await self.con.execute(r"""
             # setup delta
             #
             CREATE MIGRATION test::d1 TO eschema $$
@@ -36,7 +36,9 @@ class TestIndexes(tb.DDLTestCase):
             $$;
 
             COMMIT MIGRATION test::d1;
+        """)
 
+        await self.assert_query_result(r"""
             SELECT
                 schema::ObjectType {
                     indexes: {
@@ -44,12 +46,23 @@ class TestIndexes(tb.DDLTestCase):
                     }
                 }
             FILTER schema::ObjectType.name = 'test::Person';
+        """, [
+            [{
+                'indexes': [{
+                    'expr': 'SELECT (test::Person.first_name, '
+                            'test::Person.last_name)'
+                }]
+            }],
+        ])
 
+        await self.con.execute(r"""
             INSERT test::Person {
                 first_name := 'Elon',
                 last_name := 'Musk'
             };
+        """)
 
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT
                 Person {
@@ -57,22 +70,7 @@ class TestIndexes(tb.DDLTestCase):
                 }
             FILTER
                 Person.first_name = 'Elon' AND Person.last_name = 'Musk';
-            """)
-
-        self.assert_data_shape(result, [
-            None,
-
-            None,
-
-            [{
-                'indexes': [{
-                    'expr': 'SELECT (test::Person.first_name, '
-                            'test::Person.last_name)'
-                }]
-            }],
-
-            [{}],
-
+        """, [
             [{
                 'first_name': 'Elon'
             }]

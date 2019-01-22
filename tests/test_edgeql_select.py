@@ -672,7 +672,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         # Make sure that the __type__ attribute gets the same object
         # as a direct schema::ObjectType query. As long as this is true,
         # we can test the schema separately without any other data.
-        res1 = await self.query(r'''
+        res = await self.con.fetch_value(r'''
             WITH MODULE test
             SELECT User {
                 __type__: {
@@ -682,15 +682,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             } LIMIT 1;
         ''')
 
-        res2 = await self.query(r'''
+        await self.assert_query_result(r'''
             WITH MODULE schema
             SELECT `ObjectType` {
                 name,
                 id,
             } FILTER `ObjectType`.name = 'test::User';
-        ''')
-
-        self.assert_data_shape(res1[0][0]['__type__'], res2[0][0])
+        ''', [
+            [{
+                'name': res.__type__.name,
+                'id': str(res.__type__.id),
+            }]
+        ])
 
     @test.not_implemented('recursive queries are not implemented')
     async def test_edgeql_select_recursive_01(self):
@@ -1348,7 +1351,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_setops_02(self):
-        res = await self.query(r'''
+        await self.assert_sorted_query_result(r'''
             WITH
                 MODULE test,
                 Obj := (SELECT Issue UNION Comment)
@@ -1356,7 +1359,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 [IS Issue].name,
                 [IS Text].body
             };
+        ''', lambda x: x['body'], [
+            [
+                {'body': 'EdgeDB needs to happen soon.'},
+                {'body': 'Fix regression introduced by lexer tweak.'},
+                {'body': 'Initial public release of EdgeDB.'},
+                {'body': 'Minor lexer tweaks.'},
+                {'body': 'We need to be able to render '
+                         'data in tabular format.'}
+            ],
+        ])
 
+        await self.assert_query_result(r'''
             # XXX: I think we should be able to drop [IS Text] from
             # the query below.
             WITH
@@ -1364,10 +1378,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Obj := (SELECT Issue UNION Comment)
             SELECT Obj[IS Text] { id, body }
             ORDER BY Obj[IS Text].body;
-        ''')
-
-        self.assert_data_shape(res, [
-            res[0],
+        ''', [
             [
                 {'body': 'EdgeDB needs to happen soon.'},
                 {'body': 'Fix regression introduced by lexer tweak.'},
@@ -2318,13 +2329,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_select_coalesce_03(self):
-        res = await self.query(r'''
+        issues_h = await self.con.fetch(r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
                 Issue.priority.name = 'High'
             ORDER BY Issue.number;
+        ''')
 
+        issues_n = await self.con.fetch(r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2332,19 +2345,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ORDER BY Issue.number;
         ''')
 
-        issues_h, issues_n = res
-
-        res = await self.query(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
                 Issue.priority.name ?? 'High' = 'High'
             ORDER BY
                 Issue.priority.name EMPTY LAST THEN Issue.number;
-        ''')
-
-        self.assert_data_shape(res, [
-            issues_h + issues_n
+        ''', [
+            [{'number': o.number} for o in [*issues_h, *issues_n]]
         ])
 
     async def test_edgeql_select_equivalence_01(self):
@@ -2553,13 +2562,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_or_01(self):
-        res = await self.query(r'''
+        issues_h = await self.con.fetch(r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
                 Issue.priority.name = 'High'
             ORDER BY Issue.number;
+        ''')
 
+        issues_l = await self.con.fetch(r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2567,9 +2578,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ORDER BY Issue.number;
         ''')
 
-        issues_h, issues_l = res
-
-        res = await self.query(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2577,10 +2586,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OR
                 Issue.priority.name = 'Low'
             ORDER BY Issue.priority.name THEN Issue.number;
-        ''')
-
-        self.assert_data_shape(res, [
-            issues_h + issues_l,
+        ''', [
+            [{'number': o.number} for o in [*issues_h, *issues_l]]
         ])
 
     async def test_edgeql_select_or_04(self):

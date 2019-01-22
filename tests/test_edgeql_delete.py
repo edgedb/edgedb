@@ -17,8 +17,6 @@
 #
 
 
-import uuid
-
 import edgedb
 
 from edb.testbase import server as tb
@@ -37,7 +35,7 @@ class TestDelete(tb.QueryTestCase):
         COMMIT MIGRATION test::d_delete01;
     """
 
-    async def test_edgeql_delete_bad01(self):
+    async def test_edgeql_delete_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'cannot delete non-ObjectType object'):
@@ -47,42 +45,46 @@ class TestDelete(tb.QueryTestCase):
             ''')
         pass
 
-    async def test_edgeql_delete_simple01(self):
+    async def test_edgeql_delete_simple_01(self):
         # ensure a clean slate, not part of functionality testing
-        await self.query(r"""
+        await self.con.execute(r"""
             DELETE test::DeleteTest;
         """)
 
-        result = await self.query(r"""
+        await self.con.execute(r"""
             INSERT test::DeleteTest {
                 name := 'delete-test'
             };
+        """)
 
+        await self.assert_query_result(r"""
+            SELECT test::DeleteTest;
+        """, [
+            [{}],
+        ])
+
+        await self.con.execute(r"""
             DELETE test::DeleteTest;
         """)
 
-        self.assert_data_shape(result, [
-            [{}],
-            [{}]
+        await self.assert_query_result(r"""
+            SELECT test::DeleteTest;
+        """, [
+            [],
         ])
 
-    async def test_edgeql_delete_simple02(self):
-        result = await self.query(r"""
+    async def test_edgeql_delete_simple_02(self):
+        id1 = str((await self.con.fetch_value(r"""
             SELECT(INSERT test::DeleteTest {
                 name := 'delete-test1'
-            });
+            }) LIMIT 1;
+        """)).id)
+
+        id2 = str((await self.con.fetch_value(r"""
             SELECT(INSERT test::DeleteTest {
                 name := 'delete-test2'
-            });
-        """)
-
-        self.assert_data_shape(result, [
-            [{'id': uuid.UUID}],
-            [{'id': uuid.UUID}],
-        ])
-
-        id1 = result[0][0]['id']
-        id2 = result[1][0]['id']
+            }) LIMIT 1;
+        """)).id)
 
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -116,28 +118,23 @@ class TestDelete(tb.QueryTestCase):
             [],
         ])
 
-    async def test_edgeql_delete_returning01(self):
-        result = await self.query(r"""
-            SELECT(INSERT test::DeleteTest {
+    async def test_edgeql_delete_returning_01(self):
+        id1 = str((await self.con.fetch_value(r"""
+            SELECT (INSERT test::DeleteTest {
                 name := 'delete-test1'
-            });
-            SELECT(INSERT test::DeleteTest {
+            }) LIMIT 1;
+        """)).id)
+
+        await self.con.execute(r"""
+            INSERT test::DeleteTest {
                 name := 'delete-test2'
-            });
-            SELECT(INSERT test::DeleteTest {
+            };
+            INSERT test::DeleteTest {
                 name := 'delete-test3'
-            });
+            };
         """)
 
-        self.assert_data_shape(result, [
-            [{'id': uuid.UUID}],
-            [{'id': uuid.UUID}],
-            [{'id': uuid.UUID}],
-        ])
-
-        id1 = result[0][0]['id']
-
-        del_result = await self.query(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT (DELETE (SELECT DeleteTest
                     FILTER DeleteTest.name = 'delete-test1'));
@@ -154,15 +151,13 @@ class TestDelete(tb.QueryTestCase):
                     SELECT DeleteTest
                     FILTER DeleteTest.name = 'delete-test3'
                 )).name ++ '--DELETED';
-        """)
-
-        self.assert_data_shape(del_result, [
+        """, [
             [{'id': id1}],
             [{'name': 'delete-test2'}],
             ['delete-test3--DELETED'],
         ])
 
-    async def test_edgeql_delete_returning02(self):
+    async def test_edgeql_delete_returning_02(self):
         await self.assert_query_result(r"""
             INSERT test::DeleteTest {
                 name := 'delete-test1'
@@ -183,7 +178,7 @@ class TestDelete(tb.QueryTestCase):
             [3],
         ])
 
-    async def test_edgeql_delete_returning03(self):
+    async def test_edgeql_delete_returning_03(self):
         await self.assert_query_result(r"""
             INSERT test::DeleteTest {
                 name := 'dt1.1'
@@ -226,7 +221,7 @@ class TestDelete(tb.QueryTestCase):
             [{}, {}],
         ])
 
-    async def test_edgeql_delete_returning04(self):
+    async def test_edgeql_delete_returning_04(self):
         await self.assert_query_result(r"""
             INSERT test::DeleteTest {
                 name := 'dt1.1'
@@ -268,7 +263,7 @@ class TestDelete(tb.QueryTestCase):
             }],
         ])
 
-    async def test_edgeql_delete_returning05(self):
+    async def test_edgeql_delete_returning_05(self):
         await self.assert_query_result(r"""
             INSERT test::DeleteTest {
                 name := 'dt1.1'

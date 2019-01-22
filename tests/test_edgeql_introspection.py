@@ -574,15 +574,13 @@ class TestIntrospection(tb.QueryTestCase):
 
     async def test_edgeql_introspection_meta_13(self):
         # make sure that ALL schema Objects are std::Objects
-        res = await self.query(r"""
-            WITH MODULE schema
-            SELECT count(Object);
-
-            WITH MODULE schema
-            SELECT Object IS std::Object;
+        res = await self.con.fetch_value(r"""
+            SELECT count(schema::Object);
         """)
 
-        self.assert_data_shape(res[1], [True] * res[0][0])
+        await self.assert_query_result(r"""
+            SELECT schema::Object IS std::Object;
+        """, [[True] * res])
 
     async def test_edgeql_introspection_meta_14(self):
         await self.assert_query_result(r"""

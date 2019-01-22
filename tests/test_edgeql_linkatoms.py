@@ -913,7 +913,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_tuple_01(self):
-        res = await self.query(r'''
+        await self.assert_sorted_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 n1 := (Item.name,),
@@ -925,16 +925,13 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             }
             FILTER .name IN {'chair', 'table'}
             ORDER BY .name;
-        ''')
-
-        # sort the data
-        for result in res[0]:
-            result['t1'].sort(key=lambda x: x[0])
-            result['t2'].sort(key=lambda x: (x[0], x[1]))
-            result['t3'].sort()
-            result['t4'].sort()
-
-        self.assert_data_shape(res, [
+        ''', {
+            # sort the data
+            't1': lambda x: x[0],
+            't2': lambda x: (x[0], x[1]),
+            't3': lambda x: x,
+            't4': lambda x: x,
+        }, [
             [
                 {
                     'n1': ['chair'],
@@ -957,7 +954,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_01(self):
-        res = await self.query(r'''
+        await self.assert_sorted_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 n1 := [Item.name],
@@ -971,16 +968,13 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             }
             FILTER .name IN {'chair', 'table'}
             ORDER BY .name;
-        ''')
-
-        # sort the data
-        for result in res[0]:
-            result['t1'].sort(key=lambda x: x[0])
-            result['t2'].sort(key=lambda x: (x[0], x[1]))
-            result['t3'].sort()
-            result['t4'].sort()
-
-        self.assert_data_shape(res, [
+        ''', {
+            # sort the data
+            't1': lambda x: x[0],
+            't2': lambda x: (x[0], x[1]),
+            't3': lambda x: x,
+            't4': lambda x: x,
+        }, [
             [
                 {
                     'n1': ['chair'],
@@ -1007,7 +1001,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_02(self):
-        res = await self.query(r'''
+        await self.assert_sorted_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 n1 := [Item.name],
@@ -1021,16 +1015,13 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             }
             FILTER .name IN {'chair', 'table'}
             ORDER BY .name;
-        ''')
-
-        # sort the data
-        for result in res[0]:
-            result['t1'].sort(key=lambda x: x[0])
-            result['t2'].sort(key=lambda x: (x[0], x[1]))
-            result['t3'].sort()
-            result['t4'].sort()
-
-        self.assert_data_shape(res, [
+        ''', {
+            # sort the data
+            't1': lambda x: x[0],
+            't2': lambda x: (x[0], x[1]),
+            't3': lambda x: x,
+            't4': lambda x: x,
+        }, [
             [
                 {
                     'n1': ['chair'],
@@ -1057,7 +1048,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_03(self):
-        res = await self.query(r'''
+        await self.assert_sorted_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 name,
@@ -1066,14 +1057,11 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             }
             FILTER .name IN {'chair', 'table'}
             ORDER BY .name;
-        ''')
-
-        # sort the data
-        for result in res[0]:
-            result['a_a1'].sort()
-            result['a_t2'].sort()
-
-        self.assert_data_shape(res, [
+        ''', {
+            # sort the data
+            'a_a1': lambda x: x,
+            'a_t2': lambda x: x,
+        }, [
             [
                 {
                     'name': 'chair',
@@ -1090,7 +1078,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_04(self):
-        res = await self.query(r'''
+        await self.assert_sorted_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 name,
@@ -1099,14 +1087,11 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             }
             FILTER .name IN {'chair', 'table'}
             ORDER BY .name;
-        ''')
-
-        # sort the data
-        for result in res[0]:
-            result['a_a1'].sort()
-            result['a_t2'].sort()
-
-        self.assert_data_shape(res, [
+        ''', {
+            # sort the data
+            'a_a1': lambda x: x,
+            'a_t2': lambda x: x,
+        }, [
             [
                 {
                     'name': 'chair',
@@ -1123,7 +1108,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_05(self):
-        res = await self.query(r'''
+        await self.assert_sorted_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 name,
@@ -1132,14 +1117,11 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             }
             FILTER .name IN {'ball', 'chair', 'table'}
             ORDER BY .name;
-        ''')
-
-        # sort the data
-        for result in res[0]:
-            result['a_a1'].sort()
-            result['a_t2'].sort()
-
-        self.assert_data_shape(res, [
+        ''', {
+            # sort the data
+            'a_a1': lambda x: x,
+            'a_t2': lambda x: x,
+        }, [
             [
                 {
                     'name': 'ball',
@@ -1160,7 +1142,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_06(self):
-        res = await self.query(r'''
+        await self.assert_sorted_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 name,
@@ -1169,15 +1151,11 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             }
             FILTER .name IN {'ball', 'chair', 'table'}
             ORDER BY .name;
-        ''')
-
-        # sort the data
-        for result in res[0]:
-            if result['a_a1']:
-                result['a_a1'].sort()
-            result['a_t2'].sort(key=lambda x: x[0] if x else '')
-
-        self.assert_data_shape(res, [
+        ''', {
+            # sort the data
+            'a_a1': lambda x: x,
+            'a_t2': lambda x: x[0],
+        }, [
             [
                 {
                     'name': 'ball',
@@ -1198,7 +1176,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_07(self):
-        res = await self.query(r'''
+        await self.assert_sorted_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 name,
@@ -1207,14 +1185,11 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             }
             FILTER .name IN {'ball', 'chair', 'table'}
             ORDER BY .name;
-        ''')
-
-        # sort the data
-        for result in res[0]:
-            result['a_a1'].sort(key=lambda x: x[0] if x else '')
-            result['a_t2'].sort(key=lambda x: x[0] if x else '')
-
-        self.assert_data_shape(res, [
+        ''', {
+            # sort the data
+            'a_a1': lambda x: x[0] if x else '',
+            'a_t2': lambda x: x[0] if x else '',
+        }, [
             [
                 {
                     'name': 'ball',
@@ -1237,7 +1212,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_08(self):
-        res = await self.query(r'''
+        await self.assert_sorted_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 name,
@@ -1245,13 +1220,10 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             }
             FILTER .name IN {'chair', 'table'}
             ORDER BY .name;
-        ''')
-
-        # sort the data
-        for result in res[0]:
-            result['re'].sort(key=lambda x: x[0] if x else '')
-
-        self.assert_data_shape(res, [
+        ''', {
+            # sort the data
+            're': lambda x: x[0],
+        }, [
             [
                 {
                     'name': 'chair',

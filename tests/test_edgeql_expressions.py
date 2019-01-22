@@ -3205,40 +3205,35 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_setop_08(self):
-        res = await self.query('''
-            WITH MODULE schema
-            SELECT ObjectType;
+        obj = await self.con.fetch(r"""
+            SELECT schema::ObjectType;
+        """)
+        attr = await self.con.fetch(r"""
+            SELECT schema::Attribute;
+        """)
 
-            WITH MODULE schema
-            SELECT Attribute;
-
+        union = [{'id': str(o.id)} for o in [*obj, *attr]]
+        union.sort(key=lambda x: x['id'])
+        await self.assert_sorted_query_result('''
             WITH MODULE schema
             SELECT ObjectType UNION Attribute;
-        ''')
-        separate = [obj['id'] for obj in res[0]]
-        separate += [obj['id'] for obj in res[1]]
-        union = [obj['id'] for obj in res[2]]
-        separate.sort()
-        union.sort()
-        self.assert_data_shape(separate, union)
+        ''', lambda x: x['id'], [union])
 
     async def test_edgeql_expr_setop_09(self):
-        res = await self.query('''
+        await self.assert_query_result('''
             SELECT _ := DISTINCT {[1, 2], [1, 2], [2, 3]} ORDER BY _;
-        ''')
-        self.assert_data_shape(res, [
+        ''', [
             [[1, 2], [2, 3]],
         ])
 
     async def test_edgeql_expr_setop_10(self):
-        res = await self.query('''
+        await self.assert_query_result('''
             SELECT _ := DISTINCT {(1, 2), (2, 3), (1, 2)} ORDER BY _;
             SELECT _ := DISTINCT {(a := 1, b := 2),
                                   (a := 2, b := 3),
                                   (a := 1, b := 2)}
             ORDER BY _;
-        ''')
-        self.assert_data_shape(res, [
+        ''', [
             [[1, 2], [2, 3]],
             [{'a': 1, 'b': 2}, {'a': 2, 'b': 3}],
         ])
