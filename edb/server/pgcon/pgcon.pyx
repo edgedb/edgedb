@@ -60,7 +60,7 @@ async def connect(addr, dbname):
     loop = asyncio.get_running_loop()
 
     _, protocol = await loop.create_unix_connection(
-        lambda: PGProto(dbname, loop), addr)
+        lambda: PGProto(dbname, loop, addr), addr)
 
     await protocol.connect()
     return protocol
@@ -69,8 +69,7 @@ async def connect(addr, dbname):
 @cython.final
 cdef class PGProto:
 
-    def __init__(self, dbname, loop):
-
+    def __init__(self, dbname, loop, addr):
         self.buffer = ReadBuffer()
 
         self.loop = loop
@@ -93,11 +92,16 @@ cdef class PGProto:
         self.last_parse_prep_stmts = []
         self.debug = debug.flags.server_proto
 
+        self.pgaddr = addr
+
     def debug_print(self, *args):
         print(
             '::PGPROTO::',
             *args,
         )
+
+    def get_pgaddr(self):
+        return self.pgaddr
 
     def in_tx(self):
         return (

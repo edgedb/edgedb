@@ -191,6 +191,13 @@ cdef class EdgeConnection:
             msg_buf.end_message()
             buf.write_buffer(msg_buf)
 
+            if self.server._devmode:
+                msg_buf = WriteBuffer.new_message(b'S')
+                msg_buf.write_utf8('pgaddr')
+                msg_buf.write_utf8(str(self.backend.pgcon.get_pgaddr()))
+                msg_buf.end_message()
+                buf.write_buffer(msg_buf)
+
             msg_buf = WriteBuffer.new_message(b'Z')
             msg_buf.write_byte(b'I')
             msg_buf.end_message()

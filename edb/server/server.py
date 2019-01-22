@@ -21,6 +21,8 @@ import os
 import typing
 import urllib.parse
 
+from edb.common import devmode
+
 from . import backend
 from . import edgecon
 
@@ -69,6 +71,8 @@ class Server:
 
         self._cpool = None
         self._pgpool = None
+
+        self._devmode = devmode.is_in_dev_mode()
 
     def get_loop(self):
         return self._loop

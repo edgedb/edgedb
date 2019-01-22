@@ -68,6 +68,8 @@ cdef class PGProto:
 
         bint debug
 
+        object pgaddr
+
     cdef write(self, buf)
 
     cdef parse_error_message(self)
