@@ -22,13 +22,13 @@
 #    set:           <type=0> <uuid> <pos>
 #
 #    shape:         <type=1> <uuid>
-#                            <record-desc 2 ctrl bits + 14 int bits> - TODO
 #                            <count> [<flags> <str> <pos>]+
 #
 #                   -- where <flags> is 1 byte;
 #                      * 1 << 0 bit: the field wasn't explicitly requested
 #                                    (e.g. "id" or "__type__")
 #                      * 1 << 1 bit: the field is a link property
+#                      * 1 << 2 bit: the field is a link
 #
 #    base scalar:   <type=2> <uuid>
 #

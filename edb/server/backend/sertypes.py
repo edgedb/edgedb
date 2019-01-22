@@ -43,6 +43,7 @@ class TypeSerializer:
 
     EDGE_POINTER_IS_IMPLICIT = 1 << 0
     EDGE_POINTER_IS_LINKPROP = 1 << 1
+    EDGE_POINTER_IS_LINK = 1 << 2
 
     _JSON_DESC = None
 
@@ -165,6 +166,7 @@ class TypeSerializer:
             subtypes = []
             element_names = []
             link_props = []
+            links = []
 
             metadata = view_shapes_metadata.get(t)
             implicit_id = metadata is not None and metadata.has_implicit_id
@@ -181,6 +183,7 @@ class TypeSerializer:
                 subtypes.append(subtype_id)
                 element_names.append(ptr.get_shortname(self.schema).name)
                 link_props.append(False)
+                links.append(not ptr.is_property(self.schema))
 
             t_rptr = t.get_rptr(self.schema)
             if t_rptr is not None:
@@ -198,6 +201,7 @@ class TypeSerializer:
                     element_names.append(
                         ptr.get_shortname(self.schema).name)
                     link_props.append(True)
+                    links.append(False)
 
             type_id = self._get_collection_type_id(
                 base_type_id, subtypes, element_names)
@@ -211,13 +215,16 @@ class TypeSerializer:
             assert len(subtypes) == len(element_names)
             buf.append(_uint16_packer(len(subtypes)))
 
-            for el_name, el_type, el_lp in zip(element_names,
-                                               subtypes, link_props):
+            for el_name, el_type, el_lp, el_l in zip(element_names,
+                                                     subtypes, link_props,
+                                                     links):
                 flags = 0
                 if el_lp:
                     flags |= self.EDGE_POINTER_IS_LINKPROP
                 if (implicit_id and el_name == 'id') or el_name == '__tid__':
                     flags |= self.EDGE_POINTER_IS_IMPLICIT
+                if el_l:
+                    flags |= self.EDGE_POINTER_IS_LINK
                 buf.append(_uint8_packer(flags))
 
                 el_name_bytes = el_name.encode('utf-8')
