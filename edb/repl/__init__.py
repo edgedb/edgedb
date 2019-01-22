@@ -399,9 +399,6 @@ def parse_connect_args():
     parser.add_argument('-d', '--database', default=None)
     parser.add_argument('-p', '--password', default=False, action='store_true')
     parser.add_argument('-t', '--timeout', default=60)
-    parser.add_argument('--retry-conn', default=False, action='store_true',
-                        help='Try connecting when the server is down and '
-                             'until the timeout expires.')
     parser.add_argument('--start-server', action='store_true', default=False,
                         help='Start EdgeDB server')
     parser.add_argument('--server-dir', type=str, metavar='DIR',
@@ -455,7 +452,6 @@ def main():
         'host': args.host,
         'port': args.port,
         'timeout': args.timeout,
-        'retry_on_failure': args.retry_conn,
     }
 
     if select.select([sys.stdin], [], [], 0.0)[0]:
