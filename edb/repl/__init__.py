@@ -300,16 +300,22 @@ class Cli:
 
     @_command('psql', R'\psql', 'open psql to the current postgres process')
     def command_psql(self, args):
-        result = self.run_coroutine(
-            self.connection.get_pgcon())
+        settings = self.connection.get_settings()
+        pgaddr = settings.get('pgaddr')
+        if not pgaddr:
+            print('\\psql requires EdgeDB to run in DEV mode')
+            return
+
+        host = os.path.dirname(pgaddr)
+        port = pgaddr.rpartition('.')[2]
 
         pg_config = edgedb_cluster.get_pg_config_path()
         psql = pg_config.parent / 'psql'
 
         cmd = [
             str(psql),
-            '-h', result['host'],
-            '-p', result['port'],
+            '-h', host,
+            '-p', port,
             '-d', self.cur_db,
             '-U', 'postgres'
         ]
