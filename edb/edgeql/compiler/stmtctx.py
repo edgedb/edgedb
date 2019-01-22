@@ -420,12 +420,21 @@ def pend_pointer_cardinality_inference(
         source_ctx: typing.Optional[parsing.ParserContext] = None,
         ctx: context.ContextLevel) -> None:
 
-    ctx.pending_cardinality[ptrcls] = context.PendingCardinality(
-        specified_cardinality=specified_card,
-        source_ctx=source_ctx,
-        from_parent=from_parent,
-        callbacks=[],
-    )
+    existing = ctx.pending_cardinality.get(ptrcls)
+    if existing is not None:
+        if (existing.specified_cardinality != specified_card
+                or existing.from_parent != from_parent):
+            raise errors.InternalServerError(
+                f'cardinality inference for {ptrcls.get_name(ctx.env.schema)} '
+                f'is scheduled multiple times with different context'
+            )
+    else:
+        ctx.pending_cardinality[ptrcls] = context.PendingCardinality(
+            specified_cardinality=specified_card,
+            source_ctx=source_ctx,
+            from_parent=from_parent,
+            callbacks=[],
+        )
 
 
 def once_pointer_cardinality_is_inferred(

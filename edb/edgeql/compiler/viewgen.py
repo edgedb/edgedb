@@ -509,14 +509,21 @@ def derive_ptrcls(
                 attrs['path_id_name'] = view_rptr.base_ptrcls.get_name(
                     ctx.env.schema)
 
-            view_rptr.ptrcls = schemactx.derive_view(
-                view_rptr.base_ptrcls, view_rptr.source, target_scls,
-                derived_name=derived_name,
-                is_insert=view_rptr.is_insert,
-                is_update=view_rptr.is_update,
-                attrs=attrs,
-                ctx=ctx
-            )
+            existing_ptrcls = ctx.env.schema.get(derived_name, default=None)
+            if existing_ptrcls is not None:
+                # The derived pointer class may already exist if
+                # the shape element is implicit (i.e. a type id),
+                # and the target type is not a view.
+                view_rptr.ptrcls = existing_ptrcls
+            else:
+                view_rptr.ptrcls = schemactx.derive_view(
+                    view_rptr.base_ptrcls, view_rptr.source, target_scls,
+                    derived_name=derived_name,
+                    is_insert=view_rptr.is_insert,
+                    is_update=view_rptr.is_update,
+                    attrs=attrs,
+                    ctx=ctx
+                )
 
             view_rptr.derived_ptrcls = view_rptr.ptrcls
         else:
@@ -632,9 +639,12 @@ def _get_shape_configuration(
                 ctx.env.schema)
             for ptr in pointers:
                 if ptr.is_id_pointer(ctx.env.schema):
-                    ctx.env.view_shapes[stype].insert(0, ptr)
-                    ctx.env.view_shapes_metadata[stype].has_implicit_id = True
-                    shape_ptrs.insert(0, (ir_set, ptr))
+                    view_shape = ctx.env.view_shapes[stype]
+                    if ptr not in view_shape:
+                        shape_metadata = ctx.env.view_shapes_metadata[stype]
+                        view_shape.insert(0, ptr)
+                        shape_metadata.has_implicit_id = True
+                        shape_ptrs.insert(0, (ir_set, ptr))
                     break
 
     if (ir_set.typeref is not None
@@ -668,8 +678,10 @@ def _get_shape_configuration(
             scopectx.anchors[qlast.Source] = ir_set
             ptr = _normalize_view_ptr_expr(
                 ql, stype, path_id=ir_set.path_id, ctx=scopectx)
-            ctx.env.view_shapes[stype].insert(0, ptr)
-            shape_ptrs.insert(0, (ir_set, ptr))
+            view_shape = ctx.env.view_shapes[stype]
+            if ptr not in view_shape:
+                view_shape.insert(0, ptr)
+                shape_ptrs.insert(0, (ir_set, ptr))
 
     return shape_ptrs
 

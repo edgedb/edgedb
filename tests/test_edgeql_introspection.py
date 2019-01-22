@@ -622,6 +622,34 @@ class TestIntrospection(tb.QueryTestCase):
             [True],
         ])
 
+    async def test_edgeql_introspection_meta_17(self):
+        result = await self.con.fetch('''
+            WITH MODULE schema
+            SELECT ObjectType {
+                id,
+                name,
+
+                links: {
+                    name,
+                    cardinality,
+                    target,
+                },
+
+                properties: {
+                    name,
+                    cardinality,
+                    target,
+                },
+            }
+            FILTER .name = 'std::Object';
+        ''')
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].name, 'std::Object')
+        self.assertEqual(result[0].links[0].name, 'std::__type__')
+        self.assertIsNotNone(result[0].links[0].target.id)
+        self.assertIsNotNone(result[0].properties[0].target.id)
+
     async def test_edgeql_introspection_count_01(self):
         await self.query(r"""
             WITH MODULE test
