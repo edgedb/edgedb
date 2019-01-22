@@ -40,6 +40,11 @@
 #
 #    array:         <type=6> <uuid> <pos>
 #
+#    type_anno      <type=f0..ff> <uuid> <str>
+#                   -- A type annotation;  0xf0 <= <type> <= 0xff.
+#                      Drivers should ignore unknown type annotations.
+#
+#
 # where:
 #
 #    <pos>         2 bytes (uint16) position of the type in the description
