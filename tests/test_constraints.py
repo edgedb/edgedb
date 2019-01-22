@@ -44,13 +44,13 @@ class TestConstraintsSchema(tb.QueryTestCase):
 
             if expected == 'good':
                 try:
-                    await self.query(expr)
+                    await self.con.execute(expr)
                 except Exception as ex:
                     raise AssertionError(f'{expr!r} failed') from ex
             else:
                 with self.assertRaisesRegex(
                         edgedb.ConstraintViolationError, expected):
-                    await self.query(expr)
+                    await self.con.execute(expr)
 
     async def test_constraints_scalar_length(self):
         data = {
@@ -136,7 +136,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::UniqueName {
                         name := 'Test'
                     };
@@ -151,7 +151,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::UniqueNameInherited {
                         name := 'Test'
                     };
@@ -168,7 +168,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
 
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::UniqueName {
                         name := 'exclusive_name_across'
                     };
@@ -179,7 +179,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
                 """)
 
         async with self._run_and_rollback():
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::UniqueName {
                     name := 'exclusive_name_ok'
                 };
@@ -194,7 +194,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     'name violates exclusivity constraint'):
                 # FIXME: the FILTER clause seems to filter out
                 # everything, so the UPDATE is empty
-                await self.query("""
+                await self.con.execute("""
                     UPDATE
                         test::UniqueNameInherited
                     FILTER
@@ -210,7 +210,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::UniqueName_3 {
                         name := 'TeSt'
                     };
@@ -223,7 +223,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
     async def test_constraints_exclusive_abstract(self):
         async with self._run_and_rollback():
             # This is OK, the name exclusivity constraint is abstract
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::AbstractConstraintParent {
                     name := 'exclusive_name_ap'
                 };
@@ -234,7 +234,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
             """)
 
             # This is OK too
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::AbstractConstraintParent {
                     name := 'exclusive_name_ap1'
                 };
@@ -249,7 +249,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
                 # Not OK, abstract constraint materializes into a real one
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::AbstractConstraintPureChild {
                         name := 'exclusive_name_ap2'
                     };
@@ -264,7 +264,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
                 # Not OK, abstract constraint materializes into a real one
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::AbstractConstraintMixedChild {
                         name := 'exclusive_name_ap2'
                     };
@@ -276,7 +276,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
 
         async with self._run_and_rollback():
             # This is OK, duplication is in different children
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::AbstractConstraintPureChild {
                     name := 'exclusive_name_ap3'
                 };
@@ -287,7 +287,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
             """)
 
             # This is OK, the name exclusivity constraint is abstract again
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::AbstractConstraintPropagated {
                     name := 'exclusive_name_ap4'
                 };
@@ -302,7 +302,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
                 # Not OK, yet
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::BecomingAbstractConstraint {
                         name := 'exclusive_name_ap5'
                     };
@@ -313,7 +313,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
                 """)
 
         async with self._run_and_rollback():
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::BecomingConcreteConstraint {
                     name := 'exclusive_name_ap6'
                 };
@@ -327,7 +327,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::LosingAbstractConstraintParent {
                         name := 'exclusive_name_ap7'
                     };
@@ -341,7 +341,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::AbstractConstraintMultipleParentsFlattening{
                         name := 'exclusive_name_ap8'
                     };
@@ -356,7 +356,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
                 # non-abstract inherited constraint
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::AbstractInheritingNonAbstract {
                         name := 'exclusive_name_ana'
                     };
@@ -371,7 +371,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
                 # non-abstract inherited constraint
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::AbstractInheritingNonAbstract {
                         name := 'exclusive_name_ana1'
                     };
@@ -396,14 +396,14 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
         with open(new_schema_f) as f:
             new_schema = f.read()
 
-        await self.query(f'''
+        await self.con.execute(f'''
             CREATE MIGRATION test::d1 TO eschema $${new_schema}$$;
             COMMIT MIGRATION test::d1;
             ''')
 
         async with self._run_and_rollback():
             # This is OK, the name exclusivity constraint is abstract
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::AbstractConstraintParent {
                     name := 'exclusive_name_ap'
                 };
@@ -414,7 +414,7 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
             """)
 
             # This is OK too
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::AbstractConstraintParent {
                     name := 'exclusive_name_ap1'
                 };
@@ -429,7 +429,7 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
                 # Not OK, abstract constraint materializes into a real one
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::AbstractConstraintPureChild {
                         name := 'exclusive_name_ap2'
                     };
@@ -444,7 +444,7 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
                 # Not OK, abstract constraint materializes into a real one
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::AbstractConstraintMixedChild {
                         name := 'exclusive_name_ap2'
                     };
@@ -456,7 +456,7 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
 
         async with self._run_and_rollback():
             # This is OK, duplication is in different children
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::AbstractConstraintMixedChild {
                     name := 'exclusive_name_ap3'
                 };
@@ -468,7 +468,7 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
 
         async with self._run_and_rollback():
             # This is OK, the name exclusivity constraint is abstract again
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::AbstractConstraintPropagated {
                     name := 'exclusive_name_ap4'
                 };
@@ -480,7 +480,7 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
 
         async with self._run_and_rollback():
             # OK, former constraint was turned into an abstract constraint
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::BecomingAbstractConstraint {
                     name := 'exclusive_name_ap5'
                 };
@@ -495,7 +495,7 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
                 # Constraint is no longer abstract
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::BecomingConcreteConstraint {
                         name := 'exclusive_name_ap6'
                     };
@@ -510,7 +510,7 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
                 # Constraint is no longer abstract
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::LosingAbstractConstraintParent {
                         name := 'exclusive_name_ap6'
                     };
@@ -521,7 +521,7 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
                 """)
 
         async with self._run_and_rollback():
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::LosingAbstractConstraintParent2 {
                     name := 'exclusive_name_ap7'
                 };
@@ -536,7 +536,7 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
                 # Constraint is no longer abstract
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::AbstractConstraintMultipleParentsFlattening{
                         name := 'exclusive_name_ap8'
                     };
@@ -548,7 +548,7 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
 
         async with self._run_and_rollback():
             # Parent lost its concrete constraint inheritance
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::AbstractInheritingNonAbstract {
                     name := 'exclusive_name_ana'
                 };
@@ -560,7 +560,7 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
 
         async with self._run_and_rollback():
             # Parent lost its concrete constraint inheritance
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::AbstractInheritingNonAbstract {
                     name := 'exclusive_name_ana1'
                 };
@@ -575,7 +575,7 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
                 # Child uniqueness is still enforced
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::AbstractInheritingNonAbstractChild{
                         name := 'exclusive_name_ana2'
                     };
@@ -612,7 +612,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             };
         """
 
-        await self.query(qry)
+        await self.con.execute(qry)
 
         # Simple exclusivity constraint on a link
         #
@@ -620,7 +620,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             with self.assertRaisesRegex(
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::UniqueName {
                         name := 'Test'
                     };
@@ -641,11 +641,11 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                 EXTENDING test::AbstractConstraintParent;
         """
 
-        await self.query(qry)
+        await self.con.execute(qry)
 
         async with self._run_and_rollback():
             # This is OK, the name exclusivity constraint is abstract
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::AbstractConstraintParent {
                     name := 'exclusive_name_ap'
                 };
@@ -656,7 +656,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             """)
 
             # This is OK too
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::AbstractConstraintParent {
                     name := 'exclusive_name_ap1'
                 };
@@ -695,7 +695,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             };
         """
 
-        await self.query(qry)
+        await self.con.execute(qry)
 
         await self.assert_query_result(r'''
             SELECT schema::Constraint {
@@ -760,7 +760,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             with self.assertRaisesRegex(
                     edgedb.ConstraintViolationError,
                     'foo must be no longer than 3 characters.'):
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::ConstraintOnTest1 {
                         foo := 'Test'
                     };
@@ -770,7 +770,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             with self.assertRaisesRegex(
                     edgedb.ConstraintViolationError,
                     'bar must be no longer than 3 characters.'):
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::ConstraintOnTest1 {
                         bar := 'Test'
                     };
@@ -778,7 +778,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
 
         async with self._run_and_rollback():
             # constraint should not fail
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::ConstraintOnTest1 {
                     foo := '',
                     bar := ''
@@ -831,14 +831,14 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             };
         """
 
-        await self.query(qry)
+        await self.con.execute(qry)
 
         # making sure the constraint was applied successfully
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
                     edgedb.ConstraintViolationError,
                     'foo must be no longer than 3 characters.'):
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::ConstraintOnTest2 {
                         foo := 'Test'
                     };
@@ -848,7 +848,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             with self.assertRaisesRegex(
                     edgedb.ConstraintViolationError,
                     'bar must be no longer than 3 characters.'):
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::ConstraintOnTest2 {
                         bar := 'Test'
                     };
@@ -856,7 +856,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
 
         async with self._run_and_rollback():
             # constraint should not fail
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::ConstraintOnTest2 {
                     foo := '',
                     bar := ''
@@ -905,14 +905,14 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             };
         """
 
-        await self.query(qry)
+        await self.con.execute(qry)
 
         # making sure the constraint was applied successfully
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
                     edgedb.ConstraintViolationError,
                     'foo must be no longer than 3 characters.'):
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::ConstraintOnTest3 {
                         foo := 'Test'
                     };
@@ -925,7 +925,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             with self.assertRaisesRegex(
                     edgedb.InvalidConstraintDefinitionError,
                     r"subjectexpr is already defined for .+max_int"):
-                await self.query(r"""
+                await self.con.execute(r"""
                     CREATE ABSTRACT CONSTRAINT test::max_int(m: std::int64)
                         ON (<int64>__subject__)
                     {
@@ -959,7 +959,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                 edgedb.SchemaDefinitionError,
                 "constraint expression expected to return a bool value, "
                 "got 'int64'"):
-            await self.query(qry)
+            await self.con.execute(qry)
 
         qry = """
             CREATE TYPE User {
@@ -973,7 +973,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                 edgedb.SchemaDefinitionError,
                 "constraint expression expected to return a bool value, "
                 "got 'int64'"):
-            await self.query(qry)
+            await self.con.execute(qry)
 
         qry = """
             CREATE ABSTRACT CONSTRAINT foo {
@@ -991,7 +991,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                 edgedb.SchemaDefinitionError,
                 "constraint expression expected to return a bool value, "
                 "got 'str'"):
-            await self.query(qry)
+            await self.con.execute(qry)
 
     async def test_constraints_ddl_error_06(self):
         # testing the generalized constraint with 'ON (...)' clause
@@ -1010,12 +1010,12 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
         """
 
         try:
-            await self.query('START TRANSACTION;')
+            await self.con.execute('START TRANSACTION;')
 
             with self.assertRaisesRegex(
                     edgedb.InvalidConstraintDefinitionError,
                     r'dollar-prefixed.*not supported'):
-                await self.query(qry)
+                await self.con.execute(qry)
 
         finally:
-            await self.query('ROLLBACK;')
+            await self.con.execute('ROLLBACK;')
