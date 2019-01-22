@@ -140,7 +140,7 @@ class TestServerProto(tb.QueryTestCase):
         ''')
         self.assertEqual(r, [])
 
-        r = await self.con.fetchval('''
+        r = await self.con.fetch_value('''
             CREATE TYPE test::server_fetch_single_command_01 {
                 CREATE REQUIRED PROPERTY server_fetch_single_command_01 ->
                     std::str;
@@ -148,7 +148,7 @@ class TestServerProto(tb.QueryTestCase):
         ''')
         self.assertIsNone(r)
 
-        r = await self.con.fetchval('''
+        r = await self.con.fetch_value('''
             DROP TYPE test::server_fetch_single_command_01;
         ''')
         self.assertIsNone(r)
@@ -178,12 +178,12 @@ class TestServerProto(tb.QueryTestCase):
         ''')
         self.assertEqual(r, [])
 
-        r = await self.con.fetchval('''
+        r = await self.con.fetch_value('''
             SET MODULE default;
         ''')
         self.assertIsNone(r)
 
-        r = await self.con.fetchval('''
+        r = await self.con.fetch_value('''
             SET ALIAS foo AS MODULE default,
                 ALIAS bar AS MODULE std;
         ''')
@@ -221,7 +221,7 @@ class TestServerProto(tb.QueryTestCase):
                 self.assertEqual(r, '[]')
 
         for q in qs:
-            r = await self.con.fetchval(q)
+            r = await self.con.fetch_value(q)
             self.assertIsNone(r)
 
     async def test_server_proto_fetch_single_command_04(self):
@@ -234,7 +234,7 @@ class TestServerProto(tb.QueryTestCase):
 
         with self.assertRaisesRegex(edgedb.ProtocolError,
                                     'expected one statement'):
-            await self.con.fetchval('''
+            await self.con.fetch_value('''
                 SELECT 1;
                 SET MODULE blah;
             ''')
@@ -352,7 +352,7 @@ class TestServerProto(tb.QueryTestCase):
     async def test_server_proto_basic_datatypes_01(self):
         for _ in range(10):
             self.assertEqual(
-                await self.con.fetchval(
+                await self.con.fetch_value(
                     'select ()'),
                 ())
 
@@ -362,7 +362,7 @@ class TestServerProto(tb.QueryTestCase):
                 edgedb.Set([(1,)]))
 
             self.assertEqual(
-                await self.con.fetchval(
+                await self.con.fetch_value(
                     'select <array<int64>>[]'),
                 [])
 
@@ -383,10 +383,10 @@ class TestServerProto(tb.QueryTestCase):
 
             with self.assertRaisesRegex(edgedb.InterfaceError,
                                         'the result set can be a multiset'):
-                await self.con.fetchval('SELECT {1, 2}')
+                await self.con.fetch_value('SELECT {1, 2}')
 
             self.assertIsNone(
-                await self.con.fetchval('SELECT <int64>{}'))
+                await self.con.fetch_value('SELECT <int64>{}'))
 
     async def test_server_proto_basic_datatypes_02(self):
         self.assertEqual(
@@ -615,7 +615,7 @@ class TestServerProto(tb.QueryTestCase):
 
             with self.assertRaisesRegex(
                     edgedb.TransactionError, "current transaction is aborted"):
-                await self.con.fetchval('''
+                await self.con.fetch_value('''
                     RELEASE SAVEPOINT t1;
                 ''')
 
@@ -684,7 +684,7 @@ class TestServerProto(tb.QueryTestCase):
                 [1])
 
             with self.assertRaises(edgedb.DivisionByZeroError):
-                await self.con.fetchval('''
+                await self.con.fetch_value('''
                     SELECT 1 / 0;
                 ''')
 
@@ -878,7 +878,7 @@ class TestServerProto(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
                 'non-existent function: t1::min'):
-            await con.fetchval('SELECT t1::min({1})')
+            await con.fetch_value('SELECT t1::min({1})')
 
     async def test_server_proto_tx_savepoint_09(self):
         # Test basic SET ALIAS tracking in transactions/savepoints;
@@ -984,8 +984,8 @@ class TestServerProto(tb.QueryTestCase):
 
         try:
             for _ in range(5):
-                await con2.fetchval('START TRANSACTION')
-                await con2.fetchval('ROLLBACK')
+                await con2.fetch_value('START TRANSACTION')
+                await con2.fetch_value('ROLLBACK')
 
             with self.assertRaises(edgedb.DivisionByZeroError):
                 await con2.execute('''
