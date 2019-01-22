@@ -26,6 +26,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import time
 
 from asyncpg import cluster as pg_cluster
 
@@ -269,22 +270,29 @@ class Cluster:
         return await st.fetchval(edgedb_defines.EDGEDB_TEMPLATE_DB)
 
     def _test_connection(self, timeout=60):
-        async def test():
-            try:
-                conn = await edgedb.async_connect(
-                    host='localhost',
-                    port=self._effective_port,
-                    database='edgedb',
-                    user='edgedb',
-                    retry_on_failure=True,
-                    timeout=timeout)
-            except (OSError, asyncio.TimeoutError):
-                raise ClusterError(
-                    f'could not connect to edgedb-server within {timeout}s')
-            else:
-                await conn.close()
+        async def test(timeout):
+            while True:
+                started = time.monotonic()
+                try:
+                    conn = await edgedb.async_connect(
+                        port=self._effective_port,
+                        database='edgedb',
+                        user='edgedb',
+                        timeout=timeout)
+                except (OSError, asyncio.TimeoutError):
+                    timeout -= (time.monotonic() - started)
+                    if timeout > 0.05:
+                        await asyncio.sleep(0.05)
+                        timeout -= 0.05
+                        continue
+                    raise ClusterError(
+                        f'could not connect to edgedb-server '
+                        f'within {timeout} seconds')
+                else:
+                    await conn.close()
+                    return
 
-        asyncio.run(test())
+        asyncio.run(test(timeout))
 
 
 class TempCluster(Cluster):
