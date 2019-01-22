@@ -405,10 +405,12 @@ def compile_Array(
     array = astutils.safe_array_expr(elements)
 
     if irutils.is_empty_array_expr(expr):
+        serialized = output.in_serialization_ctx(ctx=ctx)
         return pgast.TypeCast(
             arg=array,
             type_name=pgast.TypeName(
-                name=pg_types.pg_type_from_ir_typeref(expr.typeref)
+                name=pg_types.pg_type_from_ir_typeref(
+                    expr.typeref, serialized=serialized)
             )
         )
     else:

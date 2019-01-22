@@ -250,6 +250,16 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [[{'name': 'Elvis'}, {'name': 'Yury'}]]
         ])
 
+        result = await self.con.fetch(r'''
+            WITH
+                MODULE test
+            SELECT
+                array_agg(User{name} ORDER BY User.name);
+        ''')
+
+        self.assertEqual(result[0][0].name, 'Elvis')
+        self.assertEqual(result[0][1].name, 'Yury')
+
     async def test_edgeql_functions_array_agg_13(self):
         await self.assert_query_result(r'''
             WITH

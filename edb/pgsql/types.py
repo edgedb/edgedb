@@ -172,14 +172,16 @@ def pg_type_from_object(
 
 
 def pg_type_from_ir_typeref(
-        ir_typeref: irast.TypeRef) -> typing.Tuple[str, ...]:
+        ir_typeref: irast.TypeRef, *,
+        serialized: bool = False) -> typing.Tuple[str, ...]:
 
     if irtyputils.is_array(ir_typeref):
         if (irtyputils.is_generic(ir_typeref)
                 or irtyputils.is_abstract(ir_typeref.subtypes[0])):
             return ('anyarray',)
         else:
-            tp = pg_type_from_ir_typeref(ir_typeref.subtypes[0])
+            tp = pg_type_from_ir_typeref(
+                ir_typeref.subtypes[0], serialized=serialized)
             if len(tp) == 1:
                 return (tp[0] + '[]',)
             else:
@@ -200,7 +202,10 @@ def pg_type_from_ir_typeref(
         if irtyputils.is_abstract(material):
             return ('anynonarray',)
         elif irtyputils.is_object(material):
-            return ('uuid',)
+            if serialized:
+                return ('record',)
+            else:
+                return ('uuid',)
         else:
             pg_type = base_type_name_map.get(material.id)
             if pg_type is None:
