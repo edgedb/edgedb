@@ -23,6 +23,7 @@ import collections
 import contextlib
 import functools
 import inspect
+import json
 import os
 import pprint
 import re
@@ -35,6 +36,8 @@ from edb.server import cluster as edgedb_cluster
 from edb.server import defines as edgedb_defines
 
 from edb.common import taskgroup
+
+from edb.testbase import serutils
 
 
 def get_test_cases(tests):
@@ -423,21 +426,42 @@ class BaseQueryTestCase(DatabaseTestCase):
     BASE_TEST_CLASS = True
 
     async def assert_query_result(self, query, result, *, msg=None):
-        res = await self.con._legacy_execute(query)
-        # a safeguard for the purposes of the conversion
-        assert len(res) == 1
+        tx = self.con.transaction()
+        await tx.start()
+        try:
+            res = await self.con.fetch_json(query)
+        finally:
+            await tx.rollback()
+
+        res = json.loads(res)
+        res = [res]  # XXX
         self._assert_data_shape(res, result, message=msg)
-        return res
+
+        res = await self.con.fetch(query)
+        res = serutils.serialize(res)
+        res = [res]  # XXX
+        self._assert_data_shape(res, result, message=msg)
 
     async def assert_sorted_query_result(self, query, sort, result, *,
                                          msg=None):
-        res = await self.con._legacy_execute(query)
-        # a safeguard for the purposes of the conversion
-        assert len(res) == 1
+        tx = self.con.transaction()
+        await tx.start()
+        try:
+            res = await self.con.fetch_json(query)
+        finally:
+            await tx.rollback()
+
+        res = json.loads(res)
+        self._sort_results(res, sort)
+        res = [res]  # XXX
+        self._assert_data_shape(res, result, message=msg)
+
+        res = await self.con.fetch(query)
+        res = serutils.serialize(res)
+        res = [res]  # XXX
         for r in res:
             self._sort_results(r, sort)
         self._assert_data_shape(res, result, message=msg)
-        return res
 
     async def assert_legacy_query_result(self, query, result, *, msg=None):
         res = await self.con._legacy_execute(query)
