@@ -762,7 +762,8 @@ def _compile_view_shapes_in_fcall(
         ctx: context.ContextLevel) -> None:
 
     if expr.func_polymorphic:
-        for arg in expr.args:
+        for call_arg in expr.args:
+            arg = call_arg.expr
             arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
             if arg_scope is not None:
                 with ctx.new() as scopectx:

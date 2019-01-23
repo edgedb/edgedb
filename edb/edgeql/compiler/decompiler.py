@@ -212,7 +212,7 @@ class IRDecompiler(ast.visitor.NodeVisitor):
     def visit_FunctionCall(self, node):
         args = node.args
 
-        args = [qlast.FuncArg(arg=arg) for arg in self.visit(args)]
+        args = [qlast.FuncArg(arg=self.visit(arg.expr)) for arg in args]
 
         result = qlast.FunctionCall(
             func=(node.func_shortname.module, node.func_shortname.name),
@@ -226,13 +226,13 @@ class IRDecompiler(ast.visitor.NodeVisitor):
 
         if node.operator_kind is ft.OperatorKind.INFIX:
             result = qlast.BinOp(
-                left=self.visit(args[0]),
-                right=self.visit(args[1]),
+                left=self.visit(args[0].expr),
+                right=self.visit(args[1].expr),
                 op=node.func_shortname.name,
             )
         elif node.operator_kind is ft.OperatorKind.PREFIX:
             result = qlast.UnaryOp(
-                operand=self.visit(args[0]),
+                operand=self.visit(args[0].expr),
                 op=node.func_shortname.name,
             )
         else:

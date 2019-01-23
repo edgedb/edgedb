@@ -251,7 +251,7 @@ def _get_set_rvar(
 
     elif isinstance(ir_set.expr, irast.FunctionCall):
         if ir_set.expr.func_shortname == 'std::enumerate':
-            if isinstance(irutils.unwrap_set(ir_set.expr.args[0]).expr,
+            if isinstance(irutils.unwrap_set(ir_set.expr.args[0].expr).expr,
                           irast.FunctionCall):
                 # Enumeration of a SET-returning function
                 rvars = process_set_as_func_enumerate(ir_set, stmt, ctx=ctx)
@@ -868,7 +868,7 @@ def process_set_as_membership_expr(
     expr = ir_set.expr
 
     with ctx.new() as newctx:
-        left_arg, right_arg = expr.args
+        left_arg, right_arg = (a.expr for a in expr.args)
 
         newctx.expr_exposed = False
         left_expr = dispatch.compile(left_arg, ctx=newctx)
@@ -955,7 +955,7 @@ def process_set_as_distinct(
 
     with ctx.subrel() as subctx:
         subqry = subctx.rel
-        arg = expr.args[0]
+        arg = expr.args[0].expr
         subqry.view_path_id_map[ir_set.path_id] = arg.path_id
         dispatch.visit(arg, ctx=subctx)
         subrvar = dbobj.rvar_for_rel(subqry, lateral=True, env=subctx.env)
@@ -1366,7 +1366,7 @@ def process_set_as_enumerate(
         newctx.expr_exposed = False
 
         expr = ir_set.expr
-        ir_arg = ir_set.expr.args[0]
+        ir_arg = ir_set.expr.args[0].expr
 
         arg_ref = dispatch.compile(ir_arg, ctx=newctx)
         arg_val = output.output_as_value(arg_ref, env=newctx.env)
@@ -1635,7 +1635,7 @@ def _compile_func_args(
     args = []
 
     for ir_arg in ir_set.expr.args:
-        arg_ref = dispatch.compile(ir_arg, ctx=ctx)
+        arg_ref = dispatch.compile(ir_arg.expr, ctx=ctx)
         args.append(output.output_as_value(arg_ref, env=ctx.env))
 
     if expr.has_empty_variadic:
@@ -1657,7 +1657,7 @@ def process_set_as_func_enumerate(
         ctx: context.CompilerContextLevel) -> SetRVars:
 
     expr = ir_set.expr
-    inner_func_set = irutils.unwrap_set(expr.args[0])
+    inner_func_set = irutils.unwrap_set(expr.args[0].expr)
     inner_func = inner_func_set.expr
 
     with ctx.subrel() as newctx:
@@ -1740,7 +1740,8 @@ def process_set_as_agg_expr(
 
             args = []
 
-            for i, ir_arg in enumerate(ir_set.expr.args):
+            for i, ir_call_arg in enumerate(ir_set.expr.args):
+                ir_arg = ir_call_arg.expr
                 dispatch.visit(ir_arg, ctx=argctx)
 
                 if output.in_serialization_ctx(ctx=argctx):
@@ -1890,7 +1891,7 @@ def process_set_as_exists_expr(
     with ctx.subrel() as subctx:
         wrapper = subctx.rel
         subctx.expr_exposed = False
-        ir_expr = ir_set.expr.args[0]
+        ir_expr = ir_set.expr.args[0].expr
         set_ref = dispatch.compile(ir_expr, ctx=subctx)
 
         pathctx.put_path_value_var(

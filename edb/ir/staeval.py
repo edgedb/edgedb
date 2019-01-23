@@ -94,7 +94,7 @@ def evaluate_OperatorCall(
 
     args = []
     for arg in opcall.args:
-        args.append(evaluate_to_python_val(arg, schema=schema))
+        args.append(evaluate_to_python_val(arg.expr, schema=schema))
 
     value = eval_func(*args)
     qlconst = qlast.BaseConstant.from_python(value)

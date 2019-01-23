@@ -201,8 +201,8 @@ def try_fold_binop(
 
         if (opcall.func_shortname in ('std::+', 'std::*') and
                 opcall.operator_kind is ft.OperatorKind.INFIX and
-                all(setgen.get_set_type(a, ctx=ctx).issubclass(ctx.env.schema,
-                                                               anyreal)
+                all(setgen.get_set_type(a.expr, ctx=ctx).issubclass(
+                    ctx.env.schema, anyreal)
                     for a in opcall.args)):
             return try_fold_associative_binop(opcall, ctx=ctx)
     else:
@@ -217,8 +217,8 @@ def try_fold_associative_binop(
     # tree, which can be optimized to ((CONST + OTHER_CONST) + X)
 
     op = opcall.func_shortname
-    my_const = opcall.args[0]
-    other_binop = opcall.args[1]
+    my_const = opcall.args[0].expr
+    other_binop = opcall.args[1].expr
     folded = None
 
     if isinstance(other_binop.expr, irast.BaseConstant):
@@ -229,8 +229,8 @@ def try_fold_associative_binop(
             other_binop.expr.func_shortname == op and
             other_binop.expr.operator_kind is ft.OperatorKind.INFIX):
 
-        other_const = other_binop.expr.args[0]
-        other_binop_node = other_binop.expr.args[1]
+        other_const = other_binop.expr.args[0].expr
+        other_binop_node = other_binop.expr.args[1].expr
 
         if isinstance(other_binop_node.expr, irast.BaseConstant):
             other_binop_node, other_const = \
@@ -240,7 +240,14 @@ def try_fold_associative_binop(
             try:
                 new_const = ireval.evaluate(
                     irast.OperatorCall(
-                        args=[other_const, my_const],
+                        args=[
+                            irast.CallArg(
+                                expr=other_const,
+                            ),
+                            irast.CallArg(
+                                expr=my_const,
+                            ),
+                        ],
                         func_module_id=opcall.func_module_id,
                         func_shortname=op,
                         func_polymorphic=opcall.func_polymorphic,
@@ -260,8 +267,12 @@ def try_fold_associative_binop(
             else:
                 folded_binop = irast.OperatorCall(
                     args=[
-                        setgen.ensure_set(new_const, ctx=ctx),
-                        other_binop_node
+                        irast.CallArg(
+                            expr=setgen.ensure_set(new_const, ctx=ctx),
+                        ),
+                        irast.CallArg(
+                            expr=other_binop_node,
+                        ),
                     ],
                     func_module_id=opcall.func_module_id,
                     func_shortname=op,

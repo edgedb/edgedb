@@ -130,7 +130,7 @@ def __infer_func_call(ir, scope_tree, env):
         # process positional args
         for arg, typemod in zip(ir.args, ir.params_typemods):
             if typemod is not SET_OF:
-                args.append(arg)
+                args.append(arg.expr)
 
         if args:
             return _common_cardinality(args, scope_tree, env)
@@ -214,7 +214,7 @@ def _extract_filters(
     expr = ir_set.expr
     if isinstance(expr, irast.OperatorCall):
         if expr.func_shortname == 'std::=':
-            left, right = expr.args
+            left, right = (a.expr for a in expr.args)
 
             op_card = _common_cardinality(
                 [left, right], scope_tree, env)
@@ -238,7 +238,7 @@ def _extract_filters(
                         ptr_filters.append(schema.get(right.rptr.ptrref.name))
 
         elif expr.func_shortname == 'std::AND':
-            left, right = expr.args
+            left, right = (a.expr for a in expr.args)
 
             ptr_filters.extend(
                 _extract_filters(result_set, left, scope_tree, env))

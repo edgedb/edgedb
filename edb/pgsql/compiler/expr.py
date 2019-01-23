@@ -303,7 +303,7 @@ def compile_OperatorCall(
             f'set returning operator {expr.func_shortname!r} is not supported '
             f'in simple expressions')
 
-    args = [dispatch.compile(a, ctx=ctx) for a in expr.args]
+    args = [dispatch.compile(a.expr, ctx=ctx) for a in expr.args]
     if expr.operator_kind is ql_ft.OperatorKind.INFIX:
         lexpr, rexpr = args
     elif expr.operator_kind is ql_ft.OperatorKind.PREFIX:
@@ -476,7 +476,7 @@ def compile_FunctionCall(
         raise RuntimeError(
             'set returning functions are not supported in simple expressions')
 
-    args = [dispatch.compile(a, ctx=ctx) for a in expr.args]
+    args = [dispatch.compile(a.expr, ctx=ctx) for a in expr.args]
 
     if expr.has_empty_variadic:
         var = pgast.TypeCast(

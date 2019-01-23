@@ -470,6 +470,16 @@ class SortExpr(Base):
     nones_order: qlast.NonesOrder
 
 
+class CallArg(ImmutableBase):
+    """Call argument."""
+
+    # cardinality fields need to be mutable for lazy cardinality inference.
+    __ast_mutable_fields__ = ('cardinality',)
+
+    expr: Base
+    cardinality: qltypes.Cardinality = qltypes.Cardinality.ONE
+
+
 class Call(Expr):
     """Operator or a function call."""
 
@@ -492,7 +502,7 @@ class Call(Expr):
     force_return_cast: bool
 
     # Bound arguments.
-    args: typing.List[Base]
+    args: typing.List[CallArg]
 
     # Typemods of parameters.  This list corresponds to ".args"
     # (so `zip(args, params_typemods)` is valid.)

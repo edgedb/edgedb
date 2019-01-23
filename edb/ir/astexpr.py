@@ -31,7 +31,11 @@ class DistinctConjunctionExpr:
             # Basic std::_is_exclusive(blah) expression
             pure_distinct_expr = irastmatch.FunctionCall(
                 func_shortname='std::_is_exclusive',
-                args=[astmatch.group('expr', irastmatch.Base())],
+                args=[
+                    irastmatch.CallArg(
+                        expr=astmatch.group('expr', irastmatch.Base())
+                    ),
+                ],
             )
 
             possibly_wrapped_distinct_expr = irastmatch.SelectStmt(
@@ -60,7 +64,8 @@ class DistinctConjunctionExpr:
 
             # Populate expression alternatives to complete recursive
             # pattern definition.
-            binop.args = [constr_expr, constr_expr]
+            binop.args = [irastmatch.CallArg(expr=constr_expr),
+                          irastmatch.CallArg(expr=constr_expr)]
 
             self.pattern = constr_expr
 

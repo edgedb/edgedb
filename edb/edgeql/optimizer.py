@@ -194,7 +194,7 @@ class EdgeQLOptimizer:
 
         elif isinstance(expr, qlast.FunctionCall):
             for arg in expr.args:
-                self._process_expr(context, arg)
+                self._process_expr(context, arg.expr)
 
         elif isinstance(expr, qlast.WindowSpec):
             if expr.orderby:
