@@ -17,6 +17,7 @@
 #
 
 
+import json
 import os.path
 
 import edgedb
@@ -135,7 +136,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'could not determine expression type'):
 
-            await self.query("""
+            await self.con.execute("""
                 SELECT array_agg({});
             """)
 
@@ -220,7 +221,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.UnsupportedFeatureError,
                 r"nested arrays are not supported"):
-            await self.query(r"""
+            await self.con.execute(r"""
                 WITH MODULE test
                 SELECT array_agg(
                     [<str>Issue.number, Issue.status.name]
@@ -283,7 +284,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.UnsupportedFeatureError,
                 r"nested arrays are not supported"):
-            await self.query(r'''
+            await self.con.execute(r'''
                 WITH MODULE test
                 SELECT array_agg(array_agg(User.name));
             ''')
@@ -459,7 +460,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'could not find a function variant array_get'):
 
-            await self.query(r'''
+            await self.con.execute(r'''
                 SELECT array_get([1, 2, 3], 2^40);
             ''')
 
@@ -702,17 +703,21 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_datetime_current_01(self):
-        dt = (await self.query('SELECT datetime_current();'))[0][0]
+        # make sure that datetime as a str gets serialized to a
+        # particular format
+        dt = await self.con.fetch_value('SELECT <str>datetime_current();')
         self.assertRegex(dt, r'\d+-\d+-\d+T\d+:\d+:\d+\.\d+.*')
 
     async def test_edgeql_functions_datetime_current_02(self):
-        res = await self.query(r'''
+        batch1 = await self.con.fetch_json(r'''
             WITH MODULE schema
             SELECT Type {
                 dt_t := datetime_of_transaction(),
                 dt_s := datetime_of_statement(),
                 dt_n := datetime_current(),
             };
+        ''')
+        batch2 = await self.con.fetch_json(r'''
             # NOTE: this test assumes that there's at least 1 microsecond
             # time difference between statements
             WITH MODULE schema
@@ -723,8 +728,8 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             };
         ''')
 
-        batch1 = res[0]
-        batch2 = res[1]
+        batch1 = json.loads(batch1)
+        batch2 = json.loads(batch2)
         batches = batch1 + batch2
 
         # all of the dt_t should be the same
@@ -810,7 +815,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(
             edgedb.InternalServerError,
                 'timestamp units "timezone_hour" not supported'):
-            await self.query('''
+            await self.con.execute('''
                 SELECT datetime_get(
                     <naive_datetime>'2018-05-07T15:01:22.306916',
                     'timezone_hour'
@@ -2263,7 +2268,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.InternalServerError,
                 r"mean in undefined for an empty set"):
-            await self.query(r'''
+            await self.con.execute(r'''
                 SELECT math::mean(<int64>{});
             ''')
 
@@ -2307,7 +2312,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.InternalServerError,
                 r"stddev in undefined for input set.+< 2"):
-            await self.query(r'''
+            await self.con.execute(r'''
                 SELECT math::stddev(<int64>{});
             ''')
 
@@ -2319,7 +2324,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.InternalServerError,
                 r"stddev in undefined for input set.+< 2"):
-            await self.query(r'''
+            await self.con.execute(r'''
                 SELECT math::stddev(1);
             ''')
 
@@ -2363,7 +2368,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.InternalServerError,
                 r"stddev_pop in undefined for an empty set"):
-            await self.query(r'''
+            await self.con.execute(r'''
                 SELECT math::stddev_pop(<int64>{});
             ''')
 
@@ -2443,7 +2448,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.InternalServerError,
                 r"var in undefined for input set.+< 2"):
-            await self.query(r'''
+            await self.con.execute(r'''
                 SELECT math::var(<int64>{});
             ''')
 
@@ -2455,7 +2460,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.InternalServerError,
                 r"var in undefined for input set.+< 2"):
-            await self.query(r'''
+            await self.con.execute(r'''
                 SELECT math::var(1);
             ''')
 
@@ -2515,6 +2520,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.InternalServerError,
                 r"var_pop in undefined for an empty set"):
-            await self.query(r'''
+            await self.con.execute(r'''
                 SELECT math::var_pop(<int64>{});
             ''')

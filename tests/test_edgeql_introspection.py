@@ -605,12 +605,12 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_meta_15(self):
-        res = await self.query(r'''
+        res = await self.con.fetch(r'''
             WITH MODULE schema
             SELECT `Type`;
         ''')
         # just test that there's a non-empty return set for this query
-        self.assertTrue(res[0])
+        self.assertTrue(res)
 
     async def test_edgeql_introspection_meta_16(self):
         await self.assert_query_result(r'''
@@ -649,7 +649,7 @@ class TestIntrospection(tb.QueryTestCase):
         self.assertIsNotNone(result[0].properties[0].target.id)
 
     async def test_edgeql_introspection_count_01(self):
-        await self.query(r"""
+        await self.con.execute(r"""
             WITH MODULE test
             INSERT Priority {
                 name := 'High'
@@ -717,16 +717,16 @@ class TestIntrospection(tb.QueryTestCase):
             ]
         ])
 
-        await self.query(r"""
+        await self.con.execute(r"""
             DELETE test::Priority;
             DELETE test::Status;
             DELETE test::User;
         """)
 
     async def test_edgeql_introspection_database_01(self):
-        res = await self.query(r"""
+        res = await self.con.fetch_value(r"""
             WITH MODULE schema
             SELECT count(Database.name);
         """)
 
-        self.assertGreater(res[0][0], 0)
+        self.assertGreater(res, 0)

@@ -98,7 +98,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
 
     async def test_link_on_target_delete_restrict_01(self):
         async with self._run_and_rollback():
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::Target1 {
                     name := 'Target1.1'
                 };
@@ -115,13 +115,13 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.ConstraintViolationError,
                     'deletion of test::Target1 .* is prohibited by link'):
-                await self.query("""
+                await self.con.execute("""
                     DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
                 """)
 
     async def test_link_on_target_delete_restrict_02(self):
         async with self._run_and_rollback():
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::Target1Child {
                     name := 'Target1Child.1'
                 };
@@ -138,14 +138,14 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.ConstraintViolationError,
                     'deletion of test::Target1 .* is prohibited by link'):
-                await self.query("""
+                await self.con.execute("""
                     DELETE (SELECT test::Target1Child
                             FILTER .name = 'Target1Child.1');
                 """)
 
     async def test_link_on_target_delete_restrict_03(self):
         async with self._run_and_rollback():
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::Target1 {
                     name := 'Target1.1'
                 };
@@ -162,13 +162,13 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.ConstraintViolationError,
                     'deletion of test::Target1 .* is prohibited by link'):
-                await self.query("""
+                await self.con.execute("""
                     DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
                 """)
 
     async def test_link_on_target_delete_restrict_04(self):
         async with self._run_and_rollback():
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::Target1Child {
                     name := 'Target1Child.1'
                 };
@@ -185,7 +185,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.ConstraintViolationError,
                     'deletion of test::Target1 .* is prohibited by link'):
-                await self.query("""
+                await self.con.execute("""
                     DELETE (SELECT test::Target1Child
                             FILTER .name = 'Target1Child.1');
                 """)
@@ -194,7 +194,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
         success = False
 
         async with self._run_and_rollback():
-            await self.query(r"""
+            await self.con.execute(r"""
                 SET MODULE test;
 
                 INSERT Target1 {
@@ -213,7 +213,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
         success = False
 
         async with self._run_and_rollback():
-            await self.query("""
+            await self.con.execute("""
                 SET MODULE test;
 
                 INSERT Target1 {
@@ -240,7 +240,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
         success = False
 
         async with self._run_and_rollback():
-            await self.query("""
+            await self.con.execute("""
                 SET MODULE test;
 
                 FOR name IN {'Target1.1', 'Target1.2', 'Target1.3'}
@@ -273,7 +273,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 'deletion of test::Target1 .* is prohibited by link'):
 
             async with self.con.transaction():
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::Target1 {
                         name := 'Target1.1'
                     };
@@ -287,7 +287,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                     };
                 """)
 
-                await self.query("""
+                await self.con.execute("""
                     DELETE (SELECT test::Target1
                             FILTER .name = 'Target1.1');
                 """)
@@ -304,7 +304,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 'deletion of test::Target1 .* is prohibited by link'):
 
             async with self.con.transaction():
-                await self.query("""
+                await self.con.execute("""
                     INSERT test::Target1 {
                         name := 'Target1.1'
                     };
@@ -318,7 +318,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                     };
                 """)
 
-                await self.query("""
+                await self.con.execute("""
                     DELETE (SELECT test::Target1
                             FILTER .name = 'Target1.1');
                 """)
@@ -331,7 +331,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
         success = False
 
         async with self._run_and_rollback():
-            await self.query("""
+            await self.con.execute("""
                 SET MODULE test;
 
                 INSERT Target1 {
@@ -356,7 +356,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
     async def test_link_on_target_delete_deferred_restrict_04(self):
         try:
             async with self.con.transaction():
-                await self.query(r"""
+                await self.con.execute(r"""
                     SET MODULE test;
 
                     INSERT Target1 {
@@ -400,7 +400,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
 
         finally:
             # cleanup
-            await self.query("""
+            await self.con.execute("""
                 DELETE (SELECT test::Source1
                         FILTER .name = 'Source4.1');
                 DELETE (SELECT test::Target1
@@ -409,7 +409,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
 
     async def test_link_on_target_delete_set_empty_01(self):
         async with self._run_and_rollback():
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::Target1 {
                     name := 'Target1.1'
                 };
@@ -437,7 +437,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 }]
             ])
 
-            await self.query("""
+            await self.con.execute("""
                 DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
             """)
 
@@ -459,7 +459,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
 
     async def test_link_on_target_delete_set_empty_02(self):
         async with self._run_and_rollback():
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::Target1 {
                     name := 'Target1.1'
                 };
@@ -487,7 +487,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 }]
             ])
 
-            await self.query("""
+            await self.con.execute("""
                 DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
             """)
 
@@ -509,7 +509,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
 
     async def test_link_on_target_delete_delete_source_01(self):
         async with self._run_and_rollback():
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::Target1 {
                     name := 'Target1.1'
                 };
@@ -553,7 +553,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 }]
             ])
 
-            await self.query("""
+            await self.con.execute("""
                 DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
             """)
 
@@ -576,7 +576,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
 
     async def test_link_on_target_delete_delete_source_02(self):
         async with self._run_and_rollback():
-            await self.query("""
+            await self.con.execute("""
                 SET MODULE test;
 
                 INSERT Target1 {
@@ -648,7 +648,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 }]
             ])
 
-            await self.query("""
+            await self.con.execute("""
                 DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
             """)
 
@@ -671,7 +671,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
 
     async def test_link_on_target_delete_delete_source_03(self):
         async with self._run_and_rollback():
-            await self.query("""
+            await self.con.execute("""
                 SET MODULE test;
 
                 FOR name IN {'Target1.1', 'Target1.2', 'Target1.3'}
@@ -712,7 +712,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 }]
             ])
 
-            await self.query("""
+            await self.con.execute("""
                 DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
             """)
 
@@ -758,12 +758,12 @@ class TestLinkTargetDeleteMigrations(stb.NonIsolatedDDLTestCase):
             with open(schema_f) as f:
                 schema = f.read()
 
-            await self.query(f'''
+            await self.con.execute(f'''
                 CREATE MIGRATION test::d_m01 TO eschema $${schema}$$;
                 COMMIT MIGRATION test::d_m01;
                 ''')
 
-            await self.query('''
+            await self.con.execute('''
                 INSERT test::Target1 {name := 'Target1_migration_01'};
 
                 INSERT test::ObjectType4 {
@@ -788,12 +788,12 @@ class TestLinkTargetDeleteMigrations(stb.NonIsolatedDDLTestCase):
             with open(schema_f) as f:
                 schema = f.read()
 
-            await self.query(f'''
+            await self.con.execute(f'''
                 CREATE MIGRATION test::d_m01 TO eschema $${schema}$$;
                 COMMIT MIGRATION test::d_m01;
                 ''')
 
-            await self.query("""
+            await self.con.execute("""
                 INSERT test::Target1 {
                     name := 'Target1.m02'
                 };
@@ -812,6 +812,6 @@ class TestLinkTargetDeleteMigrations(stb.NonIsolatedDDLTestCase):
             with self.assertRaisesRegex(
                     edgedb.ConstraintViolationError,
                     'deletion of test::Target1 .* is prohibited by link'):
-                await self.query("""
+                await self.con.execute("""
                     DELETE (SELECT test::Target1 FILTER .name = 'Target1.m02');
                 """)

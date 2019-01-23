@@ -32,7 +32,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 r'cannot create.*test::func_01.*'
                 r'generic types are not supported in '
                 r'user-defined functions'):
-            await self.query('''
+            await self.con.execute('''
                 CREATE FUNCTION test::func_01(
                     a: anytype
                 ) -> bool
@@ -48,7 +48,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 r'cannot create.*test::func_02.*'
                 r'generic types are not supported in '
                 r'user-defined functions'):
-            await self.query('''
+            await self.con.execute('''
                 CREATE FUNCTION test::func_02(
                     a: anyreal
                 ) -> bool
@@ -64,7 +64,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 r'cannot create.*test::func_03.*'
                 r'generic types are not supported in '
                 r'user-defined functions'):
-            await self.query('''
+            await self.con.execute('''
                 CREATE FUNCTION test::func_03(
                     a: str
                 ) -> anytype
@@ -80,7 +80,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 r'cannot create.*test::func_04.*'
                 r'generic types are not supported in '
                 r'user-defined functions'):
-            await self.query('''
+            await self.con.execute('''
                 CREATE FUNCTION test::func_04(
                     a: str
                 ) -> anyscalar
@@ -95,7 +95,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 r'cannot create.*test::func_05.*'
                 r'FROM SQL FUNCTION.*not supported in '
                 r'user-defined functions'):
-            await self.query('''
+            await self.con.execute('''
                 CREATE FUNCTION test::func_05(
                     a: str
                 ) -> str
@@ -108,7 +108,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 r'cannot create.*test::func_06.*'
                 r'FROM SQL.*not supported in '
                 r'user-defined functions'):
-            await self.query('''
+            await self.con.execute('''
                 CREATE FUNCTION test::func_06(
                     a: str
                 ) -> str
@@ -119,7 +119,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.UnsupportedFeatureError,
                 r'user-defined operators are not supported'):
-            await self.query('''
+            await self.con.execute('''
                 CREATE INFIX OPERATOR
                 std::`+` (l: std::str, r: std::str) -> std::str
                     FROM SQL OPERATOR r'||';
@@ -129,7 +129,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.UnsupportedFeatureError,
                 r'user-defined casts are not supported'):
-            await self.query('''
+            await self.con.execute('''
                 CREATE CAST FROM std::int64 TO std::timedelta {
                     FROM SQL CAST;
                     ALLOW ASSIGNMENT;
@@ -140,7 +140,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 r'cannot create.*module std is read-only'):
-            await self.query('''
+            await self.con.execute('''
                 CREATE FUNCTION std::func_09(
                     a: str
                 ) -> str
@@ -153,7 +153,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 r'cannot create.*module math is read-only'):
-            await self.query('''
+            await self.con.execute('''
                 CREATE FUNCTION math::func_10(
                     a: str
                 ) -> str
@@ -166,7 +166,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 r'cannot create.*module std is read-only'):
-            await self.query('''
+            await self.con.execute('''
                 CREATE TYPE std::Foo_11;
             ''')
 
@@ -174,7 +174,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 r'cannot create.*module math is read-only'):
-            await self.query('''
+            await self.con.execute('''
                 CREATE TYPE math::Foo_11;
             ''')
 
@@ -182,7 +182,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 r'cannot delete.*module std is read-only'):
-            await self.query('''
+            await self.con.execute('''
                 DROP TYPE std::Object;
             ''')
 
@@ -190,7 +190,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 r'cannot delete.*module stdgraphql is read-only'):
-            await self.query('''
+            await self.con.execute('''
                 DROP TYPE stdgraphql::Query;
             ''')
 
@@ -198,7 +198,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 r'cannot alter.*module std is read-only'):
-            await self.query('''
+            await self.con.execute('''
                 ALTER TYPE std::Object {
                     CREATE PROPERTY std::foo_15 -> std::str;
                 };
@@ -208,7 +208,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 r'cannot alter.*module stdgraphql is read-only'):
-            await self.query('''
+            await self.con.execute('''
                 ALTER TYPE stdgraphql::Query {
                     CREATE PROPERTY std::foo_15 -> std::str;
                 };
@@ -218,7 +218,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 r'cannot delete.*module std is read-only'):
-            await self.query('''
+            await self.con.execute('''
                 DROP MODULE std;
             ''')
 
@@ -226,7 +226,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 r'cannot delete.*module math is read-only'):
-            await self.query('''
+            await self.con.execute('''
                 DROP MODULE math;
             ''')
 
@@ -236,7 +236,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 r'cannot create.*test::func_19.*'
                 r'SET OF parameters in user-defined EdgeQL '
                 r'functions are not supported'):
-            await self.query('''
+            await self.con.execute('''
                 CREATE FUNCTION test::func_19(
                     a: SET OF str
                 ) -> bool
@@ -246,7 +246,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
             ''')
 
     async def test_edgeql_userddl_20(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::func_20(
                 a: str
             ) -> SET OF str
@@ -267,7 +267,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 r"'force_return_cast' is not a valid field"):
-            await self.query('''
+            await self.con.execute('''
                 CREATE FUNCTION test::func(
                     a: str
                 ) -> bool

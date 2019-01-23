@@ -37,7 +37,7 @@ class TestInsert(tb.QueryTestCase):
         err = 'missing value for required property ' + \
               'test::InsertTest.l2'
         with self.assertRaisesRegex(edgedb.MissingRequiredError, err):
-            await self.query('''
+            await self.con.execute('''
                 INSERT test::InsertTest;
             ''')
 
@@ -913,7 +913,7 @@ class TestInsert(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyTargetError,
                 r"invalid target.*std::datetime.*expecting 'std::int64'"):
-            await self.query(r"""
+            await self.con.execute(r"""
                 WITH MODULE test
                 INSERT InsertTest {
                     l1 := <datetime>{},
@@ -925,7 +925,7 @@ class TestInsert(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.MissingRequiredError,
                 r"missing value for required property"):
-            await self.query(r"""
+            await self.con.execute(r"""
                 WITH MODULE test
                 INSERT InsertTest {
                     l2 := {},
@@ -958,7 +958,7 @@ class TestInsert(tb.QueryTestCase):
                 edgedb.InvalidLinkTargetError,
                 r"invalid target for link.*std::Object.*"
                 r"expecting 'test::Subordinate'"):
-            await self.query(r"""
+            await self.con.execute(r"""
                 WITH MODULE test
                 INSERT InsertTest {
                     l2 := 99,
@@ -970,20 +970,20 @@ class TestInsert(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"cannot insert: std::Object is abstract",
-                position=7):
-            await self.query("""\
+                position=23):
+            await self.con.execute("""\
                 INSERT Object;
             """)
 
     async def test_edgeql_insert_view(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE VIEW test::Foo := (SELECT test::InsertTest);
         ''')
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"cannot insert: test::Foo is a view",
-                position=7):
-            await self.query("""\
+                position=23):
+            await self.con.execute("""\
                 INSERT test::Foo;
             """)

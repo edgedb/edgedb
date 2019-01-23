@@ -17,6 +17,7 @@
 #
 
 
+import json
 import os.path
 import unittest  # NOQA
 
@@ -94,7 +95,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
 
     async def test_edgeql_scope_tuple_03(self):
         # get the User names and ids
-        res = await self.query(r'''
+        res = await self.con.fetch(r'''
             WITH MODULE test
             SELECT User {
                 name,
@@ -109,8 +110,8 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ORDER BY _.0.name;
         ''', [
             [
-                [{'name': user['name']}, {'id': user['id']}]
-                for user in res[0]
+                [{'name': user.name}, {'id': str(user.id)}]
+                for user in res
             ]
         ])
 
@@ -1225,11 +1226,10 @@ class TestEdgeQLScope(tb.QueryTestCase):
 
     async def test_edgeql_scope_detached_02(self):
         # calculate some useful base expression
-        names = await self.query(r"""
+        names = await self.con.fetch(r"""
             WITH MODULE test
             SELECT User.name ++ <str>count(User.deck);
         """)
-        names = names[0]
 
         await self.assert_query_result(r"""
             # Let's say we need a tournament where everybody will play
@@ -1296,7 +1296,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"'User' changes the interpretation of 'User'"):
             async with self.con.transaction():
-                await self.query(r"""
+                await self.con.execute(r"""
                     WITH MODULE test
                     SELECT User.friends
                     FILTER User.friends@nickname = 'Firefighter';
@@ -1307,7 +1307,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"'User' changes the interpretation of 'User'"):
-            await self.query(r"""
+            await self.con.execute(r"""
                 WITH MODULE test
                 SELECT User.friends
                 FILTER (
@@ -1439,7 +1439,8 @@ class TestEdgeQLScope(tb.QueryTestCase):
         ])
 
     async def test_edgeql_scope_detached_07(self):
-        res = await self.query(r'''
+        # compare detached to regular expression
+        res = await self.con.fetch_json(r'''
             WITH MODULE test
             SELECT User {
                 name,
@@ -1450,7 +1451,8 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 )
             };
         ''')
-        res[0].sort(key=lambda x: x['name'])
+        res = json.loads(res)
+        res.sort(key=lambda x: x['name'])
 
         await self.assert_sorted_query_result(r'''
             # adding a top-level DETACHED should not change anything at all
@@ -1463,10 +1465,10 @@ class TestEdgeQLScope(tb.QueryTestCase):
                     ORDER BY .name
                 )
             };
-        ''', lambda x: x['name'], res)
+        ''', lambda x: x['name'], [res])
 
     async def test_edgeql_scope_detached_08(self):
-        res = await self.query(r'''
+        res = await self.con.fetch_json(r'''
             WITH MODULE test
             SELECT User {
                 name,
@@ -1477,7 +1479,8 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 ).name
             };
         ''')
-        res[0].sort(key=lambda x: x['name'])
+        res = json.loads(res)
+        res.sort(key=lambda x: x['name'])
 
         await self.assert_sorted_query_result(r'''
             # adding a top-level DETACHED should not change anything at all
@@ -1490,14 +1493,14 @@ class TestEdgeQLScope(tb.QueryTestCase):
                     ORDER BY .name
                 ).name
             };
-        ''', lambda x: x['name'], res)
+        ''', lambda x: x['name'], [res])
 
     async def test_edgeql_scope_detached_09(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'only singletons are allowed'):
 
             async with self.con.transaction():
-                await self.query(r"""
+                await self.con.execute(r"""
                     WITH MODULE test
                     SELECT DETACHED User {name}
                     # a subtle error

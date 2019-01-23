@@ -40,7 +40,7 @@ class TestDelete(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'cannot delete non-ObjectType object'):
 
-            await self.query('''\
+            await self.con.execute('''\
                 DELETE 42;
             ''')
         pass

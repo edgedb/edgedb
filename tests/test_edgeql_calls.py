@@ -27,7 +27,7 @@ from edb.tools import test
 class TestEdgeQLFuncCalls(tb.QueryTestCase):
 
     async def test_edgeql_calls_01(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call1(
                 s: str,
                 VARIADIC a: int64,
@@ -67,7 +67,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ])
 
     async def test_edgeql_calls_02(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call2(
                 VARIADIC a: anytype
             ) -> std::str
@@ -85,7 +85,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ])
 
     async def test_edgeql_calls_03(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call3(
                 a: int32,
                 NAMED ONLY b: int32
@@ -108,12 +108,12 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                     edgedb.QueryError,
                     r'could not find a function variant'):
                 async with self.con.transaction():
-                    await self.query(c)
+                    await self.con.execute(c)
 
     @test.not_implemented(
         'type of the "[]" default cannot be determined for array<anytype>')
     async def test_edgeql_calls_04(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call4(
                 a: int32,
                 NAMED ONLY b: array<anytype> = []
@@ -136,7 +136,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ])
 
     async def test_edgeql_calls_05(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call5(
                 a: int64,
                 NAMED ONLY b: OPTIONAL int64 = <int64>{}
@@ -159,7 +159,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ])
 
     async def test_edgeql_calls_06(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call6(
                 VARIADIC a: int64
             ) -> int64
@@ -179,7 +179,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ])
 
     async def test_edgeql_calls_07(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call7(
                 a: int64 = 1,
                 b: int64 = 2,
@@ -223,10 +223,10 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                     edgedb.QueryError,
                     r'could not find a function variant'):
                 async with self.con.transaction():
-                    await self.query(c)
+                    await self.con.execute(c)
 
     async def test_edgeql_calls_08(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call8(
                 a: int64 = 1,
                 NAMED ONLY b: int64 = 2
@@ -260,7 +260,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'function test::call8 is not unique'):
             async with self.con.transaction():
-                await self.query('SELECT test::call8();')
+                await self.con.execute('SELECT test::call8();')
 
     async def test_edgeql_calls_09(self):
         await self.assert_query_result(r'''
@@ -320,7 +320,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ])
 
     async def test_edgeql_calls_11(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call11(
                 a: array<int32>
             ) -> int64
@@ -350,14 +350,14 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                     edgedb.QueryError,
                     r'could not find a function variant'):
                 async with self.con.transaction():
-                    await self.query(c)
+                    await self.con.execute(c)
 
     @test.not_implemented(
         "this results in 2 PG functions: `(anynonarray)->bigint` and "
         "`(bigint)->bigint`; PG fails with 'function is not unique' "
         "at the call site")
     async def test_edgeql_calls_12(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call12(
                 a: anyint
             ) -> int64
@@ -382,7 +382,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ])
 
     async def test_edgeql_calls_13(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::inner(
                 a: anytype
             ) -> int64
@@ -410,7 +410,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             [{}],
         ])
 
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::inner(
                 a: str
             ) -> int64
@@ -439,7 +439,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ])
 
     async def test_edgeql_calls_14(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call14(
                 a: anytype
             ) -> array<anytype>
@@ -459,7 +459,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ])
 
     async def test_edgeql_calls_15(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call15(
                 a: anytype
             ) -> array<anytype>
@@ -477,7 +477,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ])
 
     async def test_edgeql_calls_16(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call16(
                 a: array<anytype>,
                 idx: int64
@@ -522,7 +522,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ])
 
     async def test_edgeql_calls_17(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call17(
                 a: anytype
             ) -> array<anytype>
@@ -547,7 +547,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ])
 
     async def test_edgeql_calls_18(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call18(
                 VARIADIC a: anytype
             ) -> int64
@@ -571,7 +571,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 r'could not find a function variant'):
 
             async with self.con.transaction():
-                await self.query('SELECT test::call18(1, 2, "a");')
+                await self.con.execute('SELECT test::call18(1, 2, "a");')
 
     @test.not_implemented(
         "PG fails with 'return type record[] is not supported'")
@@ -579,7 +579,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         # XXX: Postgres raises the following error for this:
         #    return type record[] is not supported for SQL functions
 
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call19(
                 a: anytype
             ) -> array<anytype>
@@ -588,14 +588,14 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.query('SELECT test::call19((1,2));')
+        await self.con.execute('SELECT test::call19((1,2));')
 
     @test.xfail(
         "Polymorphic callable matching is currently too dumb to realize "
         "that `+` _is_ defined for 'anyreal', even though there are multiple "
         "actual forms defined.")
     async def test_edgeql_calls_20(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call20_1(
                 a: anyreal, b: anyreal
             ) -> anyreal
@@ -627,10 +627,10 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'could not find a function variant'):
             async with self.con.transaction():
-                await self.query('SELECT test::call20_1(1, "1");')
+                await self.con.execute('SELECT test::call20_1(1, "1");')
 
     async def test_edgeql_calls_21(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call21(
                 a: array<anytype>
             ) -> int64
@@ -652,7 +652,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ])
 
     async def test_edgeql_calls_22(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call22(
                 a: str, b: str
             ) -> str
@@ -683,7 +683,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ])
 
     async def test_edgeql_calls_23(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call23(
                 a: anytype,
                 idx: int64
@@ -712,7 +712,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ])
 
     async def test_edgeql_calls_24(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call24() -> str
                 FROM EdgeQL $$
                     SELECT 'ab' ++ 'cd'
@@ -735,7 +735,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ])
 
     async def test_edgeql_calls_26(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call26(
                 a: array<anyscalar>
             ) -> int64
@@ -756,10 +756,10 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'could not find a function variant'):
             async with self.con.transaction():
-                await self.query('SELECT test::call26([(1, 2)]);')
+                await self.con.execute('SELECT test::call26([(1, 2)]);')
 
     async def test_edgeql_calls_27(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call27(
                 a: array<anyint>
             ) -> int64
@@ -788,12 +788,12 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                     edgedb.QueryError,
                     r'could not find a function variant'):
                 async with self.con.transaction():
-                    await self.query(c)
+                    await self.con.execute(c)
 
     @test.not_implemented(
         "we get two `(anynonarray)->bigint` PG functions which is ambiguous")
     async def test_edgeql_calls_28(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call28(
                 a: array<anyint>
             ) -> int64
@@ -822,7 +822,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ])
 
     async def test_edgeql_calls_29(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call29(
                 a: anyint
             ) -> anyint
@@ -838,7 +838,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ])
 
     async def test_edgeql_calls_30(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call30(
                 a: anyint
             ) -> int64
@@ -856,7 +856,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ])
 
     async def test_edgeql_calls_31(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call31(
                 a: anytype
             ) -> anytype
@@ -911,7 +911,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         "To fix, polymorphic function calls must cast into a common type "
         "before calling.")
     async def test_edgeql_calls_32(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE FUNCTION test::call32(
                 a: anytype, b: anytype
             ) -> anytype

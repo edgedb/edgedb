@@ -62,7 +62,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_views_basic_02(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE VIEW test::expert_map := (
                 SELECT {
                     ('Alice', 'pro'),
@@ -88,7 +88,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_views_basic_03(self):
-        await self.query('''
+        await self.con.execute('''
             CREATE VIEW test::scores := (
                 SELECT {
                     (name := 'Alice', score := 100, games := 10),

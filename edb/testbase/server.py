@@ -422,10 +422,6 @@ class BaseQueryTestCase(DatabaseTestCase):
 
     BASE_TEST_CLASS = True
 
-    async def query(self, query):
-        query = textwrap.dedent(query)
-        return await self.con._legacy_execute(query)
-
     async def assert_query_result(self, query, result, *, msg=None):
         res = await self.con._legacy_execute(query)
         self._assert_data_shape(res, result, message=msg)

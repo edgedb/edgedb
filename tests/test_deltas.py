@@ -197,12 +197,12 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
         with open(schema_f) as f:
             schema = f.read()
 
-        await self.query(f'''
+        await self.con.execute(f'''
             CREATE MIGRATION test::d_links01_0 TO eschema $${schema}$$;
             COMMIT MIGRATION test::d_links01_0;
             ''')
 
-        await self.query('''
+        await self.con.execute('''
             INSERT test::Target1 {
                 name := 'Target1_linkinh_2'
             };
@@ -224,7 +224,7 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
             };
         ''')
 
-        await self.query('DECLARE SAVEPOINT t0;')
+        await self.con.execute('DECLARE SAVEPOINT t0;')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidLinkTargetError,
@@ -233,7 +233,7 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
             # Target0 is not allowed to be targeted by ObjectType01, since
             # ObjectType01 inherits from ObjectType1 which requires more
             # specific Target1.
-            await self.query('''
+            await self.con.execute('''
                 INSERT test::ObjectType01 {
                     target := (
                         SELECT
@@ -251,7 +251,7 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
         with open(schema_f) as f:
             schema = f.read()
 
-        await self.query(f'''
+        await self.con.execute(f'''
             ROLLBACK TO SAVEPOINT t0;
             CREATE MIGRATION test::d_links01_1 TO eschema $${schema}$$;
             COMMIT MIGRATION test::d_links01_1;
@@ -273,7 +273,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                 f'\nDIFF:\n{diff}')
 
     async def test_delta_ddlgen_01(self):
-        result = await self.query("""
+        await self.con.execute("""
             # setup delta
             #
             CREATE MIGRATION test::d1 TO eschema $$
@@ -286,12 +286,13 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                         inherited property lang -> str:
                             attribute title := 'Language'
             $$;
-
+        """)
+        result = await self.con.fetch_value("""
             GET MIGRATION test::d1;
         """)
 
         self._assert_result(
-            result[1][0],
+            result,
             '''\
 CREATE ABSTRACT PROPERTY test::lang;
 CREATE ABSTRACT PROPERTY test::name;
@@ -317,19 +318,20 @@ ALTER TYPE test::NamedObject {
         )
 
     async def test_delta_ddlgen_02(self):
-        result = await self.query("""
+        await self.con.execute("""
             # setup delta
             #
             CREATE MIGRATION test::d2 TO eschema $$
                 type NamedObject:
                     required property a -> array<int64>
             $$;
-
+        """)
+        result = await self.con.fetch_value("""
             GET MIGRATION test::d2;
         """)
 
         self._assert_result(
-            result[1][0],
+            result,
             '''\
 CREATE ABSTRACT PROPERTY test::a;
 CREATE TYPE test::NamedObject EXTENDING std::Object;
@@ -339,19 +341,20 @@ test::a -> array<std::int64>;
         )
 
     async def test_delta_ddlgen_03(self):
-        result = await self.query("""
+        await self.con.execute("""
             # setup delta
             CREATE MIGRATION test::d3 TO eschema $$
                 abstract type Foo:
                     property bar -> str
                     property __typename := 'foo'
             $$;
-
+        """)
+        result = await self.con.fetch_value("""
             GET MIGRATION test::d3;
         """)
 
         self._assert_result(
-            result[1][0],
+            result,
             '''\
             CREATE ABSTRACT PROPERTY test::__typename;
             CREATE ABSTRACT PROPERTY test::bar;
@@ -369,19 +372,20 @@ test::a -> array<std::int64>;
         )
 
     async def test_delta_ddlgen_04(self):
-        result = await self.query("""
+        await self.con.execute("""
             # setup delta
             CREATE MIGRATION test::d4 TO eschema $$
                 abstract type Foo:
                     property bar -> str
                     property __typename := __source__.__type__.name
             $$;
-
+        """)
+        result = await self.con.fetch_value("""
             GET MIGRATION test::d4;
         """)
 
         self._assert_result(
-            result[1][0],
+            result,
             '''\
             CREATE ABSTRACT PROPERTY test::__typename;
             CREATE ABSTRACT PROPERTY test::bar;
@@ -399,7 +403,7 @@ test::a -> array<std::int64>;
         )
 
     async def test_delta_ddlgen_05(self):
-        result = await self.query("""
+        await self.con.execute("""
             # setup delta
             #
             CREATE MIGRATION test::d5 TO eschema $$
@@ -410,9 +414,12 @@ test::a -> array<std::int64>;
 
             GET MIGRATION test::d5;
         """)
+        result = await self.con.fetch_value("""
+            GET MIGRATION test::d5;
+        """)
 
         self._assert_result(
-            result[1][0],
+            result,
             '''\
 CREATE ABSTRACT PROPERTY test::a2;
 CREATE TYPE test::NamedObject2 EXTENDING std::Object;
@@ -427,7 +434,7 @@ test::a2 -> array<std::int64> {
         with self.assertRaisesRegex(
                 edgedb.SchemaError, r"unexpected field aaa"):
 
-            await self.query("""
+            await self.con.execute("""
                 CREATE MIGRATION test::d5 TO eschema $$
                     type NamedObject2:
                         property a2 -> array<int64>:

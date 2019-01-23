@@ -17,6 +17,7 @@
 #
 
 
+import json
 import os.path
 import unittest
 
@@ -37,7 +38,7 @@ class TestUpdate(tb.QueryTestCase):
         self.loop.run_until_complete(self._setup_objects())
 
     async def _setup_objects(self):
-        res = await self.query(r"""
+        self.original = await self.con.fetch_json(r"""
             WITH MODULE test
             SELECT UpdateTest {
                 id,
@@ -48,8 +49,8 @@ class TestUpdate(tb.QueryTestCase):
                 }
             } ORDER BY .name;
         """)
-
-        self.original = res[0]
+        # this is used to validate what was updated and was untouched
+        self.original = json.loads(self.original)
 
     async def test_edgeql_update_simple_01(self):
         await self.assert_query_result(r"""
@@ -338,15 +339,18 @@ class TestUpdate(tb.QueryTestCase):
         # test that plain INSERT and UPDATE return objects they have
         # manipulated
         try:
-            data = await self.query(r"""
+            data = []
+            data.append(await self.con.fetch_value(r"""
                 INSERT test::UpdateTest {
                     name := 'ret5.1'
                 };
+            """))
+            data.append(await self.con.fetch_value(r"""
                 INSERT test::UpdateTest {
                     name := 'ret5.2'
                 };
-            """)
-            data = [data[0][0], data[1][0]]
+            """))
+            data = [str(o.id) for o in data]
 
             await self.assert_query_result(r"""
                 WITH MODULE test
@@ -358,10 +362,10 @@ class TestUpdate(tb.QueryTestCase):
                 ORDER BY .name;
             """, [
                 [{
-                    'id': data[0]['id'],
+                    'id': data[0],
                     'name': 'ret5.1',
                 }, {
-                    'id': data[1]['id'],
+                    'id': data[1],
                     'name': 'ret5.2',
                 }],
             ])
@@ -374,7 +378,7 @@ class TestUpdate(tb.QueryTestCase):
                     name := 'new ' ++ UpdateTest.name
                 };
             """, lambda x: x['id'], [
-                sorted(data, key=lambda x: x['id']),
+                [{'id': data_id} for data_id in sorted(data)],
             ])
 
             await self.assert_query_result(r"""
@@ -387,15 +391,15 @@ class TestUpdate(tb.QueryTestCase):
                 ORDER BY .name;
             """, [
                 [{
-                    'id': data[0]['id'],
+                    'id': data[0],
                     'name': 'new ret5.1',
                 }, {
-                    'id': data[1]['id'],
+                    'id': data[1],
                     'name': 'new ret5.2',
                 }],
             ])
         finally:
-            await self.query(r"""
+            await self.con.execute(r"""
                 DELETE (
                     SELECT test::UpdateTest
                     FILTER .name LIKE '%ret5._'
@@ -403,12 +407,13 @@ class TestUpdate(tb.QueryTestCase):
             """)
 
     async def test_edgeql_update_generic_01(self):
-        status = await self.query(r"""
+        status = await self.con.fetch_value(r"""
             WITH MODULE test
             SELECT Status{id}
-            FILTER Status.name = 'Open';
+            FILTER Status.name = 'Open'
+            LIMIT 1;
         """)
-        status = status[0][0]['id']
+        status = str(status.id)
 
         await self.assert_query_result(r"""
             WITH MODULE test
@@ -1297,7 +1302,7 @@ class TestUpdate(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyTargetError,
                 r"invalid target for property.*std::int64.*expecting .*str'"):
-            await self.query(r"""
+            await self.con.execute(r"""
                 # just clear all the comments
                 WITH MODULE test
                 UPDATE UpdateTest
@@ -1310,7 +1315,7 @@ class TestUpdate(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.MissingRequiredError,
                 r"missing value for required property"):
-            await self.query(r"""
+            await self.con.execute(r"""
                 # just clear all the comments
                 WITH MODULE test
                 UPDATE UpdateTest
@@ -1340,7 +1345,7 @@ class TestUpdate(tb.QueryTestCase):
                 edgedb.InvalidLinkTargetError,
                 r"invalid target for link.*std::Object.*"
                 r"expecting 'test::Status'"):
-            await self.query(r"""
+            await self.con.execute(r"""
                 # just clear all the statuses
                 WITH MODULE test
                 UPDATE UpdateTest
