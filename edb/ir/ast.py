@@ -417,20 +417,6 @@ class Array(Expr):
     typeref: TypeRef
 
 
-class SetOp(Expr):
-
-    # cardinality fields need to be mutable for lazy cardinality inference.
-    __ast_mutable_fields__ = ('left_card', 'right_card')
-
-    left: Set
-    right: Set
-    op: str
-    exclusive: bool = False
-
-    left_card: qltypes.Cardinality
-    right_card: qltypes.Cardinality
-
-
 class TypeCheckOp(Expr):
 
     left: Set

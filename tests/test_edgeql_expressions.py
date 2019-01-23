@@ -1123,7 +1123,7 @@ class TestExpressions(tb.QueryTestCase):
             await self.assert_query_result(query, [{True}])
 
     async def test_edgeql_expr_valid_setop_02(self):
-        expected_error_msg = 'could not determine expression type'
+        expected_error_msg = "operator 'UNION' cannot be applied"
         # UNION all non-decimal numerics with all other scalars
         for left in get_test_values(anyreal=True, decimal=False):
             for right in get_test_values(anyreal=False):
@@ -1169,7 +1169,7 @@ class TestExpressions(tb.QueryTestCase):
                     query, [{f'std::{rtype}'}])
 
     async def test_edgeql_expr_valid_setop_04(self):
-        expected_error_msg = 'could not determine expression type'
+        expected_error_msg = "operator 'UNION' cannot be applied"
         # UNION all non-numerics with all scalars
         for left, ldesc in get_test_items(anyreal=False):
             for right, rdesc in get_test_items():
@@ -1198,7 +1198,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_valid_setop_05(self):
         # decimals are tricky because integers implicitly cast into
         # them and floats don't
-        expected_error_msg = 'could not determine expression type'
+        expected_error_msg = "operator 'UNION' cannot be applied"
         # decimal UNION non-numerics
         for left in get_test_values(decimal=True):
             for right in get_test_values(anyreal=False):
@@ -1213,7 +1213,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_valid_setop_06(self):
         # decimals are tricky because integers implicitly cast into
         # them and floats don't
-        expected_error_msg = 'could not determine expression type'
+        expected_error_msg = "operator 'UNION' cannot be applied"
         # decimal UNION numerics
         for left in get_test_values(decimal=True):
             for right in get_test_values(anyint=True):
@@ -1659,10 +1659,6 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     # and now the same tests for IN
-    @test.xfail('''
-        Fails in Postgres:
-        operator does not exist: bigint[] = numeric[]
-    ''')
     async def test_edgeql_expr_valid_collection_21(self):
         await self.assert_query_result(r'''
             SELECT [1] IN [<decimal>1];
@@ -2140,7 +2136,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_implicit_cast_08(self):
         with self.assertRaisesRegex(
-                edgedb.QueryError, 'could not determine expression type'):
+                edgedb.QueryError, "operator 'UNION' cannot be applied"):
             await self.query(r'''
                 SELECT {1.0, <decimal>2.0};
             ''')

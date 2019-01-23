@@ -23,7 +23,6 @@ import typing
 from edb import errors
 
 from edb.schema import abc as s_abc
-from edb.schema import inheriting as s_inh
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
 from edb.schema import pseudo as s_pseudo
@@ -161,29 +160,6 @@ def __infer_coalesce(ir, env):
         raise errors.QueryError(
             'coalescing operator must have operands of related types',
             context=ir.context)
-
-    return result
-
-
-@_infer_type.register(irast.SetOp)
-def __infer_setop(ir, env):
-    left_type = infer_type(ir.left, env).material_type(env.schema)
-    right_type = infer_type(ir.right, env).material_type(env.schema)
-
-    assert ir.op == 'UNION'
-
-    if isinstance(left_type, (s_scalars.ScalarType, s_abc.Collection)):
-        result = left_type.find_common_implicitly_castable_type(
-            right_type, env.schema)
-
-    else:
-        if left_type.issubclass(env.schema, right_type):
-            result = right_type
-        elif right_type.issubclass(env.schema, left_type):
-            result = left_type
-        else:
-            env.schema, result = s_inh.create_virtual_parent(
-                env.schema, [left_type, right_type])
 
     return result
 

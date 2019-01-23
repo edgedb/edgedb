@@ -29,6 +29,7 @@ from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
 
 from edb.schema import functions as s_func
+from edb.schema import inheriting as s_inh
 from edb.schema import name as sn
 from edb.schema import types as s_types
 
@@ -221,7 +222,7 @@ def compile_operator(
                                  in op.get_params(schema).objects(schema))]
 
         # Proceed only if we have a special case of collection operators.
-        if coll_opers is not None:
+        if coll_opers:
             # Then check if they are recursive (i.e. validation must be
             # done recursively for the subtypes). We rely on the fact that
             # it is forbidden to define an operator that has both
@@ -294,13 +295,31 @@ def compile_operator(
     args, params_typemods = finalize_args(matched_call, ctx=ctx)
 
     oper = matched_call.func
+    oper_name = oper.get_shortname(env.schema)
 
     matched_params = oper.get_params(env.schema)
-    matched_ret_type = oper.get_return_type(env.schema)
+    rtype = matched_call.return_type
+
+    if oper_name == 'std::UNION' and rtype.is_object_type():
+        # Special case for UNION operator, instead of common parent type,
+        # we return a union type.
+        left_type = setgen.get_set_type(args[0].expr, ctx=ctx).material_type(
+            ctx.env.schema)
+        right_type = setgen.get_set_type(args[1].expr, ctx=ctx).material_type(
+            ctx.env.schema)
+
+        if left_type.issubclass(env.schema, right_type):
+            rtype = right_type
+        elif right_type.issubclass(env.schema, left_type):
+            rtype = left_type
+        else:
+            env.schema, rtype = s_inh.create_virtual_parent(
+                env.schema, [left_type, right_type])
+
     is_polymorphic = (
         any(p.get_type(env.schema).is_polymorphic(env.schema)
             for p in matched_params.objects(env.schema)) and
-        matched_ret_type.is_polymorphic(env.schema)
+        oper.get_return_type(env.schema).is_polymorphic(env.schema)
     )
 
     in_polymorphic_func = (
@@ -316,7 +335,6 @@ def compile_operator(
     else:
         sql_operator = None
 
-    oper_name = oper.get_shortname(env.schema)
     node = irast.OperatorCall(
         args=args,
         func_module_id=env.schema.get(oper_name.module).id,
@@ -328,12 +346,11 @@ def compile_operator(
         operator_kind=oper.get_operator_kind(env.schema),
         params_typemods=params_typemods,
         context=qlexpr.context,
-        typeref=irtyputils.type_to_typeref(
-            env.schema, matched_call.return_type),
+        typeref=irtyputils.type_to_typeref(env.schema, rtype),
         typemod=oper.get_return_typemod(env.schema),
     )
 
-    return setgen.ensure_set(node, typehint=matched_call.return_type, ctx=ctx)
+    return setgen.ensure_set(node, typehint=rtype, ctx=ctx)
 
 
 def validate_recursive_operator(
@@ -468,8 +485,15 @@ def finalize_args(bound_call: polyres.BoundCall, *,
 
         val_material_type = barg.valtype.material_type(ctx.env.schema)
         param_material_type = paramtype.material_type(ctx.env.schema)
-        if not val_material_type.issubclass(
-                ctx.env.schema, param_material_type):
+
+        compatible = (
+            val_material_type.issubclass(ctx.env.schema, param_material_type)
+            and (not param_material_type.is_tuple()
+                 or (param_material_type.get_element_names() ==
+                     val_material_type.get_element_names()))
+        )
+
+        if not compatible:
             # The callable form was chosen via an implicit cast,
             # cast the arguments so that the backend has no
             # wiggle room to apply its own (potentially different)

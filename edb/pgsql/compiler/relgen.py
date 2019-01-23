@@ -225,7 +225,7 @@ def _get_set_rvar(
         # {}
         rvars = process_set_as_empty(ir_set, stmt, ctx=ctx)
 
-    elif isinstance(ir_set.expr, irast.SetOp):
+    elif irutils.is_union_expr(ir_set.expr):
         # Set operation: UNION
         rvars = process_set_as_setop(ir_set, stmt, ctx=ctx)
 
@@ -922,15 +922,17 @@ def process_set_as_setop(
     with ctx.new() as newctx:
         newctx.expr_exposed = False
 
+        left, right = (a.expr for a in expr.args)
+
         with newctx.subrel() as _, _.newscope() as scopectx:
             larg = scopectx.rel
-            larg.view_path_id_map[ir_set.path_id] = expr.left.path_id
-            dispatch.visit(expr.left, ctx=scopectx)
+            larg.view_path_id_map[ir_set.path_id] = left.path_id
+            dispatch.visit(left, ctx=scopectx)
 
         with newctx.subrel() as _, _.newscope() as scopectx:
             rarg = scopectx.rel
-            rarg.view_path_id_map[ir_set.path_id] = expr.right.path_id
-            dispatch.visit(expr.right, ctx=scopectx)
+            rarg.view_path_id_map[ir_set.path_id] = right.path_id
+            dispatch.visit(right, ctx=scopectx)
 
     with ctx.subrel() as subctx:
         subqry = subctx.rel

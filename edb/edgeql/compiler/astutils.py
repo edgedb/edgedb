@@ -22,8 +22,6 @@
 
 from edb.edgeql import ast as qlast
 
-from edb.ir import ast as irast
-
 
 def extend_qlbinop(binop, *exprs, op='AND'):
     exprs = list(exprs)
@@ -51,13 +49,6 @@ def ensure_qlstmt(expr):
 
 def is_ql_empty_set(expr):
     return isinstance(expr, qlast.Set) and len(expr.elements) == 0
-
-
-def is_set_op_set(ir_expr):
-    return (
-        isinstance(ir_expr, irast.Set) and
-        isinstance(ir_expr.expr, irast.SetOp)
-    )
 
 
 def is_ql_path(qlexpr):

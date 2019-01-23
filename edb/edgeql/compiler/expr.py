@@ -74,16 +74,13 @@ def compile_Path(
 def compile_BinOp(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
 
-    if expr.op == 'UNION':
-        op_node = compile_set_op(expr, ctx=ctx)
-    else:
-        op_node = func.compile_operator(
-            expr, op_name=expr.op, qlargs=[expr.left, expr.right], ctx=ctx)
+    op_node = func.compile_operator(
+        expr, op_name=expr.op, qlargs=[expr.left, expr.right], ctx=ctx)
 
-        if ctx.env.constant_folding:
-            folded = try_fold_binop(op_node.expr, ctx=ctx)
-            if folded is not None:
-                return folded
+    if ctx.env.constant_folding:
+        folded = try_fold_binop(op_node.expr, ctx=ctx)
+        if folded is not None:
+            return folded
 
     return setgen.ensure_set(op_node, ctx=ctx)
 
@@ -610,49 +607,6 @@ def compile_type_check_op(
 
     return irast.TypeCheckOp(
         left=left, right=typeref, op=expr.op, result=result)
-
-
-def compile_set_op(
-        expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
-
-    with ctx.newscope(fenced=True) as scopectx:
-        left = setgen.scoped_set(
-            dispatch.compile(expr.left, ctx=scopectx),
-            ctx=scopectx)
-
-    with ctx.newscope(fenced=True) as scopectx:
-        right = setgen.scoped_set(
-            dispatch.compile(expr.right, ctx=scopectx),
-            ctx=scopectx)
-
-    left_type = inference.infer_type(left, ctx.env)
-    right_type = inference.infer_type(right, ctx.env)
-
-    if left_type != right_type and isinstance(left_type, s_abc.Collection):
-        common_type = left_type.find_common_implicitly_castable_type(
-            right_type, ctx.env.schema)
-
-        if common_type is None:
-            raise errors.QueryError(
-                f'could not determine type of a set',
-                context=expr.context)
-
-        if left_type != common_type:
-            left = cast.compile_cast(
-                left, common_type, ctx=ctx, srcctx=expr.context)
-
-        if right_type != common_type:
-            right = cast.compile_cast(
-                right, common_type, ctx=ctx, srcctx=expr.context)
-
-    setop = irast.SetOp(left=left, right=right, op=expr.op)
-
-    stmtctx.get_expr_cardinality_later(
-        target=setop, field='left_card', irexpr=left, ctx=ctx)
-    stmtctx.get_expr_cardinality_later(
-        target=setop, field='right_card', irexpr=right, ctx=ctx)
-
-    return setgen.ensure_set(setop, ctx=ctx)
 
 
 def flatten_set(expr: qlast.Set) -> typing.List[qlast.Expr]:

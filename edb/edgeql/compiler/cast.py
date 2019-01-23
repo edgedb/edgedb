@@ -377,7 +377,7 @@ def _cast_array(
     if el_cast.get_from_cast(ctx.env.schema):
         # Simple cast
         return _cast_to_ir(
-            ir_set, direct_cast, orig_stype, new_stype, ctx=ctx)
+            ir_set, el_cast, orig_stype, new_stype, ctx=ctx)
     else:
         pathctx.register_set_in_scope(ir_set, ctx=ctx)
 

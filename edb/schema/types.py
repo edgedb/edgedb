@@ -612,6 +612,9 @@ class Tuple(Collection, s_abc.Tuple):
     def get_container(self):
         return dict
 
+    def get_element_names(self):
+        return list(self.element_types)
+
     def iter_subtypes(self):
         yield from self.element_types.items()
 

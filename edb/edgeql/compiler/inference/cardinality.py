@@ -149,21 +149,6 @@ def __infer_coalesce(ir, scope_tree, env):
     return _common_cardinality([ir.left, ir.right], scope_tree, env)
 
 
-@_infer_cardinality.register(irast.SetOp)
-def __infer_setop(ir, scope_tree, env):
-    if ir.op == 'UNION':
-        if not ir.exclusive:
-            # Exclusive UNIONs are generated from IF ELSE expressions.
-            result = MANY
-        else:
-            result = _common_cardinality(
-                [ir.left, ir.right], scope_tree, env)
-    else:
-        result = infer_cardinality(ir.left, scope_tree, env)
-
-    return result
-
-
 @_infer_cardinality.register(irast.TypeCheckOp)
 def __infer_typecheckop(ir, scope_tree, env):
     return infer_cardinality(ir.left, scope_tree, env)

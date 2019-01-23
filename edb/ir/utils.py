@@ -74,6 +74,14 @@ def is_distinct_expr(ir):
     )
 
 
+def is_union_expr(ir):
+    return (
+        isinstance(ir, irast.OperatorCall) and
+        ir.operator_kind is ft.OperatorKind.INFIX and
+        ir.func_shortname == 'std::UNION'
+    )
+
+
 def is_exists_expr(ir):
     return (
         isinstance(ir, irast.OperatorCall) and
