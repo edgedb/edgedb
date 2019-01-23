@@ -134,17 +134,6 @@ def _process_view(
                     is_insert=is_insert, is_update=is_update,
                     view_rptr=view_rptr, ctx=scopectx))
 
-    # Check if the view shape includes _only_ the link properties.
-    # If so, we do not need to derive a new target view.
-    lprops_only = True
-    for ptrcls in pointers:
-        if not ptrcls.is_link_property(ctx.env.schema):
-            lprops_only = False
-            break
-
-    if lprops_only:
-        view_scls = stype
-
     for ptrcls in pointers:
         if ptrcls.is_link_property(ctx.env.schema):
             source = view_rptr.derived_ptrcls
