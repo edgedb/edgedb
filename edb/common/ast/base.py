@@ -160,6 +160,7 @@ class MetaAST(type):
 
 class AST(object, metaclass=MetaAST):
     __fields = []
+    __ast_frozen_fields__ = frozenset()
 
     def __init__(self, **kwargs):
         object.__setattr__(self, 'parent', None)
@@ -217,12 +218,13 @@ class AST(object, metaclass=MetaAST):
         return copied
 
     if __debug__:
-
         def __setattr__(self, name, value):
             super().__setattr__(name, value)
             field = self._fields.get(name)
             if field:
                 self.check_field_type(field, value)
+                if name in self.__ast_frozen_fields__:
+                    raise TypeError(f'cannot set immutable {name} on {self!r}')
 
     def check_field_type(self, field, value):
         def raise_error(field_type_name, value):
@@ -239,13 +241,14 @@ class AST(object, metaclass=MetaAST):
 
 class ImmutableASTMixin:
     __frozen = False
+    __ast_mutable_fields__ = frozenset()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.__frozen = True
 
     def __setattr__(self, name, value):
-        if self.__frozen:
+        if self.__frozen and name not in self.__ast_mutable_fields__:
             raise TypeError(f'cannot set {name} on immutable {self!r}')
         else:
             super().__setattr__(name, value)

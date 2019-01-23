@@ -382,10 +382,9 @@ def __infer_tuple_indirection(ir, scope_tree, env):
 
 
 def infer_cardinality(ir, scope_tree, env):
-    try:
-        return ir._inferred_cardinality_[scope_tree]
-    except (AttributeError, KeyError):
-        pass
+    result = env.inferred_cardinality.get((ir, scope_tree))
+    if result is not None:
+        return result
 
     result = _infer_cardinality(ir, scope_tree, env)
 
@@ -395,11 +394,6 @@ def infer_cardinality(ir, scope_tree, env):
             'set produced by expression',
             context=ir.context)
 
-    try:
-        cache = ir._inferred_cardinality_
-    except AttributeError:
-        cache = ir._inferred_cardinality_ = {}
-
-    cache[scope_tree] = result
+    env.inferred_cardinality[ir, scope_tree] = result
 
     return result

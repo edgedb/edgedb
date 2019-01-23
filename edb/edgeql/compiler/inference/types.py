@@ -437,10 +437,9 @@ def __infer_struct_indirection(ir, env):
 
 
 def infer_type(ir: irast.Base, env: context.Environment):
-    try:
-        return ir._inferred_type_
-    except AttributeError:
-        pass
+    result = env.inferred_types.get(ir)
+    if result is not None:
+        return result
 
     result = _infer_type(ir, env)
 
@@ -456,5 +455,6 @@ def infer_type(ir: irast.Base, env: context.Environment):
             'could not determine expression type',
             context=ir.context)
 
-    ir._inferred_type_ = result
+    env.inferred_types[ir] = result
+
     return result

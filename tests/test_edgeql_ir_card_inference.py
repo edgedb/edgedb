@@ -24,8 +24,6 @@ from edb.testbase import lang as tb
 
 from edb.edgeql import compiler
 from edb.edgeql import qltypes
-from edb.edgeql.compiler import context
-from edb.edgeql.compiler import inference
 
 
 class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
@@ -36,13 +34,9 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def run_test(self, *, source, spec, expected):
         ir = compiler.compile_to_ir(source, self.schema)
-
-        env = context.Environment(path_scope=ir.scope_tree, schema=self.schema)
-        cardinality = inference.infer_cardinality(
-            ir, scope_tree=ir.scope_tree, env=env)
         expected_cardinality = qltypes.Cardinality(
             textwrap.dedent(expected).strip(' \n'))
-        self.assertEqual(cardinality, expected_cardinality,
+        self.assertEqual(ir.cardinality, expected_cardinality,
                          'unexpected cardinality:\n' + source)
 
     def test_edgeql_ir_card_inference_00(self):

@@ -96,10 +96,9 @@ def compile_SelectQuery(
                 ctx=sctx)
 
             if ctx.toplevel_result_view_name:
-                alias = ctx.aliases.get('expr')
                 result_stype = setgen.get_set_type(stmt.result, ctx=ctx)
-                stmt.result.path_id = setgen.get_expression_path_id(
-                    result_stype, alias, ctx=ctx)
+                stmt.result.path_id = pathctx.get_expression_path_id(
+                    result_stype, ctx=ctx)
 
             stmt.offset = clauses.compile_limit_offset_clause(
                 expr.offset, ctx=sctx)
@@ -398,9 +397,8 @@ def compile_Shape(
     view_type = viewgen.process_view(
         stype=expr_stype, path_id=expr.path_id,
         elements=shape.elements, ctx=ctx)
-    setgen.update_set_type(expr, view_type, ctx=ctx)
 
-    return expr
+    return setgen.ensure_set(expr, type_override=view_type, ctx=ctx)
 
 
 def init_stmt(
@@ -457,11 +455,12 @@ def fini_stmt(
         view = None
         path_id = None
 
-    result = setgen.scoped_set(irstmt, path_id=path_id, ctx=ctx)
+    type_override = view if view is not None else None
+    result = setgen.scoped_set(
+        irstmt, type_override=type_override, path_id=path_id, ctx=ctx)
 
     if view is not None:
         parent_ctx.view_sets[view] = result
-        setgen.update_set_type(result, view, ctx=ctx)
 
     return result
 
@@ -627,7 +626,7 @@ def compile_query_subject(
         viewgen.derive_ptrcls(view_rptr, target_scls=target, ctx=ctx)
 
     if view_scls is not None:
-        setgen.update_set_type(expr, view_scls, ctx=ctx)
+        expr = setgen.ensure_set(expr, type_override=view_scls, ctx=ctx)
         expr_stype = view_scls
 
     if compile_views:

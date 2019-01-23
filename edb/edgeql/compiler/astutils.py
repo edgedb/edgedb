@@ -20,15 +20,9 @@
 """EdgeQL compiler helpers for AST classification and basic transforms."""
 
 
-import typing
-
 from edb.edgeql import ast as qlast
 
 from edb.ir import ast as irast
-from edb.ir import typeutils as irtyputils
-
-from . import context
-from . import inference
 
 
 def extend_qlbinop(binop, *exprs, op='AND'):
@@ -108,26 +102,3 @@ def is_degenerate_select(qlstmt):
         qlstmt.offset is None and
         qlstmt.limit is None
     )
-
-
-def make_tuple(
-        elements: typing.List[irast.TupleElement], *,
-        named: bool,
-        ctx: context.ContextLevel) -> irast.Tuple:
-
-    tup = irast.Tuple(elements=elements, named=named)
-    tup.typeref = irtyputils.type_to_typeref(
-        ctx.env.schema,
-        inference.infer_type(tup, env=ctx.env))
-    return tup
-
-
-def make_array(
-        elements: typing.List[irast.Base], *,
-        ctx: context.ContextLevel) -> irast.Array:
-
-    arr = irast.Array(elements=elements)
-    arr.typeref = irtyputils.type_to_typeref(
-        ctx.env.schema,
-        inference.infer_type(arr, env=ctx.env))
-    return arr

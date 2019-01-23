@@ -21,7 +21,6 @@
 
 
 import contextlib
-import copy
 import typing
 
 from edb import errors
@@ -30,11 +29,9 @@ from edb.common import parsing
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
-from edb.ir import utils as irutils
 
 from edb.schema import abc as s_abc
 from edb.schema import links as s_links
-from edb.schema import name as s_name
 from edb.schema import nodes as s_nodes
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
@@ -54,7 +51,6 @@ from . import inference
 from . import pathctx
 from . import schemactx
 from . import stmtctx
-from . import typegen
 
 
 PtrDir = s_pointers.PointerDirection
@@ -80,17 +76,8 @@ def new_empty_set(*, stype: typing.Optional[s_types.Type]=None, alias: str,
     else:
         path_id_scls = stype
 
-    typename = s_name.Name(module='__derived__', name=alias)
-    path_id = irast.PathId.from_type(ctx.env.schema, path_id_scls,
-                                     typename=typename)
+    path_id = pathctx.get_expression_path_id(path_id_scls, alias, ctx=ctx)
     ir_set = irast.EmptySet(path_id=path_id)
-    ctx.env.set_types[ir_set] = stype
-    return ir_set
-
-
-def update_set_type(ir_set: irast.Set, stype: s_types.Type, *,
-                    ctx: context.ContextLevel) -> irast.Set:
-    ir_set.typeref = irtyputils.type_to_typeref(ctx.env.schema, stype)
     ctx.env.set_types[ir_set] = stype
     return ir_set
 
@@ -106,6 +93,7 @@ def new_set_from_set(
         preserve_scope_ns: bool=False,
         path_id: typing.Optional[irast.PathId]=None,
         stype: typing.Optional[s_types.Type]=None,
+        rptr: typing.Optional[irast.Pointer]=None,
         ctx: context.ContextLevel) -> irast.Set:
     """Create a new ir.Set from another ir.Set.
 
@@ -120,15 +108,53 @@ def new_set_from_set(
         path_id = path_id.merge_namespace(ctx.path_id_namespace)
     if stype is None:
         stype = get_set_type(ir_set, ctx=ctx)
-    result = new_set(
+    if rptr is None:
+        rptr = ir_set.rptr
+    return new_set(
         path_id=path_id,
         path_scope_id=ir_set.path_scope_id,
         stype=stype,
         expr=ir_set.expr,
+        rptr=rptr,
         ctx=ctx
     )
-    result.rptr = ir_set.rptr
-    return result
+
+
+def new_tuple_set(
+        elements: typing.List[irast.TupleElement], *,
+        named: bool,
+        ctx: context.ContextLevel) -> irast.Set:
+
+    tup = irast.Tuple(elements=elements, named=named)
+    stype = inference.infer_type(tup, env=ctx.env)
+    result_path_id = pathctx.get_expression_path_id(stype, ctx=ctx)
+
+    final_elems = []
+    for elem in elements:
+        elem_path_id = pathctx.get_tuple_indirection_path_id(
+            result_path_id, elem.name, get_set_type(elem.val, ctx=ctx),
+            ctx=ctx).strip_weak_namespaces()
+        final_elems.append(irast.TupleElement(
+            name=elem.name,
+            val=elem.val,
+            path_id=elem_path_id,
+        ))
+
+    typeref = irtyputils.type_to_typeref(ctx.env.schema, stype)
+    final_tup = irast.Tuple(elements=final_elems, named=named, typeref=typeref)
+    return ensure_set(final_tup, path_id=result_path_id,
+                      type_override=stype, ctx=ctx)
+
+
+def new_array_set(
+        elements: typing.List[irast.Base], *,
+        ctx: context.ContextLevel) -> irast.Set:
+
+    arr = irast.Array(elements=elements)
+    stype = inference.infer_type(arr, env=ctx.env)
+    typeref = irtyputils.type_to_typeref(ctx.env.schema, stype)
+    arr = irast.Array(elements=elements, typeref=typeref)
+    return ensure_set(arr, type_override=stype, ctx=ctx)
 
 
 def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
@@ -161,7 +187,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             path_tip = anchors[step.__class__]
 
         elif isinstance(step, qlast.ObjectRef):
-            if i > 0:
+            if i > 0:  # pragma: no cover
                 raise RuntimeError(
                     'unexpected ObjectRef as a non-first path item')
 
@@ -184,16 +210,19 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     # a WITH-block or inline alias view.
                     stype = stmtctx.declare_view_from_schema(stype, ctx=ctx)
 
-                path_tip = class_set(stype, ctx=ctx)
                 view_set = ctx.view_sets.get(stype)
                 if view_set is not None:
                     path_tip = new_set_from_set(view_set, ctx=ctx)
                     path_scope = ctx.path_scope_map.get(view_set)
                     extra_scopes[path_tip] = path_scope.copy()
+                else:
+                    path_tip = class_set(stype, ctx=ctx)
 
                 view_scls = ctx.class_view_overrides.get(stype.id)
-                if view_scls is not None:
-                    update_set_type(path_tip, view_scls, ctx=ctx)
+                if (view_scls is not None
+                        and view_scls != get_set_type(path_tip, ctx=ctx)):
+                    path_tip = ensure_set(
+                        path_tip, type_override=view_scls, ctx=ctx)
 
         elif isinstance(step, qlast.Ptr):
             # Pointer traversal step
@@ -243,7 +272,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
         else:
             # Arbitrary expression
-            if i > 0:
+            if i > 0:  # pragma: no cover
                 raise RuntimeError(
                     'unexpected expression as a non-first path item')
 
@@ -502,7 +531,7 @@ def tuple_indirection_set(
         expr=path_tip, name=el_norm_name, path_id=path_id,
         context=source_context)
 
-    return generated_set(expr, ctx=ctx)
+    return expression_set(expr, ctx=ctx)
 
 
 def class_indirection_set(
@@ -545,69 +574,53 @@ def class_set(
     return new_set(path_id=path_id, stype=stype, ctx=ctx)
 
 
-def generated_set(
-        expr: irast.Base, path_id: typing.Optional[irast.PathId]=None, *,
-        typehint: typing.Optional[s_types.Type]=None,
+def expression_set(
+        expr: irast.Base,
+        path_id: typing.Optional[irast.PathId]=None, *,
+        type_override: typing.Optional[s_types.Type]=None,
         ctx: context.ContextLevel) -> irast.Set:
-    if typehint is not None:
-        ql_typeref = s_utils.typeref_to_ast(ctx.env.schema, typehint)
-        ir_typeref = typegen.ql_typeref_to_ir_typeref(ql_typeref, ctx=ctx)
+
+    if isinstance(expr, irast.Set):  # pragma: no cover
+        raise errors.InternalServerError(f'{expr!r} is already a Set')
+
+    if type_override is not None:
+        stype = type_override
     else:
-        ir_typeref = None
-
-    alias = ctx.aliases.get('expr')
-    return new_expression_set(
-        expr, path_id, alias=alias, typehint=ir_typeref, ctx=ctx)
-
-
-def get_expression_path_id(
-        t: s_types.Type, alias: str, *,
-        ctx: context.ContextLevel) -> irast.PathId:
-    typename = s_name.Name(module='__derived__', name=alias)
-    return pathctx.get_path_id(t, typename=typename, ctx=ctx)
-
-
-def new_expression_set(
-        ir_expr, path_id=None, alias=None,
-        typehint: typing.Optional[irast.TypeRef]=None, *,
-        ctx: context.ContextLevel) -> irast.Set:
-    if typehint is not None and irutils.is_empty(ir_expr):
-        update_set_type(ir_expr, typehint, ctx=ctx)
-
-    result_type = inference.infer_type(ir_expr, ctx.env)
+        stype = inference.infer_type(expr, ctx.env)
 
     if path_id is None:
-        path_id = getattr(ir_expr, 'path_id', None)
-
-        if not path_id:
-            if alias is None:
-                raise ValueError('either path_id or alias are required')
-            path_id = get_expression_path_id(result_type, alias, ctx=ctx)
+        path_id = getattr(expr, 'path_id', None)
+        if path_id is None:
+            path_id = pathctx.get_expression_path_id(stype, ctx=ctx)
 
     return new_set(
         path_id=path_id,
-        stype=result_type,
-        expr=ir_expr,
-        context=ir_expr.context,
+        stype=stype,
+        expr=expr,
+        context=expr.context,
         ctx=ctx
     )
 
 
 def scoped_set(
         expr: irast.Base, *,
+        type_override: typing.Optional[s_types.Type]=None,
         typehint: typing.Optional[s_types.Type]=None,
         path_id: typing.Optional[irast.PathId]=None,
         force_reassign: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
 
     if not isinstance(expr, irast.Set):
-        ir_set = generated_set(expr, typehint=typehint,
-                               path_id=path_id, ctx=ctx)
+        ir_set = expression_set(
+            expr, type_override=type_override,
+            path_id=path_id, ctx=ctx)
         pathctx.assign_set_scope(ir_set, ctx.path_scope, ctx=ctx)
     else:
-        if typehint is not None:
-            ir_set = ensure_set(expr, typehint=typehint,
-                                path_id=path_id, ctx=ctx)
+        if typehint is not None or type_override is not None:
+            ir_set = ensure_set(
+                expr, typehint=typehint,
+                type_override=type_override,
+                path_id=path_id, ctx=ctx)
         else:
             ir_set = expr
 
@@ -615,8 +628,10 @@ def scoped_set(
             if ctx.path_scope.find_child(ir_set.path_id) and path_id is None:
                 # Protect from scope recursion in the common case by
                 # wrapping the set into a subquery.
-                ir_set = generated_set(
-                    ensure_stmt(ir_set, ctx=ctx), typehint=typehint, ctx=ctx)
+                ir_set = expression_set(
+                    ensure_stmt(ir_set, ctx=ctx),
+                    type_override=type_override,
+                    ctx=ctx)
 
             pathctx.assign_set_scope(ir_set, ctx.path_scope, ctx=ctx)
 
@@ -625,18 +640,31 @@ def scoped_set(
 
 def ensure_set(
         expr: irast.Base, *,
+        type_override: typing.Optional[s_types.Type]=None,
         typehint: typing.Optional[s_types.Type]=None,
         path_id: typing.Optional[irast.PathId]=None,
         ctx: context.ContextLevel) -> irast.Set:
-    if not isinstance(expr, irast.Set):
-        expr = generated_set(expr, typehint=typehint, path_id=path_id, ctx=ctx)
 
-    stype = get_set_type(expr, ctx=ctx)
-    if (isinstance(expr, irast.EmptySet)
+    if not isinstance(expr, irast.Set):
+        ir_set = expression_set(
+            expr, type_override=type_override,
+            path_id=path_id, ctx=ctx)
+    else:
+        ir_set = expr
+
+    stype = get_set_type(ir_set, ctx=ctx)
+
+    if type_override is not None and stype != type_override:
+        ir_set = new_set_from_set(
+            ir_set, stype=type_override, preserve_scope_ns=True, ctx=ctx)
+
+        stype = type_override
+
+    if (isinstance(ir_set, irast.EmptySet)
             and stype is None
             and typehint is not None):
-        inference.amend_empty_set_type(expr, typehint, env=ctx.env)
-        stype = get_set_type(expr, ctx=ctx)
+        inference.amend_empty_set_type(ir_set, typehint, env=ctx.env)
+        stype = get_set_type(ir_set, ctx=ctx)
 
     if (typehint is not None and
             not stype.implicitly_castable_to(typehint, ctx.env.schema)):
@@ -646,7 +674,8 @@ def ensure_set(
             f'got {stype.get_name(ctx.env.schema)}',
             context=expr.context
         )
-    return expr
+
+    return ir_set
 
 
 def ensure_stmt(expr: irast.Base, *, ctx: context.ContextLevel) -> irast.Stmt:
@@ -673,10 +702,10 @@ def computable_ptr_set(
     # type itself.  Similarly, when resolving computable link properties
     # make sure that we use ptrcls.derived_from.
     if source_scls.is_view(ctx.env.schema):
+        source_set_stype = source_scls.peel_view(ctx.env.schema)
         source_set = new_set_from_set(
-            source_set, preserve_scope_ns=True, ctx=ctx)
-        update_set_type(
-            source_set, source_scls.peel_view(ctx.env.schema), ctx=ctx)
+            source_set, stype=source_set_stype,
+            preserve_scope_ns=True, ctx=ctx)
         source_set.shape = []
 
         if source_set.rptr is not None:
@@ -735,8 +764,17 @@ def computable_ptr_set(
     else:
         source_path_id = rptr.target.path_id.src_path()
 
+    result_stype = ptrcls.get_target(ctx.env.schema)
+    result_path_id = pathctx.extend_path_id(
+        source_path_id,
+        ptrcls=ptrcls,
+        direction=s_pointers.PointerDirection.Outbound,
+        target=result_stype,
+        ns=ctx.path_id_namespace,
+        ctx=ctx)
+
     with newctx() as subctx:
-        subctx.view_scls = ptrcls.get_target(ctx.env.schema)
+        subctx.view_scls = result_stype
         subctx.view_rptr = context.ViewRPtr(
             source_scls, ptrcls=ptrcls, rptr=rptr)
         subctx.anchors[qlast.Source] = source_set
@@ -750,7 +788,7 @@ def computable_ptr_set(
 
     pending_cardinality = ctx.pending_cardinality.get(ptrcls)
     if pending_cardinality is not None and not pending_cardinality.from_parent:
-        comp_ir_set_copy = copy.copy(comp_ir_set)
+        comp_ir_set_copy = new_set_from_set(comp_ir_set, ctx=ctx)
         stmtctx.get_pointer_cardinality_later(
             ptrcls=ptrcls, irexpr=comp_ir_set_copy,
             specified_card=pending_cardinality.specified_cardinality,
@@ -763,17 +801,8 @@ def computable_ptr_set(
 
         stmtctx.at_stmt_fini(_check_cardinality, ctx=ctx)
 
-    path_id = pathctx.extend_path_id(
-        source_path_id,
-        ptrcls=ptrcls,
-        direction=s_pointers.PointerDirection.Outbound,
-        target=ptrcls.get_target(ctx.env.schema),
-        ns=ctx.path_id_namespace,
-        ctx=ctx)
-
-    update_set_type(comp_ir_set, ptrcls.get_target(ctx.env.schema), ctx=ctx)
-    comp_ir_set.path_id = path_id
-    comp_ir_set.rptr = rptr
+    comp_ir_set = new_set_from_set(
+        comp_ir_set, path_id=result_path_id, rptr=rptr, ctx=ctx)
 
     rptr.target = comp_ir_set
 
@@ -851,8 +880,8 @@ def _get_computable_ctx(
 
                 inner_path_id = inner_path_id.merge_namespace(subns)
 
-            remapped_source = new_set_from_set(rptr.source, ctx=ctx)
-            remapped_source.rptr = rptr.source.rptr
+            remapped_source = new_set_from_set(
+                rptr.source, rptr=rptr.source.rptr, ctx=ctx)
             subctx.view_map[inner_path_id] = remapped_source
             yield subctx
 

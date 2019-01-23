@@ -96,21 +96,6 @@ def is_untyped_empty_array_expr(ir):
     )
 
 
-def get_subquery_shape(ir_expr):
-    if (isinstance(ir_expr, irast.Set) and
-            isinstance(ir_expr.expr, irast.Stmt) and
-            isinstance(ir_expr.expr.result, irast.Set)):
-        result = ir_expr.expr.result
-        if result.shape:
-            return result
-        elif is_view_set(result):
-            return get_subquery_shape(result)
-    elif ir_expr.view_source is not None:
-        return get_subquery_shape(ir_expr.view_source)
-    else:
-        return None
-
-
 def is_empty(ir_expr):
     return (
         isinstance(ir_expr, irast.EmptySet) or

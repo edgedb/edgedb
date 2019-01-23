@@ -57,12 +57,16 @@ class Base(ast.AST):
         )
 
 
+class ImmutableBase(ast.ImmutableASTMixin, Base):
+    pass
+
+
 class ViewShapeMetadata(Base):
 
     has_implicit_id: bool = False
 
 
-class TypeRef(Base):
+class TypeRef(ImmutableBase):
     # The id of the referenced type
     id: uuid.UUID
     # The module id of the referenced type
@@ -103,7 +107,10 @@ class AnyTupleRef(TypeRef):
     pass
 
 
-class BasePointerRef(Base):
+class BasePointerRef(ImmutableBase):
+
+    # cardinality fields need to be mutable for lazy cardinality inference.
+    __ast_mutable_fields__ = ('dir_cardinality', 'out_cardinality')
 
     name: sn.Name
     shortname: sn.Name
@@ -294,18 +301,18 @@ class TypeIndirectionPointer(Pointer):
     optional: bool
 
 
-class TypeIntrospection(Base):
+class TypeIntrospection(ImmutableBase):
 
     typeref: TypeRef
 
 
 class Set(Base):
 
+    __ast_frozen_fields__ = ('typeref', 'expr')
+
     path_id: PathId
     path_scope_id: int
     typeref: TypeRef
-    source: Base
-    view_source: Base
     expr: Base
     rptr: Pointer
     anchor: typing.Union[str, ast.MetaAST]
@@ -313,8 +320,11 @@ class Set(Base):
     shape: typing.List[Base]
 
     def __repr__(self):
-        return \
-            f'<ir.Set \'{self.path_id}\' at 0x{id(self):x}>'
+        return f'<ir.Set \'{self.path_id}\' at 0x{id(self):x}>'
+
+
+class EmptySet(Set):
+    pass
 
 
 class Command(Base):
@@ -339,11 +349,7 @@ class Statement(Command):
                                          typing.Optional[WeakNamespace]]]
 
 
-class Expr(Base):
-    pass
-
-
-class EmptySet(Set):
+class Expr(ImmutableBase):
     pass
 
 
@@ -385,13 +391,13 @@ class BytesConstant(BaseConstant):
     value: bytes
 
 
-class Parameter(Base):
+class Parameter(Expr):
 
     name: str
     typeref: TypeRef
 
 
-class TupleElement(Base):
+class TupleElement(ImmutableBase):
 
     name: str
     val: Set
@@ -399,6 +405,7 @@ class TupleElement(Base):
 
 
 class Tuple(Expr):
+
     named: bool = False
     elements: typing.List[TupleElement]
     typeref: TypeRef
@@ -411,6 +418,10 @@ class Array(Expr):
 
 
 class SetOp(Expr):
+
+    # cardinality fields need to be mutable for lazy cardinality inference.
+    __ast_mutable_fields__ = ('left_card', 'right_card')
+
     left: Set
     right: Set
     op: str
@@ -430,6 +441,9 @@ class TypeCheckOp(Expr):
 
 class IfElseExpr(Expr):
 
+    # cardinality fields need to be mutable for lazy cardinality inference.
+    __ast_mutable_fields__ = ('if_expr_card', 'else_expr_card')
+
     condition: Set
     if_expr: Set
     else_expr: Set
@@ -438,7 +452,11 @@ class IfElseExpr(Expr):
     else_expr_card: qltypes.Cardinality
 
 
-class Coalesce(Base):
+class Coalesce(Expr):
+
+    # cardinality fields need to be mutable for lazy cardinality inference.
+    __ast_mutable_fields__ = ('right_card',)
+
     left: Set
     right: Set
 

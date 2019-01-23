@@ -27,6 +27,7 @@ from edb import errors
 from edb.edgeql import qltypes
 from edb.ir import ast as irast
 
+from edb.schema import name as s_name
 from edb.schema import objects as s_obj
 from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
@@ -68,6 +69,15 @@ def get_type_indirection_path_id(
         target=target_type,
         schema=ctx.env.schema
     )
+
+
+def get_expression_path_id(
+        stype: s_types.Type, alias: typing.Optional[str] = None, *,
+        ctx: context.ContextLevel) -> irast.PathId:
+    if alias is None:
+        alias = ctx.aliases.get('expr')
+    typename = s_name.Name(module='__derived__', name=alias)
+    return get_path_id(stype, typename=typename, ctx=ctx)
 
 
 def register_set_in_scope(

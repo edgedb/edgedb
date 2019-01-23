@@ -206,7 +206,7 @@ def _normalize_view_ptr_expr(
                 derive_ptrcls(view_rptr, target_scls=view_scls, ctx=ctx)
             ptrsource = stype = view_rptr.ptrcls
         source = qlast.Source()
-    else:
+    else:  # pragma: no cover
         raise RuntimeError(
             f'unexpected path length in view shape: {len(steps)}')
 
@@ -381,11 +381,7 @@ def _normalize_view_ptr_expr(
                 ptrcls = derived_ptrcls
 
         ptr_cardinality = None
-
         ptr_target = inference.infer_type(irexpr, ctx.env)
-        if ptr_target is None:
-            msg = 'cannot determine expression result type'
-            raise errors.QueryError(msg, context=shape_el.context)
 
         if is_mutation and not ptr_target.assignment_castable_to(
                 base_ptrcls.get_target(ctx.env.schema), schema=ctx.env.schema):

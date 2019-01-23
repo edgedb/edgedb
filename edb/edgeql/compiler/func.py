@@ -108,7 +108,39 @@ def compile_FunctionCall(
     func = matched_call.func
     func_name = func.get_shortname(env.schema)
 
-    node = irast.FunctionCall(
+    if matched_func_initial_value is not None:
+        iv_ql = qlast.TypeCast(
+            expr=qlparser.parse_fragment(matched_func_initial_value.text),
+            type=typegen.type_to_ql_typeref(matched_call.return_type, ctx=ctx),
+        )
+        func_initial_value = dispatch.compile(iv_ql, ctx=ctx)
+    else:
+        func_initial_value = None
+
+    rtype = matched_call.return_type
+    path_id = pathctx.get_expression_path_id(rtype, ctx=ctx)
+
+    if rtype.is_tuple():
+        tuple_path_ids = []
+        nested_path_ids = []
+        for n, st in rtype.iter_subtypes():
+            elem_path_id = pathctx.get_tuple_indirection_path_id(
+                path_id, n, st, ctx=ctx).strip_weak_namespaces()
+
+            if st.is_tuple():
+                nested_path_ids.append([
+                    pathctx.get_tuple_indirection_path_id(
+                        elem_path_id, nn, sst, ctx=ctx).strip_weak_namespaces()
+                    for nn, sst in st.iter_subtypes()
+                ])
+
+            tuple_path_ids.append(elem_path_id)
+        for nested in nested_path_ids:
+            tuple_path_ids.extend(nested)
+    else:
+        tuple_path_ids = None
+
+    fcall = irast.FunctionCall(
         args=args,
         func_module_id=env.schema.get(func_name.module).id,
         func_shortname=func_name,
@@ -118,43 +150,15 @@ def compile_FunctionCall(
         sql_func_has_out_params=func.get_sql_func_has_out_params(env.schema),
         params_typemods=params_typemods,
         context=expr.context,
-        typeref=irtyputils.type_to_typeref(
-            env.schema, matched_call.return_type),
+        typeref=irtyputils.type_to_typeref(env.schema, rtype),
         typemod=matched_call.func.get_return_typemod(env.schema),
         has_empty_variadic=matched_call.has_empty_variadic,
         variadic_param_type=variadic_param_type,
+        func_initial_value=func_initial_value,
+        tuple_path_ids=tuple_path_ids,
     )
 
-    if matched_func_initial_value is not None:
-        rtype = inference.infer_type(node, env=ctx.env)
-        iv_ql = qlast.TypeCast(
-            expr=qlparser.parse_fragment(matched_func_initial_value.text),
-            type=typegen.type_to_ql_typeref(rtype, ctx=ctx)
-        )
-        node.func_initial_value = dispatch.compile(iv_ql, ctx=ctx)
-
-    ir_set = setgen.ensure_set(
-        node, typehint=matched_call.return_type, ctx=ctx)
-
-    if matched_call.return_type.is_tuple():
-        node.tuple_path_ids = []
-        nested_path_ids = []
-        for n, st in matched_call.return_type.iter_subtypes():
-            path_id = pathctx.get_tuple_indirection_path_id(
-                ir_set.path_id, n, st, ctx=ctx).strip_weak_namespaces()
-
-            if st.is_tuple():
-                nested_path_ids.append([
-                    pathctx.get_tuple_indirection_path_id(
-                        path_id, nn, sst, ctx=ctx).strip_weak_namespaces()
-                    for nn, sst in st.iter_subtypes()
-                ])
-
-            node.tuple_path_ids.append(path_id)
-        for nested in nested_path_ids:
-            node.tuple_path_ids.extend(nested)
-
-    return ir_set
+    return setgen.ensure_set(fcall, typehint=rtype, path_id=path_id, ctx=ctx)
 
 
 def compile_operator(

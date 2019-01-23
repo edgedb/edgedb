@@ -246,9 +246,7 @@ def compile_constant_tree_to_ir(
 
     ir_set = dispatch.compile(const, ctx=ctx)
     result = ir_set.expr
-    if styperef is not None:
-        result.typeref = styperef
-        if hasattr(result, '_inferred_type_'):
-            del result._inferred_type_
+    if styperef is not None and result.typeref.id != styperef.id:
+        result = type(result)(value=result.value, typeref=styperef)
 
     return result

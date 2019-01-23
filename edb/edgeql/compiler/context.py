@@ -103,6 +103,14 @@ class Environment:
     set_types: typing.Dict[irast.Set, s_types.Type]
     """A dictionary of all Set instances and their schema types."""
 
+    inferred_types: typing.Dict[irast.Base, s_types.Type]
+    """A dictionary of all expressions and their inferred schema types."""
+
+    inferred_cardinality: typing.Dict[
+        typing.Tuple[irast.Base, irast.ScopeTreeNode],
+        qltypes.Cardinality]
+    """A dictionary of all expressions and their inferred cardinality."""
+
     constant_folding: bool
     """Enables constant folding optimization (enabled by default)."""
 
@@ -121,6 +129,8 @@ class Environment:
         self.query_parameters = {}
         self.schema_view_mode = schema_view_mode
         self.set_types = {}
+        self.inferred_types = {}
+        self.inferred_cardinality = {}
         self.constant_folding = constant_folding
         self.view_shapes = collections.defaultdict(list)
         self.view_shapes_metadata = collections.defaultdict(

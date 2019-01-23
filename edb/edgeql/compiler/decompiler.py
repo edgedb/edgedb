@@ -78,11 +78,11 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                 ptrref = rptr.ptrref
                 pname = ptrref.shortname
 
-                if irtyputils.is_object(rptr.target.typeref):
-                    if rptr.target.typeref.material_type is not None:
-                        typeref = rptr.target.typeref.material_type
+                if irtyputils.is_object(node.typeref):
+                    if node.typeref.material_type is not None:
+                        typeref = node.typeref.material_type
                     else:
-                        typeref = rptr.target.typeref
+                        typeref = node.typeref
 
                     stype = self.context.schema.get_by_id(typeref.id)
                     stype_name = stype.get_name(self.context.schema)

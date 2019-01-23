@@ -37,7 +37,6 @@ from edb.schema import types as s_types
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
 
-from . import astutils
 from . import context
 from . import dispatch
 from . import inference
@@ -64,7 +63,7 @@ def compile_cast(
     elif irutils.is_untyped_empty_array_expr(ir_expr):
         # Ditto for empty arrays.
         new_typeref = irtyputils.type_to_typeref(ctx.env.schema, new_stype)
-        return setgen.generated_set(
+        return setgen.ensure_set(
             irast.Array(elements=[], typeref=new_typeref), ctx=ctx)
 
     ir_set = setgen.ensure_set(ir_expr, ctx=ctx)
@@ -284,7 +283,7 @@ def _cast_tuple(
             path_id = pathctx.get_tuple_indirection_path_id(
                 ir_set.path_id, n, orig_stype.element_types[n], ctx=ctx)
 
-            val = setgen.generated_set(
+            val = setgen.ensure_set(
                 irast.TupleIndirection(
                     expr=ir_set,
                     name=n
@@ -298,17 +297,8 @@ def _cast_tuple(
 
             elements.append(irast.TupleElement(name=n, val=val))
 
-        new_tuple = setgen.ensure_set(
-            astutils.make_tuple(elements, named=orig_stype.named, ctx=ctx),
-            ctx=ctx
-        )
-
-        for el in elements:
-            el.path_id = pathctx.get_tuple_indirection_path_id(
-                new_tuple.path_id, el.name,
-                setgen.get_set_type(el.val, ctx=ctx),
-                ctx=ctx
-            ).strip_weak_namespaces()
+        new_tuple = setgen.new_tuple_set(
+            elements, named=orig_stype.named, ctx=ctx)
 
         return _cast_to_ir(
             new_tuple, direct_cast, orig_stype, new_stype, ctx=ctx)
@@ -335,7 +325,7 @@ def _cast_tuple(
         path_id = pathctx.get_tuple_indirection_path_id(
             ir_set.path_id, n, orig_stype.element_types[n], ctx=ctx)
 
-        val = setgen.generated_set(
+        val = setgen.ensure_set(
             irast.TupleIndirection(
                 expr=ir_set,
                 name=n
@@ -353,17 +343,7 @@ def _cast_tuple(
 
         elements.append(irast.TupleElement(name=new_el_name, val=val))
 
-    new_tuple = setgen.ensure_set(astutils.make_tuple(
-        named=new_stype.named, elements=elements, ctx=ctx), ctx=ctx)
-
-    for el in elements:
-        el.path_id = pathctx.get_tuple_indirection_path_id(
-            new_tuple.path_id, el.name,
-            setgen.get_set_type(el.val, ctx=ctx),
-            ctx=ctx
-        ).strip_weak_namespaces()
-
-    return new_tuple
+    return setgen.new_tuple_set(elements, named=new_stype.named, ctx=ctx)
 
 
 def _cast_array(
@@ -465,7 +445,7 @@ def _cast_array_literal(
         el = compile_cast(el, el_type, ctx=ctx, srcctx=srcctx)
         casted_els.append(el)
 
-    new_array = setgen.generated_set(
+    new_array = setgen.ensure_set(
         irast.Array(elements=casted_els, typeref=orig_typeref),
         ctx=ctx)
 

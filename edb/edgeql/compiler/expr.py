@@ -37,7 +37,6 @@ from edb.schema import pointers as s_pointers
 
 from edb.edgeql import ast as qlast
 
-from . import astutils
 from . import cast
 from . import context
 from . import dispatch
@@ -189,7 +188,7 @@ def compile_BaseConstant(
 
     ct = irtyputils.type_to_typeref(
         ctx.env.schema, ctx.env.schema.get(std_type))
-    return setgen.generated_set(node_cls(value=value, typeref=ct), ctx=ctx)
+    return setgen.ensure_set(node_cls(value=value, typeref=ct), ctx=ctx)
 
 
 def try_fold_binop(
@@ -286,48 +285,30 @@ def try_fold_associative_binop(
 def compile_NamedTuple(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
 
-    return _compile_tuple(expr, named=True, ctx=ctx)
+    elements = []
+    for el in expr.elements:
+        element = irast.TupleElement(
+            name=el.name.name,
+            val=setgen.ensure_set(dispatch.compile(el.val, ctx=ctx), ctx=ctx)
+        )
+        elements.append(element)
+
+    return setgen.new_tuple_set(elements, named=True, ctx=ctx)
 
 
 @dispatch.compile.register(qlast.Tuple)
 def compile_Tuple(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
 
-    return _compile_tuple(expr, named=False, ctx=ctx)
-
-
-def _compile_tuple(
-        expr: qlast.Base, *,
-        named: bool,
-        ctx: context.ContextLevel) -> irast.Set:
-
     elements = []
+    for i, el in enumerate(expr.elements):
+        element = irast.TupleElement(
+            name=str(i),
+            val=setgen.ensure_set(dispatch.compile(el, ctx=ctx), ctx=ctx)
+        )
+        elements.append(element)
 
-    if named:
-        for el in expr.elements:
-            element = irast.TupleElement(
-                name=el.name.name,
-                val=setgen.ensure_set(dispatch.compile(el.val, ctx=ctx),
-                                      ctx=ctx)
-            )
-            elements.append(element)
-    else:
-        for i, el in enumerate(expr.elements):
-            element = irast.TupleElement(
-                name=str(i),
-                val=setgen.ensure_set(dispatch.compile(el, ctx=ctx), ctx=ctx)
-            )
-            elements.append(element)
-
-    tup = astutils.make_tuple(elements, named=named, ctx=ctx)
-    ir_set = setgen.generated_set(tup, ctx=ctx)
-
-    for elem in elements:
-        elem.path_id = pathctx.get_tuple_indirection_path_id(
-            ir_set.path_id, elem.name, setgen.get_set_type(elem.val, ctx=ctx),
-            ctx=ctx).strip_weak_namespaces()
-
-    return ir_set
+    return setgen.new_tuple_set(elements, named=False, ctx=ctx)
 
 
 @dispatch.compile.register(qlast.Array)
@@ -340,8 +321,8 @@ def compile_Array(
             raise errors.QueryError(
                 f'nested arrays are not supported',
                 context=expr_el.context)
-    return setgen.generated_set(
-        astutils.make_array(elements, ctx=ctx), ctx=ctx)
+
+    return setgen.new_array_set(elements, ctx=ctx)
 
 
 @dispatch.compile.register(qlast.IfElse)
@@ -397,7 +378,7 @@ def compile_IfElse(
     stmtctx.get_expr_cardinality_later(
         target=ifelse, field='else_expr_card', irexpr=else_expr, ctx=ctx)
 
-    return setgen.generated_set(
+    return setgen.ensure_set(
         ifelse,
         ctx=ctx
     )
@@ -415,7 +396,7 @@ def compile_UnaryOp(
     except ireval.UnsupportedExpressionError:
         pass
 
-    return setgen.generated_set(result, ctx=ctx)
+    return setgen.ensure_set(result, ctx=ctx)
 
 
 @dispatch.compile.register(qlast.Coalesce)
@@ -439,7 +420,7 @@ def compile_Coalesce(
                         force_reassign=True, ctx=fencectx)
 
                 coalesce = irast.Coalesce(left=larg, right=rarg)
-                larg = setgen.generated_set(coalesce, ctx=nestedscopectx)
+                larg = setgen.ensure_set(coalesce, ctx=nestedscopectx)
 
             stmtctx.get_expr_cardinality_later(
                 target=coalesce, field='right_card', irexpr=rarg, ctx=ctx)
