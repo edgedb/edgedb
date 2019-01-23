@@ -422,6 +422,23 @@ class BaseQueryTestCase(DatabaseTestCase):
 
     BASE_TEST_CLASS = True
 
+    async def assert_query_result(self, query, result, *, msg=None):
+        res = await self.con._legacy_execute(query)
+        # a safeguard for the purposes of the conversion
+        assert len(res) == 1
+        self._assert_data_shape(res, result, message=msg)
+        return res
+
+    async def assert_sorted_query_result(self, query, sort, result, *,
+                                         msg=None):
+        res = await self.con._legacy_execute(query)
+        # a safeguard for the purposes of the conversion
+        assert len(res) == 1
+        for r in res:
+            self._sort_results(r, sort)
+        self._assert_data_shape(res, result, message=msg)
+        return res
+
     async def assert_legacy_query_result(self, query, result, *, msg=None):
         res = await self.con._legacy_execute(query)
         self._assert_data_shape(res, result, message=msg)

@@ -80,7 +80,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_legacy_query_result("""
+        await self.assert_query_result("""
             SELECT schema::ObjectType {
                 links: {
                     name,
@@ -121,7 +121,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_legacy_query_result("""
+        await self.assert_query_result("""
             SELECT schema::ObjectType {
                 links: {
                     name,
@@ -161,7 +161,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_legacy_query_result("""
+        await self.assert_query_result("""
             SELECT schema::ObjectType {
                 links: {
                     name,
@@ -202,7 +202,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_legacy_query_result("""
+        await self.assert_query_result("""
             SELECT schema::ObjectType {
                 links: {
                     name,
@@ -317,21 +317,39 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 $$;
         """)
 
-        await self.assert_legacy_query_result(fr"""
+        await self.assert_query_result(fr"""
             SELECT test::my_sql_func1();
-            SELECT test::my_sql_func2('foo');
-            SELECT test::my_sql_func4('fizz', 'buzz');
-            SELECT test::{long_func_name}();
-            SELECT test::my_sql_func6();
-            SELECT test::my_sql_func6('xy');
-            SELECT test::my_sql_func7([1, 2, 3, 10]);
         """, [
             ['spam'],
+        ])
+        await self.assert_query_result(fr"""
+            SELECT test::my_sql_func2('foo');
+        """, [
             ['foo'],
+        ])
+        await self.assert_query_result(fr"""
+            SELECT test::my_sql_func4('fizz', 'buzz');
+        """, [
             ['fizz-buzz'],
+        ])
+        await self.assert_query_result(fr"""
+            SELECT test::{long_func_name}();
+        """, [
             [long_func_name],
+        ])
+        await self.assert_query_result(fr"""
+            SELECT test::my_sql_func6();
+        """, [
             ['abc'],
+        ])
+        await self.assert_query_result(fr"""
+            SELECT test::my_sql_func6('xy');
+        """, [
             ['xyc'],
+        ])
+        await self.assert_query_result(fr"""
+            SELECT test::my_sql_func7([1, 2, 3, 10]);
+        """, [
             [16],
         ])
 
@@ -385,15 +403,24 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 $$;
         """)
 
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(r"""
             SELECT test::my_edgeql_func1();
-            SELECT test::my_edgeql_func2('schema::Object').name;
-            SELECT test::my_edgeql_func3(1);
-            SELECT test::my_edgeql_func4(42);
         """, [
             ['spam'],
+        ])
+        await self.assert_query_result(r"""
+            SELECT test::my_edgeql_func2('schema::Object').name;
+        """, [
             ['schema::Object'],
+        ])
+        await self.assert_query_result(r"""
+            SELECT test::my_edgeql_func3(1);
+        """, [
             [11],
+        ])
+        await self.assert_query_result(r"""
+            SELECT test::my_edgeql_func4(42);
+        """, [
             [[42, 1, 2, 3]]
         ])
 
@@ -412,7 +439,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(r"""
             SELECT schema::Function {
                 attributes: {
                     @value
@@ -437,7 +464,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(r"""
             SELECT test::int_func_1();
         """, [
             [{}],
@@ -490,7 +517,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(r"""
             INSERT test::TestSelfLink1 {
                 foo1 := 'Victor'
             };
@@ -514,9 +541,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     SET default := test::TestSelfLink2.foo2;
                 };
             };
-        """)
 
-        await self.assert_legacy_query_result(r"""
             INSERT test::TestSelfLink2 {
                 foo2 := 'Alice'
             };
@@ -526,16 +551,15 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             INSERT test::TestSelfLink2 {
                 foo2 := 'Carol'
             };
+        """)
 
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT TestSelfLink2 {
                 foo2,
                 bar2,
             } ORDER BY TestSelfLink2.foo2;
         """, [
-            [{}],
-            [{}],
-            [{}],
             [
                 {'bar2': {}, 'foo2': 'Alice'},
                 {'bar2': {'Alice'}, 'foo2': 'Bob'},
@@ -568,7 +592,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(r"""
             INSERT test::TestSelfLink4;
 
             WITH MODULE test
@@ -603,7 +627,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(r"""
             WITH MODULE schema
             SELECT ScalarType {
                 name,
@@ -637,9 +661,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE VIEW View2 := ActualType {
                 connected := (SELECT View1 ORDER BY View1.foo)
             };
-        """)
 
-        await self.assert_legacy_query_result(r"""
             SET MODULE test;
 
             INSERT ActualType {
@@ -648,7 +670,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             INSERT ActualType {
                 foo := 'obj2'
             };
+        """)
 
+        await self.assert_query_result(r"""
             SELECT View2 {
                 foo,
                 connected: {
@@ -658,10 +682,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }
             ORDER BY View2.foo;
         """, [
-            None,
-            [{}],
-            [{}],
-
             [
                 {
                     'foo': 'obj1',
@@ -840,11 +860,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 FROM EdgeQL $$ SELECT "2" $$;
         """)
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             SELECT test::ddlf_2(a:=1, b:=1);
-            SELECT test::ddlf_2(a:=1, b:='a');
         ''', [
             ['1'],
+        ])
+        await self.assert_query_result(r'''
+            SELECT test::ddlf_2(a:=1, b:='a');
+        ''', [
             ['2'],
         ])
 
@@ -881,13 +904,19 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ''')
 
         try:
-            await self.assert_legacy_query_result(r'''
+            await self.assert_query_result(r'''
                 SELECT test::ddlf_5_1();
-                SELECT test::ddlf_5_2();
-                SELECT test::ddlf_5_3();
             ''', [
                 ['b'],
+            ])
+            await self.assert_query_result(r'''
+                SELECT test::ddlf_5_2();
+            ''', [
                 [r'\u0062'],
+            ])
+            await self.assert_query_result(r'''
+                SELECT test::ddlf_5_3();
+            ''', [
                 [r'\u0062'],
             ])
         finally:
@@ -941,11 +970,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ''')
 
         try:
-            await self.assert_legacy_query_result(r'''
+            await self.assert_query_result(r'''
                 SELECT test::ddlf_8(<int64>10, f := 11);
-                SELECT test::ddlf_8(<int32>10, f := '11');
             ''', [
                 [11],
+            ])
+            await self.assert_query_result(r'''
+                SELECT test::ddlf_8(<int32>10, f := '11');
+            ''', [
                 [12],
             ])
         finally:
@@ -1055,7 +1087,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 FROM SQL OPERATOR r'+';
         ''')
 
-        await self.assert_legacy_query_result('''
+        await self.assert_query_result('''
             WITH MODULE schema
             SELECT Operator {
                 name,
@@ -1100,7 +1132,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SET ATTRIBUTE description := 'my plus';
         ''')
 
-        await self.assert_legacy_query_result('''
+        await self.assert_query_result('''
             WITH MODULE schema
             SELECT Operator {
                 name,
@@ -1119,7 +1151,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             DROP INFIX OPERATOR test::`+` (left: int64, right: int64);
         """)
 
-        await self.assert_legacy_query_result('''
+        await self.assert_query_result('''
             WITH MODULE schema
             SELECT Operator {
                 name,
@@ -1151,7 +1183,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     FROM SQL OPERATOR r'!!';
             ''')
 
-            await self.assert_legacy_query_result('''
+            await self.assert_query_result('''
                 WITH MODULE schema
                 SELECT Operator {
                     name,
@@ -1279,7 +1311,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         ''')
 
-        await self.assert_legacy_query_result('''
+        await self.assert_query_result('''
             WITH MODULE schema
             SELECT Cast {
                 from_type: {name},
@@ -1310,7 +1342,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             DROP CAST FROM test::type_a TO test::type_c;
         """)
 
-        await self.assert_legacy_query_result('''
+        await self.assert_query_result('''
             WITH MODULE schema
             SELECT Cast {
                 from_type: {name},
@@ -1335,11 +1367,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             INSERT test::CompProp;
         ''')
 
-        await self.assert_legacy_query_result('''
+        await self.assert_query_result('''
             SELECT test::CompProp {
                 prop
             };
+        ''', [
+            [{
+                'prop': 'I am a computable',
+            }],
+        ])
 
+        await self.assert_query_result('''
             WITH MODULE schema
             SELECT ObjectType {
                 properties: {
@@ -1351,11 +1389,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }
             FILTER
                 .name = 'test::CompProp';
-
         ''', [
-            [{
-                'prop': 'I am a computable',
-            }],
             [{
                 'properties': [{
                     'name': 'test::prop',
@@ -1386,7 +1420,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_legacy_query_result('''
+        await self.assert_query_result('''
             WITH MODULE schema
             SELECT ScalarType {
                 attributes: {
@@ -1412,7 +1446,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             COMMIT MIGRATION test::mig1;
         """)
 
-        await self.assert_legacy_query_result('''
+        await self.assert_query_result('''
             WITH MODULE schema
             SELECT ScalarType {
                 attributes: {
@@ -1447,7 +1481,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             COMMIT MIGRATION test::mig1;
         """)
 
-        await self.assert_legacy_query_result('''
+        await self.assert_query_result('''
             WITH MODULE schema
             SELECT ObjectType {
                 attributes: {
@@ -1475,7 +1509,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE test::TestAttr2 EXTENDING test::TestAttr1;
         """)
 
-        await self.assert_legacy_query_result('''
+        await self.assert_query_result('''
             WITH MODULE schema
             SELECT ObjectType {
                 attributes: {
@@ -1611,7 +1645,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE test::ExtC3 EXTENDING test::ExtB3;
         """)
 
-        await self.assert_legacy_query_result("""
+        await self.assert_query_result("""
             SELECT (SELECT schema::ObjectType
                     FILTER .name = 'test::ExtC3').mro.name;
         """, [
@@ -1622,7 +1656,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ALTER TYPE test::ExtB3 DROP EXTENDING test::ExtA3;
         """)
 
-        await self.assert_legacy_query_result("""
+        await self.assert_query_result("""
             SELECT (SELECT schema::ObjectType
                     FILTER .name = 'test::ExtC3').mro.name;
         """, [
@@ -1677,7 +1711,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_legacy_query_result('''
+        await self.assert_query_result('''
             SELECT test::NewNameObj01.name;
         ''', [
             ['rename 01']
@@ -1705,7 +1739,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_legacy_query_result('''
+        await self.assert_query_result('''
             SELECT test::RenameObj02.new_name_02;
         ''', [
             ['rename 02']
@@ -1732,7 +1766,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_legacy_query_result('''
+        await self.assert_query_result('''
             SELECT test::RenameObj03.new_name_03;
         ''', [
             ['rename 03']
@@ -1765,7 +1799,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_legacy_query_result('''
+        await self.assert_query_result('''
             SELECT test::RenameObj04.rename_link_04@new_prop_04;
         ''', [
             [123]
@@ -1788,7 +1822,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_legacy_query_result('''
+        await self.assert_query_result('''
             SELECT test::NewView05.view_computable LIMIT 1;
         ''', [
             ['rename view 05']

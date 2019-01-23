@@ -67,7 +67,7 @@ class TestInsert(tb.QueryTestCase):
             };
         """)
 
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(r"""
             SELECT
                 test::InsertTest {
                     l2, l3
@@ -102,7 +102,7 @@ class TestInsert(tb.QueryTestCase):
             INSERT test::DefaultTest1 { foo := '02' };
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT DefaultTest1 { num } FILTER DefaultTest1.foo = '02';
         ''', [
@@ -125,7 +125,7 @@ class TestInsert(tb.QueryTestCase):
             INSERT test::DefaultTest2;
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT DefaultTest2 { num }
             ORDER BY DefaultTest2.num;
@@ -153,7 +153,7 @@ class TestInsert(tb.QueryTestCase):
             };
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             SELECT test::InsertTest {
                 subordinates: {
                     name,
@@ -199,7 +199,7 @@ class TestInsert(tb.QueryTestCase):
             };
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT InsertTest {
                 subordinates: {
@@ -233,7 +233,7 @@ class TestInsert(tb.QueryTestCase):
             };
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT InsertTest {
                 subordinates: {
@@ -263,7 +263,7 @@ class TestInsert(tb.QueryTestCase):
             };
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT InsertTest {
                 subordinates: {
@@ -303,7 +303,7 @@ class TestInsert(tb.QueryTestCase):
             };
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT InsertTest {
                 name,
@@ -348,7 +348,7 @@ class TestInsert(tb.QueryTestCase):
             };
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT InsertTest {
                 subordinates: {
@@ -376,51 +376,60 @@ class TestInsert(tb.QueryTestCase):
             };
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT (INSERT DefaultTest1 {
                 foo := 'ret2',
                 num := 2,
             }) {foo};
+        ''', [
+            [{
+                'foo': 'ret2',
+            }],
+        ])
 
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT (INSERT DefaultTest1 {
                 foo := 'ret3',
                 num := 3,
             }).num;
         ''', [
-            [{
-                'foo': 'ret2',
-            }],
             [3],
         ])
 
     async def test_edgeql_insert_returning_02(self):
-        await self.assert_legacy_query_result('''
+        await self.assert_query_result('''
             WITH MODULE test
             SELECT (INSERT DefaultTest1 {
                 foo := 'ret1',
                 num := 1,
             });
+        ''', [
+            [{
+                'id': uuid.UUID,
+            }],
+        ])
 
+        await self.assert_query_result('''
             WITH MODULE test
             SELECT (INSERT DefaultTest1 {
                 foo := 'ret2',
                 num := 2,
             }) {foo};
+        ''', [
+            [{
+                'foo': 'ret2',
+            }],
+        ])
 
+        await self.assert_query_result('''
             WITH MODULE test
             SELECT (INSERT DefaultTest1 {
                 foo := 'ret3',
                 num := 3,
             }).num;
         ''', [
-            [{
-                'id': uuid.UUID,
-            }],
-            [{
-                'foo': 'ret2',
-            }],
             [3],
         ])
 
@@ -431,7 +440,7 @@ class TestInsert(tb.QueryTestCase):
             };
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH
                 MODULE test,
                 I := (INSERT InsertTest {
@@ -460,13 +469,20 @@ class TestInsert(tb.QueryTestCase):
         ])
 
     async def test_edgeql_insert_returning_04(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT (INSERT DefaultTest1 {
                 foo := 'DT returning 5',
                 num := 33,
             }) {foo, num};
+        ''', [
+            [{
+                'foo': 'DT returning 5',
+                'num': 33,
+            }],
+        ])
 
+        await self.assert_query_result(r'''
             WITH
                 MODULE test,
                 I := (INSERT _ := InsertTest {
@@ -476,7 +492,11 @@ class TestInsert(tb.QueryTestCase):
             SELECT
                 DefaultTest1 {foo, num}
                 FILTER DefaultTest1.num > I.l2;
+        ''', [
+            [],
+        ])
 
+        await self.assert_query_result(r'''
             WITH
                 MODULE test,
                 I := (INSERT _ := InsertTest {
@@ -487,11 +507,6 @@ class TestInsert(tb.QueryTestCase):
                 DefaultTest1 {foo, num}
                 FILTER DefaultTest1.num > I.l2;
         ''', [
-            [{
-                'foo': 'DT returning 5',
-                'num': 33,
-            }],
-            [],
             [{
                 'foo': 'DT returning 5',
                 'num': 33,
@@ -517,7 +532,7 @@ class TestInsert(tb.QueryTestCase):
             });
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT InsertTest{name, l2, l3}
             FILTER .name = 'insert for 1'
@@ -578,7 +593,7 @@ class TestInsert(tb.QueryTestCase):
             UNION (INSERT DefaultTest3);
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             # statistically, randomly generated value for 'foo' should not be
             # identical for all 10 records
             WITH
@@ -601,7 +616,7 @@ class TestInsert(tb.QueryTestCase):
             UNION (INSERT DefaultTest4);
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT DefaultTest4.bar
             ORDER BY DefaultTest4.bar;
@@ -626,7 +641,7 @@ class TestInsert(tb.QueryTestCase):
             INSERT test::DefaultTest3;
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             # statistically, randomly generated value for 'foo' should not be
             # identical for all 10 records
             WITH
@@ -649,7 +664,7 @@ class TestInsert(tb.QueryTestCase):
             INSERT test::DefaultTest4;
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT DefaultTest4 { bar }
             ORDER BY DefaultTest4.bar;
@@ -676,7 +691,7 @@ class TestInsert(tb.QueryTestCase):
             INSERT test::DefaultTest4;
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT DefaultTest4 { bar }
             ORDER BY DefaultTest4.bar;
@@ -701,7 +716,7 @@ class TestInsert(tb.QueryTestCase):
             INSERT test::DefaultTest4;
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT DefaultTest4 { bar }
             ORDER BY DefaultTest4.bar;
@@ -740,7 +755,7 @@ class TestInsert(tb.QueryTestCase):
             });
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT
                 InsertTest {
@@ -798,7 +813,7 @@ class TestInsert(tb.QueryTestCase):
             };
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Callable {
                 args: {
@@ -858,7 +873,7 @@ class TestInsert(tb.QueryTestCase):
             };
         """)
 
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT InsertTest {
                 l2,
@@ -894,7 +909,7 @@ class TestInsert(tb.QueryTestCase):
             };
         """)
 
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT InsertTest {
                 l1,
@@ -933,20 +948,21 @@ class TestInsert(tb.QueryTestCase):
                 """)
 
     async def test_edgeql_insert_empty_04(self):
-        await self.assert_legacy_query_result(r"""
+        await self.con.execute(r"""
             WITH MODULE test
             INSERT InsertTest {
                 l2 := 99,
                 subordinates := {}
             };
+        """)
 
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT InsertTest {
                 l2,
                 subordinates
             };
         """, [
-            [{}],
             [{
                 'l2': 99,
                 'subordinates': {},

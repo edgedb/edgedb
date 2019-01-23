@@ -34,7 +34,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
                          'issues_filter_setup.eql')
 
     async def test_edgeql_filter_two_scalar_conditions01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             # Find Users who own at least one Issue with simultaneously
             # time_estimate > 9000 and due_date on 2020/01/15.
             WITH MODULE test
@@ -50,7 +50,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         ])
 
     async def test_edgeql_filter_two_scalar_conditions02(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             # NOTE: semantically same as and01, but using OR
             # Find Users who own at least one Issue with simultaneously
             # time_estimate > 9000 and due_date on 2020/01/15.
@@ -79,7 +79,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         ])
 
     async def test_edgeql_filter_two_scalar_conditions03(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             # NOTE: same as above, but more human-like
             # Find Users who own at least one Issue with simultaneously
             # time_estimate > 9000 and due_date on 2020/01/15.
@@ -104,7 +104,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         ])
 
     async def test_edgeql_filter_two_scalar_conditions04(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             # NOTE: semantically same as and01, but using OR,
             #       separate roots and explicit joining
             #
@@ -131,7 +131,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         ])
 
     async def test_edgeql_filter_not_exists01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             # Find Users who do not have any Issues with time_estimate
             WITH MODULE test
             SELECT User{name}
@@ -144,7 +144,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         ])
 
     async def test_edgeql_filter_not_exists02(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             # Find Users who have at least one Issue without time_estimates
             WITH MODULE test
             SELECT (
@@ -159,7 +159,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         ])
 
     async def test_edgeql_filter_not_exists03(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             # NOTE: same as above, but starting with User
             #
             # Find Users who have at least one Issue without time_estimates
@@ -177,7 +177,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         ])
 
     async def test_edgeql_filter_not_exists04(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             # NOTE: same as above, but with separate roots and
             # explicit path joining
             #
@@ -199,7 +199,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         ])
 
     async def test_edgeql_filter_two_scalar_exists01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             # NOTE: very similar to two_scalar_conditions, same
             #       expected results
             #
@@ -221,7 +221,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         ])
 
     async def test_edgeql_filter_two_scalar_exists02(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             # NOTE: same as above, but using OR
             #
             # Find Users who own at least one Issue with simultaneously
@@ -245,7 +245,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         ])
 
     async def test_edgeql_filter_two_scalar_exists03(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             # NOTE: same as above, but using OR,
             #       separate roots and explicit joining
             #
@@ -271,7 +271,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         ])
 
     async def test_edgeql_filter_two_scalar_exists04(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             # NOTE: same as above, but using OR,
             #       explicit sub-query and explicit joining
             #
@@ -301,7 +301,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         ])
 
     async def test_edgeql_filter_short_form01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Status{name}
             FILTER .name = 'Open';
@@ -310,7 +310,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         ])
 
     async def test_edgeql_filter_short_form02(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             # test that shape spec is not necessary to use short form
             # in the filter
             WITH MODULE test
@@ -321,12 +321,16 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         ])
 
     async def test_edgeql_filter_flow01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue.number
             FILTER TRUE
             ORDER BY Issue.number;
+        ''', [
+            ['1', '2', '3', '4'],
+        ])
 
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue.number
             # obviously irrelevant filter, simply equivalent to TRUE
@@ -334,16 +338,19 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             ORDER BY Issue.number;
         ''', [
             ['1', '2', '3', '4'],
-            ['1', '2', '3', '4'],
         ])
 
     async def test_edgeql_filter_flow02(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue.number
             FILTER FALSE
             ORDER BY Issue.number;
+        ''', [
+            [],
+        ])
 
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT Issue.number
             # obviously irrelevant filter, simply equivalent to FALSE
@@ -351,16 +358,22 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             ORDER BY Issue.number;
         ''', [
             [],
-            [],
         ])
 
     async def test_edgeql_filter_flow03(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             # base line for a cross product
             WITH MODULE test
             SELECT _ := Issue.number ++ Status.name
             ORDER BY _;
+        ''', [
+            ['1Closed', '1Open',
+             '2Closed', '2Open',
+             '3Closed', '3Open',
+             '4Closed', '4Open'],
+        ])
 
+        await self.assert_query_result(r'''
             # interaction of filter and cross product
             WITH MODULE test
             SELECT _ := (
@@ -368,7 +381,11 @@ class TestEdgeQLFilter(tb.QueryTestCase):
                     FILTER Issue.owner.name = 'Elvis'
                 ).number ++ Status.name
             ORDER BY _;
+        ''', [
+            ['1Closed', '1Open', '2Closed', '2Open'],
+        ])
 
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT _ := (
                     SELECT Issue
@@ -380,17 +397,11 @@ class TestEdgeQLFilter(tb.QueryTestCase):
                 Status.name = 'Open'
             ORDER BY _;
         ''', [
-            ['1Closed', '1Open',
-             '2Closed', '2Open',
-             '3Closed', '3Open',
-             '4Closed', '4Open'],
-
-            ['1Closed', '1Open', '2Closed', '2Open'],
             ['1Closed', '1Open', '2Closed', '2Open'],
         ])
 
     async def test_edgeql_filter_empty01(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(r"""
             # the FILTER clause is always empty, so it can never be true
             WITH MODULE test
             SELECT Issue{number}
@@ -400,27 +411,33 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         ])
 
     async def test_edgeql_filter_empty02(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(r"""
             # the FILTER clause evaluates to empty, so it can never be true
             WITH MODULE test
             SELECT Issue{number}
             FILTER Issue.number = <str>{};
+            """, [
+            [],
+        ])
 
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT Issue{number}
             FILTER Issue.priority = <Object>{};
+            """, [
+            [],
+        ])
 
+        await self.assert_query_result(r"""
             WITH MODULE test
             SELECT Issue{number}
             FILTER Issue.priority.name = <str>{};
             """, [
             [],
-            [],
-            [],
         ])
 
     async def test_edgeql_filter_aggregate01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT count(Issue);
         ''', [
@@ -428,24 +445,27 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         ])
 
     async def test_edgeql_filter_aggregate04(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT count(Issue)
             # this filter is not related to the aggregate and is allowed
             #
             FILTER Status.name = 'Open';
+        ''', [
+            [4],
+        ])
 
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT count(Issue)
             # this filter is conceptually equivalent to the above
             FILTER TRUE;
         ''', [
             [4],
-            [4],
         ])
 
     async def test_edgeql_filter_aggregate05(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             WITH
                 MODULE test,
                 I := (SELECT Issue FILTER Issue.status.name = 'Open')
@@ -455,17 +475,20 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         ])
 
     async def test_edgeql_filter_aggregate06(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             # regardless of what count evaluates to, FILTER clause is
             # impossible to fulfill, so the result is empty
             WITH MODULE test
             SELECT count(Issue)
             FILTER FALSE;
+        ''', [
+            [],
+        ])
 
+        await self.assert_query_result(r'''
             WITH MODULE test
             SELECT count(Issue)
             FILTER {};
         ''', [
-            [],
             [],
         ])

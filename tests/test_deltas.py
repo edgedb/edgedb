@@ -65,7 +65,7 @@ class TestDeltas(tb.DDLTestCase):
                 test::NamedObject.name = 'Test 2';
             """)
 
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(r"""
             SELECT
                 test::NamedObject {
                     related: {
@@ -96,7 +96,7 @@ class TestDeltas(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(r"""
             WITH MODULE schema
             SELECT Constraint {name}
             FILTER
@@ -112,7 +112,7 @@ class TestDeltas(tb.DDLTestCase):
             DROP SCALAR TYPE test::a1;
         """)
 
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(r"""
             WITH MODULE schema
             SELECT Constraint {name}
             FILTER
@@ -133,7 +133,7 @@ class TestDeltas(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(r"""
             WITH MODULE schema
             SELECT Property {name}
             FILTER
@@ -149,7 +149,7 @@ class TestDeltas(tb.DDLTestCase):
             DROP TYPE test::C1;
         """)
 
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(r"""
             WITH MODULE schema
             SELECT Property {name}
             FILTER
@@ -177,7 +177,7 @@ class TestDeltas(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(r"""
             SELECT
                 Пример {
                     номер

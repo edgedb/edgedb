@@ -697,7 +697,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
 
         await self.con.execute(qry)
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             SELECT schema::Constraint {
                 name,
                 args: {
@@ -727,7 +727,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             },
         ]])
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(r'''
             SELECT schema::Constraint {
                 name,
                 params: {
