@@ -53,7 +53,7 @@ class TestUpdate(tb.QueryTestCase):
         self.original = json.loads(self.original)
 
     async def test_edgeql_update_simple_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             # bad name doesn't exist, so no update is expected
@@ -79,7 +79,7 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_simple_02(self):
         orig1, orig2, orig3 = self.original
 
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
@@ -114,7 +114,7 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_simple_03(self):
         orig1, orig2, orig3 = self.original
 
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test2'
@@ -150,7 +150,7 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_simple_04(self):
         orig1, orig2, orig3 = self.original
 
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             SET {
@@ -198,7 +198,7 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_returning_01(self):
         orig1, orig2, orig3 = self.original
 
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             SELECT (
                 UPDATE UpdateTest
@@ -222,7 +222,7 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_returning_02(self):
         orig1, orig2, orig3 = self.original
 
-        self.assert_sorted_query_result(r"""
+        self.assert_legacy_sorted_query_result(r"""
             WITH MODULE test
             SELECT (
                 UPDATE UpdateTest
@@ -268,7 +268,7 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_returning_03(self):
         orig1, orig2, orig3 = self.original
 
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH
                 MODULE test,
                 U := (
@@ -288,7 +288,7 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_returning_04(self):
         orig1, orig2, orig3 = self.original
 
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH
                 MODULE test,
                 Q := (
@@ -352,7 +352,7 @@ class TestUpdate(tb.QueryTestCase):
             """))
             data = [str(o.id) for o in data]
 
-            await self.assert_query_result(r"""
+            await self.assert_legacy_query_result(r"""
                 WITH MODULE test
                 SELECT UpdateTest {
                     id,
@@ -370,7 +370,7 @@ class TestUpdate(tb.QueryTestCase):
                 }],
             ])
 
-            await self.assert_sorted_query_result(r"""
+            await self.assert_legacy_sorted_query_result(r"""
                 WITH MODULE test
                 UPDATE UpdateTest
                 FILTER UpdateTest.name LIKE '%ret5._'
@@ -381,7 +381,7 @@ class TestUpdate(tb.QueryTestCase):
                 [{'id': data_id} for data_id in sorted(data)],
             ])
 
-            await self.assert_query_result(r"""
+            await self.assert_legacy_query_result(r"""
                 WITH MODULE test
                 SELECT UpdateTest {
                     id,
@@ -415,7 +415,7 @@ class TestUpdate(tb.QueryTestCase):
         """)
         status = str(status.id)
 
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test3'
@@ -446,7 +446,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     async def test_edgeql_update_filter_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             UPDATE (SELECT UpdateTest)
             # this FILTER is trivial because UpdateTest is wrapped
@@ -464,7 +464,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     async def test_edgeql_update_filter_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             UPDATE (<UpdateTest>{} ?? UpdateTest)
             # this FILTER is trivial because UpdateTest is wrapped
@@ -482,7 +482,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     async def test_edgeql_update_multiple_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
@@ -514,7 +514,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     async def test_edgeql_update_multiple_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
@@ -542,7 +542,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     async def test_edgeql_update_multiple_03(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
@@ -573,7 +573,7 @@ class TestUpdate(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_update_multiple_04(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # first add a tag to UpdateTest
             WITH MODULE test
             UPDATE UpdateTest
@@ -631,7 +631,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     async def test_edgeql_update_multiple_05(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH
                 MODULE test,
                 U2 := UpdateTest
@@ -663,7 +663,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     async def test_edgeql_update_multiple_06(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH
                 MODULE test,
                 U2 := UpdateTest
@@ -700,7 +700,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     async def test_edgeql_update_multiple_07(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH
                 MODULE test,
                 U2 := UpdateTest
@@ -740,7 +740,7 @@ class TestUpdate(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_update_multiple_08(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # make tests related to the other 2
             WITH
                 MODULE test,
@@ -828,7 +828,7 @@ class TestUpdate(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_update_multiple_09(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # make tests related to the other 2
             WITH
                 MODULE test,
@@ -909,7 +909,7 @@ class TestUpdate(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_update_multiple_10(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # make each test related to 'update-test1'
             WITH
                 MODULE test,
@@ -989,7 +989,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     async def test_edgeql_update_props_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
@@ -1032,7 +1032,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     async def test_edgeql_update_props_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
@@ -1063,7 +1063,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     async def test_edgeql_update_props_03(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
@@ -1100,7 +1100,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     async def test_edgeql_update_props_05(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
@@ -1134,7 +1134,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     async def test_edgeql_update_props_06(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
@@ -1168,7 +1168,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     async def test_edgeql_update_props_07(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
@@ -1200,7 +1200,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     async def test_edgeql_update_props_08(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             UPDATE UpdateTest
             FILTER UpdateTest.name = 'update-test1'
@@ -1245,7 +1245,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     async def test_edgeql_update_for_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             FOR x IN {
                     (name := 'update-test1', comment := 'foo'),
@@ -1283,7 +1283,7 @@ class TestUpdate(tb.QueryTestCase):
         ])
 
     async def test_edgeql_update_empty_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # just clear all the comments
             WITH MODULE test
             UPDATE UpdateTest
@@ -1325,7 +1325,7 @@ class TestUpdate(tb.QueryTestCase):
                 """)
 
     async def test_edgeql_update_empty_04(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # just clear all the statuses
             WITH MODULE test
             UPDATE UpdateTest

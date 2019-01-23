@@ -39,7 +39,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call1('-');
             SELECT test::call1('-', suffix := 's1');
             SELECT test::call1('-', prefix := 'p1');
@@ -76,7 +76,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call2('a', 'b');
             SELECT test::call2(4, 2, 0);
         ''', [
@@ -123,7 +123,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call4(100);
             SELECT test::call4(100, b := <int32>[]);
             SELECT test::call4(100, b := [1, 2]);
@@ -146,7 +146,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call5(1);
             SELECT test::call5(<int32>2);
             SELECT test::call5(1, b := 20);
@@ -168,7 +168,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call6();
             SELECT test::call6(1, 2, 3);
             SELECT test::call6(<int16>1, <int32>2, 3);
@@ -192,7 +192,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call7();
             SELECT test::call7(e := 100);
             SELECT test::call7(d := 200);
@@ -244,7 +244,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call8(1);
             SELECT test::call8(1.0);
             SELECT test::call8(1, b := 10);
@@ -263,7 +263,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 await self.con.execute('SELECT test::call8();')
 
     async def test_edgeql_calls_09(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT sum({1, 2, 3});
             SELECT sum({<int32>1, 2, 3});
             SELECT sum({<float32>1, 2, 3});
@@ -284,7 +284,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         ])
 
     async def test_edgeql_calls_10(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT (INTROSPECT TYPEOF sum({1, 2, 3})).name;
             SELECT (INTROSPECT TYPEOF sum({<int32>1, 2, 3})).name;
             SELECT (INTROSPECT TYPEOF sum({<float32>1, 2, 3})).name;
@@ -329,7 +329,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call11([<int16>1, <int16>22]);
             SELECT test::call11([<int16>1, <int32>23]);
             SELECT test::call11([<int32>1, <int32>24]);
@@ -373,7 +373,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call12(<int32>1);
             SELECT test::call12(1);
         ''', [
@@ -398,7 +398,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call13('aaa');
             SELECT test::call13(b'aaaa');
             SELECT test::call13([1, 2, 3, 4, 5]);
@@ -426,7 +426,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call13_2('aaa');
             SELECT test::call13_2(b'aaaa');
             SELECT test::call13_2([1, 2, 3, 4, 5]);
@@ -448,7 +448,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call14('aaa');
             SELECT test::call14(b'aaaa');
             SELECT test::call14(1);
@@ -468,7 +468,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call15('aaa');
             SELECT test::call15(1);
         ''', [
@@ -503,7 +503,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call16([1, 2, 3], 1);
             SELECT test::call16(['a', 'b', 'c'], 1);
 
@@ -538,7 +538,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call17(2);
             SELECT test::call17('aaa');
         ''', [
@@ -556,7 +556,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call18(2);
             SELECT test::call18(1, 2, 3);
             SELECT test::call18('a', 'b');
@@ -611,7 +611,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call20_1(10, 20);
 
             SELECT test::call20_2(1, 2);
@@ -639,7 +639,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call21(<array<str>>[]);
             SELECT test::call21([1,2]);
             SELECT test::call21(['a', 'b', 'c']);
@@ -668,13 +668,13 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call22('a', 'b');
         ''', [
             ['ab'],
         ])
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call22(['a'], ['b']);
         ''', [
             [
@@ -701,7 +701,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call23('abcde', 2);
             SELECT test::call23(to_json('[{"a":"b"}]'), 0);
             SELECT test::call23('abcde', <int32>2);
@@ -726,7 +726,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             select test::call24();
             select test::call24('aaa');
         ''', [
@@ -744,7 +744,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call26(['aaa']);
             SELECT test::call26([b'', b'aa']);
         ''', [
@@ -768,7 +768,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call27([<int32>1, <int32>2]);
             SELECT test::call27([1, 2, 3]);
         ''', [
@@ -809,7 +809,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call28([<int32>1, <int32>2]);
             SELECT test::call28([1, 2, 3]);
 
@@ -831,7 +831,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call29(10);
         ''', [
             [11],
@@ -847,7 +847,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call30(10);
             SELECT test::call30(<int32>20);
         ''', [
@@ -865,7 +865,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call31(10);
             SELECT test::call31('aa');
 
@@ -920,7 +920,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::call32([1], [<int16>2]);
         ''', [
             [

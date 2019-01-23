@@ -33,7 +33,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                          'cards_setup.eql')
 
     async def test_edgeql_props_basic_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT User {
                 name,
@@ -202,7 +202,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ])
 
     async def test_edgeql_props_basic_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # get users and only cards that have the same count and
             # cost in the decks
             WITH MODULE test
@@ -258,7 +258,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ])
 
     async def test_edgeql_props_basic_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # get only users who have the same count and cost in the decks
             WITH MODULE test
             SELECT User {
@@ -335,7 +335,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ])
 
     async def test_edgeql_props_basic_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # get all cards that match their cost to the count in at
             # least some deck
             WITH MODULE test
@@ -363,7 +363,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ])
 
     async def test_edgeql_props_basic_05(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # get all the friends of Alice and their nicknames
             WITH MODULE test
             SELECT User {
@@ -388,7 +388,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ])
 
     async def test_edgeql_props_cross_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # get cards that have the same count in some deck as their cost
             WITH MODULE test
             SELECT Card {
@@ -404,7 +404,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ])
 
     async def test_edgeql_props_cross_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # get cards that have the same count in some deck as their cost
             WITH MODULE test
             SELECT Card {
@@ -432,7 +432,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ])
 
     async def test_edgeql_props_cross_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # get cards that have the same count in some deck as their cost
             WITH MODULE test
             SELECT Card {
@@ -461,7 +461,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ])
 
     async def test_edgeql_props_cross_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # get cards that have the same count in some deck as their cost
             WITH MODULE test
             SELECT Card {
@@ -487,7 +487,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ])
 
     async def test_edgeql_props_implication_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # count of 1 in at least some deck implies 'Fire'
             WITH MODULE test
             SELECT Card {
@@ -562,7 +562,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ])
 
     async def test_edgeql_props_implication_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # FILTER by NOT (count of 1 implies 'Fire') in at least some deck
             WITH MODULE test
             SELECT Card {
@@ -582,7 +582,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ])
 
     async def test_edgeql_props_implication_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # same as above, refactored
             WITH MODULE test
             SELECT Card {
@@ -602,7 +602,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ])
 
     async def test_edgeql_props_implication_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # count of 1 implies 'Fire' in the deck of Dave
             WITH MODULE test
             SELECT User {
@@ -670,7 +670,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ])
 
     async def test_edgeql_props_setops_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT DISTINCT User.deck@count;
 
@@ -696,7 +696,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ])
 
     async def test_edgeql_props_setops_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 C := (
@@ -744,7 +744,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ])
 
     async def test_edgeql_props_setops_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT _ := {
                 # this is equivalent to UNION
@@ -773,7 +773,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ])
 
     async def test_edgeql_props_setops_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 A := (SELECT User FILTER User.name = 'Alice')
@@ -787,7 +787,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ]])
 
     async def test_edgeql_props_setops_05(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test
             SELECT DISTINCT
@@ -799,7 +799,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ])
 
     async def test_edgeql_props_computable_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT User {
                 name,
@@ -817,7 +817,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ])
 
     async def test_edgeql_props_computable_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 MyUser := (
@@ -845,7 +845,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         ])
 
     async def test_edgeql_props_agg_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT sum(User.deck@count);
 

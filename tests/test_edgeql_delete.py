@@ -57,7 +57,7 @@ class TestDelete(tb.QueryTestCase):
             };
         """)
 
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT test::DeleteTest;
         """, [
             [{}],
@@ -67,7 +67,7 @@ class TestDelete(tb.QueryTestCase):
             DELETE test::DeleteTest;
         """)
 
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT test::DeleteTest;
         """, [
             [],
@@ -86,7 +86,7 @@ class TestDelete(tb.QueryTestCase):
             }) LIMIT 1;
         """)).id)
 
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             DELETE (SELECT DeleteTest
                     FILTER DeleteTest.name = 'bad name');
@@ -134,7 +134,7 @@ class TestDelete(tb.QueryTestCase):
             };
         """)
 
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             SELECT (DELETE (SELECT DeleteTest
                     FILTER DeleteTest.name = 'delete-test1'));
@@ -158,7 +158,7 @@ class TestDelete(tb.QueryTestCase):
         ])
 
     async def test_edgeql_delete_returning_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             INSERT test::DeleteTest {
                 name := 'delete-test1'
             };
@@ -179,7 +179,7 @@ class TestDelete(tb.QueryTestCase):
         ])
 
     async def test_edgeql_delete_returning_03(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             INSERT test::DeleteTest {
                 name := 'dt1.1'
             };
@@ -222,7 +222,7 @@ class TestDelete(tb.QueryTestCase):
         ])
 
     async def test_edgeql_delete_returning_04(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             INSERT test::DeleteTest {
                 name := 'dt1.1'
             };
@@ -264,7 +264,7 @@ class TestDelete(tb.QueryTestCase):
         ])
 
     async def test_edgeql_delete_returning_05(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             INSERT test::DeleteTest {
                 name := 'dt1.1'
             };

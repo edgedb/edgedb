@@ -35,7 +35,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
     async def test_edgeql_for_cross_01(self):
         cards = ['Bog monster', 'Djinn', 'Dragon', 'Dwarf', 'Giant eagle',
                  'Giant turtle', 'Golem', 'Imp', 'Sprite']
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             FOR C IN {Card}
             # C and Card are not related here
@@ -45,7 +45,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
         ])
 
     async def test_edgeql_for_cross_02(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             FOR C IN {Card}
             # C and Card are not related here, so count(Card) should be 9
@@ -65,7 +65,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
         ])
 
     async def test_edgeql_for_cross_03(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             FOR Card IN {Card}
             # Card is shadowed here
@@ -85,7 +85,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
         ])
 
     async def test_edgeql_for_cross_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             FOR C IN {Card}
             # C and Card are not related here, so count(Card) should be 9
@@ -97,7 +97,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
         ])
 
     async def test_edgeql_for_mix_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             FOR X IN {Card.name, User.name}
             UNION X;
@@ -120,7 +120,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
         ])
 
     async def test_edgeql_for_mix_02(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             FOR X IN {Card.name, User.name}
             # both Card and User should be independent of X
@@ -144,7 +144,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
         ])
 
     async def test_edgeql_for_mix_03(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             # should be the same result as above
             WITH MODULE test
             FOR X IN {Card.name, User.name}
@@ -168,7 +168,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
         ])
 
     async def test_edgeql_for_mix_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             FOR X IN {Card.name, User.name}
             # this should be just [3] for each name (9 + 4 of names)
@@ -178,7 +178,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
         ])
 
     async def test_edgeql_for_filter_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             FOR X IN {User.name}
             UNION X
@@ -194,7 +194,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
         ])
 
     async def test_edgeql_for_filter_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             FOR X IN {Card.name}
             UNION X
@@ -215,7 +215,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
         ])
 
     async def test_edgeql_for_filter_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             # get a combination of names from different object types
             FOR X IN {Card.name, User.name}
@@ -241,7 +241,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
         ])
 
     async def test_edgeql_for_in_computable_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT User {
                 select_deck := (

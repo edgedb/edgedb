@@ -390,7 +390,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                     };
                 """)
 
-            await self.assert_query_result(r'''
+            await self.assert_legacy_query_result(r'''
                 WITH MODULE test
                 SELECT Target1 { name }
                 FILTER .name = 'Target4.2';
@@ -423,7 +423,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 };
             """)
 
-            await self.assert_query_result(r'''
+            await self.assert_legacy_query_result(r'''
                 WITH MODULE test
                 SELECT
                     Source1 {
@@ -441,7 +441,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
             """)
 
-            await self.assert_query_result(r'''
+            await self.assert_legacy_query_result(r'''
                 WITH MODULE test
                 SELECT
                     Source1 {
@@ -473,7 +473,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 };
             """)
 
-            await self.assert_query_result(r'''
+            await self.assert_legacy_query_result(r'''
                 WITH MODULE test
                 SELECT
                     Source3 {
@@ -491,7 +491,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
             """)
 
-            await self.assert_query_result(r'''
+            await self.assert_legacy_query_result(r'''
                 WITH MODULE test
                 SELECT
                     Source3 {
@@ -531,7 +531,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 };
             """)
 
-            await self.assert_query_result(r'''
+            await self.assert_legacy_query_result(r'''
                 WITH MODULE test
                 SELECT
                     Source2 {
@@ -557,7 +557,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
             """)
 
-            await self.assert_query_result(r'''
+            await self.assert_legacy_query_result(r'''
                 WITH MODULE test
                 SELECT
                     Source2
@@ -608,7 +608,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 };
             """)
 
-            await self.assert_query_result(r'''
+            await self.assert_legacy_query_result(r'''
                 WITH MODULE test
                 SELECT
                     Source2 {
@@ -652,7 +652,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
             """)
 
-            await self.assert_query_result(r'''
+            await self.assert_legacy_query_result(r'''
                 WITH MODULE test
                 SELECT
                     Source2
@@ -690,7 +690,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 };
             """)
 
-            await self.assert_query_result(r'''
+            await self.assert_legacy_query_result(r'''
                 WITH MODULE test
                 SELECT
                     Source1 {
@@ -716,7 +716,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
             """)
 
-            await self.assert_query_result(r'''
+            await self.assert_legacy_query_result(r'''
                 WITH MODULE test
                 SELECT
                     Source1 {

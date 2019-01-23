@@ -33,7 +33,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                          'issues_coalesce_setup.eql')
 
     async def test_edgeql_coalesce_scalar_01(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             SELECT Issue {
                 time_estimate := Issue.time_estimate ?? -1
@@ -50,7 +50,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_scalar_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT (Issue.number, Issue.time_estimate ?? -1)
             ORDER BY Issue.number;
@@ -66,7 +66,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_scalar_03(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             # Only values present in the graph will be selected.
             # There is at least one value there.
@@ -81,7 +81,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_scalar_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             # No open issue has a time_estimate, so the first argument
             # to ?? is an empty set.
@@ -97,7 +97,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_scalar_05(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 I := (SELECT Issue
@@ -116,7 +116,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         # The result is either an empty set if at least one
         # estimate exists, or `-1` if no estimates exist.
         # Our database contains one estimate.
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             SELECT Issue.time_estimate ?? -1
             FILTER NOT EXISTS Issue.time_estimate;
@@ -125,7 +125,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_scalar_07(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             SELECT Issue {
                 number,
@@ -143,7 +143,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_scalar_08(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT (Issue.number, Issue.time_estimate ?= 60)
             ORDER BY Issue.number;
@@ -159,7 +159,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_scalar_09(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             # Only values present in the graph will be selected.
             WITH MODULE test
             SELECT Issue.time_estimate ?= 60;
@@ -175,7 +175,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_scalar_10(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # No open issue has a time_estimate, so the first argument
             # to ?= is an empty set.
             WITH MODULE test
@@ -190,7 +190,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_scalar_11(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # No open issue has a time_estimate, so the first argument
             # to ?!= is an empty set.
             WITH
@@ -213,7 +213,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_scalar_12(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT Issue {
                 number,
@@ -253,7 +253,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_set_01(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             SELECT Issue {
                 time_estimate := Issue.time_estimate ?? {-1, -2}
@@ -270,7 +270,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_set_02(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             SELECT Issue {
                 multi te := (
@@ -289,7 +289,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_set_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT _ := (Issue.number, Issue.time_estimate ?? {-1, -2})
             ORDER BY _;
@@ -308,7 +308,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_set_04(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             # Only values present in the graph will be selected.
             # There is at least one value there.
@@ -323,7 +323,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_set_05(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             # No open issue has a time_estimate, so the first argument
             # to ?? is an empty set.
@@ -339,7 +339,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_set_06(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 I := (SELECT Issue
@@ -355,7 +355,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_set_07(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             SELECT Issue {
                 number,
@@ -373,7 +373,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_set_08(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT _ := (Issue.number, Issue.time_estimate ?= {60, 90})
             ORDER BY _;
@@ -395,7 +395,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_set_09(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             # Only values present in the graph will be selected.
             WITH MODULE test
             SELECT Issue.time_estimate ?= {60, 30};
@@ -411,7 +411,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_set_10(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # No open issue has a time_estimate, so the first argument
             # to ?!= is an empty set.
             WITH MODULE test
@@ -426,7 +426,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_set_11(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # No open issue has a time_estimate, so the first argument
             # to ?= is an empty set.
             WITH
@@ -441,7 +441,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT Issue {
                 # for every issue, there's a unique derived "default" to use
@@ -460,7 +460,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             # for every issue, there's a unique derived "default" to use
             # with ??
@@ -478,7 +478,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_03(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             # ?? is OPTIONAL w.r.t. first argument, so it behaves like
             # an element-wise function. Therefore, the longest common
@@ -492,7 +492,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_04(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             # Since ?? is OPTIONAL over it's first argument,
             # the expression is evaluated for all six issues.
@@ -507,7 +507,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_05(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             # Unlike the above test, we refer to the
             # same "open" subset of issues on both
             # sides of ??, so the result set contains
@@ -524,7 +524,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_06(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH
                 MODULE test,
                 I2 := Issue
@@ -540,7 +540,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_07(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH
                 MODULE test
             SELECT (
@@ -554,7 +554,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_08(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             # On one hand the right operand of ?? is not independent
             # of the left. On the other hand, it is constructed in
@@ -572,7 +572,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_09(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             # `Issue` on both sides is behind a fence, so the left-hand
             # expression is an empty set, and the result is a union
@@ -589,7 +589,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_10(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 I := (
@@ -605,7 +605,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_11(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT Issue {
                 number,
@@ -623,7 +623,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_12(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT (
                 Issue.number,
@@ -642,7 +642,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_13(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             # ?= is OPTIONAL w.r.t. both arguments, so it behaves like
             # an element-wise function. Therefore, the longest common
@@ -661,7 +661,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_14(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             SELECT (
                 SELECT Issue
@@ -674,7 +674,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_15(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH
                 MODULE test,
                 I := (SELECT Issue
@@ -688,7 +688,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_16(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH
                 MODULE test,
                 I2 := Issue
@@ -710,7 +710,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_17(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH
                 MODULE test,
                 I2 := Issue
@@ -733,7 +733,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_18(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             # LCP is `Issue.time_estimate`, so this should not
             # actually be evaluated for every `Issue`, but for every
@@ -746,7 +746,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_19(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             # `Issue` is now a LCP and the overall expression will be
             # evaluated for every `Issue`.
@@ -761,7 +761,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_20(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 I := (
@@ -777,7 +777,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_21(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 X := {Priority, Status}
@@ -787,7 +787,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_22(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 X := {Priority, Status}
@@ -809,7 +809,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_dependent_23(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH
                 MODULE test,
                 X := {Priority, Status}
@@ -865,7 +865,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_object_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 DUMMY := (SELECT LogEntry FILTER LogEntry.body = 'Dummy')
@@ -918,7 +918,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_object_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 DUMMY := (SELECT LogEntry FILTER LogEntry.body = 'Dummy')
@@ -939,7 +939,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_object_03(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH
                 MODULE test,
                 DUMMY := (SELECT LogEntry FILTER LogEntry.body = 'Dummy')
@@ -957,7 +957,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_object_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 DUMMY := (SELECT LogEntry FILTER LogEntry.body = 'Dummy')
@@ -977,7 +977,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_object_05(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 DUMMY := (SELECT LogEntry FILTER LogEntry.body = 'Dummy'),
@@ -996,7 +996,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_object_06(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 LOG1 := (SELECT LogEntry FILTER LogEntry.body = 'Log1')
@@ -1029,7 +1029,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_object_07(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 LOG1 := (SELECT LogEntry FILTER LogEntry.body = 'Log1')
@@ -1049,7 +1049,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_object_08(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH
                 MODULE test,
                 LOG1 := (SELECT LogEntry FILTER LogEntry.body = 'Log1')
@@ -1064,7 +1064,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_object_09(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 DUMMY := (SELECT LogEntry FILTER LogEntry.body = 'Dummy')
@@ -1079,7 +1079,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         ])
 
     async def test_edgeql_coalesce_object_10(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 DUMMY := (SELECT LogEntry FILTER LogEntry.body = 'Dummy'),
@@ -1103,7 +1103,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::optfunc('foo', 'b') ?? 'N/A';
             SELECT test::optfunc('a', <str>{}) ?? 'N/A';
         ''', [

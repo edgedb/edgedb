@@ -33,7 +33,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                          'inventory_setup.eql')
 
     async def test_edgeql_links_basic_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 name,
@@ -88,7 +88,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_map_scalars_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 name,
@@ -134,7 +134,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_map_scalars_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 name,
@@ -180,7 +180,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_map_scalars_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 name,
@@ -226,7 +226,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_set_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
             FILTER 'plastic' = .tag_set1
@@ -248,7 +248,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_set_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
             FILTER 'plastic' IN .tag_set1
@@ -270,7 +270,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_set_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
             FILTER
@@ -294,7 +294,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_set_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
             FILTER .tag_set1 = {'rectangle', 'wood'}
@@ -315,7 +315,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_set_05(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # subsets
             #
             WITH MODULE test
@@ -338,7 +338,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_set_06(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 name,
@@ -393,7 +393,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_set_07(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # subsets
             WITH MODULE test
             SELECT Item {name}
@@ -422,7 +422,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_set_08(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # match sets
             WITH
                 MODULE test,
@@ -455,7 +455,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_set_10(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # same as previous, but with a different syntax, leading
             # to a different failure scenario
             WITH
@@ -491,7 +491,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_set_11(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
             FILTER
@@ -510,7 +510,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_set_12(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # find an item with a unique quality
             WITH
                 MODULE test,
@@ -556,7 +556,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_set_13(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # find an item with a unique quality
             WITH
                 MODULE test,
@@ -585,7 +585,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_set_14(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # find an item with a unique quality
             WITH
                 MODULE test,
@@ -615,7 +615,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_set_15(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # subsets
             WITH MODULE test
             SELECT Item {name}
@@ -634,7 +634,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_array_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # just a simple unpack
             WITH
                 MODULE test,
@@ -675,7 +675,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_array_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # just a simple unpack
             WITH
                 MODULE test,
@@ -716,7 +716,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_array_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
             FILTER 'metal' IN array_unpack(.tag_array)
@@ -728,7 +728,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_array_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
             FILTER 'metal' = array_unpack(.tag_array)
@@ -740,7 +740,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_array_05(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
             # array_get is used to safely default to {}
@@ -753,7 +753,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_array_06(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
             FILTER .tag_array = ['metal', 'plastic']
@@ -765,7 +765,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_array_07(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
             FILTER NOT EXISTS .tag_array
@@ -779,7 +779,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_array_08(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT Item {name}
             # no item has 3 elements
@@ -799,7 +799,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_array_09(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # find an item with a unique quality
             WITH
                 MODULE test,
@@ -847,7 +847,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_array_10(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # find an item with a unique quality
             WITH
                 MODULE test,
@@ -878,7 +878,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_array_11(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # find an item with ALL unique qualities
             WITH
                 MODULE test,
@@ -913,7 +913,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_tuple_01(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 n1 := (Item.name,),
@@ -954,7 +954,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_01(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 n1 := [Item.name],
@@ -1001,7 +1001,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_02(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 n1 := [Item.name],
@@ -1048,7 +1048,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_03(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 name,
@@ -1078,7 +1078,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_04(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 name,
@@ -1108,7 +1108,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_05(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 name,
@@ -1142,7 +1142,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_06(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 name,
@@ -1176,7 +1176,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_07(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 name,
@@ -1212,7 +1212,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         ])
 
     async def test_edgeql_links_derived_array_08(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH MODULE test
             SELECT Item {
                 name,

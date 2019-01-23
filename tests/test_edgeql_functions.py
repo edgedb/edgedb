@@ -34,7 +34,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                          'issues_setup.eql')
 
     async def test_edgeql_functions_count_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH
                 MODULE test,
                 x := (
@@ -50,7 +50,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_count_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH
                 MODULE test,
                 x := (
@@ -66,7 +66,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_count_03(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH
                 MODULE test,
                 x := (
@@ -82,7 +82,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_array_agg_01(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             SELECT array_agg({1, 2, 3});
             SELECT array_agg({3, 2, 3});
             SELECT array_agg({3, 3, 2});
@@ -93,7 +93,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_array_agg_02(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             SELECT array_agg({1, 2, 3})[0];
             SELECT array_agg({3, 2, 3})[1];
             SELECT array_agg({3, 3, 2})[-1];
@@ -104,7 +104,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_array_agg_03(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             WITH x := {3, 1, 2}
             SELECT array_agg(x ORDER BY x);
 
@@ -116,7 +116,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_array_agg_04(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             WITH x := {3, 1, 2}
             SELECT contains(array_agg(x ORDER BY x), 2);
 
@@ -141,7 +141,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             """)
 
     async def test_edgeql_functions_array_agg_06(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             SELECT array_agg(<int64>{});
             SELECT array_agg(DISTINCT <int64>{});
         ''', [
@@ -154,7 +154,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_array_agg_07(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             SELECT array_agg((SELECT schema::ObjectType FILTER False));
             SELECT array_agg(
                 (SELECT schema::ObjectType
@@ -170,7 +170,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_array_agg_08(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             WITH x := <int64>{}
             SELECT array_agg(x);
 
@@ -195,7 +195,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_array_agg_09(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE schema
             SELECT
                 ObjectType {
@@ -229,7 +229,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             """)
 
     async def test_edgeql_functions_array_agg_11(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             SELECT array_agg(
                 (<str>Issue.number, Issue.status.name)
@@ -240,7 +240,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_array_agg_12(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test
             SELECT
@@ -260,7 +260,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         self.assertEqual(result[0][1].name, 'Yury')
 
     async def test_edgeql_functions_array_agg_13(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test
             SELECT
@@ -290,7 +290,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_functions_array_agg_15(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT array_agg(
                 ([([User.name],)],) ORDER BY User.name
@@ -304,7 +304,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_array_agg_16(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT array_agg(   # outer array
                 (               # tuple
@@ -324,7 +324,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_array_unpack_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT [1, 2];
             SELECT array_unpack([1, 2]);
             SELECT array_unpack([10, 20]) - 1;
@@ -335,7 +335,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_array_unpack_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # array_agg and array_unpack are inverses of each other
             SELECT array_agg(array_unpack([1, 2, 3])) = [1, 2, 3];
             SELECT array_unpack(array_agg({1, 2, 3}));
@@ -345,7 +345,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_array_unpack_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # array_agg and array_unpack are inverses of each other
             WITH MODULE test
             SELECT array_unpack(array_agg(Issue.number));
@@ -354,7 +354,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_array_unpack_04(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             # array_agg and array_unpack are inverses of each other
             WITH MODULE test
             SELECT array_unpack(array_agg(Issue)){number};
@@ -368,7 +368,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_enumerate_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT [10, 20];
             SELECT enumerate(array_unpack([10,20]));
             SELECT enumerate(array_unpack([10,20])).0 + 100;
@@ -381,7 +381,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_enumerate_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT enumerate(array_unpack([(x:=1)])).1;
             SELECT enumerate(array_unpack([(x:=1)])).1.x;
 
@@ -400,7 +400,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_enumerate_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SET MODULE test;
             SELECT enumerate((SELECT User.name ORDER BY User.name));
             SELECT enumerate({'a', 'b', 'c'});
@@ -426,7 +426,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             '[[0, [1, 2]], [1, [3, 4]]]')
 
     async def test_edgeql_functions_array_get_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT array_get([1, 2, 3], 2);
             SELECT array_get([1, 2, 3], -2);
             SELECT array_get([1, 2, 3], 20);
@@ -439,7 +439,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_array_get_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SET MODULE test;
 
             SELECT array_get(array_agg(Issue.number ORDER BY Issue.number), 2);
@@ -465,7 +465,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_functions_array_get_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT array_get([1, 2, 3], 0) ?? 42;
             SELECT array_get([1, 2, 3], 0, default := -1) ?? 42;
             SELECT array_get([1, 2, 3], -2) ?? 42;
@@ -480,7 +480,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_array_get_05(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT array_get([1, 2, 3], 1, default := 4200) ?? 42;
             SELECT array_get([1, 2, 3], -2, default := 4200) ?? 42;
             SELECT array_get([1, 2, 3], 20, default := 4200) ?? 42;
@@ -493,7 +493,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_array_get_06(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT array_get([(20,), (30,)], 0);
             SELECT array_get([(a:=20), (a:=30)], 1);
 
@@ -514,7 +514,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_re_match_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT re_match('ab', 'AbabaB');
             SELECT re_match('AB', 'AbabaB');
             SELECT re_match('(?i)AB', 'AbabaB');
@@ -546,7 +546,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_re_match_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE schema
             SELECT x := re_match('(\\w+)::(Link|Property)', ObjectType.name)
             ORDER BY x;
@@ -555,7 +555,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_re_match_all_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT re_match_all('ab', 'AbabaB');
             SELECT re_match_all('AB', 'AbabaB');
             SELECT re_match_all('(?i)AB', 'AbabaB');
@@ -587,7 +587,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_re_match_all_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE schema,
                 C2 := ObjectType
@@ -599,7 +599,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_re_test_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT re_test('ac', 'AbabaB');
             SELECT NOT re_test('ac', 'AbabaB');
 
@@ -627,7 +627,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_re_test_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE schema
             SELECT count(
                 ObjectType FILTER re_test(r'(\W\w)bject$', ObjectType.name)
@@ -637,7 +637,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_re_replace_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT re_replace('l', 'L', 'Hello World');
             SELECT re_replace('l', 'L', 'Hello World', flags := 'g');
             SELECT re_replace('[a-z]', '~', 'Hello World', flags := 'i');
@@ -650,7 +650,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_re_replace_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT re_replace('[aeiou]', '~', test::User.name);
             SELECT re_replace('[aeiou]', '~', test::User.name, flags := 'g');
             SELECT re_replace('[aeiou]', '~', test::User.name, flags := 'i');
@@ -663,7 +663,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_sum_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT sum({1, 2, 3, -4, 5});
             SELECT sum({0.1, 0.2, 0.3, -0.4, 0.5});
         ''', [
@@ -672,21 +672,21 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_sum_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT sum({1, 2, 3, -4.2, 5});
         ''', [
             [6.8],
         ])
 
     async def test_edgeql_functions_sum_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT sum({1.0, 2.0, 3.0, -4.2, 5});
         ''', [
             [6.8],
         ])
 
     async def test_edgeql_functions_sum_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT sum(<int16>2) IS int64;
             SELECT sum(<int32>2) IS int64;
             SELECT sum(<int64>2) IS int64;
@@ -763,7 +763,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         self.assertTrue(batches[0]['dt_n'] < batches[-1]['dt_n'])
 
     async def test_edgeql_functions_datetime_get_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT datetime_get(
                 <datetime>'2018-05-07T15:01:22.306916-05', 'year');
             SELECT datetime_get(
@@ -789,7 +789,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_datetime_get_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT datetime_get(
                 <naive_datetime>'2018-05-07T15:01:22.306916', 'year');
             SELECT datetime_get(
@@ -823,7 +823,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_functions_date_get_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT date_get(<naive_date>'2018-05-07', 'year');
             SELECT date_get(<naive_date>'2018-05-07', 'month');
             SELECT date_get(<naive_date>'2018-05-07', 'day');
@@ -834,7 +834,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_time_get_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT time_get(<naive_time>'15:01:22.306916', 'hour');
             SELECT time_get(<naive_time>'15:01:22.306916', 'minute');
             SELECT time_get(<naive_time>'15:01:22.306916', 'second');
@@ -845,7 +845,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_timedelta_get_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT timedelta_get(<timedelta>'15:01:22.306916', 'hour');
             SELECT timedelta_get(<timedelta>'15:01:22.306916', 'minute');
             SELECT timedelta_get(<timedelta>'15:01:22.306916', 'second');
@@ -859,7 +859,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_datetime_trunc_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT <str>datetime_trunc(
                 <datetime>'2018-05-07T15:01:22.306916-05', 'year');
             SELECT <str>datetime_trunc(
@@ -885,7 +885,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_timedelta_trunc_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT <str>timedelta_trunc(
                 <timedelta>'3 days 15:01:22', 'day');
             SELECT <str>timedelta_trunc(
@@ -902,7 +902,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_to_datetime_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT <str>to_datetime(2018, 5, 7, 15, 1, 22.306916);
             SELECT <str>to_datetime(2018, 5, 7, 15, 1, 22.306916, 'EST');
             SELECT <str>to_datetime(2018, 5, 7, 15, 1, 22.306916, '-5');
@@ -913,28 +913,28 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_to_naive_datetime_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT <str>to_naive_datetime(2018, 5, 7, 15, 1, 22.306916);
         ''', [
             ['2018-05-07T15:01:22.306916'],
         ])
 
     async def test_edgeql_functions_to_naive_date_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT <str>to_naive_date(2018, 5, 7);
         ''', [
             ['2018-05-07'],
         ])
 
     async def test_edgeql_functions_to_naive_time_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT <str>to_naive_time(15, 1, 22.306916);
         ''', [
             ['15:01:22.306916'],
         ])
 
     async def test_edgeql_functions_to_timedelta_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT <str>to_timedelta(years:=20);
             SELECT <str>to_timedelta(months:=20);
             SELECT <str>to_timedelta(weeks:=20);
@@ -953,7 +953,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_to_timedelta_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT to_timedelta(years:=20) > to_timedelta(months:=20);
             SELECT to_timedelta(months:=20) > to_timedelta(weeks:=20);
             SELECT to_timedelta(weeks:=20) > to_timedelta(days:=20);
@@ -972,7 +972,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_to_str_01(self):
         # at the very least the cast <str> should be equivalent to
         # a call to to_str() without explicit format for simple scalars
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH DT := datetime_current()
             # FIXME: the cast has a "T" and the str doesn't for some reason
             SELECT <str>DT = to_str(DT);
@@ -1001,7 +1001,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_to_str_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
             SELECT to_str(DT, 'YYYY-MM-DD');
 
@@ -1035,7 +1035,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_to_str_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
             SELECT to_str(DT, 'HH:MI A.M.');
         ''', [
@@ -1044,7 +1044,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_to_str_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH DT := <naive_date>'2018-05-07'
             SELECT to_str(DT, 'YYYY-MM-DD');
 
@@ -1078,7 +1078,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_to_str_05(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT to_str(123456789, '99');
             SELECT to_str(123456789, '999999999');
             SELECT to_str(123456789, '999,999,999');
@@ -1115,7 +1115,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_to_str_06(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT to_str(123.456789, '99');
             SELECT to_str(123.456789, '999');
             SELECT to_str(123.456789, '999.999');
@@ -1144,7 +1144,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_to_str_07(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT to_str(<naive_time>'15:01:22', 'HH:MI A.M.');
             SELECT to_str(<naive_time>'15:01:22', 'HH:MI:SSam.');
             SELECT to_str(<naive_time>'15:01:22', 'HH24:MI');
@@ -1155,7 +1155,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_to_int_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT to_int64(' 123456789', '999999999');
             SELECT to_int64(' 123,456,789', '999,999,999');
             SELECT to_int64('     123,456,789', '999,999,999,999');
@@ -1186,7 +1186,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_to_int_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT to_int32(' 123456789', '999999999');
             SELECT to_int32(' 123,456,789', '999,999,999');
             SELECT to_int32('     123,456,789', '999,999,999,999');
@@ -1217,7 +1217,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_to_int_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT to_int16('12345', '999999999');
             SELECT to_int16('12,345', '999,999,999');
             SELECT to_int16('     12,345', '999,999,999,999');
@@ -1248,7 +1248,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_to_float_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT to_float64(' 123', '999');
             SELECT to_float64('123.457', '999.999');
             SELECT to_float64(' 123.456789000', '999.999999999');
@@ -1261,7 +1261,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_to_float_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT to_float32(' 123', '999');
             SELECT to_float32('123.457', '999.999');
             SELECT to_float32(' 123.456789000', '999.999999999');
@@ -1274,7 +1274,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_to_decimal_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT to_decimal(' 123', '999');
             SELECT to_decimal('123.457', '999.999');
             SELECT to_decimal(' 123.456789000', '999.999999999');
@@ -1287,7 +1287,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_to_decimal_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT to_decimal(
                 '123456789123456789123456789.123456789123456789123456789',
                 'FM999999999999999999999999999.999999999999999999999999999');
@@ -1296,7 +1296,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_len_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT len('');
             SELECT len('hello');
             SELECT len({'hello', 'world'});
@@ -1307,7 +1307,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_len_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT len(b'');
             SELECT len(b'hello');
             SELECT len({b'hello', b'world'});
@@ -1318,7 +1318,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_len_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT len(<array<str>>[]);
             SELECT len(['hello']);
             SELECT len(['hello', 'world']);
@@ -1333,7 +1333,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_min_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # numbers
             SELECT min(<int64>{});
             SELECT min(4);
@@ -1403,7 +1403,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_min_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT min(User.name);
 
@@ -1419,7 +1419,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_max_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # numbers
             SELECT max(<int64>{});
             SELECT max(4);
@@ -1489,7 +1489,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_max_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT max(User.name);
 
@@ -1505,7 +1505,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_all_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT all(<bool>{});
             SELECT all({True});
             SELECT all({False});
@@ -1536,7 +1536,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_all_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT all(len(User.name) = 4);
 
@@ -1557,7 +1557,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_any_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT any(<bool>{});
             SELECT any({True});
             SELECT any({False});
@@ -1588,7 +1588,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_any_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT any(len(User.name) = 4);
 
@@ -1609,7 +1609,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_any_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT any(len(User.name) = 4) = NOT all(NOT (len(User.name) = 4));
 
@@ -1635,7 +1635,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_round_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # trivial
             SELECT round(<float64>{});
             SELECT round(<float64>1);
@@ -1683,7 +1683,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_round_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT round(<float32>1.2) IS float64;
             SELECT round(<float64>1.2) IS float64;
             SELECT round(1.2) IS float64;
@@ -1700,7 +1700,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_round_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT round(<decimal>123.456, 10);
             SELECT round(<decimal>123.456, 3);
             SELECT round(<decimal>123.456, 2);
@@ -1721,7 +1721,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_round_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT _ := round(<int64>Issue.number / 2)
             ORDER BY _;
@@ -1735,7 +1735,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_contains_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT std::contains(<array<int64>>[], {1, 3});
             SELECT contains([1], {1, 3});
             SELECT contains([1, 2], 1);
@@ -1750,7 +1750,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_contains_02(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             WITH x := [3, 1, 2]
             SELECT contains(x, 2);
 
@@ -1766,7 +1766,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_contains_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT contains(<str>{}, <str>{});
             SELECT contains(<str>{}, 'a');
             SELECT contains('qwerty', <str>{});
@@ -1791,7 +1791,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_contains_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT contains(<bytes>{}, <bytes>{});
             SELECT contains(<bytes>{}, b'a');
             SELECT contains(b'qwerty', <bytes>{});
@@ -1816,7 +1816,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_find_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT find(<str>{}, <str>{});
             SELECT find(<str>{}, 'a');
             SELECT find('qwerty', <str>{});
@@ -1841,7 +1841,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_find_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT find(<bytes>{}, <bytes>{});
             SELECT find(<bytes>{}, b'a');
             SELECT find(b'qwerty', <bytes>{});
@@ -1866,7 +1866,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_find_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT find(<array<str>>{}, <str>{});
             SELECT find(<array<str>>{}, 'the');
             SELECT find(['the', 'quick', 'brown', 'fox'], <str>{});
@@ -1897,7 +1897,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_str_case_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT str_lower({'HeLlO', 'WoRlD!'});
             SELECT str_upper({'HeLlO', 'WoRlD!'});
             SELECT str_title({'HeLlO', 'WoRlD!'});
@@ -1914,7 +1914,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_str_pad_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT str_lpad('Hello', 20);
             SELECT str_lpad('Hello', 20, '>');
             SELECT str_lpad('Hello', 20, '-->');
@@ -1931,7 +1931,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_str_pad_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT str_lpad('Hello', 2);
             SELECT str_lpad('Hello', 2, '>');
             SELECT str_lpad('Hello', 2, '-->');
@@ -1948,7 +1948,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_str_pad_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH l := {0, 2, 10, 20}
             SELECT len(str_lpad('Hello', l)) = l;
 
@@ -1960,7 +1960,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_str_trim_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT str_trim('    Hello    ');
             SELECT str_ltrim('    Hello    ');
             SELECT str_rtrim('    Hello    ');
@@ -1971,7 +1971,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_str_trim_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT str_ltrim('               Hello', ' <->');
             SELECT str_ltrim('>>>>>>>>>>>>>>>Hello', ' <->');
             SELECT str_ltrim('-->-->-->-->-->Hello', ' <->');
@@ -1990,7 +1990,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_str_trim_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT str_trim(str_lpad('Hello', 20), ' <->');
             SELECT str_trim(str_lpad('Hello', 20, '>'), ' <->');
             SELECT str_trim(str_lpad('Hello', 20, '-->'), ' <->');
@@ -2007,7 +2007,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_math_abs_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT math::abs(2);
             SELECT math::abs(-2);
             SELECT math::abs(2.5);
@@ -2024,7 +2024,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_math_abs_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT math::abs(<int16>2) IS int16;
             SELECT math::abs(<int32>2) IS int32;
             SELECT math::abs(<int64>2) IS int64;
@@ -2041,7 +2041,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_math_ceil_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT math::ceil(2);
             SELECT math::ceil(2.5);
             SELECT math::ceil(-2.5);
@@ -2056,7 +2056,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_math_ceil_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT math::ceil(<int16>2) IS float64;
             SELECT math::ceil(<int32>2) IS float64;
             SELECT math::ceil(<int64>2) IS float64;
@@ -2073,7 +2073,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_math_floor_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT math::floor(2);
             SELECT math::floor(2.5);
             SELECT math::floor(-2.5);
@@ -2088,7 +2088,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_math_floor_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT math::floor(<int16>2) IS float64;
             SELECT math::floor(<int32>2) IS float64;
             SELECT math::floor(<int64>2) IS float64;
@@ -2105,7 +2105,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_math_log_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT math::ln({1, 10, 32});
             SELECT math::lg({1, 10, 32});
             SELECT math::log(<decimal>{1, 10, 32}, base := <decimal>2);
@@ -2116,7 +2116,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_math_log_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT math::ln(<int16>2) IS float64;
             SELECT math::ln(<int32>2) IS float64;
             SELECT math::ln(<int64>2) IS float64;
@@ -2151,7 +2151,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_math_mean_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT math::mean(1);
             SELECT math::mean(1.5);
             SELECT math::mean({1, 2, 3});
@@ -2170,7 +2170,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_math_mean_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # int16 is implicitly cast in float32, which produces a
             # float64 result
             SELECT math::mean(<int16>2) IS float64;
@@ -2189,7 +2189,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_math_mean_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE math,
                 A := {1, 3, 1}
@@ -2201,7 +2201,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_math_mean_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE math,
                 A := <float64>{1, 3, 1}
@@ -2213,7 +2213,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_math_mean_05(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE math,
                 A := len(test::Named.name)
@@ -2225,7 +2225,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_math_mean_06(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE math,
                 A := <float64>len(test::Named.name)
@@ -2237,7 +2237,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_math_mean_07(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE math,
                 A := {3}
@@ -2247,7 +2247,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_math_mean_08(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE math,
                 X := {1, 2, 3, 4}
@@ -2273,7 +2273,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_functions_math_stddev_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT math::stddev({1, 1});
             SELECT math::stddev({1, 1, -1, 1});
             SELECT math::stddev({1, 2, 3});
@@ -2288,7 +2288,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_math_stddev_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT math::stddev(<int16>{1, 1}) IS float64;
             SELECT math::stddev(<int32>{1, 1}) IS float64;
             SELECT math::stddev(<int64>{1, 1}) IS float64;
@@ -2329,7 +2329,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_functions_math_stddev_pop_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT math::stddev_pop(1);
             SELECT math::stddev_pop({1, 1, 1});
             SELECT math::stddev_pop({1, 2, 1, 2});
@@ -2344,7 +2344,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_math_stddev_pop_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT math::stddev_pop(<int16>1) IS float64;
             SELECT math::stddev_pop(<int32>1) IS float64;
             SELECT math::stddev_pop(<int64>1) IS float64;
@@ -2373,7 +2373,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_functions_math_var_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT math::var({1, 1});
             SELECT math::var({1, 1, -1, 1});
             SELECT math::var({1, 2, 3});
@@ -2388,7 +2388,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_math_var_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # int16 is implicitly cast in float32, which produces a
             # float64 result
             SELECT math::var(<int16>{1, 1}) IS float64;
@@ -2407,7 +2407,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_math_var_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE math,
                 X := {1, 1}
@@ -2465,7 +2465,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_functions_math_var_pop_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT math::var_pop(1);
             SELECT math::var_pop({1, 1, 1});
             SELECT math::var_pop({1, 2, 1, 2});
@@ -2480,7 +2480,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_math_var_pop_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT math::var_pop(<int16>1) IS float64;
             SELECT math::var_pop(<int32>1) IS float64;
             SELECT math::var_pop(<int64>1) IS float64;
@@ -2497,7 +2497,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_functions_math_var_pop_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE math,
                 X := {1, 2, 1, 2}

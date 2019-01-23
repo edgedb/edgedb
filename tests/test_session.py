@@ -55,14 +55,14 @@ class TestSession(tb.QueryTestCase):
     """
 
     async def test_session_default_module_01(self):
-        await self.assert_query_result("""
+        await self.assert_legacy_query_result("""
             SELECT User {name};
         """, [[{
             'name': 'user'
         }]])
 
     async def test_session_set_command_01(self):
-        await self.assert_query_result("""
+        await self.assert_legacy_query_result("""
             SET MODULE foo;
 
             SELECT Entity {name};
@@ -79,7 +79,7 @@ class TestSession(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 'reference to a non-existent schema item: User'):
-            await self.assert_query_result("""
+            await self.assert_legacy_query_result("""
                 SET MODULE foo;
 
                 SELECT User {name};
@@ -93,7 +93,7 @@ class TestSession(tb.QueryTestCase):
             ])
 
     async def test_session_set_command_03(self):
-        await self.assert_query_result("""
+        await self.assert_legacy_query_result("""
             SET MODULE foo, ALIAS bar AS MODULE default;
 
             SELECT (Entity.name, bar::User.name);
@@ -106,7 +106,7 @@ class TestSession(tb.QueryTestCase):
 
     async def test_session_set_command_05(self):
         # Check that local WITH overrides the session level setting.
-        await self.assert_query_result("""
+        await self.assert_legacy_query_result("""
             SET MODULE default, ALIAS bar AS MODULE foo;
 
             WITH MODULE foo, bar AS MODULE default
@@ -121,7 +121,7 @@ class TestSession(tb.QueryTestCase):
     async def test_session_set_command_06(self):
         # Check that nested WITH blocks work correctly, with and
         # without DETACHED.
-        await self.assert_query_result("""
+        await self.assert_legacy_query_result("""
             WITH MODULE foo
                 SELECT (
                     Entity.name,

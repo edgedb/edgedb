@@ -38,7 +38,7 @@ class TestIndexes(tb.DDLTestCase):
             COMMIT MIGRATION test::d1;
         """)
 
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT
                 schema::ObjectType {
                     indexes: {
@@ -62,7 +62,7 @@ class TestIndexes(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             SELECT
                 Person {

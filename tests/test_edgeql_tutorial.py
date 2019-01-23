@@ -25,7 +25,7 @@ from edb.testbase import server as tb
 class TestEdgeQLTutorial(tb.QueryTestCase):
 
     async def test_edgeql_tutorial(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             CREATE MIGRATION m1 TO eschema $$
                 type User:
                     required property login -> str:

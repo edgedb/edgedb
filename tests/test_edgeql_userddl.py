@@ -255,7 +255,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 $$;
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT test::func_20('q');
             SELECT count(test::func_20({'q', 'w'}));
         ''', [

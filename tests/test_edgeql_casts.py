@@ -170,7 +170,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     # NOTE: casts are idempotent
 
     async def test_edgeql_casts_idempotence_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT <bool><bool>True IS bool;
             SELECT <bytes><bytes>b'Hello' IS bytes;
             SELECT <str><str>'Hello' IS str;
@@ -215,7 +215,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         ])
 
     async def test_edgeql_casts_idempotence_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT <bool><bool>True = True;
             SELECT <bytes><bytes>b'Hello' = b'Hello';
             SELECT <str><str>'Hello' = 'Hello';
@@ -269,7 +269,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         # Casting to str and back is lossless for every scalar (if
         # legal). It's still not legal to cast bytes into str or some
         # of the json values.
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT <bool><str>True = True;
             SELECT <bool><str>False = False;
             # only JSON strings can be cast into EdgeQL str
@@ -322,7 +322,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         # Certain strings can be cast into other types losslessly,
         # making them "canonical" string representations of those
         # values.
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH x := {'true', 'false'}
             SELECT <str><bool>x = x;
 
@@ -340,7 +340,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
     async def test_edgeql_casts_str_03(self):
         # str to json is always lossless
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH x := {'any', 'arbitrary', '♠gibberish♠'}
             SELECT <str><json>x = x;
         ''', [
@@ -349,7 +349,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
     async def test_edgeql_casts_str_04(self):
         # canonical uuid representation as a string is using lowercase
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH x := 'd4288330-eea3-11e8-bc5f-7faf132b1d84'
             SELECT <str><uuid>x = x;
 
@@ -377,7 +377,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         # Canonical date and time str representations must follow ISO
         # 8601. This test assumes that the server is configured to be
         # in UTC time zone.
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH x := '2018-05-07T20:01:22.306916+00:00'
             SELECT <str><datetime>x = x;
 
@@ -410,7 +410,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         # Canonical date and time str representations must follow ISO
         # 8601. This test assumes that the server is configured to be
         # in UTC time zone.
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH x := '2018-05-07T20:01:22.306916'
             SELECT <str><naive_datetime>x = x;
 
@@ -439,7 +439,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     async def test_edgeql_casts_str_07(self):
         # Canonical date and time str representations must follow ISO
         # 8601.
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH x := '2018-05-07'
             SELECT <str><naive_date>x = x;
 
@@ -471,7 +471,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     async def test_edgeql_casts_str_08(self):
         # Canonical date and time str representations must follow ISO
         # 8601.
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH x := '20:01:22.306916'
             SELECT <str><naive_time>x = x;
 
@@ -496,7 +496,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
     async def test_edgeql_casts_str_09(self):
         # Canonical timedelta is a bit weird.
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH x := '20:01:22.306916'
             SELECT <str><timedelta>x = x;
 
@@ -526,7 +526,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     async def test_edgeql_casts_str_10(self):
         # valid casts from str to any integer is lossless, as long as
         # there's no whitespace, which is trimmed
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH x := {'-20', '0', '7', '12345'}
             SELECT <str><int16>x = x;
             WITH x := {'-20', '0', '7', '12345'}
@@ -563,7 +563,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         # trivial 1-2 digit cases, relying on any str being
         # "canonical" is not safe, making most casts from str to float
         # lossy.
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH x := {'-20', '0', '7.2'}
             SELECT <str><float32>x = x;
             WITH x := {'-20', '0', '7.2'}
@@ -603,7 +603,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     async def test_edgeql_casts_str_12(self):
         # The canonical string representation of decimals is without
         # use of scientific notation.
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH x := {
                 '-20', '0', '7.2', '0.0000000001234', '1234.00000001234'
             }
@@ -632,7 +632,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         # Casting to str and back is lossless for every scalar (if
         # legal). It's still not legal to cast bytes into str or some
         # of the json values.
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
             SELECT <uuid><str>T.id = T.id;
             WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
@@ -682,7 +682,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     async def test_edgeql_casts_numeric_01(self):
         # Casting to decimal and back should be lossless for any other
         # integer type.
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # technically we're already casting a literal int64 to int16 first
             WITH x := <int16>{-32768, -32767, -100, 0, 13, 32766, 32767}
             SELECT <int16><decimal>x = x;
@@ -716,7 +716,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         # Casting to decimal and back should be lossless for any other
         # float type of low precision (a couple of digits less than
         # the maximum possible float precision).
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # technically we're already casting a literal int64 or
             # float64 to float32 first
             WITH x := <float32>{-3.31234e+38, -1.234e+12, -1.234e-12, -100, 0,
@@ -738,7 +738,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         # obvious errors would be raised (as any int32 value is
         # technically withing valid range of float32), but the value
         # could be mangled.
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # ints <= 2^24 can be represented exactly in a float32
             WITH x := <int32>{16777216, 16777215, 16777214,
                               1677721, 167772, 16777}
@@ -757,7 +757,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         ])
 
     async def test_edgeql_casts_numeric_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # ints <= 2^24 can be represented exactly in a float32
             WITH x := <int32>{16777216, 16777215, 16777214,
                               1677721, 167772, 16777}
@@ -776,7 +776,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         # Due to the sparseness of float values large integers may not
         # be representable exactly if they require better precision
         # than float provides.
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # 2^31 -1, -2, -3, -10
             WITH x := <int32>{2147483647, 2147483646, 2147483645,
                               2147483638}
@@ -815,7 +815,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 """)
 
     async def test_edgeql_casts_numeric_06(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT <int16>1;
             SELECT <int32>1;
             SELECT <int64>1;
@@ -835,7 +835,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         numerics = ['int16', 'int32', 'int64', 'float32', 'float64', 'decimal']
 
         for t1, t2 in itertools.product(numerics, numerics):
-            await self.assert_query_result(f'''
+            await self.assert_legacy_query_result(f'''
                 SELECT <{t1}><{t2}>1;
             ''', [
                 [{}],
@@ -844,7 +844,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     async def test_edgeql_casts_numeric_08(self):
         # Casting a float into a decimal (also true for json and str)
         # is not lossless for arbitrary floats.
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT <float64><decimal>(20/29) = (20/29);
             SELECT <float32><decimal>(<float32>20/<float32>29) =
                 (<float32>20/<float32>29);
@@ -947,7 +947,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     # reason as casting into str).
 
     async def test_edgeql_casts_json_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT <bool><json>True = True;
             SELECT <bool><json>False = False;
             SELECT <str><json>"Hello" = 'Hello';
@@ -1000,7 +1000,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         ])
 
     async def test_edgeql_casts_json_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
             SELECT <bool><json>T.p_bool = T.p_bool;
             WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
@@ -1045,7 +1045,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         ])
 
     async def test_edgeql_casts_json_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 T := (SELECT Test FILTER .p_str = 'Hello'),
@@ -1203,7 +1203,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 };
             """)
 
-            await self.assert_query_result(r"""
+            await self.assert_legacy_query_result(r"""
                 SELECT ScalarTest {
                     p_int16,
                     p_int32,
@@ -1238,7 +1238,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 };
             """)
 
-            await self.assert_query_result(r"""
+            await self.assert_legacy_query_result(r"""
                 SELECT ScalarTest {
                     p_float32,
                 };
@@ -1279,7 +1279,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 ''')
 
     async def test_edgeql_casts_custom_scalar_01(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             SELECT <test::custom_str_t>'ABC'
         ''', [
             ['ABC']

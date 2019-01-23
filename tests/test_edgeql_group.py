@@ -37,7 +37,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                          'groups_setup.eql')
 
     async def test_edgeql_group_simple_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             GROUP User
             USING _ := User.name
@@ -49,7 +49,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_simple_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             GROUP Issue := Issue
             # time_estimate is {} on some Issues, but that's a valid grouping
@@ -63,7 +63,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_simple_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             GROUP Issue
             USING _ := Issue.time_estimate
@@ -76,7 +76,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_simple_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             GROUP Issue
             USING _ := Issue.time_estimate
@@ -90,7 +90,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_simple_05(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             GROUP Issue
             USING _ := Issue.time_estimate
@@ -104,7 +104,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_simple_06(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             GROUP Issue
             USING _ := Issue.time_estimate
@@ -118,7 +118,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_by_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             GROUP Issue
             USING B :=  Issue.status.name
@@ -139,7 +139,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_by_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             GROUP Issue
             USING B :=  Issue.status.name
@@ -161,7 +161,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_result_alias_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # re-use the same "_" alias in nested scope
             WITH MODULE test
             GROUP Issue
@@ -190,7 +190,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_result_alias_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # re-use the same "_" alias in nested scope
             WITH MODULE test
             GROUP Issue
@@ -209,7 +209,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_nested_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             SELECT
                 R := (
@@ -254,7 +254,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ]])
 
     async def test_edgeql_group_returning_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             GROUP Issue
             USING _ :=  Issue.time_estimate
@@ -269,7 +269,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_returning_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             GROUP Issue
             USING B := Issue.time_estimate
@@ -284,7 +284,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_returning_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             GROUP Issue
             USING B := Issue.status
@@ -309,7 +309,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_returning_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             GROUP Issue
             USING _ := Issue.status
@@ -340,7 +340,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_returning_05(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # a trivial group that is actually not doing anything
             # different from a plain SELECT
             WITH MODULE cards
@@ -366,7 +366,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_returning_06(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # a trivial group that is actually not doing anything
             # different from a plain SELECT
             WITH MODULE cards
@@ -392,7 +392,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_returning_07(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # Nominate a leader in each group from among the group.
             #
             # The below is a very long and explicit way of forming a
@@ -480,7 +480,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_returning_08(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # Nominate a leader in each group from among the group.
             #
             # Same as previous test, but with all of the shape spec
@@ -564,7 +564,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_returning_09(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # Nominate a leader in each group from among the group.
             #
             # Same as previous tests, but refactored to take full
@@ -646,7 +646,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_by_tuple_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             GROUP Issue
             USING B := (Issue.status.name, Issue.time_estimate)
@@ -673,7 +673,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_by_multiple_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             GROUP Issue
             USING
@@ -704,7 +704,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_by_multiple_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             GROUP Issue
             USING
@@ -731,7 +731,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_by_multiple_03(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             GROUP Issue
             USING
@@ -763,7 +763,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_by_multiple_04(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             GROUP Issue
             USING
@@ -800,7 +800,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_by_multiple_05(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             GROUP
                 # define a computable in the GROUP expr
@@ -838,7 +838,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_by_multiple_06(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             GROUP Issue
             USING
@@ -875,7 +875,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_by_multiple_07(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE cards
             GROUP C := Card
             USING x := C.cost
@@ -897,7 +897,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_linkproperty_simple_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # group by link property
             WITH MODULE cards
             GROUP Card
@@ -933,7 +933,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_linkproperty_simple_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # use link property inside a group aggregate
             WITH MODULE cards
             GROUP Card
@@ -975,7 +975,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_linkproperty_simple_03(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # group by link property
             WITH MODULE cards
             GROUP User
@@ -1001,7 +1001,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_linkproperty_nested_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE cards
             SELECT User {
                 name,
@@ -1071,7 +1071,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_linkproperty_multiple_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH
                 MODULE cards
                 U := (
@@ -1125,7 +1125,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ])
 
     async def test_edgeql_group_scalar_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH
                 MODULE test,
                 I := <int64>Issue.number

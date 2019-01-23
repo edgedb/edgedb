@@ -34,7 +34,7 @@ class TestIntrospection(tb.QueryTestCase):
     """
 
     async def test_edgeql_introspection_objtype_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE schema
             SELECT `ObjectType` {
                 name
@@ -60,7 +60,7 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_objtype_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE schema
             SELECT ObjectType {
                 name,
@@ -87,7 +87,7 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_objtype_03(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE schema
             SELECT ObjectType {
                 name,
@@ -112,7 +112,7 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_objtype_04(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE schema
             SELECT ObjectType {
                 name,
@@ -139,7 +139,7 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_objtype_05(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE schema
             SELECT ObjectType {
                 name,
@@ -166,7 +166,7 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_objtype_06(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # get all links, mappings and target names for Comment
             WITH MODULE schema
             SELECT ObjectType {
@@ -204,7 +204,7 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_objtype_07(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # get all user-defined object types with at least one ** link
             WITH MODULE schema
             SELECT ObjectType {
@@ -224,7 +224,7 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_objtype_08(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # get all user-defined object types with at least one multi link
             WITH MODULE schema
             SELECT `ObjectType` {
@@ -244,7 +244,7 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_objtype_09(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # get all user-defined object types with at least one
             # array property
             WITH MODULE schema
@@ -276,7 +276,7 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_link_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE schema
             SELECT Link {
                 name,
@@ -301,7 +301,7 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_constraint_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT schema::Constraint {
                 name,
                 params: {
@@ -334,7 +334,7 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_constraint_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT schema::Constraint {
                 name,
                 params: {
@@ -368,7 +368,7 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_constraint_03(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT schema::Constraint {
                 name,
                 params: {
@@ -403,7 +403,7 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_constraint_04(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT schema::Constraint {
                 name,
                 subject: {
@@ -429,14 +429,14 @@ class TestIntrospection(tb.QueryTestCase):
 
     @test.xfail('There should be at least 1 Database.')
     async def test_edgeql_introspection_meta_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT count(schema::Database) > 0;
         ''', [
             [True],
         ])
 
     async def test_edgeql_introspection_meta_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT count(schema::Module) > 0;
             SELECT 'std' IN schema::Module.name;
         ''', [
@@ -449,14 +449,14 @@ class TestIntrospection(tb.QueryTestCase):
         all the schema objects from standard library.
     ''')
     async def test_edgeql_introspection_meta_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT count(Object) > 10;
         ''', [
             [True],
         ])
 
     async def test_edgeql_introspection_meta_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT count(schema::Type) > 0;
             SELECT count(schema::ScalarType) > 0;
             SELECT count(schema::ObjectType) > 0;
@@ -479,7 +479,7 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_meta_05(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT count(schema::PseudoType) > 0;
             SELECT count(schema::PseudoType) < count(schema::Type);
             SELECT DISTINCT (schema::PseudoType IS schema::Type);
@@ -495,7 +495,7 @@ class TestIntrospection(tb.QueryTestCase):
         relation "edgedbss.6b1e0cfa-1511-11e9-8f2e-b5ee4369b429" does not exist
     ''')
     async def test_edgeql_introspection_meta_06(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT count(schema::ContainerType) > 0;
             SELECT count(schema::Array) > 0;
             SELECT count(schema::Tuple) > 0;
@@ -522,35 +522,35 @@ class TestIntrospection(tb.QueryTestCase):
         ])
 
     async def test_edgeql_introspection_meta_07(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT count(schema::Operator) > 0;
         ''', [
             [True],
         ])
 
     async def test_edgeql_introspection_meta_08(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT count(schema::Cast) > 0;
         ''', [
             [True],
         ])
 
     async def test_edgeql_introspection_meta_09(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT count(schema::Constraint) > 0;
         ''', [
             [True],
         ])
 
     async def test_edgeql_introspection_meta_10(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT count(schema::Function) > 0;
         ''', [
             [True],
         ])
 
     async def test_edgeql_introspection_meta_11(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE schema
             SELECT DISTINCT (
                 SELECT Type IS Array
@@ -562,7 +562,7 @@ class TestIntrospection(tb.QueryTestCase):
 
     @test.xfail('Tuples get registered as Arrays.')
     async def test_edgeql_introspection_meta_12(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE schema
             SELECT DISTINCT (
                 SELECT Type IS Tuple
@@ -578,12 +578,12 @@ class TestIntrospection(tb.QueryTestCase):
             SELECT count(schema::Object);
         """)
 
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT schema::Object IS std::Object;
         """, [[True] * res])
 
     async def test_edgeql_introspection_meta_14(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE schema
             SELECT InheritingObject {
                 name
@@ -613,7 +613,7 @@ class TestIntrospection(tb.QueryTestCase):
         self.assertTrue(res)
 
     async def test_edgeql_introspection_meta_16(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE schema
             SELECT ScalarType[IS Object] IS ScalarType LIMIT 1;
         ''', [
@@ -686,7 +686,7 @@ class TestIntrospection(tb.QueryTestCase):
             };
         """)
 
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # Count the number of objects for each object type in module
             # test. This is impossible to do without introspection for
             # object types that have 0 objects.

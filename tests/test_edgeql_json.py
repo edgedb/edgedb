@@ -36,7 +36,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     ISOLATED_METHODS = False
 
     async def test_edgeql_json_cast_01(self):
-        await self.assert_query_result("""
+        await self.assert_legacy_query_result("""
             SELECT to_json('"qwerty"');
             SELECT to_json('1');
             SELECT to_json('2.3e-2');
@@ -89,7 +89,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_cast_02(self):
-        await self.assert_query_result("""
+        await self.assert_legacy_query_result("""
             SELECT <str>to_json('"qwerty"');
             SELECT <int64>to_json('1');
             SELECT <float64>to_json('2.3e-2');
@@ -107,7 +107,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_cast_03(self):
-        await self.assert_query_result("""
+        await self.assert_legacy_query_result("""
             SELECT <str>to_json('null');
             SELECT <int64>to_json('null');
             SELECT <float64>to_json('null');
@@ -120,7 +120,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_cast_04(self):
-        await self.assert_query_result("""
+        await self.assert_legacy_query_result("""
             SELECT <str>to_json('null') ?= <str>{};
             SELECT <int64>to_json('null') ?= <int64>{};
             SELECT <float64>to_json('null') ?= <float64>{};
@@ -133,7 +133,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_cast_05(self):
-        await self.assert_query_result("""
+        await self.assert_legacy_query_result("""
             SELECT <json>{} ?= (
                 SELECT x := to_json('1') FILTER x = to_json('2')
             );
@@ -147,7 +147,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_cast_06(self):
         # XXX: casting into tuples or other deeply nested structures
         # is not currently implemented
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT <tuple<int64, str>><json>[1, 2];
             SELECT <array<int64>>to_json('[2, 3, 5]');
         """, [
@@ -156,7 +156,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_accessor_01(self):
-        await self.assert_query_result("""
+        await self.assert_legacy_query_result("""
             SELECT (to_json('[1, "a", 3]'))[0] = to_json('1');
             SELECT (to_json('[1, "a", 3]'))[1] = to_json('"a"');
             SELECT (to_json('[1, "a", 3]'))[2] = to_json('3');
@@ -173,7 +173,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_accessor_02(self):
-        await self.assert_query_result("""
+        await self.assert_legacy_query_result("""
             SELECT (to_json('{"a": 1, "b": null}'))["a"] =
                 to_json('1');
 
@@ -185,7 +185,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_accessor_03(self):
-        await self.assert_query_result("""
+        await self.assert_legacy_query_result("""
             SELECT (<str>(to_json('["qwerty"]'))[0])[1];
         """, [
             ['w'],
@@ -278,7 +278,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             """)
 
     async def test_edgeql_json_accessor_13(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SET MODULE test;
 
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -405,7 +405,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             """)
 
     async def test_edgeql_json_null_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT (
                 SELECT JSONTest FILTER .number = 0
@@ -433,7 +433,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_typeof_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT json_typeof(to_json('2'));
             SELECT json_typeof(to_json('"foo"'));
             SELECT json_typeof(to_json('true'));
@@ -458,7 +458,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_typeof_02(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             SET MODULE test;
             SELECT json_typeof(JSONTest.j_string);
             SELECT json_typeof(JSONTest.j_number);
@@ -477,7 +477,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_array_unpack_01(self):
-        await self.assert_query_result("""
+        await self.assert_legacy_query_result("""
             SELECT json_array_unpack(to_json('[1, "a", null]'));
         """, [
             [1, 'a', None],  # None is legitimate JSON null
@@ -502,7 +502,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_json_array_unpack_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT json_array_unpack(to_json('[2,3,4]')) IN
                 <json>{2, 3, 4};
             SELECT json_array_unpack(to_json('[2,3,4]')) NOT IN
@@ -524,7 +524,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_json_array_unpack_06(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 JT0 := (SELECT JSONTest FILTER .number = 0)
@@ -535,7 +535,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_array_unpack_07(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 JT0 := (SELECT JSONTest FILTER .number = 2)
@@ -548,7 +548,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_array_unpack_08(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 JT0 := (SELECT JSONTest FILTER .number = 2)
@@ -560,7 +560,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_object_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT to_json('{"a":1,"b":2}') = to_json('{"b":2,"a":1}');
             SELECT to_json('{"a":1,"b":2}') =
                 to_json('{"b":3,"a":1,"b":2}');
@@ -570,7 +570,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_object_unpack_01(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             SELECT json_object_unpack(to_json('{
                 "q": 1,
                 "w": [2, null, 3],
@@ -584,7 +584,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ]])
 
     async def test_edgeql_json_object_unpack_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT
                 _ := json_object_unpack(JSONTest.j_object)
@@ -625,7 +625,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_json_object_unpack_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 JT1 := (SELECT JSONTest FILTER .number = 1),
@@ -639,7 +639,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_get_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SET MODULE test;
 
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -688,7 +688,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_get_02(self):
         # since only one JSONTest has a non-trivial `data`, we
         # don't need to filter to get the same results as above
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SET MODULE test;
 
             SELECT json_get(JSONTest.data, '2');
@@ -718,7 +718,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_get_03(self):
         # chaining json_get should get the same effect as a single call
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SET MODULE test;
 
             SELECT json_get(JSONTest.data, '4', 'b', 'bar', '2', 'bingo');
@@ -734,7 +734,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_get_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SET MODULE test;
 
             SELECT json_get(JSONTest.data, 'bogus') ?? <json>'oups';
@@ -802,7 +802,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_cast_object_to_json_02(self):
         # Test that object-to-json cast works in non-SELECT clause.
-        await self.assert_query_result("""
+        await self.assert_legacy_query_result("""
             WITH MODULE schema
             SELECT
                 ScalarType {
@@ -818,7 +818,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_cast_object_to_json_03(self):
         # Test that object-to-json cast works in tuples as well.
-        await self.assert_query_result("""
+        await self.assert_legacy_query_result("""
             WITH MODULE schema
             SELECT
                 True
@@ -843,7 +843,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_cast_object_to_json_04(self):
         # Test that object-to-json cast works in arrays as well.
-        await self.assert_query_result("""
+        await self.assert_legacy_query_result("""
             WITH MODULE schema
             SELECT
                 True
@@ -861,7 +861,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_cast_object_to_json_05(self):
-        await self.assert_sorted_query_result(r"""
+        await self.assert_legacy_sorted_query_result(r"""
             # base case
             WITH MODULE test
             SELECT
@@ -970,7 +970,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         )
 
     async def test_edgeql_json_slice_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT to_json('[1, "a", 3, null]')[:1];
             SELECT to_json('[1, "a", 3, null]')[:-1];
             SELECT to_json('[1, "a", 3, null]')[1:-1];
@@ -987,7 +987,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_slice_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SET MODULE test;
 
             WITH JT2 := (SELECT JSONTest FILTER .number = 2)
@@ -1034,7 +1034,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             """)
 
     async def test_edgeql_json_view_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT _ := json_get(JSONTest.j_array, '0')
             ORDER BY _;
@@ -1067,7 +1067,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_view_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT _ := json_get(
                 JSONTest.data,
@@ -1090,7 +1090,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_view_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 JT := JSONTest
@@ -1132,7 +1132,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_view_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT _ := json_get(
                 JSONTest.data,
@@ -1147,7 +1147,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_view_05(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH
                 MODULE test,
                 JT := JSONTest
@@ -1173,7 +1173,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         ])
 
     async def test_edgeql_json_str_function_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT to_str(<json>[1, 2, 3, 4]);
             SELECT to_str(<json>[1, 2, 3, 4], 'pretty');
         ''', [

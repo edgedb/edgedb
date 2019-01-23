@@ -1420,7 +1420,7 @@ class TestServerProto(tb.QueryTestCase):
                 ''')
 
     async def test_server_proto_tx_14(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # test some explicit nested transactions without errors
             SELECT test::TransactionTest{name};
 

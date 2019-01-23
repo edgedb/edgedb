@@ -35,7 +35,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
                           'cards_views_setup.eql')]
 
     async def test_edgeql_views_basic_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT AirCard {
                 name,
@@ -73,7 +73,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             );
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT expert_map
             ORDER BY expert_map;
@@ -99,7 +99,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             );
         ''')
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT scores ORDER BY scores.name;
         ''', [
@@ -111,7 +111,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         ])
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT <tuple<str, int64, int64>>scores
             ORDER BY scores.name;
@@ -124,7 +124,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         ])
 
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT <tuple<name: str, points: int64, plays: int64>>scores
             ORDER BY scores.name;
@@ -138,7 +138,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
         ])
 
     async def test_edgeql_views_create_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             CREATE VIEW test::DCard := (
                 WITH MODULE test
                 SELECT Card {
@@ -177,7 +177,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
         ])
 
     async def test_edgeql_views_filter_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT FireCard {name}
             FILTER FireCard = DaveCard
@@ -187,7 +187,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
         ])
 
     async def test_edgeql_views_filter02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT AirCard {name}
             FILTER AirCard NOT IN (SELECT Card FILTER Card.name LIKE 'D%')
@@ -200,7 +200,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
         ])
 
     async def test_edgeql_computable_link_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT Card {
                 owners: {
@@ -218,7 +218,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
         ])
 
     async def test_edgeql_computable_link_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT User {
                 name,
@@ -242,7 +242,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
         ])
 
     async def test_edgeql_computable_aliased_link_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT AliasedFriends {
                 my_name,
@@ -269,7 +269,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
         ])
 
     async def test_edgeql_computable_nested_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT Card {
                 name,
@@ -299,7 +299,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_computable_propagation_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH MODULE test
             SELECT _ := {
                 (SELECT User FILTER .name = 'Alice').deck,
@@ -373,7 +373,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
         ])
 
     async def test_edgeql_views_if_else_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             SELECT
                 _ := 'yes' IF Card.cost > 4 ELSE 'no'
@@ -383,7 +383,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
         ])
 
     async def test_edgeql_views_if_else_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # working with singletons
             WITH MODULE test
             SELECT
@@ -443,7 +443,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             [False, False, False, True, True],
         ]
 
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # get the data that this test relies upon in a format
             # that's easy to analyze
             WITH MODULE test
@@ -459,7 +459,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ORDER BY _;
         """, res)
 
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # results and conditions are sets
             WITH MODULE test
             SELECT _ :=
@@ -474,7 +474,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
         ])
 
     async def test_edgeql_views_if_else_04(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             SELECT
                 1   IF User.name[0] = 'A' ELSE
@@ -499,7 +499,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
         ])
 
     async def test_edgeql_views_if_else_05(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE test
             SELECT
                 (Card.name, 'yes' IF Card.cost > 4 ELSE 'no')

@@ -160,14 +160,14 @@ class TestExpressionsWithoutConstantFolding(tb.QueryTestCase):
     """
 
     async def test_edgeql_no_const_folding_str_concat_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT 'aaaa' ++ 'bbbb';
         """, [
             ['aaaabbbb'],
         ])
 
     async def test_edgeql_no_const_folding_str_concat_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT 'aaaa' ++ r'\q' ++ $$\n$$;
         """, [
             [R'aaaa\q\n'],
@@ -185,7 +185,7 @@ class TestExpressions(tb.QueryTestCase):
     """
 
     async def test_edgeql_expr_emptyset_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT <int64>{};
             SELECT <str>{};
             SELECT <int64>{} + 1;
@@ -205,7 +205,7 @@ class TestExpressions(tb.QueryTestCase):
             """)
 
     async def test_edgeql_expr_emptyset_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT count(<int64>{});
             SELECT count(DISTINCT <int64>{});
         """, [
@@ -221,14 +221,14 @@ class TestExpressions(tb.QueryTestCase):
             """)
 
     async def test_edgeql_expr_idempotent_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT (SELECT (SELECT (SELECT 42)));
         """, [
             [42],
         ])
 
     async def test_edgeql_expr_idempotent_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT 'f';
             SELECT 'f'[0];
             SELECT 'foo'[0];
@@ -243,7 +243,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_op_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT 40 + 2;
             SELECT 40 - 2;
             SELECT 40 * 2;
@@ -258,7 +258,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_literals_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT (INTROSPECT TYPEOF 1).name;
             SELECT (INTROSPECT TYPEOF 1.0).name;
             SELECT (INTROSPECT TYPEOF 9223372036854775807).name;
@@ -275,7 +275,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_op_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT 40 ^ 2;
             SELECT 121 ^ 0.5;
             SELECT 2 ^ 3 ^ 2;
@@ -286,7 +286,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_op_03(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT 40 < 2;
             SELECT 40 > 2;
             SELECT 40 <= 2;
@@ -303,7 +303,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_op_04(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT -1 + 2 * 3 - 5 - 6.0 / 2;
             SELECT
                 -1 + 2 * 3 - 5 - 6.0 / 2 > 0
@@ -348,14 +348,14 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_op_05(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT 'foo' ++ 'bar';
         """, [
             ['foobar'],
         ])
 
     async def test_edgeql_expr_op_06(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT <int64>{} = <int64>{};
             SELECT <int64>{} = 42;
         """, [
@@ -365,7 +365,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_op_07(self):
         # Test boolean interaction with {}
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT TRUE OR <bool>{};
             SELECT FALSE AND <bool>{};
         """, [
@@ -392,7 +392,7 @@ class TestExpressions(tb.QueryTestCase):
             """)
 
     async def test_edgeql_expr_op_10(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # the types are put in to satisfy type inference
             SELECT +<int64>{};
             SELECT -<int64>{};
@@ -405,7 +405,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_op_11(self):
         # Test non-trivial folding
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT 1 + (1 + len([1, 2])) + 1;
             SELECT 2 * (2 * len([1, 2])) * 2;
         """, [
@@ -415,7 +415,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_op_12(self):
         # Test power precedence
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT -2^2;
         """, [
             [-4],
@@ -423,7 +423,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_op_13(self):
         # test equivalence comparison
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT 2 ?= 2;
             SELECT 2 ?= 3;
             SELECT 2 ?!= 2;
@@ -446,7 +446,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_op_14(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT _ := {9, 1, 13}
             FILTER _ IN {11, 12, 13};
 
@@ -458,7 +458,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_op_15(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT _ := {9, 12, 13}
             FILTER _ NOT IN {11, 12, 13};
 
@@ -470,7 +470,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_op_16(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH a := {11, 12, 13}
             SELECT _ := {9, 1, 13}
             FILTER _ IN a;
@@ -489,7 +489,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_op_17(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH a := {11, 12, 13}
             SELECT _ := {9, 1, 13}
             FILTER _ NOT IN a;
@@ -509,7 +509,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_op_18(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT _ := {1, 2, 3} IN {3, 4}
             ORDER BY _;
         """, [
@@ -517,7 +517,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_op_19(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT 1 IN <int64>{};
             SELECT {1, 2, 3} IN <int64>{};
 
@@ -533,7 +533,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_op_20(self):
         # Test that power applied to int64 is producing a float64 even
         # in the underlying implementation.
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # use of floor(random()) is to prevent constant folding
             # optimizations
             SELECT (10 + math::floor(random()))^308;
@@ -559,7 +559,7 @@ class TestExpressions(tb.QueryTestCase):
         # There was a bug that caused `=` to not always be equivalent
         # to `>= AND <=` due to difference in casting decimals to
         # floats or floats into decimal.
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT <decimal>0.797693134862311111111 = 0.797693134862311111111;
             SELECT
                 <decimal>0.797693134862311111111 >= 0.797693134862311111111
@@ -574,9 +574,9 @@ class TestExpressions(tb.QueryTestCase):
         if isinstance(result, bool):
             # this operation should be valid and produce opposite
             # results for op and not_op
-            await self.assert_query_result(
+            await self.assert_legacy_query_result(
                 f"""SELECT {left} {op} {right};""", [{result}])
-            await self.assert_query_result(
+            await self.assert_legacy_query_result(
                 f"""SELECT {left} {not_op} {right};""", [{not result}])
         else:
             # operation is expected to be invalid
@@ -669,13 +669,15 @@ class TestExpressions(tb.QueryTestCase):
                         SELECT (b'{left}' {op} b'{right}') =
                             ('{left}' {op} '{right}');
                     '''
-                    await self.assert_query_result(query, [{True}], msg=query)
+                    await self.assert_legacy_query_result(
+                        query, [{True}], msg=query)
 
                     query = f'''
                         SELECT (<uuid>'{left}' {op} <uuid>'{right}') =
                             ('{left}' {op} '{right}');
                     '''
-                    await self.assert_query_result(query, [{True}], msg=query)
+                    await self.assert_legacy_query_result(
+                        query, [{True}], msg=query)
 
     async def test_edgeql_expr_valid_comp_05(self):
         # just some ascii strings that can be simple byte literals
@@ -699,13 +701,14 @@ class TestExpressions(tb.QueryTestCase):
                         SELECT (b'{left}' {op} b'{right}') =
                             ('{left}' {op} '{right}');
                     '''
-                    await self.assert_query_result(query, [{True}], msg=query)
+                    await self.assert_legacy_query_result(
+                        query, [{True}], msg=query)
 
     async def test_edgeql_expr_valid_order_01(self):
         # JSON ordering is a bit difficult to conceptualize across
         # non-homogeneous JSON types, but it is stable and can be used
         # reliably in ORDER BY clauses. In fact, many tests rely on this.
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT <json>2 < <json>'2';
 
             WITH X := {<json>1, <json>True, <json>'1'}
@@ -728,7 +731,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_valid_order_02(self):
         # test bool ordering
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT False < True;
             SELECT X := {True, False, True, False} ORDER BY X;
             SELECT X := {True, False, True, False} ORDER BY X DESC;
@@ -750,7 +753,7 @@ class TestExpressions(tb.QueryTestCase):
             'f4b4318e-1a01-41e4-b29c-b67b94db9402',
         ]
 
-        await self.assert_query_result(f'''
+        await self.assert_legacy_query_result(f'''
             WITH A := <uuid>{{
                 '{"', '".join(uuids)}'
             }}
@@ -772,7 +775,7 @@ class TestExpressions(tb.QueryTestCase):
             R'&*@#',
         ]
 
-        await self.assert_query_result(f'''
+        await self.assert_legacy_query_result(f'''
             WITH A := {{
                 b'{"', b'".join(raw_ascii)}'
             }}
@@ -794,7 +797,7 @@ class TestExpressions(tb.QueryTestCase):
             R'&*@#',
         ]
 
-        await self.assert_query_result(f'''
+        await self.assert_legacy_query_result(f'''
             WITH A := {{
                 '{"', '".join(raw_ascii)}'
             }}
@@ -805,7 +808,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_valid_order_06(self):
         # make sure various date&time scalaras are usable in order by clause
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH A := <datetime>{
                 "2018-05-07T20:01:22.306916+00:00",
                 "2017-05-07T20:01:22.306916+00:00"
@@ -870,7 +873,7 @@ class TestExpressions(tb.QueryTestCase):
                 WITH X := <{vdesc.typename}>{{ {str_numbers} }}
                 SELECT X ORDER BY X DESC;
             '''
-            await self.assert_query_result(
+            await self.assert_legacy_query_result(
                 query,
                 [sorted(numbers, reverse=True)],
                 msg=query)
@@ -879,7 +882,7 @@ class TestExpressions(tb.QueryTestCase):
         # unary minus should work for numeric scalars and timedelta
         for right in get_test_values(signed=True):
             query = f"""SELECT count(-{right});"""
-            await self.assert_query_result(query, [[1]])
+            await self.assert_legacy_query_result(query, [[1]])
 
     async def test_edgeql_expr_valid_arithmetic_02(self):
         expected_error_msg = 'cannot be applied to operands'
@@ -972,8 +975,8 @@ class TestExpressions(tb.QueryTestCase):
                     restype = ldesc.typename
 
                 if restype:
-                    await self.assert_query_result(query, [[1]])
-                    await self.assert_query_result(
+                    await self.assert_legacy_query_result(query, [[1]])
+                    await self.assert_legacy_query_result(
                         f"""SELECT ({left} + {right}) IS {restype};""",
                         [[True]])
                 else:
@@ -1000,8 +1003,8 @@ class TestExpressions(tb.QueryTestCase):
                     restype = None
 
                 if restype:
-                    await self.assert_query_result(query, [[1]])
-                    await self.assert_query_result(
+                    await self.assert_legacy_query_result(query, [[1]])
+                    await self.assert_legacy_query_result(
                         f"""SELECT ({left} - {right}) IS {restype};""",
                         [[True]])
                 else:
@@ -1047,7 +1050,7 @@ class TestExpressions(tb.QueryTestCase):
             for right in get_test_values(anyint=True):
                 for op in ['+', '-', '*', '/', '//', '%', '^']:
                     # decimal is "contagious"
-                    await self.assert_query_result(
+                    await self.assert_legacy_query_result(
                         f"""SELECT ({left} {op} {right}) IS decimal;""",
                         [[True]])
 
@@ -1085,7 +1088,8 @@ class TestExpressions(tb.QueryTestCase):
                             rtype = 'float64'
 
                     query = f"""SELECT ({left} {op} {right}) IS {rtype};"""
-                    await self.assert_query_result(query, [[True]], msg=query)
+                    await self.assert_legacy_query_result(
+                        query, [[True]], msg=query)
 
     async def test_edgeql_expr_valid_arithmetic_10(self):
         # Test (5) '/', '^' for non-decimals.
@@ -1107,20 +1111,21 @@ class TestExpressions(tb.QueryTestCase):
                         rtype = 'float64'
 
                     query = f"""SELECT ({left} {op} {right}) IS {rtype};"""
-                    await self.assert_query_result(query, [[True]], msg=query)
+                    await self.assert_legacy_query_result(
+                        query, [[True]], msg=query)
 
     async def test_edgeql_expr_valid_setop_01(self):
         # use every scalar with DISTINCT
         for right, desc in get_test_items():
             query = f"""SELECT count(DISTINCT {{{right}, {right}}});"""
             # this operation should always be valid and get count of 1
-            await self.assert_query_result(query, [{1}])
+            await self.assert_legacy_query_result(query, [{1}])
 
             query = f"""
                 SELECT (DISTINCT {{{right}, {right}}}) IS {desc.typename};
             """
             # this operation should always be valid
-            await self.assert_query_result(query, [{True}])
+            await self.assert_legacy_query_result(query, [{True}])
 
     async def test_edgeql_expr_valid_setop_02(self):
         expected_error_msg = "operator 'UNION' cannot be applied"
@@ -1141,7 +1146,7 @@ class TestExpressions(tb.QueryTestCase):
             for right, rdesc in get_test_items(anyreal=True, decimal=False):
                 query = f"""SELECT {left} UNION {right};"""
                 # every combination must be valid and be {1, 1}
-                await self.assert_query_result(query, [[1, 1]])
+                await self.assert_legacy_query_result(query, [[1, 1]])
 
                 types = [ldesc.typename, rdesc.typename]
                 types.sort()
@@ -1165,7 +1170,7 @@ class TestExpressions(tb.QueryTestCase):
                     SELECT (INTROSPECT TYPEOF ({left} UNION {right})).name;
                 """
                 # this operation should always be valid
-                await self.assert_query_result(
+                await self.assert_legacy_query_result(
                     query, [{f'std::{rtype}'}])
 
     async def test_edgeql_expr_valid_setop_04(self):
@@ -1178,13 +1183,13 @@ class TestExpressions(tb.QueryTestCase):
                 if ldesc.typename == rdesc.typename:
                     # these scalars can only be UNIONed with
                     # themselves implicitly
-                    await self.assert_query_result(query, [[2]])
+                    await self.assert_legacy_query_result(query, [[2]])
 
                     query = f"""
                         SELECT (INTROSPECT TYPEOF ({left} UNION {right})).name;
                     """
                     # this operation should always be valid
-                    await self.assert_query_result(
+                    await self.assert_legacy_query_result(
                         query, [{f'std::{rdesc.typename}'}])
 
                 else:
@@ -1220,13 +1225,14 @@ class TestExpressions(tb.QueryTestCase):
                 query = f"""SELECT count({left} UNION {right});"""
                 # decimals and integers can be UNIONed in any
                 # combination
-                await self.assert_query_result(query, [[2]])
+                await self.assert_legacy_query_result(query, [[2]])
 
                 query = f"""
                     SELECT (INTROSPECT TYPEOF ({left} UNION {right})).name;
                 """
                 # this operation should always be valid
-                await self.assert_query_result(query, [{'std::decimal'}])
+                await self.assert_legacy_query_result(
+                    query, [{'std::decimal'}])
 
         for left in get_test_values(decimal=True):
             for right in get_test_values(anyfloat=True):
@@ -1245,7 +1251,7 @@ class TestExpressions(tb.QueryTestCase):
         for val in get_test_values():
             query = f"""SELECT 1 IF {val} ELSE 2;"""
             if val == '<bool>True':
-                await self.assert_query_result(query, [[1]])
+                await self.assert_legacy_query_result(query, [[1]])
             else:
                 # every other combination must produce an error
                 with self.assertRaisesRegex(edgedb.QueryError,
@@ -1281,7 +1287,7 @@ class TestExpressions(tb.QueryTestCase):
                 for op in ['??', 'IF random() > 0.5 ELSE']:
                     query = f"""SELECT {left} {op} {right};"""
                     # every combination must be valid and be 1
-                    await self.assert_query_result(query, [[1]])
+                    await self.assert_legacy_query_result(query, [[1]])
 
                     types = [ldesc.typename, rdesc.typename]
                     types.sort()
@@ -1305,7 +1311,8 @@ class TestExpressions(tb.QueryTestCase):
                         SELECT (INTROSPECT TYPEOF ({left} {op} {right})).name;
                     """
                     # this operation should always be valid
-                    await self.assert_query_result(query, [{f'std::{rtype}'}])
+                    await self.assert_legacy_query_result(
+                        query, [{f'std::{rtype}'}])
 
     async def test_edgeql_expr_valid_setop_10(self):
         expected_error_msg = "cannot be applied to operands"
@@ -1318,13 +1325,13 @@ class TestExpressions(tb.QueryTestCase):
                     if left == right:
                         # these scalars can only be combined with
                         # themselves implicitly
-                        await self.assert_query_result(query, [[1]])
+                        await self.assert_legacy_query_result(query, [[1]])
 
                         query = f"""
                             SELECT ({left} {op} {right}) IS {rdesc.typename};
                         """
                         # this operation should always be valid
-                        await self.assert_query_result(query, [{True}])
+                        await self.assert_legacy_query_result(query, [{True}])
 
                     else:
                         # every other combination must produce an error
@@ -1373,11 +1380,11 @@ class TestExpressions(tb.QueryTestCase):
 
                     # decimals and integers can be UNIONed in any
                     # combination
-                    await self.assert_query_result(query, [[1]])
+                    await self.assert_legacy_query_result(query, [[1]])
 
                     query = f"""SELECT ({left} {op} {right}) IS decimal;"""
                     # this operation should always be valid
-                    await self.assert_query_result(query, [{True}])
+                    await self.assert_legacy_query_result(query, [{True}])
 
     async def test_edgeql_expr_valid_bool_01(self):
         expected_error_msg = 'cannot be applied to operands'
@@ -1388,7 +1395,7 @@ class TestExpressions(tb.QueryTestCase):
                     query = f"""SELECT {left} {op} {right};"""
                     if left == right == '<bool>True':
                         # this operation should be valid and True
-                        await self.assert_query_result(query, [{True}])
+                        await self.assert_legacy_query_result(query, [{True}])
                     else:
                         # every combination except for bool OP bool is invalid
                         with self.assertRaisesRegex(edgedb.QueryError,
@@ -1404,7 +1411,7 @@ class TestExpressions(tb.QueryTestCase):
             query = f"""SELECT NOT {right};"""
             if right == '<bool>True':
                 # this operation should be valid and False
-                await self.assert_query_result(query, [{False}])
+                await self.assert_legacy_query_result(query, [{False}])
             else:
                 # every other scalar must produce an error
                 with self.assertRaisesRegex(edgedb.QueryError,
@@ -1454,7 +1461,7 @@ class TestExpressions(tb.QueryTestCase):
         for right in get_test_values():
             query = f"""SELECT EXISTS {right};"""
             # this operation should always be valid and True
-            await self.assert_query_result(query, [{True}])
+            await self.assert_legacy_query_result(query, [{True}])
 
     # FIXME: once the arrays and tuples work fully with the following
     # tests, we can integrate tests of the comparison operators for
@@ -1472,7 +1479,7 @@ class TestExpressions(tb.QueryTestCase):
         operator does not exist: bigint[] = numeric[]
     ''')
     async def test_edgeql_expr_valid_collection_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT [1] = [<decimal>1];
         ''', [
             [True]
@@ -1483,28 +1490,28 @@ class TestExpressions(tb.QueryTestCase):
         operator does not exist: double precision[] = numeric[]
     ''')
     async def test_edgeql_expr_valid_collection_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT [1.0] = [<decimal>1];
         ''', [
             [True]
         ])
 
     async def test_edgeql_expr_valid_collection_03(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT (1,) = (<decimal>1,);
         ''', [
             [True]
         ])
 
     async def test_edgeql_expr_valid_collection_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT (1.0,) = (<decimal>1,);
         ''', [
             [True]
         ])
 
     async def test_edgeql_expr_valid_collection_05(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT (1, <int32>2, <int16>3, <float32>4, 5.0) =
                 (<decimal>1, <decimal>2, <decimal>3, <decimal>4, <decimal>5);
         ''', [
@@ -1517,7 +1524,7 @@ class TestExpressions(tb.QueryTestCase):
         record column 1
     ''')
     async def test_edgeql_expr_valid_collection_06(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             SELECT
                 [([(1,          )],)] =
                 [([(<decimal>1, )],)];
@@ -1531,7 +1538,7 @@ class TestExpressions(tb.QueryTestCase):
         record column 1
     ''')
     async def test_edgeql_expr_valid_collection_07(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT
                 (1, <int32>2, (
                     (<int16>3, <float32>4), 5.0)) =
@@ -1547,7 +1554,7 @@ class TestExpressions(tb.QueryTestCase):
         record column 1
     ''')
     async def test_edgeql_expr_valid_collection_08(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT
                 (1, <int32>2, (
                     [<int16>3, <float32>4], 5.0)) =
@@ -1563,7 +1570,7 @@ class TestExpressions(tb.QueryTestCase):
         operator does not exist: bigint[] = numeric[]
     ''')
     async def test_edgeql_expr_valid_collection_11(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT [1] ?= [<decimal>1];
         ''', [
             [True]
@@ -1574,7 +1581,7 @@ class TestExpressions(tb.QueryTestCase):
         operator does not exist: double precision[] = numeric[]
     ''')
     async def test_edgeql_expr_valid_collection_12(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT [1.0] ?= [<decimal>1];
         ''', [
             [True]
@@ -1585,7 +1592,7 @@ class TestExpressions(tb.QueryTestCase):
         each UNION query must have the same number of columns
     ''')
     async def test_edgeql_expr_valid_collection_13(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT (1,) ?= (<decimal>1,);
         ''', [
             [True]
@@ -1596,7 +1603,7 @@ class TestExpressions(tb.QueryTestCase):
         each UNION query must have the same number of columns
     ''')
     async def test_edgeql_expr_valid_collection_14(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT (1.0,) ?= (<decimal>1,);
         ''', [
             [True]
@@ -1607,7 +1614,7 @@ class TestExpressions(tb.QueryTestCase):
         each UNION query must have the same number of columns
     ''')
     async def test_edgeql_expr_valid_collection_15(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT (1, <int32>2, <int16>3, <float32>4, 5.0) ?=
                 (<decimal>1, <decimal>2, <decimal>3, <decimal>4, <decimal>5);
         ''', [
@@ -1620,7 +1627,7 @@ class TestExpressions(tb.QueryTestCase):
         record column 1
     ''')
     async def test_edgeql_expr_valid_collection_16(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             SELECT
                 [([(1,          )],)] ?=
                 [([(<decimal>1, )],)];
@@ -1633,7 +1640,7 @@ class TestExpressions(tb.QueryTestCase):
         each UNION query must have the same number of columns
     ''')
     async def test_edgeql_expr_valid_collection_17(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT
                 (1, <int32>2, (
                     (<int16>3, <float32>4), 5.0)) ?=
@@ -1648,7 +1655,7 @@ class TestExpressions(tb.QueryTestCase):
         each UNION query must have the same number of columns
     ''')
     async def test_edgeql_expr_valid_collection_18(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT
                 (1, <int32>2, (
                     [<int16>3, <float32>4], 5.0)) ?=
@@ -1660,7 +1667,7 @@ class TestExpressions(tb.QueryTestCase):
 
     # and now the same tests for IN
     async def test_edgeql_expr_valid_collection_21(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT [1] IN [<decimal>1];
         ''', [
             [True]
@@ -1671,7 +1678,7 @@ class TestExpressions(tb.QueryTestCase):
         operator does not exist: double precision[] = numeric[]
     ''')
     async def test_edgeql_expr_valid_collection_22(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT [1.0] IN [<decimal>1];
         ''', [
             [True]
@@ -1679,7 +1686,7 @@ class TestExpressions(tb.QueryTestCase):
 
     @test.xfail('No method to generate code for TupleVar')
     async def test_edgeql_expr_valid_collection_23(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT (1,) IN (<decimal>1,);
         ''', [
             [True]
@@ -1687,7 +1694,7 @@ class TestExpressions(tb.QueryTestCase):
 
     @test.xfail('No method to generate code for TupleVar')
     async def test_edgeql_expr_valid_collection_24(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT (1.0,) IN (<decimal>1,);
         ''', [
             [True]
@@ -1695,7 +1702,7 @@ class TestExpressions(tb.QueryTestCase):
 
     @test.xfail('No method to generate code for TupleVar')
     async def test_edgeql_expr_valid_collection_25(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT (1, <int32>2, <int16>3, <float32>4, 5.0) IN
                 (<decimal>1, <decimal>2, <decimal>3, <decimal>4, <decimal>5);
         ''', [
@@ -1704,7 +1711,7 @@ class TestExpressions(tb.QueryTestCase):
 
     @test.xfail('No method to generate code for TupleVar')
     async def test_edgeql_expr_valid_collection_26(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             SELECT
                 [([(1,          )],)] IN
                 [([(<decimal>1, )],)];
@@ -1718,7 +1725,7 @@ class TestExpressions(tb.QueryTestCase):
         record column 1
     ''')
     async def test_edgeql_expr_valid_collection_27(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT
                 (1, <int32>2, (
                     (<int16>3, <float32>4), 5.0)) IN
@@ -1730,7 +1737,7 @@ class TestExpressions(tb.QueryTestCase):
 
     @test.xfail('No method to generate code for TupleVar')
     async def test_edgeql_expr_valid_collection_28(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT
                 (1, <int32>2, (
                     [<int16>3, <float32>4], 5.0)) IN
@@ -1741,14 +1748,14 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_bytes_op_01(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT len(b'123' ++ b'54');
         ''', [
             [5]
         ])
 
     async def test_edgeql_expr_bytes_op_02(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             SELECT (b'123' ++ b'54')[-1] = b'4';
             SELECT (b'123' ++ b'54')[0:2] = b'12';
         ''', [
@@ -1774,7 +1781,7 @@ class TestExpressions(tb.QueryTestCase):
             ''' % (case,))
 
     async def test_edgeql_expr_paths_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT (1, (2, 3), 4).1.0;
         """, [
             [2],
@@ -1900,7 +1907,7 @@ class TestExpressions(tb.QueryTestCase):
         """)
 
     async def test_edgeql_expr_cast_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT <std::str>123;
             SELECT <std::int64>"123";
             SELECT <std::str>123 ++ 'qw';
@@ -1928,28 +1935,28 @@ class TestExpressions(tb.QueryTestCase):
             """)
 
     async def test_edgeql_expr_cast_03(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT <std::str><std::int64><std::float64>'123.45' ++ 'foo';
         """, [
             ['123foo'],
         ])
 
     async def test_edgeql_expr_cast_04(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT <str><int64><float64>'123.45' ++ 'foo';
         """, [
             ['123foo'],
         ])
 
     async def test_edgeql_expr_cast_05(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT <array<int64>>['123', '11'];
         """, [
             [[123, 11]],
         ])
 
     async def test_edgeql_expr_cast_06(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT <array<bool>>['t', 'tr', 'tru', 'true'];
             SELECT <array<bool>>['T', 'TR', 'TRU', 'TRUE'];
             SELECT <array<bool>>['True', 'TrUe', '1'];
@@ -1966,7 +1973,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_cast_07(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT <array<bool>>['f', 'fa', 'fal', 'fals', 'false'];
             SELECT <array<bool>>['F', 'FA', 'FAL', 'FALS', 'FALSE'];
             SELECT <array<bool>>['False', 'FaLSe', '0'];
@@ -1990,7 +1997,7 @@ class TestExpressions(tb.QueryTestCase):
             """)
 
     async def test_edgeql_expr_cast_09(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT <tuple<str, int64>> ('foo', 42);
             SELECT <tuple<str, int64>> (1, 2);
             SELECT <tuple<a: str, b: int64>> ('foo', 42);
@@ -2001,7 +2008,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_implicit_cast_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT (INTROSPECT TYPEOF(<int32>1 + 3)).name;
             SELECT (INTROSPECT TYPEOF(<int16>1 + 3)).name;
             SELECT (INTROSPECT TYPEOF(<int16>1 + <int32>3)).name;
@@ -2029,7 +2036,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_implicit_cast_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT (INTROSPECT TYPEOF(<float32>1 + <float64>2)).name;
             SELECT (INTROSPECT TYPEOF(<int32>1 + <float32>2)).name;
             SELECT (INTROSPECT TYPEOF(<int64>1 + <float32>2)).name;
@@ -2043,7 +2050,7 @@ class TestExpressions(tb.QueryTestCase):
         # coalescing forces the left scalar operand to be implicitly
         # upcast to the right one even if the right one is never
         # technically evaluated (function not called, etc.)
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT (INTROSPECT TYPEOF(3 // 2)).name;
             SELECT (INTROSPECT TYPEOF((3 // 2) ?? <float64>{})).name;
             SELECT (INTROSPECT TYPEOF(3 / 2 ?? <decimal>{})).name;
@@ -2057,7 +2064,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_implicit_cast_04(self):
         # IF should also force implicit casts of the two options
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT 3 / (2 IF TRUE ELSE 2.0);
             SELECT 3 / (2 IF random() > -1 ELSE 2.0);
 
@@ -2079,7 +2086,7 @@ class TestExpressions(tb.QueryTestCase):
             """)
 
     async def test_edgeql_expr_implicit_cast_05(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT {[1, 2.0], [3, 4.5]};
             SELECT {[1, 2], [3, 4.5]};
         """, [
@@ -2088,7 +2095,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_implicit_cast_06(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT {(1, 2.0), (3, 4.5)};
             SELECT {(1, 2), (3, 4.5)};
             SELECT {(3, 4.5), (1, 2.0)};
@@ -2119,7 +2126,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_implicit_cast_07(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH
                 MODULE schema,
                 A := (
@@ -2141,28 +2148,28 @@ class TestExpressions(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_expr_introspect_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT (INTROSPECT TYPEOF 'foo').name;
         """, [
             ['std::str'],
         ])
 
     async def test_edgeql_expr_introspect_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT (INTROSPECT std::float64).name;
         """, [
             ['std::float64'],
         ])
 
     async def test_edgeql_expr_introspect_03(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT (INTROSPECT TYPEOF schema::ObjectType).name;
         """, [
             ['schema::ObjectType'],
         ])
 
     async def test_edgeql_expr_introspect_04(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH A := {1.0, 2.0}
             SELECT (count(A), (INTROSPECT TYPEOF A).name);
         """, [
@@ -2173,7 +2180,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'cannot introspect collection types'):
-            await self.assert_query_result(r"""
+            await self.assert_legacy_query_result(r"""
                 SELECT (INTROSPECT (tuple<int64>)).name;
             """, [
                 ['tuple<std::int64>'],
@@ -2183,7 +2190,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'cannot introspect views'):
-            await self.assert_query_result(r"""
+            await self.assert_legacy_query_result(r"""
                 WITH A := (SELECT schema::Type { foo := 'bar' })
                 SELECT 'foo' IN (INTROSPECT A).pointers.name;
             """, [
@@ -2191,7 +2198,7 @@ class TestExpressions(tb.QueryTestCase):
             ])
 
     async def test_edgeql_expr_set_01(self):
-        await self.assert_query_result("""
+        await self.assert_legacy_query_result("""
             SELECT <int64>{};
             SELECT {1};
             SELECT {'foo'};
@@ -2204,7 +2211,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_set_02(self):
-        await self.assert_query_result("""
+        await self.assert_legacy_query_result("""
             WITH
                 MODULE schema,
                 A := (
@@ -2237,7 +2244,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_set_03(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # "nested" sets are merged using UNION
             SELECT _ := {{2, 3, {1, 4}, 4}, {4, 1}}
             ORDER BY _;
@@ -2246,7 +2253,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_array_01(self):
-        await self.assert_query_result("""
+        await self.assert_legacy_query_result("""
             SELECT [1];
             SELECT [1, 2, 3, 4, 5];
             SELECT [1, 2, 3, 4, 5][2];
@@ -2315,7 +2322,7 @@ class TestExpressions(tb.QueryTestCase):
             """)
 
     async def test_edgeql_expr_array_concat_01(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             SELECT [1, 2] ++ [3, 4];
         ''', [
             [
@@ -2333,7 +2340,7 @@ class TestExpressions(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_expr_array_concat_03(self):
-        await self.assert_query_result(R'''
+        await self.assert_legacy_query_result(R'''
             SELECT [(1, 'a')] ++ [(2.0, $$\$$), (3.0, r'\n')];
         ''', [
             [
@@ -2342,14 +2349,14 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_array_06(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             SELECT [1, <int64>{}];
         ''', [
             [],
         ])
 
     async def test_edgeql_expr_array_07(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             WITH
                 A := {1, 2},
                 B := <int64>{}
@@ -2359,7 +2366,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_array_08(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             WITH
                 MODULE schema,
                 A := {'a', 'b'},
@@ -2371,7 +2378,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_array_09(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             WITH
                 MODULE schema,
                 A := (SELECT ScalarType FILTER .name = 'test::issue_num_t')
@@ -2409,7 +2416,7 @@ class TestExpressions(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_expr_array_14(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             SELECT [([([1],)],)];
         ''', [
             [   # result set
@@ -2501,7 +2508,7 @@ class TestExpressions(tb.QueryTestCase):
         )
 
     async def test_edgeql_expr_coalesce_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT <int64>{} ?? 4 ?? 5;
             SELECT <str>{} ?? 'foo' ?? 'bar';
             SELECT 4 ?? <int64>{} ?? 5;
@@ -2538,7 +2545,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_string_01(self):
-        await self.assert_query_result("""
+        await self.assert_legacy_query_result("""
             SELECT 'qwerty';
             SELECT 'qwerty'[2];
             SELECT 'qwerty'[-2];
@@ -2621,7 +2628,7 @@ class TestExpressions(tb.QueryTestCase):
             """)
 
     async def test_edgeql_expr_string_08(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT ':\x62:\u2665:\U000025C6:☎️:';
             SELECT '\'"\\\'\""\\x\\u';
             SELECT "'\"\\\'\"\\x\\u";
@@ -2648,14 +2655,14 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_tuple_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT (1, 'foo');
         """, [
             [[1, 'foo']],
         ])
 
     async def test_edgeql_expr_tuple_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT (1, 'foo') = (1, 'foo');
             SELECT (1, 'foo') = (2, 'foo');
             SELECT (1, 'foo') != (1, 'foo');
@@ -2684,21 +2691,21 @@ class TestExpressions(tb.QueryTestCase):
             """)
 
     async def test_edgeql_expr_tuple_04(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT array_agg((1, 'foo'));
         """, [
             [[[1, 'foo']]],
         ])
 
     async def test_edgeql_expr_tuple_05(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT (1, 2) UNION (3, 4);
         """, [
             [[1, 2], [3, 4]],
         ])
 
     async def test_edgeql_expr_tuple_06(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT (1, 'foo') = (a := 1, b := 'foo');
             SELECT (a := 1, b := 'foo') = (a := 1, b := 'foo');
             SELECT (a := 1, b := 'foo') = (c := 1, d := 'foo');
@@ -2725,7 +2732,7 @@ class TestExpressions(tb.QueryTestCase):
             """)
 
     async def test_edgeql_expr_tuple_08(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT ();
         """, [
             [[]],
@@ -2741,7 +2748,7 @@ class TestExpressions(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_expr_tuple_10(self):
-        await self.assert_query_result('''\
+        await self.assert_legacy_query_result('''\
             SELECT _ := (spam := {1, 2}, ham := {3, 4})
             ORDER BY _.spam THEN _.ham;
         ''', [[
@@ -2752,7 +2759,7 @@ class TestExpressions(tb.QueryTestCase):
         ]])
 
     async def test_edgeql_expr_tuple_11(self):
-        await self.assert_query_result('''\
+        await self.assert_legacy_query_result('''\
             SELECT (1, 2) = (1, 2);
             SELECT (1, 2) UNION (1, 2);
             SELECT DISTINCT ((1, 2) UNION (1, 2));
@@ -2763,7 +2770,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_tuple_12(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH A := {1, 2, 3}
             SELECT _ := ({'a', 'b'}, A)
             ORDER BY _;
@@ -2772,7 +2779,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_tuple_13(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT (1, ('a', 'b', (0.1, 0.2)), 2, 3);
 
             # should be the same as above
@@ -2784,14 +2791,14 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_tuple_14(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             SELECT (1, <int64>{});
         ''', [
             [],
         ])
 
     async def test_edgeql_expr_tuple_15(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             WITH
                 A := {1, 2},
                 B := <int64>{}
@@ -2801,7 +2808,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_tuple_16(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             WITH
                 MODULE schema,
                 A := {'a', 'b'},
@@ -2813,7 +2820,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_tuple_indirection_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT ('foo', 42).0;
             SELECT ('foo', 42).1;
         """, [
@@ -2822,7 +2829,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_tuple_indirection_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT (name := 'foo', val := 42).name;
             SELECT (name := 'foo', val := 42).val;
         """, [
@@ -2831,28 +2838,28 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_tuple_indirection_03(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH _ := (SELECT ('foo', 42)) SELECT _.1;
         """, [
             [42],
         ])
 
     async def test_edgeql_expr_tuple_indirection_04(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH _ := (SELECT (name := 'foo', val := 42)) SELECT _.name;
         """, [
             ['foo'],
         ])
 
     async def test_edgeql_expr_tuple_indirection_05(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH _ := (SELECT (1,2) UNION (3,4)) SELECT _.0;
         """, [
             [1, 3],
         ])
 
     async def test_edgeql_expr_tuple_indirection_06(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT (1, ('a', 'b', (0.1, 0.2)), 2, 3).0;
             SELECT (1, ('a', 'b', (0.1, 0.2)), 2, 3).1;
             SELECT (1, ('a', 'b', (0.1, 0.2)), 2, 3).1.2;
@@ -2865,7 +2872,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_tuple_indirection_07(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH A := (1, ('a', 'b', (0.1, 0.2)), 2, 3) SELECT A.0;
             WITH A := (1, ('a', 'b', (0.1, 0.2)), 2, 3) SELECT A.1;
             WITH A := (1, ('a', 'b', (0.1, 0.2)), 2, 3) SELECT A.1.2;
@@ -2878,7 +2885,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_tuple_indirection_08(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT _ := (1, ({55, 66}, {77, 88}), 2)
             ORDER BY _.1 DESC;
         """, [[
@@ -2889,7 +2896,7 @@ class TestExpressions(tb.QueryTestCase):
         ]])
 
     async def test_edgeql_expr_tuple_indirection_09(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT _ := (1, ({55, 66}, {77, 88}), 2)
             ORDER BY _.1.1 THEN _.1.0;
         """, [[
@@ -2900,21 +2907,21 @@ class TestExpressions(tb.QueryTestCase):
         ]])
 
     async def test_edgeql_expr_tuple_indirection_10(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT [(0, 1)][0].1;
         """, [[
             1,
         ]])
 
     async def test_edgeql_expr_tuple_indirection_11(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT [(a := 1, b := 2)][0].b;
         """, [[
             2,
         ]])
 
     async def test_edgeql_expr_tuple_indirection_12(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT (name := 'foo', val := 42).0;
             SELECT (name := 'foo', val := 42).1;
             SELECT [(name := 'foo', val := 42)][0].name;
@@ -2927,7 +2934,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_tuple_indirection_13(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT (a:=(b:=(c:=(e:=1))));
 
             SELECT (a:=(b:=(c:=(e:=1)))).a;
@@ -2958,7 +2965,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_tuple_indirection_14(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT [(a:=(b:=(c:=(e:=1))))][0].a;
             SELECT [(a:=(b:=(c:=(e:=1))))][0].0;
             SELECT [(a:=(b:=(c:=(1,))))][0].0;
@@ -2987,7 +2994,7 @@ class TestExpressions(tb.QueryTestCase):
             """)
 
     async def test_edgeql_expr_if_else_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT 'yes' IF True ELSE 'no';
             SELECT 'yes' IF 1=1 ELSE 'no';
             SELECT 'yes' IF 1=0 ELSE 'no';
@@ -3000,7 +3007,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_if_else_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT 'yes' IF True ELSE {'no', 'or', 'maybe'};
             SELECT 'yes' IF False ELSE {'no', 'or', 'maybe'};
 
@@ -3031,7 +3038,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_if_else_03(self):
-        await self.assert_sorted_query_result(r"""
+        await self.assert_legacy_sorted_query_result(r"""
             SELECT 1 IF {1, 2, 3} < {2, 3, 4} ELSE 100;
             SELECT {1, 10} IF {1, 2, 3} < {2, 3, 4} ELSE 100;
 
@@ -3045,7 +3052,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_if_else_04(self):
-        await self.assert_sorted_query_result(r"""
+        await self.assert_legacy_sorted_query_result(r"""
             WITH x := <str>{}
             SELECT
                 1   IF x = 'a' ELSE
@@ -3085,7 +3092,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_if_else_05(self):
-        await self.assert_sorted_query_result(r"""
+        await self.assert_legacy_sorted_query_result(r"""
             # this creates a 3 x 3 x 3 cross product
             SELECT
                 1   IF {'c', 'a', 't'} = 'a' ELSE
@@ -3123,7 +3130,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_if_else_06(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH a := {'c', 'a', 't'}
             SELECT
                 (a, 'hit' IF a = 'c' ELSE 'miss')
@@ -3139,7 +3146,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_setop_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT EXISTS <str>{};
             SELECT NOT EXISTS <str>{};
         """, [
@@ -3148,7 +3155,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_setop_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT 2 * ((SELECT 1) UNION (SELECT 2));
             SELECT (SELECT 2) * (1 UNION 2);
             SELECT 2 * DISTINCT (1 UNION 2 UNION 1);
@@ -3166,7 +3173,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_setop_03(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             SELECT array_agg(1 UNION 2 UNION 3);
             SELECT array_agg(3 UNION 2 UNION 3);
             SELECT array_agg(3 UNION 3 UNION 2);
@@ -3177,28 +3184,28 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_setop_04(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             SELECT DISTINCT {1, 2, 2, 3};
         ''', [
             {1, 2, 3},
         ])
 
     async def test_edgeql_expr_setop_05(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             SELECT (2 UNION 2 UNION 2);
         ''', [
             [2, 2, 2],
         ])
 
     async def test_edgeql_expr_setop_06(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             SELECT DISTINCT (2 UNION 2 UNION 2);
         ''', [
             [2],
         ])
 
     async def test_edgeql_expr_setop_07(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             SELECT DISTINCT (2 UNION 2) UNION 2;
         ''', [
             [2, 2],
@@ -3214,20 +3221,20 @@ class TestExpressions(tb.QueryTestCase):
 
         union = [{'id': str(o.id)} for o in [*obj, *attr]]
         union.sort(key=lambda x: x['id'])
-        await self.assert_sorted_query_result('''
+        await self.assert_legacy_sorted_query_result('''
             WITH MODULE schema
             SELECT ObjectType UNION Attribute;
         ''', lambda x: x['id'], [union])
 
     async def test_edgeql_expr_setop_09(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             SELECT _ := DISTINCT {[1, 2], [1, 2], [2, 3]} ORDER BY _;
         ''', [
             [[1, 2], [2, 3]],
         ])
 
     async def test_edgeql_expr_setop_10(self):
-        await self.assert_query_result('''
+        await self.assert_legacy_query_result('''
             SELECT _ := DISTINCT {(1, 2), (2, 3), (1, 2)} ORDER BY _;
             SELECT _ := DISTINCT {(a := 1, b := 2),
                                   (a := 2, b := 3),
@@ -3404,7 +3411,7 @@ class TestExpressions(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_expr_aggregate_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT count(DISTINCT {1, 1, 1});
             SELECT count(DISTINCT {1, 2, 3});
             SELECT count(DISTINCT {1, 2, 3, 2, 3});
@@ -3423,7 +3430,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_view_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH
                 a := {1, 2},
                 b := {2, 3}
@@ -3434,7 +3441,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_view_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH
                 b := {2, 3}
             SELECT a := {1, 2}
@@ -3444,7 +3451,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_view_03(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT (
                 name := 'a',
                 foo := (
@@ -3457,7 +3464,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_view_04(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             SELECT (
                 name := 'a',
                 foo := (
@@ -3471,7 +3478,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_view_05(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE schema
             SELECT ObjectType {
                 name,
@@ -3487,7 +3494,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_view_06(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH MODULE schema
             SELECT ObjectType {
                 name,
@@ -3504,7 +3511,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_view_07(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # test variable masking
             WITH x := (
                 WITH x := {2, 3, 4} SELECT {4, 5, x}
@@ -3515,7 +3522,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_view_08(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             # test variable masking
             WITH x := (
                 FOR x IN {2, 3}
@@ -3527,7 +3534,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_for_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             FOR x IN {1, 3, 5, 7}
             UNION x
             ORDER BY x;
@@ -3541,7 +3548,7 @@ class TestExpressions(tb.QueryTestCase):
         ])
 
     async def test_edgeql_expr_for_02(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             FOR x IN {2, 3}
             UNION {x, x + 2};
         """, [
@@ -3550,7 +3557,7 @@ class TestExpressions(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_expr_group_01(self):
-        await self.assert_query_result(r"""
+        await self.assert_legacy_query_result(r"""
             WITH I := {1, 2, 3, 4}
             GROUP I
             USING _ := I % 2 = 0
@@ -3568,7 +3575,7 @@ class TestExpressions(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_expr_group_02(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             # handle a number of different aliases
             WITH x := {(1, 2), (3, 4), (4, 2)}
             GROUP y := x
@@ -3582,7 +3589,7 @@ class TestExpressions(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_expr_group_03(self):
-        await self.assert_sorted_query_result(r'''
+        await self.assert_legacy_sorted_query_result(r'''
             WITH x := {(1, 2), (3, 4), (4, 2)}
             GROUP x
             USING _ := x.1
@@ -3595,7 +3602,7 @@ class TestExpressions(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_expr_group_04(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             WITH x := {(1, 2), (3, 4), (4, 2)}
             GROUP x
             USING B := x.1
@@ -3610,7 +3617,7 @@ class TestExpressions(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_expr_group_05(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             # handle the case where the value to be computed depends
             # on both, the grouped subset and the original set
             WITH
@@ -3633,7 +3640,7 @@ class TestExpressions(tb.QueryTestCase):
 
     @unittest.expectedFailure
     async def test_edgeql_expr_group_06(self):
-        await self.assert_query_result(r'''
+        await self.assert_legacy_query_result(r'''
             GROUP X := {1, 1, 1, 2, 3, 3}
             USING y := X
             BY y
