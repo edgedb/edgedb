@@ -162,10 +162,7 @@ def compile_BaseConstant(
             int_value = -int_value
             value = f'-{value}'
         # If integer value is out of int64 bounds, use decimal
-        if -2 ** 63 <= int_value < 2 ** 63:
-            std_type = 'std::int64'
-        else:
-            std_type = 'std::decimal'
+        std_type = 'std::int64'
         node_cls = irast.IntegerConstant
     elif isinstance(expr, qlast.FloatConstant):
         if expr.is_negative:

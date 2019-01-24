@@ -315,13 +315,30 @@ class TestExpressions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''SELECT (INTROSPECT TYPEOF 9223372036854775808).name;''',
-            {'std::decimal'},
+            {'std::int64'},
         )
 
-        await self.assert_query_result(
-            r'''SELECT (INTROSPECT TYPEOF -9223372036854775809).name;''',
-            {'std::decimal'},
-        )
+    async def test_edgeql_expr_literals_02(self):
+        with self.assertRaisesRegex(edgedb.NumericOutOfRangeError,
+                                    'std::int16 out of range'):
+            async with self.con.transaction():
+                await self.con.fetch_value(
+                    r'''SELECT <int16>36893488147419''',
+                )
+
+        with self.assertRaisesRegex(edgedb.NumericOutOfRangeError,
+                                    'std::int32 out of range'):
+            async with self.con.transaction():
+                await self.con.fetch_value(
+                    r'''SELECT <int32>36893488147419''',
+                )
+
+        with self.assertRaisesRegex(edgedb.NumericOutOfRangeError,
+                                    'std::int64 out of range'):
+            async with self.con.transaction():
+                await self.con.fetch_value(
+                    r'''SELECT <int64>3689348814741900000000000''',
+                )
 
     async def test_edgeql_expr_op_02(self):
         await self.assert_query_result(

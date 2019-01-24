@@ -28,6 +28,7 @@ from edb.schema import name as sn
 from edb.schema import objtypes as s_objtypes
 
 from edb.pgsql import common
+from edb.pgsql import types
 
 
 class PGError(enum.Enum):
@@ -65,6 +66,16 @@ constraint_res = {
     'id': re.compile(r'^.*"(?:\w+)_data_pkey".*$'),
     'link_target_del': re.compile(r'^.*link target policy$'),
 }
+
+
+pgtype_re = '|'.join(fr'\b{key}\b' for key in types.base_type_name_map_r)
+
+
+def translate_pgtype(msg):
+    return re.sub(
+        pgtype_re,
+        lambda r: types.base_type_name_map_r.get(r.group(0), r.group(0)),
+        msg)
 
 
 def interpret_backend_error(schema, fields):
@@ -176,7 +187,7 @@ def interpret_backend_error(schema, fields):
                 'unique link constraint violation')
 
     elif code == PGError.NumericValueOutOfRange:
-        return errors.NumericOutOfRangeError(message)
+        return errors.NumericOutOfRangeError(translate_pgtype(message))
 
     elif code == PGError.DivisionByZeroError:
         return errors.DivisionByZeroError(message)

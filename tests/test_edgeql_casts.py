@@ -1154,28 +1154,28 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         )
 
         with self.assertRaisesRegex(
-                edgedb.NumericOutOfRangeError, r"integer out of range"):
+                edgedb.NumericOutOfRangeError, r"std::int32 out of range"):
             async with self.con.transaction():
                 await self.con.execute("""
                     SELECT <int32><float32><int32>2147483647;
                 """)
 
         with self.assertRaisesRegex(
-                edgedb.NumericOutOfRangeError, r"integer out of range"):
+                edgedb.NumericOutOfRangeError, r"std::int32 out of range"):
             async with self.con.transaction():
                 await self.con.execute("""
                     SELECT <int32><float32><int32>2147483646;
                 """)
 
         with self.assertRaisesRegex(
-                edgedb.NumericOutOfRangeError, r"integer out of range"):
+                edgedb.NumericOutOfRangeError, r"std::int32 out of range"):
             async with self.con.transaction():
                 await self.con.execute("""
                     SELECT <int32><float32><int32>2147483645;
                 """)
 
         with self.assertRaisesRegex(
-                edgedb.NumericOutOfRangeError, r"integer out of range"):
+                edgedb.NumericOutOfRangeError, r"std::int32 out of range"):
             async with self.con.transaction():
                 await self.con.execute("""
                     SELECT <int32><float32><int32>2147483638;
