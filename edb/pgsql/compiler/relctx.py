@@ -480,6 +480,8 @@ def ensure_source_rvar(
             scope_stmt = ctx.rel
         rvar = new_root_rvar(ir_set, ctx=ctx)
         include_rvar(scope_stmt, rvar, path_id=ir_set.path_id, ctx=ctx)
+        pathctx.put_path_rvar(
+            stmt, ir_set.path_id, rvar, aspect='source', env=ctx.env)
 
     return rvar
 

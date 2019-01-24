@@ -397,7 +397,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {'1', '2', '3', '4'},
         )
 
-    @test.xfail('does not work with binary serialization')
     async def test_edgeql_functions_array_unpack_04(self):
         await self.assert_query_result(
             r'''
