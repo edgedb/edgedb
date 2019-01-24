@@ -1258,7 +1258,7 @@ class TestExpressions(tb.QueryTestCase):
     # Operator A IF C ELSE B should work exactly like A UNION B in
     # terms of types.
     async def test_edgeql_expr_valid_setop_08(self):
-        expected_error_msg = 'of related types'
+        expected_error_msg = "cannot be applied to operands"
         # test all non-decimal numerics with all other scalars
         for left in get_test_values(anyreal=True, decimal=False):
             for right in get_test_values(anyreal=False):
@@ -1308,7 +1308,7 @@ class TestExpressions(tb.QueryTestCase):
                     await self.assert_query_result(query, [{f'std::{rtype}'}])
 
     async def test_edgeql_expr_valid_setop_10(self):
-        expected_error_msg = 'of related types'
+        expected_error_msg = "cannot be applied to operands"
         # test all non-numerics with all scalars
         for left in get_test_values(anyreal=False):
             for right, rdesc in get_test_items():
@@ -1337,7 +1337,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_valid_setop_11(self):
         # decimals are tricky because integers implicitly cast into
         # them and floats don't
-        expected_error_msg = 'of related types'
+        expected_error_msg = 'cannot be applied to operands'
         # decimal combined with non-numerics
         for left in get_test_values(decimal=True):
             for right in get_test_values(anyreal=False):
@@ -1353,7 +1353,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_valid_setop_12(self):
         # decimals are tricky because integers implicitly cast into
         # them and floats don't
-        expected_error_msg = 'of related types'
+        expected_error_msg = 'cannot be applied to operands'
         # decimal combined with numerics
         for left in get_test_values(decimal=True):
             for right in get_test_values(anyfloat=True):
@@ -2072,8 +2072,7 @@ class TestExpressions(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'if/else clauses must be of related types, '
-                r'got: std::int64/std::str'):
+                r"IF/ELSE.*cannot.*'std::int64' and 'std::str'"):
 
             await self.query("""
                 SELECT 3 / (2 IF FALSE ELSE '1');

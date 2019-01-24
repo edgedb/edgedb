@@ -115,7 +115,6 @@ def __infer_set(ir, scope_tree, env):
         return MANY
 
 
-@_infer_cardinality.register(irast.OperatorCall)
 @_infer_cardinality.register(irast.FunctionCall)
 def __infer_func_call(ir, scope_tree, env):
     # the cardinality of the function call depends on the cardinality
@@ -125,7 +124,6 @@ def __infer_func_call(ir, scope_tree, env):
     if ir.typemod is qltypes.TypeModifier.SET_OF:
         return MANY
     else:
-        # assume that the call is valid and the signature has been matched
         args = []
         # process positional args
         for arg, typemod in zip(ir.args, ir.params_typemods):
@@ -138,15 +136,30 @@ def __infer_func_call(ir, scope_tree, env):
             return ONE
 
 
+@_infer_cardinality.register(irast.OperatorCall)
+def __infer_oper_call(ir, scope_tree, env):
+    if ir.func_shortname == 'std::UNION':
+        return MANY
+    else:
+        args = []
+
+        if ir.typemod is qltypes.TypeModifier.SET_OF:
+            args = [a.expr for a in ir.args]
+        else:
+            for arg, typemod in zip(ir.args, ir.params_typemods):
+                if typemod is not qltypes.TypeModifier.SET_OF:
+                    args.append(arg.expr)
+
+        if args:
+            return _common_cardinality(args, scope_tree, env)
+        else:
+            return ONE
+
+
 @_infer_cardinality.register(irast.BaseConstant)
 @_infer_cardinality.register(irast.Parameter)
 def __infer_const_or_param(ir, scope_tree, env):
     return ONE
-
-
-@_infer_cardinality.register(irast.Coalesce)
-def __infer_coalesce(ir, scope_tree, env):
-    return _common_cardinality([ir.left, ir.right], scope_tree, env)
 
 
 @_infer_cardinality.register(irast.TypeCheckOp)

@@ -462,19 +462,31 @@ def finalize_args(bound_call: polyres.BoundCall, *,
         if param_mod is not ft.TypeModifier.SET_OF:
             arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
             param_shortname = param.get_shortname(ctx.env.schema)
-            if arg_scope is not None:
-                arg_scope.collapse()
-                pathctx.assign_set_scope(arg, None, ctx=ctx)
 
             # Arg was wrapped for scope fencing purposes,
             # but that fence has been removed above, so unwrap it.
+            orig_arg = arg
             arg = irutils.unwrap_set(arg)
 
             if (param_mod is ft.TypeModifier.OPTIONAL or
                     param_shortname in bound_call.null_args):
 
+                if arg_scope is not None:
+                    # Due to the construction of relgen, the (unfenced)
+                    # subscope is necessary to shield LHS paths from the outer
+                    # query to prevent path binding which may break OPTIONAL.
+                    branch = arg_scope.unfence()
+
                 pathctx.register_set_in_scope(arg, ctx=ctx)
                 pathctx.mark_path_as_optional(arg.path_id, ctx=ctx)
+
+                if arg_scope is not None:
+                    pathctx.assign_set_scope(arg, branch, ctx=ctx)
+
+            elif arg_scope is not None:
+                arg_scope.collapse()
+                if arg is orig_arg:
+                    pathctx.assign_set_scope(arg, None, ctx=ctx)
 
         paramtype = barg.param_type
         param_kind = param.get_kind(ctx.env.schema)

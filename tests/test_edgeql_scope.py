@@ -758,7 +758,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             # User.name is a SET OF argument of ??, so it's unaffected
             # by the FILTER
             WITH MODULE test
-            SELECT ({} ?? User.name)
+            SELECT (<str>{} ?? User.name)
             FILTER User.name = 'Alice';
         ''', [
             {'Alice', 'Bob', 'Carol', 'Dave'}
@@ -769,7 +769,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             # User is a SET OF argument of ??, so it's unaffected
             # by the FILTER
             WITH MODULE test
-            SELECT ({} ?? User).name
+            SELECT (<User>{} ?? User).name
             FILTER User.name = 'Alice';
         ''', [
             {'Alice', 'Bob', 'Carol', 'Dave'}

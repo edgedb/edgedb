@@ -2368,10 +2368,10 @@ aa';
 
     def test_edgeql_syntax_coalesce_01(self):
         """
-        SELECT a ?? x;
-        SELECT a ?? x.a;
-        SELECT a ?? x.a[IS ABC];
-        SELECT (a ?? x.a[IS ABC]@aaa + 1);
+        SELECT (a ?? x);
+        SELECT (a ?? x.a);
+        SELECT (a ?? x.a[IS ABC]);
+        SELECT ((a ?? x.a[IS ABC]@aaa) + 1);
         """
 
     def test_edgeql_syntax_function_01(self):

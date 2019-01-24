@@ -438,17 +438,6 @@ class IfElseExpr(Expr):
     else_expr_card: qltypes.Cardinality
 
 
-class Coalesce(Expr):
-
-    # cardinality fields need to be mutable for lazy cardinality inference.
-    __ast_mutable_fields__ = ('right_card',)
-
-    left: Set
-    right: Set
-
-    right_card: qltypes.Cardinality
-
-
 class SortExpr(Base):
 
     expr: Base

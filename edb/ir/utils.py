@@ -58,6 +58,14 @@ def is_const(ir):
     return not ir_sets and not variables
 
 
+def is_coalesce_expr(ir):
+    return (
+        isinstance(ir, irast.OperatorCall) and
+        ir.operator_kind is ft.OperatorKind.INFIX and
+        ir.func_shortname == 'std::??'
+    )
+
+
 def is_set_membership_expr(ir):
     return (
         isinstance(ir, irast.OperatorCall) and

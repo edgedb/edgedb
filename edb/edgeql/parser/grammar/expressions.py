@@ -719,16 +719,8 @@ class Expr(Nonterm):
 
     @parsing.precedence(precedence.P_DOUBLEQMARK_OP)
     def reduce_Expr_DOUBLEQMARK_Expr(self, *kids):
-        left = kids[0].val
-        right = kids[2].val
-
-        args = [left]
-        if isinstance(right, qlast.Coalesce):
-            args += right.args
-        else:
-            args.append(right)
-
-        self.val = qlast.Coalesce(args=args)
+        self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
+                               right=kids[2].val)
 
     def reduce_Expr_EQUALS_Expr(self, *kids):
         self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,

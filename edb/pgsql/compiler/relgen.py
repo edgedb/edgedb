@@ -237,7 +237,7 @@ def _get_set_rvar(
         # Expr IF Cond ELSE Expr
         rvars = process_set_as_ifelse(ir_set, stmt, ctx=ctx)
 
-    elif isinstance(ir_set.expr, irast.Coalesce):
+    elif irutils.is_coalesce_expr(ir_set.expr):
         # Expr ?? Expr
         rvars = process_set_as_coalesce(ir_set, stmt, ctx=ctx)
 
@@ -1045,14 +1045,16 @@ def process_set_as_coalesce(
 
     with ctx.new() as newctx:
         newctx.expr_exposed = False
+        left_ir, right_ir = (a.expr for a in expr.args)
+        left_card, right_card = (a.cardinality for a in expr.args)
 
-        if expr.right_card == qltypes.Cardinality.ONE:
+        if right_card == qltypes.Cardinality.ONE:
             # Singleton RHS, simply use scalar COALESCE.
-            left = dispatch.compile(expr.left, ctx=newctx)
+            left = dispatch.compile(left_ir, ctx=newctx)
 
             with newctx.new() as rightctx:
-                rightctx.force_optional.add(expr.right.path_id)
-                right = dispatch.compile(expr.right, ctx=rightctx)
+                rightctx.force_optional.add(right_ir.path_id)
+                right = dispatch.compile(right_ir, ctx=rightctx)
 
             set_expr = pgast.CoalesceExpr(args=[left, right])
 
@@ -1085,12 +1087,11 @@ def process_set_as_coalesce(
 
                     with sub2ctx.subrel() as scopectx:
                         larg = scopectx.rel
-                        larg.view_path_id_map[ir_set.path_id] = \
-                            expr.left.path_id
-                        dispatch.visit(expr.left, ctx=scopectx)
+                        larg.view_path_id_map[ir_set.path_id] = left_ir.path_id
+                        dispatch.visit(left_ir, ctx=scopectx)
 
                         lvar = pathctx.get_path_value_var(
-                            larg, path_id=expr.left.path_id, env=scopectx.env)
+                            larg, path_id=left_ir.path_id, env=scopectx.env)
 
                         if lvar.nullable:
                             # The left var is still nullable, which may be the
@@ -1106,8 +1107,8 @@ def process_set_as_coalesce(
                     with sub2ctx.subrel() as scopectx:
                         rarg = scopectx.rel
                         rarg.view_path_id_map[ir_set.path_id] = \
-                            expr.right.path_id
-                        dispatch.visit(expr.right, ctx=scopectx)
+                            right_ir.path_id
+                        dispatch.visit(right_ir, ctx=scopectx)
 
                     marker = sub2ctx.env.aliases.get('m')
 

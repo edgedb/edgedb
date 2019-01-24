@@ -462,7 +462,7 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_filter_02(self):
         await self.assert_query_result(r"""
             WITH MODULE test
-            UPDATE ({} ?? UpdateTest)
+            UPDATE (<UpdateTest>{} ?? UpdateTest)
             # this FILTER is trivial because UpdateTest is wrapped
             # into a SET OF by ??
             FILTER UpdateTest.name = 'update-test1'

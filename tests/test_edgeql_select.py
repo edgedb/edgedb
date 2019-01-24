@@ -2306,8 +2306,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ])
 
     async def test_edgeql_select_coalesce_02(self):
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    'coalescing .* operands of related types'):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"operator '\?\?' cannot.*'std::str' and 'std::int64'"):
 
             await self.query(r'''
                 WITH MODULE test
@@ -4100,7 +4101,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_if_else_03(self):
         with self.assertRaisesRegex(edgedb.QueryError,
-                                    r'if/else clauses .* related types'):
+                                    r'IF/ELSE operator cannot be applied'):
 
             await self.query(r"""
                 WITH MODULE test

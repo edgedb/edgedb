@@ -371,9 +371,9 @@ def compile_IfElse(
 
     if result is None:
         raise errors.QueryError(
-            'if/else clauses must be of related types, got: {}/{}'.format(
-                if_expr_type.get_displayname(ctx.env.schema),
-                else_expr_type.get_displayname(ctx.env.schema)),
+            f'IF/ELSE operator cannot be applied to operands of type '
+            f'{if_expr_type.get_displayname(ctx.env.schema)!r} and '
+            f'{else_expr_type.get_displayname(ctx.env.schema)!r}',
             context=expr.context)
 
     ifelse = irast.IfElseExpr(
@@ -405,43 +405,6 @@ def compile_UnaryOp(
         pass
 
     return setgen.ensure_set(result, ctx=ctx)
-
-
-@dispatch.compile.register(qlast.Coalesce)
-def compile_Coalesce(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    if all(isinstance(a, qlast.Set) and not a.elements for a in expr.args):
-        return setgen.new_empty_set(alias=ctx.aliases.get('e'), ctx=ctx)
-
-    # Due to the construction of relgen, the (unfenced) subscope
-    # below is necessary to shield LHS paths from the outer query
-    # to prevent path binding which may break OPTIONAL.
-    with ctx.newscope() as newctx:
-        leftmost_arg = larg = setgen.ensure_set(
-            dispatch.compile(expr.args[0], ctx=newctx), ctx=newctx)
-
-        for rarg_ql in expr.args[1:]:
-            with newctx.new() as nestedscopectx:
-                with nestedscopectx.newscope(fenced=True) as fencectx:
-                    rarg = setgen.scoped_set(
-                        dispatch.compile(rarg_ql, ctx=fencectx),
-                        force_reassign=True, ctx=fencectx)
-
-                coalesce = irast.Coalesce(left=larg, right=rarg)
-                larg = setgen.ensure_set(coalesce, ctx=nestedscopectx)
-
-            stmtctx.get_expr_cardinality_later(
-                target=coalesce, field='right_card', irexpr=rarg, ctx=ctx)
-
-        # Make sure any empty set types are properly resolved
-        # before entering them into the scope tree.
-        inference.infer_type(larg, env=ctx.env)
-
-        pathctx.register_set_in_scope(leftmost_arg, ctx=ctx)
-        pathctx.mark_path_as_optional(leftmost_arg.path_id, ctx=ctx)
-        pathctx.assign_set_scope(leftmost_arg, newctx.path_scope, ctx=ctx)
-
-    return larg
 
 
 @dispatch.compile.register(qlast.TypeCast)

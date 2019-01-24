@@ -510,14 +510,6 @@ def compile_FunctionCall(
     return result
 
 
-@dispatch.compile.register(irast.Coalesce)
-def compile_Coalesce(
-        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
-    with ctx.new() as subctx:
-        pg_args = [dispatch.compile(a, ctx=subctx) for a in expr.args]
-    return pgast.FuncCall(name=('coalesce',), args=pg_args)
-
-
 def _tuple_to_row_expr(
         tuple_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> pgast.ImplicitRowExpr:

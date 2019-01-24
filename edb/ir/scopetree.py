@@ -79,8 +79,8 @@ class ScopeTreeNode:
         self._parent = None
 
     def __repr__(self):
-        return (f'<{type(self).__name__} '
-                f'{self.path_id!r} at {id(self):0x}>')
+        name = 'ScopeFenceNode' if self.fenced else 'ScopeTreeNode'
+        return (f'<{name} {self.path_id!r} at {id(self):0x}>')
 
     def _copy(self, parent: 'ScopeTreeNode') -> 'ScopeTreeNode':
         cp = self.__class__(
@@ -266,6 +266,11 @@ class ScopeTreeNode:
                     raise InvalidScopeConfiguration(
                         f'{node.path_id} is already present in {self!r}')
 
+        if node.unique_id is not None:
+            for child in self.children:
+                if child.unique_id == node.unique_id:
+                    return
+
         node._set_parent(self)
 
     def attach_fence(self) -> 'ScopeTreeNode':
@@ -344,7 +349,9 @@ class ScopeTreeNode:
 
                 if existing is not None:
                     if parent_fence.find_child(path_id) is None:
-                        if unnest_fence:
+                        if (unnest_fence
+                                and parent_fence.find_child(
+                                    path_id, in_branches=True) is None):
                             if descendant.parent.path_id:
                                 offending_node = descendant.parent
                             else:
@@ -443,6 +450,26 @@ class ScopeTreeNode:
         self.remove()
         parent.attach_subtree(subtree)
 
+    def unfence(self):
+        """Remove the node, reattaching the children as an unfenced branch."""
+        parent = self.parent
+        if parent is None:
+            raise ValueError('cannot unfence the root node')
+
+        subtree = ScopeTreeNode()
+
+        for child in list(self.children):
+            subtree.attach_child(child)
+
+        self.remove()
+
+        parent_subtree = ScopeTreeNode(fenced=True)
+        parent_subtree.attach_child(subtree)
+
+        parent.attach_subtree(parent_subtree)
+
+        return subtree
+
     def is_empty(self):
         if self.path_id is not None:
             return False
@@ -492,11 +519,15 @@ class ScopeTreeNode:
 
         return False
 
-    def find_child(self, path_id: pathid.PathId) \
+    def find_child(self, path_id: pathid.PathId, in_branches: bool = False) \
             -> typing.Optional['ScopeTreeNode']:
         for child in self.children:
             if child.path_id == path_id:
                 return child
+            if in_branches and child.path_id is None and not child.fenced:
+                desc = child.find_child(path_id, in_branches=True)
+                if desc is not None:
+                    return desc
 
         return None
 

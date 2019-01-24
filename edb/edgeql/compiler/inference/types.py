@@ -153,17 +153,6 @@ def __infer_const_or_param(ir, env):
     return irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
 
 
-@_infer_type.register(irast.Coalesce)
-def __infer_coalesce(ir, env):
-    result = _infer_common_type([ir.left, ir.right], env)
-    if result is None:
-        raise errors.QueryError(
-            'coalescing operator must have operands of related types',
-            context=ir.context)
-
-    return result
-
-
 def _infer_binop_args(left, right, env):
     if not isinstance(left, irast.EmptySet) or left.stype is not None:
         left_type = infer_type(left, env)
@@ -204,9 +193,9 @@ def __infer_ifelse(ir, env):
         if_expr_type = infer_type(ir.if_expr, env)
         else_expr_type = infer_type(ir.else_expr, env)
         raise errors.QueryError(
-            'if/else clauses must be of related types, got: {}/{}'.format(
-                if_expr_type.get_name(env.schema),
-                else_expr_type.get_name(env.schema)),
+            f'IF/ELSE operator cannot be applied to operands of type '
+            f'{if_expr_type.get_displayname(env.schema)!r} and '
+            f'{else_expr_type.get_displayname(env.schema)!r}',
             context=ir.if_expr.context)
 
     return result
