@@ -1294,6 +1294,11 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ['2018-05-07T20:01:22.306916+00:00'],
         )
 
+        with self.assertRaisesRegex(edgedb.InternalServerError,
+                                    '"fmt" argument must be'):
+            async with self.con.transaction():
+                await self.con.fetch('SELECT to_datetime("2017-10-10", "")')
+
     async def test_edgeql_functions_to_naive_datetime_01(self):
         await self.assert_query_result(
             r'''
@@ -1310,6 +1315,11 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ['2018-05-07'],
         )
 
+        with self.assertRaisesRegex(edgedb.InternalServerError,
+                                    '"fmt" argument must be'):
+            async with self.con.transaction():
+                await self.con.fetch('SELECT to_naive_date("2017-10-10", "")')
+
     async def test_edgeql_functions_to_naive_time_01(self):
         await self.assert_query_result(
             r'''
@@ -1317,6 +1327,11 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ''',
             ['15:01:22.306916'],
         )
+
+        with self.assertRaisesRegex(edgedb.InternalServerError,
+                                    '"fmt" argument must be'):
+            async with self.con.transaction():
+                await self.con.fetch('SELECT to_naive_time("12:00:00", "")')
 
     async def test_edgeql_functions_to_timedelta_01(self):
         await self.assert_query_result(
@@ -1439,18 +1454,27 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         )
 
         # Empty format string shouldn't produce an empty set.
-        await self.assert_query_result(
-            r'''SELECT to_str(1, "")''',
-            [''],
-        )
-        await self.assert_query_result(
-            r'''SELECT to_str(1.1, "")''',
-            [''],
-        )
-        await self.assert_query_result(
-            r'''SELECT to_str(1.1n, "")''',
-            [''],
-        )
+        #
+
+        with self.assertRaisesRegex(edgedb.InternalServerError,
+                                    '"fmt" argument must be'):
+            async with self.con.transaction():
+                await self.con.fetch(r'''SELECT to_str(1, "")''')
+
+        with self.assertRaisesRegex(edgedb.InternalServerError,
+                                    '"fmt" argument must be'):
+            async with self.con.transaction():
+                await self.con.fetch(r'''SELECT to_str(1.1, "")''')
+
+        with self.assertRaisesRegex(edgedb.InternalServerError,
+                                    '"fmt" argument must be'):
+            async with self.con.transaction():
+                await self.con.fetch(r'''SELECT to_str(1.1n, "")''')
+
+        with self.assertRaisesRegex(edgedb.InternalServerError,
+                                    '"fmt" argument must be'):
+            async with self.con.transaction():
+                await self.con.fetch(r'''SELECT to_str(to_json('{}'), "")''')
 
     async def test_edgeql_functions_to_str_02(self):
         await self.assert_query_result(
@@ -1509,21 +1533,21 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {' '}
         )
 
-        await self.assert_query_result(
-            r'''
-            WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
-            SELECT to_str(DT, '');
-            ''',
-            {''}
-        )
+        with self.assertRaisesRegex(edgedb.InternalServerError,
+                                    '"fmt" argument must be'):
+            async with self.con.transaction():
+                await self.con.fetch(r'''
+                    WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
+                    SELECT to_str(DT, '');
+                ''')
 
-        await self.assert_query_result(
-            r'''
-            WITH DT := to_timedelta(months:=20)
-            SELECT to_str(DT, '');
-            ''',
-            {''}
-        )
+        with self.assertRaisesRegex(edgedb.InternalServerError,
+                                    '"fmt" argument must be'):
+            async with self.con.transaction():
+                await self.con.fetch(r'''
+                    WITH DT := to_timedelta(months:=20)
+                    SELECT to_str(DT, '');
+                ''')
 
     async def test_edgeql_functions_to_str_03(self):
         await self.assert_query_result(
@@ -1585,21 +1609,21 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {'foo'},
         )
 
-        await self.assert_query_result(
-            r'''
-            WITH DT := <naive_time>'12:00:00'
-            SELECT to_str(DT, '');
-            ''',
-            {''},
-        )
+        with self.assertRaisesRegex(edgedb.InternalServerError,
+                                    '"fmt" argument must be'):
+            async with self.con.transaction():
+                await self.con.fetch(r'''
+                    WITH DT := <naive_time>'12:00:00'
+                    SELECT to_str(DT, '');
+                ''')
 
-        await self.assert_query_result(
-            r'''
-            WITH DT := <naive_date>'2018-05-07'
-            SELECT to_str(DT, '');
-            ''',
-            {''},
-        )
+        with self.assertRaisesRegex(edgedb.InternalServerError,
+                                    '"fmt" argument must be'):
+            async with self.con.transaction():
+                await self.con.fetch(r'''
+                    WITH DT := <naive_date>'2018-05-07'
+                    SELECT to_str(DT, '');
+                ''')
 
     async def test_edgeql_functions_to_str_05(self):
         await self.assert_query_result(
@@ -1672,10 +1696,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {'987654321st'},
         )
 
-        await self.assert_query_result(
-            r'''SELECT to_str(987654321, '');''',
-            {''},
-        )
+        with self.assertRaisesRegex(edgedb.InternalServerError,
+                                    '"fmt" argument must be'):
+            async with self.con.transaction():
+                await self.con.fetch(r'''SELECT to_str(987654321, '');''',)
 
     async def test_edgeql_functions_to_str_06(self):
         await self.assert_query_result(
@@ -1733,10 +1757,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {' 1.2346e+22'},
         )
 
-        await self.assert_query_result(
-            r'''SELECT to_str(123.456789e20, '');''',
-            {''},
-        )
+        with self.assertRaisesRegex(edgedb.InternalServerError,
+                                    '"fmt" argument must be'):
+            async with self.con.transaction():
+                await self.con.fetch(r'''SELECT to_str(123.456789e20, '');''')
 
     async def test_edgeql_functions_to_str_07(self):
         await self.assert_query_result(
@@ -1759,10 +1783,11 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {' '},
         )
 
-        await self.assert_query_result(
-            r'''SELECT to_str(<naive_time>'15:01:22', '');''',
-            {''},
-        )
+        with self.assertRaisesRegex(edgedb.InternalServerError,
+                                    '"fmt" argument must be'):
+            async with self.con.transaction():
+                await self.con.fetch(
+                    r'''SELECT to_str(<naive_time>'15:01:22', '');''',)
 
     async def test_edgeql_functions_to_int_01(self):
         await self.assert_query_result(
@@ -1830,6 +1855,11 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {987654321},
         )
 
+        with self.assertRaisesRegex(edgedb.InternalServerError,
+                                    '"fmt" argument must be'):
+            async with self.con.transaction():
+                await self.con.fetch('''SELECT to_int64('1', '')''')
+
     async def test_edgeql_functions_to_int_02(self):
         await self.assert_query_result(
             r'''SELECT to_int32(' 123456789', '999999999');''',
@@ -1895,6 +1925,11 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''SELECT to_int32('987654321st', 'FM999999999th');''',
             {987654321},
         )
+
+        with self.assertRaisesRegex(edgedb.InternalServerError,
+                                    '"fmt" argument must be'):
+            async with self.con.transaction():
+                await self.con.fetch('''SELECT to_int32('1', '')''')
 
     async def test_edgeql_functions_to_int_03(self):
         await self.assert_query_result(
@@ -1962,6 +1997,11 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {4321},
         )
 
+        with self.assertRaisesRegex(edgedb.InternalServerError,
+                                    '"fmt" argument must be'):
+            async with self.con.transaction():
+                await self.con.fetch('''SELECT to_int16('1', '')''')
+
     async def test_edgeql_functions_to_float_01(self):
         await self.assert_query_result(
             r'''SELECT to_float64(' 123', '999');''',
@@ -1982,6 +2022,11 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''SELECT to_float64('123.456789', 'FM999.999999999');''',
             {123.456789},
         )
+
+        with self.assertRaisesRegex(edgedb.InternalServerError,
+                                    '"fmt" argument must be'):
+            async with self.con.transaction():
+                await self.con.fetch('''SELECT to_float64('1', '')''')
 
     async def test_edgeql_functions_to_float_02(self):
         await self.assert_query_result(
@@ -2004,6 +2049,11 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {123.457},
         )
 
+        with self.assertRaisesRegex(edgedb.InternalServerError,
+                                    '"fmt" argument must be'):
+            async with self.con.transaction():
+                await self.con.fetch('''SELECT to_float32('1', '')''')
+
     async def test_edgeql_functions_to_decimal_01(self):
         await self.assert_query_result(
             r'''SELECT to_decimal(' 123', '999');''',
@@ -2024,6 +2074,11 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''SELECT to_decimal('123.456789', 'FM999.999999999');''',
             {123.456789},
         )
+
+        with self.assertRaisesRegex(edgedb.InternalServerError,
+                                    '"fmt" argument must be'):
+            async with self.con.transaction():
+                await self.con.fetch('''SELECT to_decimal('1', '')''')
 
     async def test_edgeql_functions_to_decimal_02(self):
         await self.assert_query_result(

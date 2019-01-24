@@ -1613,7 +1613,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_str_function_02(self):
         with self.assertRaisesRegex(
                 edgedb.InternalServerError,
-                r"format 'foo' is invalid for JSON"):
+                r"format 'foo' is invalid"):
             async with self.con.transaction():
                 await self.con.fetch(r'''
                     SELECT to_str(<json>[1, 2, 3, 4], 'foo');
@@ -1621,7 +1621,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InternalServerError,
-                r"format '' is invalid for JSON"):
+                r'"fmt" argument must be a non-empty string'):
             async with self.con.transaction():
                 await self.con.fetch_json(r'''
                     SELECT to_str(<json>[1, 2, 3, 4], '');
@@ -1629,7 +1629,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InternalServerError,
-                r"format 'PRETTY' is invalid for JSON"):
+                r"format 'PRETTY' is invalid"):
             async with self.con.transaction():
                 await self.con.fetch(r'''
                     SELECT to_str(<json>[1, 2, 3, 4], 'PRETTY');
@@ -1637,7 +1637,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InternalServerError,
-                r"format 'Pretty' is invalid for JSON"):
+                r"format 'Pretty' is invalid"):
             async with self.con.transaction():
                 await self.con.fetch_json(r'''
                     SELECT to_str(<json>[1, 2, 3, 4], 'Pretty');
@@ -1645,7 +1645,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InternalServerError,
-                r"format 'p' is invalid for JSON"):
+                r"format 'p' is invalid"):
             async with self.con.transaction():
                 await self.con.fetch(r'''
                     SELECT to_str(<json>[1, 2, 3, 4], 'p');
