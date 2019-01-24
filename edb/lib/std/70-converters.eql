@@ -37,6 +37,8 @@ std::to_str(dt: std::datetime, fmt: OPTIONAL str={}) -> std::str
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             trim(to_json("dt")::text, '"')
+        WHEN "fmt" = '' THEN
+            ''
         ELSE
             to_char("dt", "fmt")
         END
@@ -52,6 +54,8 @@ std::to_str(dt: std::naive_datetime, fmt: OPTIONAL str={}) -> std::str
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             trim(to_json("dt")::text, '"')
+        WHEN "fmt" = '' THEN
+            ''
         ELSE
             to_char("dt", "fmt")
         END
@@ -67,6 +71,8 @@ std::to_str(d: std::naive_date, fmt: OPTIONAL str={}) -> std::str
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             "d"::text
+        WHEN "fmt" = '' THEN
+            ''
         ELSE
             to_char("d", "fmt")
         END
@@ -88,6 +94,8 @@ std::to_str(nt: std::naive_time, fmt: OPTIONAL str={}) -> std::str
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             "nt"::text
+        WHEN "fmt" = '' THEN
+            ''
         ELSE
             to_char(date_trunc('day', localtimestamp) + "nt", "fmt")
         END

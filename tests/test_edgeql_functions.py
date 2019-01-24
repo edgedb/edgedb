@@ -1438,6 +1438,20 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [True],
         )
 
+        # Empty format string shouldn't produce an empty set.
+        await self.assert_query_result(
+            r'''SELECT to_str(1, "")''',
+            [''],
+        )
+        await self.assert_query_result(
+            r'''SELECT to_str(1.1, "")''',
+            [''],
+        )
+        await self.assert_query_result(
+            r'''SELECT to_str(1.1n, "")''',
+            [''],
+        )
+
     async def test_edgeql_functions_to_str_02(self):
         await self.assert_query_result(
             r'''
@@ -1573,23 +1587,21 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {'foo'},
         )
 
-        # TODO
-        # await self.assert_query_result(
-        #     r'''
-        #     WITH DT := <naive_time>'12:00:00'
-        #     SELECT to_str(DT, '');
-        #     ''',
-        #     {''},
-        # )
+        await self.assert_query_result(
+            r'''
+            WITH DT := <naive_time>'12:00:00'
+            SELECT to_str(DT, '');
+            ''',
+            {''},
+        )
 
-        # TODO
-        # await self.assert_query_result(
-        #     r'''
-        #     WITH DT := <naive_date>'2018-05-07'
-        #     SELECT to_str(DT, '');
-        #     ''',
-        #     {''},
-        # )
+        await self.assert_query_result(
+            r'''
+            WITH DT := <naive_date>'2018-05-07'
+            SELECT to_str(DT, '');
+            ''',
+            {''},
+        )
 
     async def test_edgeql_functions_to_str_05(self):
         await self.assert_query_result(
@@ -1749,11 +1761,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {' '},
         )
 
-        # TODO
-        # await self.assert_query_result(
-        #     r'''SELECT to_str(<naive_time>'15:01:22', '');''',
-        #     {''},
-        # )
+        await self.assert_query_result(
+            r'''SELECT to_str(<naive_time>'15:01:22', '');''',
+            {''},
+        )
 
     async def test_edgeql_functions_to_int_01(self):
         await self.assert_query_result(
