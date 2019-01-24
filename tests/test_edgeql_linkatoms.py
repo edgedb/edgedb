@@ -1258,7 +1258,6 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             }
         )
 
-    @test.xfail('does not work with binary serialization')
     async def test_edgeql_links_derived_array_07(self):
         await self.assert_query_result(
             r'''
@@ -1297,7 +1296,6 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             }
         )
 
-    @test.xfail('does not work with binary serialization')
     async def test_edgeql_links_derived_array_08(self):
         await self.assert_query_result(
             r'''

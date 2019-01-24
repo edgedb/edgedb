@@ -360,6 +360,7 @@ def set_to_array(
             result, ir_set.path_id, val, force=True, env=ctx.env)
 
     pg_type = output.get_pg_type(ir_set.typeref, ctx=ctx)
+    orig_val = val
 
     if ir_set.path_id.is_objtype_path():
         val = output.prepare_tuple_for_aggregation(val, env=ctx.env)
@@ -375,8 +376,9 @@ def set_to_array(
         name=('array_agg',),
         args=[val],
         agg_filter=(
-            astutils.new_binop(val, pgast.NullConstant(), 'IS DISTINCT FROM')
-            if val.nullable else None
+            astutils.new_binop(orig_val, pgast.NullConstant(),
+                               'IS DISTINCT FROM')
+            if orig_val.nullable else None
         ),
         ser_safe=val.ser_safe,
     )
