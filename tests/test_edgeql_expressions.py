@@ -130,6 +130,11 @@ VALUES = {
         value(typename='decimal',
               anyreal=True, anyint=False, anyfloat=False,
               datetime=False, signed=True, decimal=True),
+
+    '1n':
+        value(typename='decimal',
+              anyreal=True, anyint=False, anyfloat=False,
+              datetime=False, signed=True, decimal=True),
 }
 
 
@@ -292,6 +297,11 @@ class TestExpressions(tb.QueryTestCase):
             [0],
         )
 
+        await self.assert_query_result(
+            r'''SELECT 40000000000000000000000000n + 1;''',
+            [40000000000000000000000001],
+        )
+
     async def test_edgeql_expr_literals_01(self):
         await self.assert_query_result(
             r'''SELECT (INTROSPECT TYPEOF 1).name;''',
@@ -316,6 +326,11 @@ class TestExpressions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''SELECT (INTROSPECT TYPEOF 9223372036854775808).name;''',
             {'std::int64'},
+        )
+
+        await self.assert_query_result(
+            r'''SELECT (INTROSPECT TYPEOF 1n).name;''',
+            {'std::decimal'},
         )
 
     async def test_edgeql_expr_literals_02(self):

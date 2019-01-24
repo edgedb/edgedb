@@ -427,6 +427,46 @@ aa';
         SELECT $ select;
         """
 
+    def test_edgeql_syntax_constants_43(self):
+        """
+        SELECT -0n;
+        SELECT 0n;
+        SELECT 1n;
+        SELECT -1n;
+        SELECT 100000n;
+        SELECT -100000n;
+        SELECT -354.32n;
+        SELECT 35400000000000.32n;
+        SELECT -35400000000000000000.32n;
+        SELECT 3.5432e20n;
+        SELECT -3.5432e+20n;
+        SELECT 3.5432e-20n;
+        SELECT 354.32e-20n;
+
+% OK %
+
+        SELECT -0n;
+        SELECT 0n;
+        SELECT 1n;
+        SELECT -1n;
+        SELECT 100000n;
+        SELECT -100000n;
+        SELECT -354.32n;
+        SELECT 35400000000000.32n;
+        SELECT -35400000000000000000.32n;
+        SELECT 3.5432e20n;
+        SELECT -3.5432e+20n;
+        SELECT 3.5432e-20n;
+        SELECT 354.32e-20n;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected 'n'",
+                  line=2, col=18)
+    def test_edgeql_syntax_constants_44(self):
+        """
+        SELECT 1 n;
+        """
+
     @tb.must_fail(errors.EdgeQLSyntaxError, line=1, col=12)
     def test_edgeql_syntax_ops_01(self):
         """SELECT 40 >> 2;"""
@@ -1628,6 +1668,23 @@ aa';
         SELECT Foo.bar[IS array<int>];
         SELECT Foo.bar[IS int64];
         SELECT Foo.bar[IS tuple<array<int>, str>];
+        """
+
+    def test_edgeql_syntax_path_26(self):
+        # legal when `TUP` is a tuple
+        """
+        SELECT TUP.0;
+        SELECT TUP.0.name;
+        SELECT TUP.0.1.name;
+        SELECT TUP.0.1.n;
+        SELECT Foo.TUP.0.name;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected '0.1n'",
+                  line=2, col=20)
+    def test_edgeql_syntax_path_27(self):
+        """
+        SELECT TUP.0.1n.2;
         """
 
     def test_edgeql_syntax_type_interpretation_01(self):

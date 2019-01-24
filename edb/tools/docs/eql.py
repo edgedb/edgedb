@@ -1003,6 +1003,10 @@ def setup_domain(app):
         'eql:synopsis',
         shared.InlineCodeRole('edgeql-synopsis'))
 
+    app.add_role(
+        'eql:code',
+        shared.InlineCodeRole('edgeql'))
+
     app.add_domain(EdgeQLDomain)
 
     app.add_transform(StatementTransform)

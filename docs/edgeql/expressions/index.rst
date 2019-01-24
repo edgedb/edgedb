@@ -14,14 +14,38 @@ Scalar Literals
 ---------------
 
 A literal representation of a supported scalar type.
-See :ref:`ref_eql_lexical_const` for details about
+
+.. table::
+    :class: codeblocks
+
+    ====================================== =============================
+     Syntax                                 Type
+    ====================================== =============================
+     :eql:code:`SELECT true;`               :eql:type:`bool`
+     :eql:code:`SELECT false;`              :eql:type:`bool`
+     :eql:code:`SELECT 42;`                 :eql:type:`int64`
+     :eql:code:`SELECT -1.1;`               :eql:type:`float64`
+     :eql:code:`SELECT 1e-3;`               :eql:type:`float64`
+     :eql:code:`SELECT -42n;`               :eql:type:`decimal`
+     :eql:code:`SELECT 100.1n;`             :eql:type:`decimal`
+     :eql:code:`SELECT 'hello';`            :eql:type:`str`
+     :eql:code:`SELECT r'hello';`           :eql:type:`str` (raw string)
+     :eql:code:`SELECT $$ CREATE .. $$;`    :eql:type:`str` (raw string)
+     :eql:code:`SELECT b'binary \x01';`     :eql:type:`bytes`
+    ====================================== =============================
+
+
+See :ref:`ref_eql_lexical_const` for more details about
 the syntax for standard scalar literals.
 
-Additionally, any scalar value may be represented as a casted string literal:
+Additionally, many scalar values can be represented as
+a cast string literal:
 
 .. code-block:: edgeql
 
-    SELECT <float64>'1.23';
+    SELECT <float32>'1.23';
+    SELECT <timedelta>'1 day';
+    SELECT <std::decimal>'1.23';  # Same as SELECT 1.23n;
 
 
 .. _ref_eql_expr_index_setref:

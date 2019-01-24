@@ -259,6 +259,10 @@ class IntegerConstant(BaseRealConstant):
     pass
 
 
+class DecimalConstant(BaseRealConstant):
+    pass
+
+
 class FloatConstant(BaseRealConstant):
     pass
 

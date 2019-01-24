@@ -520,6 +520,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('-')
         self.write(node.value)
 
+    def visit_DecimalConstant(self, node):
+        if node.is_negative:
+            self.write('-')
+        self.write(node.value)
+
     def visit_BooleanConstant(self, node):
         self.write(node.value)
 

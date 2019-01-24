@@ -177,6 +177,10 @@ class T_ICONST(Token):
     pass
 
 
+class T_NCONST(Token):
+    pass
+
+
 class T_FCONST(Token):
     pass
 

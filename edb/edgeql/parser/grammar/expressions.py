@@ -888,6 +888,9 @@ class BaseNumberConstant(Nonterm):
     def reduce_FCONST(self, *kids):
         self.val = qlast.FloatConstant(value=kids[0].val)
 
+    def reduce_NCONST(self, *kids):
+        self.val = qlast.DecimalConstant(value=kids[0].val)
+
 
 class RawStringConstant(Nonterm):
 

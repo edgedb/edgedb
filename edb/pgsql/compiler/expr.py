@@ -162,22 +162,11 @@ def compile_BytesConstant(
     return pgast.ByteaConstant(val=expr.value)
 
 
-@dispatch.compile.register(irast.IntegerConstant)
-def compile_IntegerConstant(
-        expr: irast.IntegerConstant, *,
-        ctx: context.CompilerContextLevel) -> pgast.Base:
-
-    return pgast.TypeCast(
-        arg=pgast.NumericConstant(val=expr.value),
-        type_name=pgast.TypeName(
-            name=pg_types.pg_type_from_ir_typeref(expr.typeref)
-        )
-    )
-
-
 @dispatch.compile.register(irast.FloatConstant)
+@dispatch.compile.register(irast.DecimalConstant)
+@dispatch.compile.register(irast.IntegerConstant)
 def compile_FloatConstant(
-        expr: irast.FloatConstant, *,
+        expr: irast.BaseConstant, *,
         ctx: context.CompilerContextLevel) -> pgast.Base:
 
     return pgast.TypeCast(

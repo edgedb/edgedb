@@ -108,6 +108,20 @@ class EdgeQLLexer(lexer.Lexer):
              next_state=STATE_KEEP,
              regexp=r'[,()\[\].@;:+\-*/%^<>=&|]'),
 
+        Rule(token='NCONST',
+             next_state=STATE_KEEP,
+             regexp=r"""
+                (?:
+                    (?: \d+ (?:\.\d+)?
+                        (?:[eE](?:[+\-])?[0-9]+)
+                    )
+                    |
+                    (?: \d+\.\d+)
+                    |
+                    ([1-9]\d* | 0)(?![0-9])
+                )n
+                """),
+
         Rule(token='FCONST',
              next_state=STATE_KEEP,
              regexp=r"""

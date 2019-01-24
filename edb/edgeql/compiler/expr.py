@@ -169,6 +169,13 @@ def compile_BaseConstant(
             value = f'-{value}'
         std_type = 'std::float64'
         node_cls = irast.FloatConstant
+    elif isinstance(expr, qlast.DecimalConstant):
+        assert value[-1] == 'n'
+        value = value[:-1]
+        if expr.is_negative:
+            value = f'-{value}'
+        std_type = 'std::decimal'
+        node_cls = irast.DecimalConstant
     elif isinstance(expr, qlast.BooleanConstant):
         std_type = 'std::bool'
         node_cls = irast.BooleanConstant

@@ -382,6 +382,10 @@ class FloatConstant(BaseConstant):
     pass
 
 
+class DecimalConstant(BaseConstant):
+    pass
+
+
 class BooleanConstant(BaseConstant):
     pass
 
