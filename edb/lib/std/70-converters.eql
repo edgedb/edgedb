@@ -48,6 +48,23 @@ std::to_str(dt: std::datetime, fmt: OPTIONAL str={}) -> std::str
 
 
 CREATE FUNCTION
+std::to_str(td: std::timedelta, fmt: OPTIONAL str={}) -> std::str
+{
+    FROM SQL $$
+    SELECT (
+        CASE WHEN "fmt" IS NULL THEN
+            trim(to_json("td")::text, '"')
+        WHEN "fmt" = '' THEN
+            ''
+        ELSE
+            to_char("td", "fmt")
+        END
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
 std::to_str(dt: std::naive_datetime, fmt: OPTIONAL str={}) -> std::str
 {
     FROM SQL $$

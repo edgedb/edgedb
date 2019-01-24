@@ -1106,22 +1106,21 @@ class TestExpressions(tb.QueryTestCase):
             ],
         )
 
-        # TODO
-        # await self.assert_query_result(
-        #     r'''
-        #         WITH A := to_str(
-        #             <timedelta>{
-        #                 "20:01:22.306916",
-        #                 "19:01:22.306916"
-        #             }
-        #         )
-        #         SELECT A ORDER BY A;
-        #     ''',
-        #     [
-        #         "19:01:22.306916",
-        #         "20:01:22.306916",
-        #     ]
-        # )
+        await self.assert_query_result(
+            r'''
+                WITH A := to_str(
+                    <timedelta>{
+                        "20:01:22.306916",
+                        "19:01:22.306916"
+                    }
+                )
+                SELECT A ORDER BY A;
+            ''',
+            [
+                "19:01:22.306916",
+                "20:01:22.306916",
+            ]
+        )
 
     async def test_edgeql_expr_valid_order_07(self):
         # make sure that any numeric type is orderable and produces

@@ -1509,23 +1509,21 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {' '}
         )
 
-        # TODO
-        # await self.assert_query_result(
-        #     r'''
-        #     WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
-        #     SELECT to_str(DT, '');
-        #     ''',
-        #     {''}
-        # )
+        await self.assert_query_result(
+            r'''
+            WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
+            SELECT to_str(DT, '');
+            ''',
+            {''}
+        )
 
-        # TODO
-        # await self.assert_query_result(
-        #     r'''
-        #     WITH DT := to_timedelta(months:=20)
-        #     SELECT to_str(DT, '');
-        #     ''',
-        #     {''}
-        # )
+        await self.assert_query_result(
+            r'''
+            WITH DT := to_timedelta(months:=20)
+            SELECT to_str(DT, '');
+            ''',
+            {''}
+        )
 
     async def test_edgeql_functions_to_str_03(self):
         await self.assert_query_result(

@@ -54,17 +54,15 @@ class TestEdgeQLDT(tb.QueryTestCase):
             ['2017-10-09T00:00:00+00:00'],
         )
 
-        # TODO
-        # await self.assert_query_result(
-        #     r'''SELECT to_str(<timedelta>'1 day' + <timedelta>'1 day')''',
-        #     ['2 days'],
-        # )
+        await self.assert_query_result(
+            r'''SELECT to_str(<timedelta>'1 day' + <timedelta>'1 day')''',
+            ['2 days'],
+        )
 
-        # TODO
-        # await self.assert_query_result(
-        #     r'''SELECT to_str(<timedelta>'4 days' - <timedelta>'1 day')''',
-        #     ['3 days'],
-        # )
+        await self.assert_query_result(
+            r'''SELECT to_str(<timedelta>'4 days' - <timedelta>'1 day')''',
+            ['3 days'],
+        )
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
