@@ -359,10 +359,17 @@ def set_to_array(
         pathctx.put_path_serialized_var(
             result, ir_set.path_id, val, force=True, env=ctx.env)
 
+    pg_type = output.get_pg_type(ir_set.typeref, ctx=ctx)
+
     if ir_set.path_id.is_objtype_path():
         val = output.prepare_tuple_for_aggregation(val, env=ctx.env)
-
-    pg_type = output.get_pg_type(ir_set.typeref, ctx=ctx)
+    elif (ir_set.path_id.is_array_path()
+            and ctx.env.output_format != context.OutputFormat.JSON):
+        # We cannot aggregate arrays straight away, as
+        # they be of different length, so we have to
+        # encase each element into a record.
+        val = pgast.RowExpr(args=[val], ser_safe=val.ser_safe)
+        pg_type = ('record',)
 
     array_agg = pgast.FuncCall(
         name=('array_agg',),
