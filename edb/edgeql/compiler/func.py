@@ -300,12 +300,17 @@ def compile_operator(
     matched_params = oper.get_params(env.schema)
     rtype = matched_call.return_type
 
-    if oper_name == 'std::UNION' and rtype.is_object_type():
-        # Special case for UNION operator, instead of common parent type,
-        # we return a union type.
-        left_type = setgen.get_set_type(args[0].expr, ctx=ctx).material_type(
+    if oper_name in {'std::UNION', 'std::IF'} and rtype.is_object_type():
+        # Special case for the UNION and IF operators, instead of common
+        # parent type, we return a union type.
+        if oper_name == 'std::UNION':
+            larg, rarg = (a.expr for a in args)
+        else:
+            larg, rarg = (a.expr for a in args[1:])
+
+        left_type = setgen.get_set_type(larg, ctx=ctx).material_type(
             ctx.env.schema)
-        right_type = setgen.get_set_type(args[1].expr, ctx=ctx).material_type(
+        right_type = setgen.get_set_type(rarg, ctx=ctx).material_type(
             ctx.env.schema)
 
         if left_type.issubclass(env.schema, right_type):
@@ -498,6 +503,9 @@ def finalize_args(bound_call: polyres.BoundCall, *,
         val_material_type = barg.valtype.material_type(ctx.env.schema)
         param_material_type = paramtype.material_type(ctx.env.schema)
 
+        # Check if we need to cast the argument value before passing
+        # it to the callable.  For tuples, we also check that the element
+        # names match.
         compatible = (
             val_material_type.issubclass(ctx.env.schema, param_material_type)
             and (not param_material_type.is_tuple()

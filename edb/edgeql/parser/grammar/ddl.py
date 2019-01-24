@@ -1775,6 +1775,9 @@ class OperatorKind(Nonterm):
     def reduce_PREFIX(self, *kids):
         self.val = kids[0].val
 
+    def reduce_TERNARY(self, *kids):
+        self.val = kids[0].val
+
 
 class OperatorCode(Nonterm):
 

@@ -4101,7 +4101,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_if_else_03(self):
         with self.assertRaisesRegex(edgedb.QueryError,
-                                    r'IF/ELSE operator cannot be applied'):
+                                    r'operator.*IF.*cannot be applied'):
 
             await self.query(r"""
                 WITH MODULE test

@@ -32,7 +32,7 @@ CREATE SCALAR TYPE schema::target_delete_action_t EXTENDING std::str {
 };
 
 CREATE SCALAR TYPE schema::operator_kind_t EXTENDING std::str {
-    CREATE CONSTRAINT std::enum ('INFIX', 'POSTFIX', 'PREFIX');
+    CREATE CONSTRAINT std::enum ('INFIX', 'POSTFIX', 'PREFIX', 'TERNARY');
 };
 
 # Base type for all schema entities.

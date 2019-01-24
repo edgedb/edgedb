@@ -326,9 +326,13 @@ class ScopeTreeNode:
 
         for descendant in node.path_descendants:
             path_id = descendant.path_id.strip_namespace(dns)
-            if self.find_visible(path_id) is not None:
-                # This path is already present in the tree, discard.
+            visible = self.find_visible(path_id)
+            if visible is not None:
+                # This path is already present in the tree, discard,
+                # but keep its OPTIONAL status, if any.
                 descendant.remove()
+                if descendant.optional:
+                    visible.optional = True
 
             elif descendant.parent_fence is node:
                 # Unfenced path.
@@ -387,6 +391,8 @@ class ScopeTreeNode:
         node.remove()
 
         if node.path_id is not None:
+            if node.optional:
+                self.optional = True
             subtree = ScopeTreeNode(fenced=True)
             for child in tuple(node.children):
                 subtree.attach_child(child)

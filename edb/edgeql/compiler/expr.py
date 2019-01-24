@@ -44,7 +44,6 @@ from . import inference
 from . import pathctx
 from . import setgen
 from . import schemactx
-from . import stmtctx
 from . import typegen
 
 from . import func  # NOQA
@@ -337,59 +336,11 @@ def compile_Array(
 def compile_IfElse(
         expr: qlast.IfElse, *, ctx: context.ContextLevel) -> irast.Base:
 
-    condition = setgen.ensure_set(
-        dispatch.compile(expr.condition, ctx=ctx), ctx=ctx)
+    op_node = func.compile_operator(
+        expr, op_name='std::IF',
+        qlargs=[expr.condition, expr.if_expr, expr.else_expr], ctx=ctx)
 
-    ql_if_expr = expr.if_expr
-    ql_else_expr = expr.else_expr
-
-    with ctx.newscope(fenced=True) as scopectx:
-        if_expr = setgen.scoped_set(
-            dispatch.compile(ql_if_expr, ctx=scopectx),
-            ctx=scopectx)
-
-    with ctx.newscope(fenced=True) as scopectx:
-        else_expr = setgen.scoped_set(
-            dispatch.compile(ql_else_expr, ctx=scopectx),
-            ctx=scopectx)
-
-    if_expr_type = inference.infer_type(if_expr, ctx.env)
-    else_expr_type = inference.infer_type(else_expr, ctx.env)
-    cond_expr_type = inference.infer_type(condition, ctx.env)
-
-    # make sure that the condition is actually boolean
-    bool_t = ctx.env.schema.get('std::bool')
-    if not cond_expr_type.issubclass(ctx.env.schema, bool_t):
-        raise errors.QueryError(
-            'if/else condition must be of type {}, got: {}'.format(
-                bool_t.get_displayname(ctx.env.schema),
-                cond_expr_type.get_displayname(ctx.env.schema)),
-            context=expr.context)
-
-    result = if_expr_type.find_common_implicitly_castable_type(
-        else_expr_type, schema=ctx.env.schema)
-
-    if result is None:
-        raise errors.QueryError(
-            f'IF/ELSE operator cannot be applied to operands of type '
-            f'{if_expr_type.get_displayname(ctx.env.schema)!r} and '
-            f'{else_expr_type.get_displayname(ctx.env.schema)!r}',
-            context=expr.context)
-
-    ifelse = irast.IfElseExpr(
-        if_expr=if_expr,
-        else_expr=else_expr,
-        condition=condition)
-
-    stmtctx.get_expr_cardinality_later(
-        target=ifelse, field='if_expr_card', irexpr=if_expr, ctx=ctx)
-    stmtctx.get_expr_cardinality_later(
-        target=ifelse, field='else_expr_card', irexpr=else_expr, ctx=ctx)
-
-    return setgen.ensure_set(
-        ifelse,
-        ctx=ctx
-    )
+    return setgen.ensure_set(op_node, ctx=ctx)
 
 
 @dispatch.compile.register(qlast.UnaryOp)

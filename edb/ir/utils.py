@@ -98,6 +98,14 @@ def is_exists_expr(ir):
     )
 
 
+def is_ifelse_expr(ir):
+    return (
+        isinstance(ir, irast.OperatorCall) and
+        ir.operator_kind is ft.OperatorKind.TERNARY and
+        ir.func_shortname == 'std::IF'
+    )
+
+
 def is_empty_array_expr(ir):
     return (
         isinstance(ir, irast.Array)

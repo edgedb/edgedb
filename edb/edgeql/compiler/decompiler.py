@@ -235,6 +235,11 @@ class IRDecompiler(ast.visitor.NodeVisitor):
                 operand=self.visit(args[0].expr),
                 op=node.func_shortname.name,
             )
+        elif node.func_shortname == 'std::IF':
+            result = qlast.IfElse()
+            result.condition = self.visit(args[0].expr)
+            result.if_expr = self.visit(args[1].expr)
+            result.else_expr = self.visit(args[2].expr)
         else:
             raise RuntimeError(
                 f'unexpected operator kind: {node.operator_kind}')
@@ -307,13 +312,6 @@ class IRDecompiler(ast.visitor.NodeVisitor):
             steps=[qlast.ObjectRef(module=mtn.module, name=mtn.name)]
         )
 
-        return result
-
-    def visit_IfElseExpr(self, node):
-        result = qlast.IfElse()
-        result.condition = self.visit(node.condition)
-        result.if_expr = self.visit(node.if_expr)
-        result.else_expr = self.visit(node.else_expr)
         return result
 
     def _is_none(self, expr):

@@ -76,6 +76,8 @@ class Operator(s_func.CallableObject, s_abc.Operator):
             return f'{params[0]} {name}'
         elif kind is ft.OperatorKind.PREFIX:
             return f'{name} {params[1]}'
+        elif kind is ft.OperatorKind.TERNARY:
+            return f'{name} ({", ".join(params)})'
         else:
             raise ValueError('unexpected operator kind')
 

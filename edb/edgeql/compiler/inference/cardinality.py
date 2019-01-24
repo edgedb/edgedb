@@ -167,12 +167,6 @@ def __infer_typecheckop(ir, scope_tree, env):
     return infer_cardinality(ir.left, scope_tree, env)
 
 
-@_infer_cardinality.register(irast.IfElseExpr)
-def __infer_ifelse(ir, scope_tree, env):
-    return _common_cardinality([ir.if_expr, ir.else_expr, ir.condition],
-                               scope_tree, env)
-
-
 @_infer_cardinality.register(irast.TypeCast)
 def __infer_typecast(ir, scope_tree, env):
     return infer_cardinality(ir.expr, scope_tree, env)

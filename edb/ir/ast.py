@@ -425,19 +425,6 @@ class TypeCheckOp(Expr):
     result: typing.Optional[bool] = None
 
 
-class IfElseExpr(Expr):
-
-    # cardinality fields need to be mutable for lazy cardinality inference.
-    __ast_mutable_fields__ = ('if_expr_card', 'else_expr_card')
-
-    condition: Set
-    if_expr: Set
-    else_expr: Set
-
-    if_expr_card: qltypes.Cardinality
-    else_expr_card: qltypes.Cardinality
-
-
 class SortExpr(Base):
 
     expr: Base

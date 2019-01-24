@@ -298,6 +298,18 @@ def compile_OperatorCall(
         expr: irast.OperatorCall, *,
         ctx: context.CompilerContextLevel) -> pgast.Expr:
 
+    if (expr.func_shortname == 'std::IF'
+            and expr.args[1].cardinality is ql_ft.Cardinality.ONE
+            and expr.args[2].cardinality is ql_ft.Cardinality.ONE):
+        condition, if_expr, else_expr = (a.expr for a in expr.args)
+        return pgast.CaseExpr(
+            args=[
+                pgast.CaseWhen(
+                    expr=dispatch.compile(condition, ctx=ctx),
+                    result=dispatch.compile(if_expr, ctx=ctx))
+            ],
+            defresult=dispatch.compile(else_expr, ctx=ctx))
+
     if expr.typemod is ql_ft.TypeModifier.SET_OF:
         raise RuntimeError(
             f'set returning operator {expr.func_shortname!r} is not supported '
@@ -383,19 +395,6 @@ def compile_TypeCheckOp(
                 result = astutils.new_unop('NOT', result)
 
     return result
-
-
-@dispatch.compile.register(irast.IfElseExpr)
-def compile_IfElseExpr(
-        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
-    with ctx.new() as subctx:
-        return pgast.CaseExpr(
-            args=[
-                pgast.CaseWhen(
-                    expr=dispatch.compile(expr.condition, ctx=subctx),
-                    result=dispatch.compile(expr.if_expr, ctx=subctx))
-            ],
-            defresult=dispatch.compile(expr.else_expr, ctx=subctx))
 
 
 @dispatch.compile.register(irast.Array)

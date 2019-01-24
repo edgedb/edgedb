@@ -1240,7 +1240,7 @@ class TestExpressions(tb.QueryTestCase):
                         await self.query(query)
 
     async def test_edgeql_expr_valid_setop_07(self):
-        expected_error_msg = 'condition must be of type std::bool'
+        expected_error_msg = 'cannot be applied to operands'
         # IF ELSE with every scalar as the condition
         for val in get_test_values():
             query = f"""SELECT 1 IF {val} ELSE 2;"""
@@ -2072,7 +2072,7 @@ class TestExpressions(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r"IF/ELSE.*cannot.*'std::int64' and 'std::str'"):
+                r"operator.*IF.*cannot.*'std::int64'.*'std::str'"):
 
             await self.query("""
                 SELECT 3 / (2 IF FALSE ELSE '1');

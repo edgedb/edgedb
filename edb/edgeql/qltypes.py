@@ -52,6 +52,7 @@ class OperatorKind(s_enum.StrEnum):
     INFIX = 'INFIX'
     POSTFIX = 'POSTFIX'
     PREFIX = 'PREFIX'
+    TERNARY = 'TERNARY'
 
 
 class TransactionIsolationLevel(s_enum.StrEnum):

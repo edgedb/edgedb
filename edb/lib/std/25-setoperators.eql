@@ -69,3 +69,9 @@ std::`UNION` (s1: SET OF anytype, s2: SET OF anytype) -> SET OF anytype
 CREATE INFIX OPERATOR
 std::`??` (l: OPTIONAL anytype, r: SET OF anytype) -> SET OF anytype
     FROM SQL EXPRESSION;
+
+
+CREATE TERNARY OPERATOR
+std::`IF` (condition: bool, if_true: SET OF anytype,
+           if_false: SET OF anytype) -> SET OF anytype
+    FROM SQL EXPRESSION;

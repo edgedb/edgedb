@@ -85,6 +85,7 @@ unreserved_keywords = frozenset([
     "single",
     "source",
     "target",
+    "ternary",
     "then",
     "to",
     "transaction",

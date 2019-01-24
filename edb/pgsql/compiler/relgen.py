@@ -233,7 +233,7 @@ def _get_set_rvar(
         # DISTINCT Expr
         rvars = process_set_as_distinct(ir_set, stmt, ctx=ctx)
 
-    elif isinstance(ir_set.expr, irast.IfElseExpr):
+    elif irutils.is_ifelse_expr(ir_set.expr):
         # Expr IF Cond ELSE Expr
         rvars = process_set_as_ifelse(ir_set, stmt, ctx=ctx)
 
@@ -981,32 +981,45 @@ def process_set_as_ifelse(
     # SELECT A WHERE Cond UNION ALL SELECT B WHERE NOT Cond
     expr = ir_set.expr
 
-    if (0 and
-            expr.if_expr_card == qltypes.Cardinality.ONE and
-            expr.else_expr_card == qltypes.Cardinality.ONE):
+    condition, if_expr, else_expr = (a.expr for a in expr.args)
+    _, if_expr_card, else_expr_card = (a.cardinality for a in expr.args)
+
+    with ctx.new() as newctx:
+        newctx.expr_exposed = False
+        dispatch.visit(condition, ctx=newctx)
+        condref = relctx.get_path_var(
+            stmt, path_id=condition.path_id,
+            aspect='value', ctx=newctx)
+
+    if (if_expr_card is qltypes.Cardinality.ONE
+            and else_expr_card is qltypes.Cardinality.ONE
+            and irtyputils.is_scalar(expr.typeref)):
+        # For a simple case of singleton scalars on both ends of IF,
+        # use a CASE WHEN construct, since it's normally faster than
+        # a UNION ALL with filters.  The reason why we limit this
+        # optimization to scalars is because CASE WHEN can only yield
+        # a single value, hence no other aspects can be supported
+        # by this rvar.
+        with ctx.new() as newctx:
+            newctx.expr_exposed = False
+            # Values still need to be encased in subqueries to guard
+            # against empty sets.
+            if_val = set_as_subquery(if_expr, as_value=True, ctx=newctx)
+            else_val = set_as_subquery(else_expr, as_value=True, ctx=newctx)
+
         set_expr = pgast.CaseExpr(
-            args=[
-                pgast.CaseWhen(
-                    expr=dispatch.compile(expr.condition, ctx=ctx),
-                    result=dispatch.compile(expr.if_expr, ctx=ctx))
-            ],
-            defresult=dispatch.compile(expr.else_expr, ctx=ctx))
+            args=[pgast.CaseWhen(expr=condref, result=if_val)],
+            defresult=else_val,
+        )
 
         pathctx.put_path_value_var_if_not_exists(
             stmt, ir_set.path_id, set_expr, env=ctx.env)
 
     else:
-        with ctx.new() as newctx:
-            newctx.expr_exposed = False
-            dispatch.visit(expr.condition, ctx=newctx)
-            condref = relctx.get_path_var(
-                stmt, path_id=expr.condition.path_id,
-                aspect='value', ctx=newctx)
-
         with ctx.subrel() as _, _.newscope() as subctx:
             larg = subctx.rel
-            larg.view_path_id_map[ir_set.path_id] = expr.if_expr.path_id
-            dispatch.visit(expr.if_expr, ctx=subctx)
+            larg.view_path_id_map[ir_set.path_id] = if_expr.path_id
+            dispatch.visit(if_expr, ctx=subctx)
 
             larg.where_clause = astutils.extend_binop(
                 larg.where_clause,
@@ -1015,8 +1028,8 @@ def process_set_as_ifelse(
 
         with ctx.subrel() as _, _.newscope() as subctx:
             rarg = subctx.rel
-            rarg.view_path_id_map[ir_set.path_id] = expr.else_expr.path_id
-            dispatch.visit(expr.else_expr, ctx=subctx)
+            rarg.view_path_id_map[ir_set.path_id] = else_expr.path_id
+            dispatch.visit(else_expr, ctx=subctx)
 
             rarg.where_clause = astutils.extend_binop(
                 rarg.where_clause,

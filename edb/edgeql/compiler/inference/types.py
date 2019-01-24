@@ -184,23 +184,6 @@ def __infer_typecheckop(ir, env):
     return env.schema.get('std::bool')
 
 
-@_infer_type.register(irast.IfElseExpr)
-def __infer_ifelse(ir, env):
-    result = _infer_common_type(
-        [ir.if_expr, ir.else_expr], env)
-
-    if result is None:
-        if_expr_type = infer_type(ir.if_expr, env)
-        else_expr_type = infer_type(ir.else_expr, env)
-        raise errors.QueryError(
-            f'IF/ELSE operator cannot be applied to operands of type '
-            f'{if_expr_type.get_displayname(env.schema)!r} and '
-            f'{else_expr_type.get_displayname(env.schema)!r}',
-            context=ir.if_expr.context)
-
-    return result
-
-
 @_infer_type.register(irast.AnyTypeRef)
 def __infer_anytyperef(ir, env):
     return s_pseudo.Any.create()
