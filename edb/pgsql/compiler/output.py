@@ -77,13 +77,18 @@ def array_as_json_object(expr, *, styperef, env):
         return pgast.SelectStmt(
             target_list=[
                 pgast.ResTarget(
-                    val=pgast.FuncCall(
-                        name=('jsonb_agg',),
+                    val=pgast.CoalesceExpr(
                         args=[
                             pgast.FuncCall(
-                                name=(json_func,),
-                                args=json_args,
-                            )
+                                name=('jsonb_agg',),
+                                args=[
+                                    pgast.FuncCall(
+                                        name=(json_func,),
+                                        args=json_args,
+                                    )
+                                ]
+                            ),
+                            pgast.StringConstant(val='[]'),
                         ]
                     ),
                     ser_safe=True,

@@ -2478,6 +2478,28 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT {[1, 2], []};
             """)
 
+    async def test_edgeql_expr_array_22(self):
+        await self.assert_query_result(
+            '''
+                SELECT schema::ObjectType {
+                    foo := {
+                        [(a := 1, b := 2)],
+                        [(a := 3, b := 4)],
+                        <array <tuple<a: int64, b: int64>>>[],
+                    }
+                } LIMIT 1
+            ''',
+            [[
+                {
+                    'foo': [
+                        [{'a': 1, 'b': 2}],
+                        [{'a': 3, 'b': 4}],
+                        [],
+                    ],
+                }
+            ]],
+        )
+
     async def test_edgeql_expr_coalesce_01(self):
         await self.assert_query_result(r"""
             SELECT <int64>{} ?? 4 ?? 5;

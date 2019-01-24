@@ -151,8 +151,11 @@ def new_array_set(
         ctx: context.ContextLevel) -> irast.Set:
 
     arr = irast.Array(elements=elements)
-    stype = inference.infer_type(arr, env=ctx.env)
-    typeref = irtyputils.type_to_typeref(ctx.env.schema, stype)
+    if elements:
+        stype = inference.infer_type(arr, env=ctx.env)
+        typeref = irtyputils.type_to_typeref(ctx.env.schema, stype)
+    else:
+        stype = typeref = None
     arr = irast.Array(elements=elements, typeref=typeref)
     return ensure_set(arr, type_override=stype, ctx=ctx)
 
