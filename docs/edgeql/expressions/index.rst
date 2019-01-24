@@ -13,7 +13,7 @@ commands.
 Scalar Literals
 ---------------
 
-A literal representation of a supported scalar type.
+EdgeQL supports the following literals:
 
 .. table::
     :class: codeblocks
@@ -31,7 +31,7 @@ A literal representation of a supported scalar type.
      :eql:code:`SELECT 'hello';`            :eql:type:`str`
      :eql:code:`SELECT r'hello';`           :eql:type:`str` (raw string)
      :eql:code:`SELECT $$ CREATE .. $$;`    :eql:type:`str` (raw string)
-     :eql:code:`SELECT b'binary \x01';`     :eql:type:`bytes`
+     :eql:code:`SELECT b'binary \\x01';`    :eql:type:`bytes`
     ====================================== =============================
 
 
