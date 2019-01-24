@@ -585,6 +585,10 @@ class ParallelTextTestResult(unittest.result.TestResult):
                 wmsg.line
             )))
 
+    def wasSuccessful(self):
+        # Overload TestResult.wasSuccessful to ignore unexpected successes
+        return (len(self.failures) == len(self.errors) == 0)
+
 
 class ParallelTextTestRunner:
 
