@@ -566,6 +566,13 @@ def _same_expr(expr1, expr2):
         return expr1 == expr2
 
 
+def _put_path_output_var(
+        rel: pgast.BaseRelation, path_id: irast.PathId, aspect: str,
+        var: pgast.OutputVar, *, env: context.Environment) -> None:
+
+    rel.path_outputs[path_id, aspect] = var
+
+
 def _get_rel_object_id_output(
         rel: pgast.BaseRelation, path_id: irast.PathId, *,
         aspect: str,
@@ -592,7 +599,7 @@ def _get_rel_object_id_output(
     else:
         result = pgast.ColumnRef(name=['id'], nullable=False)
 
-    rel.path_outputs[path_id, aspect] = result
+    _put_path_output_var(rel, path_id, aspect, result, env=env)
 
     return result
 
@@ -672,7 +679,7 @@ def _get_rel_path_output(
         result = pgast.ColumnRef(
             name=[ptr_info.column_name],
             nullable=not ptrref.required)
-    rel.path_outputs[path_id, aspect] = result
+    _put_path_output_var(rel, path_id, aspect, result, env=env)
     return result
 
 
@@ -714,10 +721,12 @@ def _get_path_output(
 
     rptr = path_id.rptr()
     if rptr is not None and irtyputils.is_id_ptrref(rptr):
+        # A value reference to Object.id is the same as a value
+        # reference to the Object itself.
         src_path_id = path_id.src_path()
         id_output = rel.path_outputs.get((src_path_id, 'value'))
         if id_output is not None:
-            rel.path_outputs[path_id, aspect] = id_output
+            _put_path_output_var(rel, path_id, aspect, id_output, env=env)
             return id_output
 
     if is_terminal_relation(rel):
@@ -728,7 +737,7 @@ def _get_path_output(
 
     other_output = find_path_output(rel, path_id, ref, env=env)
     if other_output is not None:
-        rel.path_outputs[path_id, aspect] = other_output
+        _put_path_output_var(rel, path_id, aspect, other_output, env=env)
         return other_output
 
     if isinstance(ref, pgast.TupleVar):
@@ -784,7 +793,11 @@ def _get_path_output(
             result = pgast.ColumnRef(
                 name=[alias], nullable=nullable, optional=optional)
 
-    rel.path_outputs[path_id, aspect] = result
+    _put_path_output_var(rel, path_id, aspect, result, env=env)
+    if (aspect == 'identity' and path_id.is_objtype_path()
+            and (path_id, 'value') not in rel.path_outputs):
+        _put_path_output_var(rel, path_id, 'value', result, env=env)
+
     return result
 
 
@@ -847,7 +860,9 @@ def get_path_serialized_output(
 
     result = pgast.ColumnRef(
         name=[alias], nullable=ref.nullable, ser_safe=True)
-    rel.path_outputs[path_id, aspect] = result
+
+    _put_path_output_var(rel, path_id, aspect, result, env=env)
+
     return result
 
 
@@ -866,7 +881,7 @@ def get_path_output_or_null(
     if alt_aspect is not None:
         ref = maybe_get_path_output(rel, path_id, aspect=alt_aspect, env=env)
         if ref is not None:
-            rel.path_outputs[path_id, aspect] = ref
+            _put_path_output_var(rel, path_id, aspect, ref, env=env)
             return ref, False
 
     alias = env.aliases.get('null')
@@ -880,7 +895,7 @@ def get_path_output_or_null(
         rel.target_list.append(restarget)
 
     ref = pgast.ColumnRef(name=[alias], nullable=True)
-    rel.path_outputs[path_id, aspect] = ref
+    _put_path_output_var(rel, path_id, aspect, ref, env=env)
 
     return ref, True
 

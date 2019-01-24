@@ -1812,7 +1812,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    @test.xfail('does not work with binary serialization')
     async def test_edgeql_select_setops_13(self):
         await self.assert_query_result(
             r"""

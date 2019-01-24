@@ -86,12 +86,8 @@ def compile_output(
             val = pathctx.get_path_serialized_output(
                 ctx.rel, path_id, env=ctx.env)
         else:
-            if path_id.is_objtype_path():
-                val = pathctx.get_path_identity_output(
-                    ctx.rel, path_id, env=ctx.env)
-            else:
-                val = pathctx.get_path_value_output(
-                    ctx.rel, path_id, env=ctx.env)
+            val = pathctx.get_path_value_output(
+                ctx.rel, path_id, env=ctx.env)
 
     return val
 
