@@ -55,92 +55,84 @@ class TestSession(tb.QueryTestCase):
     """
 
     async def test_session_default_module_01(self):
-        await self.assert_legacy_query_result("""
-            SELECT User {name};
-        """, [[{
-            'name': 'user'
-        }]])
+        await self.assert_query_result(
+            """
+                SELECT User {name};
+            """,
+            [{
+                'name': 'user'
+            }]
+        )
 
     async def test_session_set_command_01(self):
-        await self.assert_legacy_query_result("""
-            SET MODULE foo;
+        await self.con.execute('SET MODULE foo;')
 
-            SELECT Entity {name};
-        """, [
-
-            None,
-
+        await self.assert_query_result(
+            """
+                SELECT Entity {name};
+            """,
             [{
                 'name': 'entity'
             }]
-        ])
+        )
 
     async def test_session_set_command_02(self):
+        await self.con.fetch('SET MODULE foo;')
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 'reference to a non-existent schema item: User'):
-            await self.assert_legacy_query_result("""
-                SET MODULE foo;
-
-                SELECT User {name};
-            """, [
-
-                None,
-
-                [{
-                    'name': 'user'
-                }]
-            ])
+            await self.con.fetch('SELECT User {name};')
 
     async def test_session_set_command_03(self):
-        await self.assert_legacy_query_result("""
-            SET MODULE foo, ALIAS bar AS MODULE default;
-
-            SELECT (Entity.name, bar::User.name);
-        """, [
-
-            None,
-
+        await self.con.execute('SET MODULE foo, ALIAS bar AS MODULE default;')
+        await self.assert_query_result(
+            """SELECT (Entity.name, bar::User.name);""",
             [['entity', 'user']]
-        ])
+        )
 
     async def test_session_set_command_05(self):
+        await self.con.execute('SET MODULE default, ALIAS bar AS MODULE foo;')
         # Check that local WITH overrides the session level setting.
-        await self.assert_legacy_query_result("""
-            SET MODULE default, ALIAS bar AS MODULE foo;
-
-            WITH MODULE foo, bar AS MODULE default
-            SELECT (Entity.name, bar::User.name);
-        """, [
-
-            None,
-
+        await self.assert_query_result(
+            """
+                WITH MODULE foo, bar AS MODULE default
+                SELECT (Entity.name, bar::User.name);
+            """,
             [['entity', 'user']]
-        ])
+        )
 
     async def test_session_set_command_06(self):
         # Check that nested WITH blocks work correctly, with and
         # without DETACHED.
-        await self.assert_legacy_query_result("""
-            WITH MODULE foo
+        await self.assert_query_result(
+            """
+                WITH MODULE foo
                 SELECT (
                     Entity.name,
                     fuz::Entity.name
                 );
+            """,
+            [['entity', 'fuzentity']],
+        )
 
-            WITH MODULE foo
+        await self.assert_query_result(
+            """
+                WITH MODULE foo
                 SELECT (
                     Entity.name,
                     (WITH MODULE fuz SELECT Entity.name)
                 );
+            """,
+            [['entity', 'fuzentity']],
+        )
 
-            WITH MODULE foo
+        await self.assert_query_result(
+            """
+                WITH MODULE foo
                 SELECT (
                     Entity.name,
                     (WITH MODULE fuz SELECT DETACHED Entity.name)
                 );
-        """, [
+            """,
             [['entity', 'fuzentity']],
-            [['entity', 'fuzentity']],
-            [['entity', 'fuzentity']],
-        ])
+        )

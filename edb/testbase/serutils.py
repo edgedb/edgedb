@@ -17,6 +17,8 @@
 #
 
 
+import datetime
+import decimal
 import functools
 import uuid
 
@@ -90,5 +92,21 @@ def _uuid(o: uuid.UUID):
 @serialize.register(str)
 @serialize.register(bool)
 @serialize.register(type(None))
+@serialize.register(decimal.Decimal)
 def _scalar(o):
     return o
+
+
+@serialize.register
+def _datetime(o: datetime.datetime):
+    return o.isoformat()
+
+
+@serialize.register
+def _date(o: datetime.date):
+    return o.isoformat()
+
+
+@serialize.register
+def _time(o: datetime.time):
+    return o.isoformat()

@@ -53,51 +53,61 @@ class TestUpdate(tb.QueryTestCase):
         self.original = json.loads(self.original)
 
     async def test_edgeql_update_simple_01(self):
-        await self.assert_legacy_query_result(r"""
-            WITH MODULE test
-            UPDATE UpdateTest
-            # bad name doesn't exist, so no update is expected
-            FILTER UpdateTest.name = 'bad name'
-            SET {
-                status := (SELECT Status FILTER Status.name = 'Closed')
-            };
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                UPDATE UpdateTest
+                # bad name doesn't exist, so no update is expected
+                FILTER UpdateTest.name = 'bad name'
+                SET {
+                    status := (SELECT Status FILTER Status.name = 'Closed')
+                };
+            """,
+            []
+        )
 
-            WITH MODULE test
-            SELECT UpdateTest {
-                id,
-                name,
-                comment,
-                status: {
-                    name
-                }
-            } ORDER BY .name;
-        """, [
-            [],
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    id,
+                    name,
+                    comment,
+                    status: {
+                        name
+                    }
+                } ORDER BY .name;
+            """,
             self.original,
-        ])
+        )
 
     async def test_edgeql_update_simple_02(self):
         orig1, orig2, orig3 = self.original
 
-        await self.assert_legacy_query_result(r"""
-            WITH MODULE test
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = 'update-test1'
-            SET {
-                status := (SELECT Status FILTER Status.name = 'Closed')
-            };
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test1'
+                SET {
+                    status := (SELECT Status FILTER Status.name = 'Closed')
+                };
+            """,
+            [{}]
+        )
 
-            WITH MODULE test
-            SELECT UpdateTest {
-                id,
-                name,
-                comment,
-                status: {
-                    name
-                }
-            } ORDER BY .name;
-        """, [
-            [{}],
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    id,
+                    name,
+                    comment,
+                    status: {
+                        name
+                    }
+                } ORDER BY .name;
+            """,
             [
                 {
                     'id': orig1['id'],
@@ -109,27 +119,32 @@ class TestUpdate(tb.QueryTestCase):
                 orig2,
                 orig3,
             ]
-        ])
+        )
 
     async def test_edgeql_update_simple_03(self):
         orig1, orig2, orig3 = self.original
 
-        await self.assert_legacy_query_result(r"""
-            WITH MODULE test
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = 'update-test2'
-            SET {
-                comment := 'updated ' ++ UpdateTest.comment
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest {
-                id,
-                name,
-                comment,
-            } ORDER BY .name;
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test2'
+                SET {
+                    comment := 'updated ' ++ UpdateTest.comment
+                };
+            """,
             [{}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    id,
+                    name,
+                    comment,
+                } ORDER BY .name;
+            """,
             [
                 {
                     'id': orig1['id'],
@@ -145,172 +160,183 @@ class TestUpdate(tb.QueryTestCase):
                     'comment': orig3['comment'],
                 },
             ]
-        ])
+        )
 
     async def test_edgeql_update_simple_04(self):
         orig1, orig2, orig3 = self.original
 
-        await self.assert_legacy_query_result(r"""
-            WITH MODULE test
-            UPDATE UpdateTest
-            SET {
-                comment := UpdateTest.comment ++ "!",
-                status := (SELECT Status FILTER Status.name = 'Closed')
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest {
-                id,
-                name,
-                comment,
-                status: {
-                    name
-                }
-            } ORDER BY .name;
-        """, [
-            [{}, {}, {}],
-            [
-                {
-                    'id': orig1['id'],
-                    'name': 'update-test1',
-                    'comment': None,
-                    'status': {
-                        'name': 'Closed'
-                    }
-                }, {
-                    'id': orig2['id'],
-                    'name': 'update-test2',
-                    'comment': 'second!',
-                    'status': {
-                        'name': 'Closed'
-                    }
-                }, {
-                    'id': orig3['id'],
-                    'name': 'update-test3',
-                    'comment': 'third!',
-                    'status': {
-                        'name': 'Closed'
-                    }
-                },
-            ]
-        ])
-
-    async def test_edgeql_update_returning_01(self):
-        orig1, orig2, orig3 = self.original
-
-        await self.assert_legacy_query_result(r"""
-            WITH MODULE test
-            SELECT (
-                UPDATE UpdateTest
-                FILTER UpdateTest.name = 'update-test2'
-                SET {
-                    comment := 'updated ' ++ UpdateTest.comment
-                }
-            ) {
-                id,
-                name,
-                comment,
-            };
-        """, [
-            [{
-                'id': orig2['id'],
-                'name': 'update-test2',
-                'comment': 'updated second',
-            }]
-        ])
-
-    async def test_edgeql_update_returning_02(self):
-        orig1, orig2, orig3 = self.original
-
-        self.assert_legacy_sorted_query_result(r"""
-            WITH MODULE test
-            SELECT (
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
                 UPDATE UpdateTest
                 SET {
                     comment := UpdateTest.comment ++ "!",
                     status := (SELECT Status FILTER Status.name = 'Closed')
-                }
-            ) {
-                id,
-                name,
-                comment,
-                status: {
-                    name
-                }
-            };
-        """, lambda x: x['name'], [
-            [
-                {
-                    'id': orig1['id'],
-                    'name': 'update-test1',
-                    'comment': None,
-                    'status': {
-                        'name': 'Closed'
-                    }
-                }, {
-                    'id': orig2['id'],
-                    'name': 'update-test2',
-                    'comment': 'second!',
-                    'status': {
-                        'name': 'Closed'
-                    }
-                }, {
-                    'id': orig3['id'],
-                    'name': 'update-test3',
-                    'comment': 'third!',
-                    'status': {
-                        'name': 'Closed'
-                    }
-                },
-            ]
-        ])
+                };
+            """,
+            [{}, {}, {}],
+        )
 
-    async def test_edgeql_update_returning_03(self):
-        orig1, orig2, orig3 = self.original
-
-        await self.assert_legacy_query_result(r"""
-            WITH
-                MODULE test,
-                U := (
-                    UPDATE UpdateTest
-                    FILTER UpdateTest.name = 'update-test2'
-                    SET {
-                        comment := 'updated ' ++ UpdateTest.comment
-                    }
-                )
-            SELECT Status{name}
-            FILTER Status = U.status
-            ORDER BY Status.name;
-        """, [
-            [{'name': 'Open'}],
-        ])
-
-    async def test_edgeql_update_returning_04(self):
-        orig1, orig2, orig3 = self.original
-
-        await self.assert_legacy_query_result(r"""
-            WITH
-                MODULE test,
-                Q := (
-                    UPDATE UpdateTest
-                    SET {
-                        comment := UpdateTest.comment ++ "!",
-                        status := (SELECT Status FILTER Status.name = 'Closed')
-                    }
-                )
-
-            SELECT
-                Q {
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
                     id,
                     name,
                     comment,
                     status: {
                         name
                     }
-                }
-            ORDER BY
-                Q.name;
-        """, [
+                } ORDER BY .name;
+            """,
+            [
+                {
+                    'id': orig1['id'],
+                    'name': 'update-test1',
+                    'comment': None,
+                    'status': {
+                        'name': 'Closed'
+                    }
+                }, {
+                    'id': orig2['id'],
+                    'name': 'update-test2',
+                    'comment': 'second!',
+                    'status': {
+                        'name': 'Closed'
+                    }
+                }, {
+                    'id': orig3['id'],
+                    'name': 'update-test3',
+                    'comment': 'third!',
+                    'status': {
+                        'name': 'Closed'
+                    }
+                },
+            ]
+        )
+
+    async def test_edgeql_update_returning_01(self):
+        orig1, orig2, orig3 = self.original
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT (
+                    UPDATE UpdateTest
+                    FILTER UpdateTest.name = 'update-test2'
+                    SET {
+                        comment := 'updated ' ++ UpdateTest.comment
+                    }
+                ) {
+                    id,
+                    name,
+                    comment,
+                };
+            """,
+            [{
+                'id': orig2['id'],
+                'name': 'update-test2',
+                'comment': 'updated second',
+            }]
+        )
+
+    async def test_edgeql_update_returning_02(self):
+        orig1, orig2, orig3 = self.original
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT (
+                    UPDATE UpdateTest
+                    SET {
+                        comment := UpdateTest.comment ++ "!",
+                        status := (SELECT Status FILTER Status.name = 'Closed')
+                    }
+                ) {
+                    id,
+                    name,
+                    comment,
+                    status: {
+                        name
+                    }
+                };
+            """,
+            [
+                {
+                    'id': orig1['id'],
+                    'name': 'update-test1',
+                    'comment': None,
+                    'status': {
+                        'name': 'Closed'
+                    }
+                }, {
+                    'id': orig2['id'],
+                    'name': 'update-test2',
+                    'comment': 'second!',
+                    'status': {
+                        'name': 'Closed'
+                    }
+                }, {
+                    'id': orig3['id'],
+                    'name': 'update-test3',
+                    'comment': 'third!',
+                    'status': {
+                        'name': 'Closed'
+                    }
+                },
+            ],
+            sort=lambda x: x['name']
+        )
+
+    async def test_edgeql_update_returning_03(self):
+        orig1, orig2, orig3 = self.original
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                    U := (
+                        UPDATE UpdateTest
+                        FILTER UpdateTest.name = 'update-test2'
+                        SET {
+                            comment := 'updated ' ++ UpdateTest.comment
+                        }
+                    )
+                SELECT Status{name}
+                FILTER Status = U.status
+                ORDER BY Status.name;
+            """,
+            [{'name': 'Open'}],
+        )
+
+    async def test_edgeql_update_returning_04(self):
+        orig1, orig2, orig3 = self.original
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                    Q := (
+                        UPDATE UpdateTest
+                        SET {
+                            comment := UpdateTest.comment ++ "!",
+                            status := (SELECT
+                                Status FILTER Status.name = 'Closed')
+                        }
+                    )
+
+                SELECT
+                    Q {
+                        id,
+                        name,
+                        comment,
+                        status: {
+                            name
+                        }
+                    }
+                ORDER BY
+                    Q.name;
+            """,
             [{
                 'id': orig1['id'],
                 'name': 'update-test1',
@@ -333,7 +359,7 @@ class TestUpdate(tb.QueryTestCase):
                     'name': 'Closed'
                 }
             }],
-        ])
+        )
 
     async def test_edgeql_update_returning_05(self):
         # test that plain INSERT and UPDATE return objects they have
@@ -352,52 +378,62 @@ class TestUpdate(tb.QueryTestCase):
             """))
             data = [str(o.id) for o in data]
 
-            await self.assert_legacy_query_result(r"""
-                WITH MODULE test
-                SELECT UpdateTest {
-                    id,
-                    name
-                }
-                FILTER .name LIKE '%ret5._'
-                ORDER BY .name;
-            """, [
-                [{
-                    'id': data[0],
-                    'name': 'ret5.1',
-                }, {
-                    'id': data[1],
-                    'name': 'ret5.2',
-                }],
-            ])
+            await self.assert_query_result(
+                r"""
+                    WITH MODULE test
+                    SELECT UpdateTest {
+                        id,
+                        name
+                    }
+                    FILTER .name LIKE '%ret5._'
+                    ORDER BY .name;
+                """,
+                [
+                    {
+                        'id': data[0],
+                        'name': 'ret5.1',
+                    },
+                    {
+                        'id': data[1],
+                        'name': 'ret5.2',
+                    }
+                ],
+            )
 
-            await self.assert_legacy_sorted_query_result(r"""
-                WITH MODULE test
-                UPDATE UpdateTest
-                FILTER UpdateTest.name LIKE '%ret5._'
-                SET {
-                    name := 'new ' ++ UpdateTest.name
-                };
-            """, lambda x: x['id'], [
+            await self.assert_query_result(
+                r"""
+                    WITH MODULE test
+                    UPDATE UpdateTest
+                    FILTER UpdateTest.name LIKE '%ret5._'
+                    SET {
+                        name := 'new ' ++ UpdateTest.name
+                    };
+                """,
                 [{'id': data_id} for data_id in sorted(data)],
-            ])
+                sort=lambda x: x['id']
+            )
 
-            await self.assert_legacy_query_result(r"""
-                WITH MODULE test
-                SELECT UpdateTest {
-                    id,
-                    name
-                }
-                FILTER .name LIKE '%ret5._'
-                ORDER BY .name;
-            """, [
-                [{
-                    'id': data[0],
-                    'name': 'new ret5.1',
-                }, {
-                    'id': data[1],
-                    'name': 'new ret5.2',
-                }],
-            ])
+            await self.assert_query_result(
+                r"""
+                    WITH MODULE test
+                    SELECT UpdateTest {
+                        id,
+                        name
+                    }
+                    FILTER .name LIKE '%ret5._'
+                    ORDER BY .name;
+                """,
+                [
+                    {
+                        'id': data[0],
+                        'name': 'new ret5.1',
+                    },
+                    {
+                        'id': data[1],
+                        'name': 'new ret5.2',
+                    }
+                ],
+            )
         finally:
             await self.con.execute(r"""
                 DELETE (
@@ -415,26 +451,32 @@ class TestUpdate(tb.QueryTestCase):
         """)
         status = str(status.id)
 
-        await self.assert_legacy_query_result(r"""
-            WITH MODULE test
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = 'update-test3'
-            SET {
-                status := (
-                    SELECT Status
-                    FILTER Status.id = <uuid>'""" + status + r"""'
-                )
-            };
+        updated = await self.con.fetch(
+            r"""
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test3'
+                SET {
+                    status := (
+                        SELECT Status
+                        FILTER Status.id = <uuid>$status
+                    )
+                };
+            """,
+            status=status
+        )
+        self.assertGreater(len(updated), 0)
 
-            WITH MODULE test
-            SELECT UpdateTest {
-                name,
-                status: {
-                    name
-                }
-            } FILTER UpdateTest.name = 'update-test3';
-        """, [
-            [{}],
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    status: {
+                        name
+                    }
+                } FILTER UpdateTest.name = 'update-test3';
+            """,
             [
                 {
                     'name': 'update-test3',
@@ -443,62 +485,77 @@ class TestUpdate(tb.QueryTestCase):
                     },
                 },
             ]
-        ])
+        )
 
     async def test_edgeql_update_filter_01(self):
-        await self.assert_legacy_query_result(r"""
-            WITH MODULE test
-            UPDATE (SELECT UpdateTest)
-            # this FILTER is trivial because UpdateTest is wrapped
-            # into a SET OF by SELECT
-            FILTER UpdateTest.name = 'update-test1'
-            SET {
-                comment := 'bad test'
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest.comment;
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                UPDATE (SELECT UpdateTest)
+                # this FILTER is trivial because UpdateTest is wrapped
+                # into a SET OF by SELECT
+                FILTER UpdateTest.name = 'update-test1'
+                SET {
+                    comment := 'bad test'
+                };
+            """,
             [{}, {}, {}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest.comment;
+            """,
             ['bad test'] * 3,
-        ])
+        )
 
     async def test_edgeql_update_filter_02(self):
-        await self.assert_legacy_query_result(r"""
-            WITH MODULE test
-            UPDATE (<UpdateTest>{} ?? UpdateTest)
-            # this FILTER is trivial because UpdateTest is wrapped
-            # into a SET OF by ??
-            FILTER UpdateTest.name = 'update-test1'
-            SET {
-                comment := 'bad test'
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest.comment;
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                UPDATE (<UpdateTest>{} ?? UpdateTest)
+                # this FILTER is trivial because UpdateTest is wrapped
+                # into a SET OF by ??
+                FILTER UpdateTest.name = 'update-test1'
+                SET {
+                    comment := 'bad test'
+                };
+            """,
             [{}, {}, {}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest.comment;
+            """,
             ['bad test'] * 3,
-        ])
+        )
 
     async def test_edgeql_update_multiple_01(self):
-        await self.assert_legacy_query_result(r"""
-            WITH MODULE test
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = 'update-test1'
-            SET {
-                tags := (SELECT Tag)
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest {
-                name,
-                tags: {
-                    name
-                } ORDER BY .name
-            } FILTER UpdateTest.name = 'update-test1';
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test1'
+                SET {
+                    tags := (SELECT Tag)
+                };
+            """,
             [{}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    tags: {
+                        name
+                    } ORDER BY .name
+                } FILTER UpdateTest.name = 'update-test1';
+            """,
             [
                 {
                     'name': 'update-test1',
@@ -511,26 +568,31 @@ class TestUpdate(tb.QueryTestCase):
                     }],
                 },
             ]
-        ])
+        )
 
     async def test_edgeql_update_multiple_02(self):
-        await self.assert_legacy_query_result(r"""
-            WITH MODULE test
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = 'update-test1'
-            SET {
-                tags := (SELECT Tag FILTER Tag.name = 'wow')
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest {
-                name,
-                tags: {
-                    name
-                } ORDER BY .name
-            } FILTER UpdateTest.name = 'update-test1';
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test1'
+                SET {
+                    tags := (SELECT Tag FILTER Tag.name = 'wow')
+                };
+            """,
             [{}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    tags: {
+                        name
+                    } ORDER BY .name
+                } FILTER UpdateTest.name = 'update-test1';
+            """,
             [
                 {
                     'name': 'update-test1',
@@ -539,26 +601,31 @@ class TestUpdate(tb.QueryTestCase):
                     }],
                 },
             ]
-        ])
+        )
 
     async def test_edgeql_update_multiple_03(self):
-        await self.assert_legacy_query_result(r"""
-            WITH MODULE test
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = 'update-test1'
-            SET {
-                tags := (SELECT Tag FILTER Tag.name IN {'wow', 'fun'})
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest {
-                name,
-                tags: {
-                    name
-                } ORDER BY .name
-            } FILTER UpdateTest.name = 'update-test1';
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test1'
+                SET {
+                    tags := (SELECT Tag FILTER Tag.name IN {'wow', 'fun'})
+                };
+            """,
             [{}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    tags: {
+                        name
+                    } ORDER BY .name
+                } FILTER UpdateTest.name = 'update-test1';
+            """,
             [
                 {
                     'name': 'update-test1',
@@ -569,57 +636,70 @@ class TestUpdate(tb.QueryTestCase):
                     }],
                 },
             ]
-        ])
+        )
 
     @unittest.expectedFailure
     async def test_edgeql_update_multiple_04(self):
-        await self.assert_legacy_query_result(r"""
-            # first add a tag to UpdateTest
-            WITH MODULE test
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = 'update-test1'
-            SET {
-                tags := (
-                    SELECT Tag
-                    FILTER Tag.name = 'fun'
-                )
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest {
-                name,
-                tags: {
-                    name
-                } ORDER BY .name
-            } FILTER UpdateTest.name = 'update-test1';
-
-            # now add another tag, but keep the existing one, too
-            WITH MODULE test
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = 'update-test1'
-            SET {
-                tags := UpdateTest.tags UNION (
-                    SELECT Tag
-                    FILTER Tag.name = 'wow'
-                )
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest {
-                name,
-                tags: {
-                    name
-                } ORDER BY .name
-            } FILTER UpdateTest.name = 'update-test1';
-        """, [
+        await self.assert_query_result(
+            r"""
+                # first add a tag to UpdateTest
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test1'
+                SET {
+                    tags := (
+                        SELECT Tag
+                        FILTER Tag.name = 'fun'
+                    )
+                };
+            """,
             [{}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    tags: {
+                        name
+                    } ORDER BY .name
+                } FILTER UpdateTest.name = 'update-test1';
+            """,
             [{
                 'name': 'update-test1',
                 'tags': [{
                     'name': 'fun',
                 }],
             }],
+        )
+
+        await self.assert_query_result(
+            r"""
+            # now add another tag, but keep the existing one, too
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test1'
+                SET {
+                    tags := UpdateTest.tags UNION (
+                        SELECT Tag
+                        FILTER Tag.name = 'wow'
+                    )
+                };
+            """,
             [{}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    tags: {
+                        name
+                    } ORDER BY .name
+                } FILTER UpdateTest.name = 'update-test1';
+            """,
             [{
                 'name': 'update-test1',
                 'tags': [{
@@ -628,28 +708,33 @@ class TestUpdate(tb.QueryTestCase):
                     'name': 'wow',
                 }],
             }],
-        ])
+        )
 
     async def test_edgeql_update_multiple_05(self):
-        await self.assert_legacy_query_result(r"""
-            WITH
-                MODULE test,
-                U2 := UpdateTest
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = 'update-test1'
-            SET {
-                related := (SELECT U2 FILTER U2.name != 'update-test1')
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest {
-                name,
-                related: {
-                    name
-                } ORDER BY .name
-            } FILTER UpdateTest.name = 'update-test1';
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                    U2 := UpdateTest
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test1'
+                SET {
+                    related := (SELECT U2 FILTER U2.name != 'update-test1')
+                };
+            """,
             [{}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    related: {
+                        name
+                    } ORDER BY .name
+                } FILTER UpdateTest.name = 'update-test1';
+            """,
             [
                 {
                     'name': 'update-test1',
@@ -660,31 +745,36 @@ class TestUpdate(tb.QueryTestCase):
                     }],
                 },
             ]
-        ])
+        )
 
     async def test_edgeql_update_multiple_06(self):
-        await self.assert_legacy_query_result(r"""
-            WITH
-                MODULE test,
-                U2 := UpdateTest
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = 'update-test1'
-            SET {
-                annotated_tests := (
-                    SELECT U2 FILTER U2.name != 'update-test1'
-                )
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest {
-                name,
-                annotated_tests: {
-                    name,
-                    @note
-                } ORDER BY .name
-            } FILTER UpdateTest.name = 'update-test1';
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                    U2 := UpdateTest
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test1'
+                SET {
+                    annotated_tests := (
+                        SELECT U2 FILTER U2.name != 'update-test1'
+                    )
+                };
+            """,
             [{}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    annotated_tests: {
+                        name,
+                        @note
+                    } ORDER BY .name
+                } FILTER UpdateTest.name = 'update-test1';
+            """,
             [
                 {
                     'name': 'update-test1',
@@ -697,33 +787,38 @@ class TestUpdate(tb.QueryTestCase):
                     }],
                 },
             ]
-        ])
+        )
 
     async def test_edgeql_update_multiple_07(self):
-        await self.assert_legacy_query_result(r"""
-            WITH
-                MODULE test,
-                U2 := UpdateTest
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = 'update-test1'
-            SET {
-                annotated_tests := (
-                    SELECT U2 {
-                        @note := 'note' ++ U2.name[-1]
-                    } FILTER U2.name != 'update-test1'
-                )
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest {
-                name,
-                annotated_tests: {
-                    name,
-                    @note
-                } ORDER BY .name
-            } FILTER UpdateTest.name = 'update-test1';
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                    U2 := UpdateTest
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test1'
+                SET {
+                    annotated_tests := (
+                        SELECT U2 {
+                            @note := 'note' ++ U2.name[-1]
+                        } FILTER U2.name != 'update-test1'
+                    )
+                };
+            """,
             [{}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    annotated_tests: {
+                        name,
+                        @note
+                    } ORDER BY .name
+                } FILTER UpdateTest.name = 'update-test1';
+            """,
             [
                 {
                     'name': 'update-test1',
@@ -736,44 +831,32 @@ class TestUpdate(tb.QueryTestCase):
                     }],
                 },
             ]
-        ])
+        )
 
     @unittest.expectedFailure
     async def test_edgeql_update_multiple_08(self):
-        await self.assert_legacy_query_result(r"""
-            # make tests related to the other 2
-            WITH
-                MODULE test,
-                UT := UpdateTest
-            UPDATE UpdateTest
-            SET {
-                related := (SELECT UT FILTER UT != UpdateTest)
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest{
-                name,
-                related: {name} ORDER BY .name
-            } ORDER BY .name;
-
-            # now update related tests based on existing related tests
-            WITH
-                MODULE test,
-                UT := UpdateTest
-            UPDATE UpdateTest
-            SET {
-                # since there are 2 tests in each FILTER, != is
-                # guaranteed to be TRUE for at least one of them
-                related := (SELECT UT FILTER UT != UpdateTest.related)
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest{
-                name,
-                related: {name} ORDER BY .name
-            } ORDER BY .name;
-        """, [
+        await self.assert_query_result(
+            r"""
+                # make tests related to the other 2
+                WITH
+                    MODULE test,
+                    UT := UpdateTest
+                UPDATE UpdateTest
+                SET {
+                    related := (SELECT UT FILTER UT != UpdateTest)
+                };
+            """,
             [3],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest{
+                    name,
+                    related: {name} ORDER BY .name
+                } ORDER BY .name;
+            """,
             [
                 {
                     'name': 'update-test1',
@@ -797,7 +880,32 @@ class TestUpdate(tb.QueryTestCase):
                     ],
                 },
             ],
+        )
+
+        await self.assert_query_result(
+            r"""
+                # now update related tests based on existing related tests
+                WITH
+                    MODULE test,
+                    UT := UpdateTest
+                UPDATE UpdateTest
+                SET {
+                    # since there are 2 tests in each FILTER, != is
+                    # guaranteed to be TRUE for at least one of them
+                    related := (SELECT UT FILTER UT != UpdateTest.related)
+                };
+            """,
             [3],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest{
+                    name,
+                    related: {name} ORDER BY .name
+                } ORDER BY .name;
+            """,
             [
                 {
                     'name': 'update-test1',
@@ -824,43 +932,32 @@ class TestUpdate(tb.QueryTestCase):
                     ],
                 },
             ],
-        ])
+        )
 
     @unittest.expectedFailure
     async def test_edgeql_update_multiple_09(self):
-        await self.assert_legacy_query_result(r"""
-            # make tests related to the other 2
-            WITH
-                MODULE test,
-                UT := UpdateTest
-            UPDATE UpdateTest
-            SET {
-                related := (SELECT UT FILTER UT != UpdateTest)
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest{
-                name,
-                related: {name} ORDER BY .name
-            } ORDER BY .name;
-
-            # now update related tests based on existing related tests
-            WITH
-                MODULE test,
-                UT := UpdateTest
-            UPDATE UpdateTest
-            SET {
-                # this should make the related test be the same as parent
-                related := (SELECT UT FILTER UT NOT IN UpdateTest.related)
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest{
-                name,
-                related: {name} ORDER BY .name
-            } ORDER BY .name;
-        """, [
+        await self.assert_query_result(
+            r"""
+                # make tests related to the other 2
+                WITH
+                    MODULE test,
+                    UT := UpdateTest
+                UPDATE UpdateTest
+                SET {
+                    related := (SELECT UT FILTER UT != UpdateTest)
+                };
+            """,
             [3],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest{
+                    name,
+                    related: {name} ORDER BY .name
+                } ORDER BY .name;
+            """,
             [
                 {
                     'name': 'update-test1',
@@ -884,7 +981,31 @@ class TestUpdate(tb.QueryTestCase):
                     ],
                 },
             ],
+        )
+
+        await self.assert_query_result(
+            r"""
+                # now update related tests based on existing related tests
+                WITH
+                    MODULE test,
+                    UT := UpdateTest
+                UPDATE UpdateTest
+                SET {
+                    # this should make the related test be the same as parent
+                    related := (SELECT UT FILTER UT NOT IN UpdateTest.related)
+                };
+            """,
             [3],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest{
+                    name,
+                    related: {name} ORDER BY .name
+                } ORDER BY .name;
+            """,
             [
                 {
                     'name': 'update-test1',
@@ -905,44 +1026,35 @@ class TestUpdate(tb.QueryTestCase):
                     ],
                 },
             ],
-        ])
+        )
 
     @unittest.expectedFailure
     async def test_edgeql_update_multiple_10(self):
-        await self.assert_legacy_query_result(r"""
-            # make each test related to 'update-test1'
-            WITH
-                MODULE test,
-                UT := (
-                    SELECT UpdateTest FILTER UpdateTest.name = 'update-test1'
-                )
-            UPDATE UpdateTest
-            SET {
-                related := UT
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest{
-                name,
-                related: {name} ORDER BY .name
-            } ORDER BY .name;
-
-            # now update related tests
-            WITH MODULE test
-            # there's only one item in the UPDATE set
-            UPDATE UpdateTest.related
-            SET {
-                # every test is .<related to 'update-test1'
-                related := UpdateTest.related.<related
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest{
-                name,
-                related: {name} ORDER BY .name
-            } ORDER BY .name;
-        """, [
+        await self.assert_query_result(
+            r"""
+                # make each test related to 'update-test1'
+                WITH
+                    MODULE test,
+                    UT := (
+                        SELECT UpdateTest FILTER UpdateTest.name =
+                            'update-test1'
+                    )
+                UPDATE UpdateTest
+                SET {
+                    related := UT
+                };
+            """,
             [3],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest{
+                    name,
+                    related: {name} ORDER BY .name
+                } ORDER BY .name;
+            """,
             [
                 {
                     'name': 'update-test1',
@@ -963,7 +1075,30 @@ class TestUpdate(tb.QueryTestCase):
                     ],
                 },
             ],
+        )
+
+        await self.assert_query_result(
+            r"""
+                # now update related tests
+                WITH MODULE test
+                # there's only one item in the UPDATE set
+                UPDATE UpdateTest.related
+                SET {
+                    # every test is .<related to 'update-test1'
+                    related := UpdateTest.related.<related
+                };
+            """,
             [{}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest{
+                    name,
+                    related: {name} ORDER BY .name
+                } ORDER BY .name;
+            """,
             [
                 {
                     'name': 'update-test1',
@@ -986,34 +1121,39 @@ class TestUpdate(tb.QueryTestCase):
                     ],
                 },
             ],
-        ])
+        )
 
     async def test_edgeql_update_props_01(self):
-        await self.assert_legacy_query_result(r"""
-            WITH MODULE test
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = 'update-test1'
-            SET {
-                weighted_tags := (
-                    SELECT Tag {
-                        @weight :=
-                            1 IF Tag.name = 'boring' ELSE
-                            2 IF Tag.name = 'wow' ELSE
-                            3
-                    }
-                )
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest {
-                name,
-                weighted_tags: {
-                    name,
-                    @weight
-                } ORDER BY @weight
-            } FILTER UpdateTest.name = 'update-test1';
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test1'
+                SET {
+                    weighted_tags := (
+                        SELECT Tag {
+                            @weight :=
+                                1 IF Tag.name = 'boring' ELSE
+                                2 IF Tag.name = 'wow' ELSE
+                                3
+                        }
+                    )
+                };
+            """,
             [{}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    weighted_tags: {
+                        name,
+                        @weight
+                    } ORDER BY @weight
+                } FILTER UpdateTest.name = 'update-test1';
+            """,
             [
                 {
                     'name': 'update-test1',
@@ -1029,28 +1169,33 @@ class TestUpdate(tb.QueryTestCase):
                     }],
                 },
             ]
-        ])
+        )
 
     async def test_edgeql_update_props_02(self):
-        await self.assert_legacy_query_result(r"""
-            WITH MODULE test
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = 'update-test1'
-            SET {
-                weighted_tags := (
-                    SELECT Tag {@weight := 1} FILTER Tag.name = 'wow')
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest {
-                name,
-                weighted_tags: {
-                    name,
-                    @weight
-                } ORDER BY @weight
-            } FILTER UpdateTest.name = 'update-test1';
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test1'
+                SET {
+                    weighted_tags := (
+                        SELECT Tag {@weight := 1} FILTER Tag.name = 'wow')
+                };
+            """,
             [{}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    weighted_tags: {
+                        name,
+                        @weight
+                    } ORDER BY @weight
+                } FILTER UpdateTest.name = 'update-test1';
+            """,
             [
                 {
                     'name': 'update-test1',
@@ -1060,31 +1205,36 @@ class TestUpdate(tb.QueryTestCase):
                     }],
                 },
             ]
-        ])
+        )
 
     async def test_edgeql_update_props_03(self):
-        await self.assert_legacy_query_result(r"""
-            WITH MODULE test
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = 'update-test1'
-            SET {
-                weighted_tags := (
-                    SELECT Tag {
-                        @weight := len(Tag.name) % 2 + 1
-                    } FILTER Tag.name IN {'wow', 'boring'}
-                )
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest {
-                name,
-                weighted_tags: {
-                    name,
-                    @weight
-                } ORDER BY @weight
-            } FILTER UpdateTest.name = 'update-test1';
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test1'
+                SET {
+                    weighted_tags := (
+                        SELECT Tag {
+                            @weight := len(Tag.name) % 2 + 1
+                        } FILTER Tag.name IN {'wow', 'boring'}
+                    )
+                };
+            """,
             [{}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    weighted_tags: {
+                        name,
+                        @weight
+                    } ORDER BY @weight
+                } FILTER UpdateTest.name = 'update-test1';
+            """,
             [
                 {
                     'name': 'update-test1',
@@ -1097,31 +1247,36 @@ class TestUpdate(tb.QueryTestCase):
                     }],
                 },
             ]
-        ])
+        )
 
     async def test_edgeql_update_props_05(self):
-        await self.assert_legacy_query_result(r"""
-            WITH MODULE test
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = 'update-test1'
-            SET {
-                annotated_status := (
-                    SELECT Status {
-                        @note := 'Victor'
-                    } FILTER Status.name = 'Closed'
-                )
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest {
-                name,
-                annotated_status: {
-                    name,
-                    @note
-                }
-            } FILTER UpdateTest.name = 'update-test1';
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test1'
+                SET {
+                    annotated_status := (
+                        SELECT Status {
+                            @note := 'Victor'
+                        } FILTER Status.name = 'Closed'
+                    )
+                };
+            """,
             [{}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    annotated_status: {
+                        name,
+                        @note
+                    }
+                } FILTER UpdateTest.name = 'update-test1';
+            """,
             [
                 {
                     'name': 'update-test1',
@@ -1131,31 +1286,36 @@ class TestUpdate(tb.QueryTestCase):
                     },
                 },
             ]
-        ])
+        )
 
     async def test_edgeql_update_props_06(self):
-        await self.assert_legacy_query_result(r"""
-            WITH MODULE test
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = 'update-test1'
-            SET {
-                annotated_status := (
-                    SELECT Status {
-                        @note := 'Victor'
-                    } FILTER Status = UpdateTest.status
-                )
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest {
-                name,
-                annotated_status: {
-                    name,
-                    @note
-                }
-            } FILTER UpdateTest.name = 'update-test1';
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test1'
+                SET {
+                    annotated_status := (
+                        SELECT Status {
+                            @note := 'Victor'
+                        } FILTER Status = UpdateTest.status
+                    )
+                };
+            """,
             [{}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    annotated_status: {
+                        name,
+                        @note
+                    }
+                } FILTER UpdateTest.name = 'update-test1';
+            """,
             [
                 {
                     'name': 'update-test1',
@@ -1165,29 +1325,34 @@ class TestUpdate(tb.QueryTestCase):
                     },
                 },
             ]
-        ])
+        )
 
     async def test_edgeql_update_props_07(self):
-        await self.assert_legacy_query_result(r"""
-            WITH MODULE test
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = 'update-test1'
-            SET {
-                annotated_status := (
-                    SELECT Status FILTER Status.name = 'Open'
-                )
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest {
-                name,
-                annotated_status: {
-                    name,
-                    @note
-                }
-            } FILTER UpdateTest.name = 'update-test1';
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test1'
+                SET {
+                    annotated_status := (
+                        SELECT Status FILTER Status.name = 'Open'
+                    )
+                };
+            """,
             [{}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    annotated_status: {
+                        name,
+                        @note
+                    }
+                } FILTER UpdateTest.name = 'update-test1';
+            """,
             [
                 {
                     'name': 'update-test1',
@@ -1197,42 +1362,51 @@ class TestUpdate(tb.QueryTestCase):
                     },
                 },
             ]
-        ])
+        )
 
     async def test_edgeql_update_props_08(self):
-        await self.assert_legacy_query_result(r"""
-            WITH MODULE test
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = 'update-test1'
-            SET {
-                annotated_status := (
-                    SELECT Status {
-                        @note := 'Victor'
-                    } FILTER Status.name = 'Open'
-                )
-            };
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test1'
+                SET {
+                    annotated_status := (
+                        SELECT Status {
+                            @note := 'Victor'
+                        } FILTER Status.name = 'Open'
+                    )
+                };
+            """,
+            [{}],
+        )
 
-            # update again, erasing the 'note' value
-            WITH MODULE test
-            UPDATE UpdateTest
-            FILTER UpdateTest.name = 'update-test1'
-            SET {
-                annotated_status: {
-                    @note := <str>{}
-                }
-            };
+        await self.assert_query_result(
+            r"""
+                # update again, erasing the 'note' value
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test1'
+                SET {
+                    annotated_status: {
+                        @note := <str>{}
+                    }
+                };
+            """,
+            [{}],
+        )
 
-            WITH MODULE test
-            SELECT UpdateTest {
-                name,
-                annotated_status: {
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
                     name,
-                    @note
-                }
-            } FILTER UpdateTest.name = 'update-test1';
-        """, [
-            [{}],
-            [{}],
+                    annotated_status: {
+                        name,
+                        @note
+                    }
+                } FILTER UpdateTest.name = 'update-test1';
+            """,
             [
                 {
                     'name': 'update-test1',
@@ -1242,30 +1416,35 @@ class TestUpdate(tb.QueryTestCase):
                     },
                 },
             ]
-        ])
+        )
 
     async def test_edgeql_update_for_01(self):
-        await self.assert_legacy_query_result(r"""
-            WITH MODULE test
-            FOR x IN {
-                    (name := 'update-test1', comment := 'foo'),
-                    (name := 'update-test2', comment := 'bar')
-                }
-            UNION (
-                UPDATE UpdateTest
-                FILTER UpdateTest.name = x.name
-                SET {
-                    comment := x.comment
-                }
-            );
-
-            WITH MODULE test
-            SELECT UpdateTest {
-                name,
-                comment
-            } ORDER BY UpdateTest.name;
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                FOR x IN {
+                        (name := 'update-test1', comment := 'foo'),
+                        (name := 'update-test2', comment := 'bar')
+                    }
+                UNION (
+                    UPDATE UpdateTest
+                    FILTER UpdateTest.name = x.name
+                    SET {
+                        comment := x.comment
+                    }
+                );
+            """,
             [{}, {}],  # since updates are in FOR they return objects
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    comment
+                } ORDER BY UpdateTest.name;
+            """,
             [
                 {
                     'name': 'update-test1',
@@ -1280,23 +1459,28 @@ class TestUpdate(tb.QueryTestCase):
                     'comment': 'third'
                 },
             ]
-        ])
+        )
 
     async def test_edgeql_update_empty_01(self):
-        await self.assert_legacy_query_result(r"""
-            # just clear all the comments
-            WITH MODULE test
-            UPDATE UpdateTest
-            SET {
-                comment := {}
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest.comment;
-        """, [
+        await self.assert_query_result(
+            r"""
+                # just clear all the comments
+                WITH MODULE test
+                UPDATE UpdateTest
+                SET {
+                    comment := {}
+                };
+            """,
             [{}, {}, {}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest.comment;
+            """,
             {},
-        ])
+        )
 
     async def test_edgeql_update_empty_02(self):
         with self.assertRaisesRegex(
@@ -1309,7 +1493,7 @@ class TestUpdate(tb.QueryTestCase):
                 SET {
                     comment := <int64>{}
                 };
-                """)
+            """)
 
     async def test_edgeql_update_empty_03(self):
         with self.assertRaisesRegex(
@@ -1322,23 +1506,28 @@ class TestUpdate(tb.QueryTestCase):
                 SET {
                     name := {}
                 };
-                """)
+            """)
 
     async def test_edgeql_update_empty_04(self):
-        await self.assert_legacy_query_result(r"""
-            # just clear all the statuses
-            WITH MODULE test
-            UPDATE UpdateTest
-            SET {
-                status := {}
-            };
-
-            WITH MODULE test
-            SELECT UpdateTest.status;
-        """, [
+        await self.assert_query_result(
+            r"""
+                # just clear all the statuses
+                WITH MODULE test
+                UPDATE UpdateTest
+                SET {
+                    status := {}
+                };
+            """,
             [{}, {}, {}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest.status;
+            """,
             {},
-        ])
+        )
 
     async def test_edgeql_update_empty_05(self):
         with self.assertRaisesRegex(
@@ -1352,4 +1541,4 @@ class TestUpdate(tb.QueryTestCase):
                 SET {
                     status := <Object>{}
                 };
-                """)
+            """)

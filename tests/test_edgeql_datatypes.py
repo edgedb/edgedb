@@ -39,95 +39,142 @@ class TestEdgeQLDT(tb.QueryTestCase):
     '''
 
     async def test_edgeql_dt_datetime_01(self):
-        await self.assert_legacy_query_result('''
-            SELECT <datetime>'2017-10-10' + <timedelta>'1 day';
-            SELECT <timedelta>'1 day' + <datetime>'2017-10-10';
-            SELECT <datetime>'2017-10-10' - <timedelta>'1 day';
-            SELECT <timedelta>'1 day' + <timedelta>'1 day';
-            SELECT <timedelta>'4 days' - <timedelta>'1 day';
-        ''', [
+        await self.assert_query_result(
+            r'''SELECT <datetime>'2017-10-10' + <timedelta>'1 day';''',
             ['2017-10-11T00:00:00+00:00'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <timedelta>'1 day' + <datetime>'2017-10-10';''',
             ['2017-10-11T00:00:00+00:00'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <datetime>'2017-10-10' - <timedelta>'1 day';''',
             ['2017-10-09T00:00:00+00:00'],
-            ['2 days'],
-            ['3 days'],
-        ])
+        )
+
+        # TODO
+        # await self.assert_query_result(
+        #     r'''SELECT to_str(<timedelta>'1 day' + <timedelta>'1 day')''',
+        #     ['2 days'],
+        # )
+
+        # TODO
+        # await self.assert_query_result(
+        #     r'''SELECT to_str(<timedelta>'4 days' - <timedelta>'1 day')''',
+        #     ['3 days'],
+        # )
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 "operator '-' cannot be applied.*timedelta.*datetime"):
 
-            await self.con.execute("""
+            await self.con.fetch("""
                 SELECT <timedelta>'1 day' - <datetime>'2017-10-10';
             """)
 
     async def test_edgeql_dt_datetime_02(self):
-        await self.assert_legacy_query_result('''
-            SELECT <str><datetime>'2017-10-10';
-            SELECT <str>(<datetime>'2017-10-10' - <timedelta>'1 day');
-        ''', [
+        await self.assert_query_result(
+            r'''SELECT <str><datetime>'2017-10-10';''',
             ['2017-10-10T00:00:00+00:00'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <str>(<datetime>'2017-10-10' - <timedelta>'1 day');''',
             ['2017-10-09T00:00:00+00:00'],
-        ])
+        )
 
     async def test_edgeql_dt_datetime_03(self):
-        await self.assert_legacy_query_result('''
-            SELECT <tuple<str,datetime>>('foo', '2020-10-10');
-            SELECT (<tuple<str,datetime>>('foo', '2020-10-10')).1 +
-                   <timedelta>'1 month';
-        ''', [
+        await self.assert_query_result(
+            r'''SELECT <tuple<str,datetime>>('foo', '2020-10-10');''',
             [['foo', '2020-10-10T00:00:00+00:00']],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT (<tuple<str,datetime>>('foo', '2020-10-10')).1 +
+                   <timedelta>'1 month';
+            ''',
             ['2020-11-10T00:00:00+00:00'],
-        ])
+        )
 
     async def test_edgeql_dt_naive_datetime_01(self):
-        await self.assert_legacy_query_result('''
-            SELECT <naive_datetime>'2017-10-10T13:11' + <timedelta>'1 day';
-            SELECT <timedelta>'1 day' + <naive_datetime>'2017-10-10T13:11';
-            SELECT <naive_datetime>'2017-10-10T13:11' - <timedelta>'1 day';
-        ''', [
+        await self.assert_query_result(
+            r'''
+                SELECT <naive_datetime>'2017-10-10T13:11' +
+                    <timedelta>'1 day';
+            ''',
             ['2017-10-11T13:11:00'],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <timedelta>'1 day' +
+                    <naive_datetime>'2017-10-10T13:11';
+            ''',
             ['2017-10-11T13:11:00'],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <naive_datetime>'2017-10-10T13:11' -
+                    <timedelta>'1 day';
+            ''',
             ['2017-10-09T13:11:00'],
-        ])
+        )
 
     async def test_edgeql_dt_naive_date_01(self):
-        await self.assert_legacy_query_result('''
-            SELECT <naive_date>'2017-10-10' + <timedelta>'1 day';
-            SELECT <timedelta>'1 day' + <naive_date>'2017-10-10';
-            SELECT <naive_date>'2017-10-10' - <timedelta>'1 day';
-        ''', [
+        await self.assert_query_result(
+            r'''SELECT <naive_date>'2017-10-10' + <timedelta>'1 day';''',
             ['2017-10-11'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <timedelta>'1 day' + <naive_date>'2017-10-10';''',
             ['2017-10-11'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <naive_date>'2017-10-10' - <timedelta>'1 day';''',
             ['2017-10-09'],
-        ])
+        )
 
     async def test_edgeql_dt_naive_time_01(self):
-        await self.assert_legacy_query_result('''
-            SELECT <naive_time>'10:01:01' + <timedelta>'1 hour';
-            SELECT <timedelta>'1 hour' + <naive_time>'10:01:01';
-            SELECT <naive_time>'10:01:01' - <timedelta>'1 hour';
-        ''', [
+        await self.assert_query_result(
+            r'''SELECT <naive_time>'10:01:01' + <timedelta>'1 hour';''',
             ['11:01:01'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <timedelta>'1 hour' + <naive_time>'10:01:01';''',
             ['11:01:01'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <naive_time>'10:01:01' - <timedelta>'1 hour';''',
             ['09:01:01'],
-        ])
+        )
 
     async def test_edgeql_dt_sequence_01(self):
-        await self.assert_legacy_query_result('''
-            INSERT Obj;
-            INSERT Obj;
-            INSERT Obj2;
-            SELECT Obj { seq_prop } ORDER BY Obj.seq_prop;
-            SELECT Obj2 { seq_prop };
-        ''', [
-            [{}],
-            [{}],
-            [{}],
+        await self.con.execute(
+            r'''
+                INSERT Obj;
+                INSERT Obj;
+                INSERT Obj2;
+            '''
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Obj { seq_prop } ORDER BY Obj.seq_prop;''',
             [
                 {'seq_prop': 1}, {'seq_prop': 2}
             ],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Obj2 { seq_prop };''',
             [
                 {'seq_prop': 1}
             ],
-        ])
+        )

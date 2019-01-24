@@ -18,7 +18,6 @@
 
 
 import os.path
-import unittest  # NOQA
 
 from edb.testbase import server as tb
 
@@ -35,22 +34,25 @@ class TestEdgeQLFor(tb.QueryTestCase):
     async def test_edgeql_for_cross_01(self):
         cards = ['Bog monster', 'Djinn', 'Dragon', 'Dwarf', 'Giant eagle',
                  'Giant turtle', 'Golem', 'Imp', 'Sprite']
-        await self.assert_sorted_query_result(r'''
-            WITH MODULE test
-            FOR C IN {Card}
-            # C and Card are not related here
-            UNION (C.name, Card.name);
-        ''', lambda x: x, [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                FOR C IN {Card}
+                # C and Card are not related here
+                UNION (C.name, Card.name);
+            ''',
             [[a, b] for a in cards for b in cards],
-        ])
+            sort=True
+        )
 
     async def test_edgeql_for_cross_02(self):
-        await self.assert_sorted_query_result(r'''
-            WITH MODULE test
-            FOR C IN {Card}
-            # C and Card are not related here, so count(Card) should be 9
-            UNION (C.name, count(Card));
-        ''', lambda x: x, [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                FOR C IN {Card}
+                # C and Card are not related here, so count(Card) should be 9
+                UNION (C.name, count(Card));
+            ''',
             [
                 ['Bog monster', 9],
                 ['Djinn', 9],
@@ -62,15 +64,17 @@ class TestEdgeQLFor(tb.QueryTestCase):
                 ['Imp', 9],
                 ['Sprite', 9],
             ],
-        ])
+            sort=True
+        )
 
     async def test_edgeql_for_cross_03(self):
-        await self.assert_sorted_query_result(r'''
-            WITH MODULE test
-            FOR Card IN {Card}
-            # Card is shadowed here
-            UNION (Card.name, count(Card));
-        ''', lambda x: x, [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                FOR Card IN {Card}
+                # Card is shadowed here
+                UNION (Card.name, count(Card));
+            ''',
             [
                 ['Bog monster', 1],
                 ['Djinn', 1],
@@ -82,26 +86,29 @@ class TestEdgeQLFor(tb.QueryTestCase):
                 ['Imp', 1],
                 ['Sprite', 1],
             ],
-        ])
+            sort=True
+        )
 
     async def test_edgeql_for_cross_04(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            FOR C IN {Card}
-            # C and Card are not related here, so count(Card) should be 9
-            UNION (count(C), count(Card));
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                FOR C IN {Card}
+                # C and Card are not related here, so count(Card) should be 9
+                UNION (count(C), count(Card));
+            ''',
             [
                 [1, 9],
             ] * 9,
-        ])
+        )
 
     async def test_edgeql_for_mix_01(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            FOR X IN {Card.name, User.name}
-            UNION X;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                FOR X IN {Card.name, User.name}
+                UNION X;
+            ''',
             {
                 'Alice',
                 'Bob',
@@ -117,15 +124,16 @@ class TestEdgeQLFor(tb.QueryTestCase):
                 'Imp',
                 'Sprite',
             }
-        ])
+        )
 
     async def test_edgeql_for_mix_02(self):
-        await self.assert_sorted_query_result(r'''
-            WITH MODULE test
-            FOR X IN {Card.name, User.name}
-            # both Card and User should be independent of X
-            UNION (X, count(Card), count(User));
-        ''', lambda x: x, [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                FOR X IN {Card.name, User.name}
+                # both Card and User should be independent of X
+                UNION (X, count(Card), count(User));
+            ''',
             [
                 ['Alice', 9, 4],
                 ['Bob', 9, 4],
@@ -140,16 +148,18 @@ class TestEdgeQLFor(tb.QueryTestCase):
                 ['Golem', 9, 4],
                 ['Imp', 9, 4],
                 ['Sprite', 9, 4],
-            ]
-        ])
+            ],
+            sort=True
+        )
 
     async def test_edgeql_for_mix_03(self):
-        await self.assert_sorted_query_result(r'''
-            # should be the same result as above
-            WITH MODULE test
-            FOR X IN {Card.name, User.name}
-            UNION (X, count(Card FILTER TRUE), count(User FILTER TRUE));
-        ''', lambda x: x, [
+        await self.assert_query_result(
+            r'''
+                # should be the same result as above
+                WITH MODULE test
+                FOR X IN {Card.name, User.name}
+                UNION (X, count(Card FILTER TRUE), count(User FILTER TRUE));
+            ''',
             [
                 ['Alice', 9, 4],
                 ['Bob', 9, 4],
@@ -164,43 +174,47 @@ class TestEdgeQLFor(tb.QueryTestCase):
                 ['Golem', 9, 4],
                 ['Imp', 9, 4],
                 ['Sprite', 9, 4],
-            ]
-        ])
+            ],
+            sort=True
+        )
 
     async def test_edgeql_for_mix_04(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            FOR X IN {Card.name, User.name}
-            # this should be just [3] for each name (9 + 4 of names)
-            UNION count(User.friends);
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                FOR X IN {Card.name, User.name}
+                # this should be just [3] for each name (9 + 4 of names)
+                UNION count(User.friends);
+            ''',
             [3] * 13
-        ])
+        )
 
     async def test_edgeql_for_filter_01(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            FOR X IN {User.name}
-            UNION X
-            # this FILTER should have no impact
-            FILTER Card.element = 'Air';
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                FOR X IN {User.name}
+                UNION X
+                # this FILTER should have no impact
+                FILTER Card.element = 'Air';
+            ''',
             {
                 'Alice',
                 'Bob',
                 'Carol',
                 'Dave',
             }
-        ])
+        )
 
     async def test_edgeql_for_filter_02(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            FOR X IN {Card.name}
-            UNION X
-            # this FILTER should have no impact
-            FILTER Card.element = 'Air';
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                FOR X IN {Card.name}
+                UNION X
+                # this FILTER should have no impact
+                FILTER Card.element = 'Air';
+            ''',
             {
                 'Bog monster',
                 'Djinn',
@@ -212,17 +226,18 @@ class TestEdgeQLFor(tb.QueryTestCase):
                 'Imp',
                 'Sprite',
             }
-        ])
+        )
 
     async def test_edgeql_for_filter_03(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            # get a combination of names from different object types
-            FOR X IN {Card.name, User.name}
-            UNION X
-            # this FILTER should have no impact
-            FILTER Card.element = 'Air';
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                # get a combination of names from different object types
+                FOR X IN {Card.name, User.name}
+                UNION X
+                # this FILTER should have no impact
+                FILTER Card.element = 'Air';
+            ''',
             {
                 'Alice',
                 'Bob',
@@ -238,29 +253,32 @@ class TestEdgeQLFor(tb.QueryTestCase):
                 'Imp',
                 'Sprite',
             }
-        ])
+        )
 
     async def test_edgeql_for_in_computable_01(self):
-        await self.assert_query_result(r'''
-            WITH MODULE test
-            SELECT User {
-                select_deck := (
-                    FOR letter IN {'I', 'B'}
-                    UNION _ := (
-                        SELECT User.deck {
-                            name,
-                            @letter := letter
-                        }
-                        FILTER User.deck.name[0] = letter
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT User {
+                    select_deck := (
+                        FOR letter IN {'I', 'B'}
+                        UNION _ := (
+                            SELECT User.deck {
+                                name,
+                                @letter := letter
+                            }
+                            FILTER User.deck.name[0] = letter
+                        )
+                        ORDER BY _.name
                     )
-                    ORDER BY _.name
-                )
-            } FILTER .name = 'Alice';
-        ''', [[
-            {
-                'select_deck': [
-                    {'name': 'Bog monster', '@letter': 'B'},
-                    {'name': 'Imp', '@letter': 'I'},
-                ]
-            }
-        ]])
+                } FILTER .name = 'Alice';
+            ''',
+            [
+                {
+                    'select_deck': [
+                        {'name': 'Bog monster', '@letter': 'B'},
+                        {'name': 'Imp', '@letter': 'I'},
+                    ]
+                }
+            ]
+        )

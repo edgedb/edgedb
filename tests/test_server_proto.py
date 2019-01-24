@@ -1419,53 +1419,6 @@ class TestServerProto(tb.QueryTestCase):
                     DROP TYPE test::Tmp_tx_13;
                 ''')
 
-    async def test_server_proto_tx_14(self):
-        await self.assert_legacy_query_result(r"""
-            # test some explicit nested transactions without errors
-            SELECT test::TransactionTest{name};
-
-            START TRANSACTION;
-                INSERT test::TransactionTest{name:='q1'};
-                INSERT test::TransactionTest{name:='q2'};
-                SELECT test::TransactionTest.name;
-
-                DECLARE SAVEPOINT f1;
-                    INSERT test::TransactionTest{name:='w1'};
-                    SELECT test::TransactionTest.name;
-                ROLLBACK TO SAVEPOINT f1;
-                SELECT test::TransactionTest.name;
-
-                DECLARE SAVEPOINT f2;
-                    INSERT test::TransactionTest{name:='e1'};
-                    SELECT test::TransactionTest.name;
-                RELEASE SAVEPOINT f2;
-                SELECT test::TransactionTest.name;
-
-            ROLLBACK;
-            SELECT test::TransactionTest.name;
-        """, [
-            [],
-            None,  # transaction start
-            [{}],  # insert
-            [{}],  # insert
-            {'q1', 'q2'},
-
-            None,  # transaction start
-            [{}],  # insert
-            {'q1', 'q2', 'w1'},
-            None,  # transaction rollback
-            {'q1', 'q2'},
-
-            None,  # transaction start
-            [{}],  # insert
-            {'q1', 'q2', 'e1'},
-            None,  # transaction commit
-            {'q1', 'q2', 'e1'},
-
-            None,  # transaction rollback
-            [],
-        ])
-
 
 class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
 

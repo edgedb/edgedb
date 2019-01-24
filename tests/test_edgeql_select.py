@@ -33,13 +33,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                          'issues_setup.eql')
 
     async def test_edgeql_select_unique_01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Issue.watchers.<owner[IS Issue] {
                     name
                 } ORDER BY .name;
-        ''', [
+            ''',
             [{
                 'name': 'Improve EdgeDB repl output rendering.',
             }, {
@@ -49,19 +50,23 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }, {
                 'name': 'Repl tweak.',
             }]
-        ])
+        )
 
     async def test_edgeql_select_unique_02(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue.owner{name}
             ORDER BY Issue.owner.name;
-        ''', [[
-            {'name': 'Elvis'}, {'name': 'Yury'},
-        ]])
+            ''',
+            [
+                {'name': 'Elvis'}, {'name': 'Yury'},
+            ]
+        )
 
     async def test_edgeql_select_computable_01(self):
-        await self.assert_legacy_query_result('''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Issue {
@@ -73,16 +78,17 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             FILTER
                 Issue.number = '1';
-        ''', [
+            ''',
             [{
                 'number': '1',
                 'aliased_number': '1',
                 'total_time_spent': 50000
             }]
-        ])
+        )
 
     async def test_edgeql_select_computable_02(self):
-        await self.assert_legacy_query_result('''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Issue {
@@ -93,15 +99,16 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             FILTER
                 Issue.number = '1';
-        ''', [
+            ''',
             [{
                 'number': '1',
                 'total_time_spent': 50000
             }]
-        ])
+        )
 
     async def test_edgeql_select_computable_03(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 User {
@@ -119,17 +126,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     ),
                 }
             FILTER User.name = 'Elvis';
-        ''', [
+            ''',
             [{
                 'name': 'Elvis',
                 'shortest_own_text': {
                     'body': 'Rewriting everything.',
                 },
             }]
-        ])
+        )
 
     async def test_edgeql_select_computable_04(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH
                 MODULE test,
                 # we aren't referencing User in any way, so this works
@@ -149,17 +157,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     }
                 }
             FILTER User.name = 'Elvis';
-        ''', [
+            ''',
             [{
                 'name': 'Elvis',
                 'shortest_text': {
                     'body': 'Minor lexer tweaks.',
                 },
             }]
-        ])
+        )
 
     async def test_edgeql_select_computable_05(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH
                 MODULE test,
                 # we aren't referencing User in any way, so this works
@@ -190,7 +199,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     },
                 }
             FILTER User.name = 'Elvis';
-        ''', [
+            ''',
             [{
                 'name': 'Elvis',
                 'shortest_own_text': {
@@ -200,10 +209,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     'body': 'Minor lexer tweaks.',
                 },
             }]
-        ])
+        )
 
     async def test_edgeql_select_computable_06(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 User {
@@ -220,17 +230,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     ),
                 }
             FILTER User.name = 'Elvis';
-        ''', [
+            ''',
             [{
                 'name': 'Elvis',
                 'shortest_text': {
                     'body': 'Minor lexer tweaks.',
                 },
             }]
-        ])
+        )
 
     async def test_edgeql_select_computable_07(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 User {
@@ -243,7 +254,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     ),
                 }
             FILTER User.name = 'Elvis';
-        ''', [
+            ''',
             [{
                 'name': 'Elvis',
                 'special_texts': [
@@ -252,10 +263,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     {'body': 'Minor lexer tweaks.'}
                 ],
             }]
-        ])
+        )
 
     async def test_edgeql_select_computable_08(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # get a user + the latest issue (regardless of owner), which has
             # the same number of characters in the status as the user's name
             WITH MODULE test
@@ -278,7 +290,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 )
             }
             ORDER BY User.name;
-            """, [
+            """,
             [
                 {
                     'name': 'Elvis',
@@ -293,10 +305,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     },
                 }
             ],
-        ])
+        )
 
     async def test_edgeql_select_computable_09(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT Text{
                 body,
@@ -306,7 +319,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         'unknown'
             }
             ORDER BY Text.body;
-            """, [
+            """,
             [
                 {'body': 'EdgeDB needs to happen soon.',
                  'name': 'comment'},
@@ -322,10 +335,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                          'tabular format.',
                  'name': 'Improve EdgeDB repl output rendering.'}
             ],
-        ])
+        )
 
     async def test_edgeql_select_computable_10(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT Issue{
                 name,
@@ -334,16 +348,17 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 foo := <int64>Issue.number + 10,
             }
             FILTER Issue.number = '1';
-            """, [
+            """,
             [{
                 'name': 'Release EdgeDB',
                 'number': '1',
                 'foo': 11,
             }],
-        ])
+        )
 
     async def test_edgeql_select_computable_11(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH
                 MODULE test,
                 sub := (
@@ -356,12 +371,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 )
             SELECT
                 sub.body;
-        ''', [
+            ''',
             ['Minor lexer tweaks.']
-        ])
+        )
 
     async def test_edgeql_select_computable_12(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH
                 MODULE test,
                 sub := (
@@ -374,12 +390,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 )
             SELECT
                 sub.__type__.name;
-        ''', [
+            ''',
             ['test::Issue']
-        ])
+        )
 
     async def test_edgeql_select_computable_13(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH
                 MODULE test,
                 sub := (
@@ -392,27 +409,28 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 )
             SELECT
                 sub[IS Issue].number;
-        ''', [
+            ''',
             ['3']
-        ])
+        )
 
     async def test_edgeql_select_computable_14(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT Issue{
                 name,
                 number,
                 # Explicit cardinality override
                 multi foo := <int64>Issue.number + 10,
-            }
-            FILTER Issue.number = '1';
-            """, [
+                }
+                FILTER Issue.number = '1';
+            """,
             [{
                 'name': 'Release EdgeDB',
                 'number': '1',
                 'foo': [11],
             }],
-        ])
+        )
 
     async def test_edgeql_select_computable_15(self):
         with self.assertRaisesRegex(
@@ -420,7 +438,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 r"possibly more than one element returned by an expression "
                 r"for a computable property 'foo' declared as 'single'",
                 position=199):
-            await self.con.execute("""\
+            await self.con.fetch("""\
                 WITH MODULE test
                 SELECT Issue{
                     name,
@@ -432,7 +450,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             """)
 
     async def test_edgeql_select_computable_16(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT Issue{
                 name,
@@ -441,199 +460,254 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 single bar := 11,
             }
             FILTER Issue.number = '1';
-        """, [
+            """,
             [{
                 'name': 'Release EdgeDB',
                 'number': '1',
                 'foo': None,
                 'bar': 11,
             }]
-        ])
+        )
 
     async def test_edgeql_select_match_01(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT
                 Issue {number}
             FILTER
                 Issue.name LIKE '%edgedb'
             ORDER BY Issue.number;
+            """,
+            [],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT
                 Issue {number}
             FILTER
                 Issue.name LIKE '%EdgeDB'
             ORDER BY Issue.number;
+            """,
+            [{'number': '1'}],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT
                 Issue {number}
             FILTER
                 Issue.name LIKE '%Edge%'
             ORDER BY Issue.number;
-        """, [
-            [],
-            [{'number': '1'}],
+            """,
             [{'number': '1'}, {'number': '2'}],
-        ])
+        )
 
     async def test_edgeql_select_match_02(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT
                 Issue {number}
             FILTER
                 Issue.name NOT LIKE '%edgedb'
             ORDER BY Issue.number;
+            """,
+            [{'number': '1'}, {'number': '2'}, {'number': '3'},
+             {'number': '4'}],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT
                 Issue {number}
             FILTER
                 Issue.name NOT LIKE '%EdgeDB'
             ORDER BY Issue.number;
+            """,
+            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT
                 Issue {number}
             FILTER
                 Issue.name NOT LIKE '%Edge%'
             ORDER BY Issue.number;
-        """, [
-            [{'number': '1'}, {'number': '2'}, {'number': '3'},
-             {'number': '4'}],
-            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+            """,
             [{'number': '3'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_match_03(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT
                 Issue {number}
             FILTER
                 Issue.name ILIKE '%edgedb'
             ORDER BY Issue.number;
+            """,
+            [{'number': '1'}],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT
                 Issue {number}
             FILTER
                 Issue.name ILIKE '%EdgeDB'
             ORDER BY Issue.number;
+            """,
+            [{'number': '1'}],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT
                 Issue {number}
             FILTER
                 Issue.name ILIKE '%re%'
             ORDER BY Issue.number;
-        """, [
-            [{'number': '1'}],
-            [{'number': '1'}],
+            """,
             [{'number': '1'}, {'number': '2'}, {'number': '3'},
              {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_match_04(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT
                 Issue {number}
             FILTER
                 Issue.name NOT ILIKE '%edgedb'
             ORDER BY Issue.number;
+            """,
+            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT
                 Issue {number}
             FILTER
                 Issue.name NOT ILIKE '%EdgeDB'
             ORDER BY Issue.number;
+            """,
+            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT
                 Issue {number}
             FILTER
                 Issue.name NOT ILIKE '%re%'
             ORDER BY Issue.number;
-        """, [
-            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
-            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+            """,
             [],
-        ])
+        )
 
     async def test_edgeql_select_match_07(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT
                 Text {body}
             FILTER
                 re_test('ed', Text.body)
             ORDER BY Text.body;
+            """,
+            [{'body': 'EdgeDB needs to happen soon.'},
+             {'body': 'Fix regression introduced by lexer tweak.'},
+             {'body': 'We need to be able to render data in tabular format.'}],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT
                 Text {body}
             FILTER
                 re_test('eD', Text.body)
             ORDER BY Text.body;
+            """,
+            [{'body': 'EdgeDB needs to happen soon.'},
+             {'body': 'Initial public release of EdgeDB.'}],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT
                 Text {body}
             FILTER
                 re_test(r'ed([S\s]|$)', Text.body)
             ORDER BY Text.body;
-        """, [
-            [{'body': 'EdgeDB needs to happen soon.'},
-             {'body': 'Fix regression introduced by lexer tweak.'},
-             {'body': 'We need to be able to render data in tabular format.'}],
-            [{'body': 'EdgeDB needs to happen soon.'},
-             {'body': 'Initial public release of EdgeDB.'}],
+            """,
             [{'body': 'Fix regression introduced by lexer tweak.'},
              {'body': 'We need to be able to render data in tabular format.'}]
-        ])
+        )
 
     async def test_edgeql_select_match_08(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT
                 Text {body}
             FILTER
                 re_test('(?i)ed', Text.body)
             ORDER BY Text.body;
+            """,
+            [{'body': 'EdgeDB needs to happen soon.'},
+             {'body': 'Fix regression introduced by lexer tweak.'},
+             {'body': 'Initial public release of EdgeDB.'},
+             {'body': 'We need to be able to render data in tabular format.'}],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT
                 Text {body}
             FILTER
                 re_test('(?i)eD', Text.body)
             ORDER BY Text.body;
+            """,
+            [{'body': 'EdgeDB needs to happen soon.'},
+             {'body': 'Fix regression introduced by lexer tweak.'},
+             {'body': 'Initial public release of EdgeDB.'},
+             {'body': 'We need to be able to render data in tabular format.'}],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT
                 Text {body}
             FILTER
                 re_test(r'(?i)ed([S\s]|$)', Text.body)
             ORDER BY Text.body;
-        """, [
-            [{'body': 'EdgeDB needs to happen soon.'},
-             {'body': 'Fix regression introduced by lexer tweak.'},
-             {'body': 'Initial public release of EdgeDB.'},
-             {'body': 'We need to be able to render data in tabular format.'}],
-            [{'body': 'EdgeDB needs to happen soon.'},
-             {'body': 'Fix regression introduced by lexer tweak.'},
-             {'body': 'Initial public release of EdgeDB.'},
-             {'body': 'We need to be able to render data in tabular format.'}],
+            """,
             [{'body': 'EdgeDB needs to happen soon.'},
              {'body': 'Fix regression introduced by lexer tweak.'},
              {'body': 'We need to be able to render data in tabular format.'}],
-        ])
+        )
 
     async def test_edgeql_select_type_01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Issue {
@@ -644,26 +718,27 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             FILTER
                 Issue.number = '1';
-        ''', [
+            ''',
             [{
                 'number': '1',
                 '__type__': {'name': 'test::Issue'},
             }],
-        ])
+        )
 
     async def test_edgeql_select_type_02(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT User.__type__.name LIMIT 1;
-        ''', [
+            ''',
             ['test::User']
-        ])
+        )
 
     async def test_edgeql_select_type_03(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 'invalid property reference'):
-            await self.con.execute(r'''
+            await self.con.fetch(r'''
                 WITH MODULE test
                 SELECT User.name.__type__.name LIMIT 1;
             ''')
@@ -682,22 +757,24 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             } LIMIT 1;
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE schema
             SELECT `ObjectType` {
                 name,
                 id,
             } FILTER `ObjectType`.name = 'test::User';
-        ''', [
+            ''',
             [{
                 'name': res.__type__.name,
                 'id': str(res.__type__.id),
             }]
-        ])
+        )
 
     @test.not_implemented('recursive queries are not implemented')
     async def test_edgeql_select_recursive_01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Issue {
@@ -708,7 +785,17 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             FILTER
                 Issue.number = '2';
+            ''',
+            [{
+                'number': '3',
+                'related_to': [{
+                    'number': '2',
+                }]
+            }],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Issue {
@@ -717,99 +804,121 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             FILTER
                 Issue.number = '2';
-        ''', [
+            ''',
             [{
                 'number': '3',
                 'related_to': [{
                     'number': '2',
                 }]
             }],
-            [{
-                'number': '3',
-                'related_to': [{
-                    'number': '2',
-                }]
-            }],
-        ])
+        )
 
     async def test_edgeql_select_limit_01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Issue {number}
             ORDER BY Issue.number
             OFFSET 2;
+            ''',
+            [{'number': '3'}, {'number': '4'}],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Issue {number}
             ORDER BY Issue.number
             LIMIT 3;
+            ''',
+            [{'number': '1'}, {'number': '2'}, {'number': '3'}],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Issue {number}
             ORDER BY Issue.number
             OFFSET 2 LIMIT 3;
-        ''', [
+            ''',
             [{'number': '3'}, {'number': '4'}],
-            [{'number': '1'}, {'number': '2'}, {'number': '3'}],
-            [{'number': '3'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_limit_02(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Issue {number}
             ORDER BY Issue.number
             OFFSET 1 + 1;
+            ''',
+            [{'number': '3'}, {'number': '4'}],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Issue {number}
             ORDER BY Issue.number
             LIMIT 6 // 2;
+            ''',
+            [{'number': '1'}, {'number': '2'}, {'number': '3'}],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Issue {number}
             ORDER BY Issue.number
             OFFSET 4 - 2 LIMIT 5 * 2 - 7;
-        ''', [
+            ''',
             [{'number': '3'}, {'number': '4'}],
-            [{'number': '1'}, {'number': '2'}, {'number': '3'}],
-            [{'number': '3'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_limit_03(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Issue {number}
             ORDER BY Issue.number
             OFFSET (SELECT count(Status));
+            ''',
+            [{'number': '3'}, {'number': '4'}],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Issue {number}
             ORDER BY Issue.number
             LIMIT (SELECT count(Status) + 1);
+            ''',
+            [{'number': '1'}, {'number': '2'}, {'number': '3'}],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Issue {number}
             ORDER BY Issue.number
             OFFSET (SELECT count(Status))
             LIMIT (SELECT count(Priority) + 1);
-        ''', [
+            ''',
             [{'number': '3'}, {'number': '4'}],
-            [{'number': '1'}, {'number': '2'}, {'number': '3'}],
-            [{'number': '3'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_limit_04(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 User {
@@ -822,18 +931,22 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     )
                 }
             ORDER BY User.name;
-        ''', [
-            [{
-                'name': 'Elvis',
-                'owner_of': {'number': '1'},
-            }, {
-                'name': 'Yury',
-                'owner_of': {'number': '2'},
-            }]
-        ])
+            ''',
+            [
+                {
+                    'name': 'Elvis',
+                    'owner_of': {'number': '1'},
+                },
+                {
+                    'name': 'Yury',
+                    'owner_of': {'number': '2'},
+                }
+            ]
+        )
 
     async def test_edgeql_select_limit_05(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 User {
@@ -846,15 +959,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     )
                 }
             ORDER BY User.name;
-        ''', [
-            [{
-                'name': 'Elvis',
-                'owner_of': [{'number': '1'}, {'number': '4'}],
-            }, {
-                'name': 'Yury',
-                'owner_of': [{'number': '2'}],
-            }]
-        ])
+            ''',
+            [
+                {
+                    'name': 'Elvis',
+                    'owner_of': [{'number': '1'}, {'number': '4'}],
+                },
+                {
+                    'name': 'Yury',
+                    'owner_of': [{'number': '2'}],
+                }
+            ]
+        )
 
     async def test_edgeql_select_limit_06(self):
         with self.assertRaisesRegex(
@@ -862,7 +978,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed'):
 
-            await self.con.execute("""
+            await self.con.fetch("""
                 WITH MODULE test
                 SELECT
                     User { name }
@@ -875,7 +991,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed'):
 
-            await self.con.execute("""
+            await self.con.fetch("""
                 WITH MODULE test
                 SELECT
                     User { name }
@@ -883,20 +999,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             """)
 
     async def test_edgeql_select_polymorphic_01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Text {body}
             ORDER BY Text.body;
-
-            WITH MODULE test
-            SELECT
-                Text {
-                    [IS Issue].name,
-                    body,
-                }
-            ORDER BY Text.body;
-        ''', [
+            ''',
             [
                 {'body': 'EdgeDB needs to happen soon.'},
                 {'body': 'Fix regression introduced by lexer tweak.'},
@@ -906,6 +1015,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {'body': 'We need to be able to render data '
                          'in tabular format.'}
             ],
+        )
+
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT
+                Text {
+                    [IS Issue].name,
+                    body,
+                }
+            ORDER BY Text.body;
+            ''',
             [
                 {'body': 'EdgeDB needs to happen soon.',
                  'name': None},
@@ -921,10 +1042,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                          'tabular format.',
                  'name': 'Improve EdgeDB repl output rendering.'}
             ]
-        ])
+        )
 
     async def test_edgeql_select_polymorphic_02(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT User{
                 name,
@@ -932,17 +1054,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     body
                 },
             } FILTER User.name = 'Elvis';
-        ''', [
+            ''',
             [{
                 'name': 'Elvis',
                 'owner_of': [
                     {'body': 'Rewriting everything.'}
                 ],
             }],
-        ])
+        )
 
     async def test_edgeql_select_polymorphic_03(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT User{
                 name,
@@ -952,14 +1075,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     } FILTER <int64>(.number) < 3
                 ),
             } FILTER User.name = 'Elvis';
-        ''', [
+            ''',
             [{
                 'name': 'Elvis',
                 'owner_of': [
                     {'number': '1'},
                 ],
             }],
-        ])
+        )
 
     async def test_edgeql_select_polymorphic_04(self):
         # Since using a polymorphic shape element means that sometimes
@@ -969,7 +1092,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'cannot access id on a polymorphic shape element'):
-            await self.con.execute(r'''
+            await self.con.fetch(r'''
                 WITH MODULE test
                 SELECT User {
                     [IS Named].id,
@@ -984,7 +1107,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'cannot access __type__ on a polymorphic shape element'):
-            await self.con.execute(r'''
+            await self.con.fetch(r'''
                 WITH MODULE test
                 SELECT User {
                     [IS Named].__type__: {
@@ -994,62 +1117,94 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_select_polymorphic_06(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Object[IS Status].name;
+            ''',
+            {
+                'Closed',
+                'Open',
+            },
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Object[IS Priority].name;
+            ''',
+            {
+                'High',
+                'Low',
+            },
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Object[IS Status].name ?? Object[IS Priority].name;
-        ''', [
-            {
-                'Closed',
-                'Open',
-            },
-            {
-                'High',
-                'Low',
-            },
+            ''',
             {
                 'Closed',
                 'High',
                 'Low',
                 'Open',
             },
-        ])
+        )
 
     @test.not_implemented('type expressions are not implemented')
     async def test_edgeql_select_polymorphic_07(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Object[IS Status | Priority].name;
             # the above should be equivalent to this:
             # SELECT Object[IS Status].name ?? Object[IS Priority].name;
-        ''', [
+            ''',
             {
                 'Closed',
                 'High',
                 'Low',
                 'Open',
             },
-        ])
+        )
 
     @test.not_implemented('type expressions are not implemented')
     async def test_edgeql_select_polymorphic_08(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Object {
                 [IS Status | Priority].name,
             } ORDER BY .name;
+            ''',
+            [
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': None},
+                {'name': 'Closed'},
+                {'name': 'High'},
+                {'name': 'Low'},
+                {'name': 'Open'}
+            ],
+        )
 
+        await self.assert_query_result(
+            r'''
             # the above should be equivalent to this:
             WITH MODULE test
             SELECT Object {
                 name := Object[IS Status].name ?? Object[IS Priority].name,
             } ORDER BY .name;
-        ''', [
+            ''',
             [
                 {'name': None},
                 {'name': None},
@@ -1067,27 +1222,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {'name': 'Low'},
                 {'name': 'Open'}
             ],
-            [
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': None},
-                {'name': 'Closed'},
-                {'name': 'High'},
-                {'name': 'Low'},
-                {'name': 'Open'}
-            ],
-        ])
+        )
 
     async def test_edgeql_select_view_01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{
                 number,
@@ -1095,26 +1234,32 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     number
                 } FILTER Issue.related_to.owner = Issue.owner,
             } ORDER BY Issue.number;
-        ''', [
-            [{
-                'number': '1',
-                'related_to': []
-            }, {
-                'number': '2',
-                'related_to': []
-            }, {
-                'number': '3',
-                'related_to': [
-                    {'number': '2'}
-                ]
-            }, {
-                'number': '4',
-                'related_to': []
-            }],
-        ])
+            ''',
+            [
+                {
+                    'number': '1',
+                    'related_to': []
+                },
+                {
+                    'number': '2',
+                    'related_to': []
+                },
+                {
+                    'number': '3',
+                    'related_to': [
+                        {'number': '2'}
+                    ]
+                },
+                {
+                    'number': '4',
+                    'related_to': []
+                }
+            ],
+        )
 
     async def test_edgeql_select_view_02(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT User{
                 name,
@@ -1124,22 +1269,25 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     } FILTER EXISTS .related_to
                 ),
             } ORDER BY User.name;
-        ''', [
-            [{
-                'name': 'Elvis',
-                'owner_of': [{
-                    'number': '4'
-                }]
-            }, {
-                'name': 'Yury',
-                'owner_of': [{
-                    'number': '3'
-                }]
-            }],
-        ])
+            ''',
+            [
+                {
+                    'name': 'Elvis',
+                    'owner_of': [{
+                        'number': '4'
+                    }]
+                }, {
+                    'name': 'Yury',
+                    'owner_of': [{
+                        'number': '3'
+                    }]
+                }
+            ],
+        )
 
     async def test_edgeql_select_view_03(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT User{
                 name,
@@ -1149,26 +1297,29 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     } ORDER BY .number DESC
                 ),
             } ORDER BY User.name;
-        ''', [
-            [{
-                'name': 'Elvis',
-                'owner_of': [{
-                    'number': '4'
+            ''',
+            [
+                {
+                    'name': 'Elvis',
+                    'owner_of': [{
+                        'number': '4'
+                    }, {
+                        'number': '1'
+                    }]
                 }, {
-                    'number': '1'
-                }]
-            }, {
-                'name': 'Yury',
-                'owner_of': [{
-                    'number': '3'
-                }, {
-                    'number': '2'
-                }]
-            }],
-        ])
+                    'name': 'Yury',
+                    'owner_of': [{
+                        'number': '3'
+                    }, {
+                        'number': '2'
+                    }]
+                }
+            ],
+        )
 
     async def test_edgeql_select_view_04(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH
                 MODULE test,
                 L := LogEntry   # there happens to only be 1 entry
@@ -1179,16 +1330,17 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }.tsl {
                     body
                 };
-        """, [
+            """,
             [
                 # no duplicates are possible, because the expression
                 # is a path pointing to an object
                 {'body': 'Rewriting everything.'},
             ],
-        ])
+        )
 
     async def test_edgeql_select_view_05(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT Issue.owner {
                 name,
@@ -1199,7 +1351,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     bar := Issue.owner.name
                 }
             };
-        """, [
+            """,
             [
                 {
                     'name': 'Elvis',
@@ -1216,10 +1368,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     ],
                 },
             ],
-        ])
+        )
 
     async def test_edgeql_select_view_06(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT User {
                 name,
@@ -1230,17 +1383,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     ).name
                 )
             } FILTER User.name = 'Elvis';
-        """, [
+            """,
             [
                 {
                     'name': 'Elvis',
                     'foo': 'Open',
                 },
             ],
-        ])
+        )
 
     async def test_edgeql_select_view_07(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # semantically identical to the previous test
             WITH MODULE test
             SELECT User {
@@ -1255,17 +1409,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             # FIXME: please also fix the error message to be less
             # arcane with some sort of reference to where things go
             # wrong in the query
-        """, [
+            """,
             [
                 {
                     'name': 'Elvis',
                     'foo': 'Open',
                 },
             ],
-        ])
+        )
 
     async def test_edgeql_select_view_08(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # semantically similar to previous test, but involving
             # schema (since schema often has special handling)
             WITH MODULE test
@@ -1278,64 +1433,68 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     ).name
                 }
             } FILTER User.name = 'Elvis';
-        """, [
+            """,
             [
                 {
                     'name': 'Elvis',
                     'foo': ['test::User'],
                 },
             ],
-        ])
+        )
 
     async def test_edgeql_select_instance_01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Text {body}
             FILTER Text IS Comment
             ORDER BY Text.body;
-        ''', [
+            ''',
             [
                 {'body': 'EdgeDB needs to happen soon.'},
             ],
-        ])
+        )
 
     async def test_edgeql_select_instance_02(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Text {body}
             FILTER Text IS NOT Comment | Issue
             ORDER BY Text.body;
-        ''', [
+            ''',
             [
                 {'body': 'Rewriting everything.'},
             ],
-        ])
+        )
 
     async def test_edgeql_select_instance_03(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Text {body}
             FILTER Text IS Issue AND Text[IS Issue].number = '1'
             ORDER BY Text.body;
-        ''', [
+            ''',
             [
                 {'body': 'Initial public release of EdgeDB.'},
             ],
-        ])
+        )
 
     @test.not_implemented('union types are not implemented yet')
     async def test_edgeql_select_setops_01(self):
-        await self.assert_legacy_sorted_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT
                 (Issue UNION Comment) {
                     [IS Issue].name,  # name is not in the duck type
                     body  # body should appear in the duck type
                 };
-        """, lambda x: x['body'], [
+            """,
             [
                 {'body': 'EdgeDB needs to happen soon.'},
                 {'body': 'Fix regression introduced by lexer tweak.',
@@ -1348,10 +1507,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                          'in tabular format.',
                  'name': 'Improve EdgeDB repl output rendering.'}
             ],
-        ])
+            sort=lambda x: x['body']
+        )
 
+    @test.xfail('does not work with binary serialization')
     async def test_edgeql_select_setops_02(self):
-        await self.assert_legacy_sorted_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH
                 MODULE test,
                 Obj := (SELECT Issue UNION Comment)
@@ -1359,7 +1521,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 [IS Issue].name,
                 [IS Text].body
             };
-        ''', lambda x: x['body'], [
+            ''',
             [
                 {'body': 'EdgeDB needs to happen soon.'},
                 {'body': 'Fix regression introduced by lexer tweak.'},
@@ -1368,9 +1530,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {'body': 'We need to be able to render '
                          'data in tabular format.'}
             ],
-        ])
+            sort=lambda x: x['body']
+        )
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             # XXX: I think we should be able to drop [IS Text] from
             # the query below.
             WITH
@@ -1378,7 +1542,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Obj := (SELECT Issue UNION Comment)
             SELECT Obj[IS Text] { id, body }
             ORDER BY Obj[IS Text].body;
-        ''', [
+            ''',
             [
                 {'body': 'EdgeDB needs to happen soon.'},
                 {'body': 'Fix regression introduced by lexer tweak.'},
@@ -1387,10 +1551,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {'body': 'We need to be able to render '
                          'data in tabular format.'}
             ],
-        ])
+        )
 
     async def test_edgeql_select_setops_03(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT Issue {
                 number,
@@ -1403,7 +1568,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 ) LIMIT 1)
             }
             ORDER BY Issue.number;
-            """, [
+            """,
             [{
                 'number': '1',
                 'open': 'yes',
@@ -1417,10 +1582,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 'number': '4',
                 'open': 'no',
             }],
-        ])
+        )
 
     async def test_edgeql_select_setops_04(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # equivalent to ?=
             WITH MODULE test
             SELECT Issue {number}
@@ -1433,12 +1599,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 (SELECT EXISTS Issue.priority.name = TRUE
                  FILTER NOT EXISTS Issue.priority.name)
             ORDER BY Issue.number;
-        """, [
+            """,
             [{'number': '2'}],
-        ])
+        )
 
     async def test_edgeql_select_setops_05(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # using DISTINCT on a UNION with overlapping sets of Objects
             WITH MODULE test
             SELECT _ := (
@@ -1457,12 +1624,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 ))
             ) { number }
             ORDER BY _.number;
-        """, [
+            """,
             [{'number': '1'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_setops_06(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # using DISTINCT on a UNION with overlapping sets of Objects
             WITH MODULE test
             SELECT _ := count(DISTINCT ((
@@ -1478,12 +1646,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 SELECT Issue
                 FILTER NOT EXISTS Issue.priority
             )));
-        """, [
+            """,
             [2],
-        ])
+        )
 
     async def test_edgeql_select_setops_07(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # using UNION with overlapping sets of Objects
             WITH MODULE test
             SELECT _ := {  # equivalent to UNION for Objects
@@ -1497,12 +1666,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 )
             } { number }
             ORDER BY _.number;
-        """, [
+            """,
             [{'number': '1'}, {'number': '1'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_setops_08(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # using implicit nested UNION with overlapping sets of Objects
             WITH MODULE test
             SELECT _ := {  # equivalent to UNION for Objects
@@ -1536,16 +1706,17 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 )
             } { number }
             ORDER BY _.number;
-        """, [
+            """,
             [
                 {'number': '1'}, {'number': '1'}, {'number': '1'},
                 {'number': '1'}, {'number': '1'},
                 {'number': '4'}, {'number': '4'}, {'number': '4'},
             ],
-        ])
+        )
 
     async def test_edgeql_select_setops_09(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # same as above but with a DISTINCT
             WITH MODULE test
             SELECT _ := (DISTINCT {  # equivalent to UNION for Objects
@@ -1580,14 +1751,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 )
             }) { number }
             ORDER BY _.number;
-        """, [
+            """,
             [
                 {'number': '1'}, {'number': '4'},
             ],
-        ])
+        )
 
     async def test_edgeql_select_setops_10(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # using UNION in a FILTER
             WITH MODULE test
             SELECT _ := User{name}
@@ -1601,12 +1773,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 )
             ).number = '1'
             ORDER BY _.name;
-        """, [
+            """,
             [{'name': 'Elvis'}, {'name': 'Yury'}],
-        ])
+        )
 
     async def test_edgeql_select_setops_11(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH
                 MODULE test,
                 L := LogEntry  # there happens to only be 1 entry
@@ -1614,16 +1787,17 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 (Issue.time_spent_log UNION L) {
                     body
                 };
-        """, [
+            """,
             [
                 # duplicates are allowed in a plain UNION
                 {'body': 'Rewriting everything.'},
                 {'body': 'Rewriting everything.'},
             ],
-        ])
+        )
 
     async def test_edgeql_select_setops_12(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH
                 MODULE test,
                 L := LogEntry  # there happens to only be 1 entry
@@ -1631,15 +1805,17 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 (DISTINCT (Issue.time_spent_log UNION L)) {
                     body
                 };
-        """, [
+            """,
             [
                 # no duplicates are allowed due to DISTINCT
                 {'body': 'Rewriting everything.'},
             ],
-        ])
+        )
 
+    @test.xfail('does not work with binary serialization')
     async def test_edgeql_select_setops_13(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH
                 MODULE test,
                 L := LogEntry  # there happens to only be 1 entry
@@ -1647,7 +1823,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 (Issue.time_spent_log UNION L, Issue).0 {
                     body
                 };
-        """, [
+            """,
             [
                 # not only do we expect duplicates, but we actually
                 # expect 5 entries here:
@@ -1659,10 +1835,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {'body': 'Rewriting everything.'},
                 {'body': 'Rewriting everything.'},
             ],
-        ])
+        )
 
     async def test_edgeql_select_setops_14(self):
-        await self.assert_legacy_sorted_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # The computable in the view is omitted from the duck type
             # of the UNION because ultimately it's the duck type of
             # the operands, which are both Issue with the real
@@ -1671,12 +1848,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT {
                 Issue{number := 'foo'}, Issue
             }.number;
-        """, lambda x: x, [
+            """,
             ['1', '1', '2', '2', '3', '3', '4', '4'],
-        ])
+            sort=True
+        )
 
     async def test_edgeql_select_setops_15(self):
-        await self.assert_legacy_sorted_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # The computable in the view is omitted from the duck type
             # of the UNION because ultimately it's the duck type of
             # the operands, which are both Issue with the real
@@ -1685,14 +1864,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 MODULE test,
                 I := Issue{number := 'foo'}
             SELECT {I, Issue}.number;
-        """, lambda x: x, [
+            """,
             ['1', '1', '2', '2', '3', '3', '4', '4'],
-        ])
+            sort=True
+        )
 
     async def test_edgeql_select_setops_16(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r"has no link or property 'number'"):
-            await self.con.execute(r"""
+            await self.con.fetch(r"""
                 # Named doesn't have a property number.
                 WITH MODULE test
                 SELECT Issue[IS Named].number;
@@ -1701,7 +1881,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_setops_17(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r"has no link or property 'number'"):
-            await self.con.execute(r"""
+            await self.con.fetch(r"""
                 # UNION between Issue and empty set Named should be
                 # duck-typed to be effectively equivalent to Issue[IS Named].
                 WITH MODULE test
@@ -1709,91 +1889,107 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             """)
 
     async def test_edgeql_select_setops_18(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # UNION between Issue and empty set Named should be
             # duck-typed to be effectively equivalent to Issue[IS Named].
             WITH MODULE test
             SELECT (Issue UNION <Named>{}).name;
-        """, [
+            """,
             {
                 'Release EdgeDB',
                 'Improve EdgeDB repl output rendering.',
                 'Repl tweak.',
                 'Regression.',
             },
-        ])
+        )
 
     async def test_edgeql_select_setops_19(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # UNION between Issue and empty set Issue should be
             # duck-typed to be effectively equivalent to Issue[IS
             # Issue], which is just an Issue.
             WITH MODULE test
             SELECT (Issue UNION <Issue>{}).name;
-
-            WITH MODULE test
-            SELECT (Issue UNION <Issue>{}).number;
-        """, [
+            """,
             {
                 'Release EdgeDB',
                 'Improve EdgeDB repl output rendering.',
                 'Repl tweak.',
                 'Regression.',
             },
+        )
+
+        await self.assert_query_result(
+            r"""
+            WITH MODULE test
+            SELECT (Issue UNION <Issue>{}).number;
+            """,
             {'1', '2', '3', '4'},
-        ])
+        )
 
     async def test_edgeql_select_order_01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue {name}
             ORDER BY Issue.priority.name ASC EMPTY LAST THEN Issue.name;
-
-            WITH MODULE test
-            SELECT Issue {name}
-            ORDER BY Issue.priority.name ASC EMPTY FIRST THEN Issue.name;
-        ''', [
+            ''',
             [
                 {'name': 'Improve EdgeDB repl output rendering.'},
                 {'name': 'Repl tweak.'},
                 {'name': 'Regression.'},
                 {'name': 'Release EdgeDB'},
             ],
+        )
+
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT Issue {name}
+            ORDER BY Issue.priority.name ASC EMPTY FIRST THEN Issue.name;
+            ''',
             [
                 {'name': 'Regression.'},
                 {'name': 'Release EdgeDB'},
                 {'name': 'Improve EdgeDB repl output rendering.'},
                 {'name': 'Repl tweak.'},
             ]
-        ])
+        )
 
     async def test_edgeql_select_order_02(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Text {body}
             ORDER BY len(Text.body) DESC;
-        ''', [[
-            {'body': 'We need to be able to render data in tabular format.'},
-            {'body': 'Fix regression introduced by lexer tweak.'},
-            {'body': 'Initial public release of EdgeDB.'},
-            {'body': 'EdgeDB needs to happen soon.'},
-            {'body': 'Rewriting everything.'},
-            {'body': 'Minor lexer tweaks.'}
-        ]])
+            ''',
+            [
+                {'body': 'We need to be able to render '
+                         'data in tabular format.'},
+                {'body': 'Fix regression introduced by lexer tweak.'},
+                {'body': 'Initial public release of EdgeDB.'},
+                {'body': 'EdgeDB needs to happen soon.'},
+                {'body': 'Rewriting everything.'},
+                {'body': 'Minor lexer tweaks.'}
+            ]
+        )
 
     async def test_edgeql_select_order_03(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT User {name}
             ORDER BY (
                 SELECT sum(<int64>User.<watchers.number)
             );
-        ''', [
+            ''',
             [
                 {'name': 'Yury'},
                 {'name': 'Elvis'},
             ]
-        ])
+        )
 
     async def test_edgeql_select_order_04(self):
         with self.assertRaisesRegex(
@@ -1801,7 +1997,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed'):
 
-            await self.con.execute("""
+            await self.con.fetch("""
                 WITH MODULE test
                 SELECT
                     User { name }
@@ -1809,28 +2005,31 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             """)
 
     async def test_edgeql_select_where_01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             # issue where the owner also has a comment with non-empty body
             FILTER Issue.owner.<owner[IS Comment].body != ''
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '1'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_where_02(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             # issue where the owner also has a comment to it
             FILTER Issue.owner.<owner[IS Comment].issue = Issue;
-        ''', [
+            ''',
             [{'number': '1'}],
-        ])
+        )
 
     async def test_edgeql_select_where_03(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{
                 name,
@@ -1843,7 +2042,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             } FILTER len(Issue.status.name) = 4
             ORDER BY Issue.number;
-            ''', [
+            ''',
             [{
                 'owner': {'name': 'Elvis'},
                 'status': {'name': 'Open'},
@@ -1855,19 +2054,24 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 'name': 'Improve EdgeDB repl output rendering.',
                 'number': '2'
             }],
-        ])
+        )
 
     async def test_edgeql_select_func_01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT std::len(User.name) ORDER BY User.name;
+            ''',
+            [5, 4],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT std::sum(<std::int64>Issue.number);
-        ''', [
-            [5, 4],
+            ''',
             [10]
-        ])
+        )
 
     async def test_edgeql_select_func_05(self):
         await self.con.execute(r'''
@@ -1875,7 +2079,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 FROM SQL FUNCTION 'concat';
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             SELECT schema::Function {
                 params: {
                     num,
@@ -1885,7 +2090,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     }
                 }
             } FILTER schema::Function.name = 'test::concat1';
-        ''', [
+            ''',
             [{'params': [
                 {
                     'num': 0,
@@ -1895,12 +2100,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     }
                 }
             ]}]
-        ])
+        )
 
         with self.assertRaisesRegex(edgedb.QueryError,
                                     'could not find a function variant'):
             async with self.con.transaction():
-                await self.con.execute(
+                await self.con.fetch(
                     "SELECT test::concat1('aaa', 'bbb', 2);")
 
         await self.con.execute(r'''
@@ -1930,7 +2135,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 $$;
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             SELECT schema::Function {
                 params: {
                     num,
@@ -1949,7 +2155,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 },
                 return_typemod
             } FILTER schema::Function.name = 'test::concat3';
-        ''', [
+            ''',
             [{
                 'params': [
                     {
@@ -1978,59 +2184,32 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 },
                 'return_typemod': 'SINGLETON'
             }]
-        ])
+        )
 
         with self.assertRaisesRegex(edgedb.QueryError,
                                     'could not find a function'):
             async with self.con.transaction():
-                await self.con.execute(r'SELECT test::concat3(123);')
+                await self.con.fetch(r'SELECT test::concat3(123);')
 
         with self.assertRaisesRegex(edgedb.QueryError,
                                     'could not find a function'):
             async with self.con.transaction():
-                await self.con.execute(r'SELECT test::concat3("a", 123);')
+                await self.con.fetch(r'SELECT test::concat3("a", 123);')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             SELECT test::concat3('|', '1', '2');
-        ''', [
+            ''',
             ['1|2'],
-        ])
+        )
 
         await self.con.execute(r'''
             DROP FUNCTION test::concat3(sep: std::str, VARIADIC s: std::str);
         ''')
 
-    async def test_edgeql_select_func_08(self):
-        await self.assert_legacy_query_result(r'''
-            SELECT len('111');
-            SELECT len(b'abcdef');
-            SELECT len([1, 2, 3, 4]);
-        ''', [
-            [3],
-            [6],
-            [4],
-        ])
-
-    async def test_edgeql_select_func_09(self):
-        await self.con.execute('''
-            CREATE FUNCTION test::my_edgeql_func1(s: std::str) -> std::str
-                FROM EdgeQL $$
-                    SELECT 'str=' ++ s
-                $$;
-        ''')
-
-        await self.assert_legacy_query_result(r'''
-            SELECT test::my_edgeql_func1('111');
-        ''', [
-            ['str=111'],
-        ])
-
-        await self.con.execute('''
-            DROP FUNCTION test::my_edgeql_func1(s: std::str);
-        ''')
-
     async def test_edgeql_select_exists_01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Issue {
@@ -2040,7 +2219,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 NOT EXISTS Issue.time_estimate
             ORDER BY
                 Issue.number;
+            ''',
+            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Issue {
@@ -2050,13 +2234,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 EXISTS Issue.time_estimate
             ORDER BY
                 Issue.number;
-        ''', [
-            [{'number': '2'}, {'number': '3'}, {'number': '4'}],
+            ''',
             [{'number': '1'}],
-        ])
+        )
 
     async def test_edgeql_select_exists_02(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Issue {
@@ -2066,12 +2250,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 NOT EXISTS (Issue.<issue[IS Comment])
             ORDER BY
                 Issue.number;
-        ''', [
+            ''',
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_exists_03(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Issue {
@@ -2081,12 +2266,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 NOT EXISTS (SELECT Issue.<issue[IS Comment])
             ORDER BY
                 Issue.number;
-        ''', [
+            ''',
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_exists_04(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 Issue {
@@ -2096,119 +2282,129 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 EXISTS (Issue.<issue[IS Comment])
             ORDER BY
                 Issue.number;
-        ''', [
+            ''',
             [{'number': '1'}],
-        ])
+        )
 
     async def test_edgeql_select_exists_05(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
                 EXISTS Issue.priority           # has Priority [2, 3]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '2'}, {'number': '3'}],
-        ])
+        )
 
     async def test_edgeql_select_exists_06(self):
         # using IDs in EXISTS clauses should be semantically identical
         # to using object types
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
                 EXISTS Issue.priority.id        # has Priority [2, 3]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '2'}, {'number': '3'}],
-        ])
+        )
 
     async def test_edgeql_select_exists_07(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
                 EXISTS Issue.<issue             # has Comment [1]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '1'}],
-        ])
+        )
 
     async def test_edgeql_select_exists_08(self):
         # using IDs in EXISTS clauses should be semantically identical
         # to using object types
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
                 EXISTS Issue.<issue.id          # has Comment [1]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '1'}],
-        ])
+        )
 
     async def test_edgeql_select_exists_09(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
                 NOT EXISTS Issue.priority       # has no Priority [1, 4]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '1'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_exists_10(self):
         # using IDs in EXISTS clauses should be semantically identical
         # to using object types
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
                 NOT EXISTS Issue.priority.id    # has no Priority [1, 4]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '1'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_exists_11(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
                 NOT EXISTS Issue.<issue         # has no Comment [2, 3, 4]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_exists_12(self):
         # using IDs in EXISTS clauses should be semantically identical
         # to using object types
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
                 NOT EXISTS Issue.<issue.id      # has no Comment [2, 3, 4]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_exists_13(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             # issue where the owner also has a comment
             FILTER EXISTS Issue.owner.<owner[IS Comment]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '1'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_exists_14(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             # issue where the owner also has a comment to it
@@ -2222,12 +2418,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 )
             ORDER BY
                 Issue.number;
-        ''', [
+            ''',
             [{'number': '1'}],
-        ])
+        )
 
     async def test_edgeql_select_exists_15(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             # issue where the owner also has a comment, but not to the
@@ -2242,12 +2439,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 )
             ORDER BY
                 Issue.number;
-        ''', [
+            ''',
             [{'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_exists_16(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             # issue where the owner also has a comment, but not to the
@@ -2262,12 +2460,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 )
             ORDER BY
                 Issue.number;
-        ''', [
+            ''',
             [{'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_exists_17(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             # issue where the owner also has a comment, but not to the
@@ -2282,32 +2481,34 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 )
             ORDER BY
                 Issue.number;
-        ''', [
+            ''',
             [{'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_exists_18(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT EXISTS (
                 SELECT Issue
                 FILTER Issue.status.name = 'Open'
             );
-        ''', [
+            ''',
             [True],
-        ])
+        )
 
     async def test_edgeql_select_coalesce_01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{
                 kind := Issue.priority.name ?? Issue.status.name
             }
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'kind': 'Open'}, {'kind': 'High'},
              {'kind': 'Low'}, {'kind': 'Closed'}],
-        ])
+        )
 
     async def test_edgeql_select_coalesce_02(self):
         with self.assertRaisesRegex(
@@ -2338,19 +2539,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ORDER BY Issue.number;
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
                 Issue.priority.name ?? 'High' = 'High'
             ORDER BY
                 Issue.priority.name EMPTY LAST THEN Issue.number;
-        ''', [
+            ''',
             [{'number': o.number} for o in [*issues_h, *issues_n]]
-        ])
+        )
 
     async def test_edgeql_select_equivalence_01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue {
                 number,
@@ -2360,7 +2563,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 l2 := Issue.priority.name ?!= 'High'
             }
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{
                 'number': '1',
                 'h1': None,
@@ -2386,10 +2589,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 'l1': None,
                 'l2': True,
             }],
-        ])
+        )
 
     async def test_edgeql_select_equivalence_02(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             # get Issues such that there's another Issue with
             # equivalent priority
             WITH
@@ -2401,57 +2605,62 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 AND
                 I2.priority.name ?= Issue.priority.name
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '1'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_equivalence_03(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             # get Issues with priority equivalent to empty
             WITH MODULE test
             SELECT Issue {number}
             FILTER
                 Issue.priority.name ?= <str>{}
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '1'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_equivalence_04(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             # get Issues with priority equivalent to empty
             WITH MODULE test
             SELECT Issue {number}
             FILTER
                 NOT Issue.priority.name ?!= <str>{}
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '1'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_as_01(self):
         # NOTE: for the expected ordering of Text see instance04 test
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT (SELECT T := Text[IS Issue] ORDER BY T.body).number;
-        ''', [
+            ''',
             ['4', '1', '3', '2'],
-        ])
+        )
 
     async def test_edgeql_select_as_02(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT (
                 SELECT T := Text[IS Issue]
                 FILTER T.body LIKE '%EdgeDB%'
                 ORDER BY T.name
             ).name;
-        ''', [
+            ''',
             ['Release EdgeDB']
-        ])
+        )
 
     async def test_edgeql_select_and_01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2459,12 +2668,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 AND
                 EXISTS Issue.<issue             # has Comment [1]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [],
-        ])
+        )
 
     async def test_edgeql_select_and_02(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2472,12 +2682,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 AND
                 EXISTS Issue.<issue             # has Comment [1]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [],
-        ])
+        )
 
     async def test_edgeql_select_and_03(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2485,12 +2696,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 AND
                 NOT EXISTS Issue.<issue         # has no Comment [2, 3, 4]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_and_04(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2498,12 +2710,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 AND
                 NOT EXISTS Issue.<issue         # has no Comment [2, 3, 4]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_and_05(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2511,12 +2724,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 AND
                 EXISTS Issue.<issue             # has Comment [1]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '1'}],
-        ])
+        )
 
     async def test_edgeql_select_and_06(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2524,12 +2738,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 AND
                 EXISTS Issue.<issue.id          # has Comment [1]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '1'}],
-        ])
+        )
 
     async def test_edgeql_select_and_07(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2537,12 +2752,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 AND
                 NOT EXISTS Issue.<issue         # has no Comment [2, 3, 4]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '2'}, {'number': '3'}],
-        ])
+        )
 
     async def test_edgeql_select_and_08(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2550,9 +2766,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 AND
                 NOT EXISTS Issue.<issue.id      # has no Comment [2, 3, 4]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '2'}, {'number': '3'}],
-        ])
+        )
 
     async def test_edgeql_select_or_01(self):
         issues_h = await self.con.fetch(r'''
@@ -2571,7 +2787,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ORDER BY Issue.number;
         ''')
 
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2579,12 +2796,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OR
                 Issue.priority.name = 'Low'
             ORDER BY Issue.priority.name THEN Issue.number;
-        ''', [
+            ''',
             [{'number': o.number} for o in [*issues_h, *issues_l]]
-        ])
+        )
 
     async def test_edgeql_select_or_04(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2592,7 +2810,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OR
                 Issue.status.name = 'Closed'
             ORDER BY Issue.number;
+            ''',
+            [{'number': '2'}, {'number': '3'}],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2602,7 +2825,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OR
                 Issue.status.name = 'Closed'
             ORDER BY Issue.number;
+            ''',
+            # it so happens that all low priority issues are also closed
+            [{'number': '2'}, {'number': '3'}],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2610,15 +2839,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OR
                 Issue.status.name = 'Closed'
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '2'}, {'number': '3'}],
-            # it so happens that all low priority issues are also closed
-            [{'number': '2'}, {'number': '3'}],
-            [{'number': '2'}, {'number': '3'}],
-        ])
+        )
 
     async def test_edgeql_select_or_05(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2626,7 +2853,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OR
                 Issue.status.name = 'Closed'
             ORDER BY Issue.number;
+            ''',
+            [{'number': '1'}, {'number': '3'}, {'number': '4'}],
+        )
 
+        await self.assert_query_result(
+            r'''
             # should be identical
             WITH MODULE test
             SELECT Issue{number}
@@ -2635,13 +2867,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OR
                 Issue.status.name = 'Closed'
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '1'}, {'number': '3'}, {'number': '4'}],
-            [{'number': '1'}, {'number': '3'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_or_06(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2649,12 +2881,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OR
                 EXISTS Issue.<issue             # has Comment [1]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '1'}, {'number': '2'}, {'number': '3'}],
-        ])
+        )
 
     async def test_edgeql_select_or_07(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2662,12 +2895,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OR
                 EXISTS Issue.<issue             # has Comment [1]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '1'}, {'number': '2'}, {'number': '3'}],
-        ])
+        )
 
     async def test_edgeql_select_or_08(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2675,13 +2909,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OR
                 NOT EXISTS Issue.<issue         # has no Comment [2, 3, 4]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '1'}, {'number': '2'}, {'number': '3'},
              {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_or_09(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2689,13 +2924,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OR
                 NOT EXISTS Issue.<issue         # has no Comment [2, 3, 4]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '1'}, {'number': '2'}, {'number': '3'},
              {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_or_10(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2703,12 +2939,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OR
                 EXISTS Issue.<issue             # has Comment [1]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '1'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_or_11(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2716,12 +2953,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OR
                 EXISTS Issue.<issue.id          # has Comment [1]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '1'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_or_12(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2729,12 +2967,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OR
                 NOT EXISTS Issue.<issue         # has no Comment [2, 3, 4]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_or_13(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2742,12 +2981,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OR
                 NOT EXISTS Issue.<issue.id      # has no Comment [2, 3, 4]
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_or_14(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             # Find Issues that have status 'Closed' or number 2 or 3
             #
             WITH MODULE test
@@ -2759,12 +2999,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OR
                 Issue.number = '3'
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_or_15(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             # Find Issues that have status 'Closed' or number 2 or 3
             #
             WITH MODULE test
@@ -2784,46 +3025,57 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     Issue.priority.name = 'Low'
                 )
             ORDER BY Issue.number;
-        ''', [
+            ''',
             [{'number': '2'}, {'number': '3'}],
-        ])
+        )
 
     async def test_edgeql_select_not_01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER NOT Issue.priority.name = 'High'
             ORDER BY Issue.number;
+            ''',
+            [{'number': '3'}],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER Issue.priority.name != 'High'
             ORDER BY Issue.number;
-       ''', [
+            ''',
             [{'number': '3'}],
-            [{'number': '3'}],
-        ])
+        )
 
     async def test_edgeql_select_not_02(self):
         # testing double negation
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER NOT NOT NOT Issue.priority.name = 'High'
             ORDER BY Issue.number;
+            ''',
+            [{'number': '3'}],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER NOT NOT Issue.priority.name != 'High'
             ORDER BY Issue.number;
-       ''', [
+            ''',
             [{'number': '3'}],
-            [{'number': '3'}],
-        ])
+        )
 
     async def test_edgeql_select_not_03(self):
         # test that: a OR b = NOT( NOT a AND NOT b)
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -2833,53 +3085,87 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     NOT Issue.status.name = 'Closed'
                 )
             ORDER BY Issue.number;
-       ''', [
+            ''',
             # this is the result from or04
             #
             [{'number': '2'}, {'number': '3'}],
-        ])
+        )
 
     async def test_edgeql_select_empty_01(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # This is not the same as checking that number does not EXIST.
             # Any binary operator with one operand as empty results in an
             # empty result, because the cross product of anything with an
             # empty set is empty.
             SELECT test::Issue.number = <str>{};
-            """, [
+            """,
             [],
-        ])
+        )
 
     async def test_edgeql_select_empty_02(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # Test short-circuiting operations with empty
             SELECT test::Issue.number = '1' OR <bool>{};
+            """,
+            [],
+        )
+
+        await self.assert_query_result(
+            r"""
             SELECT test::Issue.number = 'X' OR <bool>{};
+            """,
+            [],
+        )
+
+        await self.assert_query_result(
+            r"""
             SELECT test::Issue.number = '1' AND <bool>{};
+            """,
+            [],
+        )
+
+        await self.assert_query_result(
+            r"""
             SELECT test::Issue.number = 'X' AND <bool>{};
-            """, [
+            """,
             [],
-            [],
-            [],
-            [],
-        ])
+        )
 
     async def test_edgeql_select_empty_03(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # Test short-circuiting operations with empty
             SELECT count(test::Issue.number = '1' OR <bool>{});
+            """,
+            [0],
+        )
+
+        await self.assert_query_result(
+            r"""
             SELECT count(test::Issue.number = 'X' OR <bool>{});
+            """,
+            [0],
+        )
+
+        await self.assert_query_result(
+            r"""
             SELECT count(test::Issue.number = '1' AND <bool>{});
+            """,
+            [0],
+        )
+
+        await self.assert_query_result(
+            r"""
             SELECT count(test::Issue.number = 'X' AND <bool>{});
-            """, [
+            """,
             [0],
-            [0],
-            [0],
-            [0],
-        ])
+        )
 
     async def test_edgeql_select_empty_04(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # Perfectly legal way to mask 'name' with empty set of
             # some arbitrary type.
             WITH MODULE test
@@ -2887,19 +3173,19 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 number,
                 name := <int64>{}
             } ORDER BY .number;
-            """, [
+            """,
             [
                 {'number': '1', 'name': None},
                 {'number': '2', 'name': None},
                 {'number': '3', 'name': None},
                 {'number': '4', 'name': None},
             ],
-        ])
+        )
 
     async def test_edgeql_select_empty_05(self):
         with self.assertRaisesRegex(edgedb.QueryError,
                                     r'could not determine expression type'):
-            await self.con.execute(r"""
+            await self.con.fetch(r"""
                 WITH MODULE test
                 SELECT Issue {
                     number,
@@ -2909,99 +3195,113 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 """)
 
     async def test_edgeql_select_cross_01(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # the cross product of status and priority names
             WITH MODULE test
             SELECT Status.name ++ Priority.name
             ORDER BY Status.name THEN Priority.name;
-            """, [
+            """,
             ['ClosedHigh', 'ClosedLow', 'OpenHigh', 'OpenLow'],
-        ])
+        )
 
     async def test_edgeql_select_cross_02(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # status and priority name for each issue
             WITH MODULE test
             SELECT Issue.status.name ++ Issue.priority.name
             ORDER BY Issue.number;
-            """, [
+            """,
             ['OpenHigh', 'ClosedLow'],
-        ])
+        )
 
     async def test_edgeql_select_cross_03(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # cross-product of all user names and issue numbers
             WITH MODULE test
             SELECT User.name ++ Issue.number
             ORDER BY User.name THEN Issue.number;
-            """, [
+            """,
             ['Elvis1', 'Elvis2', 'Elvis3', 'Elvis4',
              'Yury1', 'Yury2', 'Yury3', 'Yury4'],
-        ])
+        )
 
     async def test_edgeql_select_cross_04(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # concatenate the user name with every issue number that user has
             WITH MODULE test
             SELECT User.name ++ User.<owner[IS Issue].number
             ORDER BY User.name THEN User.<owner[IS Issue].number;
-            """, [
+            """,
             ['Elvis1', 'Elvis4', 'Yury2', 'Yury3'],
-        ])
+        )
 
     async def test_edgeql_select_cross05(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             # tuples will not exist for the Issue without watchers
             SELECT _ := (Issue.owner.name, Issue.watchers.name)
             ORDER BY _;
-            """, [
+            """,
             [['Elvis', 'Yury'], ['Yury', 'Elvis'], ['Yury', 'Elvis']],
-        ])
+        )
 
     async def test_edgeql_select_cross06(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             # tuples will not exist for the Issue without watchers
             SELECT _ := Issue.owner.name ++ Issue.watchers.name
             ORDER BY _;
-            """, [
+            """,
             ['ElvisYury', 'YuryElvis', 'YuryElvis'],
-        ])
+        )
 
     async def test_edgeql_select_cross_07(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT _ := count(Issue.owner.name ++ Issue.watchers.name);
+            """,
+            [3],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT _ := count(DISTINCT (
                 Issue.owner.name ++ Issue.watchers.name));
-            """, [
-            [3],
+            """,
             [2],
-        ])
+        )
 
     async def test_edgeql_select_cross08(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT _ := Issue.owner.name ++ <str>count(Issue.watchers.name)
             ORDER BY _;
-            """, [
+            """,
             ['Elvis0', 'Elvis1', 'Yury1', 'Yury1'],
-        ])
+        )
 
     async def test_edgeql_select_cross_09(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT _ := count(
                 Issue.owner.name ++ <str>count(Issue.watchers.name));
-            """, [
+            """,
             [4],
-        ])
+        )
 
     async def test_edgeql_select_cross_10(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH
                 MODULE test,
                 # this select shows all the relevant data for next tests
@@ -3010,64 +3310,73 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     w := count(Issue.watchers.name),
                 })
             SELECT count(x.name ++ <str>x.w);
-            """, [
+            """,
             [4],
-        ])
+        )
 
     async def test_edgeql_select_cross_11(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT count(
                 Issue.owner.name ++
                 <str>count(Issue.watchers) ++
                 <str>Issue.time_estimate ?? '0'
             );
-            """, [
+            """,
             [4],
-        ])
+        )
 
     async def test_edgeql_select_cross_12(self):
         # Same as cross11, but without coalescing the time_estimate,
         # which should collapse the counted set to a single element.
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT count(
                 Issue.owner.name ++
                 <str>count(Issue.watchers) ++
                 <str>Issue.time_estimate
             );
-            """, [
+            """,
             [{}],
-        ])
+        )
 
     async def test_edgeql_select_cross_13(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT count(count( Issue.watchers));
+            """,
+            [{}],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT count(
                 (Issue, count(Issue.watchers))
             );
-            """, [
-            [{}],
+            """,
             [4],
-        ])
+        )
 
     async def test_edgeql_select_subqueries_01(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH
                 MODULE test,
                 Issue2 := Issue
             # this is string concatenation, not integer arithmetic
             SELECT Issue.number ++ Issue2.number
             ORDER BY Issue.number ++ Issue2.number;
-            """, [
+            """,
             ['{}{}'.format(a, b) for a in range(1, 5) for b in range(1, 5)],
-        ])
+        )
 
     async def test_edgeql_select_subqueries_02(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT Issue{number}
             FILTER
@@ -3079,12 +3388,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     # this condition can never be true
                     SELECT Issue FILTER Issue.number IN {'1', '6'}
                 );
-            """, [
+            """,
             [],
-        ])
+        )
 
     async def test_edgeql_select_subqueries_03(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH
                 MODULE test,
                 sub := (
@@ -3097,12 +3407,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 EXISTS (
                     (SELECT sub FILTER sub = Issue)
                 );
-            """, [
+            """,
             [],
-        ])
+        )
 
     async def test_edgeql_select_subqueries_04(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH
                 MODULE test,
                 sub := (
@@ -3119,12 +3430,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 EXISTS sub
             ORDER BY
                 Issue.number;
-            """, [
+            """,
             [{'number': '2'}, {'number': '3'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_subqueries_05(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # find all issues such that there's at least one more
             # issue with the same priority
             WITH
@@ -3141,12 +3453,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue.priority = Issue2.priority
             ORDER BY
                 Issue.number;
-            """, [
+            """,
             [],
-        ])
+        )
 
     async def test_edgeql_select_subqueries_06(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # find all issues such that there's at least one more
             # issue with the same priority (even if the "same" means empty)
             WITH
@@ -3160,12 +3473,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue != Issue2 AND Issue.priority ?= Issue2.priority
             ORDER BY
                 Issue.number;
-            """, [
+            """,
             [{'number': '1'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_select_subqueries_07(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # find all issues such that there's at least one more
             # issue watched by the same user as this one
             WITH MODULE test
@@ -3183,12 +3497,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 )
             ORDER BY
                 Issue.number;
-            """, [
+            """,
             [{'number': '2'}, {'number': '3'}],
-        ])
+        )
 
     async def test_edgeql_select_subqueries_08(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # find all issues such that there's at least one more
             # issue watched by the same user as this one
             WITH
@@ -3208,38 +3523,55 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 )
             ORDER BY
                 Issue.number;
-            """, [
+            """,
             [{'number': '2'}, {'number': '3'}],
-        ])
+        )
 
     async def test_edgeql_select_subqueries_09(self):
-        await self.assert_legacy_sorted_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT Issue.number ++ (SELECT Issue.number);
-        """, lambda x: x, [
+            """,
             ['11', '22', '33', '44'],
-        ])
+            sort=True
+        )
 
     async def test_edgeql_select_subqueries_10(self):
-        await self.assert_legacy_sorted_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH
                 MODULE test,
                 sub := (SELECT Issue.number)
             SELECT
                 Issue.number ++ sub;
-        """, lambda x: x, [
+            """,
             ['11', '12', '13', '14', '21', '22', '23', '24',
-             '31', '32', '33', '34', '41', '42', '43', '44']
-        ])
+             '31', '32', '33', '34', '41', '42', '43', '44'],
+            sort=True
+        )
 
     async def test_edgeql_select_subqueries_11(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT Text{
                 [IS Issue].number,
                 body_length := len(Text.body)
             } ORDER BY len(Text.body);
+            """,
+            [
+                {'number': '3', 'body_length': 19},
+                {'number': None, 'body_length': 21},
+                {'number': None, 'body_length': 28},
+                {'number': '1', 'body_length': 33},
+                {'number': '4', 'body_length': 41},
+                {'number': '2', 'body_length': 52},
+            ],
+        )
 
+        await self.assert_query_result(
+            r"""
             # find all issues such that there's at least one more
             # Text item of similar body length (+/-5 characters)
             WITH MODULE test
@@ -3255,20 +3587,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         (len(Text.body) - len(Issue.body)) ^ 2 <= 25
                 )
             ORDER BY Issue.number;
-            """, [
-            [
-                {'number': '3', 'body_length': 19},
-                {'number': None, 'body_length': 21},
-                {'number': None, 'body_length': 28},
-                {'number': '1', 'body_length': 33},
-                {'number': '4', 'body_length': 41},
-                {'number': '2', 'body_length': 52},
-            ],
+            """,
             [{'number': '1'}, {'number': '3'}],
-        ])
+        )
 
     async def test_edgeql_select_subqueries_12(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # same as above, but also include the body_length computable
             WITH MODULE test
             SELECT Issue{
@@ -3284,7 +3609,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         (len(Text.body) - len(Issue.body)) ^ 2 <= 25
                 )
             ORDER BY Issue.number;
-            """, [
+            """,
             [{
                 'number': '1',
                 'body_length': 33,
@@ -3292,10 +3617,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 'number': '3',
                 'body_length': 19,
             }],
-        ])
+        )
 
     async def test_edgeql_select_subqueries_13(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT User{name}
             FILTER
@@ -3304,12 +3630,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     FILTER
                         Comment.owner = User
                 );
-            """, [
+            """,
             [{'name': 'Elvis'}],
-        ])
+        )
 
     async def test_edgeql_select_subqueries_14(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT User{name}
             FILTER
@@ -3320,12 +3647,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 # adding a required link to an EXISTS should not alter
                 # the result
                 ).owner;
-            """, [
+            """,
             [{'name': 'Elvis'}],
-        ])
+        )
 
     async def test_edgeql_select_subqueries_15(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # Find all issues such that there's at least one more
             # issue watched by the same user as this one, this user
             # must have at least one Comment.
@@ -3350,15 +3678,16 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 )
             ORDER BY
                 Issue.number;
-            """, [
+            """,
             [
                 {'number': '2'},
                 {'number': '3'}
             ],
-        ])
+        )
 
     async def test_edgeql_select_subqueries_16(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # testing IN and a subquery
             WITH MODULE test
             SELECT Comment{body}
@@ -3368,12 +3697,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     FILTER
                         User.name = 'Elvis'
                 );
-            """, [
+            """,
             [{'body': 'EdgeDB needs to happen soon.'}],
-        ])
+        )
 
     async def test_edgeql_select_subqueries_17(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # get a comment whose owner is part of the users who own Issue "1"
             WITH MODULE test
             SELECT Comment{body}
@@ -3387,30 +3717,35 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                                 Issue.number = '1'
                         )
                 );
-            """, [
+            """,
             [{'body': 'EdgeDB needs to happen soon.'}],
-        ])
+        )
 
     async def test_edgeql_select_subqueries_18(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # here, DETACHED doesn't do anything special, because the
             # symbol U2 is reused on both sides of '+'
             WITH
                 MODULE test,
                 U2 := DETACHED User
             SELECT U2.name ++ U2.name;
+            """,
+            {'ElvisElvis', 'YuryYury'},
+        )
 
+        await self.assert_query_result(
+            r"""
             # DETACHED is reused on both sides of '+' directly
             WITH MODULE test
             SELECT (DETACHED User).name ++ (DETACHED User).name;
-
-            """, [
-            {'ElvisElvis', 'YuryYury'},
+            """,
             {'ElvisElvis', 'ElvisYury', 'YuryElvis', 'YuryYury'},
-        ])
+        )
 
     async def test_edgeql_select_view_indirection_01(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # Direct reference to a computable element in a subquery
             WITH MODULE test
             SELECT
@@ -3419,12 +3754,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         num_issues := count(User.<owner[IS Issue])
                     } FILTER .name = 'Elvis'
                 ).num_issues;
-            """, [
+            """,
             [2],
-        ])
+        )
 
     async def test_edgeql_select_view_indirection_02(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # Reference to a computable element in a subquery
             # defined as an inline view.
             WITH MODULE test,
@@ -3435,12 +3771,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 )
             SELECT
                 U.num_issues;
-            """, [
+            """,
             [2],
-        ])
+        )
 
     async def test_edgeql_select_view_indirection_03(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # Reference a computed object set in a view.
             WITH MODULE test,
                 U := (
@@ -3453,9 +3790,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 )
             SELECT
                 U.friend.name;
-            """, [
+            """,
             ['Yury'],
-        ])
+        )
 
     async def test_edgeql_select_view_indirection_04(self):
         result = await self.con.fetch(r"""
@@ -3477,7 +3814,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         self.assertEqual(len(result), 2)
 
     async def test_edgeql_select_view_indirection_05(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # Reference multiple views.
             WITH MODULE test,
                 U := (
@@ -3488,12 +3826,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 )
             SELECT
                 I.owner = U;
-            """, [
+            """,
             [True],
-        ])
+        )
 
     async def test_edgeql_select_view_indirection_06(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # Reference another view from a view.
             WITH MODULE test,
                 U := (
@@ -3506,12 +3845,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 I.number
             ORDER BY
                 I.number;
-            """, [
+            """,
             ['1', '4'],
-        ])
+        )
 
     async def test_edgeql_select_view_indirection_07(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # A combination of the above two.
             WITH MODULE test,
                 U := (
@@ -3526,12 +3866,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 I.owner != U
             ORDER BY
                 I.number;
-            """, [
+            """,
             [],
-        ])
+        )
 
     async def test_edgeql_select_view_indirection_08(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # A slightly more complex view.
              WITH MODULE test,
                  U := (
@@ -3555,17 +3896,17 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         SELECT U.friends.foo
                         ORDER BY U.friends.foo)
                  };
-            """, [
-
+            """,
             [{
                 'my_issues': ['1', '4'],
                 'friends_foos': 'Yury!',
                 'friends_issues': ['2', '3']
             }]
-        ])
+        )
 
     async def test_edgeql_select_view_indirection_09(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH
                 MODULE test,
                 sub := (
@@ -3586,7 +3927,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     }
                 }
             FILTER User.name = 'Elvis';
-        ''', [
+            ''',
             [{
                 'name': 'Elvis',
                 'shortest_text_shape': {
@@ -3594,10 +3935,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     'foo': 'Minor lexer tweaks.!',
                 },
             }]
-        ])
+        )
 
     async def test_edgeql_select_view_indirection_10(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH
                 MODULE test,
                 sub := (
@@ -3615,15 +3957,16 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     shortest_text_foo := sub.foo
                 }
             FILTER User.name = 'Elvis';
-        ''', [
+            ''',
             [{
                 'name': 'Elvis',
                 'shortest_text_foo': 'Minor lexer tweaks.!'
             }]
-        ])
+        )
 
     async def test_edgeql_select_view_indirection_11(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH
                 MODULE test,
                 Developers := (
@@ -3655,8 +3998,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             ORDER BY
                 Developers.name;
-
-        ''', [
+            ''',
             [
                 {
                     'name': 'Elvis',
@@ -3673,145 +4015,201 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     ]
                 }
             ]
-        ])
+        )
 
     async def test_edgeql_select_slice_01(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # full name of the Issue is 'Release EdgeDB'
             WITH MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
             ).name[2];
+            """,
+            ['l'],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
             ).name[-2];
+            """,
+            ['D'],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
             ).name[2:4];
+            """,
+            ['le'],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
             ).name[2:];
+            """,
+            ['lease EdgeDB'],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
             ).name[:2];
+            """,
+            ['Re'],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
             ).name[2:-1];
+            """,
+            ['lease EdgeD'],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
             ).name[-2:];
+            """,
+            ['DB'],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
             ).name[:-2];
-            """, [
-            ['l'],
-            ['D'],
-
-            ['le'],
-            ['lease EdgeDB'],
-            ['Re'],
-
-            ['lease EdgeD'],
-            ['DB'],
+            """,
             ['Release Edge'],
-        ])
+        )
 
     async def test_edgeql_select_slice_02(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
             ).__type__.name;
+            """,
+            ['test::Issue'],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
             ).__type__.name[2];
+            """,
+            ['s'],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
             ).__type__.name[-2];
+            """,
+            ['u'],
+        )
 
-
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
             ).__type__.name[2:4];
+            """,
+            ['st'],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
             ).__type__.name[2:];
+            """,
+            ['st::Issue'],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
             ).__type__.name[:2];
+            """,
+            ['te'],
+        )
 
-
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
             ).__type__.name[2:-1];
+            """,
+            ['st::Issu'],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
             ).__type__.name[-2:];
+            """,
+            ['ue'],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT (
                 SELECT Issue
                 FILTER Issue.number = '1'
             ).__type__.name[:-2];
-
-        """, [
-            ['test::Issue'],
-            ['s'],
-            ['u'],
-
-            ['st'],
-            ['st::Issue'],
-            ['te'],
-
-            ['st::Issu'],
-            ['ue'],
+            """,
             ['test::Iss'],
-        ])
+        )
 
     async def test_edgeql_select_slice_03(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT Issue{
                 name,
@@ -3821,7 +4219,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 c := Issue.__type__.name[2:-1],
             }
             FILTER Issue.number = '1';
-        """, [
+            """,
             [{
                 'name': 'Release EdgeDB',
                 'type_name': 'test::Issue',
@@ -3829,20 +4227,22 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 'b': 'lease EdgeD',
                 'c': 'st::Issu',
             }],
-        ])
+        )
 
     async def test_edgeql_select_tuple_01(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # get tuples (status, number of issues)
             WITH MODULE test
             SELECT (Status.name, count(Status.<status))
             ORDER BY Status.name;
-            """, [
+            """,
             [['Closed', 2], ['Open', 2]]
-        ])
+        )
 
     async def test_edgeql_select_tuple_02(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             # nested tuples
             WITH MODULE test
             SELECT
@@ -3857,15 +4257,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 # product of all user names with user owned issue statuses.
                 #
             ORDER BY _.0 THEN _.1;
-            """, [[
-            ['Elvis', ['Closed', 1]],
-            ['Elvis', ['Open', 1]],
-            ['Yury', ['Closed', 1]],
-            ['Yury', ['Open', 1]],
-        ]])
+            """,
+            [
+                ['Elvis', ['Closed', 1]],
+                ['Elvis', ['Open', 1]],
+                ['Yury', ['Closed', 1]],
+                ['Yury', ['Open', 1]],
+            ]
+        )
 
     async def test_edgeql_select_tuple_03(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH
                 MODULE test,
                 _ := {('Elvis',), ('Yury',)}
@@ -3877,13 +4280,16 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 User.name = _.0
             ORDER BY
                 User.name;
-            """, [[
-            {'name': 'Elvis'},
-            {'name': 'Yury'},
-        ]])
+            """,
+            [
+                {'name': 'Elvis'},
+                {'name': 'Yury'},
+            ]
+        )
 
     async def test_edgeql_select_tuple_04(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT
                 User {
@@ -3893,24 +4299,28 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 User.name = 'Elvis'
             ORDER BY
                 User.name;
-            """, [[
-            {'t': [[1, 2], [3, 4]]},
-        ]])
+            """,
+            [
+                {'t': [[1, 2], [3, 4]]},
+            ]
+        )
 
     async def test_edgeql_select_tuple_05(self):
-        await self.assert_legacy_query_result(r"""
-            WITH MODULE test
-            SELECT (
-                statuses := count(Status),
-                issues := count(Issue),
-            );
-            """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT (
+                    statuses := count(Status),
+                    issues := count(Issue),
+                );
+            """,
             [{'statuses': 2, 'issues': 4}],
-        ])
+        )
 
     async def test_edgeql_select_tuple_06(self):
         # Tuple in a common set expr.
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH
                 MODULE test,
                 counts := (SELECT (
@@ -3919,13 +4329,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 ))
             SELECT
                 counts.statuses + counts.issues;
-            """, [
+            """,
             [6],
-        ])
+        )
 
     async def test_edgeql_select_tuple_07(self):
         # Object in a tuple.
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH
                 MODULE test,
                 criteria := (SELECT (
@@ -3939,43 +4350,46 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     Issue.owner = criteria.user
                     AND Issue.status = criteria.status
             ).number;
-            """, [
+            """,
             ['2'],
-        ])
+        )
 
     async def test_edgeql_select_tuple_08(self):
         # Object in a tuple returned directly.
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH
                 MODULE test
             SELECT
                 (
                     user := (SELECT User{name} FILTER User.name = 'Yury')
                 );
-            """, [
+            """,
             [{
                 'user': {
                     'name': 'Yury'
                 }
             }],
-        ])
+        )
 
     async def test_edgeql_select_tuple_09(self):
         # Object in a tuple referred to directly.
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH
                 MODULE test
             SELECT
                 (
                     user := (SELECT User{name} FILTER User.name = 'Yury')
                 ).user.name;
-            """, [
+            """,
             ['Yury'],
-        ])
+        )
 
     async def test_edgeql_select_tuple_10(self):
         # Tuple comparison
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH
                 MODULE test,
                 U1 := User,
@@ -3984,7 +4398,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 (user := (SELECT U1{name} FILTER U1.name = 'Yury'))
                     =
                 (user := (SELECT U2{name} FILTER U2.name = 'Yury'));
+            """,
+            [True],
+        )
 
+        await self.assert_query_result(
+            r"""
             WITH
                 MODULE test,
                 U1 := User,
@@ -3994,31 +4413,33 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     =
                 (user := (SELECT U2{name} FILTER U2.name = 'Elvis'));
 
-            """, [
-            [True],
+            """,
             [False],
-        ])
+        )
 
     async def test_edgeql_select_linkproperty_01(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT User.todo@rank + <int64>User.todo.number
             ORDER BY User.todo.number;
-            """, [
+            """,
             [43, 44, 45, 46]
-        ])
+        )
 
     async def test_edgeql_select_linkproperty_02(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT Issue.<todo@rank + <int64>Issue.number
             ORDER BY Issue.number;
-            """, [
+            """,
             [43, 44, 45, 46]
-        ])
+        )
 
     async def test_edgeql_select_linkproperty_03(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT User {
                 name,
@@ -4028,7 +4449,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 } ORDER BY User.todo.number
             }
             ORDER BY User.name;
-            """, [
+            """,
             [{
                 'name': 'Elvis',
                 'todo': [{
@@ -4048,17 +4469,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     '@rank': 42,
                 }]
             }],
-        ])
+        )
 
     async def test_edgeql_select_if_else_01(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT Issue {
                 number,
                 open := 'yes' IF Issue.status.name = 'Open' ELSE 'no'
             }
             ORDER BY Issue.number;
-            """, [
+            """,
             [{
                 'number': '1',
                 'open': 'yes',
@@ -4072,10 +4494,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 'number': '4',
                 'open': 'no',
             }],
-        ])
+        )
 
     async def test_edgeql_select_if_else_02(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT Issue {
                 number,
@@ -4083,7 +4506,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 foo := 'bar' IF Issue.number = '1' ELSE Issue.status.name
             }
             ORDER BY Issue.number;
-            """, [
+            """,
             [{
                 'number': '1',
                 'foo': 'bar',
@@ -4097,7 +4520,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 'number': '4',
                 'foo': 'Closed',
             }],
-        ])
+        )
 
     async def test_edgeql_select_if_else_03(self):
         with self.assertRaisesRegex(edgedb.QueryError,
@@ -4111,7 +4534,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 """)
 
     async def test_edgeql_select_if_else_04(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT Issue{
                 kind := (Issue.priority.name
@@ -4119,24 +4543,27 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                          ELSE Issue.status.name)
             }
             ORDER BY Issue.number;
+            """,
+            [{'kind': 'Open'}, {'kind': 'High'},
+             {'kind': 'Low'}, {'kind': 'Closed'}],
+        )
 
+        await self.assert_query_result(
+            r"""
             # Above IF is equivalent to ??,
-
             WITH MODULE test
             SELECT Issue{
                 kind := Issue.priority.name ?? Issue.status.name
             }
             ORDER BY Issue.number;
-        """, [
+            """,
             [{'kind': 'Open'}, {'kind': 'High'},
              {'kind': 'Low'}, {'kind': 'Closed'}],
-
-            [{'kind': 'Open'}, {'kind': 'High'},
-             {'kind': 'Low'}, {'kind': 'Closed'}],
-        ])
+        )
 
     async def test_edgeql_select_if_else_05(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT Issue {number}
             FILTER
@@ -4144,21 +4571,25 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     IF EXISTS Issue.priority.name AND EXISTS 'High'
                     ELSE EXISTS Issue.priority.name = EXISTS 'High'
             ORDER BY Issue.number;
+            """,
+            [{'number': '2'}],
+        )
 
+        await self.assert_query_result(
+            r"""
             # Above IF is equivalent to ?=,
-
             WITH MODULE test
             SELECT Issue {number}
             FILTER
                 Issue.priority.name ?= 'High'
             ORDER BY Issue.number;
-        """, [
+            """,
             [{'number': '2'}],
-            [{'number': '2'}],
-        ])
+        )
 
     async def test_edgeql_select_if_else_06(self):
-        await self.assert_legacy_query_result(r"""
+        await self.assert_query_result(
+            r"""
             WITH MODULE test
             SELECT Issue {number}
             FILTER
@@ -4166,21 +4597,25 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     IF EXISTS Issue.priority.name AND EXISTS 'High'
                     ELSE EXISTS Issue.priority.name != EXISTS 'High'
             ORDER BY Issue.number;
+            """,
+            [{'number': '1'}, {'number': '3'}, {'number': '4'}],
+        )
 
+        await self.assert_query_result(
+            r"""
             # Above IF is equivalent to !?=,
-
             WITH MODULE test
             SELECT Issue {number}
             FILTER
                 Issue.priority.name ?!= 'High'
             ORDER BY Issue.number;
-        """, [
+            """,
             [{'number': '1'}, {'number': '3'}, {'number': '4'}],
-            [{'number': '1'}, {'number': '3'}, {'number': '4'}],
-        ])
+        )
 
     async def test_edgeql_partial_01(self):
-        await self.assert_legacy_query_result('''
+        await self.assert_query_result(
+            '''
             WITH MODULE test
             SELECT
                 Issue {
@@ -4188,14 +4623,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             FILTER
                 .number = '1';
-        ''', [
+            ''',
             [{
                 'number': '1'
             }]
-        ])
+        )
 
     async def test_edgeql_partial_02(self):
-        await self.assert_legacy_query_result('''
+        await self.assert_query_result(
+            '''
             WITH MODULE test
             SELECT
                 Issue.watchers {
@@ -4203,14 +4639,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             FILTER
                 .name = 'Yury';
-        ''', [
+            ''',
             [{
                 'name': 'Yury'
             }]
-        ])
+        )
 
     async def test_edgeql_partial_03(self):
-        await self.assert_legacy_query_result('''
+        await self.assert_query_result(
+            '''
             WITH MODULE test
             SELECT Issue {
                 number,
@@ -4218,27 +4655,30 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     name
                 } FILTER .name = 'Yury'
             } FILTER .status.name = 'Open' AND .owner.name = 'Elvis';
-        ''', [
+            ''',
             [{
                 'number': '1',
                 'watchers': [{
                     'name': 'Yury'
                 }]
             }]
-        ])
+        )
 
     async def test_edgeql_partial_04(self):
-        await self.assert_legacy_query_result('''
+        await self.assert_query_result(
+            '''
             WITH MODULE test
             SELECT Issue {
                 number,
             } FILTER .number > '1'
               ORDER BY .number DESC;
-        ''', [[
-            {'number': '4'},
-            {'number': '3'},
-            {'number': '2'},
-        ]])
+            ''',
+            [
+                {'number': '4'},
+                {'number': '3'},
+                {'number': '2'},
+            ]
+        )
 
     async def test_edgeql_partial_05(self):
         with self.assertRaisesRegex(edgedb.QueryError,
@@ -4263,25 +4703,47 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_virtual_target_01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue {
                 number,
             } FILTER EXISTS (.references)
               ORDER BY .number DESC;
+            ''',
+            [{
+                'number': '2'
+            }],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue {
                 number,
             } FILTER .references[IS URL].address = 'https://edgedb.com'
               ORDER BY .number DESC;
+            ''',
+            [{
+                'number': '2'
+            }],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue {
                 number,
             } FILTER .references[IS Named].name = 'screenshot.png'
               ORDER BY .number DESC;
+            ''',
+            [{
+                'number': '2'
+            }],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT Issue {
                 number,
@@ -4294,16 +4756,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 } ORDER BY .name
             } FILTER EXISTS (.references)
               ORDER BY .number DESC;
-        ''', [
-            [{
-                'number': '2'
-            }],
-            [{
-                'number': '2'
-            }],
-            [{
-                'number': '2'
-            }],
+            ''',
             [{
                 'number': '2',
                 'references': [
@@ -4321,10 +4774,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     }
                 ]
             }]
-        ])
+        )
 
     async def test_edgeql_select_for_01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             FOR x IN {1, 4}
             UNION Issue {
@@ -4334,13 +4788,16 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 Issue.number = <str>x
             ORDER BY
                 Issue.number;
-        ''', [[
-            {'name': 'Release EdgeDB'},
-            {'name': 'Regression.'},
-        ]])
+            ''',
+            [
+                {'name': 'Release EdgeDB'},
+                {'name': 'Regression.'},
+            ]
+        )
 
     async def test_edgeql_select_for_02(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             FOR x IN {1, 3, 4}
             UNION I := (
@@ -4354,27 +4811,30 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     Issue.number
             )
             ORDER BY I.number;
-        ''', [[
-            {
-                'name': 'Improve EdgeDB repl output rendering.',
-                'number': '2'
-            },
-            {
-                'name': 'Repl tweak.',
-                'number': '3'
-            },
-            {
-                'name': 'Regression.',
-                'number': '4'
-            },
-            {
-                'name': 'Regression.',
-                'number': '4'
-            },
-        ]])
+            ''',
+            [
+                {
+                    'name': 'Improve EdgeDB repl output rendering.',
+                    'number': '2'
+                },
+                {
+                    'name': 'Repl tweak.',
+                    'number': '3'
+                },
+                {
+                    'name': 'Regression.',
+                    'number': '4'
+                },
+                {
+                    'name': 'Regression.',
+                    'number': '4'
+                },
+            ]
+        )
 
     async def test_edgeql_select_for_03(self):
-        await self.assert_legacy_sorted_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             FOR x IN {1, 3, 4}
             UNION (
@@ -4388,23 +4848,27 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     Issue.number
                 LIMIT 2
             );
-        ''', lambda x: x['number'], [[
-            {
-                'name': 'Improve EdgeDB repl output rendering.',
-                'number': '2'
-            },
-            {
-                'name': 'Repl tweak.',
-                'number': '3'
-            },
-            {
-                'name': 'Regression.',
-                'number': '4'
-            },
-        ]])
+            ''',
+            [
+                {
+                    'name': 'Improve EdgeDB repl output rendering.',
+                    'number': '2'
+                },
+                {
+                    'name': 'Repl tweak.',
+                    'number': '3'
+                },
+                {
+                    'name': 'Regression.',
+                    'number': '4'
+                },
+            ],
+            sort=lambda x: x['number'],
+        )
 
     async def test_edgeql_select_json_01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             # cast an ad-hoc view into a set of json
             WITH MODULE test
             SELECT (
@@ -4413,7 +4877,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     time_estimate
                 } FILTER Issue.number = '1'
             ) = to_json('{"number": "1", "time_estimate": 3000}');
+            ''',
+            [True],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT (
                 SELECT <json>Issue {
@@ -4421,10 +4890,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     time_estimate
                 } FILTER Issue.number = '2'
             ) = to_json('{"number": "2", "time_estimate": null}');
-        ''', [
+            ''',
             [True],
-            [True],
-        ])
+        )
 
     async def test_edgeql_select_bad_reference_01(self):
         with self.assertRaisesRegex(
@@ -4432,7 +4900,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 r'reference to a non-existent schema item: Usr.*',
                 hint="did you mean one of these: User, URL?"):
 
-            await self.con.execute("""
+            await self.con.fetch("""
                 WITH MODULE test
                 SELECT Usr;
             """)
@@ -4443,7 +4911,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 r"test::User has no link or property 'nam'",
                 hint="did you mean 'name'?"):
 
-            await self.con.execute("""
+            await self.con.fetch("""
                 WITH MODULE test
                 SELECT User.nam;
             """)
@@ -4452,7 +4920,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot index.*int'):
 
-            await self.con.execute("""
+            await self.con.fetch("""
                 # index access is higher precedence than cast
                 SELECT <str>1[0];
             """)
@@ -4461,225 +4929,361 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot index.*int'):
 
-            await self.con.execute("""
+            await self.con.fetch("""
                 WITH MODULE test
                 # index access is higher precedence than cast
                 SELECT <str>Issue.time_estimate[0];
             """)
 
     async def test_edgeql_select_precedence_03(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             SELECT (<str>1)[0];
+            ''',
+            ['1'],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT (<str>Issue.time_estimate)[0];
-        ''', [
-            ['1'],
+            ''',
             ['3'],
-        ])
+        )
 
     async def test_edgeql_select_precedence_04(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT EXISTS Issue{number};
+            ''',
+            [True],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT EXISTS Issue;
-        ''', [
+            ''',
             [True],
-            [True],
-        ])
+        )
 
     async def test_edgeql_select_precedence_05(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT EXISTS Issue{number};
-        ''', [
+            ''',
             [True],
-        ])
+        )
 
     async def test_edgeql_select_is_01(self):
-        await self.assert_legacy_query_result(r'''
-            SELECT 5 IS int64;
-            SELECT 5 IS anyint;
-            SELECT 5 IS anyreal;
-            SELECT 5 IS anyscalar;
-            SELECT 5 IS int16;
-            SELECT 5 IS float64;
-            SELECT 5 IS anyfloat;
-            SELECT 5 IS str;
-            SELECT 5 IS Object;
-        ''', [
+        await self.assert_query_result(
+            r'''SELECT 5 IS int64;''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 5 IS anyint;''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 5 IS anyreal;''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 5 IS anyscalar;''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 5 IS int16;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 5 IS float64;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 5 IS anyfloat;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 5 IS str;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 5 IS Object;''',
             [False],
-        ])
+        )
 
     async def test_edgeql_select_is_02(self):
-        await self.assert_legacy_query_result(r'''
-            SELECT 5.5 IS int64;
-            SELECT 5.5 IS anyint;
-            SELECT 5.5 IS anyreal;
-            SELECT 5.5 IS anyscalar;
-            SELECT 5.5 IS int16;
-            SELECT 5.5 IS float64;
-            SELECT 5.5 IS anyfloat;
-            SELECT 5.5 IS str;
-            SELECT 5.5 IS Object;
-        ''', [
+        await self.assert_query_result(
+            r'''SELECT 5.5 IS int64;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 5.5 IS anyint;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 5.5 IS anyreal;''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 5.5 IS anyscalar;''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 5.5 IS int16;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 5.5 IS float64;''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 5.5 IS anyfloat;''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 5.5 IS str;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 5.5 IS Object;''',
             [False],
-        ])
+        )
 
     async def test_edgeql_select_is_03(self):
-        await self.assert_legacy_query_result(r'''
-            SET MODULE test;
+        await self.con.execute('SET MODULE test;')
 
-            SELECT Issue.time_estimate IS int64 LIMIT 1;
-            SELECT Issue.time_estimate IS anyint LIMIT 1;
-            SELECT Issue.time_estimate IS anyreal LIMIT 1;
-            SELECT Issue.time_estimate IS anyscalar LIMIT 1;
-            SELECT Issue.time_estimate IS int16 LIMIT 1;
-            SELECT Issue.time_estimate IS float64 LIMIT 1;
-            SELECT Issue.time_estimate IS anyfloat LIMIT 1;
-            SELECT Issue.time_estimate IS str LIMIT 1;
-            SELECT Issue.time_estimate IS Object LIMIT 1;
-        ''', [
-            None,
+        await self.assert_query_result(
+            r'''SELECT Issue.time_estimate IS int64 LIMIT 1;''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.time_estimate IS anyint LIMIT 1;''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.time_estimate IS anyreal LIMIT 1;''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.time_estimate IS anyscalar LIMIT 1;''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.time_estimate IS int16 LIMIT 1;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.time_estimate IS float64 LIMIT 1;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.time_estimate IS anyfloat LIMIT 1;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.time_estimate IS str LIMIT 1;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.time_estimate IS Object LIMIT 1;''',
             [False],
-        ])
+        )
 
     async def test_edgeql_select_is_04(self):
-        await self.assert_legacy_query_result(r'''
-            SET MODULE test;
+        await self.con.execute('SET MODULE test;')
 
-            SELECT Issue.number IS int64 LIMIT 1;
-            SELECT Issue.number IS anyint LIMIT 1;
-            SELECT Issue.number IS anyreal LIMIT 1;
-            SELECT Issue.number IS anyscalar LIMIT 1;
-            SELECT Issue.number IS int16 LIMIT 1;
-            SELECT Issue.number IS float64 LIMIT 1;
-            SELECT Issue.number IS anyfloat LIMIT 1;
-            SELECT Issue.number IS str LIMIT 1;
-            SELECT Issue.number IS Object LIMIT 1;
-        ''', [
-            None,
+        await self.assert_query_result(
+            r'''SELECT Issue.number IS int64 LIMIT 1;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.number IS anyint LIMIT 1;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.number IS anyreal LIMIT 1;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.number IS anyscalar LIMIT 1;''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.number IS int16 LIMIT 1;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.number IS float64 LIMIT 1;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.number IS anyfloat LIMIT 1;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.number IS str LIMIT 1;''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.number IS Object LIMIT 1;''',
             [False],
-        ])
+        )
 
     async def test_edgeql_select_is_05(self):
-        await self.assert_legacy_query_result(r'''
-            SET MODULE test;
+        await self.con.execute('SET MODULE test;')
 
-            SELECT Issue.status IS int64 LIMIT 1;
-            SELECT Issue.status IS anyint LIMIT 1;
-            SELECT Issue.status IS anyreal LIMIT 1;
-            SELECT Issue.status IS anyscalar LIMIT 1;
-            SELECT Issue.status IS int16 LIMIT 1;
-            SELECT Issue.status IS float64 LIMIT 1;
-            SELECT Issue.status IS anyfloat LIMIT 1;
-            SELECT Issue.status IS str LIMIT 1;
-            SELECT Issue.status IS Object LIMIT 1;
-        ''', [
-            None,
+        await self.assert_query_result(
+            r'''SELECT Issue.status IS int64 LIMIT 1;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.status IS anyint LIMIT 1;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.status IS anyreal LIMIT 1;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.status IS anyscalar LIMIT 1;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.status IS int16 LIMIT 1;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.status IS float64 LIMIT 1;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.status IS anyfloat LIMIT 1;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.status IS str LIMIT 1;''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT Issue.status IS Object LIMIT 1;''',
             [True],
-        ])
+        )
 
     async def test_edgeql_select_is_06(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             SELECT 5 IS anytype;
-        ''', [
+            ''',
             [True]
-        ])
+        )
 
     async def test_edgeql_select_is_07(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             SELECT 5 IS anyint;
-        ''', [
+            ''',
             [True]
-        ])
+        )
 
     async def test_edgeql_select_is_08(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             SELECT 5.5 IS anyfloat;
-        ''', [
+            ''',
             [True]
-        ])
+        )
 
     async def test_edgeql_select_is_09(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             SELECT test::Issue.time_estimate IS anytype LIMIT 1;
-        ''', [
+            ''',
             [True]
-        ])
+        )
 
     async def test_edgeql_select_is_10(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             SELECT [5] IS (array<anytype>);
-        ''', [
+            ''',
             [True]
-        ])
+        )
 
     async def test_edgeql_select_is_11(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             SELECT (5, 'hello') IS (tuple<anytype, str>);
-        ''', [
+            ''',
             [True]
-        ])
+        )
 
     async def test_edgeql_select_is_12(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             SELECT [5] IS (array<int64>);
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
             SELECT (5, 'hello') IS (tuple<int64, str>);
-        ''', [
+            ''',
             [True],
-            [True],
-        ])
+        )
 
     @test.xfail('IS is broken for runtime type checks of object collections')
     async def test_edgeql_select_is_13(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT
                 NOT all([Text] IS (array<Issue>))
                 AND any([Text] IS (array<Issue>));
-        ''', [
+            ''',
             [True],
-        ])
+        )

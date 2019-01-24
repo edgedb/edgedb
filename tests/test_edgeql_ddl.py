@@ -17,7 +17,7 @@
 #
 
 
-import unittest  # NOQA
+import unittest
 
 import edgedb
 
@@ -80,24 +80,25 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_query_result("""
-            SELECT schema::ObjectType {
-                links: {
-                    name,
-                    required,
-                }
-                FILTER .name = 'test::a'
-                ORDER BY .name,
+        await self.assert_query_result(
+            r"""
+                SELECT schema::ObjectType {
+                    links: {
+                        name,
+                        required,
+                    }
+                    FILTER .name = 'test::a'
+                    ORDER BY .name,
 
-                properties: {
-                    name,
-                    required,
+                    properties: {
+                        name,
+                        required,
+                    }
+                    FILTER .name = 'test::b'
+                    ORDER BY .name
                 }
-                FILTER .name = 'test::b'
-                ORDER BY .name
-            }
-            FILTER .name = 'test::Object5';
-        """, [
+                FILTER .name = 'test::Object5';
+            """,
             [{
                 'links': [{
                     'name': 'test::a',
@@ -109,7 +110,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     'required': True,
                 }],
             }],
-        ])
+        )
 
         await self.con.execute("""
             ALTER TYPE test::Object5 {
@@ -121,24 +122,25 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_query_result("""
-            SELECT schema::ObjectType {
-                links: {
-                    name,
-                    required,
-                }
-                FILTER .name = 'test::a'
-                ORDER BY .name,
+        await self.assert_query_result(
+            r"""
+                SELECT schema::ObjectType {
+                    links: {
+                        name,
+                        required,
+                    }
+                    FILTER .name = 'test::a'
+                    ORDER BY .name,
 
-                properties: {
-                    name,
-                    required,
+                    properties: {
+                        name,
+                        required,
+                    }
+                    FILTER .name = 'test::b'
+                    ORDER BY .name
                 }
-                FILTER .name = 'test::b'
-                ORDER BY .name
-            }
-            FILTER .name = 'test::Object5';
-        """, [
+                FILTER .name = 'test::Object5';
+            """,
             [{
                 'links': [{
                     'name': 'test::a',
@@ -150,7 +152,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     'required': False,
                 }],
             }],
-        ])
+        )
 
     async def test_edgeql_ddl_type_06(self):
         await self.con.execute("""
@@ -161,24 +163,25 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_query_result("""
-            SELECT schema::ObjectType {
-                links: {
-                    name,
-                    cardinality,
-                }
-                FILTER .name = 'test::a'
-                ORDER BY .name,
+        await self.assert_query_result(
+            r"""
+                SELECT schema::ObjectType {
+                    links: {
+                        name,
+                        cardinality,
+                    }
+                    FILTER .name = 'test::a'
+                    ORDER BY .name,
 
-                properties: {
-                    name,
-                    cardinality,
+                    properties: {
+                        name,
+                        cardinality,
+                    }
+                    FILTER .name = 'test::b'
+                    ORDER BY .name
                 }
-                FILTER .name = 'test::b'
-                ORDER BY .name
-            }
-            FILTER .name = 'test::Object6';
-        """, [
+                FILTER .name = 'test::Object6';
+            """,
             [{
                 'links': [{
                     'name': 'test::a',
@@ -190,7 +193,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     'cardinality': 'ONE',
                 }],
             }],
-        ])
+        )
 
         await self.con.execute("""
             ALTER TYPE test::Object6 {
@@ -202,24 +205,25 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_query_result("""
-            SELECT schema::ObjectType {
-                links: {
-                    name,
-                    cardinality,
-                }
-                FILTER .name = 'test::a'
-                ORDER BY .name,
+        await self.assert_query_result(
+            """
+                SELECT schema::ObjectType {
+                    links: {
+                        name,
+                        cardinality,
+                    }
+                    FILTER .name = 'test::a'
+                    ORDER BY .name,
 
-                properties: {
-                    name,
-                    cardinality,
+                    properties: {
+                        name,
+                        cardinality,
+                    }
+                    FILTER .name = 'test::b'
+                    ORDER BY .name
                 }
-                FILTER .name = 'test::b'
-                ORDER BY .name
-            }
-            FILTER .name = 'test::Object6';
-        """, [
+                FILTER .name = 'test::Object6';
+            """,
             [{
                 'links': [{
                     'name': 'test::a',
@@ -231,7 +235,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     'cardinality': 'MANY',
                 }],
             }],
-        ])
+        )
 
     async def test_edgeql_ddl_05(self):
         await self.con.execute("""
@@ -317,41 +321,48 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 $$;
         """)
 
-        await self.assert_query_result(fr"""
-            SELECT test::my_sql_func1();
-        """, [
+        await self.assert_query_result(
+            r"""
+                SELECT test::my_sql_func1();
+            """,
             ['spam'],
-        ])
-        await self.assert_query_result(fr"""
-            SELECT test::my_sql_func2('foo');
-        """, [
+        )
+        await self.assert_query_result(
+            r"""
+                SELECT test::my_sql_func2('foo');
+            """,
             ['foo'],
-        ])
-        await self.assert_query_result(fr"""
-            SELECT test::my_sql_func4('fizz', 'buzz');
-        """, [
+        )
+        await self.assert_query_result(
+            r"""
+                SELECT test::my_sql_func4('fizz', 'buzz');
+            """,
             ['fizz-buzz'],
-        ])
-        await self.assert_query_result(fr"""
-            SELECT test::{long_func_name}();
-        """, [
+        )
+        await self.assert_query_result(
+            fr"""
+                SELECT test::{long_func_name}();
+            """,
             [long_func_name],
-        ])
-        await self.assert_query_result(fr"""
-            SELECT test::my_sql_func6();
-        """, [
+        )
+        await self.assert_query_result(
+            r"""
+                SELECT test::my_sql_func6();
+            """,
             ['abc'],
-        ])
-        await self.assert_query_result(fr"""
-            SELECT test::my_sql_func6('xy');
-        """, [
+        )
+        await self.assert_query_result(
+            r"""
+                SELECT test::my_sql_func6('xy');
+            """,
             ['xyc'],
-        ])
-        await self.assert_query_result(fr"""
-            SELECT test::my_sql_func7([1, 2, 3, 10]);
-        """, [
+        )
+        await self.assert_query_result(
+            r"""
+                SELECT test::my_sql_func7([1, 2, 3, 10]);
+            """,
             [16],
-        ])
+        )
 
         await self.con.execute(f"""
             DROP FUNCTION test::my_sql_func1();
@@ -403,26 +414,30 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 $$;
         """)
 
-        await self.assert_query_result(r"""
-            SELECT test::my_edgeql_func1();
-        """, [
+        await self.assert_query_result(
+            r"""
+                SELECT test::my_edgeql_func1();
+            """,
             ['spam'],
-        ])
-        await self.assert_query_result(r"""
-            SELECT test::my_edgeql_func2('schema::Object').name;
-        """, [
+        )
+        await self.assert_query_result(
+            r"""
+                SELECT test::my_edgeql_func2('schema::Object').name;
+            """,
             ['schema::Object'],
-        ])
-        await self.assert_query_result(r"""
-            SELECT test::my_edgeql_func3(1);
-        """, [
+        )
+        await self.assert_query_result(
+            r"""
+                SELECT test::my_edgeql_func3(1);
+            """,
             [11],
-        ])
-        await self.assert_query_result(r"""
-            SELECT test::my_edgeql_func4(42);
-        """, [
+        )
+        await self.assert_query_result(
+            r"""
+                SELECT test::my_edgeql_func4(42);
+            """,
             [[42, 1, 2, 3]]
-        ])
+        )
 
         await self.con.execute(f"""
             DROP FUNCTION test::my_edgeql_func1();
@@ -439,19 +454,20 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_query_result(r"""
-            SELECT schema::Function {
-                attributes: {
-                    @value
-                } FILTER .name = 'std::description'
-            } FILTER .name = 'test::attr_func_1';
-        """, [
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Function {
+                    attributes: {
+                        @value
+                    } FILTER .name = 'std::description'
+                } FILTER .name = 'test::attr_func_1';
+            """,
             [{
                 'attributes': [{
                     '@value': 'hello'
                 }]
             }],
-        ])
+        )
 
         await self.con.execute("""
             DROP FUNCTION test::attr_func_1();
@@ -464,11 +480,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_query_result(r"""
-            SELECT test::int_func_1();
-        """, [
+        await self.assert_query_result(
+            r"""
+                SELECT test::int_func_1();
+            """,
             [{}],
-        ])
+        )
 
     async def test_edgeql_ddl_11(self):
         await self.con.execute(r"""
@@ -517,20 +534,22 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_query_result(r"""
+        await self.con.execute(r"""
             INSERT test::TestSelfLink1 {
                 foo1 := 'Victor'
             };
+        """)
 
-            WITH MODULE test
-            SELECT TestSelfLink1 {
-                foo1,
-                bar1,
-            };
-        """, [
-            [{}],
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT TestSelfLink1 {
+                    foo1,
+                    bar1,
+                };
+            """,
             [{'foo1': 'Victor', 'bar1': 'Victor'}]
-        ])
+        )
 
     async def test_edgeql_ddl_15(self):
         await self.con.execute(r"""
@@ -553,19 +572,20 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_query_result(r"""
-            WITH MODULE test
-            SELECT TestSelfLink2 {
-                foo2,
-                bar2,
-            } ORDER BY TestSelfLink2.foo2;
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT TestSelfLink2 {
+                    foo2,
+                    bar2,
+                } ORDER BY TestSelfLink2.foo2;
+            """,
             [
                 {'bar2': {}, 'foo2': 'Alice'},
                 {'bar2': {'Alice'}, 'foo2': 'Bob'},
                 {'bar2': {'Alice', 'Bob'}, 'foo2': 'Carol'}
             ],
-        ])
+        )
 
     @unittest.expectedFailure
     async def test_edgeql_ddl_16(self):
@@ -592,17 +612,19 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_query_result(r"""
+        await self.con.execute(r"""
             INSERT test::TestSelfLink4;
+        """)
 
-            WITH MODULE test
-            SELECT TestSelfLink4 {
-                __typename4,
-            };
-        """, [
-            [{}],
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT TestSelfLink4 {
+                    __typename4,
+                };
+            """,
             [{'__typename4': 'test::TestSelfLink4'}]
-        ])
+        )
 
     async def test_edgeql_ddl_18(self):
         await self.con.execute("""
@@ -627,24 +649,25 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_query_result(r"""
-            WITH MODULE schema
-            SELECT ScalarType {
-                name,
-                constraints: {
-                    name
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ScalarType {
+                    name,
+                    constraints: {
+                        name
+                    }
                 }
-            }
-            FILTER .name LIKE '%bar%' OR .name LIKE '%foo%'
-            ORDER BY .name;
-        """, [
+                FILTER .name LIKE '%bar%' OR .name LIKE '%foo%'
+                ORDER BY .name;
+            """,
             [
                 {'name': 'bar::bar_t', 'constraints': []},
                 {'name': 'foo::foo_t', 'constraints': [
                     {'name': 'std::expression'}
                 ]},
             ]
-        ])
+        )
 
     async def test_edgeql_ddl_19(self):
         await self.con.execute("""
@@ -672,16 +695,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_query_result(r"""
-            SELECT View2 {
-                foo,
-                connected: {
+        await self.assert_query_result(
+            r"""
+                SELECT View2 {
                     foo,
-                    bar
+                    connected: {
+                        foo,
+                        bar
+                    }
                 }
-            }
-            ORDER BY View2.foo;
-        """, [
+                ORDER BY View2.foo;
+            """,
             [
                 {
                     'foo': 'obj1',
@@ -704,7 +728,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     }],
                 }
             ]
-        ])
+        )
 
     async def test_edgeql_ddl_bad_01(self):
         with self.assertRaisesRegex(
@@ -860,16 +884,18 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 FROM EdgeQL $$ SELECT "2" $$;
         """)
 
-        await self.assert_query_result(r'''
-            SELECT test::ddlf_2(a:=1, b:=1);
-        ''', [
+        await self.assert_query_result(
+            r'''
+                SELECT test::ddlf_2(a:=1, b:=1);
+            ''',
             ['1'],
-        ])
-        await self.assert_query_result(r'''
-            SELECT test::ddlf_2(a:=1, b:='a');
-        ''', [
+        )
+        await self.assert_query_result(
+            r'''
+                SELECT test::ddlf_2(a:=1, b:='a');
+            ''',
             ['2'],
-        ])
+        )
 
     async def test_edgeql_ddl_31(self):
         with self.assertRaisesRegex(
@@ -904,21 +930,24 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ''')
 
         try:
-            await self.assert_query_result(r'''
-                SELECT test::ddlf_5_1();
-            ''', [
+            await self.assert_query_result(
+                r'''
+                    SELECT test::ddlf_5_1();
+                ''',
                 ['b'],
-            ])
-            await self.assert_query_result(r'''
-                SELECT test::ddlf_5_2();
-            ''', [
+            )
+            await self.assert_query_result(
+                r'''
+                    SELECT test::ddlf_5_2();
+                ''',
                 [r'\u0062'],
-            ])
-            await self.assert_query_result(r'''
-                SELECT test::ddlf_5_3();
-            ''', [
+            )
+            await self.assert_query_result(
+                r'''
+                    SELECT test::ddlf_5_3();
+                ''',
                 [r'\u0062'],
-            ])
+            )
         finally:
             await self.con.execute("""
                 DROP FUNCTION test::ddlf_5_1();
@@ -970,16 +999,18 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ''')
 
         try:
-            await self.assert_query_result(r'''
-                SELECT test::ddlf_8(<int64>10, f := 11);
-            ''', [
+            await self.assert_query_result(
+                r'''
+                    SELECT test::ddlf_8(<int64>10, f := 11);
+                ''',
                 [11],
-            ])
-            await self.assert_query_result(r'''
-                SELECT test::ddlf_8(<int32>10, f := '11');
-            ''', [
+            )
+            await self.assert_query_result(
+                r'''
+                    SELECT test::ddlf_8(<int32>10, f := '11');
+                ''',
                 [12],
-            ])
+            )
         finally:
             await self.con.execute("""
                 DROP FUNCTION test::ddlf_8(a: int64, NAMED ONLY f: int64);
@@ -1087,23 +1118,24 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 FROM SQL OPERATOR r'+';
         ''')
 
-        await self.assert_query_result('''
-            WITH MODULE schema
-            SELECT Operator {
-                name,
-                params: {
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Operator {
                     name,
-                    type: {
-                        name
-                    },
-                    typemod
-                } ORDER BY .name,
-                operator_kind,
-                return_typemod
-            }
-            FILTER
-                .name = 'test::+';
-        ''', [
+                    params: {
+                        name,
+                        type: {
+                            name
+                        },
+                        typemod
+                    } ORDER BY .name,
+                    operator_kind,
+                    return_typemod
+                }
+                FILTER
+                    .name = 'test::+';
+            ''',
             [{
                 'name': 'test::+',
                 'params': [
@@ -1124,7 +1156,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 'operator_kind': 'INFIX',
                 'return_typemod': 'SINGLETON'
             }]
-        ])
+        )
 
         await self.con.execute('''
             ALTER INFIX OPERATOR test::`+`
@@ -1132,44 +1164,46 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SET ATTRIBUTE description := 'my plus';
         ''')
 
-        await self.assert_query_result('''
-            WITH MODULE schema
-            SELECT Operator {
-                name,
-            }
-            FILTER
-                .name = 'test::+'
-                AND .attributes.name = 'std::description'
-                AND .attributes@value = 'my plus';
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Operator {
+                    name,
+                }
+                FILTER
+                    .name = 'test::+'
+                    AND .attributes.name = 'std::description'
+                    AND .attributes@value = 'my plus';
+            ''',
             [{
                 'name': 'test::+',
             }]
-        ])
+        )
 
         await self.con.execute("""
             DROP INFIX OPERATOR test::`+` (left: int64, right: int64);
         """)
 
-        await self.assert_query_result('''
-            WITH MODULE schema
-            SELECT Operator {
-                name,
-                params: {
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Operator {
                     name,
-                    type: {
-                        name
+                    params: {
+                        name,
+                        type: {
+                            name
+                        },
+                        typemod
                     },
-                    typemod
-                },
-                operator_kind,
-                return_typemod
-            }
-            FILTER
-                .name = 'test::+';
-        ''', [
+                    operator_kind,
+                    return_typemod
+                }
+                FILTER
+                    .name = 'test::+';
+            ''',
             []
-        ])
+        )
 
     async def test_edgeql_ddl_operator_02(self):
         try:
@@ -1183,25 +1217,29 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     FROM SQL OPERATOR r'!!';
             ''')
 
-            await self.assert_query_result('''
-                WITH MODULE schema
-                SELECT Operator {
-                    name,
-                    operator_kind,
-                }
-                FILTER
-                    .name = 'test::!'
-                ORDER BY
-                    .operator_kind;
-            ''', [
-                [{
-                    'name': 'test::!',
-                    'operator_kind': 'POSTFIX',
-                }, {
-                    'name': 'test::!',
-                    'operator_kind': 'PREFIX',
-                }]
-            ])
+            await self.assert_query_result(
+                r'''
+                    WITH MODULE schema
+                    SELECT Operator {
+                        name,
+                        operator_kind,
+                    }
+                    FILTER
+                        .name = 'test::!'
+                    ORDER BY
+                        .operator_kind;
+                ''',
+                [
+                    {
+                        'name': 'test::!',
+                        'operator_kind': 'POSTFIX',
+                    },
+                    {
+                        'name': 'test::!',
+                        'operator_kind': 'PREFIX',
+                    }
+                ]
+            )
 
         finally:
             await self.con.execute('''
@@ -1311,52 +1349,57 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         ''')
 
-        await self.assert_query_result('''
-            WITH MODULE schema
-            SELECT Cast {
-                from_type: {name},
-                to_type: {name},
-                allow_implicit,
-                allow_assignment,
-            }
-            FILTER
-                .from_type.name LIKE 'test::%'
-            ORDER BY
-                .allow_implicit;
-        ''', [
-            [{
-                'from_type': {'name': 'test::type_a'},
-                'to_type': {'name': 'test::type_c'},
-                'allow_implicit': False,
-                'allow_assignment': True,
-            }, {
-                'from_type': {'name': 'test::type_a'},
-                'to_type': {'name': 'test::type_b'},
-                'allow_implicit': True,
-                'allow_assignment': False,
-            }]
-        ])
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Cast {
+                    from_type: {name},
+                    to_type: {name},
+                    allow_implicit,
+                    allow_assignment,
+                }
+                FILTER
+                    .from_type.name LIKE 'test::%'
+                ORDER BY
+                    .allow_implicit;
+            ''',
+            [
+                {
+                    'from_type': {'name': 'test::type_a'},
+                    'to_type': {'name': 'test::type_c'},
+                    'allow_implicit': False,
+                    'allow_assignment': True,
+                },
+                {
+                    'from_type': {'name': 'test::type_a'},
+                    'to_type': {'name': 'test::type_b'},
+                    'allow_implicit': True,
+                    'allow_assignment': False,
+                }
+            ]
+        )
 
         await self.con.execute("""
             DROP CAST FROM test::type_a TO test::type_b;
             DROP CAST FROM test::type_a TO test::type_c;
         """)
 
-        await self.assert_query_result('''
-            WITH MODULE schema
-            SELECT Cast {
-                from_type: {name},
-                to_type: {name},
-                allow_implicit,
-                allow_assignment,
-            }
-            FILTER
-                .from_type.name LIKE 'test::%'
-            ORDER BY
-                .allow_implicit;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Cast {
+                    from_type: {name},
+                    to_type: {name},
+                    allow_implicit,
+                    allow_assignment,
+                }
+                FILTER
+                    .from_type.name LIKE 'test::%'
+                ORDER BY
+                    .allow_implicit;
+            ''',
             []
-        ])
+        )
 
     async def test_edgeql_ddl_property_computable_01(self):
         await self.con.execute('''\
@@ -1367,29 +1410,31 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             INSERT test::CompProp;
         ''')
 
-        await self.assert_query_result('''
-            SELECT test::CompProp {
-                prop
-            };
-        ''', [
+        await self.assert_query_result(
+            r'''
+                SELECT test::CompProp {
+                    prop
+                };
+            ''',
             [{
                 'prop': 'I am a computable',
             }],
-        ])
+        )
 
-        await self.assert_query_result('''
-            WITH MODULE schema
-            SELECT ObjectType {
-                properties: {
-                    name,
-                    target: {
-                        name
-                    }
-                } FILTER .name = 'test::prop'
-            }
-            FILTER
-                .name = 'test::CompProp';
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ObjectType {
+                    properties: {
+                        name,
+                        target: {
+                            name
+                        }
+                    } FILTER .name = 'test::prop'
+                }
+                FILTER
+                    .name = 'test::CompProp';
+            ''',
             [{
                 'properties': [{
                     'name': 'test::prop',
@@ -1398,7 +1443,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     }
                 }]
             }]
-        ])
+        )
 
     async def test_edgeql_ddl_property_computable_bad_01(self):
         with self.assertRaisesRegex(
@@ -1420,20 +1465,20 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_query_result('''
-            WITH MODULE schema
-            SELECT ScalarType {
-                attributes: {
-                    name,
-                    @value,
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ScalarType {
+                    attributes: {
+                        name,
+                        @value,
+                    }
                 }
-            }
-            FILTER
-                .name = 'test::TestAttrType1';
-
-        ''', [
+                FILTER
+                    .name = 'test::TestAttrType1';
+            ''',
             [{"attributes": [{"name": "test::attr1", "@value": "aaaa"}]}]
-        ])
+        )
 
         await self.con.execute("""
             CREATE MIGRATION test::mig1 TO eschema $$
@@ -1446,20 +1491,20 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             COMMIT MIGRATION test::mig1;
         """)
 
-        await self.assert_query_result('''
-            WITH MODULE schema
-            SELECT ScalarType {
-                attributes: {
-                    name,
-                    @value,
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ScalarType {
+                    attributes: {
+                        name,
+                        @value,
+                    }
                 }
-            }
-            FILTER
-                .name = 'test::TestAttrType1';
-
-        ''', [
+                FILTER
+                    .name = 'test::TestAttrType1';
+            ''',
             [{"attributes": [{"name": "test::attr2", "@value": "aaaa"}]}]
-        ])
+        )
 
     async def test_edgeql_ddl_attribute_02(self):
         await self.con.execute("""
@@ -1481,20 +1526,20 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             COMMIT MIGRATION test::mig1;
         """)
 
-        await self.assert_query_result('''
-            WITH MODULE schema
-            SELECT ObjectType {
-                attributes: {
-                    name,
-                    @value,
-                } FILTER .name = 'test::attr2'
-            }
-            FILTER
-                .name = 'test::TestAttrType2';
-
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ObjectType {
+                    attributes: {
+                        name,
+                        @value,
+                    } FILTER .name = 'test::attr2'
+                }
+                FILTER
+                    .name = 'test::TestAttrType2';
+            ''',
             [{"attributes": [{"name": "test::attr2", "@value": "aaaa"}]}]
-        ])
+        )
 
     async def test_edgeql_ddl_attribute_03(self):
         await self.con.execute("""
@@ -1509,21 +1554,21 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE test::TestAttr2 EXTENDING test::TestAttr1;
         """)
 
-        await self.assert_query_result('''
-            WITH MODULE schema
-            SELECT ObjectType {
-                attributes: {
-                    name,
-                    inheritable,
-                    @value,
-                } ORDER BY .name
-            }
-            FILTER
-                .name LIKE 'test::TestAttr%'
-            ORDER BY
-                .name;
-
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ObjectType {
+                    attributes: {
+                        name,
+                        inheritable,
+                        @value,
+                    } ORDER BY .name
+                }
+                FILTER
+                    .name LIKE 'test::TestAttr%'
+                ORDER BY
+                    .name;
+            ''',
             [{
                 "attributes": [{
                     "name": "test::inh",
@@ -1540,7 +1585,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     "@value": "inherit me",
                 }]
             }]
-        ])
+        )
 
     async def test_edgeql_ddl_anytype_01(self):
         with self.assertRaisesRegex(
@@ -1645,23 +1690,25 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE test::ExtC3 EXTENDING test::ExtB3;
         """)
 
-        await self.assert_query_result("""
-            SELECT (SELECT schema::ObjectType
-                    FILTER .name = 'test::ExtC3').mro.name;
-        """, [
+        await self.assert_query_result(
+            r"""
+                SELECT (SELECT schema::ObjectType
+                        FILTER .name = 'test::ExtC3').mro.name;
+            """,
             {'std::Object', 'test::ExtA3', 'test::ExtB3'}
-        ])
+        )
 
         await self.con.execute(r"""
             ALTER TYPE test::ExtB3 DROP EXTENDING test::ExtA3;
         """)
 
-        await self.assert_query_result("""
-            SELECT (SELECT schema::ObjectType
-                    FILTER .name = 'test::ExtC3').mro.name;
-        """, [
+        await self.assert_query_result(
+            r"""
+                SELECT (SELECT schema::ObjectType
+                        FILTER .name = 'test::ExtC3').mro.name;
+            """,
             {'std::Object', 'test::ExtB3'}
-        ])
+        )
 
     @test.xfail('''
         The two types are created in different modules. They shouldn't
@@ -1711,11 +1758,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_query_result('''
-            SELECT test::NewNameObj01.name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                SELECT test::NewNameObj01.name;
+            ''',
             ['rename 01']
-        ])
+        )
 
     @test.xfail('''
         The error is:
@@ -1739,11 +1787,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_query_result('''
-            SELECT test::RenameObj02.new_name_02;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                SELECT test::RenameObj02.new_name_02;
+            ''',
             ['rename 02']
-        ])
+        )
 
     @test.xfail('''
         The error is:
@@ -1766,11 +1815,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_query_result('''
-            SELECT test::RenameObj03.new_name_03;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                SELECT test::RenameObj03.new_name_03;
+            ''',
             ['rename 03']
-        ])
+        )
 
     @test.xfail('''
         The error is:
@@ -1799,11 +1849,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_query_result('''
-            SELECT test::RenameObj04.rename_link_04@new_prop_04;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                SELECT test::RenameObj04.rename_link_04@new_prop_04;
+            ''',
             [123]
-        ])
+        )
 
     @test.xfail('''
         The error is:
@@ -1822,8 +1873,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_query_result('''
-            SELECT test::NewView05.view_computable LIMIT 1;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                SELECT test::NewView05.view_computable LIMIT 1;
+            ''',
             ['rename view 05']
-        ])
+        )

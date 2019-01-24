@@ -38,22 +38,23 @@ class TestIndexes(tb.DDLTestCase):
             COMMIT MIGRATION test::d1;
         """)
 
-        await self.assert_legacy_query_result(r"""
-            SELECT
-                schema::ObjectType {
-                    indexes: {
-                        expr
+        await self.assert_query_result(
+            r"""
+                SELECT
+                    schema::ObjectType {
+                        indexes: {
+                            expr
+                        }
                     }
-                }
-            FILTER schema::ObjectType.name = 'test::Person';
-        """, [
+                FILTER schema::ObjectType.name = 'test::Person';
+            """,
             [{
                 'indexes': [{
                     'expr': 'SELECT (test::Person.first_name, '
                             'test::Person.last_name)'
                 }]
             }],
-        ])
+        )
 
         await self.con.execute(r"""
             INSERT test::Person {
@@ -62,16 +63,17 @@ class TestIndexes(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_legacy_query_result(r"""
-            WITH MODULE test
-            SELECT
-                Person {
-                    first_name
-                }
-            FILTER
-                Person.first_name = 'Elon' AND Person.last_name = 'Musk';
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT
+                    Person {
+                        first_name
+                    }
+                FILTER
+                    Person.first_name = 'Elon' AND Person.last_name = 'Musk';
+            """,
             [{
                 'first_name': 'Elon'
             }]
-        ])
+        )

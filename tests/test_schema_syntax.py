@@ -18,7 +18,6 @@
 
 
 import re
-import unittest  # NoQA
 
 from edb import errors
 

@@ -33,18 +33,19 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                          'cards_setup.eql')
 
     async def test_edgeql_props_basic_01(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT User {
-                name,
-                deck: {
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT User {
                     name,
-                    element,
-                    cost,
-                    @count
-                } ORDER BY @count DESC THEN .name ASC
-            } ORDER BY .name;
-        ''', [
+                    deck: {
+                        name,
+                        element,
+                        cost,
+                        @count
+                    } ORDER BY @count DESC THEN .name ASC
+                } ORDER BY .name;
+            ''',
             [
                 {
                     'name': 'Alice',
@@ -199,24 +200,25 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                     ],
                 }
             ]
-        ])
+        )
 
     async def test_edgeql_props_basic_02(self):
-        await self.assert_legacy_query_result(r'''
-            # get users and only cards that have the same count and
-            # cost in the decks
-            WITH MODULE test
-            SELECT User {
-                name,
-                deck: {
+        await self.assert_query_result(
+            r'''
+                # get users and only cards that have the same count and
+                # cost in the decks
+                WITH MODULE test
+                SELECT User {
                     name,
-                    element,
-                    cost,
-                    @count
-                } FILTER .cost = @count
-                  ORDER BY @count DESC THEN .name ASC
-            } ORDER BY .name;
-        ''', [
+                    deck: {
+                        name,
+                        element,
+                        cost,
+                        @count
+                    } FILTER .cost = @count
+                      ORDER BY @count DESC THEN .name ASC
+                } ORDER BY .name;
+            ''',
             [
                 {
                     'name': 'Alice',
@@ -255,23 +257,24 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                     'deck': [],
                 }
             ]
-        ])
+        )
 
     async def test_edgeql_props_basic_03(self):
-        await self.assert_legacy_query_result(r'''
-            # get only users who have the same count and cost in the decks
-            WITH MODULE test
-            SELECT User {
-                name,
-                deck: {
+        await self.assert_query_result(
+            r'''
+                # get only users who have the same count and cost in the decks
+                WITH MODULE test
+                SELECT User {
                     name,
-                    element,
-                    cost,
-                    @count
-                } ORDER BY @count DESC THEN .name ASC
-            } FILTER .deck.cost = .deck@count
-              ORDER BY .name;
-        ''', [
+                    deck: {
+                        name,
+                        element,
+                        cost,
+                        @count
+                    } ORDER BY @count DESC THEN .name ASC
+                } FILTER .deck.cost = .deck@count
+                  ORDER BY .name;
+            ''',
             [
                 {
                     'name': 'Alice',
@@ -332,22 +335,23 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                     ],
                 },
             ]
-        ])
+        )
 
     async def test_edgeql_props_basic_04(self):
-        await self.assert_legacy_query_result(r'''
-            # get all cards that match their cost to the count in at
-            # least some deck
-            WITH MODULE test
-            SELECT Card {
-                name,
-                element,
-                cost
-            }
-            FILTER
-                .cost = .<deck@count
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                # get all cards that match their cost to the count in at
+                # least some deck
+                WITH MODULE test
+                SELECT Card {
+                    name,
+                    element,
+                    cost
+                }
+                FILTER
+                    .cost = .<deck@count
+                ORDER BY .name;
+            ''',
             [
                 {
                     'cost': 3,
@@ -360,21 +364,22 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                     'element': 'Earth'
                 },
             ]
-        ])
+        )
 
     async def test_edgeql_props_basic_05(self):
-        await self.assert_legacy_query_result(r'''
-            # get all the friends of Alice and their nicknames
-            WITH MODULE test
-            SELECT User {
-                name,
-                friends: {
+        await self.assert_query_result(
+            r'''
+                # get all the friends of Alice and their nicknames
+                WITH MODULE test
+                SELECT User {
                     name,
-                    @nickname,
-                } ORDER BY .name,
-            }
-            FILTER .name = 'Alice';
-        ''', [
+                    friends: {
+                        name,
+                        @nickname,
+                    } ORDER BY .name,
+                }
+                FILTER .name = 'Alice';
+            ''',
             [
                 {
                     'name': 'Alice',
@@ -385,39 +390,41 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                     ]
                 }
             ]
-        ])
+        )
 
     async def test_edgeql_props_cross_01(self):
-        await self.assert_legacy_query_result(r'''
-            # get cards that have the same count in some deck as their cost
-            WITH MODULE test
-            SELECT Card {
-                name,
-            }
-            FILTER .cost = .<deck@count
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                # get cards that have the same count in some deck as their cost
+                WITH MODULE test
+                SELECT Card {
+                    name,
+                }
+                FILTER .cost = .<deck@count
+                ORDER BY .name;
+            ''',
             [
                 {'name': 'Giant turtle'},
                 {'name': 'Golem'},
             ]
-        ])
+        )
 
     async def test_edgeql_props_cross_02(self):
-        await self.assert_legacy_query_result(r'''
-            # get cards that have the same count in some deck as their cost
-            WITH MODULE test
-            SELECT Card {
-                name,
-                same := EXISTS (
-                    SELECT User
-                    FILTER
-                        Card.cost = User.deck@count AND
-                        Card = User.deck
-                )
-            }
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                # get cards that have the same count in some deck as their cost
+                WITH MODULE test
+                SELECT Card {
+                    name,
+                    same := EXISTS (
+                        SELECT User
+                        FILTER
+                            Card.cost = User.deck@count AND
+                            Card = User.deck
+                    )
+                }
+                ORDER BY .name;
+            ''',
             [
                 {'name': 'Bog monster', 'same': False},
                 {'name': 'Djinn', 'same': False},
@@ -429,24 +436,25 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 {'name': 'Imp', 'same': False},
                 {'name': 'Sprite', 'same': False},
             ]
-        ])
+        )
 
     async def test_edgeql_props_cross_03(self):
-        await self.assert_legacy_query_result(r'''
-            # get cards that have the same count in some deck as their cost
-            WITH MODULE test
-            SELECT Card {
-                name,
-                same := EXISTS (
-                    SELECT
-                        User
-                    FILTER
-                        Card.cost = User.deck@count AND
-                        Card = User.deck
-                )
-            }
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                # get cards that have the same count in some deck as their cost
+                WITH MODULE test
+                SELECT Card {
+                    name,
+                    same := EXISTS (
+                        SELECT
+                            User
+                        FILTER
+                            Card.cost = User.deck@count AND
+                            Card = User.deck
+                    )
+                }
+                ORDER BY .name;
+            ''',
             [
                 {'name': 'Bog monster', 'same': False},
                 {'name': 'Djinn', 'same': False},
@@ -458,21 +466,22 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 {'name': 'Imp', 'same': False},
                 {'name': 'Sprite', 'same': False},
             ]
-        ])
+        )
 
     async def test_edgeql_props_cross_04(self):
-        await self.assert_legacy_query_result(r'''
-            # get cards that have the same count in some deck as their cost
-            WITH MODULE test
-            SELECT Card {
-                name,
-                same := (
-                    SELECT _ := Card.cost = Card.<deck@count
-                    ORDER BY _ DESC LIMIT 1
-                )
-            }
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                # get cards that have the same count in some deck as their cost
+                WITH MODULE test
+                SELECT Card {
+                    name,
+                    same := (
+                        SELECT _ := Card.cost = Card.<deck@count
+                        ORDER BY _ DESC LIMIT 1
+                    )
+                }
+                ORDER BY .name;
+            ''',
             [
                 {'name': 'Bog monster', 'same': False},
                 {'name': 'Djinn', 'same': False},
@@ -484,25 +493,26 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 {'name': 'Imp', 'same': False},
                 {'name': 'Sprite', 'same': False},
             ]
-        ])
+        )
 
     async def test_edgeql_props_implication_01(self):
-        await self.assert_legacy_query_result(r'''
-            # count of 1 in at least some deck implies 'Fire'
-            WITH MODULE test
-            SELECT Card {
-                name,
-                element,
-                count := (SELECT _ := Card.<deck@count ORDER BY _),
-                expr := (
-                    SELECT _ := NOT EXISTS (SELECT Card
-                                            FILTER Card.<deck@count = 1) OR
-                                Card.element = 'Fire'
-                    ORDER BY _ DESC LIMIT 1
-                )
-            }
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                # count of 1 in at least some deck implies 'Fire'
+                WITH MODULE test
+                SELECT Card {
+                    name,
+                    element,
+                    count := (SELECT _ := Card.<deck@count ORDER BY _),
+                    expr := (
+                        SELECT _ := NOT EXISTS (SELECT Card
+                                                FILTER Card.<deck@count = 1) OR
+                                    Card.element = 'Fire'
+                        ORDER BY _ DESC LIMIT 1
+                    )
+                }
+                ORDER BY .name;
+            ''',
             [
                 {
                     'expr': False,
@@ -559,18 +569,20 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                     'element': 'Air',
                 },
             ]
-        ])
+        )
 
     async def test_edgeql_props_implication_02(self):
-        await self.assert_legacy_query_result(r'''
-            # FILTER by NOT (count of 1 implies 'Fire') in at least some deck
-            WITH MODULE test
-            SELECT Card {
-                name,
-            }
-            FILTER NOT (NOT .<deck@count = 1 OR .element = 'Fire')
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                # FILTER by NOT (count of 1 implies 'Fire')
+                # in at least some deck
+                WITH MODULE test
+                SELECT Card {
+                    name,
+                }
+                FILTER NOT (NOT .<deck@count = 1 OR .element = 'Fire')
+                ORDER BY .name;
+            ''',
             [
                 # all of these have count of 1 in some deck and are not 'Fire'
                 {'name': 'Bog monster'},
@@ -579,18 +591,19 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 {'name': 'Giant turtle'},
                 {'name': 'Golem'},
             ]
-        ])
+        )
 
     async def test_edgeql_props_implication_03(self):
-        await self.assert_legacy_query_result(r'''
-            # same as above, refactored
-            WITH MODULE test
-            SELECT Card {
-                name,
-            }
-            FILTER .<deck@count = 1 AND .element != 'Fire'
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                # same as above, refactored
+                WITH MODULE test
+                SELECT Card {
+                    name,
+                }
+                FILTER .<deck@count = 1 AND .element != 'Fire'
+                ORDER BY .name;
+            ''',
             [
                 # all of these have count of 1 and are not 'Fire' in some deck
                 {'name': 'Bog monster'},
@@ -599,25 +612,26 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 {'name': 'Giant turtle'},
                 {'name': 'Golem'},
             ]
-        ])
+        )
 
     async def test_edgeql_props_implication_04(self):
-        await self.assert_legacy_query_result(r'''
-            # count of 1 implies 'Fire' in the deck of Dave
-            WITH MODULE test
-            SELECT User {
-                name,
-                deck: {
+        await self.assert_query_result(
+            r'''
+                # count of 1 implies 'Fire' in the deck of Dave
+                WITH MODULE test
+                SELECT User {
                     name,
-                    element,
-                    @count,
-                    expr :=
-                        NOT User.deck@count = 1 OR User.deck.element = 'Fire'
-
+                    deck: {
+                        name,
+                        element,
+                        @count,
+                        expr :=
+                            NOT User.deck@count = 1 OR
+                                User.deck.element = 'Fire'
+                    }
                 }
-            }
-            FILTER .name = 'Dave';
-        ''', [
+                FILTER .name = 'Dave';
+            ''',
             [
                 {
                     'name': 'Dave',
@@ -667,54 +681,60 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                     ],
                 }
             ]
-        ])
+        )
 
     async def test_edgeql_props_setops_01(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT DISTINCT User.deck@count;
-
-            WITH MODULE test
-            SELECT DISTINCT (
-                SELECT User.deck@count FILTER User.deck.element = 'Fire'
-            );
-
-            WITH MODULE test
-            SELECT DISTINCT (
-                SELECT User.deck@count FILTER User.deck.element = 'Water'
-            );
-
-            WITH MODULE test
-            SELECT DISTINCT (
-                SELECT (SELECT Card FILTER Card.element = 'Water').<deck@count
-            );
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT DISTINCT User.deck@count;
+            ''',
             {1, 2, 3, 4},
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT DISTINCT (
+                    SELECT User.deck@count FILTER User.deck.element = 'Fire'
+                );
+            ''',
             {1, 2},
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT DISTINCT (
+                    SELECT User.deck@count FILTER User.deck.element = 'Water'
+                );
+            ''',
             {1, 2, 3},
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT DISTINCT (
+                    SELECT (
+                        SELECT Card FILTER Card.element = 'Water').<deck@count
+            );
+            ''',
             {1, 2, 3},
-        ])
+        )
 
     async def test_edgeql_props_setops_02(self):
-        await self.assert_legacy_query_result(r'''
-            WITH
-                MODULE test,
-                C := (
-                    SELECT User FILTER User.name = 'Carol').deck.name,
-                D := (
-                    SELECT User FILTER User.name = 'Dave').deck.name
-            SELECT _ := C UNION D
-            ORDER BY _;
-
-            WITH
-                MODULE test,
-                C := (
-                    SELECT User FILTER User.name = 'Carol').deck.name,
-                D := (
-                    SELECT User FILTER User.name = 'Dave').deck.name
-            SELECT _ := DISTINCT (C UNION D)
-            ORDER BY _;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    C := (
+                        SELECT User FILTER User.name = 'Carol').deck.name,
+                    D := (
+                        SELECT User FILTER User.name = 'Dave').deck.name
+                SELECT _ := C UNION D
+                ORDER BY _;
+            ''',
             [
                 'Bog monster',
                 'Bog monster',
@@ -731,6 +751,19 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 'Sprite',
                 'Sprite'
             ],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    C := (
+                        SELECT User FILTER User.name = 'Carol').deck.name,
+                    D := (
+                        SELECT User FILTER User.name = 'Dave').deck.name
+                SELECT _ := DISTINCT (C UNION D)
+                ORDER BY _;
+            ''',
             [
                 'Bog monster',
                 'Djinn',
@@ -741,120 +774,135 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 'Golem',
                 'Sprite'
             ],
-        ])
+        )
 
     async def test_edgeql_props_setops_03(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT _ := {
-                # this is equivalent to UNION
-                User.name,
-                User.friends@nickname,
-                {'Foo', 'Bob'}
-            }
-            ORDER BY _;
-
-            WITH MODULE test
-            SELECT _ := DISTINCT {
-                User.name,
-                User.friends@nickname,
-                {'Foo', 'Bob'}
-            }
-            ORDER BY _;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT _ := {
+                    # this is equivalent to UNION
+                    User.name,
+                    User.friends@nickname,
+                    {'Foo', 'Bob'}
+                }
+                ORDER BY _;
+            ''',
             [
                 'Alice', 'Bob', 'Bob', 'Carol', 'Dave', 'Firefighter',
                 'Foo', 'Grumpy', 'Swampy'
             ],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT _ := DISTINCT {
+                    User.name,
+                    User.friends@nickname,
+                    {'Foo', 'Bob'}
+                }
+                ORDER BY _;
+            ''',
             [
                 'Alice', 'Bob', 'Carol', 'Dave', 'Firefighter', 'Foo',
                 'Grumpy', 'Swampy',
             ],
-        ])
+        )
 
     async def test_edgeql_props_setops_04(self):
-        await self.assert_legacy_query_result(r'''
-            WITH
-                MODULE test,
-                A := (SELECT User FILTER User.name = 'Alice')
-                # the set of distinct values of card counts in
-                # the deck of Alice is {2, 3}
-            SELECT _ := (DISTINCT A.deck@count, A.name)
-            ORDER BY _;
-        ''', [[
-            [2, 'Alice'],
-            [3, 'Alice'],
-        ]])
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    A := (SELECT User FILTER User.name = 'Alice')
+                    # the set of distinct values of card counts in
+                    # the deck of Alice is {2, 3}
+                SELECT _ := (DISTINCT A.deck@count, A.name)
+                ORDER BY _;
+            ''',
+            [
+                [2, 'Alice'],
+                [3, 'Alice'],
+            ]
+        )
 
     async def test_edgeql_props_setops_05(self):
-        await self.assert_legacy_query_result(r'''
-            WITH
-                MODULE test
-            SELECT DISTINCT
-                    (
-                        SELECT User FILTER User.name = 'Alice'
-                    ).deck@count;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test
+                SELECT DISTINCT
+                        (
+                            SELECT User FILTER User.name = 'Alice'
+                        ).deck@count;
+            ''',
             {2, 3},
-        ])
+        )
 
     async def test_edgeql_props_computable_01(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT User {
-                name,
-                my_deck := (SELECT Card { @foo := Card.name }
-                            FILTER .name = 'Djinn')
-            }
-            FILTER User.name = 'Alice';
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT User {
+                    name,
+                    my_deck := (SELECT Card { @foo := Card.name }
+                                FILTER .name = 'Djinn')
+                }
+                FILTER User.name = 'Alice';
+            ''',
             [{
                 'name': 'Alice',
                 'my_deck': {
                     '@foo': 'Djinn'
                 }
             }],
-        ])
+        )
 
     async def test_edgeql_props_computable_02(self):
-        await self.assert_legacy_query_result(r'''
-            WITH
-                MODULE test,
-                MyUser := (
-                    SELECT
-                        User {
-                            my_deck := (SELECT Card { @foo := Card.name }
-                                        FILTER .name = 'Djinn')
-                        }
-                    FILTER User.name = 'Alice'
-                )
-            SELECT MyUser {
-                name,
-                my_deck: {
-                    @foo
-                }
-            };
-
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    MyUser := (
+                        SELECT
+                            User {
+                                my_deck := (SELECT Card { @foo := Card.name }
+                                            FILTER .name = 'Djinn')
+                            }
+                        FILTER User.name = 'Alice'
+                    )
+                SELECT MyUser {
+                    name,
+                    my_deck: {
+                        @foo
+                    }
+                };
+            ''',
             [{
                 'name': 'Alice',
                 'my_deck': {
                     '@foo': 'Djinn'
                 }
             }],
-        ])
+        )
 
     async def test_edgeql_props_agg_01(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT sum(User.deck@count);
-
-            WITH MODULE test
-            SELECT _ := (sum(User.deck@count), User.name)
-            ORDER BY _;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT sum(User.deck@count);
+            ''',
             [51],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT _ := (sum(User.deck@count), User.name)
+                ORDER BY _;
+            ''',
             [
                 [10, 'Alice'], [10, 'Dave'], [12, 'Bob'], [19, 'Carol'],
             ],
-        ])
+        )

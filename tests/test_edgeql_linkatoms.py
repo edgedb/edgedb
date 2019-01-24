@@ -18,9 +18,9 @@
 
 
 import os.path
-import unittest  # NOQA
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
@@ -33,15 +33,16 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                          'inventory_setup.eql')
 
     async def test_edgeql_links_basic_02(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT Item {
-                name,
-                tag_set1,
-                tag_set2,
-                tag_array,
-            } ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {
+                    name,
+                    tag_set1,
+                    tag_set2,
+                    tag_array,
+                } ORDER BY .name;
+            ''',
             [
                 {
                     'name': 'ball',
@@ -85,17 +86,18 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                     'tag_array': ['plastic', 'rectangle'],
                 },
             ]
-        ])
+        )
 
     async def test_edgeql_links_map_scalars_01(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT Item {
-                name,
-                tag_set1 ORDER BY Item.tag_set1 DESC,
-                tag_set2 ORDER BY Item.tag_set2 ASC,
-            } ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {
+                    name,
+                    tag_set1 ORDER BY Item.tag_set1 DESC,
+                    tag_set2 ORDER BY Item.tag_set2 ASC,
+                } ORDER BY .name;
+            ''',
             [
                 {
                     'name': 'ball',
@@ -131,17 +133,18 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                     'tag_set2': ['plastic', 'rectangle'],
                 },
             ]
-        ])
+        )
 
     async def test_edgeql_links_map_scalars_02(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT Item {
-                name,
-                tag_set1 ORDER BY Item.tag_set1 DESC LIMIT 1,
-                tag_set2 ORDER BY Item.tag_set2 ASC OFFSET 1,
-            } ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {
+                    name,
+                    tag_set1 ORDER BY Item.tag_set1 DESC LIMIT 1,
+                    tag_set2 ORDER BY Item.tag_set2 ASC OFFSET 1,
+                } ORDER BY .name;
+            ''',
             [
                 {
                     'name': 'ball',
@@ -177,17 +180,18 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                     'tag_set2': ['rectangle'],
                 },
             ]
-        ])
+        )
 
     async def test_edgeql_links_map_scalars_03(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT Item {
-                name,
-                tag_set1 FILTER Item.tag_set1 > 'p',
-                tag_set2 FILTER Item.tag_set2 < 'w',
-            } ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {
+                    name,
+                    tag_set1 FILTER Item.tag_set1 > 'p',
+                    tag_set2 FILTER Item.tag_set2 < 'w',
+                } ORDER BY .name;
+            ''',
             [
                 {
                     'name': 'ball',
@@ -223,138 +227,169 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                     'tag_set2': {'plastic', 'rectangle'},
                 },
             ]
-        ])
+        )
 
     async def test_edgeql_links_set_01(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT Item {name}
-            FILTER 'plastic' = .tag_set1
-            ORDER BY .name;
-
-            WITH MODULE test
-            SELECT Item {name}
-            FILTER 'plastic' = .tag_set2
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {name}
+                FILTER 'plastic' = .tag_set1
+                ORDER BY .name;
+            ''',
             [
                 {'name': 'ball'},
                 {'name': 'floor lamp'},
-            ], [
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {name}
+                FILTER 'plastic' = .tag_set2
+                ORDER BY .name;
+            ''',
+            [
                 {'name': 'ball'},
                 {'name': 'floor lamp'},
                 {'name': 'tv'},
-            ],
-        ])
+            ]
+        )
 
     async def test_edgeql_links_set_02(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT Item {name}
-            FILTER 'plastic' IN .tag_set1
-            ORDER BY .name;
-
-            WITH MODULE test
-            SELECT Item {name}
-            FILTER 'plastic' IN .tag_set2
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {name}
+                FILTER 'plastic' IN .tag_set1
+                ORDER BY .name;
+            ''',
             [
                 {'name': 'ball'},
                 {'name': 'floor lamp'},
-            ], [
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {name}
+                FILTER 'plastic' IN .tag_set2
+                ORDER BY .name;
+            ''',
+            [
                 {'name': 'ball'},
                 {'name': 'floor lamp'},
                 {'name': 'tv'},
-            ],
-        ])
+            ]
+        )
 
     async def test_edgeql_links_set_03(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT Item {name}
-            FILTER
-                array_agg(Item.tag_set1 ORDER BY Item.tag_set1) =
-                    ['rectangle', 'wood']
-            ORDER BY .name;
-
-            WITH MODULE test
-            SELECT Item {name}
-            FILTER
-                array_agg(Item.tag_set2 ORDER BY Item.tag_set2) =
-                    ['rectangle', 'wood']
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {name}
+                FILTER
+                    array_agg(Item.tag_set1 ORDER BY Item.tag_set1) =
+                        ['rectangle', 'wood']
+                ORDER BY .name;
+            ''',
             [
                 {'name': 'chair'},
                 {'name': 'table'},
-            ], [
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {name}
+                FILTER
+                    array_agg(Item.tag_set2 ORDER BY Item.tag_set2) =
+                        ['rectangle', 'wood']
+                ORDER BY .name;
+            ''',
+            [
                 {'name': 'table'},
-            ],
-        ])
+            ]
+        )
 
     async def test_edgeql_links_set_04(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT Item {name}
-            FILTER .tag_set1 = {'rectangle', 'wood'}
-            ORDER BY .name;
-
-            WITH MODULE test
-            SELECT Item {name}
-            FILTER .tag_set2 = {'rectangle', 'wood'}
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {name}
+                FILTER .tag_set1 = {'rectangle', 'wood'}
+                ORDER BY .name;
+            ''',
             [
                 {'name': 'chair'},
                 {'name': 'table'},
-            ], [
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {name}
+                FILTER .tag_set2 = {'rectangle', 'wood'}
+                ORDER BY .name;
+            ''',
+            [
                 {'name': 'table'},
                 {'name': 'tv'},
-            ],
-        ])
+            ]
+        )
 
     async def test_edgeql_links_set_05(self):
-        await self.assert_legacy_query_result(r'''
-            # subsets
-            #
-            WITH MODULE test
-            SELECT Item {name}
-            FILTER .tag_set1 IN {'rectangle', 'wood'}
-            ORDER BY .name;
-
-            WITH MODULE test
-            SELECT Item {name}
-            FILTER .tag_set2 IN {'rectangle', 'wood'}
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                # subsets
+                #
+                WITH MODULE test
+                SELECT Item {name}
+                FILTER .tag_set1 IN {'rectangle', 'wood'}
+                ORDER BY .name;
+            ''',
             [
                 {'name': 'chair'},
                 {'name': 'table'},
-            ], [
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {name}
+                FILTER .tag_set2 IN {'rectangle', 'wood'}
+                ORDER BY .name;
+            ''',
+            [
                 {'name': 'table'},
                 {'name': 'tv'},
-            ],
-        ])
+            ]
+        )
 
     async def test_edgeql_links_set_06(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT Item {
-                name,
-                foo := (
-                    # XXX: check test_edgeql_expr_alias for failures first
-                    SELECT _ := Item.tag_set1
-                    FILTER _ = {'rectangle', 'wood'}
-                ),
-                bar := (
-                    # XXX: check test_edgeql_expr_alias for failures first
-                    SELECT _ := Item.tag_set2
-                    FILTER _ = {'rectangle', 'wood'}
-                ),
-            }
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {
+                    name,
+                    foo := (
+                        # XXX: check test_edgeql_expr_alias for failures first
+                        SELECT _ := Item.tag_set1
+                        FILTER _ = {'rectangle', 'wood'}
+                    ),
+                    bar := (
+                        # XXX: check test_edgeql_expr_alias for failures first
+                        SELECT _ := Item.tag_set2
+                        FILTER _ = {'rectangle', 'wood'}
+                    ),
+                }
+                ORDER BY .name;
+            ''',
             [
                 {
                     'name': 'ball',
@@ -390,115 +425,134 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                     'bar': {'rectangle'},
                 },
             ],
-        ])
+        )
 
     async def test_edgeql_links_set_07(self):
-        await self.assert_legacy_query_result(r'''
-            # subsets
-            WITH MODULE test
-            SELECT Item {name}
-            FILTER count( (
-                # XXX: check test_edgeql_expr_alias for failures first
-                SELECT _ := Item.tag_set1
-                FILTER _ IN {'rectangle', 'wood'}
-            )) = 2
-            ORDER BY .name;
-
-            WITH MODULE test
-            SELECT Item {name}
-            FILTER count( (
-                # XXX: check test_edgeql_expr_alias for failures first
-                SELECT _ := Item.tag_set2
-                FILTER _ IN {'rectangle', 'wood'}
-            )) = 2
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                # subsets
+                WITH MODULE test
+                SELECT Item {name}
+                FILTER count( (
+                    # XXX: check test_edgeql_expr_alias for failures first
+                    SELECT _ := Item.tag_set1
+                    FILTER _ IN {'rectangle', 'wood'}
+                )) = 2
+                ORDER BY .name;
+            ''',
             [
                 {'name': 'chair'},
                 {'name': 'table'},
-            ], [
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {name}
+                FILTER count( (
+                    # XXX: check test_edgeql_expr_alias for failures first
+                    SELECT _ := Item.tag_set2
+                    FILTER _ IN {'rectangle', 'wood'}
+                )) = 2
+                ORDER BY .name;
+            ''',
+            [
                 {'name': 'table'},
             ],
-        ])
+        )
 
     async def test_edgeql_links_set_08(self):
-        await self.assert_legacy_query_result(r'''
-            # match sets
-            WITH
-                MODULE test,
-                cmp := {'rectangle', 'wood'},
-                cmp_count := count(cmp)
-            SELECT Item {name}
-            FILTER
-                cmp_count = count(Item.tag_set1)
-                AND
-                cmp_count = count(DISTINCT (Item.tag_set1 UNION cmp))
-            ORDER BY .name;
-
-            WITH
-                MODULE test,
-                cmp := {'rectangle', 'wood'},
-                cmp_count := count(cmp)
-            SELECT Item {name}
-            FILTER
-                cmp_count = count(.tag_set2)
-                AND
-                cmp_count = count(DISTINCT (.tag_set2 UNION cmp))
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                # match sets
+                WITH
+                    MODULE test,
+                    cmp := {'rectangle', 'wood'},
+                    cmp_count := count(cmp)
+                SELECT Item {name}
+                FILTER
+                    cmp_count = count(Item.tag_set1)
+                    AND
+                    cmp_count = count(DISTINCT (Item.tag_set1 UNION cmp))
+                ORDER BY .name;
+            ''',
             [
                 {'name': 'chair'},
                 {'name': 'table'},
-            ], [
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    cmp := {'rectangle', 'wood'},
+                    cmp_count := count(cmp)
+                SELECT Item {name}
+                FILTER
+                    cmp_count = count(.tag_set2)
+                    AND
+                    cmp_count = count(DISTINCT (.tag_set2 UNION cmp))
+                ORDER BY .name;
+            ''',
+            [
                 {'name': 'table'},
             ],
-        ])
+        )
 
     async def test_edgeql_links_set_10(self):
-        await self.assert_legacy_query_result(r'''
-            # same as previous, but with a different syntax, leading
-            # to a different failure scenario
-            WITH
-                MODULE test,
-                cmp := {'rectangle', 'wood'},
-                cmp_count := count(cmp)
-            # includes tag_set1 in the shape
-            SELECT Item {name, tag_set1}
-            FILTER
-                cmp_count = count(Item.tag_set1)
-                AND
-                cmp_count = count(DISTINCT (Item.tag_set1 UNION cmp))
-            ORDER BY .name;
-
-            WITH
-                MODULE test,
-                cmp := {'rectangle', 'wood'},
-                cmp_count := count(cmp)
-            # includes tag_set1 in the shape
-            SELECT Item {name, tag_set2}
-            FILTER
-                cmp_count = count(Item.tag_set2)
-                AND
-                cmp_count = count(DISTINCT (Item.tag_set2 UNION cmp))
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                # same as previous, but with a different syntax, leading
+                # to a different failure scenario
+                WITH
+                    MODULE test,
+                    cmp := {'rectangle', 'wood'},
+                    cmp_count := count(cmp)
+                # includes tag_set1 in the shape
+                SELECT Item {name, tag_set1}
+                FILTER
+                    cmp_count = count(Item.tag_set1)
+                    AND
+                    cmp_count = count(DISTINCT (Item.tag_set1 UNION cmp))
+                ORDER BY .name;
+            ''',
             [
                 {'name': 'chair', 'tag_set1': {'rectangle', 'wood'}},
                 {'name': 'table', 'tag_set1': {'rectangle', 'wood'}},
-            ], [
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    cmp := {'rectangle', 'wood'},
+                    cmp_count := count(cmp)
+                # includes tag_set1 in the shape
+                SELECT Item {name, tag_set2}
+                FILTER
+                    cmp_count = count(Item.tag_set2)
+                    AND
+                    cmp_count = count(DISTINCT (Item.tag_set2 UNION cmp))
+                ORDER BY .name;
+            ''',
+            [
                 {'name': 'table', 'tag_set2': {'rectangle', 'wood'}},
             ],
-        ])
+        )
 
     async def test_edgeql_links_set_11(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT Item {name}
-            FILTER
-                array_agg(Item.tag_set1 ORDER BY Item.tag_set1) =
-                    array_agg(Item.tag_set2 ORDER BY Item.tag_set2)
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {name}
+                FILTER
+                    array_agg(Item.tag_set1 ORDER BY Item.tag_set1) =
+                        array_agg(Item.tag_set2 ORDER BY Item.tag_set2)
+                ORDER BY .name;
+            ''',
             [
                 {'name': 'ball'},
                 {'name': 'ectoplasm'},
@@ -507,25 +561,26 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                 {'name': 'table'},
                 {'name': 'teapot'},
             ],
-        ])
+        )
 
     async def test_edgeql_links_set_12(self):
-        await self.assert_legacy_query_result(r'''
-            # find an item with a unique quality
-            WITH
-                MODULE test,
-                I2 := Item
-            SELECT Item {
-                name,
-                unique := (
-                    SELECT _ := Item.tag_set1
-                    FILTER _ NOT IN (
-                        (SELECT I2 FILTER I2 != Item).tag_set1
+        await self.assert_query_result(
+            r'''
+                # find an item with a unique quality
+                WITH
+                    MODULE test,
+                    I2 := Item
+                SELECT Item {
+                    name,
+                    unique := (
+                        SELECT _ := Item.tag_set1
+                        FILTER _ NOT IN (
+                            (SELECT I2 FILTER I2 != Item).tag_set1
+                        )
                     )
-                )
-            }
-            ORDER BY .name;
-        ''', [
+                }
+                ORDER BY .name;
+            ''',
             [
                 {
                     'name': 'ball',
@@ -553,26 +608,27 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                     'unique': []
                 },
             ],
-        ])
+        )
 
     async def test_edgeql_links_set_13(self):
-        await self.assert_legacy_query_result(r'''
-            # find an item with a unique quality
-            WITH
-                MODULE test,
-                I2 := Item
-            SELECT Item {
-                name,
-                unique := count( (
-                    SELECT _ := Item.tag_set1
-                    FILTER _ NOT IN (
-                        (SELECT I2 FILTER I2 != Item).tag_set1
-                    )
-                ))
-            }
-            FILTER .unique > 0
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                # find an item with a unique quality
+                WITH
+                    MODULE test,
+                    I2 := Item
+                SELECT Item {
+                    name,
+                    unique := count( (
+                        SELECT _ := Item.tag_set1
+                        FILTER _ NOT IN (
+                            (SELECT I2 FILTER I2 != Item).tag_set1
+                        )
+                    ))
+                }
+                FILTER .unique > 0
+                ORDER BY .name;
+            ''',
             [
                 {
                     'name': 'ball',
@@ -582,27 +638,28 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                     'unique': 1,
                 },
             ],
-        ])
+        )
 
     async def test_edgeql_links_set_14(self):
-        await self.assert_legacy_query_result(r'''
-            # find an item with a unique quality
-            WITH
-                MODULE test,
-                I2 := Item
-            SELECT Item {
-                name,
-                unique := (
-                    # XXX: check test_edgeql_expr_alias for failures first
-                    SELECT _ := Item.tag_set1
-                    FILTER _ NOT IN (
-                        (SELECT I2 FILTER I2 != Item).tag_set1
+        await self.assert_query_result(
+            r'''
+                # find an item with a unique quality
+                WITH
+                    MODULE test,
+                    I2 := Item
+                SELECT Item {
+                    name,
+                    unique := (
+                        # XXX: check test_edgeql_expr_alias for failures first
+                        SELECT _ := Item.tag_set1
+                        FILTER _ NOT IN (
+                            (SELECT I2 FILTER I2 != Item).tag_set1
+                        )
                     )
-                )
-            }
-            FILTER count(.unique) > 0
-            ORDER BY .name;
-        ''', [
+                }
+                FILTER count(.unique) > 0
+                ORDER BY .name;
+            ''',
             [
                 {
                     'name': 'ball',
@@ -612,39 +669,41 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                     'unique': ['metal'],
                 },
             ],
-        ])
+        )
 
     async def test_edgeql_links_set_15(self):
-        await self.assert_legacy_query_result(r'''
-            # subsets
-            WITH MODULE test
-            SELECT Item {name}
-            FILTER .tag_set1 IN {'wood', 'plastic'}
-            ORDER BY count((
-                SELECT _ := Item.tag_set1
-                FILTER _ IN {'rectangle', 'plastic', 'wood'}
-            )) DESC THEN .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                # subsets
+                WITH MODULE test
+                SELECT Item {name}
+                FILTER .tag_set1 IN {'wood', 'plastic'}
+                ORDER BY count((
+                    SELECT _ := Item.tag_set1
+                    FILTER _ IN {'rectangle', 'plastic', 'wood'}
+                )) DESC THEN .name;
+            ''',
             [
                 {'name': 'chair'},
                 {'name': 'table'},
                 {'name': 'ball'},
                 {'name': 'floor lamp'},
             ],
-        ])
+        )
 
     async def test_edgeql_links_array_01(self):
-        await self.assert_legacy_query_result(r'''
-            # just a simple unpack
-            WITH
-                MODULE test,
-                I2 := Item
-            SELECT Item {
-                name,
-                unpack := (SELECT array_unpack(Item.tag_array))
-            }
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                # just a simple unpack
+                WITH
+                    MODULE test,
+                    I2 := Item
+                SELECT Item {
+                    name,
+                    unpack := (SELECT array_unpack(Item.tag_array))
+                }
+                ORDER BY .name;
+            ''',
             [
                 {
                     'name': 'ball',
@@ -672,20 +731,21 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                     'unpack': {'plastic', 'rectangle'}
                 },
             ],
-        ])
+        )
 
     async def test_edgeql_links_array_02(self):
-        await self.assert_legacy_query_result(r'''
-            # just a simple unpack
-            WITH
-                MODULE test,
-                I2 := Item
-            SELECT Item {
-                name,
-                unpack := array_unpack(Item.tag_array)
-            }
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                # just a simple unpack
+                WITH
+                    MODULE test,
+                    I2 := Item
+                SELECT Item {
+                    name,
+                    unpack := array_unpack(Item.tag_array)
+                }
+                ORDER BY .name;
+            ''',
             [
                 {
                     'name': 'ball',
@@ -713,79 +773,85 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                     'unpack': {'plastic', 'rectangle'}
                 },
             ],
-        ])
+        )
 
     async def test_edgeql_links_array_03(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT Item {name}
-            FILTER 'metal' IN array_unpack(.tag_array)
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {name}
+                FILTER 'metal' IN array_unpack(.tag_array)
+                ORDER BY .name;
+            ''',
             [
                 {'name': 'floor lamp'}
             ],
-        ])
+        )
 
     async def test_edgeql_links_array_04(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT Item {name}
-            FILTER 'metal' = array_unpack(.tag_array)
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {name}
+                FILTER 'metal' = array_unpack(.tag_array)
+                ORDER BY .name;
+            ''',
             [
                 {'name': 'floor lamp'}
             ],
-        ])
+        )
 
     async def test_edgeql_links_array_05(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT Item {name}
-            # array_get is used to safely default to {}
-            FILTER array_get(.tag_array, 0) = 'metal'
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {name}
+                # array_get is used to safely default to {}
+                FILTER array_get(.tag_array, 0) = 'metal'
+                ORDER BY .name;
+            ''',
             [
                 {'name': 'floor lamp'}
             ],
-        ])
+        )
 
     async def test_edgeql_links_array_06(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT Item {name}
-            FILTER .tag_array = ['metal', 'plastic']
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {name}
+                FILTER .tag_array = ['metal', 'plastic']
+                ORDER BY .name;
+            ''',
             [
                 {'name': 'floor lamp'}
             ],
-        ])
+        )
 
     async def test_edgeql_links_array_07(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT Item {name}
-            FILTER NOT EXISTS .tag_array
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {name}
+                FILTER NOT EXISTS .tag_array
+                ORDER BY .name;
+            ''',
             [
                 {'name': 'ball'},
                 {'name': 'ectoplasm'},
                 {'name': 'mystery toy'},
             ],
-        ])
+        )
 
     async def test_edgeql_links_array_08(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT Item {name}
-            # no item has 3 elements
-            FILTER NOT EXISTS array_get(.tag_array, 3)
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {name}
+                # no item has 3 elements
+                FILTER NOT EXISTS array_get(.tag_array, 3)
+                ORDER BY .name;
+            ''',
             [
                 {'name': 'ball'},
                 {'name': 'chair'},
@@ -796,27 +862,28 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                 {'name': 'teapot'},
                 {'name': 'tv'},
             ],
-        ])
+        )
 
     async def test_edgeql_links_array_09(self):
-        await self.assert_legacy_query_result(r'''
-            # find an item with a unique quality
-            WITH
-                MODULE test,
-                I2 := Item
-            SELECT Item {
-                name,
-                unique := (
-                    SELECT _ := array_unpack(Item.tag_array)
-                    FILTER _ NOT IN (
-                        SELECT array_unpack(
-                            (SELECT I2 FILTER I2 != Item).tag_array
+        await self.assert_query_result(
+            r'''
+                # find an item with a unique quality
+                WITH
+                    MODULE test,
+                    I2 := Item
+                SELECT Item {
+                    name,
+                    unique := (
+                        SELECT _ := array_unpack(Item.tag_array)
+                        FILTER _ NOT IN (
+                            SELECT array_unpack(
+                                (SELECT I2 FILTER I2 != Item).tag_array
+                            )
                         )
                     )
-                )
-            }
-            ORDER BY .name;
-        ''', [
+                }
+                ORDER BY .name;
+            ''',
             [
                 {
                     'name': 'ball',
@@ -844,28 +911,29 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                     'unique': {}
                 },
             ],
-        ])
+        )
 
     async def test_edgeql_links_array_10(self):
-        await self.assert_legacy_query_result(r'''
-            # find an item with a unique quality
-            WITH
-                MODULE test,
-                I2 := Item
-            SELECT Item {
-                name,
-                unique := (
-                    SELECT _ := array_unpack(Item.tag_array)
-                    FILTER _ NOT IN (
-                        SELECT array_unpack(
-                            (SELECT I2 FILTER I2 != Item).tag_array
+        await self.assert_query_result(
+            r'''
+                # find an item with a unique quality
+                WITH
+                    MODULE test,
+                    I2 := Item
+                SELECT Item {
+                    name,
+                    unique := (
+                        SELECT _ := array_unpack(Item.tag_array)
+                        FILTER _ NOT IN (
+                            SELECT array_unpack(
+                                (SELECT I2 FILTER I2 != Item).tag_array
+                            )
                         )
                     )
-                )
-            }
-            FILTER count(.unique) > 0
-            ORDER BY .name;
-        ''', [
+                }
+                FILTER count(.unique) > 0
+                ORDER BY .name;
+            ''',
             [
                 {
                     'name': 'floor lamp',
@@ -875,63 +943,59 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                     'unique': {'ceramic', 'round'}
                 },
             ],
-        ])
+        )
 
     async def test_edgeql_links_array_11(self):
-        await self.assert_legacy_query_result(r'''
-            # find an item with ALL unique qualities
-            WITH
-                MODULE test,
-                I2 := Item
-            SELECT Item {
-                name,
-                tag_array,
-            }
-            FILTER
-                # such that has tag_array
-                EXISTS Item.tag_array AND
-                # and such that does not exist
-                NOT EXISTS (
-                    # another item
-                    SELECT I2
-                    FILTER
-                        # different from current one
-                        I2 != Item
-                        AND
-                        # matching at least one tag
-                        array_unpack(I2.tag_array) =
-                            array_unpack(Item.tag_array)
-                )
-            ORDER BY .name;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                # find an item with ALL unique qualities
+                WITH
+                    MODULE test,
+                    I2 := Item
+                SELECT Item {
+                    name,
+                    tag_array,
+                }
+                FILTER
+                    # such that has tag_array
+                    EXISTS Item.tag_array AND
+                    # and such that does not exist
+                    NOT EXISTS (
+                        # another item
+                        SELECT I2
+                        FILTER
+                            # different from current one
+                            I2 != Item
+                            AND
+                            # matching at least one tag
+                            array_unpack(I2.tag_array) =
+                                array_unpack(Item.tag_array)
+                    )
+                ORDER BY .name;
+            ''',
             [
                 {
                     'name': 'teapot',
                     'tag_array': {'ceramic', 'round'}
                 },
             ],
-        ])
+        )
 
     async def test_edgeql_links_derived_tuple_01(self):
-        await self.assert_legacy_sorted_query_result(r'''
-            WITH MODULE test
-            SELECT Item {
-                n1 := (Item.name,),
-                n2 := (Item.name,).0,
-                t1 := (Item.tag_set1,),
-                t2 := (Item.tag_set1, Item.tag_set2),
-                t3 := (Item.tag_set1,).0,
-                t4 := (Item.tag_set1, Item.tag_set2).1,
-            }
-            FILTER .name IN {'chair', 'table'}
-            ORDER BY .name;
-        ''', {
-            # sort the data
-            't1': lambda x: x[0],
-            't2': lambda x: (x[0], x[1]),
-            't3': lambda x: x,
-            't4': lambda x: x,
-        }, [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {
+                    n1 := (Item.name,),
+                    n2 := (Item.name,).0,
+                    t1 := (Item.tag_set1,),
+                    t2 := (Item.tag_set1, Item.tag_set2),
+                    t3 := (Item.tag_set1,).0,
+                    t4 := (Item.tag_set1, Item.tag_set2).1,
+                }
+                FILTER .name IN {'chair', 'table'}
+                ORDER BY .name;
+            ''',
             [
                 {
                     'n1': ['chair'],
@@ -951,30 +1015,32 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                     't4': ['rectangle', 'rectangle', 'wood', 'wood'],
                 },
             ],
-        ])
+            sort={
+                # sort the data
+                't1': lambda x: x[0],
+                't2': lambda x: (x[0], x[1]),
+                't3': lambda x: x,
+                't4': lambda x: x,
+            }
+        )
 
     async def test_edgeql_links_derived_array_01(self):
-        await self.assert_legacy_sorted_query_result(r'''
-            WITH MODULE test
-            SELECT Item {
-                n1 := [Item.name],
-                n2 := [Item.name][0],
-                t1 := [Item.tag_set1],
-                t2 := [Item.tag_set1, Item.tag_set2],
-                t3 := [Item.tag_set1][0],
-                t4 := [Item.tag_set1, Item.tag_set2][1],
-                a1 := Item.tag_array,
-                a2 := Item.tag_array[0],
-            }
-            FILTER .name IN {'chair', 'table'}
-            ORDER BY .name;
-        ''', {
-            # sort the data
-            't1': lambda x: x[0],
-            't2': lambda x: (x[0], x[1]),
-            't3': lambda x: x,
-            't4': lambda x: x,
-        }, [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {
+                    n1 := [Item.name],
+                    n2 := [Item.name][0],
+                    t1 := [Item.tag_set1],
+                    t2 := [Item.tag_set1, Item.tag_set2],
+                    t3 := [Item.tag_set1][0],
+                    t4 := [Item.tag_set1, Item.tag_set2][1],
+                    a1 := Item.tag_array,
+                    a2 := Item.tag_array[0],
+                }
+                FILTER .name IN {'chair', 'table'}
+                ORDER BY .name;
+            ''',
             [
                 {
                     'n1': ['chair'],
@@ -998,30 +1064,32 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                     'a2': 'wood',
                 },
             ],
-        ])
+            sort={
+                # sort the data
+                't1': lambda x: x[0],
+                't2': lambda x: (x[0], x[1]),
+                't3': lambda x: x,
+                't4': lambda x: x,
+            }
+        )
 
     async def test_edgeql_links_derived_array_02(self):
-        await self.assert_legacy_sorted_query_result(r'''
-            WITH MODULE test
-            SELECT Item {
-                n1 := [Item.name],
-                n2 := array_get([Item.name], 0),
-                t1 := [Item.tag_set1],
-                t2 := [Item.tag_set1, Item.tag_set2],
-                t3 := array_get([Item.tag_set1], 0),
-                t4 := array_get([Item.tag_set1, Item.tag_set2], 1),
-                a1 := Item.tag_array,
-                a2 := array_get(Item.tag_array, 0),
-            }
-            FILTER .name IN {'chair', 'table'}
-            ORDER BY .name;
-        ''', {
-            # sort the data
-            't1': lambda x: x[0],
-            't2': lambda x: (x[0], x[1]),
-            't3': lambda x: x,
-            't4': lambda x: x,
-        }, [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {
+                    n1 := [Item.name],
+                    n2 := array_get([Item.name], 0),
+                    t1 := [Item.tag_set1],
+                    t2 := [Item.tag_set1, Item.tag_set2],
+                    t3 := array_get([Item.tag_set1], 0),
+                    t4 := array_get([Item.tag_set1, Item.tag_set2], 1),
+                    a1 := Item.tag_array,
+                    a2 := array_get(Item.tag_array, 0),
+                }
+                FILTER .name IN {'chair', 'table'}
+                ORDER BY .name;
+            ''',
             [
                 {
                     'n1': ['chair'],
@@ -1045,23 +1113,27 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                     'a2': 'wood',
                 },
             ],
-        ])
+            sort={
+                # sort the data
+                't1': lambda x: x[0],
+                't2': lambda x: (x[0], x[1]),
+                't3': lambda x: x,
+                't4': lambda x: x,
+            }
+        )
 
     async def test_edgeql_links_derived_array_03(self):
-        await self.assert_legacy_sorted_query_result(r'''
-            WITH MODULE test
-            SELECT Item {
-                name,
-                a_a1 := Item.tag_array[{0, 1}],
-                a_t2 := [Item.tag_set1, Item.tag_set2][{0, 1}],
-            }
-            FILTER .name IN {'chair', 'table'}
-            ORDER BY .name;
-        ''', {
-            # sort the data
-            'a_a1': lambda x: x,
-            'a_t2': lambda x: x,
-        }, [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {
+                    name,
+                    a_a1 := Item.tag_array[{0, 1}],
+                    a_t2 := [Item.tag_set1, Item.tag_set2][{0, 1}],
+                }
+                FILTER .name IN {'chair', 'table'}
+                ORDER BY .name;
+            ''',
             [
                 {
                     'name': 'chair',
@@ -1075,23 +1147,25 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                              'rectangle', 'wood', 'wood', 'wood', 'wood'],
                 },
             ],
-        ])
+            sort={
+                # sort the data
+                'a_a1': lambda x: x,
+                'a_t2': lambda x: x,
+            }
+        )
 
     async def test_edgeql_links_derived_array_04(self):
-        await self.assert_legacy_sorted_query_result(r'''
-            WITH MODULE test
-            SELECT Item {
-                name,
-                a_a1 := array_get(Item.tag_array, {0, 1}),
-                a_t2 := array_get([Item.tag_set1, Item.tag_set2], {0, 1}),
-            }
-            FILTER .name IN {'chair', 'table'}
-            ORDER BY .name;
-        ''', {
-            # sort the data
-            'a_a1': lambda x: x,
-            'a_t2': lambda x: x,
-        }, [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {
+                    name,
+                    a_a1 := array_get(Item.tag_array, {0, 1}),
+                    a_t2 := array_get([Item.tag_set1, Item.tag_set2], {0, 1}),
+                }
+                FILTER .name IN {'chair', 'table'}
+                ORDER BY .name;
+            ''',
             [
                 {
                     'name': 'chair',
@@ -1105,23 +1179,25 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                              'rectangle', 'wood', 'wood', 'wood', 'wood'],
                 },
             ],
-        ])
+            sort={
+                # sort the data
+                'a_a1': lambda x: x,
+                'a_t2': lambda x: x,
+            }
+        )
 
     async def test_edgeql_links_derived_array_05(self):
-        await self.assert_legacy_sorted_query_result(r'''
-            WITH MODULE test
-            SELECT Item {
-                name,
-                a_a1 := array_get(Item.tag_array, {0, 2}),
-                a_t2 := array_get([Item.tag_set1, Item.tag_set2], {0, 2}),
-            }
-            FILTER .name IN {'ball', 'chair', 'table'}
-            ORDER BY .name;
-        ''', {
-            # sort the data
-            'a_a1': lambda x: x,
-            'a_t2': lambda x: x,
-        }, [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {
+                    name,
+                    a_a1 := array_get(Item.tag_array, {0, 2}),
+                    a_t2 := array_get([Item.tag_set1, Item.tag_set2], {0, 2}),
+                }
+                FILTER .name IN {'ball', 'chair', 'table'}
+                ORDER BY .name;
+            ''',
             [
                 {
                     'name': 'ball',
@@ -1139,23 +1215,25 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                     'a_t2': ['rectangle', 'rectangle', 'wood', 'wood'],
                 },
             ],
-        ])
+            sort={
+                # sort the data
+                'a_a1': lambda x: x,
+                'a_t2': lambda x: x,
+            }
+        )
 
     async def test_edgeql_links_derived_array_06(self):
-        await self.assert_legacy_sorted_query_result(r'''
-            WITH MODULE test
-            SELECT Item {
-                name,
-                a_a1 := Item.tag_array[1:20],
-                a_t2 := [Item.tag_set1, Item.tag_set2][1:20],
-            }
-            FILTER .name IN {'ball', 'chair', 'table'}
-            ORDER BY .name;
-        ''', {
-            # sort the data
-            'a_a1': lambda x: x,
-            'a_t2': lambda x: x[0],
-        }, [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {
+                    name,
+                    a_a1 := Item.tag_array[1:20],
+                    a_t2 := [Item.tag_set1, Item.tag_set2][1:20],
+                }
+                FILTER .name IN {'ball', 'chair', 'table'}
+                ORDER BY .name;
+            ''',
             [
                 {
                     'name': 'ball',
@@ -1173,23 +1251,26 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                     'a_t2': [['rectangle'], ['rectangle'], ['wood'], ['wood']],
                 }
             ],
-        ])
-
-    async def test_edgeql_links_derived_array_07(self):
-        await self.assert_legacy_sorted_query_result(r'''
-            WITH MODULE test
-            SELECT Item {
-                name,
-                a_a1 := Item.tag_array[{1, 2}:20],
-                a_t2 := [Item.tag_set1, Item.tag_set2][{1, 2}:20],
+            sort={
+                # sort the data
+                'a_a1': lambda x: x,
+                'a_t2': lambda x: x[0],
             }
-            FILTER .name IN {'ball', 'chair', 'table'}
-            ORDER BY .name;
-        ''', {
-            # sort the data
-            'a_a1': lambda x: x[0] if x else '',
-            'a_t2': lambda x: x[0] if x else '',
-        }, [
+        )
+
+    @test.xfail('does not work with binary serialization')
+    async def test_edgeql_links_derived_array_07(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {
+                    name,
+                    a_a1 := Item.tag_array[{1, 2}:20],
+                    a_t2 := [Item.tag_set1, Item.tag_set2][{1, 2}:20],
+                }
+                FILTER .name IN {'ball', 'chair', 'table'}
+                ORDER BY .name;
+            ''',
             [
                 {
                     'name': 'ball',
@@ -1209,21 +1290,25 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                              ['rectangle'], ['rectangle'], ['wood'], ['wood']],
                 }
             ],
-        ])
-
-    async def test_edgeql_links_derived_array_08(self):
-        await self.assert_legacy_sorted_query_result(r'''
-            WITH MODULE test
-            SELECT Item {
-                name,
-                re := re_match(Item.tag_set1, Item.tag_set2),
+            sort={
+                # sort the data
+                'a_a1': lambda x: x[0] if x else '',
+                'a_t2': lambda x: x[0] if x else '',
             }
-            FILTER .name IN {'chair', 'table'}
-            ORDER BY .name;
-        ''', {
-            # sort the data
-            're': lambda x: x[0],
-        }, [
+        )
+
+    @test.xfail('does not work with binary serialization')
+    async def test_edgeql_links_derived_array_08(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {
+                    name,
+                    re := re_match(Item.tag_set1, Item.tag_set2),
+                }
+                FILTER .name IN {'chair', 'table'}
+                ORDER BY .name;
+            ''',
             [
                 {
                     'name': 'chair',
@@ -1234,4 +1319,8 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                     're': [['rectangle'], ['wood']],
                 }
             ],
-        ])
+            sort={
+                # sort the data
+                're': lambda x: x[0],
+            }
+        )

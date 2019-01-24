@@ -33,6 +33,7 @@ import tempfile
 import threading
 import time
 import types
+import unittest.case
 import unittest.result
 import unittest.runner
 import unittest.signals
@@ -298,6 +299,22 @@ class BaseRenderer:
             marker.value: getattr(styles, f'marker_{marker.name}')
             for marker in Markers}
 
+    def format_test(self, test):
+        if isinstance(test, unittest.case._SubTest):
+            if test.params:
+                params = ', '.join(
+                    f'{k}={v!r}' for k, v in test.params.items())
+            else:
+                params = '<subtest>'
+            return f'{test.test_case} {{{params}}}'
+        else:
+            if hasattr(test, 'fail_notes') and test.fail_notes:
+                fail_notes = ', '.join(
+                    f'{k}={v!r}' for k, v in test.fail_notes.items())
+                return f'{test} {{{fail_notes}}}'
+            else:
+                return str(test)
+
     def report(self, test, marker, description=None):
         raise NotImplementedError
 
@@ -320,10 +337,11 @@ class VerboseRenderer(BaseRenderer):
     }
 
     def _render_test(self, test, marker, description):
+        test_title = self.format_test(test)
         if description:
-            return f'{test}: {self.fullnames[marker]}: {description}'
+            return f'{test_title}: {self.fullnames[marker]}: {description}'
         else:
-            return f'{test}: {self.fullnames[marker]}'
+            return f'{test_title}: {self.fullnames[marker]}'
 
     def report(self, test, marker, description=None):
         style = self.styles_map[marker.value]
@@ -348,7 +366,7 @@ class MultiLineRenderer(BaseRenderer):
                                    for name in test_modules), default=0)
         self.first_col_width = max_test_module_len + 1  # 1 == len(' ')
 
-        self.failed_tests = []
+        self.failed_tests = set()
 
         self.buffer = collections.defaultdict(str)
         self.last_lines = -1
@@ -356,7 +374,10 @@ class MultiLineRenderer(BaseRenderer):
 
     def report(self, test, marker, description=None):
         if marker in {Markers.failed, Markers.errored}:
-            self.failed_tests.append(test.id().rpartition('.')[2])
+            test_name = test.id().rpartition('.')[2]
+            if ' ' in test_name:
+                test_name = test_name.split(' ')[0]
+            self.failed_tests.add(test_name)
 
         self.buffer[test.__class__.__module__] += marker.value
         self.completed_tests += 1
@@ -527,7 +548,7 @@ class ParallelTextTestResult(unittest.result.TestResult):
         return err
 
     def getDescription(self, test):
-        return str(test)
+        return self.ren.format_test(test)
 
     def addSuccess(self, test):
         super().addSuccess(test)
@@ -544,6 +565,15 @@ class ParallelTextTestResult(unittest.result.TestResult):
         self.ren.report(test, Markers.failed)
         if self.failfast:
             self.suite.stop_requested = True
+
+    def addSubTest(self, test, subtest, err):
+        if err is not None:
+            self.errors.append((subtest, self._exc_info_to_string(err, test)))
+            self._mirrorOutput = True
+
+            self.ren.report(subtest, Markers.errored)
+            if self.failfast:
+                self.suite.stop_requested = True
 
     def addSkip(self, test, reason):
         super().addSkip(test, reason)

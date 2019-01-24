@@ -24,6 +24,7 @@ import contextlib
 import functools
 import inspect
 import json
+import math
 import os
 import pprint
 import re
@@ -125,6 +126,11 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
     def tearDownClass(cls):
         cls.loop.close()
         asyncio.set_event_loop(None)
+
+    def add_fail_notes(self, **kwargs):
+        if not hasattr(self, 'fail_notes'):
+            self.fail_notes = {}
+        self.fail_notes.update(kwargs)
 
 
 _default_cluster = None
@@ -425,56 +431,40 @@ class BaseQueryTestCase(DatabaseTestCase):
 
     BASE_TEST_CLASS = True
 
-    async def assert_query_result(self, query, result, *, msg=None):
-        tx = self.con.transaction()
-        await tx.start()
+    async def assert_query_result(self, query,
+                                  exp_result_json,
+                                  exp_result_binary=...,
+                                  *,
+                                  msg=None, sort=None):
         try:
-            res = await self.con.fetch_json(query)
-        finally:
-            await tx.rollback()
+            tx = self.con.transaction()
+            await tx.start()
+            try:
+                res = await self.con.fetch_json(query)
+            finally:
+                await tx.rollback()
 
-        res = json.loads(res)
-        res = [res]  # XXX
-        self._assert_data_shape(res, result, message=msg)
+            res = json.loads(res)
+            if sort is not None:
+                self._sort_results(res, sort)
+            self._assert_data_shape(res, exp_result_json, message=msg)
+        except Exception:
+            self.add_fail_notes(serialization='json')
+            raise
 
-        res = await self.con.fetch(query)
-        res = serutils.serialize(res)
-        res = [res]  # XXX
-        self._assert_data_shape(res, result, message=msg)
+        if exp_result_binary is ...:
+            # The expected result is the same
+            exp_result_binary = exp_result_json
 
-    async def assert_sorted_query_result(self, query, sort, result, *,
-                                         msg=None):
-        tx = self.con.transaction()
-        await tx.start()
         try:
-            res = await self.con.fetch_json(query)
-        finally:
-            await tx.rollback()
-
-        res = json.loads(res)
-        self._sort_results(res, sort)
-        res = [res]  # XXX
-        self._assert_data_shape(res, result, message=msg)
-
-        res = await self.con.fetch(query)
-        res = serutils.serialize(res)
-        res = [res]  # XXX
-        for r in res:
-            self._sort_results(r, sort)
-        self._assert_data_shape(res, result, message=msg)
-
-    async def assert_legacy_query_result(self, query, result, *, msg=None):
-        res = await self.con._legacy_execute(query)
-        self._assert_data_shape(res, result, message=msg)
-        return res
-
-    async def assert_legacy_sorted_query_result(self, query, sort, result, *,
-                                                msg=None):
-        res = await self.con._legacy_execute(query)
-        for r in res:
-            self._sort_results(r, sort)
-        self._assert_data_shape(res, result, message=msg)
-        return res
+            res = await self.con.fetch(query)
+            res = serutils.serialize(res)
+            if sort is not None:
+                self._sort_results(res, sort)
+            self._assert_data_shape(res, exp_result_binary, message=msg)
+        except Exception:
+            self.add_fail_notes(serialization='binary')
+            raise
 
     async def graphql_query(self, query):
         query = textwrap.dedent(query)
@@ -497,6 +487,8 @@ class BaseQueryTestCase(DatabaseTestCase):
         return gql
 
     def _sort_results(self, results, sort):
+        if sort is True:
+            sort = lambda x: x
         # don't bother sorting empty things
         if results:
             # sort can be either a key function or a dict
@@ -640,16 +632,17 @@ class BaseQueryTestCase(DatabaseTestCase):
                 return _assert_dict_shape(data, shape)
             elif isinstance(shape, type):
                 return _assert_type_shape(data, shape)
-            elif isinstance(shape, (str, int, float)):
+            elif isinstance(shape, float):
+                if not math.isclose(data, shape, rel_tol=1e-04):
+                    self.fail(f'{message}: not isclose({data}, {shape})')
+            elif isinstance(shape, (str, int)):
                 if data != shape:
-                    self.fail('{}: {} != {}'.format(message, data, shape))
+                    self.fail(f'{message}: {data!r} != {shape!r}')
             elif shape is None:
                 if data is not None:
-                    self.fail(
-                        '{}: {!r} is expected to be None'.format(
-                            message, data))
+                    self.fail(f'{message}: {data!r} is expected to be None')
             else:
-                raise ValueError('unsupported shape type {}'.format(shape))
+                raise ValueError(f'unsupported shape type {shape}')
 
         message = message or 'data shape differs'
         return _assert_generic_shape(data, shape)

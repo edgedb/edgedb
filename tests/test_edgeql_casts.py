@@ -19,7 +19,6 @@
 
 import itertools
 import os.path
-import unittest  # NOQA
 
 import edgedb
 
@@ -170,566 +169,919 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     # NOTE: casts are idempotent
 
     async def test_edgeql_casts_idempotence_01(self):
-        await self.assert_legacy_query_result(r'''
-            SELECT <bool><bool>True IS bool;
-            SELECT <bytes><bytes>b'Hello' IS bytes;
-            SELECT <str><str>'Hello' IS str;
-            SELECT <json><json>to_json('1') IS json;
-            SELECT <uuid><uuid>uuid_generate_v1mc() IS uuid;
+        await self.assert_query_result(
+            r'''SELECT <bool><bool>True IS bool;''',
+            [True],
+        )
 
-            SELECT <datetime><datetime>datetime_current() IS datetime;
-            SELECT <naive_datetime><naive_datetime>to_naive_datetime(
-                '2018-05-07T20:01:22.306916') IS naive_datetime;
-            SELECT <naive_date><naive_date>to_naive_date('2018-05-07') IS
-                naive_date;
-            SELECT <naive_time><naive_time>to_naive_time('20:01:22.306916') IS
-                naive_time;
-            SELECT <timedelta><timedelta>to_timedelta(hours:=20) IS timedelta;
+        await self.assert_query_result(
+            r'''SELECT <bytes><bytes>b'Hello' IS bytes;''',
+            [True],
+        )
 
-            SELECT <int16><int16>to_int16('12345') IS int16;
-            SELECT <int32><int32>to_int32('1234567890') IS int32;
-            SELECT <int64><int64>to_int64('1234567890123') IS int64;
-            SELECT <float32><float32>to_float32('2.5') IS float32;
-            SELECT <float64><float64>to_float64('2.5') IS float64;
+        await self.assert_query_result(
+            r'''SELECT <str><str>'Hello' IS str;''',
+            [True],
+        )
 
-            SELECT <decimal><decimal>to_decimal(
+        await self.assert_query_result(
+            r'''SELECT <json><json>to_json('1') IS json;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <uuid><uuid>uuid_generate_v1mc() IS uuid;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <datetime><datetime>datetime_current() IS datetime;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <naive_datetime><naive_datetime>to_naive_datetime(
+                    '2018-05-07T20:01:22.306916') IS naive_datetime;
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <naive_date><naive_date>to_naive_date(
+                    '2018-05-07') IS naive_date;
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <naive_time><naive_time>to_naive_time(
+                    '20:01:22.306916') IS naive_time;
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <timedelta><timedelta>to_timedelta(
+                    hours:=20) IS timedelta;
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <int16><int16>to_int16('12345') IS int16;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <int32><int32>to_int32('1234567890') IS int32;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <int64><int64>to_int64('1234567890123') IS int64;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <float32><float32>to_float32('2.5') IS float32;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <float64><float64>to_float64('2.5') IS float64;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <decimal><decimal>to_decimal(
                     '123456789123456789123456789.123456789123456789123456789')
                 IS decimal;
-        ''', [
+            ''',
             [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-        ])
+        )
 
     async def test_edgeql_casts_idempotence_02(self):
-        await self.assert_legacy_query_result(r'''
-            SELECT <bool><bool>True = True;
-            SELECT <bytes><bytes>b'Hello' = b'Hello';
-            SELECT <str><str>'Hello' = 'Hello';
-            SELECT <json><json>to_json('1') = to_json('1');
+        await self.assert_query_result(
+            r'''SELECT <bool><bool>True = True;''',
+            [True],
+        )
 
-            WITH U := uuid_generate_v1mc()
-            SELECT <uuid><uuid>U = U;
+        await self.assert_query_result(
+            r'''SELECT <bytes><bytes>b'Hello' = b'Hello';''',
+            [True],
+        )
 
-            SELECT <datetime><datetime>datetime_of_statement() =
-                datetime_of_statement();
-            SELECT <naive_datetime><naive_datetime>to_naive_datetime(
+        await self.assert_query_result(
+            r'''SELECT <str><str>'Hello' = 'Hello';''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <json><json>to_json('1') = to_json('1');''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH U := uuid_generate_v1mc()
+                SELECT <uuid><uuid>U = U;
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <datetime><datetime>datetime_of_statement() =
+                    datetime_of_statement();
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <naive_datetime><naive_datetime>to_naive_datetime(
                     '2018-05-07T20:01:22.306916') =
                 to_naive_datetime('2018-05-07T20:01:22.306916');
-            SELECT <naive_date><naive_date>to_naive_date('2018-05-07') =
-                to_naive_date('2018-05-07');
-            SELECT <naive_time><naive_time>to_naive_time('20:01:22.306916') =
-                to_naive_time('20:01:22.306916');
-            SELECT <timedelta><timedelta>to_timedelta(hours:=20) =
-                to_timedelta(hours:=20);
+            ''',
+            [True],
+        )
 
-            SELECT <int16><int16>to_int16('12345') = 12345;
-            SELECT <int32><int32>to_int32('1234567890') = 1234567890;
-            SELECT <int64><int64>to_int64('1234567890123') = 1234567890123;
-            SELECT <float32><float32>to_float32('2.5') = 2.5;
-            SELECT <float64><float64>to_float64('2.5') = 2.5;
+        await self.assert_query_result(
+            r'''
+                SELECT <naive_date><naive_date>to_naive_date('2018-05-07') =
+                    to_naive_date('2018-05-07');
+            ''',
+            [True],
+        )
 
-            SELECT <decimal><decimal>to_decimal(
+        await self.assert_query_result(
+            r'''
+                SELECT <naive_time><naive_time>to_naive_time(
+                    '20:01:22.306916') = to_naive_time('20:01:22.306916');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <timedelta><timedelta>to_timedelta(hours:=20) =
+                    to_timedelta(hours:=20);
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <int16><int16>to_int16('12345') = 12345;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <int32><int32>to_int32('1234567890') = 1234567890;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <int64><int64>to_int64('1234567890123') =
+                    1234567890123;
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <float32><float32>to_float32('2.5') = 2.5;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <float64><float64>to_float64('2.5') = 2.5;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <decimal><decimal>to_decimal(
                     '123456789123456789123456789.123456789123456789123456789')
                 = to_decimal(
                     '123456789123456789123456789.123456789123456789123456789');
-        ''', [
+            ''',
             [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-        ])
+        )
 
     async def test_edgeql_casts_str_01(self):
         # Casting to str and back is lossless for every scalar (if
         # legal). It's still not legal to cast bytes into str or some
         # of the json values.
-        await self.assert_legacy_query_result(r'''
-            SELECT <bool><str>True = True;
-            SELECT <bool><str>False = False;
+        await self.assert_query_result(
+            r'''SELECT <bool><str>True = True;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <bool><str>False = False;''',
+            [True],
             # only JSON strings can be cast into EdgeQL str
-            SELECT <json><str>to_json('"Hello"') = to_json('"Hello"');
+        )
 
-            WITH U := uuid_generate_v1mc()
-            SELECT <uuid><str>U = U;
+        await self.assert_query_result(
+            r'''SELECT <json><str>to_json('"Hello"') = to_json('"Hello"');''',
+            [True],
+        )
 
-            SELECT <datetime><str>datetime_of_statement() =
-                datetime_of_statement();
-            SELECT <naive_datetime><str>to_naive_datetime(
-                    '2018-05-07T20:01:22.306916') =
-                to_naive_datetime('2018-05-07T20:01:22.306916');
-            SELECT <naive_date><str>to_naive_date('2018-05-07') =
-                to_naive_date('2018-05-07');
-            SELECT <naive_time><str>to_naive_time('20:01:22.306916') =
-                to_naive_time('20:01:22.306916');
-            SELECT <timedelta><str>to_timedelta(hours:=20) =
-                to_timedelta(hours:=20);
+        await self.assert_query_result(
+            r'''
+                WITH U := uuid_generate_v1mc()
+                SELECT <uuid><str>U = U;
+            ''',
+            [True],
+        )
 
-            SELECT <int16><str>to_int16('12345') = 12345;
-            SELECT <int32><str>to_int32('1234567890') = 1234567890;
-            SELECT <int64><str>to_int64('1234567890123') = 1234567890123;
-            SELECT <float32><str>to_float32('2.5') = 2.5;
-            SELECT <float64><str>to_float64('2.5') = 2.5;
+        await self.assert_query_result(
+            r'''
+                SELECT <datetime><str>datetime_of_statement() =
+                    datetime_of_statement();
+            ''',
+            [True],
+        )
 
-            SELECT <decimal><str>to_decimal(
+        await self.assert_query_result(
+            r'''
+                SELECT <naive_datetime><str>to_naive_datetime(
+                        '2018-05-07T20:01:22.306916') =
+                    to_naive_datetime('2018-05-07T20:01:22.306916');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <naive_date><str>to_naive_date('2018-05-07') =
+                    to_naive_date('2018-05-07');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <naive_time><str>to_naive_time('20:01:22.306916') =
+                    to_naive_time('20:01:22.306916');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <timedelta><str>to_timedelta(hours:=20) =
+                    to_timedelta(hours:=20);
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <int16><str>to_int16('12345') = 12345;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <int32><str>to_int32('1234567890') = 1234567890;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <int64><str>to_int64(
+                    '1234567890123') = 1234567890123;
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <float32><str>to_float32('2.5') = 2.5;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <float64><str>to_float64('2.5') = 2.5;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <decimal><str>to_decimal(
                     '123456789123456789123456789.123456789123456789123456789')
                 = to_decimal(
                     '123456789123456789123456789.123456789123456789123456789');
-        ''', [
+            ''',
             [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-        ])
+        )
 
     async def test_edgeql_casts_str_02(self):
         # Certain strings can be cast into other types losslessly,
         # making them "canonical" string representations of those
         # values.
-        await self.assert_legacy_query_result(r'''
-            WITH x := {'true', 'false'}
-            SELECT <str><bool>x = x;
-
-            # non-canonical
-            WITH x := {'True', 'False', 'TRUE', 'FALSE'}
-            SELECT <str><bool>x = x;
-
-            WITH x := {'True', 'False', 'TRUE', 'FALSE'}
-            SELECT <str><bool>x = str_lower(x);
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH x := {'true', 'false'}
+                SELECT <str><bool>x = x;
+            ''',
             [True, True],
+        )
+
+        await self.assert_query_result(
+            # non-canonical
+            r'''
+                WITH x := {'True', 'False', 'TRUE', 'FALSE'}
+                SELECT <str><bool>x = x;
+            ''',
             [False, False, False, False],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH x := {'True', 'False', 'TRUE', 'FALSE'}
+                SELECT <str><bool>x = str_lower(x);
+            ''',
             [True, True, True, True],
-        ])
+        )
 
     async def test_edgeql_casts_str_03(self):
         # str to json is always lossless
-        await self.assert_legacy_query_result(r'''
-            WITH x := {'any', 'arbitrary', '♠gibberish♠'}
-            SELECT <str><json>x = x;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH x := {'any', 'arbitrary', '♠gibberish♠'}
+                SELECT <str><json>x = x;
+            ''',
             [True, True, True],
-        ])
+        )
 
     async def test_edgeql_casts_str_04(self):
         # canonical uuid representation as a string is using lowercase
-        await self.assert_legacy_query_result(r'''
-            WITH x := 'd4288330-eea3-11e8-bc5f-7faf132b1d84'
-            SELECT <str><uuid>x = x;
-
-            # non-canonical
-            WITH x := {
-                'D4288330-EEA3-11E8-BC5F-7FAF132B1D84',
-                'D4288330-Eea3-11E8-Bc5F-7Faf132B1D84',
-                'D4288330-eea3-11e8-bc5f-7faf132b1d84',
-            }
-            SELECT <str><uuid>x = x;
-
-            WITH x := {
-                'D4288330-EEA3-11E8-BC5F-7FAF132B1D84',
-                'D4288330-Eea3-11E8-Bc5F-7Faf132B1D84',
-                'D4288330-eea3-11e8-bc5f-7faf132b1d84',
-            }
-            SELECT <str><uuid>x = str_lower(x);
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH x := 'd4288330-eea3-11e8-bc5f-7faf132b1d84'
+                SELECT <str><uuid>x = x;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            # non-canonical
+            r'''
+                WITH x := {
+                    'D4288330-EEA3-11E8-BC5F-7FAF132B1D84',
+                    'D4288330-Eea3-11E8-Bc5F-7Faf132B1D84',
+                    'D4288330-eea3-11e8-bc5f-7faf132b1d84',
+                }
+                SELECT <str><uuid>x = x;
+            ''',
             [False, False, False],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH x := {
+                    'D4288330-EEA3-11E8-BC5F-7FAF132B1D84',
+                    'D4288330-Eea3-11E8-Bc5F-7Faf132B1D84',
+                    'D4288330-eea3-11e8-bc5f-7faf132b1d84',
+                }
+                SELECT <str><uuid>x = str_lower(x);
+            ''',
             [True, True, True],
-        ])
+        )
 
     async def test_edgeql_casts_str_05(self):
         # Canonical date and time str representations must follow ISO
         # 8601. This test assumes that the server is configured to be
         # in UTC time zone.
-        await self.assert_legacy_query_result(r'''
-            WITH x := '2018-05-07T20:01:22.306916+00:00'
-            SELECT <str><datetime>x = x;
-
-            # non-canonical
-            WITH x := {
-                '2018-05-07 20:01:22.306916+00:00',
-                '2018-05-07T20:01:22.306916',
-                '2018-05-07T20:01:22.306916+00',
-                '2018-05-07T15:01:22.306916-05:00',
-                '2018-05-07T15:01:22.306916-05',
-            }
-            SELECT <str><datetime>x = x;
-
-            # validating that these are all in fact the same datetime
-            WITH x := {
-                '2018-05-07 20:01:22.306916+00:00',
-                '2018-05-07T20:01:22.306916',
-                '2018-05-07T20:01:22.306916+00',
-                '2018-05-07T15:01:22.306916-05:00',
-                '2018-05-07T15:01:22.306916-05',
-            }
-            SELECT <datetime>x = <datetime>'2018-05-07T20:01:22.306916+00:00';
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH x := '2018-05-07T20:01:22.306916+00:00'
+                SELECT <str><datetime>x = x;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            # non-canonical
+            r'''
+                WITH x := {
+                    '2018-05-07 20:01:22.306916+00:00',
+                    '2018-05-07T20:01:22.306916',
+                    '2018-05-07T20:01:22.306916+00',
+                    '2018-05-07T15:01:22.306916-05:00',
+                    '2018-05-07T15:01:22.306916-05',
+                }
+                SELECT <str><datetime>x = x;
+            ''',
             [False, False, False, False, False],
+        )
+
+        await self.assert_query_result(
+            # validating that these are all in fact the same datetime
+            r'''
+                WITH x := {
+                    '2018-05-07 20:01:22.306916+00:00',
+                    '2018-05-07T20:01:22.306916',
+                    '2018-05-07T20:01:22.306916+00',
+                    '2018-05-07T15:01:22.306916-05:00',
+                    '2018-05-07T15:01:22.306916-05',
+                }
+                SELECT <datetime>x =
+                    <datetime>'2018-05-07T20:01:22.306916+00:00';
+            ''',
             [True, True, True, True, True],
-        ])
+        )
 
     async def test_edgeql_casts_str_06(self):
         # Canonical date and time str representations must follow ISO
         # 8601. This test assumes that the server is configured to be
         # in UTC time zone.
-        await self.assert_legacy_query_result(r'''
-            WITH x := '2018-05-07T20:01:22.306916'
-            SELECT <str><naive_datetime>x = x;
-
-            # non-canonical
-            WITH x := {
-                '2018-05-07 20:01:22.306916',
-                '2018-05-07,20:01:22.306916',
-                '2018-05-07;20:01:22.306916',
-            }
-            SELECT <str><naive_datetime>x = x;
-
-            # validating that these are all in fact the same naive_datetime
-            WITH x := {
-                '2018-05-07 20:01:22.306916',
-                '2018-05-07,20:01:22.306916',
-                '2018-05-07;20:01:22.306916',
-            }
-            SELECT <naive_datetime>x =
-                <naive_datetime>'2018-05-07T20:01:22.306916';
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH x := '2018-05-07T20:01:22.306916'
+                SELECT <str><naive_datetime>x = x;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            # non-canonical
+            r'''
+                WITH x := {
+                    '2018-05-07 20:01:22.306916',
+                    '2018-05-07,20:01:22.306916',
+                    '2018-05-07;20:01:22.306916',
+                }
+                SELECT <str><naive_datetime>x = x;
+            ''',
             [False, False, False],
+        )
+
+        await self.assert_query_result(
+            # validating that these are all in fact the same naive_datetime
+            r'''
+                WITH x := {
+                    '2018-05-07 20:01:22.306916',
+                    '2018-05-07,20:01:22.306916',
+                    '2018-05-07;20:01:22.306916',
+                }
+                SELECT <naive_datetime>x =
+                    <naive_datetime>'2018-05-07T20:01:22.306916';
+            ''',
             [True, True, True],
-        ])
+        )
 
     async def test_edgeql_casts_str_07(self):
         # Canonical date and time str representations must follow ISO
         # 8601.
-        await self.assert_legacy_query_result(r'''
-            WITH x := '2018-05-07'
-            SELECT <str><naive_date>x = x;
-
-            # non-canonical
-            WITH x := {
-                '2018-05-07T20:01:22.306916',
-                '2018/05/07',
-                '2018.05.07',
-                '2018`05`07',
-                '20180507',
-            }
-            SELECT <str><naive_date>x = x;
-
-            # validating that these are all in fact the same date
-            WITH x := {
-                '2018-05-07T20:01:22.306916',
-                '2018/05/07',
-                '2018.05.07',
-                '2018`05`07',
-                '20180507',
-            }
-            SELECT <naive_date>x = <naive_date>'2018-05-07';
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH x := '2018-05-07'
+                SELECT <str><naive_date>x = x;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            # non-canonical
+            r'''
+                WITH x := {
+                    '2018-05-07T20:01:22.306916',
+                    '2018/05/07',
+                    '2018.05.07',
+                    '2018`05`07',
+                    '20180507',
+                }
+                SELECT <str><naive_date>x = x;
+            ''',
             [False, False, False, False, False],
+        )
+
+        await self.assert_query_result(
+            # validating that these are all in fact the same date
+            r'''
+                WITH x := {
+                    '2018-05-07T20:01:22.306916',
+                    '2018/05/07',
+                    '2018.05.07',
+                    '2018`05`07',
+                    '20180507',
+                }
+                SELECT <naive_date>x = <naive_date>'2018-05-07';
+            ''',
             [True, True, True, True, True],
-        ])
+        )
 
     async def test_edgeql_casts_str_08(self):
         # Canonical date and time str representations must follow ISO
         # 8601.
-        await self.assert_legacy_query_result(r'''
-            WITH x := '20:01:22.306916'
-            SELECT <str><naive_time>x = x;
-
-            # non-canonical
-            WITH x := {
-                '2018-05-07 20:01:22.306916',
-                '200122.306916',
-            }
-            SELECT <str><naive_time>x = x;
-
-            # validating that these are all in fact the same time
-            WITH x := {
-                '2018-05-07 20:01:22.306916',
-                '200122.306916',
-            }
-            SELECT <naive_time>x = <naive_time>'20:01:22.306916';
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH x := '20:01:22.306916'
+                SELECT <str><naive_time>x = x;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            # non-canonical
+            r'''
+                WITH x := {
+                    '2018-05-07 20:01:22.306916',
+                    '200122.306916',
+                }
+                SELECT <str><naive_time>x = x;
+            ''',
             [False, False],
+        )
+
+        await self.assert_query_result(
+            # validating that these are all in fact the same time
+            r'''
+                WITH x := {
+                    '2018-05-07 20:01:22.306916',
+                    '200122.306916',
+                }
+                SELECT <naive_time>x = <naive_time>'20:01:22.306916';
+            ''',
             [True, True],
-        ])
+        )
 
     async def test_edgeql_casts_str_09(self):
         # Canonical timedelta is a bit weird.
-        await self.assert_legacy_query_result(r'''
-            WITH x := '20:01:22.306916'
-            SELECT <str><timedelta>x = x;
-
-            # non-canonical
-            WITH x := {
-                '20h 1m 22.306916s',
-                '20 hours 1 minute 22.306916 seconds',
-                '72082.306916',  # the timedelta in seconds
-                '0.834285959675926 days',
-            }
-            SELECT <str><timedelta>x = x;
-
-            # validating that these are all in fact the same timedelta
-            WITH x := {
-                '20h 1m 22.306916s',
-                '20 hours 1 minute 22.306916 seconds',
-                '72082.306916',  # the timedelta in seconds
-                '0.834285959675926 days',
-            }
-            SELECT <timedelta>x = <timedelta>'20:01:22.306916';
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH x := '20:01:22.306916'
+                SELECT <str><timedelta>x = x;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            # non-canonical
+            r'''
+                WITH x := {
+                    '20h 1m 22.306916s',
+                    '20 hours 1 minute 22.306916 seconds',
+                    '72082.306916',  # the timedelta in seconds
+                    '0.834285959675926 days',
+                }
+                SELECT <str><timedelta>x = x;
+            ''',
             [False, False, False, False],
+        )
+
+        await self.assert_query_result(
+            # validating that these are all in fact the same timedelta
+            r'''
+                WITH x := {
+                    '20h 1m 22.306916s',
+                    '20 hours 1 minute 22.306916 seconds',
+                    '72082.306916',  # the timedelta in seconds
+                    '0.834285959675926 days',
+                }
+                SELECT <timedelta>x = <timedelta>'20:01:22.306916';
+            ''',
             [True, True, True, True],
-        ])
+        )
 
     async def test_edgeql_casts_str_10(self):
         # valid casts from str to any integer is lossless, as long as
         # there's no whitespace, which is trimmed
-        await self.assert_legacy_query_result(r'''
-            WITH x := {'-20', '0', '7', '12345'}
-            SELECT <str><int16>x = x;
-            WITH x := {'-20', '0', '7', '12345'}
-            SELECT <str><int32>x = x;
-            WITH x := {'-20', '0', '7', '12345'}
-            SELECT <str><int64>x = x;
+        await self.assert_query_result(
+            r'''
+                WITH x := {'-20', '0', '7', '12345'}
+                SELECT <str><int16>x = x;
+            ''',
+            [True, True, True, True],
+        )
 
+        await self.assert_query_result(
+            r'''
+                WITH x := {'-20', '0', '7', '12345'}
+                SELECT <str><int32>x = x;
+            ''',
+            [True, True, True, True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH x := {'-20', '0', '7', '12345'}
+                SELECT <str><int64>x = x;
+            ''',
+            [True, True, True, True],
+        )
+
+        await self.assert_query_result(
             # with whitespace
-            WITH x := {
-                '       42',
-                '42     ',
-                '       42      ',
-            }
-            SELECT <str><int16>x = x;
-
-            # validating that these are all in fact the same value
-            WITH x := {
-                '       42',
-                '42     ',
-                '       42      ',
-            }
-            SELECT <int16>x = 42;
-        ''', [
-            [True, True, True, True],
-            [True, True, True, True],
-            [True, True, True, True],
-
+            r'''
+                WITH x := {
+                    '       42',
+                    '42     ',
+                    '       42      ',
+                }
+                SELECT <str><int16>x = x;
+            ''',
             [False, False, False],
+        )
+
+        await self.assert_query_result(
+            # validating that these are all in fact the same value
+            r'''
+                WITH x := {
+                    '       42',
+                    '42     ',
+                    '       42      ',
+                }
+                SELECT <int16>x = 42;
+            ''',
             [True, True, True],
-        ])
+        )
 
     async def test_edgeql_casts_str_11(self):
         # There's too many ways of representing floats. Outside of
         # trivial 1-2 digit cases, relying on any str being
         # "canonical" is not safe, making most casts from str to float
         # lossy.
-        await self.assert_legacy_query_result(r'''
-            WITH x := {'-20', '0', '7.2'}
-            SELECT <str><float32>x = x;
-            WITH x := {'-20', '0', '7.2'}
-            SELECT <str><float64>x = x;
+        await self.assert_query_result(
+            r'''
+                WITH x := {'-20', '0', '7.2'}
+                SELECT <str><float32>x = x;
+            ''',
+            [True, True, True],
+        )
 
+        await self.assert_query_result(
+            r'''
+                WITH x := {'-20', '0', '7.2'}
+                SELECT <str><float64>x = x;
+            ''',
+            [True, True, True],
+        )
+
+        await self.assert_query_result(
             # non-canonical
-            WITH x := {
-                '0.0000000001234',
-                '1234E-13',
-                '0.1234e-9',
-            }
-            SELECT <str><float32>x = x;
-            WITH x := {
-                '0.0000000001234',
-                '1234E-13',
-                '0.1234e-9',
-            }
-            SELECT <str><float64>x = x;
+            r'''
+                WITH x := {
+                    '0.0000000001234',
+                    '1234E-13',
+                    '0.1234e-9',
+                }
+                SELECT <str><float32>x = x;
+            ''',
+            [False, False, False],
+        )
 
+        await self.assert_query_result(
+            r'''
+                WITH x := {
+                    '0.0000000001234',
+                    '1234E-13',
+                    '0.1234e-9',
+                }
+                SELECT <str><float64>x = x;
+            ''',
+            [False, False, False],
+        )
+
+        await self.assert_query_result(
             # validating that these are all in fact the same value
-            WITH x := {
-                '0.0000000001234',
-                '1234E-13',
-                '0.1234e-9',
-            }
-            SELECT <float64>x = 1234e-13;
-        ''', [
+            r'''
+                WITH x := {
+                    '0.0000000001234',
+                    '1234E-13',
+                    '0.1234e-9',
+                }
+                SELECT <float64>x = 1234e-13;
+            ''',
             [True, True, True],
-            [True, True, True],
-
-            [False, False, False],
-            [False, False, False],
-
-            [True, True, True],
-        ])
+        )
 
     async def test_edgeql_casts_str_12(self):
         # The canonical string representation of decimals is without
         # use of scientific notation.
-        await self.assert_legacy_query_result(r'''
-            WITH x := {
-                '-20', '0', '7.2', '0.0000000001234', '1234.00000001234'
-            }
-            SELECT <str><decimal>x = x;
-
-            # non-canonical
-            WITH x := {
-                '1234E-13',
-                '0.1234e-9',
-            }
-            SELECT <str><decimal>x = x;
-
-            # validating that these are all in fact the same date
-            WITH x := {
-                '1234E-13',
-                '0.1234e-9',
-            }
-            SELECT <decimal>x = <decimal>'0.0000000001234';
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH x := {
+                    '-20', '0', '7.2', '0.0000000001234', '1234.00000001234'
+                }
+                SELECT <str><decimal>x = x;
+            ''',
             [True, True, True, True, True],
+        )
+
+        await self.assert_query_result(
+            # non-canonical
+            r'''
+                WITH x := {
+                    '1234E-13',
+                    '0.1234e-9',
+                }
+                SELECT <str><decimal>x = x;
+            ''',
             [False, False],
+        )
+
+        await self.assert_query_result(
+            # validating that these are all in fact the same date
+            r'''
+                WITH x := {
+                    '1234E-13',
+                    '0.1234e-9',
+                }
+                SELECT <decimal>x = <decimal>'0.0000000001234';
+            ''',
             [True, True],
-        ])
+        )
 
     async def test_edgeql_casts_str_13(self):
         # Casting to str and back is lossless for every scalar (if
         # legal). It's still not legal to cast bytes into str or some
         # of the json values.
-        await self.assert_legacy_query_result(r'''
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <uuid><str>T.id = T.id;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <bool><str>T.p_bool = T.p_bool;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <str><str>T.p_str = T.p_str;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <datetime><str>T.p_datetime = T.p_datetime;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <naive_datetime><str>T.p_naive_datetime =
-                T.p_naive_datetime;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <naive_date><str>T.p_naive_date = T.p_naive_date;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <naive_time><str>T.p_naive_time = T.p_naive_time;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <timedelta><str>T.p_timedelta = T.p_timedelta;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <int16><str>T.p_int16 = T.p_int16;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <int32><str>T.p_int32 = T.p_int32;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <int64><str>T.p_int64 = T.p_int64;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <float32><str>T.p_float32 = T.p_float32;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <float64><str>T.p_float64 = T.p_float64;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <decimal><str>T.p_decimal = T.p_decimal;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <uuid><str>T.id = T.id;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <bool><str>T.p_bool = T.p_bool;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <str><str>T.p_str = T.p_str;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <datetime><str>T.p_datetime = T.p_datetime;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <naive_datetime><str>T.p_naive_datetime =
+                    T.p_naive_datetime;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <naive_date><str>T.p_naive_date = T.p_naive_date;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <naive_time><str>T.p_naive_time = T.p_naive_time;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <timedelta><str>T.p_timedelta = T.p_timedelta;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <int16><str>T.p_int16 = T.p_int16;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <int32><str>T.p_int32 = T.p_int32;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <int64><str>T.p_int64 = T.p_int64;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <float32><str>T.p_float32 = T.p_float32;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <float64><str>T.p_float64 = T.p_float64;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <decimal><str>T.p_decimal = T.p_decimal;
+            ''',
             [True],
-        ])
+        )
 
     async def test_edgeql_casts_numeric_01(self):
         # Casting to decimal and back should be lossless for any other
         # integer type.
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
             # technically we're already casting a literal int64 to int16 first
-            WITH x := <int16>{-32768, -32767, -100, 0, 13, 32766, 32767}
-            SELECT <int16><decimal>x = x;
-
-            # technically we're already casting a literal int64 to int32 first
-            WITH x := <int32>{-2147483648, -2147483647, -65536, -100, 0,
-                              13, 32768, 2147483646, 2147483647}
-            SELECT <int32><decimal>x = x;
-
-            WITH x := <int64>{
-                -9223372036854775808,
-                -9223372036854775807,
-                -4294967296,
-                -65536,
-                -100,
-                0,
-                13,
-                65536,
-                4294967296,
-                9223372036854775806,
-                9223372036854775807
-            }
-            SELECT <int64><decimal>x = x;
-        ''', [
+            r'''
+                WITH x := <int16>{-32768, -32767, -100, 0, 13, 32766, 32767}
+                SELECT <int16><decimal>x = x;
+            ''',
             [True, True, True, True, True, True, True],
+        )
+
+        await self.assert_query_result(
+            # technically we're already casting a literal int64 to int32 first
+            r'''
+                WITH x := <int32>{-2147483648, -2147483647, -65536, -100, 0,
+                                  13, 32768, 2147483646, 2147483647}
+                SELECT <int32><decimal>x = x;
+            ''',
             [True, True, True, True, True, True, True, True, True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH x := <int64>{
+                    -9223372036854775808,
+                    -9223372036854775807,
+                    -4294967296,
+                    -65536,
+                    -100,
+                    0,
+                    13,
+                    65536,
+                    4294967296,
+                    9223372036854775806,
+                    9223372036854775807
+                }
+                SELECT <int64><decimal>x = x;
+            ''',
             [True, True, True, True, True, True, True, True, True, True, True],
-        ])
+        )
 
     async def test_edgeql_casts_numeric_02(self):
         # Casting to decimal and back should be lossless for any other
         # float type of low precision (a couple of digits less than
         # the maximum possible float precision).
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
             # technically we're already casting a literal int64 or
             # float64 to float32 first
-            WITH x := <float32>{-3.31234e+38, -1.234e+12, -1.234e-12, -100, 0,
-                                13, 1.234e-12, 1.234e+12, 3.4e+38}
-            SELECT <float32><decimal>x = x;
+            r'''
+                WITH x := <float32>{-3.31234e+38, -1.234e+12, -1.234e-12,
+                                    -100, 0, 13, 1.234e-12, 1.234e+12, 3.4e+38}
+                SELECT <float32><decimal>x = x;
+            ''',
+            [True, True, True, True, True, True, True, True, True],
+        )
 
-            WITH x := <float64>{-1.61234e+308, -1.234e+42, -1.234e-42, -100, 0,
-                                13, 1.234e-42, 1.234e+42, 1.7e+308}
-            SELECT <float64><decimal>x = x;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH x := <float64>{-1.61234e+308, -1.234e+42, -1.234e-42,
+                                    -100, 0, 13, 1.234e-42, 1.234e+42,
+                                    1.7e+308}
+                SELECT <float64><decimal>x = x;
+            ''',
             [True, True, True, True, True, True, True, True, True],
-            [True, True, True, True, True, True, True, True, True],
-        ])
+        )
 
     async def test_edgeql_casts_numeric_03(self):
         # It is especially dangerous to cast an int32 into float32 and
@@ -738,53 +1090,68 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         # obvious errors would be raised (as any int32 value is
         # technically withing valid range of float32), but the value
         # could be mangled.
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
             # ints <= 2^24 can be represented exactly in a float32
+            r'''
             WITH x := <int32>{16777216, 16777215, 16777214,
                               1677721, 167772, 16777}
             SELECT <int32><float32>x = x;
+            ''',
+            [True, True, True, True, True, True],
+        )
 
+        await self.assert_query_result(
             # max int32 -100, -1000
+            r'''
             WITH x := <int32>{2147483548, 2147482648}
             SELECT <int32><float32>x = x;
+            ''',
+            [False, False],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH x := <int32>{2147483548, 2147482648}
             SELECT <int32><float32>x;
-        ''', [
-            [True, True, True, True, True, True],
-            [False, False],
+            ''',
             [2147483520, 2147482624],
-        ])
+        )
 
     async def test_edgeql_casts_numeric_04(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
             # ints <= 2^24 can be represented exactly in a float32
-            WITH x := <int32>{16777216, 16777215, 16777214,
-                              1677721, 167772, 16777}
-            SELECT <int32><float64>x = x;
+            r'''
+                WITH x := <int32>{16777216, 16777215, 16777214,
+                                  1677721, 167772, 16777}
+                SELECT <int32><float64>x = x;
+            ''',
+            [True, True, True, True, True, True],
+        )
 
+        await self.assert_query_result(
             # max int32 -1, -2, -3, -10, -100, -1000
+            r'''
             WITH x := <int32>{2147483647, 2147483646, 2147483645,
                               2147483638, 2147483548, 2147482648}
             SELECT <int32><float64>x = x;
-        ''', [
+            ''',
             [True, True, True, True, True, True],
-            [True, True, True, True, True, True],
-        ])
+        )
 
     async def test_edgeql_casts_numeric_05(self):
         # Due to the sparseness of float values large integers may not
         # be representable exactly if they require better precision
         # than float provides.
-        await self.assert_legacy_query_result(r'''
-            # 2^31 -1, -2, -3, -10
-            WITH x := <int32>{2147483647, 2147483646, 2147483645,
-                              2147483638}
-            # 2147483647 is the max int32
-            SELECT x <= <int32>2147483647;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                # 2^31 -1, -2, -3, -10
+                WITH x := <int32>{2147483647, 2147483646, 2147483645,
+                                  2147483638}
+                # 2147483647 is the max int32
+                SELECT x <= <int32>2147483647;
+            ''',
             [True, True, True, True],
-        ])
+        )
 
         with self.assertRaisesRegex(
                 edgedb.NumericOutOfRangeError, r"integer out of range"):
@@ -815,55 +1182,88 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 """)
 
     async def test_edgeql_casts_numeric_06(self):
-        await self.assert_legacy_query_result(r'''
-            SELECT <int16>1;
-            SELECT <int32>1;
-            SELECT <int64>1;
-            SELECT <float32>1;
-            SELECT <float64>1;
-            SELECT <decimal>1;
-        ''', [
+        await self.assert_query_result(
+            r'''SELECT <int16>1;''',
             [{}],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <int32>1;''',
             [{}],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <int64>1;''',
             [{}],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <float32>1;''',
             [{}],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <float64>1;''',
             [{}],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <decimal>1;''',
             [{}],
-        ])
+        )
 
     async def test_edgeql_casts_numeric_07(self):
         numerics = ['int16', 'int32', 'int64', 'float32', 'float64', 'decimal']
 
         for t1, t2 in itertools.product(numerics, numerics):
-            await self.assert_legacy_query_result(f'''
-                SELECT <{t1}><{t2}>1;
-            ''', [
+            await self.assert_query_result(
+                f'''
+                    SELECT <{t1}><{t2}>1;
+                ''',
                 [{}],
-            ])
+            )
 
     async def test_edgeql_casts_numeric_08(self):
         # Casting a float into a decimal (also true for json and str)
         # is not lossless for arbitrary floats.
-        await self.assert_legacy_query_result(r'''
-            SELECT <float64><decimal>(20/29) = (20/29);
-            SELECT <float32><decimal>(<float32>20/<float32>29) =
-                (<float32>20/<float32>29);
+        await self.assert_query_result(
+            r'''SELECT <float64><decimal>(20/29) = (20/29);''',
+            [False],
+        )
 
-            SELECT <float64><json>(20/29) = (20/29);
-            SELECT <float32><json>(<float32>20/<float32>29) =
-                (<float32>20/<float32>29);
+        await self.assert_query_result(
+            r'''
+                SELECT <float32><decimal>(<float32>20/<float32>29) =
+                    (<float32>20/<float32>29);
+            ''',
+            [False],
+        )
 
-            SELECT <float64><str>(20/29) = (20/29);
-            SELECT <float32><str>(<float32>20/<float32>29) =
-                (<float32>20/<float32>29);
-        ''', [
+        await self.assert_query_result(
+            r'''SELECT <float64><json>(20/29) = (20/29);''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <float32><json>(<float32>20/<float32>29) =
+                    (<float32>20/<float32>29);
+            ''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <float64><str>(20/29) = (20/29);''',
             [False],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <float32><str>(<float32>20/<float32>29) =
+                    (<float32>20/<float32>29);
+            ''',
             [False],
-            [False],
-            [False],
-        ])
+        )
 
     # casting into an abstract scalar should be illegal
     async def test_edgeql_casts_illegal_01(self):
@@ -947,197 +1347,357 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     # reason as casting into str).
 
     async def test_edgeql_casts_json_01(self):
-        await self.assert_legacy_query_result(r'''
-            SELECT <bool><json>True = True;
-            SELECT <bool><json>False = False;
-            SELECT <str><json>"Hello" = 'Hello';
+        await self.assert_query_result(
+            r'''SELECT <bool><json>True = True;''',
+            [True],
+        )
 
-            WITH U := uuid_generate_v1mc()
-            SELECT <uuid><json>U = U;
+        await self.assert_query_result(
+            r'''SELECT <bool><json>False = False;''',
+            [True],
+        )
 
-            SELECT <datetime><json>datetime_of_statement() =
-                datetime_of_statement();
-            SELECT <naive_datetime><json>to_naive_datetime(
-                    '2018-05-07T20:01:22.306916') =
-                to_naive_datetime('2018-05-07T20:01:22.306916');
-            SELECT <naive_date><json>to_naive_date('2018-05-07') =
-                to_naive_date('2018-05-07');
-            SELECT <naive_time><json>to_naive_time('20:01:22.306916') =
-                to_naive_time('20:01:22.306916');
-            SELECT <timedelta><json>to_timedelta(hours:=20) =
-                to_timedelta(hours:=20);
+        await self.assert_query_result(
+            r'''SELECT <str><json>"Hello" = 'Hello';''',
+            [True],
+        )
 
-            SELECT <int16><json>to_int16('12345') = 12345;
-            SELECT <int32><json>to_int32('1234567890') = 1234567890;
-            SELECT <int64><json>to_int64('1234567890123') = 1234567890123;
-            SELECT <float32><json>to_float32('2.5') = 2.5;
-            SELECT <float64><json>to_float64('2.5') = 2.5;
+        await self.assert_query_result(
+            r'''
+                WITH U := uuid_generate_v1mc()
+                SELECT <uuid><json>U = U;
+            ''',
+            [True],
+        )
 
-            SELECT <decimal><json>to_decimal(
+        await self.assert_query_result(
+            r'''
+                SELECT <datetime><json>datetime_of_statement() =
+                    datetime_of_statement();
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <naive_datetime><json>to_naive_datetime(
+                        '2018-05-07T20:01:22.306916') =
+                    to_naive_datetime('2018-05-07T20:01:22.306916');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <naive_date><json>to_naive_date('2018-05-07') =
+                    to_naive_date('2018-05-07');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <naive_time><json>to_naive_time('20:01:22.306916') =
+                    to_naive_time('20:01:22.306916');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <timedelta><json>to_timedelta(hours:=20) =
+                    to_timedelta(hours:=20);
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <int16><json>to_int16('12345') = 12345;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <int32><json>to_int32('1234567890') = 1234567890;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <int64><json>to_int64(
+                    '1234567890123') = 1234567890123;
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <float32><json>to_float32('2.5') = 2.5;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <float64><json>to_float64('2.5') = 2.5;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <decimal><json>to_decimal(
                     '123456789123456789123456789.123456789123456789123456789')
                 = to_decimal(
                     '123456789123456789123456789.123456789123456789123456789');
-        ''', [
+            ''',
             [True],
-            [True],
-            [True],
-
-            [True],
-
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-
-            [True],
-        ])
+        )
 
     async def test_edgeql_casts_json_02(self):
-        await self.assert_legacy_query_result(r'''
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <bool><json>T.p_bool = T.p_bool;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <str><json>T.p_str = T.p_str;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <datetime><json>T.p_datetime = T.p_datetime;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <naive_datetime><json>T.p_naive_datetime =
-                T.p_naive_datetime;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <naive_date><json>T.p_naive_date = T.p_naive_date;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <naive_time><json>T.p_naive_time = T.p_naive_time;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <timedelta><json>T.p_timedelta = T.p_timedelta;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <int16><json>T.p_int16 = T.p_int16;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <int32><json>T.p_int32 = T.p_int32;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <int64><json>T.p_int64 = T.p_int64;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <float32><json>T.p_float32 = T.p_float32;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <float64><json>T.p_float64 = T.p_float64;
-            WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-            SELECT <decimal><json>T.p_decimal = T.p_decimal;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <bool><json>T.p_bool = T.p_bool;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <str><json>T.p_str = T.p_str;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <datetime><json>T.p_datetime = T.p_datetime;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <naive_datetime><json>T.p_naive_datetime =
+                    T.p_naive_datetime;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <naive_date><json>T.p_naive_date = T.p_naive_date;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <naive_time><json>T.p_naive_time = T.p_naive_time;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <timedelta><json>T.p_timedelta = T.p_timedelta;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <int16><json>T.p_int16 = T.p_int16;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <int32><json>T.p_int32 = T.p_int32;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <int64><json>T.p_int64 = T.p_int64;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <float32><json>T.p_float32 = T.p_float32;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <float64><json>T.p_float64 = T.p_float64;
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <decimal><json>T.p_decimal = T.p_decimal;
+            ''',
             [True],
-        ])
+        )
 
     async def test_edgeql_casts_json_03(self):
-        await self.assert_legacy_query_result(r'''
-            WITH
-                MODULE test,
-                T := (SELECT Test FILTER .p_str = 'Hello'),
-                J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
-            SELECT <bool>J.j_bool = T.p_bool;
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    T := (SELECT Test FILTER .p_str = 'Hello'),
+                    J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
+                SELECT <bool>J.j_bool = T.p_bool;
+            ''',
+            [True],
+        )
 
-            WITH
-                MODULE test,
-                T := (SELECT Test FILTER .p_str = 'Hello'),
-                J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
-            SELECT <str>J.j_str = T.p_str;
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    T := (SELECT Test FILTER .p_str = 'Hello'),
+                    J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
+                SELECT <str>J.j_str = T.p_str;
+            ''',
+            [True],
+        )
 
-            WITH
-                MODULE test,
-                T := (SELECT Test FILTER .p_str = 'Hello'),
-                J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
-            SELECT <datetime>J.j_datetime = T.p_datetime;
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    T := (SELECT Test FILTER .p_str = 'Hello'),
+                    J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
+                SELECT <datetime>J.j_datetime = T.p_datetime;
+            ''',
+            [True],
+        )
 
-            WITH
-                MODULE test,
-                T := (SELECT Test FILTER .p_str = 'Hello'),
-                J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
-            SELECT <naive_datetime>J.j_naive_datetime = T.p_naive_datetime;
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    T := (SELECT Test FILTER .p_str = 'Hello'),
+                    J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
+                SELECT <naive_datetime>J.j_naive_datetime = T.p_naive_datetime;
+            ''',
+            [True],
+        )
 
-            WITH
-                MODULE test,
-                T := (SELECT Test FILTER .p_str = 'Hello'),
-                J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
-            SELECT <naive_date>J.j_naive_date = T.p_naive_date;
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    T := (SELECT Test FILTER .p_str = 'Hello'),
+                    J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
+                SELECT <naive_date>J.j_naive_date = T.p_naive_date;
+            ''',
+            [True],
+        )
 
-            WITH
-                MODULE test,
-                T := (SELECT Test FILTER .p_str = 'Hello'),
-                J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
-            SELECT <naive_time>J.j_naive_time = T.p_naive_time;
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    T := (SELECT Test FILTER .p_str = 'Hello'),
+                    J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
+                SELECT <naive_time>J.j_naive_time = T.p_naive_time;
+            ''',
+            [True],
+        )
 
-            WITH
-                MODULE test,
-                T := (SELECT Test FILTER .p_str = 'Hello'),
-                J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
-            SELECT <timedelta>J.j_timedelta = T.p_timedelta;
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    T := (SELECT Test FILTER .p_str = 'Hello'),
+                    J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
+                SELECT <timedelta>J.j_timedelta = T.p_timedelta;
+            ''',
+            [True],
+        )
 
-            WITH
-                MODULE test,
-                T := (SELECT Test FILTER .p_str = 'Hello'),
-                J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
-            SELECT <int16>J.j_int16 = T.p_int16;
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    T := (SELECT Test FILTER .p_str = 'Hello'),
+                    J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
+                SELECT <int16>J.j_int16 = T.p_int16;
+            ''',
+            [True],
+        )
 
-            WITH
-                MODULE test,
-                T := (SELECT Test FILTER .p_str = 'Hello'),
-                J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
-            SELECT <int32>J.j_int32 = T.p_int32;
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    T := (SELECT Test FILTER .p_str = 'Hello'),
+                    J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
+                SELECT <int32>J.j_int32 = T.p_int32;
+            ''',
+            [True],
+        )
 
-            WITH
-                MODULE test,
-                T := (SELECT Test FILTER .p_str = 'Hello'),
-                J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
-            SELECT <int64>J.j_int64 = T.p_int64;
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    T := (SELECT Test FILTER .p_str = 'Hello'),
+                    J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
+                SELECT <int64>J.j_int64 = T.p_int64;
+            ''',
+            [True],
+        )
 
-            WITH
-                MODULE test,
-                T := (SELECT Test FILTER .p_str = 'Hello'),
-                J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
-            SELECT <float32>J.j_float32 = T.p_float32;
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    T := (SELECT Test FILTER .p_str = 'Hello'),
+                    J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
+                SELECT <float32>J.j_float32 = T.p_float32;
+            ''',
+            [True],
+        )
 
-            WITH
-                MODULE test,
-                T := (SELECT Test FILTER .p_str = 'Hello'),
-                J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
-            SELECT <float64>J.j_float64 = T.p_float64;
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    T := (SELECT Test FILTER .p_str = 'Hello'),
+                    J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
+                SELECT <float64>J.j_float64 = T.p_float64;
+            ''',
+            [True],
+        )
 
-            WITH
-                MODULE test,
-                T := (SELECT Test FILTER .p_str = 'Hello'),
-                J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
-            SELECT <decimal>J.j_decimal = T.p_decimal;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    T := (SELECT Test FILTER .p_str = 'Hello'),
+                    J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
+                SELECT <decimal>J.j_decimal = T.p_decimal;
+            ''',
             [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-            [True],
-        ])
+        )
 
     async def test_edgeql_casts_json_04(self):
         self.assertEqual(
@@ -1203,16 +1763,17 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 };
             """)
 
-            await self.assert_legacy_query_result(r"""
-                SELECT ScalarTest {
-                    p_int16,
-                    p_int32,
-                    p_int64,
-                    p_float32,
-                    p_float64,
-                    p_decimal,
-                };
-            """, [
+            await self.assert_query_result(
+                r"""
+                    SELECT ScalarTest {
+                        p_int16,
+                        p_int32,
+                        p_int64,
+                        p_float32,
+                        p_float64,
+                        p_decimal,
+                    };
+                """,
                 [{
                     'p_int16': 1,
                     'p_int32': 1,
@@ -1221,7 +1782,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     'p_float64': 1,
                     'p_decimal': 1,
                 }],
-            ])
+            )
 
             await self.con.execute(r"""
                 DELETE (SELECT ScalarTest FILTER EXISTS (.p_int16 + .p_int32));
@@ -1238,15 +1799,16 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 };
             """)
 
-            await self.assert_legacy_query_result(r"""
-                SELECT ScalarTest {
-                    p_float32,
-                };
-            """, [
+            await self.assert_query_result(
+                r"""
+                    SELECT ScalarTest {
+                        p_float32,
+                    };
+                """,
                 [{
                     'p_float32': 1.5,
                 }],
-            ])
+            )
 
             await self.con.execute(r"""
                 DELETE (SELECT ScalarTest FILTER .p_float32 = 1.5);
@@ -1279,16 +1841,12 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 ''')
 
     async def test_edgeql_casts_custom_scalar_01(self):
-        await self.assert_legacy_query_result('''
-            SELECT <test::custom_str_t>'ABC'
-        ''', [
+        await self.assert_query_result(
+            '''
+                SELECT <test::custom_str_t>'ABC'
+            ''',
             ['ABC']
-        ])
-
-        self.assertEqual(
-            await self.con.fetch(
-                "SELECT <test::custom_str_t>'ABC'"),
-            edgedb.Set(['ABC']))
+        )
 
         with self.assertRaisesRegex(
                 edgedb.ConstraintViolationError,

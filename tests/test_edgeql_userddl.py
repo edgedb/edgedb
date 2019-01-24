@@ -255,13 +255,19 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 $$;
         ''')
 
-        await self.assert_legacy_query_result(r'''
-            SELECT test::func_20('q');
-            SELECT count(test::func_20({'q', 'w'}));
-        ''', [
+        await self.assert_query_result(
+            r'''
+                SELECT test::func_20('q');
+            ''',
             {'q', 'a'},
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT count(test::func_20({'q', 'w'}));
+            ''',
             {4},
-        ])
+        )
 
     async def test_edgeql_userddl_21(self):
         with self.assertRaisesRegex(

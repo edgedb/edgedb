@@ -20,7 +20,6 @@
 import difflib
 import os.path
 import textwrap
-import unittest  # NOQA
 
 import edgedb
 
@@ -53,34 +52,26 @@ class TestDeltas(tb.DDLTestCase):
                 related := (SELECT DETACHED test::NamedObject
                             FILTER .name = 'Test')
             };
+        """)
 
-            SELECT
-                test::NamedObject {
-                    related: {
-                        name,
-                        @lang
+        await self.assert_query_result(
+            r"""
+                SELECT
+                    test::NamedObject {
+                        related: {
+                            name,
+                            @lang
+                        }
                     }
+                FILTER
+                    test::NamedObject.name = 'Test 2';
+            """,
+            [
+                {
+                    'related': [{'name': 'Test', '@lang': None}],
                 }
-            FILTER
-                test::NamedObject.name = 'Test 2';
-            """)
-
-        await self.assert_query_result(r"""
-            SELECT
-                test::NamedObject {
-                    related: {
-                        name,
-                        @lang
-                    }
-                }
-            FILTER
-                test::NamedObject.name = 'Test 2';
-
-            """, [
-            [{
-                'related': [{'name': 'Test', '@lang': None}],
-            }]
-        ])
+            ]
+        )
 
     async def test_delta_drop_01(self):
         # Check that constraints defined on scalars being dropped are
@@ -96,31 +87,35 @@ class TestDeltas(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_query_result(r"""
-            WITH MODULE schema
-            SELECT Constraint {name}
-            FILTER
-                .attributes.name = 'std::description'
-                AND .attributes@value = 'test_delta_drop_01_constraint';
-        """, [
-            [{
-                'name': 'std::enum',
-            }],
-        ])
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT Constraint {name}
+                FILTER
+                    .attributes.name = 'std::description'
+                    AND .attributes@value = 'test_delta_drop_01_constraint';
+            """,
+            [
+                {
+                    'name': 'std::enum',
+                }
+            ],
+        )
 
         await self.con.execute("""
             DROP SCALAR TYPE test::a1;
         """)
 
-        await self.assert_query_result(r"""
-            WITH MODULE schema
-            SELECT Constraint {name}
-            FILTER
-                .attributes.name = 'std::description'
-                AND .attributes@value = 'test_delta_drop_01_constraint';
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT Constraint {name}
+                FILTER
+                    .attributes.name = 'std::description'
+                    AND .attributes@value = 'test_delta_drop_01_constraint';
+            """,
             []
-        ])
+        )
 
     async def test_delta_drop_02(self):
         # Check that links defined on types being dropped are
@@ -133,31 +128,35 @@ class TestDeltas(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_query_result(r"""
-            WITH MODULE schema
-            SELECT Property {name}
-            FILTER
-                .attributes.name = 'std::description'
-                AND .attributes@value = 'test_delta_drop_02_link';
-        """, [
-            [{
-                'name': 'test::l1',
-            }],
-        ])
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT Property {name}
+                FILTER
+                    .attributes.name = 'std::description'
+                    AND .attributes@value = 'test_delta_drop_02_link';
+            """,
+            [
+                {
+                    'name': 'test::l1',
+                }
+            ],
+        )
 
         await self.con.execute("""
             DROP TYPE test::C1;
         """)
 
-        await self.assert_query_result(r"""
-            WITH MODULE schema
-            SELECT Property {name}
-            FILTER
-                .attributes.name = 'std::description'
-                AND .attributes@value = 'test_delta_drop_02_link';
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT Property {name}
+                FILTER
+                    .attributes.name = 'std::description'
+                    AND .attributes@value = 'test_delta_drop_02_link';
+            """,
             []
-        ])
+        )
 
     async def test_delta_unicode_01(self):
         await self.con.execute(r"""
@@ -177,16 +176,17 @@ class TestDeltas(tb.DDLTestCase):
             };
         """)
 
-        await self.assert_query_result(r"""
-            SELECT
-                Пример {
-                    номер
-                }
-            ORDER BY
-                Пример.номер;
-            """, [
+        await self.assert_query_result(
+            r"""
+                SELECT
+                    Пример {
+                        номер
+                    }
+                ORDER BY
+                    Пример.номер;
+            """,
             [{'номер': 456}, {'номер': 987}]
-        ])
+        )
 
 
 class TestDeltaLinkInheritance(tb.DDLTestCase):

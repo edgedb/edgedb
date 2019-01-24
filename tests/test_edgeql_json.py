@@ -19,7 +19,7 @@
 
 import json
 import os.path
-import unittest  # NOQA
+import unittest
 
 import edgedb
 
@@ -36,167 +36,224 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     ISOLATED_METHODS = False
 
     async def test_edgeql_json_cast_01(self):
-        await self.assert_legacy_query_result("""
-            SELECT to_json('"qwerty"');
-            SELECT to_json('1');
-            SELECT to_json('2.3e-2');
-
-            SELECT to_json('true');
-            SELECT to_json('false');
-            SELECT to_json('null');
-
-            SELECT to_json('[2, "a", 3.456]');
-            SELECT to_json('[2, "a", 3.456, [["b", 1]]]');
-
-            SELECT to_json('{
-                "a": 1,
-                "b": 2.87,
-                "c": [2, "a", 3.456],
-                "d": {
-                    "d1": 1,
-                    "d2": {
-                        "d3": true
-                    }
-                },
-                "e": null,
-                "f": false
-            }');
-        """, [
+        await self.assert_query_result(
+            r'''SELECT to_json('"qwerty"');''',
+            # JSON:
             ['qwerty'],
-            [{}],
+            # Binary:
+            ['"qwerty"'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_json('1');''',
+            # JSON:
+            [1],
+            # Binary:
+            ['1'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_json('2.3e-2');''',
+            # JSON:
             [0.023],
+            # Binary:
+            ['0.023'],
+        )
 
+        await self.assert_query_result(
+            r'''SELECT to_json('true');''',
+            # JSON:
             [True],
+            # Binary:
+            ['true'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_json('false');''',
+            # JSON:
             [False],
-            [None],  # JSON null
+            # Binary:
+            ['false'],
+        )
 
+        await self.assert_query_result(
+            r'''SELECT to_json('null');''',
+            # JSON:
+            [None],
+            # Binary:
+            ['null'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_json('[2, "a", 3.456]');''',
+            # JSON:
             [[2, 'a', 3.456]],
-            [[2, 'a', 3.456, [['b', 1]]]],
+            # Binary:
+            ['[2, "a", 3.456]'],
+        )
 
-            [{
-                'a': 1,
-                'b': 2.87,
-                'c': [2, 'a', 3.456],
-                'd': {
-                    'd1': 1,
-                    'd2': {
-                        'd3': True
-                    }
-                },
-                'e': None,  # JSON null
-                'f': False
-            }],
-        ])
+        await self.assert_query_result(
+            r'''SELECT to_json('[2, "a", 3.456, [["b", 1]]]');''',
+            # JSON:
+            [[2, 'a', 3.456, [['b', 1]]]],
+            # Binary:
+            ['[2, "a", 3.456, [["b", 1]]]']
+        )
 
     async def test_edgeql_json_cast_02(self):
-        await self.assert_legacy_query_result("""
-            SELECT <str>to_json('"qwerty"');
-            SELECT <int64>to_json('1');
-            SELECT <float64>to_json('2.3e-2');
-
-            SELECT <bool>to_json('true');
-            SELECT <bool>to_json('false');
-        """, [
+        await self.assert_query_result(
+            r'''SELECT <str>to_json('"qwerty"');''',
             ['qwerty'],
-            [{}],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <int64>to_json('1');''',
+            [1],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <float64>to_json('2.3e-2');''',
             [0.023],
+        )
 
+        await self.assert_query_result(
+            r'''SELECT <bool>to_json('true');''',
             [True],
-            [False],
+        )
 
-        ])
+        await self.assert_query_result(
+            r'''SELECT <bool>to_json('false');''',
+            [False],
+        )
 
     async def test_edgeql_json_cast_03(self):
-        await self.assert_legacy_query_result("""
-            SELECT <str>to_json('null');
-            SELECT <int64>to_json('null');
-            SELECT <float64>to_json('null');
-            SELECT <bool>to_json('null');
-        """, [
+        await self.assert_query_result(
+            r'''SELECT <str>to_json('null');''',
             [],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <int64>to_json('null');''',
             [],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <float64>to_json('null');''',
             [],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <bool>to_json('null');''',
             [],
-        ])
+        )
 
     async def test_edgeql_json_cast_04(self):
-        await self.assert_legacy_query_result("""
-            SELECT <str>to_json('null') ?= <str>{};
-            SELECT <int64>to_json('null') ?= <int64>{};
-            SELECT <float64>to_json('null') ?= <float64>{};
-            SELECT <bool>to_json('null') ?= <bool>{};
-        """, [
+        await self.assert_query_result(
+            r'''SELECT <str>to_json('null') ?= <str>{};''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <int64>to_json('null') ?= <int64>{};''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <float64>to_json('null') ?= <float64>{};''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <bool>to_json('null') ?= <bool>{};''',
             [True],
-        ])
+        )
 
     async def test_edgeql_json_cast_05(self):
-        await self.assert_legacy_query_result("""
-            SELECT <json>{} ?= (
-                SELECT x := to_json('1') FILTER x = to_json('2')
-            );
-            SELECT <json>{} ?= to_json('null');
-        """, [
+        await self.assert_query_result(
+            """
+                SELECT <json>{} ?= (
+                    SELECT x := to_json('1') FILTER x = to_json('2')
+                );
+            """,
             [True],
+        )
+
+        await self.assert_query_result(
+            """SELECT <json>{} ?= to_json('null');""",
             [False],
-        ])
+        )
 
     @unittest.expectedFailure
     async def test_edgeql_json_cast_06(self):
         # XXX: casting into tuples or other deeply nested structures
         # is not currently implemented
-        await self.assert_legacy_query_result(r"""
-            SELECT <tuple<int64, str>><json>[1, 2];
-            SELECT <array<int64>>to_json('[2, 3, 5]');
-        """, [
+        await self.assert_query_result(
+            r'''SELECT <tuple<int64, str>><json>[1, 2];''',
             [[1, '2']],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <array<int64>>to_json('[2, 3, 5]');''',
             [[2, 3, 5]],
-        ])
+        )
 
     async def test_edgeql_json_accessor_01(self):
-        await self.assert_legacy_query_result("""
-            SELECT (to_json('[1, "a", 3]'))[0] = to_json('1');
-            SELECT (to_json('[1, "a", 3]'))[1] = to_json('"a"');
-            SELECT (to_json('[1, "a", 3]'))[2] = to_json('3');
+        await self.assert_query_result(
+            r'''SELECT (to_json('[1, "a", 3]'))[0] = to_json('1');''',
+            [True],
+        )
 
-            SELECT (to_json('[1, "a", 3]'))[<int16>0] = to_json('1');
-            SELECT (to_json('[1, "a", 3]'))[<int32>0] = to_json('1');
-        """, [
+        await self.assert_query_result(
+            r'''SELECT (to_json('[1, "a", 3]'))[1] = to_json('"a"');''',
             [True],
-            [True],
-            [True],
+        )
 
+        await self.assert_query_result(
+            r'''SELECT (to_json('[1, "a", 3]'))[2] = to_json('3');''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT (to_json('[1, "a", 3]'))[<int16>0] = to_json('1');''',
             [True],
-        ])
+        )
+
+        await self.assert_query_result(
+            r'''SELECT (to_json('[1, "a", 3]'))[<int32>0] = to_json('1');''',
+            [True],
+        )
 
     async def test_edgeql_json_accessor_02(self):
-        await self.assert_legacy_query_result("""
-            SELECT (to_json('{"a": 1, "b": null}'))["a"] =
-                to_json('1');
+        await self.assert_query_result(
+            r'''
+                SELECT (to_json('{"a": 1, "b": null}'))["a"] =
+                    to_json('1');
+            ''',
+            [True],
+        )
 
+        await self.assert_query_result(
+            r'''
             SELECT (to_json('{"a": 1, "b": null}'))["b"] =
                 to_json('null');
-        """, [
+            ''',
             [True],
-            [True],
-        ])
+        )
 
     async def test_edgeql_json_accessor_03(self):
-        await self.assert_legacy_query_result("""
-            SELECT (<str>(to_json('["qwerty"]'))[0])[1];
-        """, [
+        await self.assert_query_result(
+            """
+                SELECT (<str>(to_json('["qwerty"]'))[0])[1];
+            """,
             ['w'],
-        ])
+        )
 
     async def test_edgeql_json_accessor_04(self):
         with self.assertRaisesRegex(
                 # FIXME: maybe a different error type should be used here
                 edgedb.InternalServerError,
                 r'json index 10 is out of bounds'):
-            await self.con.execute(r"""
+            await self.con.fetch(r"""
                 SELECT (to_json('[1, "a", 3]'))[10];
             """)
 
@@ -205,7 +262,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 # FIXME: maybe a different error type should be used here
                 edgedb.InternalServerError,
                 r'json index -10 is out of bounds'):
-            await self.con.execute(r"""
+            await self.con.fetch(r"""
                 SELECT (to_json('[1, "a", 3]'))[-10];
             """)
 
@@ -215,7 +272,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 # one leaks postgres types
                 edgedb.InternalServerError,
                 r'cannot index json array by text'):
-            await self.con.execute(r"""
+            await self.con.fetch(r"""
                 SELECT (to_json('[1, "a", 3]'))['1'];
             """)
 
@@ -224,7 +281,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 # FIXME: maybe a different error type should be used here
                 edgedb.InternalServerError,
                 r"json index 'c' is out of bounds"):
-            await self.con.execute(r"""
+            await self.con.fetch(r"""
                 SELECT (to_json('{"a": 1, "b": null}'))["c"];
             """)
 
@@ -244,7 +301,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 # one leaks postgres types
                 edgedb.InternalServerError,
                 r'cannot index json null'):
-            await self.con.execute(r"""
+            await self.con.fetch(r"""
                 SELECT (to_json('null'))[0];
             """)
 
@@ -278,25 +335,32 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             """)
 
     async def test_edgeql_json_accessor_13(self):
-        await self.assert_legacy_query_result(r"""
-            SET MODULE test;
+        await self.con.execute('SET MODULE test;')
 
-            WITH JT3 := (SELECT JSONTest FILTER .number = 3)
-            SELECT JT3.data[4]['b']['bar'][2]['bingo'];
-            WITH JT3 := (SELECT JSONTest FILTER .number = 3)
-            SELECT JT3.data[4]['b']['bar'][-1]['bingo'];
-        """, [
-            None,
+        await self.assert_query_result(
+            r"""
+                WITH JT3 := (SELECT JSONTest FILTER .number = 3)
+                SELECT JT3.data[4]['b']['bar'][2]['bingo'];
+            """,
             ['42!'],
+            ['"42!"'],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH JT3 := (SELECT JSONTest FILTER .number = 3)
+                SELECT JT3.data[4]['b']['bar'][-1]['bingo'];
+            """,
             ['42!'],
-        ])
+            ['"42!"'],
+        )
 
     async def test_edgeql_json_accessor_14(self):
         with self.assertRaisesRegex(
                 # FIXME: maybe a different error type should be used here
                 edgedb.InternalServerError,
                 r'json index 10 is out of bounds'):
-            await self.con.execute(r"""
+            await self.con.fetch(r"""
                 WITH
                     MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -308,7 +372,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 # FIXME: maybe a different error type should be used here
                 edgedb.InternalServerError,
                 r'json index -10 is out of bounds'):
-            await self.con.execute(r"""
+            await self.con.fetch(r"""
                 WITH
                     MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -321,7 +385,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 # one leaks postgres types
                 edgedb.InternalServerError,
                 r'cannot index json array by text'):
-            await self.con.execute(r"""
+            await self.con.fetch(r"""
                 WITH
                     MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -346,7 +410,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 # one leaks postgres types
                 edgedb.InternalServerError,
                 r'cannot index json object by bigint'):
-            await self.con.execute(r"""
+            await self.con.fetch(r"""
                 WITH
                     MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -385,7 +449,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 # one leaks postgres types
                 edgedb.InternalServerError,
                 r'cannot index json number'):
-            await self.con.execute(r"""
+            await self.con.fetch(r"""
                 WITH
                     MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -405,89 +469,151 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             """)
 
     async def test_edgeql_json_null_01(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT (
-                SELECT JSONTest FILTER .number = 0
-            ).data ?= <json>{};
-
-            WITH MODULE test
-            SELECT (
-                SELECT JSONTest FILTER .number = 0
-            ).data ?= to_json('null');
-
-            WITH MODULE test
-            SELECT (
-                SELECT JSONTest FILTER .number = 2
-            ).data ?= <json>{};
-
-            WITH MODULE test
-            SELECT (
-                SELECT JSONTest FILTER .number = 2
-            ).data ?= to_json('null');
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT (
+                    SELECT JSONTest FILTER .number = 0
+                ).data ?= <json>{};
+            ''',
             {False},
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT (
+                    SELECT JSONTest FILTER .number = 0
+                ).data ?= to_json('null');
+            ''',
             {True},
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT (
+                    SELECT JSONTest FILTER .number = 2
+                ).data ?= <json>{};
+            ''',
             {True},
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT (
+                    SELECT JSONTest FILTER .number = 2
+                ).data ?= to_json('null');
+            ''',
             {False},
-        ])
+        )
 
     async def test_edgeql_json_typeof_01(self):
-        await self.assert_legacy_query_result(r"""
-            SELECT json_typeof(to_json('2'));
-            SELECT json_typeof(to_json('"foo"'));
-            SELECT json_typeof(to_json('true'));
-            SELECT json_typeof(to_json('false'));
-            SELECT json_typeof(to_json('null'));
-            SELECT json_typeof(to_json('[]'));
-            SELECT json_typeof(to_json('[2]'));
-            SELECT json_typeof(to_json('{}'));
-            SELECT json_typeof(to_json('{"a": 2}'));
-            SELECT json_typeof(<json>{});
-        """, [
+        await self.assert_query_result(
+            r'''SELECT json_typeof(to_json('2'));''',
             ['number'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT json_typeof(to_json('"foo"'));''',
             ['string'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT json_typeof(to_json('true'));''',
             ['boolean'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT json_typeof(to_json('false'));''',
             ['boolean'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT json_typeof(to_json('null'));''',
             ['null'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT json_typeof(to_json('[]'));''',
             ['array'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT json_typeof(to_json('[2]'));''',
             ['array'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT json_typeof(to_json('{}'));''',
             ['object'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT json_typeof(to_json('{"a": 2}'));''',
             ['object'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT json_typeof(<json>{});''',
             [],
-        ])
+        )
 
     async def test_edgeql_json_typeof_02(self):
-        await self.assert_legacy_sorted_query_result(r'''
-            SET MODULE test;
-            SELECT json_typeof(JSONTest.j_string);
-            SELECT json_typeof(JSONTest.j_number);
-            SELECT json_typeof(JSONTest.j_boolean);
-            SELECT json_typeof(JSONTest.j_array);
-            SELECT json_typeof(JSONTest.j_object);
-            SELECT json_typeof(JSONTest.data);
-        ''', lambda x: x, [
-            None,
+        await self.con.execute('SET MODULE test;')
+        await self.assert_query_result(
+            r'''SELECT json_typeof(JSONTest.j_string);''',
             ['string', 'string', 'string'],
+            sort=True,
+        )
+
+        await self.assert_query_result(
+            r'''SELECT json_typeof(JSONTest.j_number);''',
             ['number', 'number', 'number'],
+            sort=True,
+        )
+
+        await self.assert_query_result(
+            r'''SELECT json_typeof(JSONTest.j_boolean);''',
             ['boolean', 'boolean', 'boolean'],
+            sort=True,
+        )
+
+        await self.assert_query_result(
+            r'''SELECT json_typeof(JSONTest.j_array);''',
             ['array', 'array', 'array'],
+            sort=True,
+        )
+
+        await self.assert_query_result(
+            r'''SELECT json_typeof(JSONTest.j_object);''',
             ['object', 'object'],
+            sort=True,
+        )
+
+        await self.assert_query_result(
+            r'''SELECT json_typeof(JSONTest.data);''',
             ['array', 'null', 'object'],
-        ])
+            sort=True,
+        )
 
     async def test_edgeql_json_array_unpack_01(self):
-        await self.assert_legacy_query_result("""
-            SELECT json_array_unpack(to_json('[1, "a", null]'));
-        """, [
-            [1, 'a', None],  # None is legitimate JSON null
-        ])
+        await self.assert_query_result(
+            """
+                SELECT json_array_unpack(to_json('[1, "a", null]'));
+            """,
+            # JSON:
+            [1, 'a', None],
+            # Binary:
+            ['1', '"a"', 'null'],
+        )
 
     async def test_edgeql_json_array_unpack_02(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"operator 'IN' cannot.*'std::json' and 'std::int64'"):
-            await self.con.execute(r'''
+            await self.con.fetch(r'''
                 SELECT json_array_unpack(to_json('[2,3,4]')) IN
                     {2, 3, 4};
             ''')
@@ -496,27 +622,33 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"operator 'IN' cannot.*'std::json' and 'std::str'"):
-            await self.con.execute(r'''
+            await self.con.fetch_json(r'''
                 SELECT json_array_unpack(to_json('[2,3,4]')) IN
                     {'2', '3', '4'};
             ''')
 
     async def test_edgeql_json_array_unpack_04(self):
-        await self.assert_legacy_query_result(r'''
-            SELECT json_array_unpack(to_json('[2,3,4]')) IN
-                <json>{2, 3, 4};
-            SELECT json_array_unpack(to_json('[2,3,4]')) NOT IN
-                <json>{2, 3, 4};
-        ''', [
+        await self.assert_query_result(
+            r'''
+                SELECT json_array_unpack(to_json('[2,3,4]')) IN
+                    <json>{2, 3, 4};
+            ''',
             [True, True, True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT json_array_unpack(to_json('[2,3,4]')) NOT IN
+                    <json>{2, 3, 4};
+            ''',
             [False, False, False],
-        ])
+        )
 
     async def test_edgeql_json_array_unpack_05(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"operator '=' cannot.*'std::json' and 'std::int64'"):
-            await self.con.execute(r'''
+            await self.con.fetch_json(r'''
                 WITH
                     MODULE test,
                     JT0 := (SELECT JSONTest FILTER .number = 0)
@@ -524,91 +656,135 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_json_array_unpack_06(self):
-        await self.assert_legacy_query_result(r'''
-            WITH
-                MODULE test,
-                JT0 := (SELECT JSONTest FILTER .number = 0)
-            # unpacking [1, 1, 1]
-            SELECT json_array_unpack(JT0.j_array) = to_json('1');
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    JT0 := (SELECT JSONTest FILTER .number = 0)
+                # unpacking [1, 1, 1]
+                SELECT json_array_unpack(JT0.j_array) = to_json('1');
+            ''',
             [True, True, True],
-        ])
+        )
 
     async def test_edgeql_json_array_unpack_07(self):
-        await self.assert_legacy_query_result(r'''
-            WITH
-                MODULE test,
-                JT0 := (SELECT JSONTest FILTER .number = 2)
-            # unpacking [2, "q", [3], {}, null], should preserve the
-            # order
-            SELECT array_agg(json_array_unpack(JT0.j_array)) =
-                <array<json>>JT0.j_array;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    JT0 := (SELECT JSONTest FILTER .number = 2)
+                # unpacking [2, "q", [3], {}, null], should preserve the
+                # order
+                SELECT array_agg(json_array_unpack(JT0.j_array)) =
+                    <array<json>>JT0.j_array;
+            ''',
             [True],
-        ])
+        )
 
     async def test_edgeql_json_array_unpack_08(self):
-        await self.assert_legacy_query_result(r'''
-            WITH
-                MODULE test,
-                JT0 := (SELECT JSONTest FILTER .number = 2)
-            # unpacking [2, "q", [3], {}, null], should preserve the
-            # order
-            SELECT json_typeof(json_array_unpack(JT0.j_array));
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    JT0 := (SELECT JSONTest FILTER .number = 2)
+                # unpacking [2, "q", [3], {}, null], should preserve the
+                # order
+                SELECT json_typeof(json_array_unpack(JT0.j_array));
+            ''',
             ['number', 'string', 'array', 'object', 'null'],
-        ])
+        )
 
     async def test_edgeql_json_object_01(self):
-        await self.assert_legacy_query_result(r'''
-            SELECT to_json('{"a":1,"b":2}') = to_json('{"b":2,"a":1}');
-            SELECT to_json('{"a":1,"b":2}') =
-                to_json('{"b":3,"a":1,"b":2}');
-        ''', [
+        await self.assert_query_result(
+            r'''
+                SELECT to_json('{"a":1,"b":2}') =
+                    to_json('{"b":2,"a":1}');
+            ''',
             [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT to_json('{"a":1,"b":2}') =
+                    to_json('{"b":3,"a":1,"b":2}');
+            ''',
             [True],
-        ])
+        )
 
     async def test_edgeql_json_object_unpack_01(self):
-        await self.assert_legacy_sorted_query_result(r'''
-            SELECT json_object_unpack(to_json('{
-                "q": 1,
-                "w": [2, null, 3],
-                "e": null
-            }'));
-        ''', lambda x: x[0], [[
-            # Nones in the output are legitimate JSON nulls
-            ['e', None],
-            ['q', 1],
-            ['w', [2, None, 3]],
-        ]])
+        await self.assert_query_result(
+            r'''
+                SELECT json_object_unpack(to_json('{
+                    "q": 1,
+                    "w": [2, null, 3],
+                    "e": null
+                }'));
+            ''',
+            # JSON:
+            [
+                # Nones in the output are legitimate JSON nulls
+                ['e', None],
+                ['q', 1],
+                ['w', [2, None, 3]],
+            ],
+            # Binary:
+            [
+                ['e', 'null'],
+                ['q', '1'],
+                ['w', '[2, null, 3]'],
+            ],
+            sort=lambda x: x[0],
+        )
 
     async def test_edgeql_json_object_unpack_02(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT
-                _ := json_object_unpack(JSONTest.j_object)
-            ORDER BY _.0 THEN _.1;
-
-            WITH MODULE test
-            SELECT json_object_unpack(JSONTest.j_object) =
-                ('c', to_json('1'));
-
-            WITH MODULE test
-            SELECT json_object_unpack(JSONTest.j_object).0 IN {'a', 'b', 'c'};
-
-            WITH MODULE test
-            SELECT json_object_unpack(JSONTest.j_object).1 IN <json>{1, 2};
-
-            WITH MODULE test
-            SELECT json_object_unpack(JSONTest.j_object).1 IN <json>{'1', '2'};
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT
+                    _ := json_object_unpack(JSONTest.j_object)
+                ORDER BY _.0 THEN _.1;
+            ''',
+            # JSON:
             [['a', 1], ['b', 1], ['b', 2], ['c', 2]],
+            # Binary:
+            [['a', '1'], ['b', '1'], ['b', '2'], ['c', '2']],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT json_object_unpack(JSONTest.j_object) =
+                    ('c', to_json('1'));
+            ''',
             [False, False, False, False],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT json_object_unpack(JSONTest.j_object).0 IN
+                    {'a', 'b', 'c'};
+            ''',
             [True, True, True, True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT json_object_unpack(JSONTest.j_object).1 IN
+                    <json>{1, 2};
+            ''',
             [True, True, True, True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT json_object_unpack(JSONTest.j_object).1 IN
+                    <json>{'1', '2'};
+            ''',
             [False, False, False, False],
-        ])
+        )
 
     async def test_edgeql_json_object_unpack_03(self):
         with self.assertRaisesRegex(
@@ -616,7 +792,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 # one leaks postgres types
                 edgedb.InternalServerError,
                 r'cannot call jsonb_each on a non-object'):
-            await self.con.execute(r'''
+            await self.con.fetch_json(r'''
                 WITH
                     MODULE test,
                     JT0 := (SELECT JSONTest FILTER .number = 0)
@@ -625,159 +801,289 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_json_object_unpack_04(self):
-        await self.assert_legacy_query_result(r'''
-            WITH
-                MODULE test,
-                JT1 := (SELECT JSONTest FILTER .number = 1),
-                JT2 := (SELECT JSONTest FILTER .number = 2)
-            SELECT (
-                count(json_object_unpack(JT1.data)),
-                count(json_object_unpack(JT2.data)),
-            );
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    JT1 := (SELECT JSONTest FILTER .number = 1),
+                    JT2 := (SELECT JSONTest FILTER .number = 2)
+                SELECT (
+                    count(json_object_unpack(JT1.data)),
+                    count(json_object_unpack(JT2.data)),
+                );
+            ''',
             [[0, 0]],
-        ])
+        )
 
     async def test_edgeql_json_get_01(self):
-        await self.assert_legacy_query_result(r'''
-            SET MODULE test;
+        await self.con.execute('SET MODULE test')
 
+        await self.assert_query_result(
+            r'''
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, '2');
+            ''',
+            # JSON
+            {'Fraka'},
+            # Binary
+            {'"Fraka"'}
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, '-1');
+            ''',
+            # JSON
+            {True},
+            # Binary
+            {"true"}
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, '100');
+            ''',
+            {},
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, 'foo');
+            ''',
+            {},
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, '0', 'b', 'bar', '2', 'bingo');
+            ''',
+            {},
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, '1', 'b', 'bar', '2', 'bingo');
+            ''',
+            {},
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, '2', 'b', 'bar', '2', 'bingo');
+            ''',
+            {},
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, '3', 'b', 'bar', '2', 'bingo');
+            ''',
+            {},
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, '4', 'b', 'bar', '2', 'bingo');
+            ''',
+            # JSON
+            {'42!'},
+            # Binary
+            {'"42!"'}
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, '4', 'b', 'foo', '2', 'bingo');
-        ''', [
-            None,
-            {'Fraka'},
-            {True},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {'42!'},
-            {},
-        ])
+            ''',
+            {}
+        )
 
     async def test_edgeql_json_get_02(self):
         # since only one JSONTest has a non-trivial `data`, we
         # don't need to filter to get the same results as above
-        await self.assert_legacy_query_result(r'''
-            SET MODULE test;
 
-            SELECT json_get(JSONTest.data, '2');
-            SELECT json_get(JSONTest.data, '-1');
-            SELECT json_get(JSONTest.data, '100');
-            SELECT json_get(JSONTest.data, 'foo');
+        await self.con.execute('SET MODULE test')
 
-            SELECT json_get(JSONTest.data, '0', 'b', 'bar', '2', 'bingo');
-            SELECT json_get(JSONTest.data, '1', 'b', 'bar', '2', 'bingo');
-            SELECT json_get(JSONTest.data, '2', 'b', 'bar', '2', 'bingo');
-            SELECT json_get(JSONTest.data, '3', 'b', 'bar', '2', 'bingo');
-            SELECT json_get(JSONTest.data, '4', 'b', 'bar', '2', 'bingo');
-            SELECT json_get(JSONTest.data, '4', 'b', 'foo', '2', 'bingo');
-        ''', [
-            None,
+        await self.assert_query_result(
+            r'''SELECT json_get(JSONTest.data, '2');''',
             {'Fraka'},
+            {'"Fraka"'},
+        )
+
+        await self.assert_query_result(
+            r'''SELECT json_get(JSONTest.data, '-1');''',
             {True},
+            {'true'},
+        )
+
+        await self.assert_query_result(
+            r'''SELECT json_get(JSONTest.data, '100');''',
             {},
+        )
+
+        await self.assert_query_result(
+            r'''SELECT json_get(JSONTest.data, 'foo');''',
             {},
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT json_get(JSONTest.data, '0', 'b', 'bar', '2', 'bingo');
+            ''',
             {},
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT json_get(JSONTest.data, '1', 'b', 'bar', '2', 'bingo');
+            ''',
             {},
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT json_get(JSONTest.data, '2', 'b', 'bar', '2', 'bingo');
+            ''',
             {},
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT json_get(JSONTest.data, '3', 'b', 'bar', '2', 'bingo');
+            ''',
             {},
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT json_get(JSONTest.data, '4', 'b', 'bar', '2', 'bingo');
+            ''',
             {'42!'},
-            {},
-        ])
+            {'"42!"'},
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT json_get(JSONTest.data, '4', 'b', 'foo', '2', 'bingo');
+            ''',
+            {}
+        )
 
     async def test_edgeql_json_get_03(self):
         # chaining json_get should get the same effect as a single call
-        await self.assert_legacy_query_result(r'''
-            SET MODULE test;
 
-            SELECT json_get(JSONTest.data, '4', 'b', 'bar', '2', 'bingo');
-            SELECT json_get(json_get(json_get(json_get(json_get(
-                JSONTest.data, '4'), 'b'), 'bar'), '2'), 'bingo');
-            SELECT json_get(json_get(
-                JSONTest.data, '4', 'b'), 'bar', '2', 'bingo');
-        ''', [
-            None,
+        await self.con.execute('SET MODULE test')
+
+        await self.assert_query_result(
+            r'''
+                SELECT json_get(JSONTest.data, '4', 'b', 'bar', '2', 'bingo');
+            ''',
             {'42!'},
+            {'"42!"'},
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT json_get(json_get(json_get(json_get(json_get(
+                    JSONTest.data, '4'), 'b'), 'bar'), '2'), 'bingo');
+            ''',
             {'42!'},
+            {'"42!"'},
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT json_get(json_get(
+                    JSONTest.data, '4', 'b'), 'bar', '2', 'bingo');
+            ''',
             {'42!'},
-        ])
+            {'"42!"'},
+        )
 
     async def test_edgeql_json_get_04(self):
-        await self.assert_legacy_query_result(r'''
-            SET MODULE test;
+        await self.con.execute('SET MODULE test')
 
-            SELECT json_get(JSONTest.data, 'bogus') ?? <json>'oups';
-
-            SELECT json_get(
-                JSONTest.data, '4', 'b', 'bar', '2', 'bogus',
-                default := <json>'hello'
-            ) ?? <json>'oups';
-
-            SELECT json_get(
-                JSONTest.data, '4', 'b', 'bar', '2', 'bogus',
-                default := <json>''
-            ) ?? <json>'oups';
-
-            SELECT json_get(
-                JSONTest.data, '4', 'b', 'bar', '2', 'bogus',
-                default := to_json('null')
-            ) ?? <json>'oups';
-
-            SELECT json_get(
-                JSONTest.data, '4', 'b', 'bar', '2', 'bogus',
-                default := <json>{}
-            ) ?? <json>'oups';
-
-            SELECT json_get(
-                JSONTest.data, '4', 'b', 'bar', '2', 'bingo',
-                default := <json>''
-            ) ?? <json>'oups';
-
-            SELECT json_get(
-                JSONTest.data, '4', 'b', 'bar', '2', 'bingo'
-            ) ?? <json>'oups';
-        ''', [
-            None,  # SET MODULE
+        await self.assert_query_result(
+            r'''SELECT json_get(JSONTest.data, 'bogus') ?? <json>'oups';''',
+            # JSON
             ['oups'],
+            # Binary
+            ['"oups"'],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT json_get(
+                    JSONTest.data, '4', 'b', 'bar', '2', 'bogus',
+                    default := <json>'hello'
+                ) ?? <json>'oups';
+            ''',
             ['hello', 'hello', 'hello'],
+            ['"hello"', '"hello"', '"hello"'],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT json_get(
+                    JSONTest.data, '4', 'b', 'bar', '2', 'bogus',
+                    default := <json>''
+                ) ?? <json>'oups';
+            ''',
             ['', '', ''],
-            # Nones are legitimate JSON nulls used as defaults
+            ['""', '""', '""'],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT json_get(
+                    JSONTest.data, '4', 'b', 'bar', '2', 'bogus',
+                    default := to_json('null')
+                ) ?? <json>'oups';
+            ''',
             [None, None, None],
+            ['null', 'null', 'null'],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT json_get(
+                    JSONTest.data, '4', 'b', 'bar', '2', 'bogus',
+                    default := <json>{}
+                ) ?? <json>'oups';
+            ''',
             ['oups'],
+            ['"oups"'],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT json_get(
+                    JSONTest.data, '4', 'b', 'bar', '2', 'bingo',
+                    default := <json>''
+                ) ?? <json>'oups';
+            ''',
             ['', '', '42!'],
-            ['42!']
-        ])
+            ['""', '""', '"42!"'],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT json_get(
+                    JSONTest.data, '4', 'b', 'bar', '2', 'bingo'
+                ) ?? <json>'oups';
+            ''',
+            ['42!'],
+            ['"42!"']
+        )
 
     async def test_edgeql_json_cast_object_to_json_01(self):
         res = await self.con.fetch("""
@@ -802,133 +1108,156 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_cast_object_to_json_02(self):
         # Test that object-to-json cast works in non-SELECT clause.
-        await self.assert_legacy_query_result("""
-            WITH MODULE schema
-            SELECT
-                ScalarType {
-                    name
-                }
-            FILTER
-                to_str(<json>(ScalarType {name})) LIKE '%std::json%';
-        """, [
+        await self.assert_query_result(
+            """
+                WITH MODULE schema
+                SELECT
+                    ScalarType {
+                        name
+                    }
+                FILTER
+                    to_str(<json>(ScalarType {name})) LIKE '%std::json%';
+            """,
             [{
                 'name': 'std::json',
             }]
-        ])
+        )
 
     async def test_edgeql_json_cast_object_to_json_03(self):
         # Test that object-to-json cast works in tuples as well.
-        await self.assert_legacy_query_result("""
-            WITH MODULE schema
-            SELECT
-                True
-            FILTER
-                to_str(
-                    (
-                        <tuple<json>>(
-                            (
-                                SELECT Object {
-                                    name,
-                                    foo := 'bar',
-                                }
-                                FILTER Object.name = 'std::json'
-                            ),
-                        )
-                    ).0
-                )
-                LIKE '%std%';
-        """, [
+        await self.assert_query_result(
+            """
+                WITH MODULE schema
+                SELECT
+                    True
+                FILTER
+                    to_str(
+                        (
+                            <tuple<json>>(
+                                (
+                                    SELECT Object {
+                                        name,
+                                        foo := 'bar',
+                                    }
+                                    FILTER Object.name = 'std::json'
+                                ),
+                            )
+                        ).0
+                    )
+                    LIKE '%std%';
+            """,
             [True],
-        ])
+        )
 
     async def test_edgeql_json_cast_object_to_json_04(self):
         # Test that object-to-json cast works in arrays as well.
-        await self.assert_legacy_query_result("""
-            WITH MODULE schema
-            SELECT
-                True
-            FILTER
-                to_str(<json>[(
-                    SELECT Object {
-                        name,
-                        foo := 'bar',
-                    }
-                    FILTER Object.name = 'std::json'
-                )])
-                LIKE '%std%';
-        """, [
+        await self.assert_query_result(
+            """
+                WITH MODULE schema
+                SELECT
+                    True
+                FILTER
+                    to_str(<json>[(
+                        SELECT Object {
+                            name,
+                            foo := 'bar',
+                        }
+                        FILTER Object.name = 'std::json'
+                    )])
+                    LIKE '%std%';
+            """,
             [True],
-        ])
+        )
 
     async def test_edgeql_json_cast_object_to_json_05(self):
-        await self.assert_legacy_sorted_query_result(r"""
-            # base case
-            WITH MODULE test
-            SELECT
-                JSONTest {number, edb_string};
-
-            WITH MODULE test
-            SELECT
-                JSONTest {number, edb_string}
-            FILTER
-                # casting all the way to the original type with a
-                # strict `=` will discard objects with empty `edb_string`
-                .edb_string =
-                    <str>(<json>(JSONTest{edb_string}))['edb_string'];
-
-            WITH MODULE test
-            SELECT
-                JSONTest {number, edb_string}
-            FILTER
-                # strict `=` will discard objects with empty `edb_string`
-                <json>.edb_string =
-                    (<json>(JSONTest{edb_string}))['edb_string'];
-
-            WITH MODULE test
-            SELECT
-                JSONTest {number, edb_string}
-            FILTER
-                # casting all the way to the original type with a
-                # weak `?=` will not discard anything
-                .edb_string ?=
-                    <str>(<json>(JSONTest{edb_string}))['edb_string'];
-
-            WITH MODULE test
-            SELECT
-                JSONTest {number, edb_string}
-            FILTER
-                # casting both sides into json combined with a
-                # weak `?=` will discard objects with empty `edb_string`
-                <json>.edb_string ?=
-                    (<json>(JSONTest{edb_string}))['edb_string'];
-        """, lambda x: x['number'], [
+        await self.assert_query_result(
+            r"""
+                # base case
+                WITH MODULE test
+                SELECT
+                    JSONTest {number, edb_string};
+            """,
             [
                 {'number': 0, 'edb_string': 'jumps'},
                 {'number': 1, 'edb_string': 'over'},
                 {'number': 2, 'edb_string': None},
                 {'number': 3, 'edb_string': None},
             ],
+            sort=lambda x: x['number'],
+        )
 
-
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT
+                    JSONTest {number, edb_string}
+                FILTER
+                    # casting all the way to the original type with a
+                    # strict `=` will discard objects with empty `edb_string`
+                    .edb_string =
+                        <str>(<json>(JSONTest{edb_string}))['edb_string'];
+            """,
             [
                 {'number': 0, 'edb_string': 'jumps'},
                 {'number': 1, 'edb_string': 'over'},
             ],
+            sort=lambda x: x['number'],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT
+                    JSONTest {number, edb_string}
+                FILTER
+                    # strict `=` will discard objects with empty `edb_string`
+                    <json>.edb_string =
+                        (<json>(JSONTest{edb_string}))['edb_string'];
+            """,
             [
                 {'number': 0, 'edb_string': 'jumps'},
                 {'number': 1, 'edb_string': 'over'},
             ],
+            sort=lambda x: x['number'],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT
+                    JSONTest {number, edb_string}
+                FILTER
+                    # casting all the way to the original type with a
+                    # weak `?=` will not discard anything
+                    .edb_string ?=
+                        <str>(<json>(JSONTest{edb_string}))['edb_string'];
+            """,
             [
                 {'number': 0, 'edb_string': 'jumps'},
                 {'number': 1, 'edb_string': 'over'},
                 {'number': 2, 'edb_string': None},
                 {'number': 3, 'edb_string': None},
             ],
+            sort=lambda x: x['number'],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT
+                    JSONTest {number, edb_string}
+                FILTER
+                    # casting both sides into json combined with a
+                    # weak `?=` will discard objects with empty `edb_string`
+                    <json>.edb_string ?=
+                        (<json>(JSONTest{edb_string}))['edb_string'];
+            """,
             [
                 {'number': 0, 'edb_string': 'jumps'},
                 {'number': 1, 'edb_string': 'over'},
             ],
-        ])
+            sort=lambda x: x['number'],
+        )
 
     async def test_edgeql_json_cast_tuple_to_json_01(self):
         res = await self.con.fetch("""
@@ -970,52 +1299,98 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         )
 
     async def test_edgeql_json_slice_01(self):
-        await self.assert_legacy_query_result(r'''
-            SELECT to_json('[1, "a", 3, null]')[:1];
-            SELECT to_json('[1, "a", 3, null]')[:-1];
-            SELECT to_json('[1, "a", 3, null]')[1:-1];
-            SELECT to_json('[1, "a", 3, null]')[-1:1];
-            SELECT to_json('[1, "a", 3, null]')[-100:100];
-            SELECT to_json('[1, "a", 3, null]')[100:-100];
-        ''', [
+        await self.assert_query_result(
+            r'''SELECT to_json('[1, "a", 3, null]')[:1];''',
             [[1]],
+            ['[1]'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_json('[1, "a", 3, null]')[:-1];''',
             [[1, 'a', 3]],
+            ['[1, "a", 3]'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_json('[1, "a", 3, null]')[1:-1];''',
             [['a', 3]],
+            ['["a", 3]'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_json('[1, "a", 3, null]')[-1:1];''',
             [[]],
+            ['[]'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_json('[1, "a", 3, null]')[-100:100];''',
             [[1, 'a', 3, None]],
+            ['[1, "a", 3, null]'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_json('[1, "a", 3, null]')[100:-100];''',
             [[]],
-        ])
+            ['[]'],
+        )
 
     async def test_edgeql_json_slice_02(self):
-        await self.assert_legacy_query_result(r'''
-            SET MODULE test;
+        await self.con.execute('SET MODULE test;')
 
+        await self.assert_query_result(
+            r'''
             WITH JT2 := (SELECT JSONTest FILTER .number = 2)
             SELECT JT2.j_array[:1];
+            ''',
+            [[2]],
+            ['[2]'],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH JT2 := (SELECT JSONTest FILTER .number = 2)
             SELECT JT2.j_array[:-1];
+            ''',
+            [[2, "q", [3], {}]],
+            ['[2, "q", [3], {}]'],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH JT2 := (SELECT JSONTest FILTER .number = 2)
             SELECT JT2.j_array[1:-1];
+            ''',
+            [["q", [3], {}]],
+            ['["q", [3], {}]'],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH JT2 := (SELECT JSONTest FILTER .number = 2)
             SELECT JT2.j_array[-1:1];
+            ''',
+            [[]],
+            ['[]'],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH JT2 := (SELECT JSONTest FILTER .number = 2)
             SELECT JT2.j_array[-100:100];
+            ''',
+            [[2, "q", [3], {}, None]],
+            ['[2, "q", [3], {}, null]'],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH JT2 := (SELECT JSONTest FILTER .number = 2)
             SELECT JT2.j_array[100:-100];
-        ''', [
-            None,
-            [[2]],
-            [[2, "q", [3], {}]],
-            [["q", [3], {}]],
+            ''',
             [[]],
-            [[2, "q", [3], {}, None]],  # None is a legitimate JSON null
-            [[]],
-        ])
+            ['[]'],
+        )
 
     async def test_edgeql_json_slice_03(self):
         with self.assertRaisesRegex(
@@ -1034,19 +1409,41 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             """)
 
     async def test_edgeql_json_view_01(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT _ := json_get(JSONTest.j_array, '0')
             ORDER BY _;
+            ''',
+            # JSON
+            [1, 2],
+            # Binary
+            ['1', '2'],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT _ := json_get(JSONTest.j_array, '10')
             ORDER BY _;
+            ''',
+            [],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT _ := json_get(JSONTest.j_array, {'-1', '4'})
             ORDER BY _;
+            ''',
+            # JSON
+            [None, None, 1],
+            # Binary
+            ['null', 'null', '1'],
+        )
 
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT _ := json_get(
                 JSONTest.data,
@@ -1058,16 +1455,16 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 {'2', '4', '4'}, {'0', 'b'}, {'bar', 'foo'}, {'1', '2'}
             )
             ORDER BY _;
-        ''', [
-            [1, 2],
-            [],
-            # Nones in the output are legitimate JSON nulls
-            [None, None, 1],
+            ''',
+            # JSON
             [None, None, {'bingo': '42!'}, {'bingo': '42!'}],
-        ])
+            # Binary
+            ['null', 'null', '{"bingo": "42!"}', '{"bingo": "42!"}']
+        )
 
     async def test_edgeql_json_view_02(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH MODULE test
             SELECT _ := json_get(
                 JSONTest.data,
@@ -1080,17 +1477,23 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 default := <json>'N/A'
             )
             ORDER BY _;
-        ''', [
+            ''',
+
+            # JSON:
             # We expect 3 * 2 * 2 * 2 = 24 results per JSONTest.data.
             # There are 3 non-empty data properties. Out of them all
             # only 4 will have a valid path. So we expect 24 * 3 - 4 =
             # 68 default 'N/A' results, 2 JSON `nulls` represented as
             # `None` and 2 JSON objects.
             [None, None] + ['N/A'] * 68 + [{'bingo': '42!'}, {'bingo': '42!'}],
-        ])
+
+            # Binary:
+            ['null'] * 2 + ['"N/A"'] * 68 + ['{"bingo": "42!"}'] * 2,
+        )
 
     async def test_edgeql_json_view_03(self):
-        await self.assert_legacy_query_result(r'''
+        await self.assert_query_result(
+            r'''
             WITH
                 MODULE test,
                 JT := JSONTest
@@ -1121,7 +1524,8 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 )
             }
             FILTER .number = 0;
-        ''', [
+            ''',
+            # JSON
             [{
                 'a0': [1, 2],
                 'a1': [],
@@ -1129,40 +1533,55 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 'a2': [None, None, 1],
                 'a3': [None, None, {'bingo': '42!'}, {'bingo': '42!'}],
             }],
-        ])
+            # Binary
+            [{
+                'a0': ['1', '2'],
+                'a1': [],
+                # Nones in the output are legitimate JSON nulls
+                'a2': ['null', 'null', '1'],
+                'a3': ['null', 'null', '{"bingo": "42!"}', '{"bingo": "42!"}'],
+            }],
+        )
 
     async def test_edgeql_json_view_04(self):
-        await self.assert_legacy_query_result(r'''
-            WITH MODULE test
-            SELECT _ := json_get(
-                JSONTest.data,
-                '0', '1', '2',
-                default := <json>{'N/A', 'nope', '-'}
-            )
-            ORDER BY _;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT _ := json_get(
+                    JSONTest.data,
+                    '0', '1', '2',
+                    default := <json>{'N/A', 'nope', '-'}
+                )
+                ORDER BY _;
+            ''',
+            # JSON:
             # None of the 3 data objects have the path 0, 1, 2, so we
             # expect default values in the result in triplicate.
             ['-', '-', '-', 'N/A', 'N/A', 'N/A', 'nope', 'nope', 'nope'],
-        ])
+            # Binary:
+            ['"-"', '"-"', '"-"', '"N/A"', '"N/A"', '"N/A"',
+             '"nope"', '"nope"', '"nope"'],
+        )
 
     async def test_edgeql_json_view_05(self):
-        await self.assert_legacy_query_result(r'''
-            WITH
-                MODULE test,
-                JT := JSONTest
-            SELECT JSONTest {
-                a4 := (
-                    SELECT _ := json_get(
-                        JT.data,
-                        '0', '1', '2',
-                        default := <json>{'N/A', 'nope', '-'}
-                    )
-                    ORDER BY _
-                ),
-            }
-            FILTER .number = 0;
-        ''', [
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    JT := JSONTest
+                SELECT JSONTest {
+                    a4 := (
+                        SELECT _ := json_get(
+                            JT.data,
+                            '0', '1', '2',
+                            default := <json>{'N/A', 'nope', '-'}
+                        )
+                        ORDER BY _
+                    ),
+                }
+                FILTER .number = 0;
+            ''',
+            # JSON
             [{
                 'a4': [
                     '-', '-', '-',
@@ -1170,23 +1589,33 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                     'nope', 'nope', 'nope'
                 ],
             }],
-        ])
+            # Binary
+            [{
+                'a4': [
+                    '"-"', '"-"', '"-"',
+                    '"N/A"', '"N/A"', '"N/A"',
+                    '"nope"', '"nope"', '"nope"'
+                ],
+            }],
+        )
 
     async def test_edgeql_json_str_function_01(self):
-        await self.assert_legacy_query_result(r'''
-            SELECT to_str(<json>[1, 2, 3, 4]);
-            SELECT to_str(<json>[1, 2, 3, 4], 'pretty');
-        ''', [
+        await self.assert_query_result(
+            r'''SELECT to_str(<json>[1, 2, 3, 4]);''',
             {'[1, 2, 3, 4]'},
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_str(<json>[1, 2, 3, 4], 'pretty');''',
             {'[\n    1,\n    2,\n    3,\n    4\n]'},
-        ])
+        )
 
     async def test_edgeql_json_str_function_02(self):
         with self.assertRaisesRegex(
                 edgedb.InternalServerError,
                 r"format 'foo' is invalid for JSON"):
             async with self.con.transaction():
-                await self.con.execute(r'''
+                await self.con.fetch(r'''
                     SELECT to_str(<json>[1, 2, 3, 4], 'foo');
                 ''')
 
@@ -1194,7 +1623,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 edgedb.InternalServerError,
                 r"format '' is invalid for JSON"):
             async with self.con.transaction():
-                await self.con.execute(r'''
+                await self.con.fetch_json(r'''
                     SELECT to_str(<json>[1, 2, 3, 4], '');
                 ''')
 
@@ -1202,7 +1631,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 edgedb.InternalServerError,
                 r"format 'PRETTY' is invalid for JSON"):
             async with self.con.transaction():
-                await self.con.execute(r'''
+                await self.con.fetch(r'''
                     SELECT to_str(<json>[1, 2, 3, 4], 'PRETTY');
                 ''')
 
@@ -1210,7 +1639,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 edgedb.InternalServerError,
                 r"format 'Pretty' is invalid for JSON"):
             async with self.con.transaction():
-                await self.con.execute(r'''
+                await self.con.fetch_json(r'''
                     SELECT to_str(<json>[1, 2, 3, 4], 'Pretty');
                 ''')
 
@@ -1218,6 +1647,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 edgedb.InternalServerError,
                 r"format 'p' is invalid for JSON"):
             async with self.con.transaction():
-                await self.con.execute(r'''
+                await self.con.fetch(r'''
                     SELECT to_str(<json>[1, 2, 3, 4], 'p');
                 ''')

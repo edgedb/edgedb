@@ -25,7 +25,7 @@ from edb.testbase import server as tb
 class TestEdgeQLTutorial(tb.QueryTestCase):
 
     async def test_edgeql_tutorial(self):
-        await self.assert_legacy_query_result('''
+        await self.con.execute('''
             CREATE MIGRATION m1 TO eschema $$
                 type User:
                     required property login -> str:
@@ -165,68 +165,50 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
                     }),
                 }
             };
+        ''')
 
-            SELECT
-                PullRequest {
-                    title,
-                    created_on,
-                    author: {
-                    login
-                    },
-                    assignees: {
-                    login
+        await self.assert_query_result(
+            r'''
+                SELECT
+                    PullRequest {
+                        title,
+                        created_on,
+                        author: {
+                        login
+                        },
+                        assignees: {
+                        login
+                        }
                     }
-                }
-            FILTER
-                .status = "Open"
-            ORDER BY
-                .created_on DESC;
-
-            WITH
-                name := 'bob'
-            SELECT
-                PullRequest {
-                    title,
-                    created_on,
-                    num_comments := count(PullRequest.comments)
-                }
-            FILTER
-                .author.login = name OR
-                .comments.author.login = name
-            ORDER BY
-                .created_on DESC;
-
-            SELECT AuthoredText {
-                body,
-                __type__: {
-                    name
-                }
-            }
-            FILTER .author.login = 'carol'
-            ORDER BY .body;
-
-            DELETE (
-                SELECT AuthoredText
-                FILTER .author.login = 'carol'
-            );
-        ''', [
-            None,
-            None,
-            None,
-            None,
-            [{}],
-            [{}],
-            [{}],
-            [{}],
-            [{}],
-            [{}],
-            [{}],
+                FILTER
+                    .status = "Open"
+                ORDER BY
+                    .created_on DESC;
+            ''',
             [{
                 'assignees': [{'login': 'bob'}, {'login': 'dave'}],
                 'author': {'login': 'carol'},
                 'created_on': '2016-04-25T18:57:00+00:00',
                 'title': 'Pyhton -> Python'
             }],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH
+                    name := 'bob'
+                SELECT
+                    PullRequest {
+                        title,
+                        created_on,
+                        num_comments := count(PullRequest.comments)
+                    }
+                FILTER
+                    .author.login = name OR
+                    .comments.author.login = name
+                ORDER BY
+                    .created_on DESC;
+            ''',
             [{
                 'created_on': '2016-04-25T18:57:00+00:00',
                 'num_comments': 3,
@@ -236,6 +218,20 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
                 'num_comments': 1,
                 'title': 'Avoid attaching multiple scopes at once'
             }],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT AuthoredText {
+                    body,
+                    __type__: {
+                        name
+                    }
+                }
+                FILTER .author.login = 'carol'
+                ORDER BY .body;
+
+            ''',
             [{
                 '__type__': {'name': 'default::Comment'},
                 'body': 'Couple of typos are fixed. Updated VS count.'
@@ -243,5 +239,11 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
                 '__type__': {'name': 'default::PullRequest'},
                 'body': 'Several typos fixed.'
             }],
-            [{}, {}],
-        ])
+        )
+
+        await self.con.execute('''
+            DELETE (
+                SELECT AuthoredText
+                FILTER .author.login = 'carol'
+            );
+        ''')

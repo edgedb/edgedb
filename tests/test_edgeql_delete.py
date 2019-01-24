@@ -57,21 +57,23 @@ class TestDelete(tb.QueryTestCase):
             };
         """)
 
-        await self.assert_query_result(r"""
-            SELECT test::DeleteTest;
-        """, [
+        await self.assert_query_result(
+            r"""
+                SELECT test::DeleteTest;
+            """,
             [{}],
-        ])
+        )
 
         await self.con.execute(r"""
             DELETE test::DeleteTest;
         """)
 
-        await self.assert_query_result(r"""
-            SELECT test::DeleteTest;
-        """, [
+        await self.assert_query_result(
+            r"""
+                SELECT test::DeleteTest;
+            """,
             [],
-        ])
+        )
 
     async def test_edgeql_delete_simple_02(self):
         id1 = str((await self.con.fetch_value(r"""
@@ -86,50 +88,56 @@ class TestDelete(tb.QueryTestCase):
             }) LIMIT 1;
         """)).id)
 
-        await self.assert_query_result(r"""
-            WITH MODULE test
-            DELETE (SELECT DeleteTest
-                    FILTER DeleteTest.name = 'bad name');
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                DELETE (SELECT DeleteTest
+                        FILTER DeleteTest.name = 'bad name');
+            """,
             [],
-        ])
+        )
 
-        await self.assert_query_result(r"""
-            WITH MODULE test
-            SELECT DeleteTest ORDER BY DeleteTest.name;
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT DeleteTest ORDER BY DeleteTest.name;
+            """,
             [{'id': id1}, {'id': id2}],
-        ])
+        )
 
-        await self.assert_query_result(r"""
-            WITH MODULE test
-            SELECT (DELETE (SELECT DeleteTest
-                    FILTER DeleteTest.name = 'delete-test1'));
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT (DELETE (SELECT DeleteTest
+                        FILTER DeleteTest.name = 'delete-test1'));
+            """,
             [{'id': id1}],
-        ])
+        )
 
-        await self.assert_query_result(r"""
-            WITH MODULE test
-            SELECT DeleteTest ORDER BY DeleteTest.name;
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT DeleteTest ORDER BY DeleteTest.name;
+            """,
             [{'id': id2}],
-        ])
+        )
 
-        await self.assert_query_result(r"""
-            WITH MODULE test
-            SELECT (DELETE (SELECT DeleteTest
-                    FILTER DeleteTest.name = 'delete-test2'));
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT (DELETE (SELECT DeleteTest
+                        FILTER DeleteTest.name = 'delete-test2'));
+            """,
             [{'id': id2}],
-        ])
+        )
 
-        await self.assert_query_result(r"""
-            WITH MODULE test
-            SELECT DeleteTest ORDER BY DeleteTest.name;
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT DeleteTest ORDER BY DeleteTest.name;
+            """,
             [],
-        ])
+        )
 
     async def test_edgeql_delete_returning_01(self):
         id1 = str((await self.con.fetch_value(r"""
@@ -147,34 +155,37 @@ class TestDelete(tb.QueryTestCase):
             };
         """)
 
-        await self.assert_query_result(r"""
-            WITH MODULE test
-            SELECT (DELETE (SELECT DeleteTest
-                    FILTER DeleteTest.name = 'delete-test1'));
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT (DELETE (SELECT DeleteTest
+                        FILTER DeleteTest.name = 'delete-test1'));
+            """,
             [{'id': id1}],
-        ])
+        )
 
-        await self.assert_query_result(r"""
-            WITH
-                MODULE test,
-                D := (DELETE (SELECT DeleteTest
-                    FILTER DeleteTest.name = 'delete-test2'))
-            SELECT D {name};
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                    D := (DELETE (SELECT DeleteTest
+                        FILTER DeleteTest.name = 'delete-test2'))
+                SELECT D {name};
+            """,
             [{'name': 'delete-test2'}],
-        ])
+        )
 
-        await self.assert_query_result(r"""
-            WITH MODULE test
-            SELECT
-                (DELETE (
-                    SELECT DeleteTest
-                    FILTER DeleteTest.name = 'delete-test3'
-                )).name ++ '--DELETED';
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT
+                    (DELETE (
+                        SELECT DeleteTest
+                        FILTER DeleteTest.name = 'delete-test3'
+                    )).name ++ '--DELETED';
+            """,
             ['delete-test3--DELETED'],
-        ])
+        )
 
     async def test_edgeql_delete_returning_02(self):
         await self.con.execute(r"""
@@ -189,12 +200,13 @@ class TestDelete(tb.QueryTestCase):
             };
         """)
 
-        await self.assert_query_result(r"""
-            WITH D := (DELETE test::DeleteTest)
-            SELECT count(D);
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH D := (DELETE test::DeleteTest)
+                SELECT count(D);
+            """,
             [3],
-        ])
+        )
 
     async def test_edgeql_delete_returning_03(self):
         await self.con.execute(r"""
@@ -217,27 +229,29 @@ class TestDelete(tb.QueryTestCase):
             };
         """)
 
-        await self.assert_query_result(r"""
-            WITH
-                MODULE test,
-                D := (DELETE DeleteTest)
-            SELECT DeleteTest2 {
-                name,
-                foo := 'bar'
-            } FILTER DeleteTest2.name LIKE D.name[:2] ++ '%';
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                    D := (DELETE DeleteTest)
+                SELECT DeleteTest2 {
+                    name,
+                    foo := 'bar'
+                } FILTER DeleteTest2.name LIKE D.name[:2] ++ '%';
+            """,
             [{
                 'name': 'dt2.1',
                 'foo': 'bar',
             }],
-        ])
+        )
 
-        await self.assert_query_result(r"""
-            WITH MODULE test
-            SELECT (DELETE DeleteTest2) { name };
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT (DELETE DeleteTest2) { name };
+            """,
             [{}, {}],
-        ])
+        )
 
     async def test_edgeql_delete_returning_04(self):
         await self.con.execute(r"""
@@ -256,31 +270,33 @@ class TestDelete(tb.QueryTestCase):
             };
         """)
 
-        await self.assert_query_result(r"""
-            WITH
-                MODULE test,
-                # make sure that aliased deletion works as an expression
-                #
-                Q := (DELETE DeleteTest)
-            SELECT DeleteTest2 {
-                name,
-                count := count(Q),
-            } FILTER DeleteTest2.name = 'dt2.1';
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                    # make sure that aliased deletion works as an expression
+                    #
+                    Q := (DELETE DeleteTest)
+                SELECT DeleteTest2 {
+                    name,
+                    count := count(Q),
+                } FILTER DeleteTest2.name = 'dt2.1';
+            """,
             [{
                 'name': 'dt2.1',
                 'count': 3,
             }],
-        ])
+        )
 
-        await self.assert_query_result(r"""
-            WITH MODULE test
-            SELECT (DELETE DeleteTest2) {name};
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT (DELETE DeleteTest2) {name};
+            """,
             [{
                 'name': 'dt2.1',
             }],
-        ])
+        )
 
     async def test_edgeql_delete_returning_05(self):
         await self.con.execute(r"""
@@ -299,29 +315,31 @@ class TestDelete(tb.QueryTestCase):
             };
         """)
 
-        await self.assert_query_result(r"""
-            WITH
-                MODULE test,
-                D := (DELETE DeleteTest)
-            # the returning clause is actually trying to simulate
-            # returning "stats" of deleted objects
-            #
-            SELECT DeleteTest2 {
-                name,
-                count := count(D),
-            } FILTER DeleteTest2.name = 'dt2.1';
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                    D := (DELETE DeleteTest)
+                # the returning clause is actually trying to simulate
+                # returning "stats" of deleted objects
+                #
+                SELECT DeleteTest2 {
+                    name,
+                    count := count(D),
+                } FILTER DeleteTest2.name = 'dt2.1';
+            """,
             [{
                 'name': 'dt2.1',
                 'count': 3
             }],
-        ])
+        )
 
-        await self.assert_query_result(r"""
-            WITH MODULE test
-            SELECT (DELETE DeleteTest2) {name};
-        """, [
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT (DELETE DeleteTest2) {name};
+            """,
             [{
                 'name': 'dt2.1',
             }],
-        ])
+        )
