@@ -104,6 +104,8 @@ cdef class EdgeConnection:
         self._write_buf = None
 
         self.debug = debug.flags.server_proto
+        self.query_cache_enabled = not (debug.flags.disable_qcache or
+                                        debug.flags.edgeql_compile)
 
     def debug_print(self, *args):
         print(
@@ -175,7 +177,8 @@ cdef class EdgeConnection:
 
             # XXX implement auth
             self.dbview = self.server.new_view(
-                dbname=database, user=user)
+                dbname=database, user=user,
+                query_cache=self.query_cache_enabled)
             self.backend = await self.server.new_backend(
                 dbname=database, dbver=self.dbview.dbver)
 

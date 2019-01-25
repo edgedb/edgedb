@@ -101,6 +101,9 @@ class flags(metaclass=FlagsMeta):
     print_locals = Flag(
         doc="Include values of local variables in tracebacks.")
 
+    disable_qcache = Flag(
+        doc="Disable server query cache. Parse/Execute will always recompile.")
+
 
 def header(*args):
     print('=' * 80)

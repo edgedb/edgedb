@@ -77,8 +77,9 @@ class Server:
     def get_loop(self):
         return self._loop
 
-    def new_view(self, *, dbname, user):
-        return self._dbindex.new_view(dbname, user=user)
+    def new_view(self, *, dbname, user, query_cache):
+        return self._dbindex.new_view(
+            dbname, user=user, query_cache=query_cache)
 
     async def new_backend(self, *, dbname: str, dbver: int):
         return await self._backend_manager.new_backend(

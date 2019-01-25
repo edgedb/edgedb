@@ -61,16 +61,18 @@ class Database:
 
         self._eql_to_compiled[key] = compiled
 
-    def _new_view(self, *, user):
-        return DatabaseConnectionView(self, user=user)
+    def _new_view(self, *, user, query_cache):
+        return DatabaseConnectionView(self, user=user, query_cache=query_cache)
 
 
 class DatabaseConnectionView:
 
     _eql_to_compiled: typing.Mapping[bytes, dbstate.QueryUnit]
 
-    def __init__(self, db: Database, *, user):
+    def __init__(self, db: Database, *, user, query_cache):
         self._db = db
+
+        self._query_cache_enabled = query_cache
 
         self._user = user
 
@@ -160,7 +162,7 @@ class DatabaseConnectionView:
             self, eql: bytes,
             json_mode: bool) -> typing.Optional[dbstate.QueryUnit]:
 
-        if self._tx_error:
+        if self._tx_error or not self._query_cache_enabled:
             return None
 
         compiled: dbstate.QueryUnit
@@ -244,6 +246,8 @@ class DatabaseIndex:
             self._dbs[dbname] = db
         return db
 
-    def new_view(self, dbname: str, *, user: str) -> DatabaseConnectionView:
+    def new_view(self, dbname: str, *,
+                 user: str,
+                 query_cache: bool) -> DatabaseConnectionView:
         db = self._get_db(dbname)
-        return db._new_view(user=user)
+        return db._new_view(user=user, query_cache=query_cache)

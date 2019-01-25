@@ -70,6 +70,7 @@ cdef class EdgeConnection:
         WriteBuffer _write_buf
 
         bint debug
+        bint query_cache_enabled
 
     cdef int32_t compute_parse_flags(self, compiled) except -1
     cdef is_json_mode(self, bytes mode)
