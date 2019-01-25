@@ -128,7 +128,7 @@ class RaiseExceptionFunction(dbops.Function):
             name=('edgedb', '_raise_exception'),
             args=[('msg', ('text',)), ('rtype', ('anyelement',))],
             returns=('anyelement',),
-            volatility='immutable',
+            volatility='volatile',
             language='plpgsql',
             text=self.text)
 
@@ -150,7 +150,7 @@ class RaiseSpecificExceptionFunction(dbops.Function):
             args=[('exc', ('text',)), ('msg', ('text',)), ('det', ('text',)),
                   ('rtype', ('anyelement',))],
             returns=('anyelement',),
-            volatility='immutable',
+            volatility='volatile',
             language='plpgsql',
             text=self.text)
 
@@ -168,7 +168,7 @@ class RaiseExceptionOnNullFunction(dbops.Function):
             args=[('val', ('anyelement',)), ('exc', ('text',)),
                   ('msg', ('text',)), ('det', ('text',))],
             returns=('anyelement',),
-            volatility='immutable',
+            volatility='volatile',
             text=self.text)
 
 
@@ -189,7 +189,7 @@ class RaiseExceptionOnEmptyStringFunction(dbops.Function):
             args=[('val', ('anyelement',)), ('exc', ('text',)),
                   ('msg', ('text',)), ('det', ('text',))],
             returns=('anyelement',),
-            volatility='immutable',
+            volatility='volatile',
             text=self.text)
 
 
@@ -219,7 +219,7 @@ class AssertJSONTypeFunction(dbops.Function):
             args=[('val', ('jsonb',)), ('typenames', ('text[]',)),
                   ('msg', ('text',), 'NULL'), ('det', ('text',), "''")],
             returns=('jsonb',),
-            volatility='immutable',
+            volatility='volatile',
             text=self.text)
 
 
@@ -238,7 +238,7 @@ class ExtractJSONScalarFunction(dbops.Function):
             args=[('val', ('jsonb',)), ('json_typename', ('text',)),
                   ('msg', ('text',), 'NULL'), ('det', ('text',), "''")],
             returns=('text',),
-            volatility='immutable',
+            volatility='volatile',
             text=self.text)
 
 
@@ -371,7 +371,7 @@ class ResolveSimpleTypeIdFunction(dbops.Function):
             name=('edgedb', '_resolve_type_id'),
             args=[('type', ('text',))],
             returns=('uuid',),
-            volatility='stable',
+            volatility='volatile',
             text=self.text,
             strict=True)
 
@@ -411,7 +411,7 @@ class ResolveSimpleTypeNameFunction(dbops.Function):
             name=('edgedb', '_resolve_type_name'),
             args=[('type', ('uuid',))],
             returns=('text',),
-            volatility='stable',
+            volatility='volatile',
             text=self.text,
             strict=True)
 
@@ -429,7 +429,7 @@ class ResolveSimpleTypeNameListFunction(dbops.Function):
             name=('edgedb', '_resolve_type_name'),
             args=[('type_data', ('uuid[]',))],
             returns=('text[]',),
-            volatility='stable',
+            volatility='volatile',
             text=self.text,
             strict=True)
 
@@ -1014,7 +1014,7 @@ class ParseTriggerConditionFunction(dbops.Function):
                 ('definition', 'text'),
             ],
             returns='text',
-            volatility='immutable',
+            volatility='stable',
             language='plpgsql',
             text=self.__class__.text)
 
@@ -1058,7 +1058,7 @@ class ArrayIndexWithBoundsFunction(dbops.Function):
             args=[('val', ('anyarray',)), ('index', ('bigint',)),
                   ('det', ('text',))],
             returns=('anyelement',),
-            volatility='immutable',
+            volatility='volatile',
             strict=True,
             text=self.text)
 
@@ -1112,7 +1112,7 @@ class StringIndexWithBoundsFunction(dbops.Function):
             args=[('val', ('text',)), ('index', ('bigint',)),
                   ('det', ('text',))],
             returns=('text',),
-            volatility='immutable',
+            volatility='volatile',
             strict=True,
             text=self.text)
 
@@ -1137,7 +1137,7 @@ class BytesIndexWithBoundsFunction(dbops.Function):
             args=[('val', ('bytea',)), ('index', ('bigint',)),
                   ('det', ('text',))],
             returns=('bytea',),
-            volatility='immutable',
+            volatility='volatile',
             strict=True,
             text=self.text)
 
@@ -1313,7 +1313,7 @@ class JSONIndexByTextFunction(dbops.Function):
             args=[('val', ('jsonb',)), ('index', ('text',)),
                   ('det', ('text',))],
             returns=('jsonb',),
-            volatility='immutable',
+            volatility='volatile',
             strict=True,
             text=self.text)
 
@@ -1356,7 +1356,7 @@ class JSONIndexByIntFunction(dbops.Function):
             args=[('val', ('jsonb',)), ('index', ('bigint',)),
                   ('det', ('text',))],
             returns=('jsonb',),
-            volatility='immutable',
+            volatility='volatile',
             strict=True,
             text=self.text)
 
@@ -1380,7 +1380,7 @@ class JSONSliceFunction(dbops.Function):
             args=[('val', ('jsonb',)), ('start', ('bigint',)),
                   ('stop', ('bigint',))],
             returns=('jsonb',),
-            volatility='immutable',
+            volatility='volatile',
             text=self.text)
 
 
