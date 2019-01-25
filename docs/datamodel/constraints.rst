@@ -110,8 +110,8 @@ Parameters
     If specified, the constraint is defined as *delegated*, which means
     that it will not be enforced on the type it's declared on, and
     the enforcement will be delegated to the subtypes of this type.
-    This is particularly useful for ``unique`` constraints in abstract
-    types.
+    This is particularly useful for :eql:constraint:`std::exclusive`
+    constraints in abstract types.
 
 :eschema:synopsis:`<constr_name>`
     The name of the previously defined abstract constraint.
@@ -238,16 +238,29 @@ The standard library defines the following constraints:
         scalar type letters_only_t extending str:
             constraint regexp(r'[A-Za-z]*')
 
-.. eql:constraint:: std::unique
+.. eql:constraint:: std::exclusive
 
-    Specifies that the subject value must be unique.
+    Specifies that the link or property value must be exclusive (unique).
 
-    ``unique`` constraints can only be defined on concrete links or properties.
+    When applied to a ``multi`` link or property, the exclusivity constraint
+    guarantees that for every object, the set of values held by a link or
+    property does not intersect with any other such set in any other object
+    of this type.
+
+    .. note::
+
+        ``exclusive`` constraints cannot be defined on scalar types.
 
     Example:
 
     .. code-block:: eschema
 
         type User:
+            # Make sure user names are unique.
             required property name -> str:
-                constraint unique
+                constraint exclusive
+
+            # Make sure none of the "owned" items belong
+            # to any other user.
+            multi link owns -> Item:
+                constraint exclusive

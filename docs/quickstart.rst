@@ -47,13 +47,13 @@ and ``Comment``.  Let's define the initial schema with a migration:
 
     type User:
       required property login -> str:
-        constraint unique
+        constraint exclusive
       required property firstname -> str
       required property lastname -> str
 
     type PullRequest:
       required property number -> int64:
-        constraint unique
+        constraint exclusive
       required property title -> str
       required property body -> str
       required property status -> str
@@ -82,7 +82,7 @@ link.  Let's remove this duplication by declaring an abstract parent type
 
     type User:
       required property login -> str:
-        constraint unique
+        constraint exclusive
       required property firstname -> str
       required property lastname -> str
 
@@ -97,7 +97,7 @@ link.  Let's remove this duplication by declaring an abstract parent type
     type PullRequest extending AuthoredText:
     # </changed>
       required property number -> int64:
-        constraint unique
+        constraint exclusive
       required property title -> str
       required property status -> str
       multi link assignees -> User
