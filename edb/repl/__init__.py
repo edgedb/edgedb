@@ -20,7 +20,9 @@
 import argparse
 import asyncio
 import atexit
+import enum
 import getpass
+import json
 import os
 import pathlib
 import select
@@ -45,11 +47,14 @@ from prompt_toolkit.layout import lexers as pt_lexers
 from edb.common import devmode
 from edb.common import lexer as core_lexer
 from edb.common import markup
+from edb.common import term
 from edb.common.markup.renderers import terminal as markup_term
 from edb.edgeql.parser.grammar import lexer as edgeql_lexer
 from edb.edgeql import pygments as eql_pygments
 
 from edb.server import cluster as edgedb_cluster
+
+from . import render
 
 
 class ResultRenderer(markup_term.Renderer):
@@ -124,6 +129,16 @@ class InputBuffer(pt_buffer.Buffer):
         super().__init__(*args, is_multiline=is_multiline, **kwargs)
 
 
+class QueryMode(enum.IntEnum):
+
+    Normal = 0
+    JSON = 1
+    GraphQL = 2
+
+    def cycle(self):
+        return QueryMode((int(self) + 1) % 3)
+
+
 class Cli:
 
     style = pt_styles.style_from_dict({
@@ -166,7 +181,7 @@ class Cli:
         self.cli = None
         self.conn_args = conn_args
         self.cur_db = None
-        self.graphql = False
+        self.query_mode = QueryMode.Normal
         self.commands = type(self)._command.__kwdefaults__['_all_commands']
 
     def get_prompt(self):
@@ -184,9 +199,8 @@ class Cli:
 
     def get_toolbar_tokens(self, cli):
         return [
-            (pt_token.Token.Toolbar, '[F3] GraphQL: '),
-            (pt_token.Token.Toolbar.On, 'On') if self.graphql else
-            (pt_token.Token.Toolbar, 'Off'),
+            (pt_token.Token.Toolbar, '[F3] Mode: '),
+            (pt_token.Token.Toolbar, self.query_mode._name_),
         ]
 
     def build_cli(self):
@@ -199,8 +213,8 @@ class Cli:
             enable_abort_and_exit_bindings=True)
 
         @key_binding_manager.registry.add_binding(pt_keys.Keys.F3)
-        def _graphql_toggle(event):
-            self.graphql = not self.graphql
+        def _mode_toggle(event):
+            self.query_mode = self.query_mode.cycle()
 
         @key_binding_manager.registry.add_binding(pt_keys.Keys.Tab)
         def _tab(event):
@@ -292,7 +306,7 @@ class Cli:
     @_command('l', R'\l', 'list databases')
     def command_list_dbs(self, args):
         result = self.run_coroutine(
-            self.connection.list_dbs())
+            self.connection.fetch('SELECT schema::Database.name'))
 
         print('List of databases:')
         for dbn in result:
@@ -339,6 +353,7 @@ class Cli:
     def run(self):
         self.cli = self.build_cli()
         self.ensure_connection(self.conn_args)
+        use_colors = term.use_colors(sys.stdout.fileno())
 
         try:
             while True:
@@ -369,20 +384,38 @@ class Cli:
 
                 self.ensure_connection(self.conn_args)
                 try:
-                    if self.graphql:
+                    if self.query_mode is QueryMode.GraphQL:
                         command = command.rstrip(';')
-                    result = self.run_coroutine(
-                        self.connection._legacy_execute(
-                            command, graphql=self.graphql))
+                        result = self.run_coroutine(
+                            self.connection._legacy_execute(
+                                command,
+                                graphql=True))
+                    elif self.query_mode is QueryMode.Normal:
+                        result = self.run_coroutine(
+                            self.connection.fetch(command))
+                    else:
+                        result = self.run_coroutine(
+                            self.connection.fetch_json(command))
+
                 except KeyboardInterrupt:
                     continue
                 except Exception as ex:
                     print('{}: {}'.format(type(ex).__name__, str(ex)))
                     continue
 
-                for entry in result:
-                    entry_mkup = markup._serialize(entry)
-                    markup_term.render(entry_mkup, renderer=ResultRenderer)
+                if self.query_mode is QueryMode.GraphQL:
+                    result = json.dumps(result[0], indent=2)
+                    print(result)
+                elif self.query_mode is QueryMode.JSON:
+                    result = json.dumps(json.loads(result), indent=2)
+                    print(result)
+                else:
+                    max_width = term.size(sys.stdout.fileno())[1]
+                    out = render.render_binary(
+                        result,
+                        max_width=min(max_width, 120),
+                        use_colors=use_colors)
+                    print(out)
 
         except EOFError:
             return
