@@ -227,11 +227,9 @@ class EdgeQLLexer(lexer.Lexer):
             common_rules,
     }
 
-    def __init__(self):
-        super().__init__()
-        # add capacity to handle a few tokens composed of 2 elements
-        self._possible_long_token = {x[0] for x in self.MERGE_TOKENS}
-        self._long_token_match = {x[1]: x[0] for x in self.MERGE_TOKENS}
+    # add capacity to handle a few tokens composed of 2 elements
+    _possible_long_token = {x[0] for x in MERGE_TOKENS}
+    _long_token_match = {x[1]: x[0] for x in MERGE_TOKENS}
 
     def get_eof_token(self):
         """Return an EOF token or None if no EOF token is wanted."""

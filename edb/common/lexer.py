@@ -19,6 +19,7 @@
 
 import collections
 import re
+import types
 
 from edb.common import context as pctx
 
@@ -86,37 +87,41 @@ def group(*literals, _re_alpha=re.compile(r'^\w+$'), asbytes=False):
 
 
 class Lexer:
+
     NL = frozenset()
     MULTILINE_TOKENS = frozenset()
     RE_FLAGS = re.X | re.M
     asbytes = False
     _NL = '\n'
 
-    def __init__(self):
-        self.reset()
+    def __init_subclass__(cls):
+        if not hasattr(cls, 'states'):
+            return
 
         re_states = {}
-        for state, rules in self.states.items():
+        for state, rules in cls.states.items():
             res = []
             for rule in rules:
-                if self.asbytes:
+                if cls.asbytes:
                     res.append(b'(?P<%b>%b)' % (rule.id.encode(), rule.regexp))
                 else:
                     res.append('(?P<{}>{})'.format(rule.id, rule.regexp))
 
-            if self.asbytes:
+            if cls.asbytes:
                 res.append(b'(?P<err>.)')
             else:
                 res.append('(?P<err>.)')
 
-            if self.asbytes:
+            if cls.asbytes:
                 full_re = b' | '.join(res)
             else:
                 full_re = ' | '.join(res)
-            re_states[state] = re.compile(full_re, self.RE_FLAGS)
+            re_states[state] = re.compile(full_re, cls.RE_FLAGS)
 
-        self.re_states = re_states
+        cls.re_states = types.MappingProxyType(re_states)
 
+    def __init__(self):
+        self.reset()
         if self.asbytes:
             self._NL = b'\n'
 
