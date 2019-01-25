@@ -242,7 +242,9 @@ def run_server(args):
         cluster.stop()
 
 
-@click.command('EdgeDB Server')
+@click.command(
+    'EdgeDB Server',
+    context_settings=dict(help_option_names=['-h', '--help']))
 @click.option(
     '-D', '--data-dir', type=str, envvar='EDGEDB_DATADIR',
     help='database cluster directory')

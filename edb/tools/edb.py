@@ -22,6 +22,7 @@ import click
 from edb.common import devmode
 
 
-@click.group()
+@click.group(
+    context_settings=dict(help_option_names=['-h', '--help']))
 def edbcommands():
     devmode.enable_dev_mode()
