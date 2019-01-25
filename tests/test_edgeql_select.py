@@ -1510,7 +1510,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             sort=lambda x: x['body']
         )
 
-    @test.xfail('does not work with binary serialization')
     async def test_edgeql_select_setops_02(self):
         await self.assert_query_result(
             r'''

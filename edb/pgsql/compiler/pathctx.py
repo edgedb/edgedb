@@ -123,25 +123,29 @@ def get_path_var(
             src_path_id = path_id
         else:
             src_path_id = path_id.src_path()
-            if (irtyputils.is_id_ptrref(ptrref)
-                    and not src_path_id.is_type_indirection_path()):
+            if irtyputils.is_id_ptrref(ptrref):
                 # When there is a reference to the id property of
                 # an object which is linked to by a link stored
                 # inline, we want to route the reference to the
                 # inline attribute.  For example,
                 # Foo.__type__.id gets resolved to the Foo.__type__
-                # column.  However, this optimization must not be
-                # applied if the source is a type indirection, e.g
-                # __type__[IS Array].id.
+                # column.
                 src_rptr = src_path_id.rptr()
+                while src_path_id.is_type_indirection_path():
+                    # Skip type indirection step.
+                    src_src_path_id = src_path_id.src_path()
+                    if src_src_path_id is not None:
+                        src_rptr = src_src_path_id.rptr()
+                        src_path_id = src_src_path_id
+                    else:
+                        break
+
                 if src_rptr is not None:
                     src_ptr_info = pg_types.get_ptrref_storage_info(
                         src_rptr, resolve_type=False, link_bias=False)
                     if src_ptr_info.table_type == 'ObjectType':
-                        src_src_path_id = src_path_id.src_path()
-                        if not src_src_path_id.is_type_indirection_path():
-                            src_path_id = src_src_path_id
-                            ptr_info = src_ptr_info
+                        src_path_id = src_path_id.src_path()
+                        ptr_info = src_ptr_info
 
     else:
         ptr_info = None
