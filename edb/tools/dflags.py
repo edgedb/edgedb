@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2019-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,9 +17,14 @@
 #
 
 
-from .edb import edbcommands  # noqa
-from . import dflags  # noqa
-from . import gen_errors  # noqa
-from . import gen_types  # noqa
-from . import inittestdb  # noqa
-from . import test  # noqa
+from edb.common import debug
+from edb.tools.edb import edbcommands
+
+
+@edbcommands.command('dflags')
+def gen_types():
+    """Print available debug flags."""
+
+    for flag in debug.flags:
+        print(f'env EDGEDB_DEBUG_{flag.name.upper()}=1')
+        print(f'    {flag.doc}\n')
