@@ -448,7 +448,6 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         )
 
-    @test.xfail('There should be at least 1 Database.')
     async def test_edgeql_introspection_meta_01(self):
         await self.assert_query_result(
             r'''

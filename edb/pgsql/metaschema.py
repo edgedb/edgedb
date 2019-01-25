@@ -1785,11 +1785,18 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
     return dbops.View(name=tabname(schema, ptr), query=link_query)
 
 
+DATABASE_ID_NAMESPACE = uuid.UUID('0e6fed66-204b-11e9-8666-cffd58a5240b')
+
+
 def _generate_database_view(schema):
     Database = schema.get('schema::Database')
 
     view_query = f'''
         SELECT
+            edgedb.uuid_generate_v5(
+                '{DATABASE_ID_NAMESPACE}'::uuid,
+                pg_database.oid::text)
+                            AS id,
             datname         AS name
         FROM
             pg_database
