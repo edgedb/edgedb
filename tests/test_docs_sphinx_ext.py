@@ -808,7 +808,8 @@ class TestEQLMigration(unittest.TestCase, BaseDomainTest):
                 //container[@eql-migration="true"] / literal_block / text()
             '''),
             [
+                'START TRANSACTION;\n'
                 'CREATE MIGRATION foobar TO eschema $$\n\n',
                 'type User:\n    property name -> str',
-                '\n$$;\nCOMMIT MIGRATION foobar;'
+                '\n$$;\nCOMMIT MIGRATION foobar;\nCOMMIT;'
             ])

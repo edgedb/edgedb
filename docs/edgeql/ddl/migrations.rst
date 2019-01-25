@@ -40,6 +40,9 @@ generates the necessary DDL commands automatically based on the current and
 the target state.  The second form uses explicit DDL command specifications
 for the migration.
 
+**Important:** ``CREATE MIGRATION`` and the follow-up
+:eql:stmt:`COMMIT MIGRATION` must be executed in a transaction block.
+
 
 Parameters
 ----------
@@ -89,10 +92,16 @@ Create a new migration for the "payments" module using explicit DDL:
 
 .. code-block:: edgeql
 
+    START TRANSACTION;
+
     CREATE MIGRATION payments::alter_tx {
         ALTER TYPE Payment CREATE PROPERTY amount -> str;
         ALTER TYPE CreditCard CREATE PROPERTY cvv -> str;
     };
+
+    COMMIT MIGRATION payments::alter_tx;
+
+    COMMIT;
 
 
 COMMIT MIGRATION
@@ -112,6 +121,8 @@ Description
 
 ``COMMIT MIGRATION`` runs the DDL commands defined by the given migration.
 Once the migration is committed, it cannot be dropped.
+
+**Important:** ``COMMIT MIGRATION`` must be executed in a transaction block.
 
 
 Parameters

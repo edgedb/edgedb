@@ -590,8 +590,9 @@ class EQLMigrationDirective(s_code.CodeBlock):
         migration_name = self.arguments[0]
         self.arguments = ['eschema']
 
-        pre = f'CREATE MIGRATION {migration_name} TO eschema $$\n\n'
-        suf = f'\n$$;\nCOMMIT MIGRATION {migration_name};'
+        pre = (f'START TRANSACTION;\n'
+               f'CREATE MIGRATION {migration_name} TO eschema $$\n\n')
+        suf = f'\n$$;\nCOMMIT MIGRATION {migration_name};\nCOMMIT;'
 
         pre_node = d_nodes.literal_block(pre, pre)
         pre_node['language'] = 'edgeql'

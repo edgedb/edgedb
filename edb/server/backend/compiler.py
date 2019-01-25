@@ -301,6 +301,16 @@ class Compiler:
         schema = current_tx.get_schema()
         context = self._new_delta_context(ctx)
 
+        if current_tx.is_implicit():
+            if isinstance(cmd, s_deltas.CreateDelta):
+                command = 'CREATE MIGRATION'
+            elif isinstance(cmd, s_deltas.GetDelta):
+                command = 'GET MIGRATION'
+            else:
+                command = 'COMMIT MIGRATION'
+            raise errors.QueryError(
+                f'{command} must be executed in a transaction block')
+
         if isinstance(cmd, s_deltas.CreateDelta):
             delta = None
         else:
@@ -399,6 +409,11 @@ class Compiler:
 
         if (isinstance(ql, qlast.CreateDelta) and
                 cmd.get_attribute_value('target')):
+
+            if current_tx.is_implicit():
+                raise errors.QueryError(
+                    f'CREATE MIGRATION must be executed in a '
+                    f'transaction block')
 
             assert self._std_schema is not None
             cmd = s_ddl.compile_migration(

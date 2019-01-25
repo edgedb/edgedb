@@ -20,10 +20,12 @@ represents a complete schema state for a particular
 Migrations
 ==========
 
-To apply a Schema to the database, the :eql:stmt:`CREATE MIGRATION` command
-must be used followed by :eql:stmt:`COMMIT MIGRATION`:
+To apply a Schema to the database, the :eql:stmt:`CREATE MIGRATION`
+command must be used followed by :eql:stmt:`COMMIT MIGRATION`:
 
 .. code-block:: edgeql
+
+    START TRANSACTION;
 
     CREATE MIGRATION init TO eschema $$
         type User:
@@ -31,6 +33,8 @@ must be used followed by :eql:stmt:`COMMIT MIGRATION`:
     $$;
 
     COMMIT MIGRATION init;
+
+    COMMIT;
 
 
 .. toctree::

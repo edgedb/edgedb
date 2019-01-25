@@ -396,9 +396,10 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
         with open(new_schema_f) as f:
             new_schema = f.read()
 
-        await self.con.execute(f'''
-            CREATE MIGRATION test::d1 TO eschema $${new_schema}$$;
-            COMMIT MIGRATION test::d1;
+        async with self.con.transaction():
+            await self.con.execute(f'''
+                CREATE MIGRATION test::d1 TO eschema $${new_schema}$$;
+                COMMIT MIGRATION test::d1;
             ''')
 
         async with self._run_and_rollback():
@@ -965,7 +966,8 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                 edgedb.SchemaDefinitionError,
                 "constraint expression expected to return a bool value, "
                 "got 'int64'"):
-            await self.con.execute(qry)
+            async with self.con.transaction():
+                await self.con.execute(qry)
 
         qry = """
             CREATE TYPE User {

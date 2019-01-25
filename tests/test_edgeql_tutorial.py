@@ -24,8 +24,12 @@ from edb.testbase import server as tb
 
 class TestEdgeQLTutorial(tb.QueryTestCase):
 
+    ISOLATED_METHODS = False
+
     async def test_edgeql_tutorial(self):
         await self.con.execute('''
+            START TRANSACTION;
+
             CREATE MIGRATION m1 TO eschema $$
                 type User:
                     required property login -> str:
@@ -165,6 +169,8 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
                     }),
                 }
             };
+
+            COMMIT;
         ''')
 
         await self.assert_query_result(

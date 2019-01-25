@@ -1456,6 +1456,30 @@ class TestServerProto(tb.QueryTestCase):
             await self.con.fetch_value('SELECT 1;'),
             1)
 
+    async def test_server_proto_tx_15(self):
+        commands = [
+            '''
+            CREATE MIGRATION test::ttt TO eschema $$
+                type User:
+                    required property login -> str:
+                        constraint exclusive
+            $$;
+            ''',
+            '''GET MIGRATION test::ttt;''',
+            '''COMMIT MIGRATION test::ttt;''',
+        ]
+
+        for command in commands:
+            with self.annotate(command=command):
+                with self.assertRaisesRegex(
+                        edgedb.QueryError,
+                        'must be executed in a transaction'):
+                    await self.con.execute(command)
+
+        self.assertEqual(
+            await self.con.fetch_value('SELECT 1111;'),
+            1111)
+
 
 class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
 

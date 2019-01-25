@@ -132,6 +132,15 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
             self.fail_notes = {}
         self.fail_notes.update(kwargs)
 
+    @contextlib.contextmanager
+    def annotate(self, **kwargs):
+        # Annotate the test in case the nested block of code fails.
+        try:
+            yield
+        except Exception:
+            self.add_fail_notes(**kwargs)
+            raise
+
 
 _default_cluster = None
 
@@ -720,7 +729,8 @@ async def _setup_database(dbname, setup_script, conn_args):
 
     dbconn = await edgedb.async_connect(database=dbname, **conn_args)
     try:
-        await dbconn.execute(setup_script)
+        async with dbconn.transaction():
+            await dbconn.execute(setup_script)
     finally:
         await dbconn.close()
 
