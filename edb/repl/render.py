@@ -20,6 +20,8 @@
 import datetime
 import decimal
 import functools
+import json
+import re
 import uuid
 
 import edgedb
@@ -31,7 +33,7 @@ from edb.common.markup.renderers import styles
 style = styles.Dark256
 
 
-class Renderer:
+class BinaryRenderer:
 
     @functools.singledispatch
     def walk(o, buf):
@@ -61,9 +63,9 @@ class Renderer:
 
             if link is None:
                 val = getattr(o, name)
-                Renderer.walk(val, buf)
+                BinaryRenderer.walk(val, buf)
             else:
-                Renderer.walk(link, buf)
+                BinaryRenderer.walk(link, buf)
 
             i += 1
             if i < printable_fields:
@@ -75,7 +77,7 @@ class Renderer:
         with buf.smart_lines():
             buf.write('Object{', style.tree_node)
             with buf.indent():
-                Renderer._object_guts(o.target, buf)
+                BinaryRenderer._object_guts(o.target, buf)
 
                 fields = dir(o)
                 fields_len = len(fields)
@@ -94,7 +96,7 @@ class Renderer:
 
                         buf.write(f'@{name}', style.code_tag)
                         buf.write(': ')
-                        Renderer.walk(val, buf)
+                        BinaryRenderer.walk(val, buf)
 
                         i += 1
                         if i < printable_fields:
@@ -108,7 +110,7 @@ class Renderer:
         with buf.smart_lines():
             buf.write('Object{', style.tree_node)
             with buf.indent():
-                Renderer._object_guts(o, buf)
+                BinaryRenderer._object_guts(o, buf)
             buf.write('}', style.tree_node)
 
     @walk.register
@@ -121,7 +123,7 @@ class Renderer:
 
                     buf.write(name)
                     buf.write(' := ')
-                    Renderer.walk(val, buf)
+                    BinaryRenderer.walk(val, buf)
 
                     if idx < (len(o) - 1):
                         buf.write(',')
@@ -144,7 +146,7 @@ class Renderer:
             buf.write(begin, style.bracket)
             with buf.indent():
                 for idx, el in enumerate(o):
-                    Renderer.walk(el, buf)
+                    BinaryRenderer.walk(el, buf)
                     if idx < (len(o) - 1):
                         buf.write(',')
                         buf.smart_break()
@@ -201,7 +203,89 @@ class Renderer:
         buf.write(repr(str(o)), style.code_string)
 
 
+class JSONRenderer:
+
+    ESCAPE = re.compile(r'[\x00-\x1f\\"\b\f\n\r\t]')
+    ESCAPE_DCT = {
+        '\\': '\\\\',
+        '"': '\\"',
+        '\b': '\\b',
+        '\f': '\\f',
+        '\n': '\\n',
+        '\r': '\\r',
+        '\t': '\\t',
+    }
+    for i in range(0x20):
+        ESCAPE_DCT.setdefault(chr(i), '\\u{0:04x}'.format(i))
+
+    def _encode_str(s):
+        def replace(match):
+            return JSONRenderer.ESCAPE_DCT[match.group(0)]
+        return '"' + JSONRenderer.ESCAPE.sub(replace, s) + '"'
+
+    @functools.singledispatch
+    def walk(o, buf):
+        # The default renderer.  Shouldn't be ever called,
+        # but if for some reason we haven't defined a renderer
+        # for some edgedb type it's better to render something
+        # than crash.
+        buf.write(str(o))
+
+    @walk.register(list)
+    @walk.register(tuple)
+    def _set(o, buf):
+        with buf.smart_lines():
+            buf.write('[', style.bracket)
+            with buf.indent():
+                for idx, el in enumerate(o):
+                    JSONRenderer.walk(el, buf)
+                    if idx < (len(o) - 1):
+                        buf.write(',')
+                        buf.smart_break()
+            buf.write(']', style.bracket)
+
+    @walk.register(dict)
+    def _dict(o, buf):
+        with buf.smart_lines():
+            buf.write('{', style.bracket)
+            with buf.indent():
+                for idx, (key, el) in enumerate(o.items()):
+                    JSONRenderer.walk(key, buf)
+                    buf.write(': ')
+                    JSONRenderer.walk(el, buf)
+                    if idx < (len(o) - 1):
+                        buf.write(',')
+                        buf.smart_break()
+            buf.write('}', style.bracket)
+
+    @walk.register(int)
+    @walk.register(float)
+    def _numeric(o, buf):
+        buf.write(str(o), style.code_number)
+
+    @walk.register(str)
+    @walk.register(uuid.UUID)
+    def _str(o, buf):
+        o = str(o)
+        buf.write(JSONRenderer._encode_str(str(o)), style.code_string)
+
+    @walk.register(bool)
+    def _bool(o, buf):
+        buf.write(str(o).lower(), style.code_constant)
+
+    @walk.register(type(None))
+    def _empty(o, buf):
+        buf.write('null', style.code_constant)
+
+
 def render_binary(data, max_width=None, use_colors=False):
     buf = terminal.Buffer(max_width=max_width, styled=use_colors)
-    Renderer.walk(data, buf)
+    BinaryRenderer.walk(data, buf)
+    return buf.flush()
+
+
+def render_json(data: str, max_width=None, use_colors=False):
+    data = json.loads(data)
+    buf = terminal.Buffer(max_width=max_width, styled=use_colors)
+    JSONRenderer.walk(data, buf)
     return buf.flush()

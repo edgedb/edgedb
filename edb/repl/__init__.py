@@ -400,20 +400,26 @@ class Cli:
                     print('{}: {}'.format(type(ex).__name__, str(ex)))
                     continue
 
+                max_width = term.size(sys.stdout.fileno())[1]
                 for result in results:
                     if self.query_mode is QueryMode.GraphQL:
-                        result = json.dumps(result[0], indent=2)
-                        print(result)
+                        out = render.render_json(
+                            json.dumps(result[0]),
+                            max_width=min(max_width, 120),
+                            use_colors=use_colors)
+
                     elif self.query_mode is QueryMode.JSON:
-                        result = json.dumps(json.loads(result), indent=2)
-                        print(result)
+                        out = render.render_json(
+                            result,
+                            max_width=min(max_width, 120),
+                            use_colors=use_colors)
                     else:
-                        max_width = term.size(sys.stdout.fileno())[1]
                         out = render.render_binary(
                             result,
                             max_width=min(max_width, 120),
                             use_colors=use_colors)
-                        print(out)
+
+                    print(out)
 
         except EOFError:
             return
