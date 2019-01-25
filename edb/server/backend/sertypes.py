@@ -33,6 +33,8 @@ _uint8_packer = struct.Struct('!B').pack
 EMPTY_TUPLE_ID = s_obj.get_known_type_id('empty-tuple').bytes
 EMPTY_TUPLE_DESC = b'\x04' + EMPTY_TUPLE_ID + b'\x00\x00'
 
+UUID_TYPE_ID = s_obj.get_known_type_id('std::uuid')
+
 NULL_TYPE_ID = b'\x00' * 16
 NULL_TYPE_DESC = b''
 
@@ -220,6 +222,10 @@ class TypeSerializer:
                 if el_lp:
                     flags |= self.EDGE_POINTER_IS_LINKPROP
                 if (implicit_id and el_name == 'id') or el_name == '__tid__':
+                    if el_type != UUID_TYPE_ID:
+                        raise errors.InternalServerError(
+                            f"{el_name!r} is expected to be a 'std::uuid' "
+                            f"singleton")
                     flags |= self.EDGE_POINTER_IS_IMPLICIT
                 if el_l:
                     flags |= self.EDGE_POINTER_IS_LINK

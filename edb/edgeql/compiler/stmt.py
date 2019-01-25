@@ -415,7 +415,7 @@ def init_stmt(
 
     pending_own_ns = parent_ctx.pending_stmt_own_path_id_namespace
     if pending_own_ns:
-        ctx.path_scope.namespaces.update(pending_own_ns)
+        ctx.path_scope.add_namespaces(pending_own_ns)
 
     pending_full_ns = parent_ctx.pending_stmt_full_path_id_namespace
     if pending_full_ns:

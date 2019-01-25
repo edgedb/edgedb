@@ -67,7 +67,7 @@ def process_view(
         if ctx.expr_exposed or is_insert or is_update:
             view_path_id_ns = irast.WeakNamespace(ctx.aliases.get('ns'))
             scopectx.path_id_namespace |= {view_path_id_ns}
-            scopectx.path_scope.namespaces.add(view_path_id_ns)
+            scopectx.path_scope.add_namespaces((view_path_id_ns,))
         else:
             view_path_id_ns = None
 
@@ -691,20 +691,7 @@ def _compile_view_shapes_in_set(
         ir_set, rptr=rptr, parent_view_type=parent_view_type, ctx=ctx)
 
     if shape_ptrs:
-        if (isinstance(ir_set.expr, irast.SelectStmt) and
-                (ir_set.expr.offset is not None or
-                 ir_set.expr.limit is not None)):
-            # The OFFSET/LIMIT query is a wrapper set up to
-            # track the scope correctly, make sure we don't
-            # mess that scope up, as the shape's source expression
-            # should remain behind the SET OF fence of LIMIT.
-            with ctx.new() as scopectx:
-                ol_scope = pathctx.get_set_scope(
-                    ir_set.expr.result, ctx=scopectx)
-                scopectx.path_scope = ol_scope
-                pathctx.register_set_in_scope(ir_set, ctx=scopectx)
-        else:
-            pathctx.register_set_in_scope(ir_set, ctx=ctx)
+        pathctx.register_set_in_scope(ir_set, ctx=ctx)
 
         stype = setgen.get_set_type(ir_set, ctx=ctx)
         view_type = stype.get_view_type(ctx.env.schema)

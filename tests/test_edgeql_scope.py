@@ -999,7 +999,8 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 SELECT User {
                     name,
                     friends: {
-                        name
+                        name,
+                        name_upper := str_upper(User.friends.name),
                     }  # User.friends is scoped from the enclosing shape
                     ORDER BY User.friends.name
                     LIMIT (count(User.friends) - 1)
@@ -1013,8 +1014,8 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 {
                     'name': 'Alice',
                     'friends': [
-                        {'name': 'Bob'},
-                        {'name': 'Carol'},
+                        {'name': 'Bob', 'name_upper': 'BOB'},
+                        {'name': 'Carol', 'name_upper': 'CAROL'},
                     ],
                 },
                 {

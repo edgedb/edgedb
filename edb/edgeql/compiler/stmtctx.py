@@ -283,7 +283,7 @@ def declare_view(
             # in the parent statement's fence node.
             view_path_id_ns = irast.WeakNamespace(ctx.aliases.get('ns'))
             subctx.path_id_namespace |= {view_path_id_ns}
-            ctx.path_scope.namespaces.add(view_path_id_ns)
+            ctx.path_scope.add_namespaces((view_path_id_ns,))
         else:
             cached_view_set = None
 

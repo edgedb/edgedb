@@ -433,6 +433,20 @@ class ScopeTreeNode:
         else:
             return False
 
+    def add_namespaces(self, namespaces):
+        # Make sure we don't add namespaces that already appear
+        # in on of the ancestors.
+        namespaces = frozenset(namespaces) - self.get_effective_namespaces()
+        self.namespaces.update(namespaces)
+
+    def get_effective_namespaces(self):
+        namespaces = set()
+
+        for node, ans in self.ancestors_and_namespaces:
+            namespaces |= ans
+
+        return namespaces
+
     def remove(self):
         """Remove this node from the tree (subtree becomes independent)."""
         parent = self.parent
