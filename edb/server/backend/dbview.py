@@ -217,13 +217,20 @@ class DatabaseConnectionView:
             self._modaliases = qu.modaliases
 
         if qu.tx_commit:
-            assert self._in_tx
+            if not self._in_tx:
+                # This shouldn't happen because compiler has
+                # checks around that.
+                raise errors.InternalServerError(
+                    '"commit" outside of a transaction')
             if self._in_tx_with_ddl:
                 self._db._signal_ddl()
             self._reset_tx_state()
 
         elif qu.tx_rollback:
-            assert self._in_tx
+            # Note that we might not be in a transaction as we allow
+            # ROLLBACKs outside of transaction blocks (just like Postgres).
+            # TODO: That said, we should send a *warning* when a ROLLBACK
+            # is executed outside of a tx.
             self._reset_tx_state()
 
     @staticmethod

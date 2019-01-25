@@ -356,9 +356,8 @@ class CompilerConnectionState:
             raise errors.TransactionError('already in transaction')
 
     def rollback_tx(self):
-        if self._current_tx.is_implicit():
-            raise errors.TransactionError(
-                'cannot rollback: not in transaction')
+        # Note that we might not be in a transaction as we allow
+        # ROLLBACKs outside of transaction blocks (just like Postgres).
 
         prior_state = self._current_tx._stack[0]
 

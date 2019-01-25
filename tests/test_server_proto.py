@@ -1419,6 +1419,43 @@ class TestServerProto(tb.QueryTestCase):
                     DROP TYPE test::Tmp_tx_13;
                 ''')
 
+    async def test_server_proto_tx_14(self):
+        await self.con.execute('''
+            ROLLBACK;
+            ROLLBACK;
+            ROLLBACK;
+        ''')
+
+        self.assertEqual(
+            await self.con.fetch_value('SELECT 1;'),
+            1)
+
+        await self.con.execute('''
+            START TRANSACTION;
+            ROLLBACK;
+            ROLLBACK;
+            ROLLBACK;
+        ''')
+
+        self.assertEqual(
+            await self.con.fetch_value('SELECT 1;'),
+            1)
+
+        await self.con.execute('''
+            START TRANSACTION;
+        ''')
+
+        await self.con.execute('''
+            ROLLBACK;
+        ''')
+        await self.con.execute('''
+            ROLLBACK;
+        ''')
+
+        self.assertEqual(
+            await self.con.fetch_value('SELECT 1;'),
+            1)
+
 
 class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
 
