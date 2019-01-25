@@ -323,7 +323,9 @@ class Compiler:
             elif isinstance(cmd, s_deltas.CreateDelta):
                 schema, _ = cmd.apply(schema, context)
                 current_tx.update_schema(schema)
-                return dbstate.DDLQuery(sql=(b'SELECT;',))
+                # We must return *some* SQL; return a no-op command.
+                return dbstate.DDLQuery(
+                    sql=(b'SELECT NULL LIMIT 0;',))
 
             else:
                 raise errors.InternalServerError(
