@@ -19,10 +19,14 @@
 
 import click
 
-from edb.common import devmode
+from edb.common import devmode as dm
 
 
 @click.group(
     context_settings=dict(help_option_names=['-h', '--help']))
-def edbcommands():
-    devmode.enable_dev_mode()
+@click.option('--devmode/--no-devmode',
+              help='enable or disable the development mode',
+              default=True)
+def edbcommands(devmode: bool):
+    if devmode:
+        dm.enable_dev_mode()
