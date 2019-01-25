@@ -115,7 +115,7 @@ class Cluster:
     def __init__(
             self, data_dir, *, postgres_cluster=None,
             pg_superuser='postgres', port=edgedb_defines.EDGEDB_PORT,
-            env=None):
+            runstate_dir=None, env=None):
         if (isinstance(postgres_cluster, str) and
                 (postgres_cluster.startswith('postgres://') or
                     postgres_cluster.startswith('postgres://'))):
@@ -127,6 +127,9 @@ class Cluster:
         self._data_dir = data_dir
         self._location = data_dir
         self._edgedb_cmd = ['edgedb-server', '-D', self._data_dir]
+
+        if runstate_dir is not None:
+            self._edgedb_cmd.extend(['--runstate-dir', runstate_dir])
 
         if postgres_cluster is not None:
             self._pg_cluster = postgres_cluster
@@ -299,10 +302,10 @@ class TempCluster(Cluster):
     def __init__(
             self, *, data_dir_suffix=None, data_dir_prefix=None,
             data_dir_parent=None, env=None):
-        self._data_dir = tempfile.mkdtemp(
+        tempdir = tempfile.mkdtemp(
             suffix=data_dir_suffix, prefix=data_dir_prefix,
             dir=data_dir_parent)
-        super().__init__(self._data_dir, env=env)
+        super().__init__(data_dir=tempdir, runstate_dir=tempdir, env=env)
 
 
 class RunningCluster(Cluster):
