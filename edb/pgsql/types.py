@@ -33,6 +33,7 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import name as sn
 from edb.schema import objects as s_obj
 from edb.schema import schema as s_schema
+from edb.schema import types as s_types
 
 from . import common
 from .common import quote_literal as ql
@@ -467,9 +468,6 @@ def _storable_in_pointer(ptrref: irast.PointerRef) -> bool:
     )
 
 
-TYPE_ID_NAMESPACE = uuid.UUID('00e50276-2502-11e7-97f2-27fe51238dbd')
-
-
 _TypeDescNode = collections.namedtuple(
     '_TypeDescNode', ['id', 'maintype', 'name', 'collection',
                       'subtypes', 'dimensions', 'is_root'],
@@ -497,7 +495,7 @@ class TypeDescNode(_TypeDescNode):
             f"{':'.join(str(d) for d in data['dimensions'])}"
         )
 
-        return uuid.uuid5(TYPE_ID_NAMESPACE, s)
+        return uuid.uuid5(s_types.TYPE_ID_NAMESPACE, s)
 
     def to_sql_expr(self):
         if self.subtypes:

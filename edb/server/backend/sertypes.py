@@ -22,8 +22,6 @@ import uuid
 
 from edb import errors
 
-from edb.pgsql import types as pg_types
-
 from edb.schema import objects as s_obj
 from edb.schema import types as s_types
 
@@ -60,17 +58,17 @@ class TypeSerializer:
         string_id = f'{coll_type}\x00{":".join(subtypes)}'
         if element_names:
             string_id += f'\x00{":".join(element_names)}'
-        return uuid.uuid5(pg_types.TYPE_ID_NAMESPACE, string_id)
+        return uuid.uuid5(s_types.TYPE_ID_NAMESPACE, string_id)
 
     def _get_union_type_id(self, union_type):
         base_type_id = ','.join(
             str(c.id) for c in union_type.children(self.schema))
 
-        return uuid.uuid5(pg_types.TYPE_ID_NAMESPACE, base_type_id)
+        return uuid.uuid5(s_types.TYPE_ID_NAMESPACE, base_type_id)
 
     @classmethod
     def _get_set_type_id(cls, basetype_id):
-        return uuid.uuid5(pg_types.TYPE_ID_NAMESPACE,
+        return uuid.uuid5(s_types.TYPE_ID_NAMESPACE,
                           'set-of::' + str(basetype_id))
 
     def _register_type_id(self, type_id):
