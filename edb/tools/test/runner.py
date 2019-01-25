@@ -40,7 +40,6 @@ import unittest.signals
 import warnings
 
 import click
-import coverage
 
 import edb
 
@@ -635,6 +634,8 @@ class ParallelTextTestRunner:
 
     def run(self, test):
         if self.coverage:
+            import coverage
+
             for path in edb.__path__:
                 cov_rc = pathlib.Path(path).parent / '.coveragerc'
                 if cov_rc.exists():
