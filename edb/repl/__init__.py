@@ -45,15 +45,14 @@ from prompt_toolkit import token as pt_token
 from prompt_toolkit.layout import lexers as pt_lexers
 
 from edb.common import devmode
-from edb.common import lexer as core_lexer
 from edb.common import markup
 from edb.common import term
 from edb.common.markup.renderers import terminal as markup_term
-from edb.edgeql.parser.grammar import lexer as edgeql_lexer
 from edb.edgeql import pygments as eql_pygments
 
 from edb.server import cluster as edgedb_cluster
 
+from . import lexutils
 from . import render
 
 
@@ -112,15 +111,7 @@ class InputBuffer(pt_buffer.Buffer):
             return False
 
         if text.endswith(';'):
-            lexer = edgeql_lexer.EdgeQLLexer()
-            lexer.setinputstr(text)
-            try:
-                toks = list(lexer.lex())
-            except core_lexer.UnknownTokenError:
-                return True
-
-            if toks[-1].type == 'EOF':
-                return False
+            return not lexutils.split_edgeql(text)
 
         return True
 
@@ -383,19 +374,25 @@ class Cli:
                     continue
 
                 self.ensure_connection(self.conn_args)
+                results = []
                 try:
                     if self.query_mode is QueryMode.GraphQL:
                         command = command.rstrip(';')
-                        result = self.run_coroutine(
-                            self.connection._legacy_execute(
-                                command,
-                                graphql=True))
+                        results.append(
+                            self.run_coroutine(
+                                self.connection._legacy_execute(
+                                    command,
+                                    graphql=True)))
                     elif self.query_mode is QueryMode.Normal:
-                        result = self.run_coroutine(
-                            self.connection.fetch(command))
+                        for query in lexutils.split_edgeql(command):
+                            results.append(
+                                self.run_coroutine(
+                                    self.connection.fetch(query)))
                     else:
-                        result = self.run_coroutine(
-                            self.connection.fetch_json(command))
+                        for query in lexutils.split_edgeql(command):
+                            results.append(
+                                self.run_coroutine(
+                                    self.connection.fetch_json(query)))
 
                 except KeyboardInterrupt:
                     continue
@@ -403,19 +400,20 @@ class Cli:
                     print('{}: {}'.format(type(ex).__name__, str(ex)))
                     continue
 
-                if self.query_mode is QueryMode.GraphQL:
-                    result = json.dumps(result[0], indent=2)
-                    print(result)
-                elif self.query_mode is QueryMode.JSON:
-                    result = json.dumps(json.loads(result), indent=2)
-                    print(result)
-                else:
-                    max_width = term.size(sys.stdout.fileno())[1]
-                    out = render.render_binary(
-                        result,
-                        max_width=min(max_width, 120),
-                        use_colors=use_colors)
-                    print(out)
+                for result in results:
+                    if self.query_mode is QueryMode.GraphQL:
+                        result = json.dumps(result[0], indent=2)
+                        print(result)
+                    elif self.query_mode is QueryMode.JSON:
+                        result = json.dumps(json.loads(result), indent=2)
+                        print(result)
+                    else:
+                        max_width = term.size(sys.stdout.fileno())[1]
+                        out = render.render_binary(
+                            result,
+                            max_width=min(max_width, 120),
+                            use_colors=use_colors)
+                        print(out)
 
         except EOFError:
             return

@@ -231,6 +231,10 @@ class EdgeQLLexer(lexer.Lexer):
     _possible_long_token = {x[0] for x in MERGE_TOKENS}
     _long_token_match = {x[1]: x[0] for x in MERGE_TOKENS}
 
+    def __init__(self, *, strip_whitespace=True):
+        super().__init__()
+        self.strip_whitespace = strip_whitespace
+
     def get_eof_token(self):
         """Return an EOF token or None if no EOF token is wanted."""
         return self.token_from_text('EOF', '')
@@ -259,7 +263,7 @@ class EdgeQLLexer(lexer.Lexer):
         for tok in super().lex():
             tok_type = tok.type
 
-            if tok_type in {'WS', 'NL', 'COMMENT'}:
+            if self.strip_whitespace and tok_type in {'WS', 'NL', 'COMMENT'}:
                 # Strip out whitespace and comments
                 continue
 
