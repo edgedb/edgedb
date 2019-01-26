@@ -743,6 +743,13 @@ class GraphQLTranslator(ast.NodeVisitor):
 
 
 def translate(schema, graphql, *, variables=None, operation_name=None):
+    # Try to parse the query first.
+    query = re.sub(r'@edgedb\(.*?\)', '', graphql)
+    parser = gqlparser.GraphQLParser()
+    gqltree = parser.parse(graphql)
+
+    # If "query" is a valid GraphQL proceed with compiling it to EdgeQL.
+
     if variables is None:
         variables = {}
 
@@ -750,12 +757,8 @@ def translate(schema, graphql, *, variables=None, operation_name=None):
     for n, v in variables.items():
         gql_vars[n] = gqlast.BaseLiteral.from_python(v)
 
-    # HACK
-    query = re.sub(r'@edgedb\(.*?\)', '', graphql)
     gqlcore = gt.GQLCoreSchema(schema)
 
-    parser = gqlparser.GraphQLParser()
-    gqltree = parser.parse(graphql)
     context = GraphQLTranslatorContext(
         schema=schema, gqlcore=gqlcore, query=query,
         variables=gql_vars, operation_name=operation_name)
