@@ -5,7 +5,10 @@ import tempfile
 import textwrap
 import unittest
 
-import requests_xml
+try:
+    import requests_xml
+except ModuleNotFoundError:
+    requests_xml = None
 
 
 class BuildFailedError(Exception):
@@ -76,6 +79,7 @@ class BaseDomainTest:
         self.assertRegex(raised.exception.stderr, err)
 
 
+@unittest.skipIf(requests_xml is None, 'requests-xml package is not installed')
 class TestEqlType(unittest.TestCase, BaseDomainTest):
 
     def test_sphinx_eql_type_01(self):
@@ -216,6 +220,7 @@ class TestEqlType(unittest.TestCase, BaseDomainTest):
             ['SET OF', 'XXX'])
 
 
+@unittest.skipIf(requests_xml is None, 'requests-xml package is not installed')
 class TestEqlFunction(unittest.TestCase, BaseDomainTest):
 
     def test_sphinx_eql_func_01(self):
@@ -379,6 +384,7 @@ class TestEqlFunction(unittest.TestCase, BaseDomainTest):
              'sys::sleep(duration: float64) ->  bool'])
 
 
+@unittest.skipIf(requests_xml is None, 'requests-xml package is not installed')
 class TestEqlConstraint(unittest.TestCase, BaseDomainTest):
 
     def test_sphinx_eql_constr_01(self):
@@ -441,6 +447,7 @@ class TestEqlConstraint(unittest.TestCase, BaseDomainTest):
             ['len(<std::str>__subject__)'])
 
 
+@unittest.skipIf(requests_xml is None, 'requests-xml package is not installed')
 class TestEqlOperator(unittest.TestCase, BaseDomainTest):
 
     def test_sphinx_eql_op_01(self):
@@ -518,6 +525,7 @@ class TestEqlOperator(unittest.TestCase, BaseDomainTest):
             ['B'])
 
 
+@unittest.skipIf(requests_xml is None, 'requests-xml package is not installed')
 class TestEqlKeyword(unittest.TestCase, BaseDomainTest):
 
     def test_sphinx_eql_kw_01(self):
@@ -555,6 +563,7 @@ class TestEqlKeyword(unittest.TestCase, BaseDomainTest):
             ['XXX'])
 
 
+@unittest.skipIf(requests_xml is None, 'requests-xml package is not installed')
 class TestEqlStatement(unittest.TestCase, BaseDomainTest):
 
     def test_sphinx_eql_stmt_05(self):
@@ -744,6 +753,7 @@ class TestEqlStatement(unittest.TestCase, BaseDomainTest):
             ['DROP FUNCTION'])
 
 
+@unittest.skipIf(requests_xml is None, 'requests-xml package is not installed')
 class TestEqlInlineCode(unittest.TestCase, BaseDomainTest):
 
     def test_sphinx_eql_inline_role_01(self):
@@ -761,6 +771,7 @@ class TestEqlInlineCode(unittest.TestCase, BaseDomainTest):
             ['WITH <aaaa>'])
 
 
+@unittest.skipIf(requests_xml is None, 'requests-xml package is not installed')
 class TestBlockquote(unittest.TestCase, BaseDomainTest):
 
     def test_sphinx_eql_blockquote_01(self):
@@ -790,6 +801,7 @@ class TestBlockquote(unittest.TestCase, BaseDomainTest):
             self.build(src, format='html')
 
 
+@unittest.skipIf(requests_xml is None, 'requests-xml package is not installed')
 class TestEQLMigration(unittest.TestCase, BaseDomainTest):
 
     def test_sphinx_eql_migration_01(self):

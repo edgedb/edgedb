@@ -56,6 +56,7 @@ EXTRA_DEPS = {
         'flake8~=3.6.0',
         'pycodestyle~=2.4.0',
         'coverage~=4.5.2',
+        'requests-xml~=0.2.3',
     ],
 
     'docs': [
