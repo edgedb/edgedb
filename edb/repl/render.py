@@ -25,9 +25,12 @@ import re
 import uuid
 
 import edgedb
+from edgedb import introspect
 
 from edb.common.markup.renderers import terminal
 from edb.common.markup.renderers import styles
+
+from . import context
 
 
 style = styles.Dark256
@@ -36,94 +39,87 @@ style = styles.Dark256
 class BinaryRenderer:
 
     @functools.singledispatch
-    def walk(o, buf):
+    def walk(o, repl_ctx: context.ReplContext, buf):
         # The default renderer.  Shouldn't be ever called,
         # but if for some reason we haven't defined a renderer
         # for some edgedb type it's better to render something
         # than crash.
         buf.write(str(o))
 
-    def _object_guts(o, buf):
-        fields = dir(o)
+    def _object_guts(o, repl_ctx: context.ReplContext, buf):
+        fields = introspect.introspect_object(o).pointers
+        if not repl_ctx.show_implicit_fields:
+            fields = tuple(f for f in fields if not f.implicit)
         fields_len = len(fields)
-        printable_fields = fields_len - 1  # __tid__ isn't printable
 
         i = 0
-        for name in fields:
-            if name == '__tid__':
-                continue
-
-            buf.write(name, style.key)
+        for field in fields:
+            buf.write(field.name, style.key)
             buf.write(': ')
 
-            try:
-                link = o[name]
-            except KeyError:
-                link = None
-
-            if link is None:
-                val = getattr(o, name)
-                BinaryRenderer.walk(val, buf)
+            if field.kind is introspect.PointerKind.LINK:
+                link = o[field.name]
+                BinaryRenderer.walk(link, repl_ctx, buf)
             else:
-                BinaryRenderer.walk(link, buf)
+                val = getattr(o, field.name)
+                BinaryRenderer.walk(val, repl_ctx, buf)
 
             i += 1
-            if i < printable_fields:
+            if i < fields_len:
                 buf.write(',')
                 buf.smart_break()
 
     @walk.register
-    def _link(o: edgedb.Link, buf):
+    def _link(o: edgedb.Link, repl_ctx: context.ReplContext, buf):
         with buf.smart_lines():
             buf.write('Object{', style.tree_node)
             with buf.indent():
-                BinaryRenderer._object_guts(o.target, buf)
+                BinaryRenderer._object_guts(o.target, repl_ctx, buf)
 
-                fields = dir(o)
+                fields = o.__dir__()
+                fields = tuple(f for f in fields
+                               if f not in {'source', 'target'})
                 fields_len = len(fields)
-                printable_fields = fields_len - 2  # skip source, target
 
-                if printable_fields > 0:
+                if fields_len > 0:
                     buf.write(',')
                     buf.smart_break()
 
                     i = 0
                     for name in fields:
-                        if name in {'source', 'target'}:
-                            continue
-
                         val = getattr(o, name)
 
                         buf.write(f'@{name}', style.code_tag)
                         buf.write(': ')
-                        BinaryRenderer.walk(val, buf)
+                        BinaryRenderer.walk(val, repl_ctx, buf)
 
                         i += 1
-                        if i < printable_fields:
+                        if i < fields_len:
                             buf.write(',')
                             buf.smart_break()
 
             buf.write('}', style.tree_node)
 
     @walk.register
-    def _object(o: edgedb.Object, buf):
+    def _object(o: edgedb.Object, repl_ctx: context.ReplContext, buf):
         with buf.smart_lines():
             buf.write('Object{', style.tree_node)
             with buf.indent():
-                BinaryRenderer._object_guts(o, buf)
+                BinaryRenderer._object_guts(o, repl_ctx, buf)
             buf.write('}', style.tree_node)
 
     @walk.register
-    def _namedtuple(o: edgedb.NamedTuple, buf):
+    def _namedtuple(o: edgedb.NamedTuple, repl_ctx: context.ReplContext, buf):
         with buf.smart_lines():
             buf.write('(', style.bracket)
             with buf.indent():
-                for idx, name in enumerate(dir(o)):
+                # Call __dir__ directly as dir() scrambles the order.
+                for idx, name in enumerate(o.__dir__()):
                     val = getattr(o, name)
 
                     buf.write(name)
                     buf.write(' := ')
-                    BinaryRenderer.walk(val, buf)
+                    BinaryRenderer.walk(val, repl_ctx, buf)
 
                     if idx < (len(o) - 1):
                         buf.write(',')
@@ -134,7 +130,7 @@ class BinaryRenderer:
     @walk.register(edgedb.Tuple)
     @walk.register(edgedb.Set)
     @walk.register(edgedb.LinkSet)
-    def _set(o, buf):
+    def _set(o, repl_ctx: context.ReplContext, buf):
         if isinstance(o, edgedb.Array):
             begin, end = '[', ']'
         elif isinstance(o, edgedb.Tuple):
@@ -146,40 +142,40 @@ class BinaryRenderer:
             buf.write(begin, style.bracket)
             with buf.indent():
                 for idx, el in enumerate(o):
-                    BinaryRenderer.walk(el, buf)
+                    BinaryRenderer.walk(el, repl_ctx, buf)
                     if idx < (len(o) - 1):
                         buf.write(',')
                         buf.smart_break()
             buf.write(end, style.bracket)
 
     @walk.register
-    def _uuid(o: uuid.UUID, buf):
+    def _uuid(o: uuid.UUID, repl_ctx: context.ReplContext, buf):
         buf.write(f'<uuid>{repr(str(o))}', style.code_comment)
 
     @walk.register(int)
     @walk.register(float)
-    def _numeric(o, buf):
+    def _numeric(o, repl_ctx: context.ReplContext, buf):
         buf.write(str(o), style.code_number)
 
     @walk.register(str)
     @walk.register(bytes)
-    def _str(o, buf):
+    def _str(o, repl_ctx: context.ReplContext, buf):
         buf.write(repr(o), style.code_string)
 
     @walk.register(bool)
-    def _bool(o, buf):
+    def _bool(o, repl_ctx: context.ReplContext, buf):
         buf.write(str(o).lower(), style.code_constant)
 
     @walk.register(decimal.Decimal)
-    def _decimal(o, buf):
+    def _decimal(o, repl_ctx: context.ReplContext, buf):
         buf.write(f'{o}n', style.code_number)
 
     @walk.register(type(None))
-    def _empty(o, buf):
+    def _empty(o, repl_ctx: context.ReplContext, buf):
         buf.write('{}', style.bracket)
 
     @walk.register(datetime.datetime)
-    def _datetime(o, buf):
+    def _datetime(o, repl_ctx: context.ReplContext, buf):
         if o.tzinfo:
             buf.write("<datetime>", style.code_comment)
         else:
@@ -188,17 +184,17 @@ class BinaryRenderer:
         buf.write(repr(o.isoformat()), style.code_string)
 
     @walk.register(datetime.date)
-    def _date(o, buf):
+    def _date(o, repl_ctx: context.ReplContext, buf):
         buf.write("<naive_date>", style.code_comment)
         buf.write(repr(o.isoformat()), style.code_string)
 
     @walk.register(datetime.time)
-    def _time(o, buf):
+    def _time(o, repl_ctx: context.ReplContext, buf):
         buf.write("<naive_time>", style.code_comment)
         buf.write(repr(o.isoformat()), style.code_string)
 
     @walk.register(datetime.timedelta)
-    def _timedelta(o: datetime.timedelta, buf):
+    def _timedelta(o: datetime.timedelta, repl_ctx: context.ReplContext, buf):
         buf.write("<timedelta>", style.code_comment)
         buf.write(repr(str(o)), style.code_string)
 
@@ -224,7 +220,7 @@ class JSONRenderer:
         return '"' + JSONRenderer.ESCAPE.sub(replace, s) + '"'
 
     @functools.singledispatch
-    def walk(o, buf):
+    def walk(o, repl_ctx: context.ReplContext, buf):
         # The default renderer.  Shouldn't be ever called,
         # but if for some reason we haven't defined a renderer
         # for some edgedb type it's better to render something
@@ -233,26 +229,26 @@ class JSONRenderer:
 
     @walk.register(list)
     @walk.register(tuple)
-    def _set(o, buf):
+    def _set(o, repl_ctx: context.ReplContext, buf):
         with buf.smart_lines():
             buf.write('[', style.bracket)
             with buf.indent():
                 for idx, el in enumerate(o):
-                    JSONRenderer.walk(el, buf)
+                    JSONRenderer.walk(el, repl_ctx, buf)
                     if idx < (len(o) - 1):
                         buf.write(',')
                         buf.smart_break()
             buf.write(']', style.bracket)
 
     @walk.register(dict)
-    def _dict(o, buf):
+    def _dict(o, repl_ctx: context.ReplContext, buf):
         with buf.smart_lines():
             buf.write('{', style.bracket)
             with buf.indent():
                 for idx, (key, el) in enumerate(o.items()):
-                    JSONRenderer.walk(key, buf)
+                    JSONRenderer.walk(key, repl_ctx, buf)
                     buf.write(': ')
-                    JSONRenderer.walk(el, buf)
+                    JSONRenderer.walk(el, repl_ctx, buf)
                     if idx < (len(o) - 1):
                         buf.write(',')
                         buf.smart_break()
@@ -260,32 +256,34 @@ class JSONRenderer:
 
     @walk.register(int)
     @walk.register(float)
-    def _numeric(o, buf):
+    def _numeric(o, repl_ctx: context.ReplContext, buf):
         buf.write(str(o), style.code_number)
 
     @walk.register(str)
     @walk.register(uuid.UUID)
-    def _str(o, buf):
+    def _str(o, repl_ctx: context.ReplContext, buf):
         o = str(o)
         buf.write(JSONRenderer._encode_str(str(o)), style.code_string)
 
     @walk.register(bool)
-    def _bool(o, buf):
+    def _bool(o, repl_ctx: context.ReplContext, buf):
         buf.write(str(o).lower(), style.code_constant)
 
     @walk.register(type(None))
-    def _empty(o, buf):
+    def _empty(o, repl_ctx: context.ReplContext, buf):
         buf.write('null', style.code_constant)
 
 
-def render_binary(data, max_width=None, use_colors=False):
+def render_binary(repl_ctx: context.ReplContext,
+                  data, max_width=None, use_colors=False):
     buf = terminal.Buffer(max_width=max_width, styled=use_colors)
-    BinaryRenderer.walk(data, buf)
+    BinaryRenderer.walk(data, repl_ctx, buf)
     return buf.flush()
 
 
-def render_json(data: str, max_width=None, use_colors=False):
+def render_json(repl_ctx: context.ReplContext,
+                data: str, max_width=None, use_colors=False):
     data = json.loads(data)
     buf = terminal.Buffer(max_width=max_width, styled=use_colors)
-    JSONRenderer.walk(data, buf)
+    JSONRenderer.walk(data, repl_ctx, buf)
     return buf.flush()

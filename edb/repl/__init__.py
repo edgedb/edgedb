@@ -20,7 +20,6 @@
 import argparse
 import asyncio
 import atexit
-import enum
 import getpass
 import json
 import os
@@ -52,6 +51,7 @@ from edb.edgeql import pygments as eql_pygments
 
 from edb.server import cluster as edgedb_cluster
 
+from . import context
 from . import lexutils
 from . import render
 
@@ -120,16 +120,6 @@ class InputBuffer(pt_buffer.Buffer):
         super().__init__(*args, is_multiline=is_multiline, **kwargs)
 
 
-class QueryMode(enum.IntEnum):
-
-    Normal = 0
-    JSON = 1
-    GraphQL = 2
-
-    def cycle(self):
-        return QueryMode((int(self) + 1) % 3)
-
-
 class Cli:
 
     style = pt_styles.style_from_dict({
@@ -156,6 +146,8 @@ class Cli:
         pt_token.Token.Timing.Value: '#888',
     })
 
+    TOOLBAR_SEP = '   '
+
     exit_commands = {'exit', 'quit', R'\q', ':q'}
 
     def _command(prefix, title, desc, *, _all_commands={}):
@@ -172,7 +164,7 @@ class Cli:
         self.cli = None
         self.conn_args = conn_args
         self.cur_db = None
-        self.query_mode = QueryMode.Normal
+        self.context = context.ReplContext()
         self.commands = type(self)._command.__kwdefaults__['_all_commands']
 
     def get_prompt(self):
@@ -189,10 +181,21 @@ class Cli:
         ]
 
     def get_toolbar_tokens(self, cli):
-        return [
+        toolbar = [
             (pt_token.Token.Toolbar, '[F3] Mode: '),
-            (pt_token.Token.Toolbar, self.query_mode._name_),
+            (pt_token.Token.Toolbar, self.context.query_mode._name_),
         ]
+
+        if self.context.query_mode is context.QueryMode.Normal:
+            toolbar.extend([
+                (pt_token.Token.Toolbar, self.TOOLBAR_SEP),
+
+                (pt_token.Token.Toolbar, '[F4] Implicit Fields: '),
+                (pt_token.Token.Toolbar,
+                    'On' if self.context.show_implicit_fields else 'Off'),
+            ])
+
+        return toolbar
 
     def build_cli(self):
         history = pt_history.FileHistory(
@@ -205,7 +208,11 @@ class Cli:
 
         @key_binding_manager.registry.add_binding(pt_keys.Keys.F3)
         def _mode_toggle(event):
-            self.query_mode = self.query_mode.cycle()
+            self.context.toggle_query_mode()
+
+        @key_binding_manager.registry.add_binding(pt_keys.Keys.F4)
+        def _implicit_toggle(event):
+            self.context.toggle_implicit()
 
         @key_binding_manager.registry.add_binding(pt_keys.Keys.Tab)
         def _tab(event):
@@ -374,16 +381,17 @@ class Cli:
                     continue
 
                 self.ensure_connection(self.conn_args)
+                qm = self.context.query_mode
                 results = []
                 try:
-                    if self.query_mode is QueryMode.GraphQL:
+                    if qm is context.QueryMode.GraphQL:
                         command = command.rstrip(';')
                         results.append(
                             self.run_coroutine(
                                 self.connection._legacy_execute(
                                     command,
                                     graphql=True)))
-                    elif self.query_mode is QueryMode.Normal:
+                    elif qm is context.QueryMode.Normal:
                         for query in lexutils.split_edgeql(command):
                             results.append(
                                 self.run_coroutine(
@@ -402,19 +410,22 @@ class Cli:
 
                 max_width = term.size(sys.stdout.fileno())[1]
                 for result in results:
-                    if self.query_mode is QueryMode.GraphQL:
+                    if qm is context.QueryMode.GraphQL:
                         out = render.render_json(
+                            self.context,
                             json.dumps(result[0]),
                             max_width=min(max_width, 120),
                             use_colors=use_colors)
 
-                    elif self.query_mode is QueryMode.JSON:
+                    elif qm is context.QueryMode.JSON:
                         out = render.render_json(
+                            self.context,
                             result,
                             max_width=min(max_width, 120),
                             use_colors=use_colors)
                     else:
                         out = render.render_binary(
+                            self.context,
                             result,
                             max_width=min(max_width, 120),
                             use_colors=use_colors)
