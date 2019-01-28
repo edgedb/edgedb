@@ -69,6 +69,8 @@ class BinaryRenderer:
                 buf.write(',')
                 buf.mark_line_break()
 
+        return i > 0
+
     def _object_name(o, repl_ctx):
         if not repl_ctx.introspect_types:
             return 'Object'
@@ -82,7 +84,8 @@ class BinaryRenderer:
             buf.write(' {', style.tree_node)
             buf.folded_space()
             with buf.indent():
-                BinaryRenderer._object_guts(o.target, repl_ctx, buf)
+                non_empty = BinaryRenderer._object_guts(
+                    o.target, repl_ctx, buf)
 
                 pointers = o.__dir__()
                 pointers = tuple(ptr for ptr in pointers
@@ -100,13 +103,15 @@ class BinaryRenderer:
                         buf.write(f'@{name}', style.code_tag)
                         buf.write(': ')
                         BinaryRenderer.walk(val, repl_ctx, buf)
+                        non_empty = True
 
                         i += 1
                         if i < pointers_len:
                             buf.write(',')
                             buf.mark_line_break()
 
-            buf.folded_space()
+            if non_empty:
+                buf.folded_space()
             buf.write('}', style.tree_node)
 
     @walk.register
@@ -117,8 +122,9 @@ class BinaryRenderer:
             buf.write(' {', style.tree_node)
             buf.folded_space()
             with buf.indent():
-                BinaryRenderer._object_guts(o, repl_ctx, buf)
-            buf.folded_space()
+                non_empty = BinaryRenderer._object_guts(o, repl_ctx, buf)
+            if non_empty:
+                buf.folded_space()
             buf.write('}', style.tree_node)
 
     @walk.register
