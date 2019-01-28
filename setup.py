@@ -35,14 +35,15 @@ from setuptools.command import develop as setuptools_develop
 RUNTIME_DEPS = [
     'asyncpg~=0.18.2',
     'click~=6.7',
-    'graphql-core~=2.1.0',
     'immutables>=0.9',
     'parsing~=1.6.1',
     'prompt_toolkit>=1.0.15,<2.0.0',
     'Pygments~=2.3.0',
     'setproctitle~=1.1.10',
-    'typing_inspect~=0.3.1',
     'uvloop~=0.12.0',
+
+    'graphql-core~=2.1.0',
+    'promise~=2.2.0',
 ]
 
 CYTHON_DEPENDENCY = 'Cython==0.29.3'
