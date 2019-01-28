@@ -19,6 +19,8 @@
 
 import dataclasses
 import enum
+import typing
+import uuid
 
 
 class QueryMode(enum.IntEnum):
@@ -35,10 +37,18 @@ class QueryMode(enum.IntEnum):
 class ReplContext:
 
     show_implicit_fields: bool = False
+    introspect_types: bool = False
     query_mode: QueryMode = QueryMode.Normal
+    typenames: typing.Optional[typing.Dict[uuid.UUID, str]] = None
 
     def toggle_query_mode(self):
         self.query_mode = self.query_mode.cycle()
 
     def toggle_implicit(self):
         self.show_implicit_fields = not self.show_implicit_fields
+
+    def toggle_introspect_types(self):
+        self.introspect_types = not self.introspect_types
+
+    def on_new_connection(self):
+        self.introspect_types = False

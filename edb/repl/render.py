@@ -67,12 +67,20 @@ class BinaryRenderer:
             i += 1
             if i < fields_len:
                 buf.write(',')
-                buf.smart_break()
+                buf.mark_line_break()
+
+    def _object_name(o, repl_ctx):
+        if not repl_ctx.introspect_types:
+            return 'Object'
+        return repl_ctx.typenames.get(o.__tid__, 'Object')
 
     @walk.register
     def _link(o: edgedb.Link, repl_ctx: context.ReplContext, buf):
-        with buf.smart_lines():
-            buf.write('Object{', style.tree_node)
+        with buf.foldable_lines():
+            buf.write(BinaryRenderer._object_name(o.target, repl_ctx),
+                      style.tree_node)
+            buf.write(' {', style.tree_node)
+            buf.folded_space()
             with buf.indent():
                 BinaryRenderer._object_guts(o.target, repl_ctx, buf)
 
@@ -83,7 +91,7 @@ class BinaryRenderer:
 
                 if fields_len > 0:
                     buf.write(',')
-                    buf.smart_break()
+                    buf.mark_line_break()
 
                     i = 0
                     for name in fields:
@@ -96,21 +104,26 @@ class BinaryRenderer:
                         i += 1
                         if i < fields_len:
                             buf.write(',')
-                            buf.smart_break()
+                            buf.mark_line_break()
 
+            buf.folded_space()
             buf.write('}', style.tree_node)
 
     @walk.register
     def _object(o: edgedb.Object, repl_ctx: context.ReplContext, buf):
-        with buf.smart_lines():
-            buf.write('Object{', style.tree_node)
+        with buf.foldable_lines():
+            buf.write(BinaryRenderer._object_name(o, repl_ctx),
+                      style.tree_node)
+            buf.write(' {', style.tree_node)
+            buf.folded_space()
             with buf.indent():
                 BinaryRenderer._object_guts(o, repl_ctx, buf)
+            buf.folded_space()
             buf.write('}', style.tree_node)
 
     @walk.register
     def _namedtuple(o: edgedb.NamedTuple, repl_ctx: context.ReplContext, buf):
-        with buf.smart_lines():
+        with buf.foldable_lines():
             buf.write('(', style.bracket)
             with buf.indent():
                 # Call __dir__ directly as dir() scrambles the order.
@@ -123,7 +136,7 @@ class BinaryRenderer:
 
                     if idx < (len(o) - 1):
                         buf.write(',')
-                        buf.smart_break()
+                        buf.mark_line_break()
             buf.write(')', style.bracket)
 
     @walk.register(edgedb.Array)
@@ -138,14 +151,14 @@ class BinaryRenderer:
         else:
             begin, end = '{', '}'
 
-        with buf.smart_lines():
+        with buf.foldable_lines():
             buf.write(begin, style.bracket)
             with buf.indent():
                 for idx, el in enumerate(o):
                     BinaryRenderer.walk(el, repl_ctx, buf)
                     if idx < (len(o) - 1):
                         buf.write(',')
-                        buf.smart_break()
+                        buf.mark_line_break()
             buf.write(end, style.bracket)
 
     @walk.register
@@ -230,19 +243,19 @@ class JSONRenderer:
     @walk.register(list)
     @walk.register(tuple)
     def _set(o, repl_ctx: context.ReplContext, buf):
-        with buf.smart_lines():
+        with buf.foldable_lines():
             buf.write('[', style.bracket)
             with buf.indent():
                 for idx, el in enumerate(o):
                     JSONRenderer.walk(el, repl_ctx, buf)
                     if idx < (len(o) - 1):
                         buf.write(',')
-                        buf.smart_break()
+                        buf.mark_line_break()
             buf.write(']', style.bracket)
 
     @walk.register(dict)
     def _dict(o, repl_ctx: context.ReplContext, buf):
-        with buf.smart_lines():
+        with buf.foldable_lines():
             buf.write('{', style.bracket)
             with buf.indent():
                 for idx, (key, el) in enumerate(o.items()):
@@ -251,7 +264,7 @@ class JSONRenderer:
                     JSONRenderer.walk(el, repl_ctx, buf)
                     if idx < (len(o) - 1):
                         buf.write(',')
-                        buf.smart_break()
+                        buf.mark_line_break()
             buf.write('}', style.bracket)
 
     @walk.register(int)

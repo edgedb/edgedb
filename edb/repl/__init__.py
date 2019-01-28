@@ -69,7 +69,7 @@ class ResultRenderer(markup_term.Renderer):
             open_bracket = '['
             close_bracket = ']'
 
-        with self.buffer.smart_lines():
+        with self.buffer.foldable_lines():
             self.buffer.write(open_bracket, style=self.styles.bracket)
 
             item_count = len(element.items)
@@ -82,7 +82,7 @@ class ResultRenderer(markup_term.Renderer):
 
                         if idx < (item_count - 1):
                             self.buffer.write(',')
-                            self.buffer.smart_break()
+                            self.buffer.mark_line_break()
 
                 self._list_depth -= 1
 
@@ -195,6 +195,14 @@ class Cli:
                     'On' if self.context.show_implicit_fields else 'Off'),
             ])
 
+            toolbar.extend([
+                (pt_token.Token.Toolbar, self.TOOLBAR_SEP),
+
+                (pt_token.Token.Toolbar, '[F5] Introspect Types: '),
+                (pt_token.Token.Toolbar,
+                    'On' if self.context.introspect_types else 'Off'),
+            ])
+
         return toolbar
 
     def build_cli(self):
@@ -213,6 +221,20 @@ class Cli:
         @key_binding_manager.registry.add_binding(pt_keys.Keys.F4)
         def _implicit_toggle(event):
             self.context.toggle_implicit()
+
+        @key_binding_manager.registry.add_binding(pt_keys.Keys.F5)
+        def _introspect_toggle(event):
+            self.context.toggle_introspect_types()
+
+            async def load_types(con):
+                names = await con.fetch('SELECT schema::ObjectType { name }')
+                return {n.id: n.name for n in names}
+
+            if self.context.introspect_types:
+                self.context.typenames = self.run_coroutine(
+                    load_types(self.connection))
+            else:
+                self.context.typenames = None
 
         @key_binding_manager.registry.add_binding(pt_keys.Keys.Tab)
         def _tab(event):
@@ -300,6 +322,7 @@ class Cli:
         self.connection = None
         self.ensure_connection(new_args)
         self.conn_args = new_args
+        self.context.on_new_connection()
 
     @_command('l', R'\l', 'list databases')
     def command_list_dbs(self, args):

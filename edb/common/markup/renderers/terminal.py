@@ -26,10 +26,11 @@ from edb.common.markup.format import xrepr
 from .. import elements
 from . import styles as styles_module
 
-SMART_BREAK = 1
-SMART_LINES_START = 2
-SMART_LINES_END = 3
-SMART_SPACE = 4
+LINE_BREAK = 1
+FOLDABLE_LINES_START = 2
+FOLDABLE_LINES_END = 3
+NON_FOLDED_SPACE = 4
+FOLDED_SPACE = 5
 
 INDENT = 10
 INDENT_NO_NL = 11
@@ -67,17 +68,20 @@ class Buffer:
             yield
             self.data.append((DEDENT_NO_NL, ))
 
-    def smart_space(self, space=' '):
-        self.data.append((SMART_SPACE, space))
+    def non_folded_space(self, space=' '):
+        self.data.append((NON_FOLDED_SPACE, space))
+
+    def folded_space(self, space=' '):
+        self.data.append((FOLDED_SPACE, space))
 
     @contextlib.contextmanager
-    def smart_lines(self):
-        self.data.append((SMART_LINES_START, ))
+    def foldable_lines(self):
+        self.data.append((FOLDABLE_LINES_START, ))
         yield
-        self.data.append((SMART_LINES_END, ))
+        self.data.append((FOLDABLE_LINES_END, ))
 
-    def smart_break(self):
-        self.data.append((SMART_BREAK, ))
+    def mark_line_break(self):
+        self.data.append((LINE_BREAK, ))
 
     def write(self, s, style=None):
         st = None
@@ -96,24 +100,24 @@ class Buffer:
         max_width = self.max_width
 
         result = []
-        smart_mode = 0
+        folded_mode = 0
         offset = 0
 
-        def does_fit(pos, data, width):
+        def check_folded_fit(pos, data, width):
             _len = 0
             smlines = 0
             smlines_max = 0
 
             for item in data[pos:]:
                 code = item[0]
-                if code == SMART_LINES_START:
+                if code == FOLDABLE_LINES_START:
                     smlines += 1
                     smlines_max += 1
-                elif code == SMART_LINES_END:
+                elif code == FOLDABLE_LINES_END:
                     smlines -= 1
                     if not smlines:
                         break
-                elif code == SMART_BREAK:
+                elif code == LINE_BREAK:
                     _len += 1
                 elif code == DATA:
                     _len += len(item[1])
@@ -131,12 +135,12 @@ class Buffer:
 
             if el == INDENT:
                 indentation += 1
-                if not smart_mode:
+                if not folded_mode:
                     result.append('\n' + indent_with * indentation)
                     offset = indent_with_len * indentation
             elif el == DEDENT:
                 indentation -= 1
-                if not smart_mode:
+                if not folded_mode:
                     result.append('\n' + indent_with * indentation)
                     offset = indent_with_len * indentation
             elif el == INDENT_NO_NL:
@@ -144,25 +148,29 @@ class Buffer:
             elif el == DEDENT_NO_NL:
                 indentation -= 1
             elif el == NEW_LINE:
-                if not smart_mode:
+                if not folded_mode:
                     result.append('\n' + indent_with * indentation)
                     offset = indent_with_len * indentation
-            elif el == SMART_LINES_START:
-                if (not smart_mode) and (max_width is not None) and (
+            elif el == FOLDABLE_LINES_START:
+                if (not folded_mode) and (max_width is not None) and (
                         max_width - offset > 20):
-                    smart_mode = does_fit(pos, data, max_width - offset)
-            elif el == SMART_LINES_END:
-                if smart_mode:
-                    smart_mode -= 1
-            elif el == SMART_BREAK:
-                if smart_mode:
+                    folded_mode = check_folded_fit(
+                        pos, data, max_width - offset)
+            elif el == FOLDABLE_LINES_END:
+                if folded_mode:
+                    folded_mode -= 1
+            elif el == LINE_BREAK:
+                if folded_mode:
                     result.append(' ')
                     offset += 1
                 else:
                     result.append('\n' + indent_with * indentation)
                     offset = indent_with_len * indentation
-            elif el == SMART_SPACE:
-                if not smart_mode:
+            elif el == NON_FOLDED_SPACE:
+                if not folded_mode:
+                    result.append(item[1])
+            elif el == FOLDED_SPACE:
+                if folded_mode:
                     result.append(item[1])
             elif el == DATA:
                 # ``item[1]`` -- text to output, ``item[2]`` -- its style
@@ -311,14 +319,14 @@ class LangRenderer(BaseRenderer):
         self.ex_depth = 0
 
     def _render_lang_TreeNode(self, element):
-        with self.buffer.smart_lines():
+        with self.buffer.foldable_lines():
             self.buffer.write(element.name, style=self.styles.tree_node)
 
-            self.buffer.smart_space()
+            self.buffer.non_folded_space()
             if element.id:
                 self.buffer.write(
                     '<0x{:x}>'.format(int(element.id)), style=self.styles.id)
-                self.buffer.smart_space()
+                self.buffer.non_folded_space()
             self.buffer.write('(', style=self.styles.id)
 
             child_count = len(element.children)
@@ -332,16 +340,16 @@ class LangRenderer(BaseRenderer):
                         if child.label:
                             self.buffer.write(
                                 child.label, style=self.styles.attribute)
-                            self.buffer.smart_space(
+                            self.buffer.non_folded_space(
                                 ' ' * (max(0, padding - len(child.label)) + 1))
                             self.buffer.write('=')
-                            self.buffer.smart_space()
+                            self.buffer.non_folded_space()
 
                         self._render(child.node)
 
                         if idx < (child_count - 1):
                             self.buffer.write(',')
-                            self.buffer.smart_break()
+                            self.buffer.mark_line_break()
 
             self.buffer.write(')', style=self.styles.id)
 
@@ -351,7 +359,7 @@ class LangRenderer(BaseRenderer):
             style=self.styles.ref)
 
     def _render_lang_List(self, element):
-        with self.buffer.smart_lines():
+        with self.buffer.foldable_lines():
             self.buffer.write('[', style=self.styles.bracket)
 
             item_count = len(element.items)
@@ -362,7 +370,7 @@ class LangRenderer(BaseRenderer):
 
                         if idx < (item_count - 1):
                             self.buffer.write(',')
-                            self.buffer.smart_break()
+                            self.buffer.mark_line_break()
 
             if element.trimmed:
                 self.buffer.write('...')
@@ -383,7 +391,7 @@ class LangRenderer(BaseRenderer):
 
                     if idx < (item_count - 1):
                         self.buffer.write(',')
-                        self.buffer.smart_break()
+                        self.buffer.mark_line_break()
 
         if trimmed:
             self.buffer.write('...')
@@ -391,7 +399,7 @@ class LangRenderer(BaseRenderer):
         self.buffer.write('}', style=self.styles.bracket)
 
     def _render_lang_Dict(self, element):
-        with self.buffer.smart_lines():
+        with self.buffer.foldable_lines():
             self._render_mapping_(element.items, trimmed=element.trimmed)
 
     def _render_lang_Object(self, element):
