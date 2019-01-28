@@ -77,8 +77,34 @@ provided by EdgeDB.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 10 / 2;
-        {5}
+        db> SELECT 10 / 4;
+        {2.5}
+
+
+.. eql:operator:: FLOORDIV: A // B
+
+    :optype A: anyreal
+    :optype B: anyreal
+    :resulttype: anyreal
+    :index: floor divide division
+
+    Integer division.
+
+    The result is rounded down to the nearest integer. It is
+    equivalent to using regular division and the applying
+    :eql:func:`math::floor` to the result.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT 10 // 4;
+        {2}
+        db> SELECT math::floor(10 / 4);
+        {2}
+        db> SELECT -10 // 4;
+        {-3}
+
+    Regular division, integer division and :eql:op:`%<MOD>` are
+    related in the following way: ``A / B = (A // B + A % B)``
 
 
 .. eql:operator:: MOD: A % B

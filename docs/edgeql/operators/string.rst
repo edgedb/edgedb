@@ -5,9 +5,19 @@ String
 ======
 
 Much like with :ref:`arrays <ref_eql_expr_array_elref>` string
-elements and string slices can be produced by using ``[]``.
+elements and string slices can be produced by using ``[]``:
 
-.. eql:operator:: STRPLUS: A + B
+.. code-block:: edgeql-repl
+
+    db> SELECT 'some text'[1];
+    {'o'}
+    db> SELECT 'some text'[1:3];
+    {'om'}
+    db> SELECT 'some text'[-4:];
+    {'text'}
+
+
+.. eql:operator:: STRPLUS: A ++ B
 
     :optype A: str
     :optype B: str
@@ -17,7 +27,7 @@ elements and string slices can be produced by using ``[]``.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 'some' + ' text';
+        db> SELECT 'some' ++ ' text';
         {'some text'}
 
 

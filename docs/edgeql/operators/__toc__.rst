@@ -19,6 +19,7 @@ EdgeDB provides a number of operators for the standard data types.
 
     array
     string
+    bytes
     json
 
     mathop

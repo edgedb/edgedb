@@ -151,8 +151,9 @@ EdgeQL operators listed in order of precedence from lowest to highest:
     * - :eql:op:`LIKE`, :eql:op:`ILIKE`
     * - :eql:op:`IN`, :eql:op:`NOT IN <IN>`
     * - :eql:op:`IS`, :eql:op:`IS NOT <IS>`
-    * - :eql:op:`+<PLUS>`, :eql:op:`-<MINUS>`
-    * - :eql:op:`/<DIV>`, :eql:op:`*<MULT>`, :eql:op:`%<MOD>`
+    * - :eql:op:`+<PLUS>`, :eql:op:`-<MINUS>`, :eql:op:`++<STRPLUS>`
+    * - :eql:op:`*<MULT>`, :eql:op:`/<DIV>`,
+        :eql:op:`//<FLOORDIV>`, :eql:op:`%<MOD>`
     * - :eql:op:`??<COALESCE>`
     * - :eql:op:`DISTINCT`, unary :eql:op:`-<UMINUS>`
     * - :eql:op:`^<POW>`

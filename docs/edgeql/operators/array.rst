@@ -9,6 +9,20 @@ Array
 
 .. _ref_eql_expr_array_elref:
 
+.. eql:operator:: ARRAYPLUS: A ++ B
+
+    :optype A: array<anytype>
+    :optype B: array<anytype>
+    :resulttype: array<anytype>
+
+    Array concatenation.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT [1, 2, 3] ++ [99, 98];
+        {[1, 2, 3, 99, 98]}
+
+
 Accessing Array Elements
 ========================
 
