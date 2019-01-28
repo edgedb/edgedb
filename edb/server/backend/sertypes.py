@@ -52,7 +52,9 @@ class TypeSerializer:
         self.buffer = []
         self.uuid_to_pos = {}
 
-    def _get_collection_type_id(self, coll_type, subtypes, element_names=None):
+    def _get_collection_type_id(self, coll_type, subtypes,
+                                element_names=None, *,
+                                has_implicit_fields=False):
         if coll_type == 'tuple' and not subtypes:
             return s_obj.get_known_type_id('empty-tuple')
 
@@ -60,6 +62,8 @@ class TypeSerializer:
         string_id = f'{coll_type}\x00{":".join(subtypes)}'
         if element_names:
             string_id += f'\x00{":".join(element_names)}'
+        if has_implicit_fields:
+            string_id += ';has_implicit_fields'
         return uuid.uuid5(s_types.TYPE_ID_NAMESPACE, string_id)
 
     def _get_union_type_id(self, union_type):
@@ -204,7 +208,8 @@ class TypeSerializer:
                     links.append(False)
 
             type_id = self._get_collection_type_id(
-                base_type_id, subtypes, element_names)
+                base_type_id, subtypes, element_names,
+                has_implicit_fields=implicit_id)
 
             if type_id in self.uuid_to_pos:
                 return type_id
