@@ -190,7 +190,7 @@ class Cli:
             toolbar.extend([
                 (pt_token.Token.Toolbar, self.TOOLBAR_SEP),
 
-                (pt_token.Token.Toolbar, '[F4] Implicit Fields: '),
+                (pt_token.Token.Toolbar, '[F4] Implicit Properties: '),
                 (pt_token.Token.Toolbar,
                     'On' if self.context.show_implicit_fields else 'Off'),
             ])
