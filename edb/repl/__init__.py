@@ -44,9 +44,7 @@ from prompt_toolkit import token as pt_token
 from prompt_toolkit.layout import lexers as pt_lexers
 
 from edb.common import devmode
-from edb.common import markup
 from edb.common import term
-from edb.common.markup.renderers import terminal as markup_term
 from edb.edgeql import pygments as eql_pygments
 
 from edb.server import cluster as edgedb_cluster
@@ -54,42 +52,6 @@ from edb.server import cluster as edgedb_cluster
 from . import context
 from . import lexutils
 from . import render
-
-
-class ResultRenderer(markup_term.Renderer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._list_depth = 0
-
-    def _render_lang_List(self, element):
-        if self._list_depth == 0:
-            open_bracket = '{'
-            close_bracket = '}'
-        else:
-            open_bracket = '['
-            close_bracket = ']'
-
-        with self.buffer.foldable_lines():
-            self.buffer.write(open_bracket, style=self.styles.bracket)
-
-            item_count = len(element.items)
-            if item_count:
-                self._list_depth += 1
-
-                with self.buffer.indent():
-                    for idx, item in enumerate(element.items):
-                        self._render(item)
-
-                        if idx < (item_count - 1):
-                            self.buffer.write(',')
-                            self.buffer.mark_line_break()
-
-                self._list_depth -= 1
-
-            if element.trimmed:
-                self.buffer.write('...')
-
-            self.buffer.write(close_bracket, style=self.styles.bracket)
 
 
 class InputBuffer(pt_buffer.Buffer):
@@ -461,11 +423,16 @@ class Cli:
 
 async def execute(conn_args, data):
     con = await edgedb.async_connect(**conn_args)
-    result = await con._legacy_execute(data)
-
-    for entry in result:
-        entry_mkup = markup._serialize(entry)
-        markup_term.render(entry_mkup, renderer=ResultRenderer)
+    queries = lexutils.split_edgeql(data, script_mode=True)
+    ctx = context.ReplContext()
+    for query in queries:
+        ret = await con.fetch(query)
+        out = render.render_binary(
+            ctx,
+            ret,
+            max_width=80,
+            use_colors=False)
+        print(out)
 
 
 def parse_connect_args():
