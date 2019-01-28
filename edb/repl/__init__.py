@@ -421,12 +421,12 @@ class Cli:
             return
 
 
-async def execute(conn_args, data):
-    con = await edgedb.async_connect(**conn_args)
+def execute_script(conn_args, data):
+    con = edgedb.connect(**conn_args)
     queries = lexutils.split_edgeql(data, script_mode=True)
     ctx = context.ReplContext()
     for query in queries:
-        ret = await con.fetch(query)
+        ret = con.fetch(query)
         out = render.render_binary(
             ctx,
             ret,
@@ -500,16 +500,7 @@ def main():
 
     if select.select([sys.stdin], [], [], 0.0)[0]:
         data = sys.stdin.read()
-
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-        try:
-            loop.run_until_complete(execute(connect_kwargs, data))
-        finally:
-            loop.close()
-            asyncio.set_event_loop(None)
-
+        execute_script(connect_kwargs, data)
         return
 
     Cli(connect_kwargs).run()
