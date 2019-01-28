@@ -448,8 +448,6 @@ def parse_connect_args():
     parser.add_argument('--server-dir', type=str, metavar='DIR',
                         default=pathlib.Path.home() / '.edgedb',
                         help='Start EdgeDB server in the data directory DIR')
-    parser.add_argument('--background-cmd', type=str, metavar='CMD',
-                        help='Run the specified command in the background.')
 
     args = parser.parse_args()
     if args.password:
@@ -473,21 +471,6 @@ def main():
             cluster.init()
         cluster.start(port=args.port, timezone='UTC')
         atexit.register(cluster.stop)
-
-    if args.background_cmd:
-        env = os.environ.copy()
-        if args.host:
-            env['EDGEDB_HOST'] = args.host
-        if args.port:
-            env['EDGEDB_PORT'] = args.port
-
-        background_cmd = subprocess.Popen(
-            args.background_cmd,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            preexec_fn=edgedb_cluster.ensure_dead_with_parent,
-            env=env, shell=True)
-
-        atexit.register(background_cmd.terminate)
 
     connect_kwargs = {
         'user': args.user,
