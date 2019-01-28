@@ -23,10 +23,10 @@ import functools
 import sys
 import typing
 
-import typing_inspect
-
 from edb.common import markup
 from edb.common import typeutils
+
+from edb.common.vendor import typing_inspect
 
 
 class ASTError(Exception):

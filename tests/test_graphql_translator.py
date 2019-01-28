@@ -119,7 +119,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         SELECT
-            stdgraphql::Query {
+            <std::json>stdgraphql::Query {
                 User := (SELECT
                     test::User {
                         name,
@@ -129,7 +129,8 @@ class TestGraphQLTranslation(TranslatorTest):
                         }
                     }
                 )
-            };
+            }
+            LIMIT 1;
         """
 
     @with_operation('users')
@@ -156,7 +157,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         # query users
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
@@ -166,7 +167,8 @@ class TestGraphQLTranslation(TranslatorTest):
                         name
                     }
                 })
-        };
+        }
+            LIMIT 1;
         """
 
     @with_operation('settings')
@@ -193,13 +195,14 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         # query settings
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             Setting := (SELECT
                 test::Setting {
                     name,
                     value
                 })
-        };
+        }
+            LIMIT 1;
         """
 
     @tb.must_fail(GraphQLCoreError,
@@ -266,7 +269,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
 
         # query mixed
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name
@@ -275,7 +278,8 @@ class TestGraphQLTranslation(TranslatorTest):
                 test::Setting {
                     name
                 })
-        };
+        }
+        LIMIT 1;
 
         """
 
@@ -300,7 +304,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             foo := (SELECT
                 test::User {
                     name,
@@ -323,7 +327,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     )
                 }
             )
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_fragment_01(self):
@@ -344,7 +349,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -353,7 +358,8 @@ class TestGraphQLTranslation(TranslatorTest):
                         name
                     }
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_fragment_02(self):
@@ -382,7 +388,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -391,7 +397,8 @@ class TestGraphQLTranslation(TranslatorTest):
                         name
                     }
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_fragment_03(self):
@@ -418,7 +425,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -427,7 +434,8 @@ class TestGraphQLTranslation(TranslatorTest):
                         name
                     }
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_fragment_04(self):
@@ -454,7 +462,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -463,7 +471,8 @@ class TestGraphQLTranslation(TranslatorTest):
                         name
                     }
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_directives_01(self):
@@ -480,12 +489,13 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_directives_02(self):
@@ -502,14 +512,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     groups: {
                         id,
                     }
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_directives_03(self):
@@ -527,14 +538,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     groups: {
                         id,
                     }
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_directives_04(self):
@@ -561,12 +573,13 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_directives_05(self):
@@ -593,12 +606,13 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_directives_06(self):
@@ -625,7 +639,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -633,7 +647,8 @@ class TestGraphQLTranslation(TranslatorTest):
                         id,
                     }
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     @with_variables(nogroup=False)
@@ -662,7 +677,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
         # critical variables: $nogroup=False
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -671,7 +686,8 @@ class TestGraphQLTranslation(TranslatorTest):
                         id,
                     }
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     @with_variables(nogroup=True, irrelevant='foo')
@@ -700,7 +716,7 @@ class TestGraphQLTranslation(TranslatorTest):
 % OK %
         # critical variables: $nogroup=True
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -708,7 +724,8 @@ class TestGraphQLTranslation(TranslatorTest):
                         id,
                     }
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     @with_operation('settings')
@@ -747,13 +764,14 @@ class TestGraphQLTranslation(TranslatorTest):
         # query settings
         # critical variables: $novalue=False
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             Setting := (SELECT
                 test::Setting {
                     name,
                     value
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     @with_operation('users')
@@ -792,7 +810,7 @@ class TestGraphQLTranslation(TranslatorTest):
         # query users
         # critical variables: $nogroup=True
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -800,7 +818,8 @@ class TestGraphQLTranslation(TranslatorTest):
                         id,
                     }
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     @tb.must_fail(GraphQLCoreError, 'invalid value "true"', line=4, col=35)
@@ -839,7 +858,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -850,7 +869,8 @@ class TestGraphQLTranslation(TranslatorTest):
                 }
             FILTER
                 (test::User.name = "John"))
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_arguments_02(self):
@@ -867,7 +887,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -881,7 +901,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     (test::User.name = "John") AND
                     (test::User.active = True)
                 ))
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_arguments_03(self):
@@ -898,7 +919,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -907,7 +928,8 @@ class TestGraphQLTranslation(TranslatorTest):
                         name
                     } FILTER (test::User.groups.name = "admin")
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_arguments_04(self):
@@ -920,7 +942,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name
@@ -929,7 +951,8 @@ class TestGraphQLTranslation(TranslatorTest):
                         "8598d268-4efa-11e8-9955-8f9c15d57680"
                 )
             )
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_arguments_05(self):
@@ -950,7 +973,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -968,7 +991,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     (test::User.age = 21)
                 )
             )
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_arguments_06(self):
@@ -985,7 +1009,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -1000,7 +1024,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     (test::User.age = 21)
                 )
             )
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_arguments_07(self):
@@ -1017,7 +1042,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -1028,7 +1053,8 @@ class TestGraphQLTranslation(TranslatorTest):
                         AND (test::User.age = 21)
                     )
                 )
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_arguments_08(self):
@@ -1047,7 +1073,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -1058,7 +1084,8 @@ class TestGraphQLTranslation(TranslatorTest):
                         OR (test::User.age = 20)
                     )
                 )
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_arguments_09(self):
@@ -1077,7 +1104,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -1089,7 +1116,8 @@ class TestGraphQLTranslation(TranslatorTest):
                         (test::User.age = 20)
                     )
                 )
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_arguments_10(self):
@@ -1106,7 +1134,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -1118,7 +1146,8 @@ class TestGraphQLTranslation(TranslatorTest):
                         (test::User.age > 22)
                     )
                 )
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_arguments_11(self):
@@ -1138,7 +1167,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -1154,7 +1183,8 @@ class TestGraphQLTranslation(TranslatorTest):
                         )
                     )
                 )
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_arguments_12(self):
@@ -1171,7 +1201,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -1183,7 +1213,8 @@ class TestGraphQLTranslation(TranslatorTest):
                         (test::User.age <= 25)
                     )
                 )
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_arguments_13(self):
@@ -1204,7 +1235,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -1214,7 +1245,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     .age DESC EMPTY LAST THEN
                     .name ASC EMPTY LAST
             )
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_arguments_14(self):
@@ -1231,7 +1263,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             multi User := (
                 SELECT
                     test::User {
@@ -1241,7 +1273,8 @@ class TestGraphQLTranslation(TranslatorTest):
                 ORDER BY .name ASC EMPTY FIRST
                 LIMIT 2
             )
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_arguments_15(self):
@@ -1259,7 +1292,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             multi User := (
                 SELECT
                     test::User {
@@ -1269,7 +1302,8 @@ class TestGraphQLTranslation(TranslatorTest):
                 ORDER BY .name ASC EMPTY FIRST
                 OFFSET 2 LIMIT 2
             )
-        };
+        }
+        LIMIT 1;
         """
 
     # FIXME: 'last' is not fully implemented in all cases and ideally
@@ -1289,7 +1323,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             multi User := (
                 SELECT
                     test::User {
@@ -1299,7 +1333,8 @@ class TestGraphQLTranslation(TranslatorTest):
                 ORDER BY .name ASC EMPTY FIRST
                 OFFSET -2
             )
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_variables_01(self):
@@ -1316,7 +1351,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -1327,7 +1362,8 @@ class TestGraphQLTranslation(TranslatorTest):
                 }
             FILTER
                 (test::User.name = $name))
-        };
+        }
+        LIMIT 1;
         """
 
     @unittest.expectedFailure
@@ -1341,14 +1377,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
                 }
             FILTER
                 (test::User.score = $val))
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_variables_04(self):
@@ -1367,12 +1404,13 @@ class TestGraphQLTranslation(TranslatorTest):
 
         # critical variables: $val=True
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     @tb.must_fail(GraphQLCoreError, line=2, col=32)
@@ -1407,14 +1445,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
                 }
             FILTER
                 (test::User.name = $val))
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_variables_08(self):
@@ -1427,14 +1466,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
                 }
             FILTER
                 (test::User.age = $val))
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_variables_09(self):
@@ -1447,14 +1487,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
                 }
             FILTER
                 (test::User.score = $val))
-        };
+        }
+        LIMIT 1;
         """
 
     @unittest.expectedFailure
@@ -1468,14 +1509,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
                 }
             FILTER
                 (test::User.score = $val))
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_variables_11(self):
@@ -1488,14 +1530,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
                 }
             FILTER
                 (test::User.score = $val))
-        };
+        }
+        LIMIT 1;
         """
 
     @tb.must_fail(GraphQLCoreError, line=2, col=31)
@@ -1621,14 +1664,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
                 }
             FILTER
                 (<str>test::User.id = $val))
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_variables_24(self):
@@ -1641,14 +1685,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
                 }
             FILTER
                 (<str>test::User.id = $val))
-        };
+        }
+        LIMIT 1;
         """
 
     @tb.must_fail(GraphQLCoreError, line=2, col=26)
@@ -1746,7 +1791,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             UserGroup := (SELECT
                 test::UserGroup {
                     id,
@@ -1754,7 +1799,8 @@ class TestGraphQLTranslation(TranslatorTest):
                 }
             FILTER
                 (test::UserGroup.name = "admin"))
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_arg_type_01(self):
@@ -1767,14 +1813,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
                 }
             FILTER
                 (test::User.name = "John"))
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_arg_type_02(self):
@@ -1787,14 +1834,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
                 }
             FILTER
                 (test::User.age = 20))
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_arg_type_03(self):
@@ -1807,14 +1855,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
                 }
             FILTER
                 (test::User.score = 3.5))
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_arg_type_04(self):
@@ -1827,14 +1876,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
                 }
             FILTER
                 (test::User.score = 3))
-        };
+        }
+        LIMIT 1;
         """
 
     @with_variables(val="John")
@@ -1848,14 +1898,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
                 }
             FILTER
                 (test::User.name = $val))
-        };
+        }
+        LIMIT 1;
         """
 
     @with_variables(val=20)
@@ -1869,14 +1920,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
                 }
             FILTER
                 (test::User.age = $val))
-        };
+        }
+        LIMIT 1;
         """
 
     @with_variables(val=3.5)
@@ -1890,14 +1942,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
                 }
             FILTER
                 (test::User.score = $val))
-        };
+        }
+        LIMIT 1;
         """
 
     @unittest.expectedFailure
@@ -1912,14 +1965,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
                 }
             FILTER
                 (test::User.score = $val))
-        };
+        }
+        LIMIT 1;
         """
 
     @tb.must_fail(GraphQLCoreError, line=3, col=26)
@@ -1977,13 +2031,14 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
                     name,
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_fragment_type_02(self):
@@ -2001,13 +2056,14 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
                     name,
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_fragment_type_03(self):
@@ -2030,14 +2086,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
                     name,
                     age,
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     @tb.must_fail(
@@ -2099,14 +2156,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             NamedObject := (SELECT
                 test::NamedObject {
                     id,
                     [IS test::User].name,
                     [IS test::User].age,
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_fragment_type_07(self):
@@ -2124,13 +2182,14 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             NamedObject := (SELECT
                 test::NamedObject {
                     id,
                     name,
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     @tb.must_fail(GraphQLCoreError,
@@ -2187,14 +2246,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             NamedObject := (SELECT
                 test::NamedObject {
                     id,
                     name,
                     [IS test::User].age,
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_fragment_type_11(self):
@@ -2217,14 +2277,15 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
                     name,
                     [IS test::User].age,
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_fragment_type_12(self):
@@ -2239,12 +2300,13 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             NamedObject := (SELECT
                 test::NamedObject {
                     [IS test::User].age
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_duplicates_01(self):
@@ -2260,13 +2322,14 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
                     name,
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_duplicates_02(self):
@@ -2281,13 +2344,14 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
                     id,
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_duplicates_03(self):
@@ -2304,13 +2368,14 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
                     id,
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_duplicates_04(self):
@@ -2335,13 +2400,14 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
                     name,
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_duplicates_05(self):
@@ -2357,13 +2423,14 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
                     name,
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     # graphql parser has an issue here
@@ -2382,13 +2449,14 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
                     id,
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_duplicates_07(self):
@@ -2413,13 +2481,14 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     id,
                     name,
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_quoting_01(self):
@@ -2433,7 +2502,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             Foo := (SELECT
                 test::Foo {
                     `select`,
@@ -2441,7 +2510,8 @@ class TestGraphQLTranslation(TranslatorTest):
                 }
             FILTER
                 (test::Foo.`select` = "bar"))
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_typename_01(self):
@@ -2460,7 +2530,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -2473,7 +2543,8 @@ class TestGraphQLTranslation(TranslatorTest):
                             test::User.groups.__type__.name)
                     }
                 })
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_typename_02(self):
@@ -2484,9 +2555,10 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             __typename
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_typename_03(self):
@@ -2501,7 +2573,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             foo := (SELECT stdgraphql::Query.__typename),
             User := (SELECT
                 test::User {
@@ -2509,7 +2581,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     bar := stdgraphql::short_name(test::User.__type__.name)
                 }
             )
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_schema_01(self):
@@ -2522,11 +2595,12 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             __schema := to_json('{
                 "__typename": "__Schema"
             }')
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_schema_02(self):
@@ -2542,11 +2616,12 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             __schema := to_json('{
                 "__typename": "__Schema"
             }')
-        };
+        }
+        LIMIT 1;
         """
 
     @tb.must_fail(GraphQLCoreError, line=3, col=22)
@@ -2585,7 +2660,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             __schema := to_json('{
                 "directives": [
                     {
@@ -2671,7 +2746,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     }
                 ]
             }')
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_schema_05(self):
@@ -2687,11 +2763,12 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             __schema := to_json('{
                 "mutationType": null
             }')
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_schema_06(self):
@@ -2723,7 +2800,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             __schema := to_json('{
                 "queryType": {
                     "kind": "OBJECT",
@@ -2736,7 +2813,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     "ofType": null
                 }
             }')
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_schema_07(self):
@@ -2752,7 +2830,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             __schema := to_json('{
                 "types": [
                     {"kind": "OBJECT", "name": "Query"},
@@ -2809,7 +2887,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     {"kind": "OBJECT", "name": "UserType"}
                 ]
             }')
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_schema_08(self):
@@ -2825,7 +2904,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             Foo := to_json('{
                 "types": [
                     {"kind": "OBJECT", "name": "Query"},
@@ -2882,7 +2961,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     {"kind": "OBJECT", "name": "UserType"}
                 ]
             }')
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_schema_09(self):
@@ -2903,7 +2983,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             __schema := to_json('{
                 "directives": [
                     {
@@ -2929,7 +3009,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     },
                 ]
             }')
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_schema_10(self):
@@ -2952,7 +3033,7 @@ class TestGraphQLTranslation(TranslatorTest):
         }
 
 % OK %
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             User := (SELECT
                 test::User {
                     name,
@@ -3018,7 +3099,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     {"kind": "OBJECT", "name": "UserType"}
                 ]
             }')
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_type_01(self):
@@ -3033,13 +3115,14 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             __type := to_json('{
                 "__typename": "__Type",
                 "name": "User",
                 "kind": "INTERFACE"
             }')
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_type_02(self):
@@ -3071,7 +3154,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             __type := to_json('{
                 "__typename": "__Type",
                 "kind": "OBJECT"
@@ -3093,7 +3176,8 @@ class TestGraphQLTranslation(TranslatorTest):
                 "inputFields": null,
                 "ofType": null
             }')
-        };
+        }
+        LIMIT 1;
     """
 
     def test_graphql_translation_type_03(self):
@@ -3125,7 +3209,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             __type := to_json('{
                 "__typename": "__Type",
                 "kind": "INTERFACE"
@@ -3144,7 +3228,8 @@ class TestGraphQLTranslation(TranslatorTest):
                 "inputFields": null,
                 "ofType": null
             }')
-        };
+        }
+        LIMIT 1;
     """
 
     def test_graphql_translation_type_04(self):
@@ -3194,7 +3279,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             __type := to_json('{
                 "__typename": "__Type",
                 "name": "UserGroup",
@@ -3261,7 +3346,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     }
                 ]
             }')
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_type_05(self):
@@ -3305,7 +3391,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             __type := to_json('{
                 "__typename": "__Type",
                 "name": "UserGroupType",
@@ -3372,7 +3458,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     }
                 ]
             }')
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_type_06(self):
@@ -3422,7 +3509,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             __type := to_json('{
                 "__typename": "__Type",
                 "name": "ProfileType",
@@ -3540,7 +3627,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     }
                 ]
             }')
-        };
+        }
+        LIMIT 1;
 
         """
 
@@ -3618,7 +3706,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             __type := to_json('{
                 "__typename": "__Type",
                 "kind": "INTERFACE",
@@ -4234,7 +4322,8 @@ class TestGraphQLTranslation(TranslatorTest):
                 "inputFields": null,
                 "ofType": null
             }')
-        };
+        }
+        LIMIT 1;
     """
 
     def test_graphql_translation_type_08(self):
@@ -4282,7 +4371,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             __type := to_json('{
                 "__typename": "__Type",
                 "name": "UserGroupType",
@@ -4414,7 +4503,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     }
                 ]
             }')
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_type_09(self):
@@ -4448,7 +4538,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             __type := to_json('{
                 "__typename": "__Type",
                 "name": "FilterUser",
@@ -4536,7 +4626,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     }
                 ]
             }')
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_type_10(self):
@@ -4570,7 +4661,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             __type := to_json('{
                 "__typename": "__Type",
                 "name": "OrderUser",
@@ -4618,7 +4709,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     }
                 ]
             }')
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_type_11(self):
@@ -4653,7 +4745,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             __type := to_json('{
                 "__typename": "__Type",
                 "name": "Ordering",
@@ -4683,7 +4775,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     }
                 ]
             }')
-        };
+        }
+        LIMIT 1;
         """
 
     def test_graphql_translation_type_12(self):
@@ -4709,7 +4802,7 @@ class TestGraphQLTranslation(TranslatorTest):
 
 % OK %
 
-        SELECT stdgraphql::Query {
+        SELECT <std::json>stdgraphql::Query {
             directionEnum := to_json('{
                 "__typename": "__Type",
                 "name": "directionEnum",
@@ -4728,7 +4821,8 @@ class TestGraphQLTranslation(TranslatorTest):
                     {"name": "BIGGEST"}
                 ]
             }')
-        };
+        }
+        LIMIT 1;
         """
 
     @translate_only

@@ -31,15 +31,18 @@ class TestGraphQLFunctional(tb.QueryTestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'graphql_setup.eql')
 
+    # GraphQL queries cannot run in a transaction
+    ISOLATED_METHODS = False
+
     async def test_graphql_functional_query_01(self):
-        await self.assert_sorted_graphql_query_result(r"""
+        await self.assert_graphql_query_result(r"""
             query {
                 Setting {
                     name
                     value
                 }
             }
-        """, lambda x: x['name'], [[{
+        """, {
             'Setting': [{
                 'name': 'perks',
                 'value': 'full',
@@ -47,7 +50,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 'name': 'template',
                 'value': 'blue',
             }],
-        }]])
+        }, sort=lambda x: x['name'])
 
     async def test_graphql_functional_query_02(self):
         await self.assert_graphql_query_result(r"""
@@ -61,7 +64,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     }
                 }
             }
-        """, [[{
+        """, {
             'User': [{
                 'name': 'Alice',
                 'age': 27,
@@ -85,7 +88,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     'name': 'basic',
                 }]
             }],
-        }]])
+        })
 
     async def test_graphql_functional_query_03(self):
         await self.assert_graphql_query_result(r"""
@@ -99,7 +102,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     }
                 }
             }
-        """, [[{
+        """, {
             'User': [{
                 'name': 'John',
                 'age': 25,
@@ -108,7 +111,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     'name': 'basic',
                 }]
             }],
-        }]])
+        })
 
     async def test_graphql_functional_arguments_01(self):
         result = await self.graphql_query(r"""
@@ -121,7 +124,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             }
         """)
 
-        alice = [res for res in result[0][0]['User']
+        alice = [res for res in result['User']
                  if res['name'] == 'Alice'][0]
 
         result = await self.assert_graphql_query_result(f"""
@@ -132,9 +135,9 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     age
                 }}
             }}
-        """, [[{
+        """, {
             'User': [alice]
-        }]])
+        })
 
     async def test_graphql_functional_arguments_02(self):
         await self.assert_graphql_query_result(r"""
@@ -152,13 +155,13 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     }
                 }
             }
-        """, [[{
+        """, {
             'User': [{
                 'name': 'Bob',
                 'age': 21,
                 'groups': [],
             }],
-        }]])
+        })
 
     async def test_graphql_functional_arguments_03(self):
         await self.assert_graphql_query_result(r"""
@@ -171,12 +174,12 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     score
                 }
             }
-        """, [[{
+        """, {
             'User': [{
                 'name': 'Bob',
                 'score': 4.2,
             }],
-        }]])
+        })
 
     async def test_graphql_functional_arguments_04(self):
         await self.assert_graphql_query_result(r"""
@@ -189,9 +192,9 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     score
                 }
             }
-        """, [[{
+        """, {
             'User': [],
-        }]])
+        })
 
     async def test_graphql_functional_arguments_05(self):
         await self.assert_graphql_query_result(r"""
@@ -209,13 +212,13 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     score
                 }
             }
-        """, [[{
+        """, {
             'User': [
                 {'name': 'Alice', 'score': 5},
                 {'name': 'Jane', 'score': 1.23},
                 {'name': 'John', 'score': 3.14},
             ],
-        }]])
+        })
 
     async def test_graphql_functional_arguments_06(self):
         await self.assert_graphql_query_result(r"""
@@ -233,16 +236,16 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     score
                 }
             }
-        """, [[{
+        """, {
             'User': [
                 {'name': 'Alice', 'score': 5},
                 {'name': 'Jane', 'score': 1.23},
                 {'name': 'John', 'score': 3.14},
             ],
-        }]])
+        })
 
     async def test_graphql_functional_arguments_07(self):
-        await self.assert_sorted_graphql_query_result(r"""
+        await self.assert_graphql_query_result(r"""
             query {
                 User(filter: {
                     name: {ilike: "%o%"},
@@ -252,14 +255,14 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     age
                 }
             }
-        """, lambda x: x['name'], [[{
+        """, {
             'User': [
                 {'name': 'John', 'age': 25},
             ],
-        }]])
+        }, sort=lambda x: x['name'])
 
     async def test_graphql_functional_arguments_08(self):
-        await self.assert_sorted_graphql_query_result(r"""
+        await self.assert_graphql_query_result(r"""
             query {
                 User(filter: {
                     name: {like: "J%"},
@@ -272,14 +275,14 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     score
                 }
             }
-        """, lambda x: x['name'], [[{
+        """, {
             'User': [
                 {'name': 'John', 'score': 3.14},
             ],
-        }]])
+        }, sort=lambda x: x['name'])
 
     async def test_graphql_functional_arguments_09(self):
-        await self.assert_sorted_graphql_query_result(r"""
+        await self.assert_graphql_query_result(r"""
             query {
                 User(filter: {
                     name: {ilike: "%e"},
@@ -289,11 +292,11 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     age
                 }
             }
-        """, lambda x: x['name'], [[{
+        """, {
             'User': [
                 {'name': 'Jane', 'age': 25},
             ],
-        }]])
+        }, sort=lambda x: x['name'])
 
     async def test_graphql_functional_arguments_10(self):
         await self.assert_graphql_query_result(r"""
@@ -308,14 +311,14 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     age
                 }
             }
-        """, [[{
+        """, {
             'User': [
                 {'age': 27, 'name': 'Alice'},
                 {'age': 25, 'name': 'Jane'},
                 {'age': 25, 'name': 'John'},
                 {'age': 21, 'name': 'Bob'},
             ],
-        }]])
+        })
 
     async def test_graphql_functional_arguments_11(self):
         await self.assert_graphql_query_result(r"""
@@ -330,14 +333,14 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     age
                 }
             }
-        """, [[{
+        """, {
             'User': [
                 {'age': 27, 'name': 'Alice'},
                 {'age': 21, 'name': 'Bob'},
                 {'age': 25, 'name': 'Jane'},
                 {'age': 25, 'name': 'John'},
             ],
-        }]])
+        })
 
     async def test_graphql_functional_arguments_12(self):
         await self.assert_graphql_query_result(r"""
@@ -351,13 +354,13 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     select
                 }
             }
-        """, [[{
+        """, {
             'Foo': [
                 {'after': None, 'select': 'a'},
                 {'after': 'w', 'select': 'b'},
                 {'after': 'q', 'select': None},
             ],
-        }]])
+        })
 
     async def test_graphql_functional_arguments_13(self):
         await self.assert_graphql_query_result(r"""
@@ -371,13 +374,13 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     select
                 }
             }
-        """, [[{
+        """, {
             'Foo': [
                 {'after': 'w', 'select': 'b'},
                 {'after': None, 'select': 'a'},
                 {'after': 'q', 'select': None},
             ],
-        }]])
+        })
 
     async def test_graphql_functional_arguments_14(self):
         await self.assert_graphql_query_result(r"""
@@ -390,12 +393,12 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     age
                 }
             }
-        """, [[{
+        """, {
             'User': [
                 {'age': 27, 'name': 'Alice'},
                 {'age': 21, 'name': 'Bob'},
             ],
-        }]])
+        })
 
     async def test_graphql_functional_arguments_15(self):
         await self.assert_graphql_query_result(r"""
@@ -428,7 +431,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     name
                 }
             }
-        """, [[{
+        """, {
             'u0': [
                 {'name': 'Bob'},
                 {'name': 'Jane'},
@@ -443,7 +446,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             'u3': [
                 {'name': 'Bob'},
             ],
-        }]])
+        })
 
     # FIXME: 'last' is not fully implemented in all cases and ideally
     # requires negative OFFSET to be implemented
@@ -475,7 +478,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     name
                 }
             }
-        """, [[{
+        """, {
             'u4': [
                 {'name': 'John'},
             ],
@@ -486,7 +489,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
             'u6': [
                 {'name': 'Jane'},
             ],
-        }]])
+        })
 
     async def test_graphql_functional_arguments_17(self):
         await self.assert_graphql_query_result(r"""
@@ -504,7 +507,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     }
                 }
             }
-        """, [[{
+        """, {
             'User': [{
                 'name': 'Jane',
                 'groups': [{
@@ -514,7 +517,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     }]
                 }]
             }]
-        }]])
+        })
 
     async def test_graphql_functional_fragment_02(self):
         await self.assert_graphql_query_result(r"""
@@ -529,16 +532,16 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     ... userFrag
                 }
             }
-        """, [[{
+        """, {
             'NamedObject': [{
                 'name': 'Alice',
                 'age': 27,
                 'score': 5,
             }],
-        }]])
+        })
 
     async def test_graphql_functional_typename_01(self):
-        await self.assert_sorted_graphql_query_result(r"""
+        await self.assert_graphql_query_result(r"""
             query {
                 User {
                     name
@@ -550,7 +553,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     }
                 }
             }
-        """, lambda x: x['name'], [[{
+        """, {
             'User': [{
                 'name': 'Alice',
                 '__typename': 'UserType',
@@ -576,7 +579,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     '__typename': 'UserGroupType',
                 }]
             }],
-        }]])
+        }, sort=lambda x: x['name'])
 
     async def test_graphql_functional_typename_02(self):
         await self.assert_graphql_query_result(r"""
@@ -586,15 +589,15 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     __typename
                 }
             }
-        """, [[{
+        """, {
             '__typename': 'Query',
             '__schema': {
                 '__typename': '__Schema',
             },
-        }]])
+        })
 
     async def test_graphql_functional_schema_01(self):
-        await self.assert_sorted_graphql_query_result(r"""
+        await self.assert_graphql_query_result(r"""
             query {
                 __schema {
                     directives {
@@ -617,8 +620,6 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 }
             }
         """, {
-            'directives': lambda x: x['name'],
-        }, [[{
             '__schema': {
                 "directives": [
                     {
@@ -704,7 +705,9 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     },
                 ]
             }
-        }]])
+        }, sort={
+            'directives': lambda x: x['name'],
+        })
 
     async def test_graphql_functional_schema_02(self):
         await self.assert_graphql_query_result(r"""
@@ -715,11 +718,11 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     }
                 }
             }
-        """, [[{
+        """, {
             '__schema': {
                 'mutationType': None
             }
-        }]])
+        })
 
     async def test_graphql_functional_schema_03(self):
         await self.assert_graphql_query_result(r"""
@@ -747,7 +750,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     }
                 }
             }
-        """, [[{
+        """, {
             '__schema': {
                 'queryType': {
                     'kind': 'OBJECT',
@@ -759,4 +762,4 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                     'ofType': None,
                 }
             }
-        }]])
+        })

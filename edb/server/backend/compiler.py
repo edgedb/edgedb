@@ -78,8 +78,6 @@ class CompileContext(typing.NamedTuple):
 
     state: dbstate.CompilerConnectionState
     output_format: pg_compiler.OutputFormat
-    legacy_mode: bool
-    graphql_mode: bool
     stmt_mode: CompileStatementMode
 
 
@@ -102,8 +100,6 @@ def compile_bootstrap_script(std_schema: s_schema.Schema,
     ctx = CompileContext(
         state=state,
         output_format=pg_compiler.OutputFormat.JSON,
-        legacy_mode=False,
-        graphql_mode=False,
         stmt_mode='all')
 
     compiler = Compiler(None, None)
@@ -219,7 +215,6 @@ class Compiler:
 
         implicit_fields = (
             native_out_format and
-            not ctx.legacy_mode and
             single_stmt_mode
         )
 
@@ -241,7 +236,7 @@ class Compiler:
 
         sql_bytes = sql_text.encode(defines.EDGEDB_ENCODING)
 
-        if single_stmt_mode or ctx.legacy_mode:
+        if single_stmt_mode:
             if native_out_format:
                 out_type_data, out_type_id = sertypes.TypeSerializer.describe(
                     ir.schema, ir.stype,
@@ -655,13 +650,6 @@ class Compiler:
 
         eql = eql.decode()
 
-        if ctx.graphql_mode:
-            assert ctx.stmt_mode is CompileStatementMode.ALL
-            eql = graphql.translate(
-                ctx.state.current_tx().get_schema(),
-                eql,
-                variables={})
-
         statements = edgeql.parse_block(eql)
         if ctx.stmt_mode is CompileStatementMode.SKIP_FIRST:
             statements = statements[1:]
@@ -682,7 +670,6 @@ class Compiler:
             comp: dbstate.BaseQuery = self._compile_dispatch_ql(ctx, stmt)
 
             if unit is not None and (
-                    ctx.legacy_mode or
                     (isinstance(comp, dbstate.TxControlQuery) and
                         comp.single_unit)):
                 units.append(unit)
@@ -692,7 +679,7 @@ class Compiler:
                 unit = dbstate.QueryUnit(dbver=ctx.state.dbver, sql=())
 
             if isinstance(comp, dbstate.Query):
-                if single_stmt_mode or ctx.legacy_mode:
+                if single_stmt_mode:
                     unit.sql = comp.sql
                     unit.sql_hash = comp.sql_hash
 
@@ -780,8 +767,6 @@ class Compiler:
 
     async def _ctx_new_con_state(self, *, dbver: int, json_mode: bool,
                                  modaliases, config,
-                                 legacy_mode: bool,
-                                 graphql_mode: bool,
                                  stmt_mode: CompileStatementMode):
 
         assert isinstance(modaliases, immutables.Map)
@@ -801,15 +786,11 @@ class Compiler:
         ctx = CompileContext(
             state=state,
             output_format=of,
-            legacy_mode=legacy_mode,
-            graphql_mode=graphql_mode,
             stmt_mode=stmt_mode)
 
         return ctx
 
     async def _ctx_from_con_state(self, *, txid: int, json_mode: bool,
-                                  legacy_mode: bool,
-                                  graphql_mode: bool,
                                   stmt_mode: CompileStatementMode):
         state = self._load_state(txid)
 
@@ -821,8 +802,6 @@ class Compiler:
         ctx = CompileContext(
             state=state,
             output_format=of,
-            legacy_mode=legacy_mode,
-            graphql_mode=graphql_mode,
             stmt_mode=stmt_mode)
 
         return ctx
@@ -878,6 +857,29 @@ class Compiler:
             'expected a ROLLBACK or ROLLBACK TO SAVEPOINT command'
         )  # pragma: no cover
 
+    async def compile_graphql(
+            self,
+            dbver: int,
+            gql: bytes,
+            sess_modaliases: immutables.Map,
+            sess_config: immutables.Map):
+
+        ctx = await self._ctx_new_con_state(
+            dbver=dbver,
+            json_mode=False,
+            modaliases=sess_modaliases,
+            config=sess_config,
+            stmt_mode=CompileStatementMode.SINGLE)
+
+        eql = graphql.translate(
+            ctx.state.current_tx().get_schema(),
+            gql.decode(),
+            variables={}).encode()
+
+        units = self._compile(ctx=ctx, eql=eql)
+        assert len(units) == 1
+        return units[0]
+
     async def compile_eql(
             self,
             dbver: int,
@@ -885,8 +887,6 @@ class Compiler:
             sess_modaliases: immutables.Map,
             sess_config: immutables.Map,
             json_mode: bool,
-            legacy_mode: bool,
-            graphql_mode: bool,
             stmt_mode: CompileStatementMode) -> typing.List[dbstate.QueryUnit]:
 
         ctx = await self._ctx_new_con_state(
@@ -894,8 +894,6 @@ class Compiler:
             json_mode=json_mode,
             modaliases=sess_modaliases,
             config=sess_config,
-            legacy_mode=legacy_mode,
-            graphql_mode=graphql_mode,
             stmt_mode=CompileStatementMode(stmt_mode))
 
         units = self._compile(ctx=ctx, eql=eql)
@@ -911,15 +909,11 @@ class Compiler:
             txid: int,
             eql: bytes,
             json_mode: bool,
-            legacy_mode: bool,
-            graphql_mode: bool,
             stmt_mode: CompileStatementMode) -> typing.List[dbstate.QueryUnit]:
 
         ctx = await self._ctx_from_con_state(
             txid=txid,
             json_mode=json_mode,
-            legacy_mode=legacy_mode,
-            graphql_mode=graphql_mode,
             stmt_mode=CompileStatementMode(stmt_mode))
 
         units = self._compile(ctx=ctx, eql=eql)

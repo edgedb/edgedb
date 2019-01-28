@@ -18,7 +18,6 @@
 
 
 import argparse
-import asyncio
 import atexit
 import getpass
 import json
@@ -122,7 +121,6 @@ class Cli:
         self.connection = None
 
         self.eventloop = pt_shortcuts.create_eventloop()
-        self.aioloop = None
         self.cli = None
         self.conn_args = conn_args
         self.cur_db = None
@@ -188,13 +186,11 @@ class Cli:
         def _introspect_toggle(event):
             self.context.toggle_introspect_types()
 
-            async def load_types(con):
-                names = await con.fetch('SELECT schema::ObjectType { name }')
-                return {n.id: n.name for n in names}
-
             if self.context.introspect_types:
-                self.context.typenames = self.run_coroutine(
-                    load_types(self.connection))
+                self.ensure_connection(self.conn_args)
+                names = self.connection.fetch(
+                    'SELECT schema::ObjectType { name }')
+                self.context.typenames = {n.id: n.name for n in names}
             else:
                 self.context.typenames = None
 
@@ -237,22 +233,9 @@ class Cli:
 
         return cli
 
-    def run_coroutine(self, coro):
-        if self.aioloop is None:
-            self.aioloop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self.aioloop)
-
+    def connect(self, args):
         try:
-            return self.aioloop.run_until_complete(coro)
-        except KeyboardInterrupt:
-            self.aioloop.close()
-            self.aioloop = None
-            asyncio.set_event_loop(None)
-            raise
-
-    async def connect(self, args):
-        try:
-            con = await edgedb.async_connect(**args)
+            con = edgedb.connect(**args)
         except Exception:
             return None
         else:
@@ -260,16 +243,11 @@ class Cli:
             return con
 
     def ensure_connection(self, args):
-        async def dummy():
-            pass
-        self.run_coroutine(dummy())
-
         if self.connection is None:
-            self.connection = self.run_coroutine(self.connect(args))
+            self.connection = self.connect(args)
 
-        if self.connection is not None and \
-                self.connection._transport.is_closing():
-            self.connection = self.run_coroutine(self.connect(args))
+        if self.connection is None or self.connection.is_closed():
+            self.connection = self.connect(args)
 
         if self.connection is None:
             print('Could not establish connection', file=sys.stderr)
@@ -280,7 +258,7 @@ class Cli:
         new_db = args.strip()
         new_args = {**self.conn_args,
                     'database': new_db}
-        self.connection._transport.abort()
+        self.connection.close()
         self.connection = None
         self.ensure_connection(new_args)
         self.conn_args = new_args
@@ -288,8 +266,7 @@ class Cli:
 
     @_command('l', R'\l', 'list databases')
     def command_list_dbs(self, args):
-        result = self.run_coroutine(
-            self.connection.fetch('SELECT schema::Database.name'))
+        result = self.connection.fetch('SELECT schema::Database.name')
 
         print('List of databases:')
         for dbn in result:
@@ -372,24 +349,22 @@ class Cli:
                     if qm is context.QueryMode.GraphQL:
                         command = command.rstrip(';')
                         results.append(
-                            self.run_coroutine(
-                                self.connection._legacy_execute(
-                                    command,
-                                    graphql=True)))
+                            self.connection._execute_graphql(command))
                     elif qm is context.QueryMode.Normal:
                         for query in lexutils.split_edgeql(command):
-                            results.append(
-                                self.run_coroutine(
-                                    self.connection.fetch(query)))
+                            results.append(self.connection.fetch(query))
                     else:
                         for query in lexutils.split_edgeql(command):
-                            results.append(
-                                self.run_coroutine(
-                                    self.connection.fetch_json(query)))
+                            results.append(self.connection.fetch_json(query))
 
                 except KeyboardInterrupt:
+                    self.connection.close()
+                    self.connection = None
+                    print('\r             ')
                     continue
                 except Exception as ex:
+                    self.connection.close()
+                    self.connection = None
                     print('{}: {}'.format(type(ex).__name__, str(ex)))
                     continue
 
@@ -398,7 +373,7 @@ class Cli:
                     if qm is context.QueryMode.GraphQL:
                         out = render.render_json(
                             self.context,
-                            json.dumps(result[0]),
+                            json.dumps(result),
                             max_width=min(max_width, 120),
                             use_colors=use_colors)
 

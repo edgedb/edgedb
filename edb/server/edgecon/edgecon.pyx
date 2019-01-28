@@ -268,8 +268,6 @@ cdef class EdgeConnection:
                 self.dbview.txid,
                 eql,
                 json_mode,
-                False,  # =legacy_mode
-                False,  # =graphql_mode
                 'single')
         else:
             units = await self.backend.compiler.call(
@@ -279,14 +277,11 @@ cdef class EdgeConnection:
                 self.dbview.modaliases,
                 self.dbview.config,
                 json_mode,
-                False,  # =legacy_mode
-                False,  # =graphql_mode
                 'single')
 
         return units[0]
 
     async def _compile_script(self, bytes eql, bint json_mode,
-                              bint legacy_mode, bint graphql_mode,
                               str stmt_mode):
 
         if self.dbview.in_tx_error():
@@ -298,8 +293,6 @@ cdef class EdgeConnection:
                 self.dbview.txid,
                 eql,
                 json_mode,
-                legacy_mode,
-                graphql_mode,
                 stmt_mode)
         else:
             return await self.backend.compiler.call(
@@ -309,8 +302,6 @@ cdef class EdgeConnection:
                 self.dbview.modaliases,
                 self.dbview.config,
                 json_mode,
-                legacy_mode,
-                graphql_mode,
                 stmt_mode)
 
     async def _compile_rollback(self, bytes eql):
@@ -328,64 +319,60 @@ cdef class EdgeConnection:
 
         lang = self.buffer.read_byte()
         graphql = lang == b'g'
-        eql = self.buffer.read_null_str()
+        if not graphql:
+            raise errors.BinaryProtocolError('only graphql is supported')
+
+        gql = self.buffer.read_null_str()
         self.buffer.finish_message()
-        if not eql:
+        if not gql:
             raise errors.BinaryProtocolError('empty query')
 
         if self.debug:
-            self.debug_print('LEGACY', eql)
+            self.debug_print('LEGACY', gql)
 
-        stmt_mode = 'all'
-        if self.dbview.in_tx_error():
-            stmt_mode = await self._recover_script_error(eql)
-            if stmt_mode == 'done':
-                msg = WriteBuffer.new_message(b'L')
-                msg.write_bytes(b'[null]')
+        if self.dbview.in_tx():
+            raise errors.TransactionError(
+                'GraphQL queries cannot run in a transaction block')
 
-                packet = WriteBuffer.new()
-                packet.write_buffer(msg.end_message())
-                packet.write_buffer(self.pgcon_last_sync_status())
-                self.write(packet)
-                self.flush()
+        compiled = await self.backend.compiler.call(
+            'compile_graphql',
+            self.dbview.dbver,
+            gql,
+            self.dbview.modaliases,
+            self.dbview.config)
 
-                return
+        self.dbview.start(compiled)
+        try:
+            res = await self.backend.pgcon.simple_query(
+                b';'.join(compiled.sql), ignore_data=False)
+        except ConnectionAbortedError:
+            raise
+        except Exception as ex:
+            self.dbview.on_error(compiled)
+            if not self.backend.pgcon.in_tx() and self.dbview.in_tx():
+                # COMMIT command can fail, in which case the
+                # transaction is finished.  This check workarounds
+                # that (until a better solution is found.)
+                self.dbview.abort_tx()
+                await self.recover_current_tx_info()
+            raise
+        else:
+            self.dbview.on_success(compiled)
 
-        units = await self._compile_script(
-            eql, True, True, graphql, stmt_mode)
-
-        resbuf = []
-        for unit in units:
-            self.dbview.start(unit)
-            try:
-                res = await self.backend.pgcon.simple_query(
-                    b';'.join(unit.sql), ignore_data=False)
-            except ConnectionAbortedError:
-                raise
-            except Exception as ex:
-                self.dbview.on_error(unit)
-                if not self.backend.pgcon.in_tx() and self.dbview.in_tx():
-                    # COMMIT command can fail, in which case the
-                    # transaction is finished.  This check workarounds
-                    # that (until a better solution is found.)
-                    self.dbview.abort_tx()
-                    await self.recover_current_tx_info()
-                raise
+        if res is not None:
+            if len(res) > 1:
+                raise errors.TransactionError(
+                    'GraphQL query returned more than one data row')
+            out = list(r[0] for r in res if r)
+            if out:
+                result = out[0]
             else:
-                self.dbview.on_success(unit)
+                result = b'null'
+        else:
+            result = b'null'
 
-            if res is not None:
-                out = list(r[0] for r in res if r)
-                if out:
-                    resbuf.extend(out)
-                else:
-                    resbuf.append(b'null')
-            else:
-                resbuf.append(b'null')
-
-        resbuf = b'[' + b', '.join(resbuf) + b']'
         msg = WriteBuffer.new_message(b'L')
-        msg.write_bytes(resbuf)
+        msg.write_bytes(result)
 
         packet = WriteBuffer.new()
         packet.write_buffer(msg.end_message())
@@ -440,7 +427,7 @@ cdef class EdgeConnection:
                 self.flush()
                 return
 
-        units = await self._compile_script(eql, False, False, False, stmt_mode)
+        units = await self._compile_script(eql, False, stmt_mode)
 
         for unit in units:
             self.dbview.start(unit)

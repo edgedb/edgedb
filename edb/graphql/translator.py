@@ -118,7 +118,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             d for d in self.visit(node.definitions) if d is not None)
         eql = next(v for v in translated.values())
 
-        for el in eql[0].result.elements:
+        for el in eql[0].result.expr.elements:
             # swap in the json bits
             if (isinstance(el.compexpr, qlast.FunctionCall) and
                     el.compexpr.func == 'to_json'):
@@ -176,10 +176,12 @@ class GraphQLTranslator(ast.NodeVisitor):
         query = qlast.SelectQuery(
             result=qlast.Shape(
                 expr=qlast.Path(
-                    steps=[qlast.ObjectRef(name='Query', module='stdgraphql')]
+                    steps=[qlast.ObjectRef(name='Query',
+                                           module='stdgraphql')]
                 ),
                 elements=[]
             ),
+            limit=qlast.IntegerConstant(value='1')
         )
 
         self._context.fields.append({})
@@ -187,6 +189,11 @@ class GraphQLTranslator(ast.NodeVisitor):
         query.result.elements = self.visit(node.selection_set)
         self._context.fields.pop()
         self._context.path.pop()
+
+        query.result = qlast.TypeCast(
+            expr=query.result,
+            type=qlast.TypeName(
+                maintype=qlast.ObjectRef(module='std', name='json')))
 
         return query
 
