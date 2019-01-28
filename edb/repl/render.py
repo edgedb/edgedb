@@ -47,25 +47,25 @@ class BinaryRenderer:
         buf.write(str(o))
 
     def _object_guts(o, repl_ctx: context.ReplContext, buf):
-        fields = introspect.introspect_object(o).pointers
+        pointers = introspect.introspect_object(o).pointers
         if not repl_ctx.show_implicit_fields:
-            fields = tuple(f for f in fields if not f.implicit)
-        fields_len = len(fields)
+            pointers = tuple(ptr for ptr in pointers if not ptr.implicit)
+        pointers_len = len(pointers)
 
         i = 0
-        for field in fields:
-            buf.write(field.name, style.key)
+        for ptr in pointers:
+            buf.write(ptr.name, style.key)
             buf.write(': ')
 
-            if field.kind is introspect.PointerKind.LINK:
-                link = o[field.name]
+            if ptr.kind is introspect.PointerKind.LINK:
+                link = o[ptr.name]
                 BinaryRenderer.walk(link, repl_ctx, buf)
             else:
-                val = getattr(o, field.name)
+                val = getattr(o, ptr.name)
                 BinaryRenderer.walk(val, repl_ctx, buf)
 
             i += 1
-            if i < fields_len:
+            if i < pointers_len:
                 buf.write(',')
                 buf.mark_line_break()
 
@@ -84,17 +84,17 @@ class BinaryRenderer:
             with buf.indent():
                 BinaryRenderer._object_guts(o.target, repl_ctx, buf)
 
-                fields = o.__dir__()
-                fields = tuple(f for f in fields
-                               if f not in {'source', 'target'})
-                fields_len = len(fields)
+                pointers = o.__dir__()
+                pointers = tuple(ptr for ptr in pointers
+                                 if ptr not in {'source', 'target'})
+                pointers_len = len(pointers)
 
-                if fields_len > 0:
+                if pointers_len > 0:
                     buf.write(',')
                     buf.mark_line_break()
 
                     i = 0
-                    for name in fields:
+                    for name in pointers:
                         val = getattr(o, name)
 
                         buf.write(f'@{name}', style.code_tag)
@@ -102,7 +102,7 @@ class BinaryRenderer:
                         BinaryRenderer.walk(val, repl_ctx, buf)
 
                         i += 1
-                        if i < fields_len:
+                        if i < pointers_len:
                             buf.write(',')
                             buf.mark_line_break()
 
