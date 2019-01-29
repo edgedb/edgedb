@@ -73,7 +73,7 @@ EXT_LDFLAGS = []
 
 if platform.uname().system != 'Windows':
     EXT_CFLAGS.extend([
-        '-fsigned-char', '-Wall', '-Wsign-compare', '-Wconversion'
+        '-std=c99', '-fsigned-char', '-Wall', '-Wsign-compare', '-Wconversion'
     ])
 
 
