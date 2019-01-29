@@ -117,10 +117,12 @@ class Buffer:
                     smlines -= 1
                     if not smlines:
                         break
-                elif code == LINE_BREAK:
-                    _len += 1
                 elif code == DATA:
                     _len += len(item[1])
+                elif code == LINE_BREAK:
+                    _len += 1
+                elif code == FOLDED_SPACE:
+                    _len += 1
 
                 if _len > width:
                     return 0
