@@ -85,7 +85,7 @@ cdef class EdgeConnection:
     def __init__(self, server):
         self._con_status = EDGECON_NEW
         self._id = server.new_edgecon_id()
-        self.server = server
+        self.port = server
 
         self.loop = server.get_loop()
         self.dbview = None
@@ -178,13 +178,13 @@ cdef class EdgeConnection:
             database = self.buffer.read_utf8()
 
             # XXX implement auth
-            dbv = self.server.new_view(
+            dbv = self.port.new_view(
                 dbname=database, user=user,
                 query_cache=self.query_cache_enabled)
             assert type(dbv) is dbview.DatabaseConnectionView
             self.dbview = <dbview.DatabaseConnectionView>dbv
 
-            self.backend = await self.server.new_backend(
+            self.backend = await self.port.new_backend(
                 dbname=database, dbver=self.dbview.dbver)
 
             buf = WriteBuffer()
@@ -199,7 +199,7 @@ cdef class EdgeConnection:
             msg_buf.end_message()
             buf.write_buffer(msg_buf)
 
-            if self.server._devmode:
+            if self.port.in_dev_mode():
                 msg_buf = WriteBuffer.new_message(b'S')
                 msg_buf.write_utf8('pgaddr')
                 msg_buf.write_utf8(str(self.backend.pgcon.get_pgaddr()))

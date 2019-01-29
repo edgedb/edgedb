@@ -42,6 +42,7 @@ from . import cluster as edgedb_cluster
 from . import daemon
 from . import defines
 from . import logsetup
+from . import mng_port
 
 
 logger = logging.getLogger('edb.server')
@@ -162,7 +163,12 @@ def _run_server(cluster, args, runstate_dir):
             cluster=cluster,
             runstate_dir=runstate_dir,
             max_backend_connections=args['max_backend_connections'])
-        ss.add_binary_interface(args['bind_address'], args['port'])
+
+        ss.add_port(
+            mng_port.ManagementPort,
+            nethost=args['bind_address'],
+            netport=args['port'])
+
         loop.run_until_complete(ss.start())
 
         loop.add_signal_handler(signal.SIGTERM, terminate_server, ss, loop)

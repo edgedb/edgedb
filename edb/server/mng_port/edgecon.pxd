@@ -56,7 +56,8 @@ cdef class EdgeConnection:
         str _id
         object _transport
 
-        object server
+        object port
+
         object backend
         object loop
         readonly dbview.DatabaseConnectionView dbview
