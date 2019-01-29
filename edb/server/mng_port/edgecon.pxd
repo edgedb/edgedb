@@ -28,6 +28,8 @@ from edb.server.pgproto.pgproto cimport (
     ReadBuffer,
 )
 
+from edb.server.dbview cimport dbview
+
 from edb.server.pgproto.debug cimport PG_DEBUG
 
 
@@ -57,7 +59,7 @@ cdef class EdgeConnection:
         object server
         object backend
         object loop
-        readonly object dbview
+        readonly dbview.DatabaseConnectionView dbview
 
         ReadBuffer buffer
 

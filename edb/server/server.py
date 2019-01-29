@@ -24,7 +24,8 @@ import urllib.parse
 from edb.common import devmode
 
 from . import backend
-from . import edgecon
+from . import dbview
+from . import mng_port
 
 
 class PGConParams(typing.NamedTuple):
@@ -47,7 +48,7 @@ class Interface:
 class BinaryInterface(Interface):
 
     def make_protocol(self):
-        return edgecon.EdgeConnection(self.server)
+        return mng_port.EdgeConnection(self.server)
 
 
 class Server:
@@ -62,7 +63,7 @@ class Server:
         self._servers = []
         self._cluster = cluster
 
-        self._dbindex = backend.DatabaseIndex()
+        self._dbindex = dbview.DatabaseIndex()
 
         self._runstate_dir = runstate_dir
         self._max_backend_connections = max_backend_connections

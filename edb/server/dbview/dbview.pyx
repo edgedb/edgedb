@@ -23,16 +23,15 @@ import typing
 import immutables
 
 from edb import errors
-from edb.server import defines
 from edb.common import lru
-
-from . import dbstate
+from edb.server import defines
+from edb.server.backend import dbstate
 
 
 __all__ = ('DatabaseIndex', 'DatabaseConnectionView')
 
 
-class Database:
+cdef class Database:
 
     # Global LRU cache of compiled anonymous queries
     _eql_to_compiled: typing.Mapping[bytes, dbstate.QueryUnit]
@@ -44,14 +43,14 @@ class Database:
         self._eql_to_compiled = lru.LRUMapping(
             maxsize=defines._MAX_QUERIES_CACHE)
 
-    def _signal_ddl(self):
+    cdef _signal_ddl(self):
         self._dbver = time.monotonic_ns()  # Advance the version
         self._invalidate_caches()
 
-    def _invalidate_caches(self):
+    cdef _invalidate_caches(self):
         self._eql_to_compiled.clear()
 
-    def _cache_compiled_query(self, key, compiled: dbstate.QueryUnit):
+    cdef _cache_compiled_query(self, key, compiled: dbstate.QueryUnit):
         assert compiled.cacheable
 
         existing = self._eql_to_compiled.get(key)
@@ -61,11 +60,11 @@ class Database:
 
         self._eql_to_compiled[key] = compiled
 
-    def _new_view(self, *, user, query_cache):
+    cdef _new_view(self, user, query_cache):
         return DatabaseConnectionView(self, user=user, query_cache=query_cache)
 
 
-class DatabaseConnectionView:
+cdef class DatabaseConnectionView:
 
     _eql_to_compiled: typing.Mapping[bytes, dbstate.QueryUnit]
 
@@ -86,10 +85,10 @@ class DatabaseConnectionView:
 
         self._reset_tx_state()
 
-    def _invalidate_local_cache(self):
+    cdef _invalidate_local_cache(self):
         self._eql_to_compiled.clear()
 
-    def _reset_tx_state(self):
+    cdef _reset_tx_state(self):
         self._txid = None
         self._in_tx = False
         self._in_tx_with_ddl = False
@@ -97,7 +96,7 @@ class DatabaseConnectionView:
         self._tx_error = False
         self._invalidate_local_cache()
 
-    def rollback_tx_to_savepoint(self, spid, modaliases, config):
+    cdef rollback_tx_to_savepoint(self, spid, modaliases, config):
         self._tx_error = False
         # See also CompilerConnectionState.rollback_to_savepoint().
         self._txid = spid
@@ -105,118 +104,112 @@ class DatabaseConnectionView:
         self._config = config
         self._invalidate_local_cache()
 
-    def recover_aliases_and_config(self, modaliases, config):
+    cdef recover_aliases_and_config(self, modaliases, config):
         assert not self._in_tx
         self._modaliases = modaliases
         self._config = config
 
-    def abort_tx(self):
+    cdef abort_tx(self):
         if not self.in_tx():
             raise errors.InternalServerError('abort_tx(): not in transaction')
         self._reset_tx_state()
 
-    @property
-    def config(self):
-        return self._config
+    property config:
+        def __get__(self):
+            return self._config
 
-    @property
-    def modaliases(self):
-        return self._modaliases
+    property modaliases:
+        def __get__(self):
+            return self._modaliases
 
-    @property
-    def txid(self):
-        return self._txid
+    property txid:
+        def __get__(self):
+            return self._txid
 
-    def in_tx(self):
+    property user:
+        def __get__(self):
+            return self._user
+
+    property dbver:
+        def __get__(self):
+            return self._db._dbver
+
+    property dbname:
+        def __get__(self):
+            return self._db._name
+
+    cdef in_tx(self):
         return self._in_tx
 
-    def in_tx_error(self):
+    cdef in_tx_error(self):
         return self._tx_error
 
-    @property
-    def user(self):
-        return self._user
+    cdef cache_compiled_query(self, bytes eql, bint json_mode, query_unit):
 
-    @property
-    def dbver(self):
-        return self._db._dbver
-
-    @property
-    def dbname(self):
-        return self._db._name
-
-    def cache_compiled_query(self, eql: bytes,
-                             json_mode: bool,
-                             compiled: dbstate.QueryUnit):
-
-        assert compiled.cacheable
+        assert query_unit.cacheable
 
         key = (eql, json_mode, self._modaliases, self._config)
 
         if self._in_tx_with_ddl:
-            self._eql_to_compiled[key] = compiled
+            self._eql_to_compiled[key] = query_unit
         else:
-            self._db._cache_compiled_query(key, compiled)
+            self._db._cache_compiled_query(key, query_unit)
 
-    def lookup_compiled_query(
-            self, eql: bytes,
-            json_mode: bool) -> typing.Optional[dbstate.QueryUnit]:
-
+    cdef lookup_compiled_query(self, bytes eql, bint json_mode):
         if self._tx_error or not self._query_cache_enabled:
             return None
 
-        compiled: dbstate.QueryUnit
         key = (eql, json_mode, self._modaliases, self._config)
 
         if self._in_tx_with_ddl or self._in_tx_with_set:
-            compiled = self._eql_to_compiled.get(key)
+            query_unit = self._eql_to_compiled.get(key)
         else:
-            compiled = self._db._eql_to_compiled.get(key)
-            if compiled is not None and compiled.dbver != self.dbver:
-                compiled = None
+            query_unit = self._db._eql_to_compiled.get(key)
+            if query_unit is not None and query_unit.dbver != self.dbver:
+                query_unit = None
 
-        return compiled
+        return query_unit
 
-    def tx_error(self):
+    cdef tx_error(self):
         if self._in_tx:
             self._tx_error = True
 
-    def start(self, qu: dbstate.QueryUnit):
+    cdef start(self, query_unit):
         if self._tx_error:
             self.raise_in_tx_error()
 
-        if qu.tx_id is not None:
+        if query_unit.tx_id is not None:
             self._in_tx = True
-            self._txid = qu.tx_id
+            self._txid = query_unit.tx_id
 
         if self._in_tx and not self._txid:
             raise errors.InternalServerError('unset txid in transaction')
 
         if self._in_tx:
-            if qu.has_ddl:
+            if query_unit.has_ddl:
                 self._in_tx_with_ddl = True
-            if qu.has_set:
+            if query_unit.has_set:
                 self._in_tx_with_set = True
 
-    def on_error(self, qu: dbstate.QueryUnit):
+    cdef on_error(self, query_unit):
         self.tx_error()
 
-    def on_success(self, qu: dbstate.QueryUnit):
-        if qu.tx_savepoint_rollback:
+    cdef on_success(self, query_unit):
+        if query_unit.tx_savepoint_rollback:
             # Need to invalidate the cache in case there were
             # SET ALIAS/SET CONFIG or DDL commands.
             self._invalidate_local_cache()
 
-        if not self._in_tx and qu.has_ddl:
+        if not self._in_tx and query_unit.has_ddl:
             self._db._signal_ddl()
 
-        if qu.config is not None:
-            self._config = qu.config
+        if query_unit.config is not None:
+            self._config = query_unit.config
 
-        if qu.modaliases is not None:
-            self._modaliases = qu.modaliases
+        if query_unit.modaliases is not None:
+            self._modaliases = query_unit.modaliases
 
-        if qu.tx_commit:
+        if query_unit.tx_commit:
             if not self._in_tx:
                 # This shouldn't happen because compiler has
                 # checks around that.
@@ -226,7 +219,7 @@ class DatabaseConnectionView:
                 self._db._signal_ddl()
             self._reset_tx_state()
 
-        elif qu.tx_rollback:
+        elif query_unit.tx_rollback:
             # Note that we might not be in a transaction as we allow
             # ROLLBACKs outside of transaction blocks (just like Postgres).
             # TODO: That said, we should send a *warning* when a ROLLBACK
@@ -253,8 +246,6 @@ class DatabaseIndex:
             self._dbs[dbname] = db
         return db
 
-    def new_view(self, dbname: str, *,
-                 user: str,
-                 query_cache: bool) -> DatabaseConnectionView:
+    def new_view(self, dbname: str, *, user: str, query_cache: bool):
         db = self._get_db(dbname)
-        return db._new_view(user=user, query_cache=query_cache)
+        return (<Database>db)._new_view(user, query_cache)

@@ -42,7 +42,7 @@ from edb.server.pgproto.pgproto cimport (
     frb_read,
 )
 
-from edb.server.edgecon cimport edgecon
+from edb.server.mng_port cimport edgecon
 
 from edb.common import debug
 

@@ -424,8 +424,14 @@ setuptools.setup(
             extra_link_args=EXT_LDFLAGS),
 
         distutils_extension.Extension(
-            "edb.server.edgecon.edgecon",
-            ["edb/server/edgecon/edgecon.pyx"],
+            "edb.server.dbview.dbview",
+            ["edb/server/dbview/dbview.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS),
+
+        distutils_extension.Extension(
+            "edb.server.mng_port.edgecon",
+            ["edb/server/mng_port/edgecon.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
 

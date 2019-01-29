@@ -39,6 +39,8 @@ from edb.server.pgproto.pgproto cimport (
     frb_get_len,
 )
 
+from edb.server.dbview cimport dbview
+
 from edb.server import defines
 from edb.server.backend import config
 from edb.server.pgcon cimport pgcon
@@ -176,9 +178,12 @@ cdef class EdgeConnection:
             database = self.buffer.read_utf8()
 
             # XXX implement auth
-            self.dbview = self.server.new_view(
+            dbv = self.server.new_view(
                 dbname=database, user=user,
                 query_cache=self.query_cache_enabled)
+            assert type(dbv) is dbview.DatabaseConnectionView
+            self.dbview = <dbview.DatabaseConnectionView>dbv
+
             self.backend = await self.server.new_backend(
                 dbname=database, dbver=self.dbview.dbver)
 
