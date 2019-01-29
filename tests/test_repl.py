@@ -56,6 +56,9 @@ class TestReplLexutils(unittest.TestCase):
                 '''
             ])
 
+        self.assertIsNone(lexutils.split_edgeql('SELECT "aaa'))
+        self.assertIsNone(lexutils.split_edgeql('SELECT "as'))
+        self.assertIsNone(lexutils.split_edgeql('SELECT "as\n'))
         self.assertIsNone(lexutils.split_edgeql(''))
         self.assertIsNone(lexutils.split_edgeql(' '))
         self.assertIsNone(lexutils.split_edgeql(' \n '))

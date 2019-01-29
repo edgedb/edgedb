@@ -17,6 +17,7 @@
 #
 
 
+from edb.common import lexer as base_lexer
 from edb.edgeql.parser.grammar import lexer
 
 
@@ -27,19 +28,22 @@ def split_edgeql(script: str, *, script_mode=False):
     out = []
     buffer = []
     brace_level = 0
-    for tok in lex.lex():
-        buffer.append(tok.text)
+    try:
+        for tok in lex.lex():
+            buffer.append(tok.text)
 
-        if tok.type == '{':
-            brace_level += 1
-        elif tok.type == '}':
-            brace_level -= 1
-            if brace_level < 0:
-                brace_level = 0
-        elif tok.type == ';':
-            if brace_level == 0:
-                out.append(''.join(buffer))
-                buffer.clear()
+            if tok.type == '{':
+                brace_level += 1
+            elif tok.type == '}':
+                brace_level -= 1
+                if brace_level < 0:
+                    brace_level = 0
+            elif tok.type == ';':
+                if brace_level == 0:
+                    out.append(''.join(buffer))
+                    buffer.clear()
+    except base_lexer.LexError:
+        return None
 
     if buffer and out:
         rem = ''.join(buffer)
