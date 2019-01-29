@@ -30,17 +30,14 @@ import sys
 import edgedb
 
 from prompt_toolkit import application as pt_app
-from prompt_toolkit import buffer as pt_buffer
+from prompt_toolkit import completion as pt_complete
 from prompt_toolkit import enums as pt_enums
 from prompt_toolkit import filters as pt_filters
 from prompt_toolkit import history as pt_history
-from prompt_toolkit import interface as pt_interface
-from prompt_toolkit.key_binding import manager as pt_keymanager
-from prompt_toolkit import keys as pt_keys
+from prompt_toolkit import key_binding as pt_key_binding
 from prompt_toolkit import shortcuts as pt_shortcuts
 from prompt_toolkit import styles as pt_styles
-from prompt_toolkit import token as pt_token
-from prompt_toolkit.layout import lexers as pt_lexers
+from prompt_toolkit import lexers as pt_lexers
 
 from edb.common import devmode
 from edb.common import term
@@ -53,58 +50,49 @@ from . import lexutils
 from . import render
 
 
-class InputBuffer(pt_buffer.Buffer):
+@pt_filters.Condition
+def is_multiline():
+    doc = pt_app.get_app().layout.get_buffer_by_name(
+        pt_enums.DEFAULT_BUFFER).document
 
-    def is_multiline_impl(self):
-        if (self.document.cursor_position and
-                self.document.text[self.document.cursor_position:].strip()):
-            return True
-
-        text = self.document.text.strip()
-
-        if text in Cli.exit_commands:
-            return False
-
-        if not text:
-            return False
-
-        if text.startswith('\\'):
-            return False
-
-        if text.endswith(';'):
-            return not lexutils.split_edgeql(text)
-
+    if (doc.cursor_position and doc.text[doc.cursor_position:].strip()):
         return True
 
-    def __init__(self, *args, **kwargs):
-        is_multiline = pt_filters.Condition(self.is_multiline_impl)
-        super().__init__(*args, is_multiline=is_multiline, **kwargs)
+    text = doc.text.strip()
+
+    if text in Cli.exit_commands:
+        return False
+
+    if not text:
+        return False
+
+    if text.startswith('\\'):
+        return False
+
+    if text.endswith(';'):
+        return not lexutils.split_edgeql(text)
+
+    return True
 
 
 class Cli:
 
-    style = pt_styles.style_from_dict({
-        pt_token.Token.Prompt: '#aaa',
-        pt_token.Token.PromptCont: '#888',
-        pt_token.Token.Toolbar: 'bg:#222222 #aaaaaa',
-        pt_token.Token.Toolbar.On: 'bg:#222222 #fff',
+    style = pt_styles.Style.from_dict({
+        'prompt': '#aaa',
+        'continuation': '#888',
 
-        # Syntax
-        pt_token.Token.Keyword: '#e8364f',
-        pt_token.Token.Keyword.Reserved: '#e8364f',
+        'bottom-toolbar': 'bg:#222222 #aaaaaa noreverse',
+        'bottom-toolbar.on': 'bg:#222222 #ffffff',
 
-        pt_token.Token.Operator: '#e8364f',
-
-        pt_token.Token.String: '#d3c970',
-        pt_token.Token.String.Other: '#d3c970',
-        pt_token.Token.String.Backtick: '#d3c970',
-
-        pt_token.Token.Number: '#9a79d7',
-        pt_token.Token.Number.Integer: '#9a79d7',
-        pt_token.Token.Number.Float: '#9a79d7',
-
-        pt_token.Token.Timing.Key: '#555',
-        pt_token.Token.Timing.Value: '#888',
+        # See prompt_tookit/styles/defaults.py for the reference.
+        'pygments.comment': '#555',
+        'pygments.keyword': '#e8364f',
+        'pygments.keyword.constant': 'green',
+        'pygments.operator': '#e8364f',
+        'pygments.literal.string': '#d3c970',
+        'pygments.literal.number': '#9a79d7',
+        'pygments.key': '#555',
+        'pygments.value': '#888',
     })
 
     TOOLBAR_SEP = '   '
@@ -120,8 +108,7 @@ class Cli:
     def __init__(self, conn_args):
         self.connection = None
 
-        self.eventloop = pt_shortcuts.create_eventloop()
-        self.cli = None
+        self.prompt = None
         self.conn_args = conn_args
         self.cur_db = None
         self.context = context.ReplContext()
@@ -130,59 +117,57 @@ class Cli:
     def get_prompt(self):
         return '{}>'.format(self.cur_db)
 
-    def get_prompt_tokens(self, cli):
+    def get_prompt_tokens(self):
         return [
-            (pt_token.Token.Prompt, '{} '.format(self.get_prompt())),
+            ('class:prompt', '{} '.format(self.get_prompt())),
         ]
 
-    def get_continuation_tokens(self, cli, width):
+    def get_continuation_tokens(self, width, line_number, wrap_count):
         return [
-            (pt_token.Token.PromptCont, '.' * len(self.get_prompt())),
+            ('class:continuation', '.' * (width - 1) + ' '),
         ]
 
-    def get_toolbar_tokens(self, cli):
+    def get_toolbar_tokens(self):
         toolbar = [
-            (pt_token.Token.Toolbar, '[F3] Mode: '),
-            (pt_token.Token.Toolbar, self.context.query_mode._name_),
+            ('class:bottom-toolbar', '[F3] Mode: '),
+            ('class:bottom-toolbar', self.context.query_mode._name_),
         ]
 
         if self.context.query_mode is context.QueryMode.Normal:
             toolbar.extend([
-                (pt_token.Token.Toolbar, self.TOOLBAR_SEP),
+                ('class:bottom-toolbar', self.TOOLBAR_SEP),
 
-                (pt_token.Token.Toolbar, '[F4] Implicit Properties: '),
-                (pt_token.Token.Toolbar,
+                ('class:bottom-toolbar', '[F4] Implicit Properties: '),
+                ('class:bottom-toolbar',
                     'On' if self.context.show_implicit_fields else 'Off'),
             ])
 
             toolbar.extend([
-                (pt_token.Token.Toolbar, self.TOOLBAR_SEP),
+                ('class:bottom-toolbar', self.TOOLBAR_SEP),
 
-                (pt_token.Token.Toolbar, '[F5] Introspect Types: '),
-                (pt_token.Token.Toolbar,
+                ('class:bottom-toolbar', '[F5] Introspect Types: '),
+                ('class:bottom-toolbar',
                     'On' if self.context.introspect_types else 'Off'),
             ])
 
         return toolbar
 
-    def build_cli(self):
+    def build_propmpt(self):
         history = pt_history.FileHistory(
             os.path.expanduser('~/.edgedbhistory'))
 
-        key_binding_manager = pt_keymanager.KeyBindingManager(
-            enable_system_bindings=True,
-            enable_search=True,
-            enable_abort_and_exit_bindings=True)
+        bindings = pt_key_binding.KeyBindings()
+        handle = bindings.add
 
-        @key_binding_manager.registry.add_binding(pt_keys.Keys.F3)
+        @handle('f3')
         def _mode_toggle(event):
             self.context.toggle_query_mode()
 
-        @key_binding_manager.registry.add_binding(pt_keys.Keys.F4)
+        @handle('f4')
         def _implicit_toggle(event):
             self.context.toggle_implicit()
 
-        @key_binding_manager.registry.add_binding(pt_keys.Keys.F5)
+        @handle('f5')
         def _introspect_toggle(event):
             self.context.toggle_introspect_types()
 
@@ -194,44 +179,33 @@ class Cli:
             else:
                 self.context.typenames = None
 
-        @key_binding_manager.registry.add_binding(pt_keys.Keys.Tab)
+        @handle('tab')
         def _tab(event):
-            b = cli.current_buffer
+            b = prompt.app.current_buffer
             before_cursor = b.document.current_line_before_cursor
             if b.text and (not before_cursor or before_cursor.isspace()):
                 b.insert_text('    ')
 
-        layout = pt_shortcuts.create_prompt_layout(
+        prompt = pt_shortcuts.PromptSession(
             lexer=pt_lexers.PygmentsLexer(eql_pygments.EdgeQLLexer),
-            reserve_space_for_menu=4,
-            get_prompt_tokens=self.get_prompt_tokens,
-            get_continuation_tokens=self.get_continuation_tokens,
-            get_bottom_toolbar_tokens=self.get_toolbar_tokens,
-            multiline=True)
+            include_default_pygments_style=False,
 
-        buf = InputBuffer(
+            completer=pt_complete.DummyCompleter(),
+            reserve_space_for_menu=6,
+
+            message=self.get_prompt_tokens,
+            prompt_continuation=self.get_continuation_tokens,
+            bottom_toolbar=self.get_toolbar_tokens,
+            multiline=is_multiline,
             history=history,
-
-            # to make reserve_space_for_menu work:
             complete_while_typing=pt_filters.Always(),
-
-            accept_action=pt_app.AcceptAction.RETURN_DOCUMENT)
-
-        app = pt_app.Application(
+            key_bindings=bindings,
             style=self.style,
-            layout=layout,
-            buffer=buf,
-            ignore_case=True,
-            key_bindings_registry=key_binding_manager.registry,
-            on_exit=pt_app.AbortAction.RAISE_EXCEPTION,
-            on_abort=pt_app.AbortAction.RETRY)
+            editing_mode=pt_enums.EditingMode.VI,
+            search_ignore_case=True,
+        )
 
-        cli = pt_interface.CommandLineInterface(
-            application=app,
-            eventloop=self.eventloop)
-        cli.editing_mode = pt_enums.EditingMode.VI
-
-        return cli
+        return prompt
 
     def connect(self, args):
         try:
@@ -304,22 +278,25 @@ class Cli:
 
             return proc.returncode
 
-        self.cli.run_in_terminal(
+        pt_app.run_in_terminal(
             lambda: _psql(cmd) == 0)
 
-        self.cli.current_buffer.reset()
+        self.prompt.app.current_buffer.reset()
         print('\r                ')
 
     def run(self):
-        self.cli = self.build_cli()
+        self.prompt = self.build_propmpt()
         self.ensure_connection(self.conn_args)
         use_colors = term.use_colors(sys.stdout.fileno())
 
         try:
             while True:
-                document = self.cli.run(True)
-                command = document.text.strip()
+                try:
+                    text = self.prompt.prompt()
+                except KeyboardInterrupt:
+                    continue
 
+                command = text.strip()
                 if not command:
                     continue
 
@@ -368,7 +345,7 @@ class Cli:
                     print('{}: {}'.format(type(ex).__name__, str(ex)))
                     continue
 
-                max_width = term.size(sys.stdout.fileno())[1]
+                max_width = self.prompt.output.get_size().columns
                 for result in results:
                     if qm is context.QueryMode.GraphQL:
                         out = render.render_json(
