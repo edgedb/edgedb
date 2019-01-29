@@ -88,12 +88,16 @@ class EdgeQLLexer(RegexLexer):
         'numbers': [
             (r'''(?x)
                 (?<!\w)
-                    (?: \d+ (?:\.\d+)?
-                        (?:[eE](?:[+\-])?[0-9]+)
+                    (?:
+                        (?: \d+ (?:\.\d+)?
+                            (?:[eE](?:[+\-])?[0-9]+)
+                        )
+                        |
+                        (?: \d+\.\d+)
+
+                        (n)?
                     )
-                    |
-                    (?: \d+\.\d+)
-            ''', token.Number.Float),
-            (r'(?<!\w)\d+', token.Number.Integer),
+            ''', token.Number),
+            (r'(?<!\w)\d+(n?)', token.Number),
         ],
     }
