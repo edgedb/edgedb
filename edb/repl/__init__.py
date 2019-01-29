@@ -28,6 +28,7 @@ import subprocess
 import sys
 
 import edgedb
+import immutables
 
 from prompt_toolkit import application as pt_app
 from prompt_toolkit import completion as pt_complete
@@ -109,13 +110,12 @@ class Cli:
         self.connection = None
 
         self.prompt = None
-        self.conn_args = conn_args
-        self.cur_db = None
+        self.conn_args = immutables.Map(conn_args)
         self.context = context.ReplContext()
         self.commands = type(self)._command.__kwdefaults__['_all_commands']
 
     def get_prompt(self):
-        return '{}>'.format(self.cur_db)
+        return '{}>'.format(self.connection.dbname)
 
     def get_prompt_tokens(self):
         return [
@@ -172,7 +172,7 @@ class Cli:
             self.context.toggle_introspect_types()
 
             if self.context.introspect_types:
-                self.ensure_connection(self.conn_args)
+                self.ensure_connection()
                 names = self.connection.fetch(
                     'SELECT schema::ObjectType { name }')
                 self.context.typenames = {n.id: n.name for n in names}
@@ -207,34 +207,32 @@ class Cli:
 
         return prompt
 
-    def connect(self, args):
+    def ensure_connection(self):
         try:
-            con = edgedb.connect(**args)
+            if self.connection is None:
+                self.connection = edgedb.connect(**self.conn_args)
+            elif self.connection.is_closed():
+                self.connection = edgedb.connect(**self.conn_args)
         except Exception:
-            return None
-        else:
-            self.cur_db = con.dbname
-            return con
-
-    def ensure_connection(self, args):
-        if self.connection is None:
-            self.connection = self.connect(args)
-
-        if self.connection is None or self.connection.is_closed():
-            self.connection = self.connect(args)
+            self.connection = None
 
         if self.connection is None:
-            print('Could not establish connection', file=sys.stderr)
+            print(f'Could not establish connection to '
+                  f'{self.conn_args["database"]!r}')
             exit(1)
 
     @_command('c', R'\c DBNAME', 'connect to database DBNAME')
     def command_connect(self, args):
         new_db = args.strip()
-        new_args = {**self.conn_args,
-                    'database': new_db}
+        new_args = self.conn_args.set('database', new_db)
+        try:
+            new_connection = edgedb.connect(**new_args)
+        except Exception:
+            print(f'Could not establish connection to {new_db!r}', flush=True)
+            return
+
         self.connection.close()
-        self.connection = None
-        self.ensure_connection(new_args)
+        self.connection = new_connection
         self.conn_args = new_args
         self.context.on_new_connection()
 
@@ -264,7 +262,7 @@ class Cli:
             str(psql),
             '-h', host,
             '-p', port,
-            '-d', self.cur_db,
+            '-d', self.connection.dbname,
             '-U', 'postgres'
         ]
 
@@ -286,11 +284,13 @@ class Cli:
 
     def run(self):
         self.prompt = self.build_propmpt()
-        self.ensure_connection(self.conn_args)
+        self.ensure_connection()
         use_colors = term.use_colors(sys.stdout.fileno())
 
         try:
             while True:
+                self.ensure_connection()
+
                 try:
                     text = self.prompt.prompt()
                 except KeyboardInterrupt:
@@ -312,14 +312,14 @@ class Cli:
                     prefix, _, args = command.partition(' ')
                     prefix = prefix[1:]
                     if prefix in self.commands:
-                        self.ensure_connection(self.conn_args)
+                        self.ensure_connection()
                         self.commands[prefix][2](self, args)
                     else:
                         print(f'No command {command} is found.')
                         print(R'Try \? to see the list of supported commands.')
                     continue
 
-                self.ensure_connection(self.conn_args)
+                self.ensure_connection()
                 qm = self.context.query_mode
                 results = []
                 try:
