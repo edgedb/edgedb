@@ -166,36 +166,25 @@ An example of incorrect refactoring would be:
 Detached
 ++++++++
 
-It is possible to specify an aliased view in the ``WITH`` block using
-``DETACHED`` expression. A ``DETACHED`` expression can be interpreted
-as if a schema-level view had been defined for that expression. All
-``DETACHED`` expressions completely ignore the current scope. In
-principle, a ``DETACHED`` expression in the top-level ``WITH`` block
-is equivalent to a regular aliased expression.
-
-For example, the following query will find all users who
-own the same number of issues as someone else:
-
-.. todo::
-
-    Need a better DETACHED example, with nested sub-queries and
-    possibly motivated by keeping the symbols closer to their place if
-    usage.
+A ``DETACHED`` expression allows referring to some set as if it were
+defined in the top-level ``WITH`` block. Basically, ``DETACHED``
+expressions ignore all current scopes they are nested in and only take
+into account module aliases. The net effect is that it is possible to
+refer to an otherwise related set as if it were unrelated:
 
 .. code-block:: edgeql
 
     WITH
-        MODULE example,
-        U2 := DETACHED User
-    # U2 and User in the SELECT clause now refer to the same concept,
-    # but different objects, as if a schema level view U2 had been
-    # defined.
-    SELECT User {
-        name,
-        issue_count := count(User.<owner[IS Issue])
-    }
-    FILTER
-        User.issue_count = count((
-            SELECT U2.<owner[IS Issue]
-            FILTER U2 != User
-        ));
+        MODULE example
+    UPDATE User
+    FILTER .name = 'Dave'
+    SET {
+        friends := (SELECT DETACHED User FILTER .name = 'Alice'),
+        coworkers := (SELECT DETACHED User FILTER .name = 'Bob')
+    };
+
+Rather than having to define ``U := User`` in the ``WITH`` block only
+so that it could be used in the body of the ``UPDATE`` the ``DETACHED
+User`` expression can be used. The goal is to indicate that the
+``User`` in the ``UPDATE`` body is not in any way related to the
+``User`` that's being updated.
