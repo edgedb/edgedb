@@ -17,9 +17,6 @@
 #
 
 
-import os
-import urllib.parse
-
 from edb.common import taskgroup
 
 from edb.server import backend
@@ -60,23 +57,10 @@ class ManagementPort(baseport.Port):
             raise RuntimeError('already serving')
         self._serving = True
 
-        pg_con_spec = self._cluster.get_connection_spec()
-        if 'host' not in pg_con_spec and 'dsn' in pg_con_spec:
-            # XXX
-            parsed = urllib.parse.urlparse(pg_con_spec['dsn'])
-            query = urllib.parse.parse_qs(parsed.query, strict_parsing=True)
-            host = query.get("host")[-1]
-            port = query.get("port")[-1]
-        else:
-            host = pg_con_spec.get("host")
-            port = pg_con_spec.get("port")
-
-        pgaddr = os.path.join(host, f'.s.PGSQL.{port}')
-
         self._backend_manager = backend.BackendManager(
             runstate_dir=self._runstate_dir,
-            data_dir=self._cluster.get_data_dir(),
-            pgaddr=pgaddr)
+            data_dir=self._pg_data_dir,
+            pgaddr=self._pg_addr)
         await self._backend_manager.start()
 
         srv = await self._loop.create_server(

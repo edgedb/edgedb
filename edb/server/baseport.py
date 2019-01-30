@@ -22,10 +22,11 @@ from edb.common import devmode
 
 class Port:
 
-    def __init__(self, *, loop, cluster, runstate_dir, dbindex):
+    def __init__(self, *, loop, pg_addr, pg_data_dir, runstate_dir, dbindex):
 
         self._loop = loop
-        self._cluster = cluster
+        self._pg_addr = pg_addr
+        self._pg_data_dir = pg_data_dir
         self._dbindex = dbindex
         self._runstate_dir = runstate_dir
 

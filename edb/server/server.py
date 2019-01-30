@@ -17,6 +17,9 @@
 #
 
 
+import os
+import urllib.parse
+
 from edb.common import taskgroup
 
 from . import dbview
@@ -32,12 +35,28 @@ class Server:
         self._serving = False
 
         self._cluster = cluster
+        self._pg_addr = self._get_pgaddr()
+        self._pg_data_dir = self._cluster.get_data_dir()
+
         self._dbindex = dbview.DatabaseIndex()
 
         self._runstate_dir = runstate_dir
         self._max_backend_connections = max_backend_connections
 
         self._ports = []
+
+    def _get_pgaddr(self):
+        pg_con_spec = self._cluster.get_connection_spec()
+        if 'host' not in pg_con_spec and 'dsn' in pg_con_spec:
+            parsed = urllib.parse.urlparse(pg_con_spec['dsn'])
+            query = urllib.parse.parse_qs(parsed.query, strict_parsing=True)
+            host = query.get("host")[-1]
+            port = query.get("port")[-1]
+        else:
+            host = pg_con_spec.get("host")
+            port = pg_con_spec.get("port")
+
+        return os.path.join(host, f'.s.PGSQL.{port}')
 
     def add_port(self, portcls, **kwargs):
         if self._serving:
@@ -47,7 +66,8 @@ class Server:
         self._ports.append(
             portcls(
                 loop=self._loop,
-                cluster=self._cluster,
+                pg_addr=self._pg_addr,
+                pg_data_dir=self._pg_data_dir,
                 runstate_dir=self._runstate_dir,
                 dbindex=self._dbindex,
                 **kwargs))
