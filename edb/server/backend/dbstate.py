@@ -28,6 +28,7 @@ from edb import errors
 
 from edb.schema import schema as s_schema
 
+from . import enums
 from . import sertypes
 
 
@@ -304,15 +305,17 @@ class CompilerConnectionState:
 
     _savepoints_log: typing.Mapping[int, Transaction]
 
-    __slots__ = ('_savepoints_log', '_dbver', '_current_tx')
+    __slots__ = ('_savepoints_log', '_dbver', '_current_tx', '_capability')
 
     def __init__(self, dbver: int,
                  schema: s_schema.Schema,
                  modaliases: immutables.Map,
-                 config: immutables.Map):
+                 config: immutables.Map,
+                 capability: enums.Capability):
         self._dbver = dbver
         self._savepoints_log = {}
         self._init_current_tx(schema, modaliases, config)
+        self._capability = capability
 
     def _init_current_tx(self, schema, modaliases, config):
         self._current_tx = Transaction(
@@ -345,6 +348,10 @@ class CompilerConnectionState:
     @property
     def dbver(self):
         return self._dbver
+
+    @property
+    def capability(self):
+        return self._capability
 
     def current_tx(self) -> Transaction:
         return self._current_tx

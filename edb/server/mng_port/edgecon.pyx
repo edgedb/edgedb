@@ -43,6 +43,7 @@ from edb.server.dbview cimport dbview
 
 from edb.server import defines
 from edb.server.backend import config
+from edb.server.backend import enums
 from edb.server.pgcon cimport pgcon
 from edb.server.pgcon import errors as pgerror
 
@@ -55,6 +56,8 @@ from edb.common import debug
 DEF FLUSH_BUFFER_AFTER = 100_000
 cdef bytes ZERO_UUID = b'\x00' * 16
 cdef bytes EMPTY_TUPLE_UUID = s_obj.get_known_type_id('empty-tuple').bytes
+
+cdef object CAP_ALL = enums.Capability.ALL
 
 
 cdef bytes INIT_CON_SCRIPT = (b'''
@@ -263,31 +266,7 @@ cdef class EdgeConnection:
 
     #############
 
-    async def _compile(self, bytes eql, bint json_mode):
-        if self.dbview.in_tx_error():
-            self.dbview.raise_in_tx_error()
-
-        if self.dbview.in_tx():
-            units = await self.backend.compiler.call(
-                'compile_eql_in_tx',
-                self.dbview.txid,
-                eql,
-                json_mode,
-                'single')
-        else:
-            units = await self.backend.compiler.call(
-                'compile_eql',
-                self.dbview.dbver,
-                eql,
-                self.dbview.modaliases,
-                self.dbview.config,
-                json_mode,
-                'single')
-
-        return units[0]
-
-    async def _compile_script(self, bytes eql, bint json_mode,
-                              str stmt_mode):
+    async def _compile(self, bytes eql, bint json_mode, str stmt_mode):
 
         if self.dbview.in_tx_error():
             self.dbview.raise_in_tx_error()
@@ -307,7 +286,8 @@ cdef class EdgeConnection:
                 self.dbview.modaliases,
                 self.dbview.config,
                 json_mode,
-                stmt_mode)
+                stmt_mode,
+                CAP_ALL)
 
     async def _compile_rollback(self, bytes eql):
         assert self.dbview.in_tx_error()
@@ -432,7 +412,7 @@ cdef class EdgeConnection:
                 self.flush()
                 return
 
-        units = await self._compile_script(eql, False, stmt_mode)
+        units = await self._compile(eql, False, stmt_mode)
 
         for unit in units:
             self.dbview.start(unit)
@@ -479,7 +459,8 @@ cdef class EdgeConnection:
                     # ROLLBACK in that 'eql' string.
                     self.dbview.raise_in_tx_error()
             else:
-                compiled = await self._compile(eql, json_mode)
+                compiled = await self._compile(eql, json_mode, 'single')
+                compiled = compiled[0]
         elif self.dbview.in_tx_error():
             # We have a cached QueryUnit for this 'eql', but the current
             # transaction is aborted.  We can only complete this Parse

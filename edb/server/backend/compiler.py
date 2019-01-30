@@ -18,7 +18,6 @@
 
 
 import collections
-import enum
 import hashlib
 import pathlib
 import typing
@@ -56,15 +55,10 @@ from edb.pgsql import common as pg_common
 
 from . import config
 from . import dbstate
+from . import enums
 from . import errormech
 from . import sertypes
 from . import stdschema
-
-
-class CompileStatementMode(enum.Enum):
-    SKIP_FIRST = 'skip_first'
-    ALL = 'all'
-    SINGLE = 'single'
 
 
 class CompilerDatabaseState(typing.NamedTuple):
@@ -78,7 +72,7 @@ class CompileContext(typing.NamedTuple):
 
     state: dbstate.CompilerConnectionState
     output_format: pg_compiler.OutputFormat
-    stmt_mode: CompileStatementMode
+    stmt_mode: enums.CompileStatementMode
 
 
 EMPTY_MAP = immutables.Map()
@@ -95,12 +89,13 @@ def compile_bootstrap_script(std_schema: s_schema.Schema,
         0,
         schema,
         EMPTY_MAP,
-        EMPTY_MAP)
+        EMPTY_MAP,
+        enums.Capability.ALL)
 
     ctx = CompileContext(
         state=state,
         output_format=pg_compiler.OutputFormat.JSON,
-        stmt_mode='all')
+        stmt_mode=enums.CompileStatementMode.ALL)
 
     compiler = Compiler(None, None)
     compiler._std_schema = std_schema
@@ -211,7 +206,7 @@ class Compiler:
             ctx.output_format is pg_compiler.OutputFormat.NATIVE
         )
 
-        single_stmt_mode = ctx.stmt_mode is CompileStatementMode.SINGLE
+        single_stmt_mode = ctx.stmt_mode is enums.CompileStatementMode.SINGLE
 
         implicit_fields = (
             native_out_format and
@@ -625,18 +620,36 @@ class Compiler:
     def _compile_dispatch_ql(self, ctx: CompileContext, ql: qlast.Base):
 
         if isinstance(ql, (qlast.Database, qlast.Delta)):
+            if not (ctx.state.capability & enums.Capability.DDL):
+                raise errors.ProtocolError(
+                    f'cannot execute DDL commands for the current connection')
             return self._compile_ql_migration(ctx, ql)
 
         elif isinstance(ql, qlast.DDL):
+            if not (ctx.state.capability & enums.Capability.DDL):
+                raise errors.ProtocolError(
+                    f'cannot execute DDL commands for the current connection')
             return self._compile_ql_ddl(ctx, ql)
 
         elif isinstance(ql, qlast.Transaction):
+            if not (ctx.state.capability & enums.Capability.TRANSACTION):
+                raise errors.ProtocolError(
+                    f'cannot execute transaction control commands '
+                    f'for the current connection')
             return self._compile_ql_transaction(ctx, ql)
 
         elif isinstance(ql, (qlast.SetSessionState, qlast.ResetSessionState)):
+            if not (ctx.state.capability & enums.Capability.SESSION):
+                raise errors.ProtocolError(
+                    f'cannot execute session control commands '
+                    f'for the current connection')
             return self._compile_ql_sess_state(ctx, ql)
 
         else:
+            if not (ctx.state.capability & enums.Capability.QUERY):
+                raise errors.ProtocolError(
+                    f'cannot execute query/DML commands '
+                    f'for the current connection')
             return self._compile_ql_query(ctx, ql)
 
     def _compile(self, *,
@@ -646,12 +659,12 @@ class Compiler:
         # When True it means that we're compiling for "connection.fetch()".
         # That means that the returned QueryUnit has to have the in/out codec
         # information, correctly inferred "singleton_result" field etc.
-        single_stmt_mode = ctx.stmt_mode is CompileStatementMode.SINGLE
+        single_stmt_mode = ctx.stmt_mode is enums.CompileStatementMode.SINGLE
 
         eql = eql.decode()
 
         statements = edgeql.parse_block(eql)
-        if ctx.stmt_mode is CompileStatementMode.SKIP_FIRST:
+        if ctx.stmt_mode is enums.CompileStatementMode.SKIP_FIRST:
             statements = statements[1:]
             if not statements:  # pragma: no cover
                 # Shouldn't ever happen as the server tracks the number
@@ -767,14 +780,15 @@ class Compiler:
 
     async def _ctx_new_con_state(self, *, dbver: int, json_mode: bool,
                                  modaliases, config,
-                                 stmt_mode: CompileStatementMode):
+                                 stmt_mode: enums.CompileStatementMode,
+                                 capability: enums.Capability):
 
         assert isinstance(modaliases, immutables.Map)
         assert isinstance(config, immutables.Map)
 
         db = await self._get_database(dbver)
         self._current_db_state = dbstate.CompilerConnectionState(
-            dbver, db.schema, modaliases, config)
+            dbver, db.schema, modaliases, config, capability)
 
         state = self._current_db_state
 
@@ -791,7 +805,7 @@ class Compiler:
         return ctx
 
     async def _ctx_from_con_state(self, *, txid: int, json_mode: bool,
-                                  stmt_mode: CompileStatementMode):
+                                  stmt_mode: enums.CompileStatementMode):
         state = self._load_state(txid)
 
         if json_mode:
@@ -869,7 +883,8 @@ class Compiler:
             json_mode=False,
             modaliases=sess_modaliases,
             config=sess_config,
-            stmt_mode=CompileStatementMode.SINGLE)
+            stmt_mode=enums.CompileStatementMode.SINGLE,
+            capability=enums.Capability.QUERY)
 
         eql = graphql.translate(
             ctx.state.current_tx().get_schema(),
@@ -887,17 +902,19 @@ class Compiler:
             sess_modaliases: immutables.Map,
             sess_config: immutables.Map,
             json_mode: bool,
-            stmt_mode: CompileStatementMode) -> typing.List[dbstate.QueryUnit]:
+            stmt_mode: enums.CompileStatementMode,
+            capability: enums.Capability) -> typing.List[dbstate.QueryUnit]:
 
         ctx = await self._ctx_new_con_state(
             dbver=dbver,
             json_mode=json_mode,
             modaliases=sess_modaliases,
             config=sess_config,
-            stmt_mode=CompileStatementMode(stmt_mode))
+            stmt_mode=enums.CompileStatementMode(stmt_mode),
+            capability=capability)
 
         units = self._compile(ctx=ctx, eql=eql)
-        if (stmt_mode is CompileStatementMode.SINGLE and
+        if (stmt_mode is enums.CompileStatementMode.SINGLE and
                 len(units) != 1):  # pragma: no cover
             raise errors.InternalServerError(
                 f'expected 1 compiled unit; got {len(units)}')
@@ -909,15 +926,16 @@ class Compiler:
             txid: int,
             eql: bytes,
             json_mode: bool,
-            stmt_mode: CompileStatementMode) -> typing.List[dbstate.QueryUnit]:
+            stmt_mode: enums.CompileStatementMode
+    ) -> typing.List[dbstate.QueryUnit]:
 
         ctx = await self._ctx_from_con_state(
             txid=txid,
             json_mode=json_mode,
-            stmt_mode=CompileStatementMode(stmt_mode))
+            stmt_mode=enums.CompileStatementMode(stmt_mode))
 
         units = self._compile(ctx=ctx, eql=eql)
-        if (stmt_mode is CompileStatementMode.SINGLE and
+        if (stmt_mode is enums.CompileStatementMode.SINGLE and
                 len(units) != 1):  # pragma: no cover
             raise errors.InternalServerError(
                 f'expected 1 compiled unit; got {len(units)}')
