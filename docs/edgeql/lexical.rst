@@ -29,11 +29,11 @@ quoted identifiers start and end with a *backtick*
 must not start with an ampersand (``@``).
 
 .. productionlist:: edgeql
-    identifier: ``plain_ident`` | ``quoted_ident``
-    plain_ident: ``ident_first`` `ident_rest`*
+    identifier: `plain_ident` | `quoted_ident`
+    plain_ident: `ident_first` `ident_rest`*
     ident_first: <any letter, underscore>
     ident_rest: <any letter, digits, underscore>
-    quoted_ident: "`" ``qident_first`` `qident_rest`* "`"
+    quoted_ident: "`" `qident_first` `qident_rest`* "`"
     qident_first: <any character except "@">
     qident_rest: <any character>
 
@@ -54,9 +54,9 @@ Every identifier that is not a *reserved* keyword is a valid *name*.
 *Names* are used to refer to concepts, links, link properties, etc.
 
 .. productionlist:: edgeql
-    short_name: ``not_keyword_ident`` | ``quoted_ident``
-    not_keyword_ident: <any ``plain_ident`` except for `keyword`>
-    keyword: ``reserved_keyword`` | ``unreserved_keyword``
+    short_name: `not_keyword_ident` | `quoted_ident`
+    not_keyword_ident: <any `plain_ident` except for `keyword`>
+    keyword: `reserved_keyword` | `unreserved_keyword`
     reserved_keyword: case insensitive sequence matching any
                     : of the following
                     : "AGGREGATE" | "ALTER" | "AND" |
@@ -92,9 +92,9 @@ They can be used in most places where a short name can appear (such as
 paths and shapes).
 
 .. productionlist:: edgeql
-    name: ``short_name`` | ``fq_name``
-    fq_name: ``short_name`` "::" ``short_name`` |
-           : ``short_name`` "::" ``unreserved_keyword``
+    name: `short_name` | `fq_name`
+    fq_name: `short_name` "::" `short_name` |
+           : `short_name` "::" `unreserved_keyword`
 
 
 .. _ref_eql_lexical_const:
@@ -102,7 +102,157 @@ paths and shapes).
 Constants
 ---------
 
-.. TODO
+A number of scalar types have literal constant expressions.
+
+
+Strings
+^^^^^^^
+
+Production rules for :eql:type:`str` literal:
+
+.. productionlist:: edgeql
+    string: <str> | <raw_str>
+    str: "'" `str_content`* "'" | '"' `str_content`* '"'
+    raw_str: "r'" `raw_content`* "'" |
+           : 'r"' `raw_content`* '"' |
+           : `dollar_quote` `raw_content`* `dollar_quote`
+    raw_content: <any character different from delimiting quote>
+    dollar_quote: "$" `q_char`* "$"
+    q_char: "A"..."Z" | "a"..."z" | "_" | "0"..."9" |
+          : <high ASCII characters>
+    str_content: <newline> | `unicode` | `str_escapes`
+    unicode: <any printable unicode character not preceded by "\">
+    str_escapes: <see below for details>
+
+The inclusion of "high ASCII" character in the :token:`q_char` in
+practice reflects the ability to use some of the letters with
+diacritics like ``ò`` or ``ü`` in the dollar-quote delimiter.
+
+Here's a list of valid :token:`str_escapes`:
+
+.. _ref_eql_lexical_str_escapes:
+
++--------------------+---------------------------------------------+
+| Escape Sequence    | Meaning                                     |
++====================+=============================================+
+| ``\[newline]``     | Backslash and newline ignored               |
++--------------------+---------------------------------------------+
+| ``\\``             | Backslash (\\)                              |
++--------------------+---------------------------------------------+
+| ``\'``             | Single quote (')                            |
++--------------------+---------------------------------------------+
+| ``\"``             | Double quote (")                            |
++--------------------+---------------------------------------------+
+| ``\b``             | ASCII backspace (``\x08``)                  |
++--------------------+---------------------------------------------+
+| ``\f``             | ASCII form feed (``\x0C``)                  |
++--------------------+---------------------------------------------+
+| ``\n``             | ASCII newline (``\x0A``)                    |
++--------------------+---------------------------------------------+
+| ``\r``             | ASCII carriage return (``\x0D``)            |
++--------------------+---------------------------------------------+
+| ``\t``             | ASCII tabulation (``\x09``)                 |
++--------------------+---------------------------------------------+
+| ``\xhh``           | Character with hex value hh                 |
++--------------------+---------------------------------------------+
+| ``\uhhhh``         | Character with 16-bit hex value hhhh        |
++--------------------+---------------------------------------------+
+| ``\Uhhhhhhhh``     | Character with 32-bit hex value hhhhhhhh    |
++--------------------+---------------------------------------------+
+
+Here's some examples of regular strings using escape sequences
+
+.. code-block:: edgeql-repl
+
+    db> SELECT 'hello
+    ... world';
+    {'hello\nworld'}
+
+    db> SELECT "hello\nworld";
+    {'hello\nworld'}
+
+    db> SELECT 'hello \
+    ... world';
+    {'hello world'}
+
+    db> SELECT 'hello \\ world';
+    {'hello \\ world'}
+
+    db> SELECT 'hello \'world\'';
+    {"hello 'world'"}
+
+    db> SELECT 'hello \x77orld';
+    {'hello world'}
+
+    db> SELECT 'hello \u0077orld';
+    {'hello world'}
+
+.. _ref_eql_lexical_raw:
+
+Raw strings don't have any specially interpreted symbols, they contain
+all the symbols between the quotes exactly as typed.
+
+.. code-block:: edgeql-repl
+
+    db> SELECT r'hello \\ world';
+    {'hello \\\\ world'}
+
+    db> SELECT r'hello \
+    ... world';
+    {'hello \\\nworld'}
+
+    db> SELECT r'hello
+    ... world';
+    {'hello \nworld'}
+
+    db> SELECT $$hello
+    ... world$$;
+    {'hello \nworld'}
+
+    db> SELECT $$hello\nworld$$;
+    {'hello\\nworld'}
+
+    db> SELECT $a$hello$$world$$$a$;
+    {'hello$$world$$'}
+
+
+Bytes
+^^^^^
+
+Production rules for :eql:type:`bytes` literal:
+
+.. productionlist:: edgeql
+    bytes: "b'" `bytes_content`* "'" | 'b"' `bytes_content`* '"'
+    bytes_content: <newline> | `ascii` | `bytes_escapes`
+    ascii: <any printable ascii character not preceded by "\">
+    bytes_escapes: <see below for details>
+
+Here's a list of valid :token:`bytes_escapes`:
+
+.. _ref_eql_lexical_bytes_escapes:
+
++--------------------+---------------------------------------------+
+| Escape Sequence    | Meaning                                     |
++====================+=============================================+
+| ``\\``             | Backslash (\\)                              |
++--------------------+---------------------------------------------+
+| ``\'``             | Single quote (')                            |
++--------------------+---------------------------------------------+
+| ``\"``             | Double quote (")                            |
++--------------------+---------------------------------------------+
+| ``\b``             | ASCII backspace (``\x08``)                  |
++--------------------+---------------------------------------------+
+| ``\f``             | ASCII form feed (``\x0C``)                  |
++--------------------+---------------------------------------------+
+| ``\n``             | ASCII newline (``\x0A``)                    |
++--------------------+---------------------------------------------+
+| ``\r``             | ASCII carriage return (``\x0D``)            |
++--------------------+---------------------------------------------+
+| ``\t``             | ASCII tabulation (``\x09``)                 |
++--------------------+---------------------------------------------+
+| ``\xhh``           | Character with hex value hh                 |
++--------------------+---------------------------------------------+
+
 
 
 .. _ref_eql_lexical_dollar_quoting:
