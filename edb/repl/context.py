@@ -49,6 +49,3 @@ class ReplContext:
 
     def toggle_introspect_types(self):
         self.introspect_types = not self.introspect_types
-
-    def on_new_connection(self):
-        self.introspect_types = False

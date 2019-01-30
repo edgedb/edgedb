@@ -152,6 +152,10 @@ class Cli:
 
         return toolbar
 
+    def introspect_db(self, con):
+        names = con.fetch('SELECT schema::ObjectType { name }')
+        self.context.typenames = {n.id: n.name for n in names}
+
     def build_propmpt(self):
         history = pt_history.FileHistory(
             os.path.expanduser('~/.edgedbhistory'))
@@ -173,9 +177,7 @@ class Cli:
 
             if self.context.introspect_types:
                 self.ensure_connection()
-                names = self.connection.fetch(
-                    'SELECT schema::ObjectType { name }')
-                self.context.typenames = {n.id: n.name for n in names}
+                self.introspect_db(self.connection)
             else:
                 self.context.typenames = None
 
@@ -227,6 +229,8 @@ class Cli:
         new_args = self.conn_args.set('database', new_db)
         try:
             new_connection = edgedb.connect(**new_args)
+            if self.context.introspect_types:
+                self.introspect_db(new_connection)
         except Exception:
             print(f'Could not establish connection to {new_db!r}', flush=True)
             return
@@ -234,7 +238,6 @@ class Cli:
         self.connection.close()
         self.connection = new_connection
         self.conn_args = new_args
-        self.context.on_new_connection()
 
     @_command('l', R'\l', 'list databases')
     def command_list_dbs(self, args):
