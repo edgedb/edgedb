@@ -53,7 +53,8 @@ from edb.pgsql import delta as pg_delta
 from edb.pgsql import dbops as pg_dbops
 from edb.pgsql import common as pg_common
 
-from . import config
+from edb.server import config
+
 from . import dbstate
 from . import enums
 from . import errormech
@@ -521,6 +522,8 @@ class Compiler:
         aliases = ctx.state.current_tx().get_modaliases()
         config_vals = {}
 
+        single_unit = False
+
         sqlbuf = []
 
         alias_tpl = lambda alias, module: f'''
@@ -549,11 +552,32 @@ class Compiler:
                     sql = alias_tpl(item.alias, item.module)
                     sqlbuf.append(sql)
 
-            elif isinstance(item, qlast.SessionSetConfigDecl):
-                name = item.alias
+            elif isinstance(item, qlast.SessionSetConfigAssignDecl):
+                if item.system:
+                    if not current_tx.is_implicit():
+                        raise errors.QueryError(
+                            'SET SYSTEM commands must not be executed in '
+                            'a transaction')
 
-                config_vals[name] = config._setting_val_from_qlast(
-                    self._std_schema, name, item.expr)
+                    single_unit = True
+
+                name = item.alias
+                try:
+                    setting = config.configs[name]
+                except KeyError:
+                    raise errors.ConfigurationError(
+                        f'invalid SET expression: '
+                        f'unknown CONFIG setting {name!r}')
+
+                if item.system and not setting.is_system():
+                    raise errors.QueryError(
+                        f'{name!r} is not a system-level config')
+                if not item.system and setting.is_system():
+                    raise errors.QueryError(
+                        f'{name!r} is a system-level config')
+
+                config_vals[name] = setting.value_from_qlast(
+                    self._std_schema, item.expr)
 
                 item_expr_ql = ql_codegen.generate_source(item.expr)
 
@@ -615,7 +639,9 @@ class Compiler:
             END; $$;
             ''' % (b''.join(sqlbuf))
 
-        return dbstate.SessionStateQuery(sql=(sql,))
+        return dbstate.SessionStateQuery(
+            sql=(sql,),
+            single_unit=single_unit)
 
     def _compile_dispatch_ql(self, ctx: CompileContext, ql: qlast.Base):
 
@@ -682,9 +708,7 @@ class Compiler:
         for stmt in statements:
             comp: dbstate.BaseQuery = self._compile_dispatch_ql(ctx, stmt)
 
-            if unit is not None and (
-                    (isinstance(comp, dbstate.TxControlQuery) and
-                        comp.single_unit)):
+            if unit is not None and comp.single_unit:
                 units.append(unit)
                 unit = None
 

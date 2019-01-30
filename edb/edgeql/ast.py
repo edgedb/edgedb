@@ -99,15 +99,27 @@ class ModuleAliasDecl(BaseAlias):
     module: str
 
 
-class BaseSessionSet:
+class BaseSessionSet(Base):
     pass
+
+
+class BaseSessionConfigSet(BaseSessionSet):
+    system: bool = False
 
 
 class SessionSetAliasDecl(ModuleAliasDecl, BaseSessionSet):
     pass
 
 
-class SessionSetConfigDecl(AliasedExpr, BaseSessionSet):
+class SessionSetConfigAssignDecl(AliasedExpr, BaseSessionConfigSet):
+    pass
+
+
+class SessionSetConfigAddAssignDecl(AliasedExpr, BaseSessionConfigSet):
+    pass
+
+
+class SessionSetConfigRemAssignDecl(AliasedExpr, BaseSessionConfigSet):
     pass
 
 

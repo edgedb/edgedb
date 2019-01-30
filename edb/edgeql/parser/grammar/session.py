@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+from edb import errors
 
 from edb.common.parsing import ListNonterm
 from edb.edgeql import ast as qlast
@@ -34,6 +35,14 @@ class SessionStmt(Nonterm):
         self.val = kids[0].val
 
 
+class OptSystem(Nonterm):
+    def reduce_empty(self, *kids):
+        self.val = False
+
+    def reduce_SYSTEM(self, *kids):
+        self.val = True
+
+
 class SetDecl(Nonterm):
     def reduce_ALIAS_Identifier_AS_MODULE_ModuleName(self, *kids):
         self.val = qlast.SessionSetAliasDecl(
@@ -44,10 +53,23 @@ class SetDecl(Nonterm):
         self.val = qlast.SessionSetAliasDecl(
             module='.'.join(kids[1].val))
 
-    def reduce_CONFIG_Identifier_ASSIGN_Expr(self, *kids):
-        self.val = qlast.SessionSetConfigDecl(
-            alias=kids[1].val,
-            expr=kids[3].val)
+    def reduce_OptSystem_CONFIG_Identifier_ASSIGN_Expr(self, *kids):
+        self.val = qlast.SessionSetConfigAssignDecl(
+            system=kids[0].val,
+            alias=kids[2].val,
+            expr=kids[4].val)
+
+    def reduce_OptSystem_CONFIG_Identifier_ADDASSIGN_Expr(self, *kids):
+        self.val = qlast.SessionSetConfigAddAssignDecl(
+            system=kids[0].val,
+            alias=kids[2].val,
+            expr=kids[4].val)
+
+    def reduce_OptSystem_CONFIG_Identifier_REMASSIGN_Expr(self, *kids):
+        self.val = qlast.SessionSetConfigRemAssignDecl(
+            system=kids[0].val,
+            alias=kids[2].val,
+            expr=kids[4].val)
 
 
 class SetDeclList(ListNonterm, element=SetDecl,
@@ -57,6 +79,23 @@ class SetDeclList(ListNonterm, element=SetDecl,
 
 class SetStmt(Nonterm):
     def reduce_SET_SetDeclList(self, *kids):
+        has_system_commands = any(
+            node.system
+            for node in kids[1].val
+            if isinstance(node, qlast.BaseSessionConfigSet)
+        )
+
+        all_system_commands = all(
+            isinstance(node, qlast.BaseSessionConfigSet) and node.system
+            for node in kids[1].val
+        )
+
+        if has_system_commands and not all_system_commands:
+            raise errors.EdgeQLSyntaxError(
+                "SET SYSTEM commands cannot be grouped with non-system "
+                "SET commands",
+                context=kids[0].context)
+
         self.val = qlast.SetSessionState(
             items=kids[1].val
         )

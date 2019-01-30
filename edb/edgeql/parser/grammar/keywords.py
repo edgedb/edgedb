@@ -84,6 +84,7 @@ unreserved_keywords = frozenset([
     "serializable",
     "single",
     "source",
+    "system",
     "target",
     "ternary",
     "then",

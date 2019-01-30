@@ -141,6 +141,14 @@ class T_ASSIGN(Token):
     pass
 
 
+class T_ADDASSIGN(Token):
+    pass
+
+
+class T_REMASSIGN(Token):
+    pass
+
+
 class T_ARROW(Token):
     pass
 

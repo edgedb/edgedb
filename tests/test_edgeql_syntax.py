@@ -3402,6 +3402,37 @@ aa';
         SET MODULE default, CONFIG foo := (SELECT User);
         """
 
+    def test_edgeql_syntax_set_command_04(self):
+        """
+        SET SYSTEM CONFIG foo := (SELECT User);
+        """
+
+    def test_edgeql_syntax_set_command_05(self):
+        """
+        SET SYSTEM CONFIG foo += '12', SYSTEM CONFIG baz -= '11';
+        """
+
+    def test_edgeql_syntax_set_command_06(self):
+        """
+        SET CONFIG foo -= 'aa', CONFIG bar += 'aaa';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'SET SYSTEM commands cannot be grouped',
+                  line=2, col=9)
+    def test_edgeql_syntax_set_command_07(self):
+        """
+        SET CONFIG foo -= 'aa', SYSTEM CONFIG bar += 'aaa';
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'SET SYSTEM commands cannot be grouped',
+                  line=2, col=9)
+    def test_edgeql_syntax_set_command_08(self):
+        """
+        SET ALIAS foo AS MODULE aa, SYSTEM CONFIG bar += 'aaa';
+        """
+
     def test_edgeql_syntax_reset_command_01(self):
         """
         RESET MODULE;

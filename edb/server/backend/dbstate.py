@@ -60,23 +60,28 @@ class Query(BaseQuery):
     in_type_data: bytes
     in_type_id: bytes
 
+    single_unit: bool = False
+
 
 @dataclasses.dataclass(frozen=True)
 class SimpleQuery(BaseQuery):
 
     sql: typing.Tuple[bytes, ...]
+    single_unit: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
 class SessionStateQuery(BaseQuery):
 
     sql: typing.Tuple[bytes, ...]
+    single_unit: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
 class DDLQuery(BaseQuery):
 
     sql: typing.Tuple[bytes, ...]
+    single_unit: bool = False
 
 
 @dataclasses.dataclass(frozen=True)

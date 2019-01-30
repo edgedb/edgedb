@@ -41,8 +41,9 @@ from edb.server.pgproto.pgproto cimport (
 
 from edb.server.dbview cimport dbview
 
+from edb.server import config
 from edb.server import defines
-from edb.server.backend import config
+
 from edb.server.backend import enums
 from edb.server.pgcon cimport pgcon
 from edb.server.pgcon import errors as pgerror
@@ -245,8 +246,9 @@ cdef class EdgeConnection:
                 svalue = svalue.decode()
 
                 if stype == b'C':
-                    pyval = config._setting_val_from_eql(
-                        self.backend.std_schema, sname, svalue)
+                    setting = config.configs[sname]
+                    pyval = setting.value_from_eql(
+                        self.backend.std_schema, svalue)
                     conf = conf.set(sname, pyval)
                 elif stype == b'A':
                     if not sname:

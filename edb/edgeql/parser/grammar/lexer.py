@@ -82,6 +82,14 @@ class EdgeQLLexer(lexer.Lexer):
              next_state=STATE_KEEP,
              regexp=r':='),
 
+        Rule(token='REMASSIGN',
+             next_state=STATE_KEEP,
+             regexp=r'-='),
+
+        Rule(token='ADDASSIGN',
+             next_state=STATE_KEEP,
+             regexp=r'\+='),
+
         Rule(token='ARROW',
              next_state=STATE_KEEP,
              regexp=r'->'),
