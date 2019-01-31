@@ -308,3 +308,6 @@ EdgeQL operators listed in order of precedence from lowest to highest:
     * - :eql:op:`DISTINCT`, unary :eql:op:`-<UMINUS>`
     * - :eql:op:`^<POW>`
     * - :ref:`type cast <ref_eql_expr_typecast>`
+    * - :ref:`element access <ref_eql_expr_array_elref>` or
+        :ref:`slice <ref_eql_expr_array_slice>` ``[]``
+    * - :ref:`DETACHED <ref_eql_with_detached>`

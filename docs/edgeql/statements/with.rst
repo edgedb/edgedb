@@ -163,6 +163,8 @@ An example of incorrect refactoring would be:
     SELECT (Issue, U);
 
 
+.. _ref_eql_with_detached:
+
 Detached
 ++++++++
 

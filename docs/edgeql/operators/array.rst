@@ -7,8 +7,6 @@ Array
 
 :index: array
 
-.. _ref_eql_expr_array_elref:
-
 .. eql:operator:: ARRAYPLUS: A ++ B
 
     :optype A: array<anytype>
@@ -22,6 +20,8 @@ Array
         db> SELECT [1, 2, 3] ++ [99, 98];
         {[1, 2, 3, 99, 98]}
 
+
+.. _ref_eql_expr_array_elref:
 
 Accessing Array Elements
 ========================
