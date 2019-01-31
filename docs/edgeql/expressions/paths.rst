@@ -49,6 +49,8 @@ included in the result.  It has the following syntax:
 
    "[" IS type "]"
 
+.. _ref_eql_expr_paths_is:
+
 The example below shows a path that represents the names of all friends
 of all ``User`` objects in the database.
 

@@ -51,13 +51,18 @@ the specified type:
 
     "<" <type> ">" <expression>
 
-The *type* must be a scalar or a container type.
+The *type* must be a non-abstract scalar or a container type.
 
 Type cast is a run-time operation.  The cast will succeed only if a
 type conversion was defined for the type pair, and if the source value
-satisfies the requirements of a target type.
+satisfies the requirements of a target type. EdgeDB allows casting any
+scalar.
 
-EdgeDB allows casting any scalar
+It is illegal to cast one :eql:type:`Object` into another. The only
+way to construct a new :eql:type:`Object` is by using :ref:`INSERT
+<ref_eql_statements_insert>`. However, the :ref:`target filter
+<ref_eql_expr_paths_is>` can be used to achieve an effect similar to
+casting for Objects.
 
 When a cast is applied to an expression of a known type, it represents a
 run-time type conversion. The cast will succeed only if a suitable type
@@ -111,4 +116,18 @@ set ``{}``, which can be required for purposes of type disambiguation.
             # the cast to str is necessary here, because
             # the type of the computable must be defined
         body,
+    };
+
+Casting empty sets is also the only situation where casting into an
+:eql:type:`Object` is valid:
+
+.. code-block:: edgeql
+
+    WITH MODULE example
+    SELECT User {
+        name,
+        friends := <User>{}
+        # the cast is the only way to indicate that the
+        # computable 'friends' is supposed to be a set of
+        # Users
     };
