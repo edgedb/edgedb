@@ -44,9 +44,9 @@ An element of a tuple can be referenced in the form:
 
     <expr>.<element-index>
 
-Here, *expr* is any expression that has a tuple type, and *element-name* is
-either the *zero-based index* of the element, if the tuple is unnamed, or
-the name of an element in a named tuple.
+Here, :eql:synopsis:`<expr>` is any expression that has a tuple type,
+and :eql:synopsis:`<element-index>` is either the *zero-based index*
+of the element or the name of an element in a named tuple.
 
 Examples:
 
@@ -56,6 +56,9 @@ Examples:
     {1}
 
     db> SELECT (number := 1, name := 'EdgeDB').name;
+    {"EdgeDB"}
+
+    db> SELECT (number := 1, name := 'EdgeDB').1;
     {"EdgeDB"}
 
 Tuples can be nested:
