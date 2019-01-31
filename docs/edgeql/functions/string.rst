@@ -148,7 +148,7 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT std::re_match(r'\w{4}ql', 'I ❤️ edgeql');
+        db> SELECT re_match(r'\w{4}ql', 'I ❤️ edgeql');
         {['edgeql']}
 
 .. eql:function:: std::re_match_all(pattern: str, \
@@ -165,7 +165,7 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT std::re_match_all(r'a\w+', 'an abstract concept');
+        db> SELECT re_match_all(r'a\w+', 'an abstract concept');
         {['an'], ['abstract']}
 
 .. eql:function:: std::re_replace(pattern: str, sub: str, \
@@ -185,8 +185,8 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT std::re_replace(r'l', r'L', 'Hello World',
-                                   flags := 'g');
+        db> SELECT re_replace(r'l', r'L', 'Hello World',
+        ...                   flags := 'g');
         {'HeLLo WorLd'}
 
 .. eql:function:: std::re_test(pattern: str, string: str) -> bool
@@ -202,7 +202,7 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT std::re_test(r'a', 'abc');
+        db> SELECT re_test(r'a', 'abc');
         {True}
 
 Regular Expressions

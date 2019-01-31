@@ -25,7 +25,7 @@ Named tuples are created using the following syntax:
 Note that *all* elements in a named tuple must have a name.
 
 A tuple constructor automatically creates a corresponding
-:eql:type:`std::tuple` type:
+:eql:type:`tuple` type:
 
 .. code-block:: edgeql-repl
 

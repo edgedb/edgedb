@@ -110,7 +110,7 @@ Parameters
     If specified, the constraint is defined as *delegated*, which means
     that it will not be enforced on the type it's declared on, and
     the enforcement will be delegated to the subtypes of this type.
-    This is particularly useful for :eql:constraint:`std::exclusive`
+    This is particularly useful for :eql:constraint:`exclusive`
     constraints in abstract types.
 
 :eschema:synopsis:`<constr_name>`

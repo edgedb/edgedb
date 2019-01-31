@@ -26,7 +26,7 @@ SELECT
 
 :eql:synopsis:`FILTER <filter-expr>`
     The optional ``FILTER`` clause, where :eql:synopsis:`<filter-expr>`
-    is any expression that has a result of type :eql:type:`std::bool`.
+    is any expression that has a result of type :eql:type:`bool`.
     The condition is evaluated for every element in the set produced by
     the ``SELECT`` clause.  The result of the evaluation of the
     ``FILTER`` clause is a set of boolean values.  If at least one value

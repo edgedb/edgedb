@@ -10,7 +10,7 @@ Date and Time
 
     .. code-block:: edgeql-repl
 
-        db> SELECT std::datetime_current();
+        db> SELECT datetime_current();
         {'2018-05-14T20:07:11.755827+00:00'}
 
 .. eql:function:: std::datetime_of_transaction() -> datetime

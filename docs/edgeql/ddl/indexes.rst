@@ -51,7 +51,7 @@ Create an object type ``User`` with an indexed ``title`` property:
 .. code-block:: edgeql
 
     CREATE TYPE User {
-        CREATE PROPERTY title -> std::str {
+        CREATE PROPERTY title -> str {
             SET default := '';
         };
 

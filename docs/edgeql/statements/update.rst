@@ -33,11 +33,11 @@ selected by *update-selector-expr* and, optinally, filtered by
     An arbitrary expression returning a set of objects to be updated.
 
 :eql:synopsis:`FILTER <filter-expr>`
-    An expression of type :eql:type:`std::bool` used to filter the
+    An expression of type :eql:type:`bool` used to filter the
     set of updated objects.
 
     :eql:synopsis:`<filter-expr>` is an expression that has a result
-    of type :eql:type:`std::bool`.  Only objects that satisfy the filter
+    of type :eql:type:`bool`.  Only objects that satisfy the filter
     expression will be updated.  See the description of the
     ``FILTER`` clause of the :eql:stmt:`SELECT` statement for more
     information.

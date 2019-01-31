@@ -259,7 +259,7 @@ Parameters
     If specified, the constraint is defined as *delegated*, which means
     that it will not be enforced on the type it's declared on, and
     the enforcement will be delegated to the subtypes of this type.
-    This is particularly useful for :eql:constraint:`std::exclusive`
+    This is particularly useful for :eql:constraint:`exclusive`
     constraints in abstract types.
 
 :eql:synopsis:`<name>`
@@ -297,7 +297,7 @@ Create a maximum length constraint on the property "name" of the "User" type:
 .. code-block:: edgeql
 
     ALTER TYPE User ALTER PROPERTY name
-    CREATE CONSTRAINT std::maxlength(100);
+    CREATE CONSTRAINT maxlength(100);
 
 
 ALTER CONSTRAINT
@@ -379,7 +379,7 @@ Change the error message on a maximum length constraint on the property
 .. code-block:: edgeql
 
     ALTER TYPE User ALTER PROPERTY name
-    ALTER CONSTRAINT std::maxlength
+    ALTER CONSTRAINT maxlength
     SET errmessage := 'User name too long';
 
 
@@ -427,4 +427,4 @@ Remove constraint "maxlength" from the property "name" of the
 .. code-block:: edgeql
 
     ALTER TYPE User ALTER PROPERTY name
-    DROP CONSTRAINT std::maxlength;
+    DROP CONSTRAINT maxlength;

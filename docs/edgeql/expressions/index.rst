@@ -45,7 +45,7 @@ a cast string literal:
 
     SELECT <float32>'1.23';
     SELECT <timedelta>'1 day';
-    SELECT <std::decimal>'1.23';  # Same as SELECT 1.23n;
+    SELECT <decimal>'1.23';  # Same as SELECT 1.23n;
 
 
 .. _ref_eql_expr_index_setref:

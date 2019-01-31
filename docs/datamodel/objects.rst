@@ -13,7 +13,7 @@ objects and by links between objects.
 Every object has a globally unique *identity* represented by a ``UUID``
 value.  Object's identity is assigned on object's creation and never
 changes.  Referring to object's ``id`` property yields its identity as a
-:eql:type:`std::uuid` value.
+:eql:type:`uuid` value.
 
 Object types can *extend* other object types, in which case the extending
 type is called a *subtype* and types being extended are called *supertypes*.
@@ -33,7 +33,7 @@ types in EdgeDB extend ``std::Object`` directly or indirectly.
 
         abstract type Object:
             # Universally unique object identifier
-            required readonly property id -> std::uuid
+            required readonly property id -> uuid
 
             # Object type in the information schema.
             required readonly link __type__ -> schema::ObjectType

@@ -13,7 +13,7 @@ System
     Make the current session sleep for *duration* time.
 
     *duration* can either be a number of seconds specified
-    as a floating point number, or a :eql:type:`std::timedelta`.
+    as a floating point number, or a :eql:type:`timedelta`.
 
     The function always returns ``true``.
 

@@ -72,7 +72,7 @@ Create a new non-negative integer type:
 
 .. code-block:: edgeql
 
-    CREATE SCALAR TYPE posint64 EXTENDING std::int64 {
+    CREATE SCALAR TYPE posint64 EXTENDING int64 {
         CREATE CONSTRAINT min(0);
     };
 
