@@ -130,3 +130,27 @@ the ``name`` and the ``email`` for that user.
             'email': 'alice@example.com'
         }
     }
+
+
+Cardinality
++++++++++++
+
+Typically the cardinality of an expression can be statically
+determined from the individual parts. Sometimes it is necessary to
+specify the cardinality explicitly. For example, when using
+computables in shapes it may be desirable to specify the cardinality
+of the computable because it affects serialization.
+
+.. code-block:: edgeql
+
+    WITH
+        MODULE example
+    SELECT User {
+        name,
+        multi nicknames := (SELECT 'Foo')
+    };
+
+Cardinality is normally statically inferred from the query, so
+overruling this inference may only be done to *relax* the cardinality,
+so it is not valid to specify the ``single`` qualifier for a computable
+expression that may return multiple items.
