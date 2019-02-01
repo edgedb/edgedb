@@ -29,8 +29,8 @@ type Source1 extending Named:
     link tgt1_restrict -> Target1:
         on target delete restrict
 
-    link tgt1_set_empty -> Target1:
-        on target delete set empty
+    link tgt1_allow -> Target1:
+        on target delete allow
 
     link tgt1_del_source -> Target1:
         on target delete delete source
@@ -40,6 +40,9 @@ type Source1 extending Named:
 
     multi link tgt1_m2m_restrict -> Target1:
         on target delete restrict
+
+    multi link tgt1_m2m_allow -> Target1:
+        on target delete allow
 
     multi link tgt1_m2m_del_source -> Target1:
         on target delete delete source

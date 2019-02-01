@@ -1006,13 +1006,9 @@ class OnDelete(Nonterm):
         self.val = esast.OnTargetDelete(
             cascade=qlast.LinkTargetDeleteAction.DELETE_SOURCE)
 
-    def reduce_ON_TARGET_DELETE_SET_EMPTY_NL(self, *kids):
+    def reduce_ON_TARGET_DELETE_ALLOW_NL(self, *kids):
         self.val = esast.OnTargetDelete(
-            cascade=qlast.LinkTargetDeleteAction.SET_EMPTY)
-
-    def reduce_ON_TARGET_DELETE_SET_DEFAULT_NL(self, *kids):
-        self.val = esast.OnTargetDelete(
-            cascade=qlast.LinkTargetDeleteAction.SET_DEFAULT)
+            cascade=qlast.LinkTargetDeleteAction.ALLOW)
 
     def reduce_ON_TARGET_DELETE_DEFERRED_RESTRICT_NL(self, *kids):
         self.val = esast.OnTargetDelete(

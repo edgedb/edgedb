@@ -294,12 +294,9 @@ type Commit:
                 on target delete delete source
 
             link bar2 -> Bar:
-                on target delete set empty
+                on target delete allow
 
             link bar3 -> Bar:
-                on target delete set default
-
-            link bar4 -> Bar:
                 on target delete deferred restrict
         """
 

@@ -34,7 +34,7 @@ class TestLinkTargetDeleteSchema(tb.BaseSchemaLoadTest):
         schema = self.load_schema("""
             type Object:
                 link foo -> Object:
-                    on target delete set empty
+                    on target delete allow
 
                 link bar -> Object
         """)
@@ -43,7 +43,7 @@ class TestLinkTargetDeleteSchema(tb.BaseSchemaLoadTest):
 
         self.assertEqual(
             obj.getptr(schema, 'foo').get_on_target_delete(schema),
-            s_links.LinkTargetDeleteAction.SET_EMPTY)
+            s_links.LinkTargetDeleteAction.ALLOW)
 
         self.assertEqual(
             obj.getptr(schema, 'bar').get_on_target_delete(schema),
@@ -53,7 +53,7 @@ class TestLinkTargetDeleteSchema(tb.BaseSchemaLoadTest):
         schema = self.load_schema("""
             type Object:
                 link foo -> Object:
-                    on target delete set empty
+                    on target delete allow
 
             type Object2 extending Object:
                 inherited link foo -> Object:
@@ -67,7 +67,7 @@ class TestLinkTargetDeleteSchema(tb.BaseSchemaLoadTest):
         obj2 = schema.get('test::Object2')
         self.assertEqual(
             obj2.getptr(schema, 'foo').get_on_target_delete(schema),
-            s_links.LinkTargetDeleteAction.SET_EMPTY)
+            s_links.LinkTargetDeleteAction.ALLOW)
 
         obj3 = schema.get('test::Object3')
         self.assertEqual(
@@ -85,7 +85,7 @@ class TestLinkTargetDeleteSchema(tb.BaseSchemaLoadTest):
 
             type B:
                 link foo -> Object:
-                    on target delete set empty
+                    on target delete allow
 
             type C extending A, B
         """
@@ -407,7 +407,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                         FILTER .name = 'Target4.2');
             """)
 
-    async def test_link_on_target_delete_set_empty_01(self):
+    async def test_link_on_target_delete_allow_01(self):
         async with self._run_and_rollback():
             await self.con.execute("""
                 INSERT test::Target1 {
@@ -416,7 +416,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
 
                 INSERT test::Source1 {
                     name := 'Source1.1',
-                    tgt1_set_empty := (
+                    tgt1_allow := (
                         SELECT test::Target1
                         FILTER .name = 'Target1.1'
                     )
@@ -428,13 +428,13 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                     WITH MODULE test
                     SELECT
                         Source1 {
-                            tgt1_set_empty: {
+                            tgt1_allow: {
                                 name
                             }
                         };
                 ''',
                 [{
-                    'tgt1_set_empty': {'name': 'Target1.1'},
+                    'tgt1_allow': {'name': 'Target1.1'},
                 }]
             )
 
@@ -447,7 +447,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                     WITH MODULE test
                     SELECT
                         Source1 {
-                            tgt1_set_empty: {
+                            tgt1_allow: {
                                 name
                             }
                         }
@@ -455,11 +455,11 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                         .name = 'Source1.1';
                 ''',
                 [{
-                    'tgt1_set_empty': None,
+                    'tgt1_allow': None,
                 }]
             )
 
-    async def test_link_on_target_delete_set_empty_02(self):
+    async def test_link_on_target_delete_allow_02(self):
         async with self._run_and_rollback():
             await self.con.execute("""
                 INSERT test::Target1 {
@@ -468,7 +468,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
 
                 INSERT test::Source3 {
                     name := 'Source3.1',
-                    tgt1_set_empty := (
+                    tgt1_allow := (
                         SELECT test::Target1
                         FILTER .name = 'Target1.1'
                     )
@@ -480,13 +480,13 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                     WITH MODULE test
                     SELECT
                         Source3 {
-                            tgt1_set_empty: {
+                            tgt1_allow: {
                                 name
                             }
                         };
                 ''',
                 [{
-                    'tgt1_set_empty': {'name': 'Target1.1'},
+                    'tgt1_allow': {'name': 'Target1.1'},
                 }]
             )
 
@@ -499,7 +499,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                     WITH MODULE test
                     SELECT
                         Source3 {
-                            tgt1_set_empty: {
+                            tgt1_allow: {
                                 name
                             }
                         }
@@ -507,8 +507,96 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                         .name = 'Source3.1';
                 ''',
                 [{
-                    'tgt1_set_empty': None,
+                    'tgt1_allow': None,
                 }]
+            )
+
+    async def test_link_on_target_delete_allow_03(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                SET MODULE test;
+
+                FOR name IN {'Target1.1', 'Target1.2', 'Target1.3'}
+                UNION (
+                    INSERT Target1 {
+                        name := name
+                    });
+
+                INSERT Source1 {
+                    name := 'Source1.1',
+                    tgt1_m2m_allow := (
+                        SELECT Target1
+                        FILTER
+                            .name IN {'Target1.1', 'Target1.2', 'Target1.3'}
+                    )
+                };
+            """)
+
+            await self.assert_query_result(
+                r'''
+                    WITH MODULE test
+                    SELECT
+                        Source1 {
+                            name,
+                            tgt1_m2m_allow: {
+                                name
+                            } ORDER BY .name
+                        }
+                    FILTER
+                        .name = 'Source1.1';
+                ''',
+                [{
+                    'name': 'Source1.1',
+                    'tgt1_m2m_allow': [
+                        {'name': 'Target1.1'},
+                        {'name': 'Target1.2'},
+                        {'name': 'Target1.3'},
+                    ],
+                }]
+            )
+
+            await self.con.execute("""
+                DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
+            """)
+
+            await self.assert_query_result(
+                r'''
+                    WITH MODULE test
+                    SELECT
+                        Source1 {
+                            name,
+                            tgt1_m2m_allow: {
+                                name
+                            } ORDER BY .name
+                        }
+                    FILTER
+                        .name = 'Source1.1';
+                ''',
+                [{
+                    'name': 'Source1.1',
+                    'tgt1_m2m_allow': [
+                        {'name': 'Target1.2'},
+                        {'name': 'Target1.3'},
+                    ],
+                }]
+            )
+
+            await self.assert_query_result(
+                r'''
+                    WITH MODULE test
+                    SELECT
+                        Target1 {
+                            name
+                        }
+                    FILTER
+                        .name LIKE 'Target1%'
+                    ORDER BY
+                        .name;
+                ''',
+                [
+                    {'name': 'Target1.2'},
+                    {'name': 'Target1.3'},
+                ]
             )
 
     async def test_link_on_target_delete_delete_source_01(self):

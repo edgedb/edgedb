@@ -3308,12 +3308,9 @@ aa';
                 ON TARGET DELETE DELETE SOURCE;
             };
             CREATE LINK bar2 -> mymod::Bar {
-                ON TARGET DELETE SET EMPTY;
+                ON TARGET DELETE ALLOW;
             };
             CREATE LINK bar3 -> mymod::Bar {
-                ON TARGET DELETE SET DEFAULT;
-            };
-            CREATE LINK bar4 -> mymod::Bar {
                 ON TARGET DELETE DEFERRED RESTRICT;
             };
         };

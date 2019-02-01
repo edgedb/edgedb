@@ -49,8 +49,7 @@ NonesLast = NonesOrder.Last
 class LinkTargetDeleteAction(s_enum.StrEnum):
     RESTRICT = 'RESTRICT'
     DELETE_SOURCE = 'DELETE SOURCE'
-    SET_EMPTY = 'SET EMPTY'
-    SET_DEFAULT = 'SET DEFAULT'
+    ALLOW = 'ALLOW'
     DEFERRED_RESTRICT = 'DEFERRED RESTRICT'
 
 
@@ -70,7 +69,7 @@ class Expr(Base):
 
 
 class SubExpr(Base):
-    """A subexpression (used for ahcnors)."""
+    """A subexpression (used for anchors)."""
 
     expr: typing.Union[Expr, object]
     anchors: typing.Dict[typing.Union[str, ast.MetaAST],

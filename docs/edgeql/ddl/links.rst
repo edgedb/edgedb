@@ -233,6 +233,13 @@ be more than one.  ``SINGLE`` is the default.
     The following actions are allowed in the ``CREATE LINK`` block:
 
     * :eql:stmt:`SET ATTRIBUTE`
+    * ``ON TARGET DELETE RESTRICT``
+    * ``ON TARGET DELETE ALLOW``
+    * ``ON TARGET DELETE DELETE SOURCE``
+    * ``ON TARGET DELETE DEFERRED RESTRICT``
+
+    The details of what ``ON TARGET DELETE`` options mean are
+    described in :ref:`this section <ref_datamodel_links>`.
 
 
 Computable Link Form

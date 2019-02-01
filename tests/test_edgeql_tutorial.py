@@ -47,9 +47,9 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
                     required property created_on -> datetime
                     required link author -> User
                     multi link assignees -> User:
-                        on target delete set empty
+                        on target delete allow
                     multi link comments -> Comment:
-                        on target delete set empty
+                        on target delete allow
 
 
                 type Comment:
@@ -77,9 +77,9 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
                     required property title -> str
                     required property status -> str
                     multi link assignees -> User:
-                        on target delete set empty
+                        on target delete allow
                     multi link comments -> Comment:
-                        on target delete set empty
+                        on target delete allow
 
                 type Comment extending AuthoredText
             $$;

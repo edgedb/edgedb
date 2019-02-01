@@ -2747,7 +2747,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 links, lambda l: l.get_on_target_delete(schema))
             near_endpoint, far_endpoint = 'target', 'source'
         else:
-            groups = [(DA.SET_EMPTY, links)]
+            groups = [(DA.ALLOW, links)]
             near_endpoint, far_endpoint = 'source', 'target'
 
         for action, links in groups:
@@ -2793,7 +2793,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
                 chunks.append(text)
 
-            elif action == s_links.LinkTargetDeleteAction.SET_EMPTY:
+            elif action == s_links.LinkTargetDeleteAction.ALLOW:
                 for link in links:
                     link_table = common.get_backend_name(
                         schema, link)

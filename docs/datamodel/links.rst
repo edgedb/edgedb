@@ -81,6 +81,10 @@ declaration in the context of a ``type`` declaration:
             [ readonly := {true | false} ]
             [ <attribute-declarations> ]
             [ <constraint-declarations> ]
+            [ on target delete { restrict |
+                                 allow |
+                                 delete source |
+                                 deferred restrict } ]
 
     # shorthand form for computable link declaration:
 
@@ -133,6 +137,29 @@ Parameters:
 
 :eschema:synopsis:`<constraint-declarations>`
     :ref:`Constraint <ref_datamodel_constraints>` declarations.
+
+:eschema:synopsis:`on target delete`
+    On target delete options cover the situation when the target
+    object of a link is deleted without explicitly updating the link.
+
+:eschema:synopsis:`restrict`
+    Prohibit deleting the link target as long as the source object exists.
+    This is the default behavior.
+
+:eschema:synopsis:`allow`
+    Allow dropping the connection between the source and target when
+    the target is deleted.
+
+:eschema:synopsis:`delete source`
+    Delete the source object if any link target is deleted. This means
+    that for ``multi`` links the source object will be deleted
+    if even one of the link targets is deleted (e.g. automatically
+    dissolving a team when all team members are critical and one has
+    been deleted).
+
+:eschema:synopsis:`deferred restrict`
+    Same as ``restrict``, but the check is performed at the end of
+    transaction instead of immediately.
 
 
 Concrete links can also be defined using the
