@@ -217,8 +217,8 @@ class Lexer:
         if eof_tok is not None:
             yield eof_tok
 
-    def handle_error(self, txt):
-        raise UnknownTokenError(
+    def handle_error(self, txt, *, exc_type=UnknownTokenError):
+        raise exc_type(
             f"Unexpected '{txt}'",
             line=self.lineno, col=self.column, filename=self.filename)
 

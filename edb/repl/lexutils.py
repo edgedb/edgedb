@@ -17,50 +17,63 @@
 #
 
 
-from edb.common import lexer as base_lexer
 from edb.edgeql.parser.grammar import lexer
 
 
-def split_edgeql(script: str, *, script_mode=False):
-    lex = lexer.EdgeQLLexer(strip_whitespace=False)
+def split_edgeql(script: str, *, script_mode=True):
+    '''\
+    Split the input string into a list of possible EdgeQL statements.
+
+    No parsing is done, so the statements may be invalid. Lexing
+    exceptions will not be raised at this stage.
+
+    The return value is a 2-tuple (`out`, `incomplete`). The `out`
+    value is the list of all statements that were detected based on
+    the statement separator `;`. The `incomplete` value is None when
+    *script_mode* is False. When *script_mode* is True, the
+    `incomplete` value may contain a string representing the trailing
+    incomplete statement or None if no trailing incomplete statement
+    is detected.
+    '''
+
+    lex = lexer.EdgeQLLexer(strip_whitespace=False, raise_lexerror=False)
     lex.setinputstr(script)
 
     out = []
+    incomplete = None
     buffer = []
     brace_level = 0
-    try:
-        for tok in lex.lex():
-            buffer.append(tok.text)
+    for tok in lex.lex():
+        buffer.append(tok.text)
 
-            if tok.type == '{':
-                brace_level += 1
-            elif tok.type == '}':
-                brace_level -= 1
-                if brace_level < 0:
-                    brace_level = 0
-            elif tok.type == ';':
-                if brace_level == 0:
-                    out.append(''.join(buffer))
-                    buffer.clear()
-    except base_lexer.LexError:
-        return None
+        if tok.type == '{':
+            brace_level += 1
+        elif tok.type == '}':
+            brace_level -= 1
+            if brace_level < 0:
+                brace_level = 0
+        elif tok.type == ';':
+            if brace_level == 0:
+                out.append(''.join(buffer))
+                buffer.clear()
 
-    if buffer and out:
-        rem = ''.join(buffer)
-        if not rem.strip():
-            buffer.clear()
-            out[-1] += rem
-
+    # If we still have stuff in the buffer, we need to process it as a
+    # potential statement.
     if buffer:
-        if not script_mode:
-            return None
-        out.append(''.join(buffer))
+        rem = ''.join(buffer)
 
-    if script_mode:
-        out = [line.strip() for line in out]
-        out = [line for line in out if line and line != ';']
+        # This statement is incomplete if there was something in the
+        # buffer or if there's nothing in the output and the
+        # script_mode is True.
+        if (not out or rem.strip()) and not script_mode:
+            incomplete = rem
 
-    if not out:
-        return None
+        elif rem:
+            out.append(rem.strip())
 
-    return out
+    # Clean up the output by stripping leading and trailing whitespace
+    # and extra semicolons.
+    out = [line.strip() for line in out]
+    out = [line for line in out if line not in {'', ';'}]
+
+    return out, incomplete

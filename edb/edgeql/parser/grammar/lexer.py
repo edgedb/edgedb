@@ -36,6 +36,19 @@ re_dquote = r'\$([A-Za-z\200-\377_][0-9]*)*\$'
 Rule = lexer.Rule
 
 
+class UnterminatedStringError(lexer.UnknownTokenError):
+    pass
+
+
+class PseudoRule(Rule):
+    def __init__(self, *, token, regexp, rule_id, next_state=STATE_KEEP):
+        self.id = rule_id
+        Rule._map[rule_id] = self
+        self.token = token
+        self.next_state = next_state
+        self.regexp = regexp
+
+
 class EdgeQLLexer(lexer.Lexer):
 
     start_state = STATE_BASE
@@ -231,9 +244,17 @@ class EdgeQLLexer(lexer.Lexer):
     _possible_long_token = {x[0] for x in MERGE_TOKENS}
     _long_token_match = {x[1]: x[0] for x in MERGE_TOKENS}
 
-    def __init__(self, *, strip_whitespace=True):
+    special_rules = [
+        PseudoRule(token='UNKNOWN',
+                   next_state=STATE_KEEP,
+                   regexp=r'.',
+                   rule_id='err')
+    ]
+
+    def __init__(self, *, strip_whitespace=True, raise_lexerror=True):
         super().__init__()
         self.strip_whitespace = strip_whitespace
+        self.raise_lexerror = raise_lexerror
 
     def get_eof_token(self):
         """Return an EOF token or None if no EOF token is wanted."""
@@ -241,9 +262,8 @@ class EdgeQLLexer(lexer.Lexer):
 
     def token_from_text(self, rule_token, txt):
         if rule_token == 'BADSCONST':
-            raise lexer.UnknownTokenError(
-                f"Unterminated string {txt}",
-                line=self.lineno, col=self.column, filename=self.filename)
+            self.handle_error(f"Unterminated string {txt}",
+                              exc_type=UnterminatedStringError)
         elif rule_token == 'BADIDENT':
             self.handle_error(txt)
 
@@ -293,3 +313,7 @@ class EdgeQLLexer(lexer.Lexer):
 
     def lex_highlight(self):
         return super().lex()
+
+    def handle_error(self, txt, *, exc_type=lexer.UnknownTokenError):
+        if self.raise_lexerror:
+            super().handle_error(txt, exc_type=exc_type)

@@ -71,7 +71,8 @@ def is_multiline():
         return False
 
     if text.endswith(';'):
-        return not lexutils.split_edgeql(text)
+        _, incomplete = lexutils.split_edgeql(text, script_mode=False)
+        return incomplete is not None
 
     return True
 
@@ -331,10 +332,10 @@ class Cli:
                         results.append(
                             self.connection._execute_graphql(command))
                     elif qm is context.QueryMode.Normal:
-                        for query in lexutils.split_edgeql(command):
+                        for query in lexutils.split_edgeql(command)[0]:
                             results.append(self.connection.fetch(query))
                     else:
-                        for query in lexutils.split_edgeql(command):
+                        for query in lexutils.split_edgeql(command)[0]:
                             results.append(self.connection.fetch_json(query))
 
                 except KeyboardInterrupt:
@@ -378,7 +379,7 @@ class Cli:
 
 def execute_script(conn_args, data):
     con = edgedb.connect(**conn_args)
-    queries = lexutils.split_edgeql(data, script_mode=True)
+    queries = lexutils.split_edgeql(data)[0]
     ctx = context.ReplContext()
     for query in queries:
         ret = con.fetch(query)

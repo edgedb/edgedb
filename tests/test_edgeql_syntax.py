@@ -114,7 +114,7 @@ class TestEdgeSchemaParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_constants_02(self):
         """
         SELECT 'a1';
-        SELECT "a1";
+        SELECT "a1";;;;;;;;;;;;
         SELECT r'a1';
         SELECT r"a1";
         SELECT $$a1$$;
