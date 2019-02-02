@@ -205,12 +205,29 @@ all the symbols between the quotes exactly as typed.
     ... world';
     {'hello \nworld'}
 
+.. _ref_eql_lexical_dollar_quoting:
+
+Dollar-quoted String Constants
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A special case of raw strings are *dollar-quoted* strings. They allow
+using either kind of quote symbols ``'`` or ``"`` as part of the
+string content without the quotes terminating the string. In fact,
+because the *dollar-quote* delimiter sequences can have arbitrary
+alphanumeric additional fillers, it is always possible to surround any
+content with *dollar-quotes* in an unambiguous manner:
+
+.. code-block:: edgeql-repl
+
     db> SELECT $$hello
     ... world$$;
     {'hello \nworld'}
 
     db> SELECT $$hello\nworld$$;
     {'hello\\nworld'}
+
+    db> SELECT $$"hello" 'world'$$;
+    {'"hello" \'world\''}
 
     db> SELECT $a$hello$$world$$$a$;
     {'hello$$world$$'}
@@ -254,11 +271,22 @@ Here's a list of valid :token:`bytes_escapes`:
 +--------------------+---------------------------------------------+
 
 
+Punctuation
+-----------
 
-.. _ref_eql_lexical_dollar_quoting:
+EdgeQL uses ``;`` as a statement separator. It is idempotent, so
+multiple repetitions of ``;`` don't have any additional effect.
 
-Dollar-quoted String Constants
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Comments
+--------
+
+Comments start with a ``#`` character that is not otherwise part of a
+string literal and end at the end of line. Semantically, a comment is
+equivalent to whitespace.
+
+.. productionlist:: edgeql
+    comment: "#" <any other characters until the end of line>
 
 
 Operators
@@ -267,20 +295,8 @@ Operators
 .. TODO
 
 
-Punctuation
------------
-
-.. TODO
-
-
-Comments
---------
-
-.. TODO
-
-
 Operator Precedence
--------------------
+^^^^^^^^^^^^^^^^^^^
 
 EdgeQL operators listed in order of precedence from lowest to highest:
 
