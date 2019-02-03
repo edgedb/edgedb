@@ -840,9 +840,11 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_valid_eq_01(self):
         # compare all numerics to all other scalars via equality
+        ops = [('=', '!='), ('?=', '?!='), ('IN', 'NOT IN')]
+
         for left in get_test_values(anyreal=True):
             for right in get_test_values(anyreal=False):
-                for op, not_op in [('=', '!='), ('?=', '?!=')]:
+                for op, not_op in ops:
                     await self._test_boolop(
                         left, right, op, not_op,
                         'cannot be applied to operands'
@@ -850,19 +852,23 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_valid_eq_02(self):
         # compare all numerics to each other via equality
+        ops = [('=', '!='), ('?=', '?!='), ('IN', 'NOT IN')]
+
         for left in get_test_values(anyreal=True):
             for right in get_test_values(anyreal=True):
-                for op, not_op in [('=', '!='), ('?=', '?!=')]:
+                for op, not_op in ops:
                     await self._test_boolop(
                         left, right, op, not_op, True
                     )
 
     async def test_edgeql_expr_valid_eq_03(self):
         expected_error_msg = 'cannot be applied to operands'
+
+        ops = [('=', '!='), ('?=', '?!='), ('IN', 'NOT IN')]
         # compare all non-numerics to all scalars via equality
         for left in get_test_values(anyreal=False):
             for right in get_test_values():
-                for op, not_op in [('=', '!='), ('?=', '?!=')]:
+                for op, not_op in ops:
                     await self._test_boolop(
                         left, right, op, not_op,
                         True if left == right else expected_error_msg
@@ -1739,42 +1745,6 @@ class TestExpressions(tb.QueryTestCase):
                         await self.con.execute(query)
 
     async def test_edgeql_expr_valid_setbool_01(self):
-        # Use scalar combinations with IN and NOT IN. The expressions
-        # are trivial and are equivalent to = and != so there's a
-        # one-to-one correspondence between these and "expr_eq" tests.
-        for left in get_test_values(anyreal=True):
-            for right in get_test_values(anyreal=False):
-                for op, not_op in [('IN', 'NOT IN')]:
-                    await self._test_boolop(
-                        left, right, op, not_op,
-                        'cannot be applied to operands'
-                    )
-
-    async def test_edgeql_expr_valid_setbool_02(self):
-        # Use scalar combinations with IN and NOT IN. The expressions
-        # are trivial and are equivalent to = and != so there's a
-        # one-to-one correspondence between these and "expr_eq" tests.
-        for left in get_test_values(anyreal=True):
-            for right in get_test_values(anyreal=True):
-                for op, not_op in [('IN', 'NOT IN')]:
-                    await self._test_boolop(
-                        left, right, op, not_op, True
-                    )
-
-    async def test_edgeql_expr_valid_setbool_03(self):
-        expected_error_msg = 'cannot be applied to operands'
-        # Use scalar combinations with IN and NOT IN. The expressions
-        # are trivial and are equivalent to = and != so there's a
-        # one-to-one correspondence between these and "expr_eq" tests.
-        for left in get_test_values(anyreal=False):
-            for right in get_test_values():
-                for op, not_op in [('IN', 'NOT IN')]:
-                    await self._test_boolop(
-                        left, right, op, not_op,
-                        True if left == right else expected_error_msg
-                    )
-
-    async def test_edgeql_expr_valid_setbool_04(self):
         # use every scalar with EXISTS
         for right in get_test_values():
             query = f"""SELECT EXISTS {right};"""
@@ -1989,7 +1959,10 @@ class TestExpressions(tb.QueryTestCase):
             [True]
         )
 
-    # and now the same tests for IN
+    @test.xfail('''
+        Fails in Postgres:
+        operator does not exist: bigint[] = numeric[]
+    ''')
     async def test_edgeql_expr_valid_collection_21(self):
         await self.assert_query_result(
             r'''
@@ -2018,7 +1991,6 @@ class TestExpressions(tb.QueryTestCase):
             [True]
         )
 
-    @test.xfail('No method to generate code for TupleVar')
     async def test_edgeql_expr_valid_collection_24(self):
         await self.assert_query_result(
             r'''
@@ -2027,7 +1999,6 @@ class TestExpressions(tb.QueryTestCase):
             [True]
         )
 
-    @test.xfail('No method to generate code for TupleVar')
     async def test_edgeql_expr_valid_collection_25(self):
         await self.assert_query_result(
             r'''
@@ -2038,6 +2009,11 @@ class TestExpressions(tb.QueryTestCase):
             [True]
         )
 
+    @test.xfail('''
+        Fails in Postgres:
+        cannot compare dissimilar column types bigint and numeric at
+        record column 1
+    ''')
     async def test_edgeql_expr_valid_collection_26(self):
         await self.assert_query_result(
             '''
@@ -2065,7 +2041,11 @@ class TestExpressions(tb.QueryTestCase):
             [True]
         )
 
-    @test.xfail('No method to generate code for TupleVar')
+    @test.xfail('''
+        Fails in Postgres:
+        cannot compare dissimilar column types real[] and numeric[] at
+        record column 1
+    ''')
     async def test_edgeql_expr_valid_collection_28(self):
         await self.assert_query_result(
             r'''

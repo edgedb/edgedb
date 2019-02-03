@@ -59,6 +59,13 @@ class Operator(s_func.CallableObject, s_func.VolatilitySubject,
     code = so.SchemaField(
         str, default=None, compcoef=0.4, introspectable=False)
 
+    # If this is a derivative operator, *derivative_of* would
+    # contain the name of the origin operator.
+    # For example, the `std::IN` operator has `std::=`
+    # as its origin.
+    derivative_of = so.SchemaField(
+        sn.Name, coerce=True, default=None, compcoef=0.4)
+
     commutator = so.SchemaField(
         so.Object, default=None, compcoef=0.99)
 
@@ -170,11 +177,9 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
         params: s_func.FuncParameterList = self.scls.get_params(schema)
         fullname = self.scls.get_name(schema)
         shortname = sn.shortname_from_fullname(fullname)
-        return_type = self.scls.get_return_type(schema)
         return_typemod = self.scls.get_return_typemod(schema)
         recursive = self.scls.get_recursive(schema)
-
-        get_signature = lambda: f'{shortname}{params.as_str(schema)}'
+        derivative_of = self.scls.get_derivative_of(schema)
 
         # an operator must have operands
         if len(params) == 0:
@@ -201,14 +206,30 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
                 context=self.source_context)
 
         for oper in schema.get_operators(shortname, ()):
+            if oper is self.scls:
+                continue
+
             oper_return_typemod = oper.get_return_typemod(schema)
             if oper_return_typemod != return_typemod:
                 raise errors.DuplicateOperatorDefinitionError(
-                    f'cannot create the `{get_signature()} -> '
-                    f'{return_typemod.to_edgeql()} {return_type.name}` '
+                    f'cannot create the `{signature}` '
                     f'operator: overloading another operator with different '
                     f'return type {oper_return_typemod.to_edgeql()} '
                     f'{oper.get_return_type(schema).name}',
+                    context=self.source_context)
+
+            oper_derivative_of = oper.get_derivative_of(schema)
+            if oper_derivative_of:
+                raise errors.DuplicateOperatorDefinitionError(
+                    f'cannot create the `{signature}` '
+                    f'operator: there exists a derivative operator of the '
+                    f'same name',
+                    context=self.source_context)
+            elif derivative_of:
+                raise errors.DuplicateOperatorDefinitionError(
+                    f'cannot create `{signature}` '
+                    f'as a derivative operator: there already exists an '
+                    f'operator of the same name',
                     context=self.source_context)
 
             # Check if there is a recursive/non-recursive operator

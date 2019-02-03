@@ -236,6 +236,32 @@ def compile_operator(
 
         args.append((arg_type, arg_ir))
 
+    # Check if the operator is a derived operator, and if so,
+    # find the origins.
+    origin_op = opers[0].get_derivative_of(env.schema)
+    if origin_op is not None:
+        # If this is a derived operator, there should be
+        # exactly one form of it.  This is enforced at the DDL
+        # level, but check again to be sure.
+        if len(opers) > 1:
+            raise errors.InternalServerError(
+                f'more than one derived operator of the same name: {op_name}',
+                context=qlarg.context)
+
+        derivative_op = opers[0]
+        opers = schema.get_operators(origin_op)
+        if not opers:
+            raise errors.InternalServerError(
+                f'cannot find the origin operator for {op_name}',
+                context=qlarg.context)
+        actual_typemods = [
+            param.get_typemod(schema)
+            for param in derivative_op.get_params(schema).objects(schema)
+        ]
+    else:
+        derivative_op = None
+        actual_typemods = []
+
     matched = None
     # Some 2-operand operators are special when their operands are
     # arrays or tuples.
@@ -355,7 +381,8 @@ def compile_operator(
                     hint=f'Possible variants: {detail}.',
                     context=qlexpr.context)
 
-    final_args, params_typemods = finalize_args(matched_call, ctx=ctx)
+    final_args, params_typemods = finalize_args(
+        matched_call, actual_typemods=actual_typemods, ctx=ctx)
 
     oper = matched_call.func
     assert isinstance(oper, s_oper.Operator)
@@ -398,12 +425,24 @@ def compile_operator(
             not in_polymorphic_func):
         sql_operator = tuple(from_op)
 
+    origin_name: typing.Optional[sn.SchemaName]
+    if derivative_op is not None:
+        origin_name = oper_name
+        origin_module_id = env.schema.get_global(
+            s_mod.Module, origin_name.module).id
+        oper_name = derivative_op.get_shortname(env.schema)
+    else:
+        origin_name = None
+        origin_module_id = None
+
     node = irast.OperatorCall(
         args=final_args,
         func_module_id=env.schema.get_global(
             s_mod.Module, oper_name.module).id,
         func_shortname=oper_name,
         func_polymorphic=is_polymorphic,
+        origin_name=origin_name,
+        origin_module_id=origin_module_id,
         func_sql_function=oper.get_from_function(env.schema),
         sql_operator=sql_operator,
         force_return_cast=oper.get_force_return_cast(env.schema),
@@ -501,13 +540,14 @@ def compile_call_args(
 
 def finalize_args(
     bound_call: polyres.BoundCall, *,
+    actual_typemods: typing.Sequence[ft.TypeModifier] = (),
     ctx: context.ContextLevel,
 ) -> typing.Tuple[typing.List[irast.CallArg], typing.List[ft.TypeModifier]]:
 
     args: typing.List[irast.CallArg] = []
     typemods = []
 
-    for barg in bound_call.args:
+    for i, barg in enumerate(bound_call.args):
         param = barg.param
         arg = barg.val
         if param is None:
@@ -516,7 +556,11 @@ def finalize_args(
             typemods.append(ft.TypeModifier.SINGLETON)
             continue
 
-        param_mod = param.get_typemod(ctx.env.schema)
+        if actual_typemods:
+            param_mod = actual_typemods[i]
+        else:
+            param_mod = param.get_typemod(ctx.env.schema)
+
         typemods.append(param_mod)
 
         if param_mod is not ft.TypeModifier.SET_OF:
