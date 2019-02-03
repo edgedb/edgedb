@@ -658,7 +658,7 @@ def _get_rel_path_output(
         pg_type = pg_types.pg_type_from_ir_typeref(target)
 
         if ptr_info is not None:
-            name = ptr_info.column_name
+            name = env.aliases.get(ptr_info.column_name)
         else:
             name = env.aliases.get('v')
 

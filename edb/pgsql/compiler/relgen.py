@@ -527,6 +527,29 @@ def finalize_optional_rel(
                 )
             )
 
+        if isinstance(lvar, pgast.TupleVar):
+            # Make sure we have a correct TupleVar in place for the empty rvar,
+            # otherwise _get_rel_path_output() will try to inject a NULL in its
+            # place, breaking the UNION balance.
+            null_rvar = pathctx.get_path_rvar(
+                optrel.emptyrel, ir_set.path_id,
+                aspect='value', env=subctx.env)
+
+            def _ensure_empty_tvar(tvar: pgast.TupleVar,
+                                   path_id: irast.PathId) -> pgast.TupleVar:
+                tvarels = []
+                for element in tvar.elements:
+                    if isinstance(element.val, pgast.TupleVar):
+                        _ensure_empty_tvar(element.val, element.path_id)
+                    tvarels.append(pgast.TupleElement(path_id=element.path_id))
+                pathctx.put_path_value_var(
+                    optrel.emptyrel, path_id,
+                    pgast.TupleVar(elements=tvarels), env=subctx.env)
+                pathctx.put_path_source_rvar(
+                    optrel.emptyrel, path_id, null_rvar, env=subctx.env)
+
+            _ensure_empty_tvar(lvar, ir_set.path_id)
+
     unionrel = optrel.unionrel
     union_rvar = dbobj.rvar_for_rel(unionrel, lateral=True, env=ctx.env)
 

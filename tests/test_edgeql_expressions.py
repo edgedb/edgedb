@@ -1857,10 +1857,6 @@ class TestExpressions(tb.QueryTestCase):
             [True]
         )
 
-    @test.xfail('''
-        Fails in Postgres:
-        each UNION query must have the same number of columns
-    ''')
     async def test_edgeql_expr_valid_collection_13(self):
         await self.assert_query_result(
             r'''
@@ -1869,10 +1865,6 @@ class TestExpressions(tb.QueryTestCase):
             [True]
         )
 
-    @test.xfail('''
-        Fails in Postgres:
-        each UNION query must have the same number of columns
-    ''')
     async def test_edgeql_expr_valid_collection_14(self):
         await self.assert_query_result(
             r'''
@@ -1881,10 +1873,6 @@ class TestExpressions(tb.QueryTestCase):
             [True]
         )
 
-    @test.xfail('''
-        Fails in Postgres:
-        each UNION query must have the same number of columns
-    ''')
     async def test_edgeql_expr_valid_collection_15(self):
         await self.assert_query_result(
             r'''
@@ -1912,7 +1900,8 @@ class TestExpressions(tb.QueryTestCase):
 
     @test.xfail('''
         Fails in Postgres:
-        each UNION query must have the same number of columns
+        cannot compare dissimilar column types smallint and numeric at
+        record column 1
     ''')
     async def test_edgeql_expr_valid_collection_17(self):
         await self.assert_query_result(
@@ -1928,7 +1917,8 @@ class TestExpressions(tb.QueryTestCase):
 
     @test.xfail('''
         Fails in Postgres:
-        each UNION query must have the same number of columns
+        cannot compare dissimilar column types real[] and numeric[] at
+        record column 1
     ''')
     async def test_edgeql_expr_valid_collection_18(self):
         await self.assert_query_result(
@@ -3386,6 +3376,32 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT (A, B);
             ''',
             [],
+        )
+
+    async def test_edgeql_expr_tuple_17(self):
+        await self.assert_query_result(
+            '''SELECT (1, 2) ?= (1, 2)''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            '''SELECT (0, 2) ?= enumerate(2)''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            '''WITH A := enumerate(2) SELECT (0, 2) ?= A''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            '''SELECT <tuple<int64, int64>>{} ?? (1, 2);''',
+            [[1, 2]],
+        )
+
+        await self.assert_query_result(
+            '''SELECT (1, 2) ?? <tuple<int64, int64>>{};''',
+            [[1, 2]],
         )
 
     async def test_edgeql_expr_tuple_indirection_01(self):
