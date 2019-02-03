@@ -1787,6 +1787,49 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             ''')
 
+    async def test_edgeql_ddl_operator_10(self):
+        with self.assertRaisesRegex(
+                edgedb.DuplicateOperatorDefinitionError,
+                r'cannot create the '
+                r'`test::IN\(l: std::int64, r: std::int64\)` operator: '
+                r'there exists a derivative operator of the same name'):
+            # create 2 operators in test: derivative first, then a
+            # non-derivative one
+            await self.con.execute('''
+                CREATE INFIX OPERATOR
+                test::`IN` (l: std::float64, r: std::float64) -> std::bool {
+                    FROM SQL EXPRESSION;
+                    SET derivative_of := 'std::=';
+                };
+
+                CREATE INFIX OPERATOR
+                test::`IN` (l: std::int64, r: std::int64) -> std::bool {
+                    FROM SQL EXPRESSION;
+                };
+            ''')
+
+    async def test_edgeql_ddl_operator_11(self):
+        with self.assertRaisesRegex(
+                edgedb.DuplicateOperatorDefinitionError,
+                r'cannot create '
+                r'`test::IN\(l: std::int64, r: std::int64\)` as a '
+                r'derivative operator: there already exists an operator '
+                r'of the same name'):
+            # create 2 operators in test: non-derivative first, then a
+            # derivative one
+            await self.con.execute('''
+                CREATE INFIX OPERATOR
+                test::`IN` (l: std::float64, r: std::float64) -> std::bool {
+                    FROM SQL EXPRESSION;
+                };
+
+                CREATE INFIX OPERATOR
+                test::`IN` (l: std::int64, r: std::int64) -> std::bool {
+                    FROM SQL EXPRESSION;
+                    SET derivative_of := 'std::=';
+                };
+            ''')
+
     async def test_edgeql_ddl_cast_01(self):
         await self.con.execute('''
             CREATE SCALAR TYPE test::type_a EXTENDING std::str;

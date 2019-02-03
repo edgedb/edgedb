@@ -319,6 +319,13 @@ def compile_OperatorCall(
             f'in simple expressions')
 
     args = [dispatch.compile(a.expr, ctx=ctx) for a in expr.args]
+    return compile_operator(expr, args, ctx=ctx)
+
+
+def compile_operator(
+        expr: irast.OperatorCall,
+        args: Sequence[pgast.BaseExpr], *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
     lexpr = rexpr = None
     if expr.operator_kind is ql_ft.OperatorKind.INFIX:
         lexpr, rexpr = args
@@ -329,12 +336,16 @@ def compile_OperatorCall(
     else:
         raise RuntimeError(f'unexpected operator kind: {expr.operator_kind!r}')
 
-    if (expr.func_shortname == 'std::='
+    if ((expr.func_shortname in {'std::=', 'std::!='}
+            or expr.origin_name in {'std::=', 'std::!='})
             and expr.args[0].expr.typeref is not None
             and irtyputils.is_object(expr.args[0].expr.typeref)
             and expr.args[1].expr.typeref is not None
             and irtyputils.is_object(expr.args[1].expr.typeref)):
-        sql_oper = '='
+        if expr.func_shortname == 'std::=' or expr.origin_name == 'std::=':
+            sql_oper = '='
+        else:
+            sql_oper = '!='
 
     elif expr.sql_operator:
         sql_oper = expr.sql_operator[0]
@@ -355,6 +366,9 @@ def compile_OperatorCall(
                         name=(expr.sql_operator[2],)
                     )
                 )
+    elif expr.origin_name is not None:
+        sql_oper = common.get_operator_backend_name(
+            expr.origin_name, expr.origin_module_id)[1]
     else:
         sql_oper = common.get_operator_backend_name(
             expr.func_shortname, expr.func_module_id)[1]

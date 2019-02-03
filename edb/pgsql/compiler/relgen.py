@@ -42,6 +42,7 @@ from edb.pgsql import types as pg_types
 from . import astutils
 from . import context
 from . import dispatch
+from . import expr as exprcomp
 from . import output
 from . import pathctx
 from . import relctx
@@ -1008,16 +1009,18 @@ def process_set_as_membership_expr(
                 )
 
     negated = expr.func_shortname == 'std::NOT IN'
-    op = '!=' if negated else '='
     sublink_type = pgast.SubLinkType.ALL if negated else pgast.SubLinkType.ANY
 
-    set_expr = astutils.new_binop(
-        lexpr=left_expr,
-        rexpr=pgast.SubLink(
-            type=sublink_type,
-            expr=right_rel,
-        ),
-        op=op,
+    set_expr = exprcomp.compile_operator(
+        expr,
+        [
+            left_expr,
+            pgast.SubLink(
+                type=sublink_type,
+                expr=right_rel,
+            ),
+        ],
+        ctx=ctx,
     )
 
     pathctx.put_path_value_var_if_not_exists(

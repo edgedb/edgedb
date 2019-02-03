@@ -494,6 +494,12 @@ class OperatorCall(Call):
     # operand types.
     sql_operator: typing.Optional[typing.Tuple[str, ...]] = None
 
+    # The name of the origin operator if this is a derivative operator.
+    origin_name: sn.Name
+
+    # The module id of the origin operator if this is a derivative operator.
+    origin_module_id: uuid.UUID
+
 
 class TupleIndirection(ImmutableExpr):
 

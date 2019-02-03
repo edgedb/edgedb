@@ -21,45 +21,24 @@
 ## --------------------------
 
 
+# The set membership operators (IN, NOT IN) are defined
+# in terms of the corresponding equality operator.
+
 CREATE INFIX OPERATOR
-std::`IN` (e: anytype, s: SET OF anytype) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+std::`IN` (e: anytype, s: SET OF anytype) -> std::bool
+{
     FROM SQL EXPRESSION;
+    SET volatility := 'IMMUTABLE';
+    SET derivative_of := 'std::=';
 };
 
 
 CREATE INFIX OPERATOR
-std::`IN` (e: decimal, s: SET OF float64) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+std::`NOT IN` (e: anytype, s: SET OF anytype) -> std::bool
+{
     FROM SQL EXPRESSION;
-};
-
-
-CREATE INFIX OPERATOR
-std::`IN` (e: float64, s: SET OF decimal) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
-};
-
-
-CREATE INFIX OPERATOR
-std::`NOT IN` (e: anytype, s: SET OF anytype) -> std::bool {
-    SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
-};
-
-
-CREATE INFIX OPERATOR
-std::`NOT IN` (e: decimal, s: SET OF float64) -> std::bool {
-    SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
-};
-
-
-CREATE INFIX OPERATOR
-std::`NOT IN` (e: float64, s: SET OF decimal) -> std::bool {
-    SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    SET derivative_of := 'std::!=';
 };
 
 
