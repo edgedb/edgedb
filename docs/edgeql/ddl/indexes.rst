@@ -19,12 +19,7 @@ type or link.
 
 .. eql:synopsis::
 
-    CREATE INDEX <index-name> := <index-expr> ;
-
-    CREATE INDEX <index-name> "{"
-        SET expr := <index-expr>;
-        [ <action >; ... ]
-    "}" ;
+    CREATE INDEX <index-name> ON <index-expr> ;
 
 
 Description

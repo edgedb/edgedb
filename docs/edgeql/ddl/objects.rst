@@ -114,7 +114,7 @@ Change the definition of an
         CREATE PROPERTY <property-name> ...
         ALTER PROPERTY <property-name> ...
         DROP PROPERTY <property-name> ...
-        CREATE INDEX <index-name> <index-expr>;
+        CREATE INDEX <index-name> ON <index-expr>;
         DROP INDEX <index-name>;
 
 
@@ -193,7 +193,7 @@ Parameters
     Remove a property item from this object type.  See
     :eql:stmt:`DROP PROPERTY` for details.
 
-:eql:synopsis:`CREATE INDEX <index-name> <index-expr>;`
+:eql:synopsis:`CREATE INDEX <index-name> ON <index-expr>;`
     Define a new :ref:`index <ref_datamodel_indexes>` named *index-name*
     using *index-expr* for this object type.  See :eql:stmt:`CREATE INDEX`
     for details.
