@@ -1582,8 +1582,9 @@ def _process_set_func(
     rtype = expr.typeref
     named_tuple = any(st.element_name for st in rtype.subtypes)
     coldeflist = []
+    is_tuple = irtyputils.is_tuple(rtype)
 
-    if irtyputils.is_tuple(rtype):
+    if is_tuple:
         subtypes = {}
         for i, st in enumerate(rtype.subtypes):
             colname = st.element_name or str(i)
@@ -1618,7 +1619,7 @@ def _process_set_func(
 
     ctx.rel.from_clause.append(func_rvar)
 
-    if len(colnames) == 1:
+    if not is_tuple:
         set_expr = dbobj.get_column(
             func_rvar, colnames[0], nullable=set_expr.nullable)
     else:
@@ -1670,6 +1671,15 @@ def _compile_func_epilogue(
                         pull_namespace=False, aspects=aspects, ctx=ctx)
 
     rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
+
+    if (ir_set.path_id.is_tuple_path()
+            and ir_set.expr.typemod is qltypes.TypeModifier.SET_OF):
+        # Functions returning a set of tuples are compiled with an
+        # explicit coldeflist, so the result is represented as a
+        # TupleVar as opposed to an opaque record datum, so
+        # we can access the elements directly without calling
+        # `row_getattr_by_num`.
+        aspects += ('source',)
 
     return new_simple_set_rvar(ir_set, rvar, aspects=aspects)
 

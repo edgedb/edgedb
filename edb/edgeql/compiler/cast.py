@@ -368,13 +368,8 @@ def _cast_array(
     orig_el_type = orig_stype.get_subtypes()[0]
 
     el_cast = _find_cast(orig_el_type, el_type, srcctx=srcctx, ctx=ctx)
-    if el_cast is None:
-        raise errors.QueryError(
-            f'cannot cast {orig_stype.get_displayname(ctx.env.schema)!r} '
-            f'to {new_stype.get_displayname(ctx.env.schema)!r}',
-            context=srcctx) from None
 
-    if el_cast.get_from_cast(ctx.env.schema):
+    if el_cast is not None and el_cast.get_from_cast(ctx.env.schema):
         # Simple cast
         return _cast_to_ir(
             ir_set, el_cast, orig_stype, new_stype, ctx=ctx)
@@ -412,10 +407,14 @@ def _cast_array(
 
             array_ir = dispatch.compile(elements, ctx=subctx)
 
-        array_stype = s_types.Array.from_subtypes(ctx.env.schema, [el_type])
-        return _cast_to_ir(
-            array_ir, direct_cast, array_stype, new_stype, ctx=ctx
-        )
+            if direct_cast is not None:
+                array_stype = s_types.Array.from_subtypes(
+                    ctx.env.schema, [el_type])
+                return _cast_to_ir(
+                    array_ir, direct_cast, array_stype, new_stype, ctx=ctx
+                )
+            else:
+                return array_ir
 
 
 def _cast_array_literal(

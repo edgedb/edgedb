@@ -413,6 +413,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             sort=lambda x: x['number']
         )
 
+    async def test_edgeql_functions_array_unpack_05(self):
+        await self.assert_query_result(
+            r'''SELECT array_unpack([(1,)]).0;''',
+            [1],
+        )
+
     async def test_edgeql_functions_enumerate_01(self):
         await self.assert_query_result(
             r'''SELECT [10, 20];''',
