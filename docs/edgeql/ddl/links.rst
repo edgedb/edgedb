@@ -193,7 +193,7 @@ CREATE LINK
 :eql-haswith:
 
 
-Define a new :ref:`concrete link <ref_datamodel_links>` for the
+Define a new :ref:`concrete link <ref_datamodel_links_concrete>` for the
 specified *object type*.
 
 .. eql:synopsis::
@@ -277,7 +277,7 @@ ALTER LINK
 :eql-haswith:
 
 
-Change the definition of a :ref:`concrete link <ref_datamodel_links>`
+Change the definition of a :ref:`concrete link <ref_datamodel_links_concrete>`
 on a given object type.
 
 .. eql:synopsis::

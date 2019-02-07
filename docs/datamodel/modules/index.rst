@@ -16,11 +16,19 @@ Schema objects can be referred to by a fully-qualified name using the
 Every EdgeDB schema contains the following standard modules:
 
 - ``std``: all standard types, functions and other declarations;
-- ``schema``: types describing the introspection schema;
-- ``__graphql__``: GraphQL-related types
+- ``schema``: types describing the :ref:`introspection schema
+  <ref_datamodel_modules_schema>`;
+- ``stdgraphql``: GraphQL helper types
 
 
 DDL
 ===
 
 Module can be defined using the :eql:stmt:`CREATE MODULE` EdgeQL command.
+
+
+.. toctree::
+    :maxdepth: 3
+    :hidden:
+
+    schema

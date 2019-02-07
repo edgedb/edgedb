@@ -94,7 +94,7 @@ type Issue extending Named, Owned, Text:
 
     multi link related_to -> Issue
 
-    multi link references -> File, URL, Publication
+    multi link references -> File | URL | Publication
 
     property tags -> array<str>
 

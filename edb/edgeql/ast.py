@@ -893,7 +893,7 @@ def get_targets(target: TypeExpr):
     if target is None:
         return []
     elif isinstance(target, TypeOp):
-        return get_targets(target.left) + get_targets(target.left)
+        return get_targets(target.left) + get_targets(target.right)
     else:
         return [target]
 

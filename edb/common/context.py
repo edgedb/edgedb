@@ -240,6 +240,10 @@ def has_context(func):
         result = func(*args, **kwargs)
         obj, *args = args
 
+        # don't alter the context if no_autocontext flag is set
+        if getattr(obj, 'no_autocontext', False):
+            return result
+
         if len(args) == 1:
             # apparently it's a production rule that just returns its
             # only arg, so don't need to change the context

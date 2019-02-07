@@ -54,13 +54,6 @@ CREATE ABSTRACT LINK std::__type__ {
 };
 
 
-ALTER TYPE std::Object {
-    CREATE LINK std::__type__ -> schema::Type {
-        SET readonly := True;
-    };
-};
-
-
 CREATE TYPE schema::Module EXTENDING schema::Object;
 
 
@@ -233,6 +226,13 @@ CREATE TYPE schema::DerivedLink EXTENDING (schema::Pointer, schema::Source);
 
 
 CREATE TYPE schema::Property EXTENDING schema::Pointer;
+
+
+ALTER TYPE std::Object {
+    CREATE LINK std::__type__ -> schema::ObjectType {
+        SET readonly := True;
+    };
+};
 
 
 ALTER TYPE schema::Pointer {

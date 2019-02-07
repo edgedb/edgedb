@@ -18,6 +18,6 @@ Data Model
     constraints
     views
     attributes
-    modules
+    modules/index
     databases
     eschema/index

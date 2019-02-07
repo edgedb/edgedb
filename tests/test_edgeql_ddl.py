@@ -1879,3 +1879,75 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ''',
             ['rename view 05']
         )
+
+    @test.xfail('''
+        The error is:
+            edgedb.errors.InvalidReferenceError: test::TestLinkTarget has no
+            link or property 'targets' of type 'test::Target2'
+
+        This is actually rather odd and cannot be reproduced in REPL.
+        REPL has no problem with the [IS ...] queries, but fails on the last
+        query as properties of union types don't work yet.
+    ''')
+    async def test_edgeql_ddl_linktarget_01(self):
+        await self.con.execute("""
+            CREATE TYPE test::Target1 {
+                CREATE PROPERTY test::common_prop -> std::str;
+            };
+
+            CREATE TYPE test::Target2 {
+                CREATE PROPERTY test::common_prop -> std::str;
+                CREATE PROPERTY test::prop2 -> std::int64;
+            };
+
+            CREATE TYPE test::Target3 {
+                CREATE PROPERTY test::common_prop -> std::str;
+                CREATE PROPERTY test::prop3 -> std::bool;
+            };
+
+            CREATE TYPE test::TestLinkTarget {
+                CREATE MULTI LINK test::targets ->
+                    test::Target1 | test::Target2 | test::Target3;
+            };
+
+            INSERT test::Target1 {
+                common_prop := 'target 1'
+            };
+            INSERT test::Target2 {
+                common_prop := 'target 2',
+                prop2 := 2
+            };
+            INSERT test::Target3 {
+                common_prop := 'target 3',
+                prop3 := True
+            };
+
+            WITH MODULE test
+            INSERT TestLinkTarget {
+                targets := {Target1, Target2, Target3}
+            };
+        """)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT TestLinkTarget.targets[IS Target2].prop2;
+            ''',
+            {2}
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT TestLinkTarget.targets[IS Target3].prop3;
+            ''',
+            {True}
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT TestLinkTarget.targets.common_prop;
+            ''',
+            {'target 1', 'target 2', 'target 3'}
+        )

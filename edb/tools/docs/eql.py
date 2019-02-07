@@ -296,7 +296,7 @@ INDEX_FIELD = EQLField(
 class EQLTypedField(EQLField):
 
     ignored_types = {
-        'type'
+        'type', 'object type', 'union type'
     }
 
     def __init__(self, name, names=(), label=None, rolename=None,

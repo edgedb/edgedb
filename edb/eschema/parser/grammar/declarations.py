@@ -132,6 +132,16 @@ class TypeList(Nonterm):
         self.val = kids[0].parse_as_typelist()
 
 
+class TypeExpr(Nonterm):
+    def reduce_LPAREN_TypeExpr_RPAREN(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_RowRawString(self, *kids):
+        self.no_autocontext = True
+        # for type expression the typelist will only contain one entry
+        self.val = kids[0].parse_as_typelist()[0]
+
+
 class RowRawString(Nonterm):
     def reduce_RowRawString_RowRawStr(self, *kids):
         self.val = RawLiteral(
@@ -816,11 +826,11 @@ class Spec(Nonterm):
         self.val = PointerSpec(
             name=kids[0].val, target=None, spec=kids[1].val, expr=None)
 
-    def reduce_UnqualifiedObjectName_ARROW_TypeList_NL(self, *kids):
+    def reduce_UnqualifiedObjectName_ARROW_TypeExpr_NL(self, *kids):
         self.val = PointerSpec(
             name=kids[0].val, target=kids[2].val, spec=[], expr=None)
 
-    def reduce_UnqualifiedObjectName_ARROW_TypeList_DeclarationSpecsBlob(
+    def reduce_UnqualifiedObjectName_ARROW_TypeExpr_DeclarationSpecsBlob(
             self, *kids):
         self.val = PointerSpec(
             name=kids[0].val, target=kids[2].val, spec=kids[3].val, expr=None)

@@ -48,14 +48,20 @@ There are several kinds of schema items:
 * :ref:`schema attribute definitions <ref_datamodel_attributes>`
 * :ref:`function definitions <ref_datamodel_functions>`
 
-There is also a special type ``anytype`` used to define polymorphic
-parameters in functions and operators:
+There are also a special types ``anytype`` and ``anytuple`` used to
+define polymorphic parameters in functions and operators:
 
 .. eql:type:: anytype
 
     :index: any anytype
 
     Generic type.
+
+.. eql:type:: anytuple
+
+    :index: any anytuple
+
+    Generic :eql:type:`tuple`.
 
 
 .. _ref_datamodel_inheritance:

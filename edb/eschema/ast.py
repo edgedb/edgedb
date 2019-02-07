@@ -65,7 +65,7 @@ class Pointer(Spec):
     name: qlast.ObjectRef
 
     # Computable links don't have a target
-    target: typing.Optional[typing.List[qlast.TypeName]]
+    target: typing.Optional[qlast.TypeExpr]
 
     attributes: typing.List[Attribute]
     constraints: typing.List[Constraint]

@@ -191,7 +191,7 @@ class TestIntrospection(tb.QueryTestCase):
                 'name': 'test::Comment',
                 'links': [{
                     'name': 'std::__type__',
-                    'target': {'name': 'schema::Type'},
+                    'target': {'name': 'schema::ObjectType'},
                     'cardinality': 'ONE',
                 }, {
                     'name': 'test::issue',

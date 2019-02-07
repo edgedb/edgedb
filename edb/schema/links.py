@@ -254,15 +254,16 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
             targets = qlast.get_targets(astnode.target)
 
             if len(targets) > 1:
+                new_targets = [
+                    utils.ast_to_typeref(
+                        t, modaliases=context.modaliases,
+                        schema=schema)
+                    for t in targets
+                ]
                 cmd.add(
                     sd.AlterObjectProperty(
                         property='spectargets',
-                        new_value=so.ObjectList([
-                            utils.ast_to_typeref(
-                                t, modaliases=context.modaliases,
-                                schema=schema)
-                            for t in targets
-                        ])
+                        new_value=so.ObjectList.create(schema, new_targets)
                     )
                 )
 
@@ -282,7 +283,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                 create_virt_parent.update((
                     sd.AlterObjectProperty(
                         property='bases',
-                        new_value=so.ObjectList([
+                        new_value=so.ObjectList.create(schema, [
                             so.ObjectRef(name=sn.Name(
                                 module='std', name='Object'
                             ))
@@ -291,6 +292,14 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                     sd.AlterObjectProperty(
                         property='name',
                         new_value=target_name
+                    ),
+                    sd.AlterObjectProperty(
+                        property='is_derived',
+                        new_value=True
+                    ),
+                    sd.AlterObjectProperty(
+                        property='is_abstract',
+                        new_value=True
                     ),
                     sd.AlterObjectProperty(
                         property='is_virtual',
@@ -324,15 +333,20 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                 # type.
                 pass
             else:
-                if target_type is None:
-                    target_type = utils.resolve_typeref(target, schema=schema)
+                if len(targets) > 1:
+                    target_typerefs = new_targets
+                else:
+                    target_typerefs = [target]
 
-                if not isinstance(target_type, s_objtypes.ObjectType):
-                    raise errors.InvalidLinkTargetError(
-                        f'invalid link target, expected object type, got '
-                        f'{target_type.__class__.__name__}',
-                        context=astnode.target.context
-                    )
+                for typeref in target_typerefs:
+                    target_type = utils.resolve_typeref(typeref, schema=schema)
+
+                    if not isinstance(target_type, s_objtypes.ObjectType):
+                        raise errors.InvalidLinkTargetError(
+                            f'invalid link target, expected object type, got '
+                            f'{target_type.get_displayname(schema)}',
+                            context=astnode.target.context
+                        )
 
             cmd.add(
                 sd.AlterObjectProperty(

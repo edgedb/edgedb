@@ -782,6 +782,28 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         )
 
+    async def test_edgeql_select_type_06(self):
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT
+                Named.__type__ {
+                    name,
+                    is_abstract,
+                }
+            ORDER BY
+                Named.__type__.name;
+            ''',
+            [
+                {'name': 'test::File', 'is_abstract': False},
+                {'name': 'test::Issue', 'is_abstract': False},
+                {'name': 'test::Priority', 'is_abstract': False},
+                {'name': 'test::Status', 'is_abstract': False},
+                {'name': 'test::URL', 'is_abstract': False},
+                {'name': 'test::User', 'is_abstract': False}
+            ]
+        )
+
     @test.not_implemented('recursive queries are not implemented')
     async def test_edgeql_select_recursive_01(self):
         await self.assert_query_result(

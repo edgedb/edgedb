@@ -3387,6 +3387,21 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_type_10(self):
+        """
+        CREATE TYPE test::UserReport {
+            CREATE REQUIRED MULTI LINK relevant_user_data ->
+                test::User | test::Comment;
+        };
+
+% OK %
+
+        CREATE TYPE test::UserReport {
+            CREATE REQUIRED MULTI LINK relevant_user_data ->
+                (test::User | test::Comment);
+        };
+        """
+
     def test_edgeql_syntax_set_command_01(self):
         """
         SET MODULE default;

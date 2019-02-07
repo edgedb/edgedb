@@ -255,6 +255,19 @@ class DeclarationLoader:
 
         return typ
 
+    def _get_ref_type_list(self, ref):
+        if isinstance(ref, qlast.TypeName):
+            return [self._get_ref_type(ref)]
+
+        elif isinstance(ref, qlast.TypeOp):
+            if ref.op == '|':
+                return self._get_ref_type_list(ref.left) + \
+                    self._get_ref_type_list(ref.right)
+
+            raise errors.UnsupportedFeatureError(
+                f'type operator {ref.op!r} is not implemented',
+                context=ref.context)
+
     def _get_literal_value(self, node):
         if not isinstance(node, edgeql.ast.BaseConstant):
             raise TypeError('Literal expected '
@@ -414,13 +427,13 @@ class DeclarationLoader:
                 prop_qname = prop_base.get_name(self._schema)
 
             if propdecl.target is not None:
-                prop_target = self._get_ref_type(propdecl.target[0])
+                prop_target = self._get_ref_type(propdecl.target)
                 if not isinstance(prop_target, (s_scalars.ScalarType,
                                                 s_types.Collection)):
                     raise errors.InvalidPropertyTargetError(
                         f'invalid property target, expected primitive type, '
                         f'got {prop_target.__class__.__name__}',
-                        context=propdecl.target[0].context
+                        context=propdecl.target.context
                     )
 
             elif not source.generic(self._schema):
@@ -628,7 +641,7 @@ class DeclarationLoader:
                     _targets = [s_pseudo.Any.create()]
 
                 else:
-                    _targets = [self._get_ref_type(t) for t in linkdecl.target]
+                    _targets = self._get_ref_type_list(linkdecl.target)
 
                 if len(_targets) == 1:
                     # Usual case, just one target
@@ -647,7 +660,7 @@ class DeclarationLoader:
                     raise errors.InvalidLinkTargetError(
                         f'invalid link target, expected object type, got '
                         f'{target.__class__.__name__}',
-                        context=linkdecl.target[0].context
+                        context=linkdecl.target.context
                     )
 
                 new_props = {

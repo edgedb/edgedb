@@ -228,18 +228,18 @@ type Foo:
     def test_eschema_syntax_type_09(self):
         """
 type LogEntry extending OwnedObject, Text:
-    required link attachment -> Post, File, User
+    required link attachment -> Post | File | User
         """
 
     def test_eschema_syntax_type_10(self):
         """
 type `Log-Entry` extending `OwnedObject`, `Text`:
-    required link attachment -> `Post`, `File`, `User`
+    required link attachment -> `Post` | `File` | `User`
 
 % OK %
 
 type `Log-Entry` extending OwnedObject, Text:
-    required link attachment -> Post, File, User
+    required link attachment -> Post | File | User
         """
 
     @tb.must_fail(errors.SchemaSyntaxError, "Unexpected 'Commit'",
@@ -404,6 +404,12 @@ type User:
         """
 type User:
     required link todo -> tuple<str, tuple<str, array<str>>, array<float64>>
+        """
+
+    def test_eschema_syntax_link_target_type_05(self):
+        """
+        type UserReport:
+            required multi link relevant_user_data -> User | Comment
         """
 
     def test_eschema_syntax_index_01(self):
