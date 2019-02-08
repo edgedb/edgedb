@@ -771,6 +771,17 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         )
 
+    async def test_edgeql_select_type_05(self):
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT User.__type__ { name };
+            ''',
+            [{
+                'name': 'test::User'
+            }]
+        )
+
     @test.not_implemented('recursive queries are not implemented')
     async def test_edgeql_select_recursive_01(self):
         await self.assert_query_result(
