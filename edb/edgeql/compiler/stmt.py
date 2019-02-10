@@ -592,8 +592,12 @@ def compile_query_subject(
             # the parent shape, ie. Spam { alias := Foo.bar }, so
             # `Spam.alias` should be a subclass of `Foo.bar` inheriting
             # its properties.
+            rptr = expr.rptr
+            # Unwind type indirections first.
+            while isinstance(rptr, irast.TypeIndirectionPointer):
+                rptr = rptr.source.rptr
             view_rptr.base_ptrcls = irtyputils.ptrcls_from_ptrref(
-                expr.rptr.ptrref, schema=ctx.env.schema)
+                rptr.ptrref, schema=ctx.env.schema)
         else:
             if expr.path_id.is_objtype_path():
                 ptr_metacls = s_links.Link

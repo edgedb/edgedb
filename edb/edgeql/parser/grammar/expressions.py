@@ -300,7 +300,8 @@ class ShapeElement(Nonterm):
         # this indicates a polymorphic shape and TypeExpr must be
         # extracted from the path steps
         if shape and isinstance(shape[0], qlast.TypeExpr):
-            self.val.expr.steps[-1].target = shape[0]
+            self.val.expr.steps.append(qlast.TypeIndirection(
+                type=shape[0], context=shape[0].context))
             self.val.elements = shape[1:]
         else:
             self.val.elements = shape or []
@@ -356,11 +357,13 @@ class ShapePath(Nonterm):
 
         self.val = qlast.Path(
             steps=[
-                kids[0].val,
+                qlast.TypeIndirection(
+                    type=kids[0].val,
+                ),
                 qlast.Ptr(
                     ptr=kids[2].val,
                     direction=s_pointers.PointerDirection.Outbound
-                )
+                ),
             ]
         )
 
@@ -615,28 +618,6 @@ class Expr(Nonterm):
         else:
             self.val = qlast.Indirection(arg=expr,
                                          indirection=[kids[1].val])
-
-    def reduce_Expr_LBRACKET_IS_FullTypeExpr_RBRACKET(self, *kids):
-        # The path filter rule is here to resolve ambiguity with
-        # indexes and slices, so Expr needs to be enforced as a path.
-        #
-        # NOTE: We specifically disallow "Foo.(bar[IS Baz])"" because
-        # it is incorrect logical grouping. The example where the
-        # incorrect grouping is more obvious is: "Foo.<(bar[IS Baz])"
-        path = kids[0].val
-
-        if (isinstance(path, qlast.Path) and
-                isinstance(path.steps[-1], qlast.Ptr)):
-            # filtering a longer path
-            path.steps[-1].target = kids[3].val
-            self.val = path
-
-        else:
-            # any other expression is a path with a filter
-            self.val = qlast.TypeFilter(
-                expr=path,
-                type=kids[3].val,
-            )
 
     def reduce_FuncExpr(self, *kids):
         self.val = kids[0].val
@@ -1081,6 +1062,11 @@ class PathStep(Nonterm):
             ptr=kids[1].val,
             direction=s_pointers.PointerDirection.Outbound,
             type='property'
+        )
+
+    def reduce_LBRACKET_IS_FullTypeExpr_RBRACKET(self, *kids):
+        self.val = qlast.TypeIndirection(
+            type=kids[2].val,
         )
 
 

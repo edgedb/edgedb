@@ -1205,6 +1205,15 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_shape_30(self):
+        """
+        SELECT Named {
+            [IS Issue].references: File {
+                name
+            }
+        };
+        """
+
     def test_edgeql_syntax_shape_32(self):
         """
         SELECT User{
@@ -1471,6 +1480,7 @@ aa';
         SELECT Foo.bar[IS Baz];
         SELECT Foo.>bar[IS Baz];
         SELECT Foo.<bar[IS Baz];
+        SELECT Foo.<var[IS Baz][IS Spam].bar[IS Foo];
 
 % OK %
 
@@ -1483,6 +1493,7 @@ aa';
         SELECT Foo.bar[IS Baz];
         SELECT Foo.bar[IS Baz];
         SELECT Foo.<bar[IS Baz];
+        SELECT Foo.<var[IS Baz][IS Spam].bar[IS Foo];
         """
 
     def test_edgeql_syntax_path_02(self):
@@ -1543,31 +1554,37 @@ aa';
         SELECT Foo.bar[IS Case];
         """
 
-    # This is actually odd, but legal, simply filtering by type a
-    # particular array element.
-    #
     def test_edgeql_syntax_path_09(self):
         """
         SELECT Foo.bar[2][IS Baz];
 
 % OK %
 
-        SELECT (Foo.bar)[2][IS Baz];
+        SELECT ((Foo.bar)[2])[IS Baz];
         """
 
     def test_edgeql_syntax_path_10(self):
         """
         SELECT (Foo.bar)[2:4][IS Baz];
+% OK %
+
+        SELECT ((Foo.bar)[2:4])[IS Baz];
         """
 
     def test_edgeql_syntax_path_11(self):
         """
         SELECT (Foo.bar)[2:][IS Baz];
+% OK %
+
+        SELECT ((Foo.bar)[2:])[IS Baz];
         """
 
     def test_edgeql_syntax_path_12(self):
         """
         SELECT (Foo.bar)[:2][IS Baz];
+% OK %
+
+        SELECT ((Foo.bar)[:2])[IS Baz];
         """
 
     def test_edgeql_syntax_path_13(self):
@@ -1696,6 +1713,8 @@ aa';
     def test_edgeql_syntax_type_interpretation_02(self):
         """
         SELECT (Foo + Bar)[IS Spam].ham;
+% OK %
+        SELECT ((Foo + Bar))[IS Spam].ham;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=18)

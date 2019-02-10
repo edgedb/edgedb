@@ -299,11 +299,14 @@ def new_empty_rvar(
 
 def new_root_rvar(
         ir_set: irast.Set, *,
+        typeref: typing.Optional[irast.TypeRef]=None,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
     if not ir_set.path_id.is_objtype_path():
         raise ValueError('cannot create root rvar for non-object path')
+    if typeref is None:
+        typeref = ir_set.typeref
 
-    set_rvar = dbobj.range_for_set(ir_set, env=ctx.env)
+    set_rvar = dbobj.range_for_typeref(typeref, ir_set.path_id, env=ctx.env)
     pathctx.put_rvar_path_bond(set_rvar, ir_set.path_id)
     set_rvar.value_scope.add(ir_set.path_id)
 
@@ -447,7 +450,8 @@ def semi_join(
     rptr = ir_set.rptr
 
     # Target set range.
-    set_rvar = new_root_rvar(ir_set, ctx=ctx)
+    typeref = ctx.join_target_type_filter.get(ir_set, ir_set.typeref)
+    set_rvar = new_root_rvar(ir_set, typeref=typeref, ctx=ctx)
 
     # Link range.
     map_rvar = new_pointer_rvar(rptr, src_rvar=src_rvar, ctx=ctx)

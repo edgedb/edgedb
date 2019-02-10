@@ -230,21 +230,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         elif isinstance(step, qlast.Ptr):
             # Pointer traversal step
             ptr_expr = step
-            ptr_target = None
-
             direction = (ptr_expr.direction or
                          s_pointers.PointerDirection.Outbound)
-            if ptr_expr.target:
-                # ... link [IS Target]
-                ptr_target = schemactx.get_schema_type(
-                    ptr_expr.target.maintype, ctx=ctx)
-                if not isinstance(ptr_target, s_objtypes.ObjectType):
-                    raise errors.QueryError(
-                        f'invalid type filter operand: '
-                        f'{ptr_target.get_name(ctx.env.schema)} '
-                        f'is not an object type',
-                        context=ptr_expr.target.context)
-
             ptr_name = ptr_expr.ptr.name
 
             if ptr_expr.type == 'property':
@@ -264,7 +251,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 else:
                     path_tip = ptr_step_set(
                         path_tip, source=source, ptr_name=ptr_name,
-                        direction=direction, ptr_target=ptr_target,
+                        direction=direction,
                         ignore_computable=True,
                         source_context=step.context, ctx=subctx)
 
@@ -272,6 +259,29 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                         path_tip.rptr.ptrref, schema=ctx.env.schema)
                     if _is_computable_ptr(ptrcls, ctx=ctx):
                         computables.append(path_tip)
+
+        elif isinstance(step, qlast.TypeIndirection):
+            arg_type = inference.infer_type(path_tip, ctx.env)
+            if not isinstance(arg_type, s_objtypes.ObjectType):
+                raise errors.QueryError(
+                    f'invalid type filter operand: '
+                    f'{arg_type.get_displayname(ctx.env.schema)} '
+                    f'is not an object type',
+                    context=step.context)
+
+            typ = schemactx.get_schema_type(step.type.maintype, ctx=ctx)
+            if not isinstance(typ, s_objtypes.ObjectType):
+                raise errors.QueryError(
+                    f'invalid type filter operand: '
+                    f'{typ.get_displayname(ctx.env.schema)} is not '
+                    f'an object type',
+                    context=step.type.context)
+
+            # The expression already of the desired type, elide
+            # the indirection.
+            if arg_type != typ:
+                path_tip = class_indirection_set(
+                    path_tip, typ, optional=False, ctx=ctx)
 
         else:
             # Arbitrary expression
@@ -365,84 +375,69 @@ def ptr_step_set(
         source: s_sources.Source,
         ptr_name: str,
         direction: PtrDir,
-        ptr_target: typing.Optional[s_nodes.Node]=None,
         source_context: parsing.ParserContext,
         ignore_computable: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
     ptrcls = resolve_ptr(
-        source, ptr_name, direction,
-        target=ptr_target, source_context=source_context,
+        source,
+        ptr_name,
+        direction=direction,
+        source_context=source_context,
         ctx=ctx)
 
     target = ptrcls.get_far_endpoint(ctx.env.schema, direction)
 
-    path_tip = extend_path(
+    return extend_path(
         path_tip, ptrcls, direction, target,
         ignore_computable=ignore_computable, ctx=ctx)
-
-    if ptr_target is not None and target != ptr_target:
-        path_tip = class_indirection_set(
-            path_tip, ptr_target, optional=False, ctx=ctx)
-
-    return path_tip
 
 
 def resolve_ptr(
         near_endpoint: s_sources.Source,
-        pointer_name: str,
-        direction: s_pointers.PointerDirection,
-        target: typing.Optional[s_nodes.Node]=None, *,
+        pointer_name: str, *,
+        direction: s_pointers.PointerDirection=(
+            s_pointers.PointerDirection.Outbound
+        ),
         source_context: typing.Optional[parsing.ParserContext]=None,
         ctx: context.ContextLevel) -> s_pointers.Pointer:
 
-    ptr = None
-
-    if isinstance(near_endpoint, s_sources.Source):
-        ctx.env.schema, ptr = near_endpoint.resolve_pointer(
-            ctx.env.schema,
-            pointer_name,
-            direction=direction,
-            look_in_children=False,
-            far_endpoint=target)
-
-        if ptr is None:
-            if isinstance(near_endpoint, s_links.Link):
-                msg = (f'{near_endpoint.get_displayname(ctx.env.schema)} '
-                       f'has no property {pointer_name!r}')
-                if target:
-                    msg += f'of type {target.get_name(ctx.env.schema)!r}'
-
-            elif direction == s_pointers.PointerDirection.Outbound:
-                msg = (f'{near_endpoint.get_displayname(ctx.env.schema)} '
-                       f'has no link or property {pointer_name!r}')
-                if target:
-                    msg += f'of type {target.get_name(ctx.env.schema)!r}'
-
-            else:
-                nep_name = near_endpoint.get_displayname(ctx.env.schema)
-                path = f'{nep_name}.{direction}{pointer_name}'
-                if target:
-                    path += f'[IS {target.get_displayname(ctx.env.schema)}]'
-                msg = f'{path!r} does not resolve to any known path'
-
-            err = errors.InvalidReferenceError(msg, context=source_context)
-
-            if direction == s_pointers.PointerDirection.Outbound:
-                near_enpoint_pointers = near_endpoint.get_pointers(
-                    ctx.env.schema)
-                s_utils.enrich_schema_lookup_error(
-                    err, pointer_name, modaliases=ctx.modaliases,
-                    item_types=(s_pointers.Pointer,),
-                    collection=near_enpoint_pointers.objects(ctx.env.schema),
-                    schema=ctx.env.schema
-                )
-
-            raise err
-
-    if ptr is None:
+    if not isinstance(near_endpoint, s_sources.Source):
         # Reference to a property on non-object
         msg = 'invalid property reference on a primitive type expression'
         raise errors.InvalidReferenceError(msg, context=source_context)
+
+    ctx.env.schema, ptr = near_endpoint.resolve_pointer(
+        ctx.env.schema,
+        pointer_name,
+        direction=direction)
+
+    if ptr is None:
+        if isinstance(near_endpoint, s_links.Link):
+            msg = (f'{near_endpoint.get_displayname(ctx.env.schema)} '
+                   f'has no property {pointer_name!r}')
+
+        elif direction == s_pointers.PointerDirection.Outbound:
+            msg = (f'{near_endpoint.get_displayname(ctx.env.schema)} '
+                   f'has no link or property {pointer_name!r}')
+
+        else:
+            nep_name = near_endpoint.get_displayname(ctx.env.schema)
+            path = f'{nep_name}.{direction}{pointer_name}'
+            msg = f'{path!r} does not resolve to any known path'
+
+        err = errors.InvalidReferenceError(msg, context=source_context)
+
+        if direction == s_pointers.PointerDirection.Outbound:
+            near_enpoint_pointers = near_endpoint.get_pointers(
+                ctx.env.schema)
+            s_utils.enrich_schema_lookup_error(
+                err, pointer_name, modaliases=ctx.modaliases,
+                item_types=(s_pointers.Pointer,),
+                collection=near_enpoint_pointers.objects(ctx.env.schema),
+                schema=ctx.env.schema
+            )
+
+        raise err
 
     return ptr
 
@@ -550,9 +545,11 @@ def class_indirection_set(
         cardinality = qltypes.Cardinality.MANY
     else:
         cardinality = qltypes.Cardinality.ONE
+    stype = get_set_type(source_set, ctx=ctx)
+    ancestral = stype.issubclass(ctx.env.schema, target_scls)
     poly_set.path_id = pathctx.get_type_indirection_path_id(
         source_set.path_id, target_scls, optional=optional,
-        cardinality=cardinality, ctx=ctx)
+        ancestral=ancestral, cardinality=cardinality, ctx=ctx)
 
     ptr = irast.TypeIndirectionPointer(
         source=source_set,

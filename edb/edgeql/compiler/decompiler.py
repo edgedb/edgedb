@@ -25,16 +25,26 @@ from edb.ir import typeutils as irtyputils
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
 
+from . import typegen
+
+
+class IRDecompilerEnv:
+
+    def __init__(self, schema):
+        self.schema = schema
+
 
 class IRDecompilerContext:
-    pass
+
+    def __init__(self, schema):
+        self.schema = schema
+        self.env = IRDecompilerEnv(schema=schema)
 
 
 class IRDecompiler(ast.visitor.NodeVisitor):
     def transform(self, ir_tree, inline_anchors=False, *, schema):
-        self.context = IRDecompilerContext()
+        self.context = IRDecompilerContext(schema)
         self.context.inline_anchors = inline_anchors
-        self.context.schema = schema
 
         edgeql_tree = self.visit(ir_tree)
         return edgeql_tree
@@ -66,67 +76,58 @@ class IRDecompiler(ast.visitor.NodeVisitor):
 
         return result
 
-    def visit_Set(self, node):
-        if node.expr is not None:
-            result = self.visit(node.expr)
-        else:
-            links = []
+    def _visit_path(self, node):
+        steps = []
 
-            while node.rptr and (not node.show_as_anchor or
-                                 self.context.inline_anchors):
+        while node.rptr:
+            if node.show_as_anchor and not self.context.inline_anchors:
+                break
+            if isinstance(node.rptr.ptrref, irast.TypeIndirectionPointerRef):
+                ttype = irtyputils.ir_typeref_to_type(
+                    self.context.schema, node.typeref)
+                steps.append(qlast.TypeIndirection(
+                    type=typegen.type_to_ql_typeref(ttype, ctx=self.context))
+                )
+            else:
                 rptr = node.rptr
                 ptrref = rptr.ptrref
                 pname = ptrref.shortname
-
-                if irtyputils.is_object(node.typeref):
-                    if node.typeref.material_type is not None:
-                        typeref = node.typeref.material_type
-                    else:
-                        typeref = node.typeref
-
-                    stype = self.context.schema.get_by_id(typeref.id)
-                    stype_name = stype.get_name(self.context.schema)
-
-                    target = qlast.TypeName(
-                        maintype=qlast.ObjectRef(
-                            name=stype_name.name,
-                            module=stype_name.module))
-                else:
-                    target = None
 
                 link = qlast.Ptr(
                     ptr=qlast.ObjectRef(
                         name=pname.name,
                     ),
                     direction=rptr.direction,
-                    target=target,
                 )
                 if ptrref.parent_ptr is not None:
                     link.type = 'property'
-                links.append(link)
+                steps.append(link)
 
-                node = node.rptr.source
+            node = node.rptr.source
 
-            result = qlast.Path()
-
-            if node.show_as_anchor and not self.context.inline_anchors:
-                if issubclass(node.show_as_anchor, qlast.Expr):
-                    step = node.show_as_anchor()
-                else:
-                    step = qlast.ObjectRef(name=node.show_as_anchor)
+        if node.show_as_anchor and not self.context.inline_anchors:
+            if issubclass(node.show_as_anchor, qlast.Expr):
+                step = node.show_as_anchor()
             else:
-                if node.typeref.material_type is not None:
-                    typeref = node.typeref.material_type
-                else:
-                    typeref = node.typeref
+                step = qlast.ObjectRef(name=node.show_as_anchor)
+        else:
+            if node.typeref.material_type is not None:
+                typeref = node.typeref.material_type
+            else:
+                typeref = node.typeref
 
-                stype = self.context.schema.get_by_id(typeref.id)
-                scls_shortname = stype.get_shortname(self.context.schema)
-                step = qlast.ObjectRef(name=scls_shortname.name,
-                                       module=scls_shortname.module)
+            stype = self.context.schema.get_by_id(typeref.id)
+            scls_shortname = stype.get_shortname(self.context.schema)
+            step = qlast.ObjectRef(name=scls_shortname.name,
+                                   module=scls_shortname.module)
 
-            result.steps.append(step)
-            result.steps.extend(reversed(links))
+        return qlast.Path(steps=[step] + list(reversed(steps)))
+
+    def visit_Set(self, node):
+        if node.expr is not None:
+            result = self.visit(node.expr)
+        else:
+            result = self._visit_path(node)
 
         if node.shape:
             result = qlast.Shape(

@@ -209,6 +209,7 @@ def ptrref_from_ptrcls(
     elif ptrcls.is_type_indirection():
         ircls = irast.TypeIndirectionPointerRef
         kwargs['optional'] = ptrcls.is_optional()
+        kwargs['ancestral'] = ptrcls.is_ancestral()
     else:
         ircls = irast.PointerRef
         kwargs['id'] = ptrcls.id
@@ -312,6 +313,7 @@ def ptrcls_from_ptrref(
             source=schema.get_by_id(ptrref.out_source.id),
             target=schema.get_by_id(ptrref.out_target.id),
             optional=ptrref.optional,
+            ancestral=ptrref.ancestral,
             cardinality=ptrref.out_cardinality,
         )
     else:

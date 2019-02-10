@@ -59,12 +59,14 @@ def get_tuple_indirection_path_id(
 
 def get_type_indirection_path_id(
         path_id: irast.PathId, target_type: s_types.Type, *,
-        optional: bool, cardinality: qltypes.Cardinality,
+        optional: bool, ancestral: bool, cardinality: qltypes.Cardinality,
         ctx: context.CompilerContext) -> irast.PathId:
     return path_id.extend(
         ptrcls=irast.TypeIndirectionLink(
             path_id.target, target_type,
-            optional=optional, cardinality=cardinality),
+            optional=optional,
+            ancestral=ancestral,
+            cardinality=cardinality),
         direction=s_pointers.PointerDirection.Outbound,
         target=target_type,
         schema=ctx.env.schema

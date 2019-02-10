@@ -54,8 +54,8 @@ BUILD_DEPS = [
 
 EXTRA_DEPS = {
     'test': [
-        'flake8~=3.6.0',
-        'pycodestyle~=2.4.0',
+        'flake8~=3.7.5',
+        'pycodestyle~=2.5.0',
         'coverage~=4.5.2',
         'requests-xml~=0.2.3',
     ],

@@ -663,13 +663,38 @@ def process_set_as_path(
     rptr = ir_set.rptr
     ptrref = rptr.ptrref
     ir_source = rptr.source
+    source_is_visible = ctx.scope_tree.is_visible(ir_source.path_id)
+    is_type_indirection = ir_set.path_id.is_type_indirection_path()
 
     rvars = []
+    if is_type_indirection:
+        if ptrref.ancestral:
+            # This is an ancestral type indirection, i.e. the
+            # target type is an ancestor of the current type,
+            # which means we don't have to restrict the set
+            # and can simply forward to the source rvar.
+            source_rvar = get_set_rvar(ir_source, ctx=ctx)
+            stmt.view_path_id_map[ir_set.path_id] = ir_source.path_id
+            relctx.include_rvar(stmt, source_rvar, ir_set.path_id, ctx=ctx)
 
-    if ir_set.path_id.is_type_indirection_path():
-        get_set_rvar(ir_source, ctx=ctx)
-        poly_rvar = relctx.new_poly_rvar(ir_set, ctx=ctx)
-        relctx.include_rvar(stmt, poly_rvar, ir_set.path_id, ctx=ctx)
+        elif (not source_is_visible and ir_source.rptr is not None
+                and not ir_source.path_id.is_type_indirection_path()):
+            # Otherwise, if the source link path is not visible, we
+            # have an opportunity to opmimize the target join by
+            # directly replacing the target type.
+            with ctx.new() as subctx:
+                subctx.join_target_type_filter = (
+                    subctx.join_target_type_filter.copy())
+                subctx.join_target_type_filter[ir_source] = ir_set.typeref
+                source_rvar = get_set_rvar(ir_source, ctx=subctx)
+
+            stmt.view_path_id_map[ir_set.path_id] = ir_source.path_id
+            relctx.include_rvar(stmt, source_rvar, ir_set.path_id, ctx=ctx)
+
+        else:
+            source_rvar = get_set_rvar(ir_source, ctx=ctx)
+            poly_rvar = relctx.new_poly_rvar(ir_set, ctx=ctx)
+            relctx.include_rvar(stmt, poly_rvar, ir_set.path_id, ctx=ctx)
 
         sub_rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
         return new_simple_set_rvar(ir_set, sub_rvar, ['value', 'source'])
@@ -683,7 +708,7 @@ def process_set_as_path(
     is_inline_ref = ptr_info.table_type == 'ObjectType'
     is_scalar_ref = not irtyputils.is_object(ptrref.out_target)
     is_inline_scalar_ref = is_inline_ref and is_scalar_ref
-    source_is_visible = ctx.scope_tree.is_visible(ir_source.path_id)
+
     semi_join = (
         not source_is_visible and
         ir_source.path_id not in ctx.disable_semi_join and
@@ -782,7 +807,9 @@ def process_set_as_path(
 
         # Target set range.
         if irtyputils.is_object(ir_set.typeref):
-            target_rvar = relctx.new_root_rvar(ir_set, ctx=ctx)
+            typeref = ctx.join_target_type_filter.get(ir_set, ir_set.typeref)
+            target_rvar = relctx.new_root_rvar(
+                ir_set, typeref=typeref, ctx=ctx)
 
             main_rvar = SetRVar(
                 target_rvar,

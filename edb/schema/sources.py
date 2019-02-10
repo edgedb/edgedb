@@ -53,181 +53,40 @@ class Source(indexes.IndexableSubject):
         inheritable=False, ephemeral=True, coerce=True,
         default=so.ObjectIndexByUnqualifiedName)
 
-    class PointerResolver:
-        @classmethod
-        def getptr(cls, schema, source, name):
-            if sn.Name.is_qualified(name):
-                raise ValueError(
-                    'references to concrete pointers must not be qualified')
-            ptr = source.get_pointers(schema).get(schema, name, None)
-            if ptr is None:
-                return set()
-            else:
-                return {ptr}
-
-        @classmethod
-        def getptr_inherited_from(cls, source, schema, base_ptr_class,
-                                  skip_scalar):
-            result = set()
-            for ptr in source.get_pointers(schema).objects(schema):
-                if (ptr.issubclass(schema, base_ptr_class) and
-                        (not skip_scalar or not ptr.scalar())):
-                    result.add(ptr)
-                    break
-            return result
-
-    def _getptr_descending(self, schema, name, resolver):
-        ptrs = resolver.getptr(schema, self, name)
-
-        if not ptrs:
-            for c in self.children(schema):
-                ptrs |= c._getptr_descending(schema, name, resolver)
-
-        return ptrs
-
-    def getptr_descending(self, schema, name):
-        return self._getptr_descending(schema, name,
-                                       self.__class__.PointerResolver)
-
-    def _getptr_inherited_from(self, schema, name, resolver):
-        ptrs = set()
-
-        for ptr in self.get_pointers(schema).objects(schema):
-            if name in {o.get_shortname(schema).name
-                        for o in ptr.get_mro(schema).objects(schema)}:
-                ptrs.add(ptr)
-
-        return ptrs
-
-    def _getptr_ascending(self, schema, name, resolver,
-                          include_inherited=False):
-        ptrs = resolver.getptr(schema, self, name)
-
-        if not ptrs:
-            if include_inherited:
-                ptrs = self._getptr_inherited_from(schema, name, resolver)
-
-        return ptrs
-
-    def getptr_ascending(self, schema, name, include_inherited=False):
-        ptrs = self._getptr_ascending(
-            schema, name, self.__class__.PointerResolver,
-            include_inherited=include_inherited)
-
-        return ptrs
-
     def getptr(self, schema, name):
-        ptrs = self.getptr_ascending(schema, name)
+        if sn.Name.is_qualified(name):
+            raise ValueError(
+                'references to concrete pointers must not be qualified')
+        return self.get_pointers(schema).get(schema, name, None)
 
-        if ptrs:
-            return next(iter(ptrs))
-        else:
-            return None
+    def getrptrs(self, schema, name):
+        return set()
 
-    def getrptr_descending(self, schema, name):
-        return []
-
-    def getrptr_ascending(self, schema, name, include_inherited=False):
-        return None
-
-    def resolve_pointer(self, schema, pointer_name, *,
-                        direction='>',
-                        far_endpoint=None,
-                        look_in_children=False,
-                        include_inherited=False,
-                        target_most_generic=True):
-
-        # First, lookup the inheritance hierarchy up, and, if requested,
-        # down, to select all pointers with the requested name.
-        #
+    def resolve_pointer(self, schema, pointer_name, *, direction='>'):
         if direction == '>':
-            ptrs = self.getptr_ascending(schema, pointer_name,
-                                         include_inherited=include_inherited)
-
-            if not ptrs and look_in_children:
-                ptrs = self.getptr_descending(schema, pointer_name)
+            ptr = self.getptr(schema, pointer_name)
+            ptrs = set() if ptr is None else {ptr}
         else:
-            ptrs = self.getrptr_ascending(schema, pointer_name,
-                                          include_inherited=include_inherited)
-
-            if not ptrs and look_in_children:
-                ptrs = self.getrptr_descending(schema, pointer_name)
+            ptrs = self.getrptrs(schema, pointer_name)
 
         if not ptrs:
             # No pointer candidates found at all, bail out.
             return schema, None
 
         targets = set()
+        targets = {p.get_far_endpoint(schema, direction) for p in ptrs}
 
-        if not far_endpoint:
-            targets.update(p.get_far_endpoint(schema, direction)
-                           for p in ptrs)
-        else:
-            # Narrow down the set of pointers by the specified list of
-            # endpoints.
-            #
-            targeted_ptrs = set()
-
-            if far_endpoint.get_is_virtual(schema):
-                req_endpoints = tuple(far_endpoint.children(schema))
-            else:
-                req_endpoints = (far_endpoint,)
-
-            for ptr in ptrs:
-                endpoint = ptr.get_far_endpoint(schema, direction)
-
-                if endpoint.get_is_virtual(schema):
-                    endpoints = endpoint.children(schema)
-                else:
-                    endpoints = [endpoint]
-
-                for endpoint in endpoints:
-                    if endpoint.issubclass(schema, req_endpoints):
-                        targeted_ptrs.add(ptr)
-                        targets.add(endpoint)
-                    else:
-                        for req_endpoint in req_endpoints:
-                            if req_endpoint.issubclass(schema, endpoint):
-                                if direction == '>':
-                                    source = ptr.get_source(schema)
-                                    target = req_endpoint
-                                else:
-                                    target = ptr.get_source(schema)
-                                    source = req_endpoint
-
-                                schema, dptr = ptr.get_derived(
-                                    schema, source, target, mark_derived=True)
-
-                                targeted_ptrs.add(dptr)
-                                targets.add(req_endpoint)
-
-            if not targeted_ptrs:
-                # All candidates have been eliminated by the endpoint
-                # filter.
-                return schema, None
-
-            ptrs = targeted_ptrs
-
-        ptr_targets = frozenset(p.get_far_endpoint(schema, direction)
-                                for p in ptrs)
-
-        if len(ptrs) == 1 and targets == ptr_targets:
+        if len(ptrs) == 1:
             # Found exactly one specialized pointer, just return it
             ptr = next(iter(ptrs))
 
         else:
             # More than one specialized pointer or an endpoint subset,
             # create a virtual subclass of endpoints.
-            #
-            if target_most_generic:
-                minimize_by = 'most_generic'
-            else:
-                minimize_by = 'least_generic'
-
             common_parent = utils.get_class_nearest_common_ancestor(
                 schema, ptrs)
             schema, target = common_parent.create_common_target(
-                schema, targets, minimize_by)
+                schema, targets, minimize_by='most_generic')
 
             if direction == '>':
                 ptr_source = self

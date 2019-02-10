@@ -395,7 +395,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_Path(self, node):
         for i, e in enumerate(node.steps):
             if i > 0 or node.partial:
-                if getattr(e, 'type', None) != 'property':
+                if (getattr(e, 'type', None) != 'property'
+                        and not isinstance(e, edgeql_ast.TypeIndirection)):
                     self.write('.')
 
             if i == 0:
@@ -408,7 +409,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                                         edgeql_ast.Set,
                                         edgeql_ast.Tuple,
                                         edgeql_ast.NamedTuple,
-                                        edgeql_ast.TypeFilter)):
+                                        edgeql_ast.TypeIndirection)):
                     self.write('(')
                     self.visit(e)
                     self.write(')')
@@ -440,11 +441,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(node.direction)
 
         self.visit(node.ptr)
-        if (not isinstance(node.parent.parent, edgeql_ast.ShapeElement) and
-                node.target is not None):
-            self.write('[IS ')
-            self.visit(node.target)
-            self.write(']')
+
+    def visit_TypeIndirection(self, node):
+        self.write('[IS ')
+        self.visit(node.type)
+        self.write(']')
 
     def visit_ShapeElement(self, node):
         # PathSpec can only contain LinkExpr or LinkPropExpr,
@@ -466,15 +467,17 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if len(node.expr.steps) == 1:
             self.visit(node.expr)
         else:
-            self.write('[IS ')
             self.visit(node.expr.steps[0])
-            self.write('].')
-            self.visit(node.expr.steps[1])
+            if not isinstance(node.expr.steps[1], edgeql_ast.TypeIndirection):
+                self.write('.')
+                self.visit(node.expr.steps[1])
 
-        if not node.compexpr and (node.elements or node.expr.steps[-1].target):
+        if not node.compexpr and (node.elements
+                                  or isinstance(node.expr.steps[-1],
+                                                edgeql_ast.TypeIndirection)):
             self.write(': ')
-            if node.expr.steps[-1].target:
-                self.visit(node.expr.steps[-1].target)
+            if isinstance(node.expr.steps[-1], edgeql_ast.TypeIndirection):
+                self.visit(node.expr.steps[-1].type)
             if node.elements:
                 self._visit_shape(node.elements)
 
@@ -594,12 +597,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.type)
         self.write('>')
         self.visit(node.expr)
-
-    def visit_TypeFilter(self, node):
-        self.visit(node.expr)
-        self.write('[IS ')
-        self.visit(node.type)
-        self.write(']')
 
     def visit_Indirection(self, node):
         self.write('(')

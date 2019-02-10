@@ -191,10 +191,9 @@ class GQLCoreSchema:
                 if name == '__type__':
                     continue
 
-                self.edb_schema, ptr = edb_type.resolve_pointer(
-                    self.edb_schema, name)
+                ptr = edb_type.getptr(self.edb_schema, name)
                 target = self._get_target(ptr)
-                if target:
+                if target is not None:
                     if isinstance(ptr.get_target(self.edb_schema),
                                   s_objtypes.ObjectType):
                         args = self._get_args(
@@ -228,8 +227,7 @@ class GQLCoreSchema:
                     "reserved fields required for GraphQL conversion"
                 )
 
-            self.edb_schema, ptr = edb_type.resolve_pointer(
-                self.edb_schema, name)
+            ptr = edb_type.getptr(self.edb_schema, name)
 
             if not isinstance(ptr.get_target(self.edb_schema),
                               s_scalars.ScalarType):
@@ -299,8 +297,7 @@ class GQLCoreSchema:
             if name == '__type__':
                 continue
 
-            self.edb_schema, ptr = edb_type.resolve_pointer(
-                self.edb_schema, name)
+            ptr = edb_type.getptr(self.edb_schema, name)
 
             if not isinstance(ptr.get_target(self.edb_schema),
                               s_scalars.ScalarType):
@@ -538,8 +535,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
                 target = self.convert_edb_to_gql_type('std::str')
 
             else:
-                self.edb_schema, target = self.edb_base.resolve_pointer(
-                    self.edb_schema, name)
+                target = self.edb_base.getptr(self.edb_schema, name)
 
                 if target is not None:
                     target = self.convert_edb_to_gql_type(target)
@@ -549,8 +545,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
         return target
 
     def has_native_field(self, name):
-        self.edb_schema, ptr = self.edb_base.resolve_pointer(
-            self.edb_schema, name)
+        ptr = self.edb_base.getptr(self.edb_schema, name)
         return ptr is not None
 
     def issubclass(self, other):

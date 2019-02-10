@@ -210,13 +210,14 @@ class TupleIndirectionPointerRef(BasePointerRef):
 class TypeIndirectionLink(s_pointers.PointerLike):
     """A Link-alike that can be used in type indirection path ids."""
 
-    def __init__(self, source, target, *, optional, cardinality):
+    def __init__(self, source, target, *, optional, ancestral, cardinality):
         name = 'optindirection' if optional else 'indirection'
         self._name = sn.Name(module='__type__', name=name)
         self._source = source
         self._target = target
         self._cardinality = cardinality
         self._optional = optional
+        self._ancestral = ancestral
 
     def get_name(self, schema):
         return self._name
@@ -251,6 +252,9 @@ class TypeIndirectionLink(s_pointers.PointerLike):
     def is_optional(self):
         return self._optional
 
+    def is_ancestral(self):
+        return self._ancestral
+
     def generic(self, schema):
         return False
 
@@ -280,6 +284,7 @@ class TypeIndirectionLink(s_pointers.PointerLike):
 class TypeIndirectionPointerRef(BasePointerRef):
 
     optional: bool
+    ancestral: bool
 
 
 class Pointer(Base):

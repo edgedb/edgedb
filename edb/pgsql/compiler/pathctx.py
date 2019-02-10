@@ -131,12 +131,13 @@ def get_path_var(
                 # Foo.__type__.id gets resolved to the Foo.__type__
                 # column.
                 src_rptr = src_path_id.rptr()
-                while src_path_id.is_type_indirection_path():
+                pid = src_path_id
+                while pid.is_type_indirection_path():
                     # Skip type indirection step.
-                    src_src_path_id = src_path_id.src_path()
-                    if src_src_path_id is not None:
-                        src_rptr = src_src_path_id.rptr()
-                        src_path_id = src_src_path_id
+                    src_pid = pid.src_path()
+                    if src_pid is not None:
+                        src_rptr = src_pid.rptr()
+                        pid = src_pid
                     else:
                         break
 

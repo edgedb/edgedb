@@ -1235,6 +1235,58 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_select_polymorphic_09(self):
+        # Test simultaneous type indirection on source and target
+        # of a shape element.
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT Named {
+                name,
+                [IS Issue].references: File {
+                    name
+                }
+            }
+            FILTER .name ILIKE '%edgedb%'
+            ORDER BY .name;
+            ''',
+            [
+                {
+                    'name': 'Improve EdgeDB repl output rendering.',
+                    'references': [{'name': 'screenshot.png'}],
+                },
+                {
+                    'name': 'Release EdgeDB',
+                    'references': [],
+                },
+                {
+                    'name': 'edgedb.com',
+                    'references': [],
+                },
+            ],
+        )
+
+    async def test_edgeql_select_polymorphic_10(self):
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT
+                count(Object[IS Named][IS Text])
+                != count(Object[IS Text]);
+            ''',
+            [True]
+        )
+
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT
+                count(User.<owner[IS Named][IS Text])
+                != count(User.<owner[IS Text]);
+            ''',
+            [True]
+        )
+
     async def test_edgeql_select_view_01(self):
         await self.assert_query_result(
             r'''

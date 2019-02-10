@@ -320,8 +320,14 @@ class GraphQLTranslator(ast.NodeVisitor):
         steps = []
         if include_base:
             base = spath[0].type
-            steps.append(qlast.ObjectRef(
-                module=base.module, name=base.short_name))
+            steps.append(qlast.TypeIndirection(
+                type=qlast.TypeName(
+                    maintype=qlast.ObjectRef(
+                        module=base.module,
+                        name=base.short_name
+                    ),
+                ),
+            ))
         steps.append(qlast.Ptr(
             ptr=qlast.ObjectRef(
                 name=node.name

@@ -395,7 +395,7 @@ test::a -> array<std::int64>;
                 CREATE SINGLE PROPERTY test::__typename -> std::str {
                     SET computable := true;
                     SET default := SELECT
-                        __source__.__type__[IS schema::Type].name
+                        __source__.__type__.name
                     ;
                 };
             };

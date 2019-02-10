@@ -178,22 +178,24 @@ def _normalize_view_ptr_expr(
         ctx: context.CompilerContext) -> s_pointers.Pointer:
     steps = shape_el.expr.steps
     is_linkprop = False
+    is_polymorphic = False
     is_mutation = is_insert or is_update
     # Pointers may be qualified by the explicit source
     # class, which is equivalent to Expr[IS Type].
-    is_polymorphic = isinstance(steps[0], qlast.TypeExpr)
+    plen = len(steps)
     stype = view_scls.peel_view(ctx.env.schema)
     ptrsource = stype
     qlexpr = None
 
-    if is_polymorphic:
-        ptype = steps[0]
-        source = qlast.TypeFilter(
-            expr=qlast.Path(steps=[qlast.Source()]),
-            type=ptype)
-        lexpr = steps[1]
-        ptrsource = schemactx.get_schema_type(ptype.maintype, ctx=ctx)
-    elif len(steps) == 1:
+    if plen >= 2 and isinstance(steps[-1], qlast.TypeIndirection):
+        # Target type indirection: foo: Type
+        target_typexpr = steps[-1].type
+        plen -= 1
+        steps = steps[:-1]
+    else:
+        target_typexpr = None
+
+    if plen == 1:
         # regular shape
         lexpr = steps[0]
         is_linkprop = lexpr.type == 'property'
@@ -206,6 +208,16 @@ def _normalize_view_ptr_expr(
                 derive_ptrcls(view_rptr, target_scls=view_scls, ctx=ctx)
             ptrsource = stype = view_rptr.ptrcls
         source = qlast.Source()
+    elif plen == 2 and isinstance(steps[0], qlast.TypeIndirection):
+        # Source type indirection: [IS Type].foo
+        source = qlast.Path(steps=[
+            qlast.Source(),
+            steps[0],
+        ])
+        lexpr = steps[1]
+        ptype = steps[0].type
+        ptrsource = schemactx.get_schema_type(ptype.maintype, ctx=ctx)
+        is_polymorphic = True
     else:  # pragma: no cover
         raise RuntimeError(
             f'unexpected path length in view shape: {len(steps)}')
@@ -219,16 +231,13 @@ def _normalize_view_ptr_expr(
         #     INSERT Foo { bar: Spam { name := 'name' }}
         # Expand to:
         #     INSERT Foo { bar := (INSERT Spam { name := 'name' }) }
-        if lexpr.target is not None:
-            ptr_target = schemactx.get_schema_type(
-                lexpr.target.maintype, ctx=ctx)
-        else:
-            ptr_target = None
+        base_ptrcls = ptrcls = setgen.resolve_ptr(ptrsource, ptrname, ctx=ctx)
 
-        base_ptrcls = ptrcls = setgen.resolve_ptr(
-            ptrsource, ptrname, s_pointers.PointerDirection.Outbound,
-            target=ptr_target, ctx=ctx)
-        ptr_target = ptrcls.get_target(ctx.env.schema)
+        if target_typexpr is not None:
+            ptr_target = schemactx.get_schema_type(
+                target_typexpr.maintype, ctx=ctx)
+        else:
+            ptr_target = ptrcls.get_target(ctx.env.schema)
 
         compexpr = qlast.InsertQuery(
             subject=qlast.Path(
@@ -242,25 +251,12 @@ def _normalize_view_ptr_expr(
         )
 
     if compexpr is None:
-        if lexpr.target is not None:
-            ptr_target = schemactx.get_schema_type(
-                lexpr.target.maintype, ctx=ctx)
-        else:
-            ptr_target = None
-
-        base_ptrcls = ptrcls = setgen.resolve_ptr(
-            ptrsource, ptrname, s_pointers.PointerDirection.Outbound,
-            target=ptr_target, ctx=ctx)
-
+        base_ptrcls = ptrcls = setgen.resolve_ptr(ptrsource, ptrname, ctx=ctx)
         base_ptr_is_computable = ptrcls in ctx.source_map
-        base_ptr_target = base_ptrcls.get_target(ctx.env.schema)
 
-        if ptr_target is not None and ptr_target != base_ptr_target:
-            # This happens when a union type target is narrowed by an
-            # [IS Type] construct.  Since the derived pointer will have
-            # the correct target, we don't need to do anything, but
-            # remove the [IS] qualifier to prevent recursion.
-            lexpr.target = None
+        if target_typexpr is not None:
+            ptr_target = schemactx.get_schema_type(
+                target_typexpr.maintype, ctx=ctx)
         else:
             ptr_target = ptrcls.get_target(ctx.env.schema)
 
@@ -317,10 +313,17 @@ def _normalize_view_ptr_expr(
         if (shape_el.where or shape_el.orderby or
                 shape_el.offset or shape_el.limit or
                 base_ptr_is_computable or
-                is_polymorphic):
+                is_polymorphic or
+                target_typexpr is not None):
 
-            if qlexpr is None:
+            if target_typexpr is None:
                 qlexpr = qlast.Path(steps=[source, lexpr])
+            else:
+                qlexpr = qlast.Path(steps=[
+                    source,
+                    lexpr,
+                    qlast.TypeIndirection(type=target_typexpr),
+                ])
 
             qlexpr = astutils.ensure_qlstmt(qlexpr)
             qlexpr.where = shape_el.where
@@ -330,8 +333,7 @@ def _normalize_view_ptr_expr(
     else:
         try:
             base_ptrcls = ptrcls = setgen.resolve_ptr(
-                ptrsource, ptrname, s_pointers.PointerDirection.Outbound,
-                ctx=ctx)
+                ptrsource, ptrname, ctx=ctx)
 
             ptr_name = ptrcls.get_shortname(ctx.env.schema)
         except errors.InvalidReferenceError:

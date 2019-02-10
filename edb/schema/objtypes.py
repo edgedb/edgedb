@@ -51,48 +51,25 @@ class ObjectType(BaseObjectType, constraints.ConsistencySubject,
         else:
             return super().get_displayname(schema)
 
-    class ReversePointerResolver:
-        @classmethod
-        def getptr(cls, schema, source, name):
-            if sn.Name.is_qualified(name):
-                raise ValueError(
-                    'references to concrete pointers must not be qualified')
+    def getrptrs(self, schema, name):
+        if sn.Name.is_qualified(name):
+            raise ValueError(
+                'references to concrete pointers must not be qualified')
 
-            ptrs = {
-                l for l in schema.get_referrers(source, scls_type=links.Link,
+        ptrs = {
+            l for l in schema.get_referrers(self, scls_type=links.Link,
+                                            field_name='target')
+            if l.get_shortname(schema).name == name
+        }
+
+        for obj in self.get_mro(schema).objects(schema):
+            ptrs.update(
+                l for l in schema.get_referrers(obj, scls_type=links.Link,
                                                 field_name='target')
                 if l.get_shortname(schema).name == name
-            }
+            )
 
-            for obj in source.get_mro(schema).objects(schema):
-                ptrs.update(
-                    l for l in schema.get_referrers(obj, scls_type=links.Link,
-                                                    field_name='target')
-                    if l.get_shortname(schema).name == name
-                )
-
-            return ptrs
-
-        @classmethod
-        def getptr_inherited_from(cls, source, schema,
-                                  base_ptr_class, skip_scalar):
-            result = set()
-            for link in schema.get_objects(type=links.Link):
-                if link.issubclass(schema, base_ptr_class) \
-                        and link.get_target(schema) is not None \
-                        and (not skip_scalar or not link.scalar()) \
-                        and source.issubclass(schema, link.get_target(schema)):
-                    result.add(link)
-            return result
-
-    def getrptr_descending(self, schema, name):
-        return self._getptr_descending(schema, name,
-                                       self.__class__.ReversePointerResolver)
-
-    def getrptr_ascending(self, schema, name, include_inherited=False):
-        return self._getptr_ascending(schema, name,
-                                      self.__class__.ReversePointerResolver,
-                                      include_inherited=include_inherited)
+        return ptrs
 
     def implicitly_castable_to(self, other: s_types.Type, schema) -> bool:
         return self.issubclass(schema, other)

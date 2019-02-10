@@ -238,8 +238,6 @@ class EdgeQLOptimizer:
 
         elif isinstance(expr, qlast.Ptr):
             self._process_expr(context, expr.ptr)
-            if expr.target:
-                self._process_expr(context, expr.target)
 
         elif isinstance(expr, qlast.CreateModule):
             pass

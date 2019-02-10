@@ -324,20 +324,18 @@ class IsOp(Expr):
     right: TypeExpr
 
 
-class TypeFilter(Expr):
-    expr: Expr
+class TypeIndirection(Base):
     type: TypeExpr
 
 
 class Ptr(Base):
     ptr: ObjectRef
     direction: str
-    target: TypeExpr
     type: str
 
 
 class Path(Expr):
-    steps: typing.List[typing.Union[Expr, Ptr, TypeExpr]]
+    steps: typing.List[typing.Union[Expr, Ptr, TypeIndirection]]
     quantifier: Expr
     partial: bool = False
 

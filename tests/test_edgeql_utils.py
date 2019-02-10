@@ -39,6 +39,9 @@ class TestEdgeQLUtils(tb.BaseEdgeQLCompilerTest):
         type Profile extending NamedObject:
             required property value -> str
 
+        type SpecialProfile extending Profile:
+            link parent -> SpecialProfile
+
         type User extending NamedObject:
             required property active -> bool
             multi link groups -> UserGroup
@@ -110,4 +113,22 @@ class TestEdgeQLUtils(tb.BaseEdgeQLCompilerTest):
             """SELECT 'a' ++ 'b'""",
             """SELECT 'ab'""",
             'std::str',
+        )
+
+    def test_edgeql_utils_normalize_12(self):
+        self._assert_normalize_expr(
+            """WITH MODULE test
+               SELECT User.profile[IS SpecialProfile].parent.value
+            """,
+            """SELECT test::User.profile[IS test::SpecialProfile].parent.value
+            """,
+        )
+
+    def test_edgeql_utils_normalize_13(self):
+        self._assert_normalize_expr(
+            """WITH MODULE test
+               SELECT User.profile[IS SpecialProfile][IS NamedObject].name
+            """,
+            "SELECT test::User.profile[IS test::SpecialProfile]"
+            "[IS test::NamedObject].name",
         )

@@ -32,7 +32,6 @@ from edb.ir import staeval as ireval
 from edb.ir import typeutils as irtyputils
 
 from edb.schema import abc as s_abc
-from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 
 from edb.edgeql import ast as qlast
@@ -43,7 +42,6 @@ from . import dispatch
 from . import inference
 from . import pathctx
 from . import setgen
-from . import schemactx
 from . import typegen
 
 from . import func  # NOQA
@@ -416,33 +414,6 @@ def compile_TypeCast(
     new_stype = typegen.ql_typeref_to_type(expr.type, ctx=ctx)
     return cast.compile_cast(
         ir_expr, new_stype, ctx=ctx, srcctx=expr.expr.context)
-
-
-@dispatch.compile.register(qlast.TypeFilter)
-def compile_TypeFilter(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    # Expr[IS Type] expressions.
-    with ctx.new() as scopectx:
-        arg = setgen.ensure_set(
-            dispatch.compile(expr.expr, ctx=scopectx),
-            ctx=scopectx)
-
-    arg_type = inference.infer_type(arg, ctx.env)
-    if not isinstance(arg_type, s_objtypes.ObjectType):
-        raise errors.QueryError(
-            f'invalid type filter operand: '
-            f'{arg_type.get_displayname(ctx.env.schema)} '
-            f'is not an object type',
-            context=expr.expr.context)
-
-    typ = schemactx.get_schema_type(expr.type.maintype, ctx=ctx)
-    if not isinstance(typ, s_objtypes.ObjectType):
-        raise errors.QueryError(
-            f'invalid type filter operand: '
-            f'{typ.get_displayname(ctx.env.schema)} is not an object type',
-            context=expr.type.context)
-
-    return setgen.class_indirection_set(arg, typ, optional=False, ctx=ctx)
 
 
 @dispatch.compile.register(qlast.Introspect)

@@ -4102,7 +4102,7 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'invalid type filter operand: std::int64 is not '
                 r'an object type',
-                position=23):
+                position=25):
 
             await self.con.execute('''\
                 SELECT 10[IS std::Object];
@@ -4123,7 +4123,7 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'invalid type filter operand: '
                 r'std::uuid is not an object type',
-                position=36):
+                position=32):
 
             await self.con.execute('''\
                 SELECT Object.id[IS uuid];
