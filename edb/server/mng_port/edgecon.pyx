@@ -806,10 +806,25 @@ cdef class EdgeConnection:
                     raise
 
                 except Exception as ex:
+                    if self.backend is None:
+                        # The connection has been aborted; there's nothing
+                        # we can do except shutting this down.
+                        if self._con_status == EDGECON_BAD:
+                            return
+                        else:
+                            raise
+
                     self.dbview.tx_error()
                     self.buffer.finish_message()
 
                     await self.write_error(ex)
+                    if self.backend is None:
+                        # The connection was aborted while we were
+                        # interpreting the error (via compiler/errmech.py).
+                        if self._con_status == EDGECON_BAD:
+                            return
+                        else:
+                            raise
 
                     if flush_sync_on_error:
                         self.write(self.pgcon_last_sync_status())
