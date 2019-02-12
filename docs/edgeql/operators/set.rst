@@ -12,7 +12,7 @@ This section describes EdgeQL operators that work on whole sets.
 .. eql:operator:: DISTINCT: DISTINCT A
 
     :optype A: SET OF anytype
-    :resulttype: anytype
+    :resulttype: SET OF anytype
 
     Return a set without repeating any elements.
 
