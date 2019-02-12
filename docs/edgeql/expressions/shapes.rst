@@ -154,3 +154,47 @@ Cardinality is normally statically inferred from the query, so
 overruling this inference may only be done to *relax* the cardinality,
 so it is not valid to specify the ``single`` qualifier for a computable
 expression that may return multiple items.
+
+
+Link Properties
++++++++++++++++
+
+A query could use a shape to create an alias to a real link. In this
+case, the link properties on that link are preserved on the aliased
+link as well. Consider the following schema:
+
+.. code-block:: eschema
+
+    abstract link friends:
+        property since -> datetime
+
+    type User:
+        required property name -> str
+        multi link friends -> User
+
+
+Suppose that for a certain query the link ``friends`` needs to be
+renamed into ``associates`` without changing the underlying schema. A
+shape annotation can be used to provide an alias for the link:
+
+.. code-block:: edgeql
+
+    WITH
+        MODULE example,
+        SpecialUser := (
+            SELECT User {
+                associates := User.friends
+            }
+        )
+    SELECT SpecialUser {
+        name,
+        associates: {
+            name,
+            @since
+        }
+    };
+
+When a simple path is used as the definition of a computable link,
+that has the effect of aliasing the underlying link and thus
+preserving any link properties as well. For a path that has more than
+one step, it is always the *last* step that is aliased.
