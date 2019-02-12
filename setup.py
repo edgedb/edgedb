@@ -40,7 +40,7 @@ RUNTIME_DEPS = [
     'prompt_toolkit>=2.0.0',
     'Pygments~=2.3.0',
     'setproctitle~=1.1.10',
-    'uvloop~=0.12.0',
+    'uvloop~=0.12.1',
 
     'graphql-core~=2.1.0',
     'promise~=2.2.0',
