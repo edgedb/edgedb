@@ -23,6 +23,7 @@ import getpass
 import logging
 import os
 import os.path
+import pathlib
 import setproctitle
 import signal
 import socket
@@ -57,25 +58,44 @@ def terminate_server(server, loop):
 
 
 @contextlib.contextmanager
-def _runstate_dir(path):
-    if path is None:
-        path = '/run'
-        if not os.path.isdir(path):
-            path = '/var/run'
-    if not os.path.isdir(path):
-        abort(f'{path!r} is not a valid path; please point '
-              f'--runstate-dir to a valid directory')
-        return
+def _runstate_dir(data_dir, runstate_dir):
+    if runstate_dir is None:
+        try:
+            runstate_dir = edgedb_cluster.get_runstate_path(data_dir)
+        except edgedb_cluster.ClusterError:
+            abort(
+                f'cannot determine the runstate directory location; '
+                f'please use --runstate-dir to specify the correct location')
+
+    runstate_dir = pathlib.Path(runstate_dir)
+
+    if not runstate_dir.exists():
+        if not runstate_dir.parent.exists():
+            abort(
+                f'cannot create the runstate directory: '
+                f'{str(runstate_dir.parent)!r} does not exist; please use '
+                f'--runstate-dir to specify the correct location')
+
+        try:
+            runstate_dir.mkdir()
+        except PermissionError as ex:
+            abort(
+                f'cannot create the runstate directory: '
+                f'{ex!s}; please use --runstate-dir to specify '
+                f'the correct location')
+
+    if not os.path.isdir(runstate_dir):
+        abort(f'{str(runstate_dir)!r} is not a directory; please use '
+              f'--runstate-dir to specify the correct location')
 
     try:
-        with tempfile.TemporaryDirectory(prefix='edgedb-', dir=path) as td:
+        with tempfile.TemporaryDirectory(prefix='internal-',
+                                         dir=runstate_dir) as td:
             yield td
     except PermissionError as ex:
-        if not devmode.is_in_dev_mode():
-            abort(f'no permissions to write to {path!r} directory: {str(ex)}')
-            return
-        with tempfile.TemporaryDirectory(prefix='edgedb-') as td:
-            yield td
+        abort(f'cannot write to the runstate directory: '
+              f'{ex!s}; please fix the permissions or use '
+              f'--runstate-dir to specify the correct location')
 
 
 def _init_cluster(cluster, args):
@@ -226,7 +246,8 @@ def run_server(args):
         if args['bootstrap']:
             _init_cluster(cluster, args)
         else:
-            with _runstate_dir(args['runstate_dir']) as rsdir:
+            with _runstate_dir(
+                    cluster.get_data_dir(), args['runstate_dir']) as rsdir:
                 _run_server(cluster, args, rsdir)
 
     except BaseException:
@@ -271,6 +292,10 @@ def run_server(args):
     '--default-database-user', type=str, default=getpass.getuser(),
     help='the name of the default database owner')
 @click.option(
+    '--devmode/--no-devmode',
+    help='enable or disable the development mode',
+    default=None)
+@click.option(
     '-I', '--bind-address', type=str, default='127.0.0.1',
     help='IP address to listen on', envvar='EDGEDB_BIND_ADDRESS')
 @click.option(
@@ -299,6 +324,9 @@ def main(**kwargs):
     exceptions.install_excepthook()
 
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+
+    if kwargs['devmode'] is not None:
+        devmode.enable_dev_mode(kwargs['devmode'])
 
     if kwargs['background']:
         daemon_opts = {'detach_process': True}

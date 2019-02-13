@@ -100,7 +100,7 @@ def _compile_parsers(build_lib, inplace=False):
             shutil.copy2(cache, base_path / pickle_path)
 
 
-def _compile_build_meta(build_lib, pg_config):
+def _compile_build_meta(build_lib, pg_config, runstatedir):
     content = textwrap.dedent('''\
         #
         # This source file is part of the EdgeDB open source project.
@@ -113,7 +113,8 @@ def _compile_build_meta(build_lib, pg_config):
         #
 
         PG_CONFIG_PATH = {pg_config!r}
-    ''').format(pg_config=pg_config)
+        RUNSTATE_DIR = {runstatedir!r}
+    ''').format(pg_config=pg_config, runstatedir=runstatedir)
 
     directory = build_lib / 'edb' / 'server'
     if not directory.exists():
@@ -249,12 +250,15 @@ def _compile_postgres_extensions(build_base):
 class build(distutils_build.build):
 
     user_options = distutils_build.build.user_options + [
-        ('pg-config=', None, 'path to pg_config to use with this build')
+        ('pg-config=', None, 'path to pg_config to use with this build'),
+        ('runstatedir=', '/var/run/edgedb',
+         'directory to use for the runtime state'),
     ]
 
     def initialize_options(self):
         super().initialize_options()
         self.pg_config = None
+        self.runstatedir = None
 
     def finalize_options(self):
         super().finalize_options()
@@ -264,7 +268,7 @@ class build(distutils_build.build):
         build_lib = pathlib.Path(self.build_lib)
         _compile_parsers(build_lib)
         if self.pg_config:
-            _compile_build_meta(build_lib, self.pg_config)
+            _compile_build_meta(build_lib, self.pg_config, self.runstatedir)
 
 
 class develop(setuptools_develop.develop):

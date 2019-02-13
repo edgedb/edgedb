@@ -64,13 +64,13 @@ def find_available_port(port_range=(49152, 65535), max_tries=1000):
     return port
 
 
-def get_pg_config_path_from_build_meta() -> os.PathLike:
+def get_build_metadata_value(prop: str) -> str:
     try:
         from . import _buildmeta
-        return pathlib.Path(_buildmeta.PG_CONFIG_PATH)
+        return getattr(_buildmeta, prop)
     except (ImportError, AttributeError):
-        raise LookupError('could not find pg_config in build metadata') \
-            from None
+        raise ClusterError(
+            f'could not find {prop} in build metadata') from None
 
 
 def get_pg_config_path() -> os.PathLike:
@@ -80,8 +80,9 @@ def get_pg_config_path() -> os.PathLike:
                      'install' / 'bin' / 'pg_config').resolve()
         if not pg_config.is_file():
             try:
-                pg_config = get_pg_config_path_from_build_meta()
-            except LookupError:
+                pg_config = pathlib.Path(
+                    get_build_metadata_value('PG_CONFIG_PATH'))
+            except ClusterError:
                 pass
 
         if not pg_config.is_file():
@@ -89,10 +90,8 @@ def get_pg_config_path() -> os.PathLike:
                                'run `pip install -e .`')
 
     else:
-        try:
-            pg_config = get_pg_config_path_from_build_meta()
-        except LookupError:
-            raise ClusterError('could not find pg_config') from None
+        pg_config = pathlib.Path(
+            get_build_metadata_value('PG_CONFIG_PATH'))
 
         if not pg_config.is_file():
             raise ClusterError(
@@ -105,6 +104,13 @@ def get_pg_config_path() -> os.PathLike:
 def get_pg_cluster(data_dir: os.PathLike) -> pg_cluster.Cluster:
     pg_config = get_pg_config_path()
     return pg_cluster.Cluster(data_dir=data_dir, pg_config_path=str(pg_config))
+
+
+def get_runstate_path(data_dir: os.PathLike) -> os.PathLike:
+    if devmode.is_in_dev_mode():
+        return data_dir
+    else:
+        return pathlib.Path(get_build_metadata_value('RUNSTATEDIR'))
 
 
 class ClusterError(Exception):
