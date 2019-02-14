@@ -4,12 +4,9 @@
 Schema Attributes
 =================
 
-*Schema attributes* are named values associated with schema items and are
-designed to hold arbitrary schema-level metadata.
-
-Every schema attribute is declared to have a specific
-:ref:`scalar type <ref_datamodel_scalar_types>` or a
-:ref:`collection type <ref_datamodel_collection_types>`.
+*Schema attributes* are named values associated with schema items and
+are designed to hold arbitrary schema-level metadata represented as a
+:eql:type:`str`.
 
 
 Definition
