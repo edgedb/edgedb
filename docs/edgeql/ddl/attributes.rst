@@ -118,7 +118,7 @@ Create an object type ``User`` and set its ``title`` attribute to
 .. code-block:: edgeql
 
     CREATE TYPE User {
-        SET ATTRIBUTE title := 'User type';
+        SET ATTRIBUTE title := "User type";
     };
 
 
