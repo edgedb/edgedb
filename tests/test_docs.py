@@ -162,6 +162,10 @@ class TestDocSnippets(unittest.TestCase):
                 pass
             elif block.lang == 'graphql':
                 graphql_parser.parse(block.code)
+            elif block.lang == 'graphql-schema':
+                # The graphql-schema can be highlighted using graphql
+                # lexer, but it does not have a dedicated parser.
+                pass
             elif block.lang == 'json':
                 json.loads(block.code)
             elif block.lang == 'edgeql-repl':

@@ -70,7 +70,7 @@ argument. The ``filter`` argument is customized to each specific type
 based on the available fields. In case of the sample schema, here's
 what the specification for the available filter arguments:
 
-.. code-block::
+.. code-block:: graphql-schema
 
     # this is Author-specific
     input FilterAuthor {
@@ -192,7 +192,7 @@ based on the available fields, much like the ``filter``. In case of
 the sample schema, here's what the specification for the available
 filter arguments:
 
-.. code-block::
+.. code-block:: graphql-schema
 
     # this is Author-specific
     input OrderAuthor {
@@ -259,7 +259,7 @@ The pagination works in a similar way to Relay Connections. In case of
 the sample schema, here's what the specification for the available
 filter arguments:
 
-.. code-block::
+.. code-block:: graphql-schema
 
     # a relevant Query definition snippet
     type Query {
