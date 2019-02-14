@@ -251,8 +251,7 @@ class build(distutils_build.build):
 
     user_options = distutils_build.build.user_options + [
         ('pg-config=', None, 'path to pg_config to use with this build'),
-        ('runstatedir=', '/var/run/edgedb',
-         'directory to use for the runtime state'),
+        ('runstatedir=', None, 'directory to use for the runtime state'),
     ]
 
     def initialize_options(self):
