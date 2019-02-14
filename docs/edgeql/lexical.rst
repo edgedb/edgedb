@@ -292,12 +292,6 @@ equivalent to whitespace.
 Operators
 ---------
 
-.. TODO
-
-
-Operator Precedence
-^^^^^^^^^^^^^^^^^^^
-
 EdgeQL operators listed in order of precedence from lowest to highest:
 
 .. list-table::
