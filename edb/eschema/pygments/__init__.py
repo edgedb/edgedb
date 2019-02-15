@@ -18,18 +18,36 @@
 
 
 from pygments import lexer, token
-from edb.edgeql.parser.grammar import keywords as eql_keywords
-from edb.eschema.parser.grammar import keywords as sch_keywords
+
+from . import meta
+
 
 __all__ = ['EdgeSchemaLexer']
 
 
-unreserved_keywords = (
-    (eql_keywords.unreserved_keywords | sch_keywords.unreserved_keywords) -
-    {'true', 'false', 'abstract', 'final', 'required', 'as', 'import', 'to'}
-)
-reserved_keywords = sch_keywords.reserved_keywords - {
-    '__source__', '__subject__', '__type__'}
+unreserved_keywords = sorted(set(
+    meta.EdgeQL.unreserved_keywords + meta.Eschema.unreserved_keywords
+))
+reserved_keywords = meta.Eschema.reserved_keywords
+builtins = sorted(set(
+    meta.EdgeQL.type_builtins + meta.EdgeQL.constraint_builtins +
+    meta.EdgeQL.fn_builtins))
+stdmodules = meta.EdgeQL.module_builtins
+# Operators need to be sorted from longest to shortest to match
+# correctly. Lexicographical sort is added on top of that for
+# stability, but is not itself important.
+operators = sorted(meta.EdgeQL.operators,
+                   key=lambda x: (len(x), x), reverse=True)
+# the operator symbols need to be escaped
+operators = ['\\' + '\\'.join(op) for op in operators]
+
+# navigation punctuation needs to be processed similar to operators
+navigation = sorted(meta.EdgeQL.navigation,
+                    key=lambda x: (len(x), x), reverse=True)
+# the operator symbols need to be escaped
+navigation = ['\\' + '\\'.join(nav) for nav in navigation
+              # exclude '.' for the moment
+              if nav != '.']
 
 
 class EdgeSchemaLexer(lexer.RegexLexer):
@@ -40,6 +58,8 @@ class EdgeSchemaLexer(lexer.RegexLexer):
     tokens = {
         'root': [
             lexer.include('comments'),
+            (fr"(?x)({' | '.join(operators)})", token.Operator),
+            (fr"(?x)({' | '.join(navigation)})", token.Punctuation.Navigation),
             lexer.include('keywords'),
             (r'@\w+', token.Name.Decorator),
             (r'\$[\w\d]+', token.Name.Variable),
@@ -49,20 +69,10 @@ class EdgeSchemaLexer(lexer.RegexLexer):
             (r'\s+', token.Text),
             (r'.', token.Text),
         ],
-
         'comments': [
             (r'#.*?\n', token.Comment.Singleline),
         ],
-
         'keywords': [
-            (rf'''(?ix)
-                \b(?<![:\.])(
-                    {' | '.join(unreserved_keywords)}
-                    |
-                    {' | '.join(reserved_keywords)}
-                )\b
-            ''', token.Keyword.Reserved),
-
             (r'\b(?i)(?<![:\.])(abstract|final|required)\b',
              token.Keyword.Declaration),
 
@@ -72,11 +82,28 @@ class EdgeSchemaLexer(lexer.RegexLexer):
              token.Name.Builtin.Pseudo),
 
             (r'\b(__type__)\b', token.Name.Builtin.Pseudo),
-        ],
 
+            (rf'''(?x)
+                \b(?<![:\.<>@])(
+                    {' | '.join(unreserved_keywords)}
+                    |
+                    {' | '.join(reserved_keywords)}
+                )\b
+            ''', token.Keyword.Reserved),
+
+            (fr'''(?x)
+                \b(?<!\.)(
+                    {' | '.join(stdmodules)}
+                )\b(?=::)''', token.Name.Builtin),
+
+            (fr'''(?x)
+                \b(?<!\.)(
+                    {' | '.join(builtins)}
+                )\b ''', token.Name.Builtin),
+        ],
         'strings': [
             (r'''(?x)
-                (?P<Q>['"])
+                (?P<Q>(r?)['"])
                 (?:
                     (\\['"] | \n | .)*?
                 )
@@ -96,16 +123,19 @@ class EdgeSchemaLexer(lexer.RegexLexer):
             ''', token.String.Other),
             (r'`.*?`', token.String.Backtick)
         ],
-
         'numbers': [
             (r'''(?x)
                 (?<!\w)
-                    (?: \d+ (?:\.\d+)?
-                        (?:[eE](?:[+\-])?[0-9]+)
+                    (?:
+                        (?: \d+ (?:\.\d+)?
+                            (?:[eE](?:[+\-])?[0-9]+)
+                        )
+                        |
+                        (?: \d+\.\d+)
+
+                        (n)?
                     )
-                    |
-                    (?: \d+\.\d+)
-            ''', token.Number.Float),
-            (r'(?<!\w)\d+', token.Number.Integer),
+            ''', token.Number),
+            (r'(?<!\w)\d+(n?)', token.Number),
         ],
     }

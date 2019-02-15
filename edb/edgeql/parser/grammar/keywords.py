@@ -21,8 +21,6 @@ import re
 import typing
 
 
-# NOTE: Please update the pygments lexer with any keyword changes made here
-
 keyword_types = range(1, 4)
 UNRESERVED_KEYWORD, RESERVED_KEYWORD, TYPE_FUNC_NAME_KEYWORD = keyword_types
 

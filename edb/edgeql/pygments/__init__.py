@@ -19,15 +19,34 @@
 
 from pygments.lexer import RegexLexer, include
 from pygments import token
-from edb.edgeql.parser.grammar import keywords
+
+from . import meta
 
 
 __all__ = ['EdgeQLLexer']
 
 
-unreserved_keywords = keywords.unreserved_keywords - {'true', 'false'}
-reserved_keywords = keywords.reserved_keywords - {
-    '__source__', '__subject__', '__type__'}
+unreserved_keywords = meta.EdgeQL.unreserved_keywords
+reserved_keywords = meta.EdgeQL.reserved_keywords
+builtins = sorted(set(
+    meta.EdgeQL.type_builtins + meta.EdgeQL.constraint_builtins +
+    meta.EdgeQL.fn_builtins))
+stdmodules = meta.EdgeQL.module_builtins
+# Operators need to be sorted from longest to shortest to match
+# correctly. Lexicographical sort is added on top of that for
+# stability, but is not itself important.
+operators = sorted(meta.EdgeQL.operators,
+                   key=lambda x: (len(x), x), reverse=True)
+# the operator symbols need to be escaped
+operators = ['\\' + '\\'.join(op) for op in operators]
+
+# navigation punctuation needs to be processed similar to operators
+navigation = sorted(meta.EdgeQL.navigation,
+                    key=lambda x: (len(x), x), reverse=True)
+# the operator symbols need to be escaped
+navigation = ['\\' + '\\'.join(nav) for nav in navigation
+              # exclude '.' for the moment
+              if nav != '.']
 
 
 class EdgeQLLexer(RegexLexer):
@@ -38,6 +57,8 @@ class EdgeQLLexer(RegexLexer):
     tokens = {
         'root': [
             include('comments'),
+            (fr"(?x)({' | '.join(operators)})", token.Operator),
+            (fr"(?x)({' | '.join(navigation)})", token.Punctuation.Navigation),
             include('keywords'),
             (r'@\w+', token.Name.Decorator),
             (r'\$[\w\d]+', token.Name.Variable),
@@ -51,21 +72,31 @@ class EdgeQLLexer(RegexLexer):
             (r'#.*?\n', token.Comment.Singleline),
         ],
         'keywords': [
-            (fr'''(?ix)
-                \b(?<![:\.])(
-                    {' | '.join(unreserved_keywords)}
-                    |
-                    {' | '.join(reserved_keywords)}
-                )\b ''', token.Keyword.Reserved),
-
-            (r'\b(?i)(?<![:\.])(__source__|__subject__)\b',
+            (r'\b(?i)(?<![:\.<>@])(__source__|__subject__)\b',
              token.Name.Builtin.Pseudo),
 
             (r'\b(__type__)\b', token.Name.Builtin.Pseudo),
+
+            (fr'''(?ix)
+                \b(?<![:\.<>@])(
+                    {' | '.join(unreserved_keywords)}
+                    |
+                    {' | '.join(reserved_keywords)}
+                )\b''', token.Keyword.Reserved),
+
+            (fr'''(?x)
+                \b(?<!\.)(
+                    {' | '.join(stdmodules)}
+                )\b(?=::)''', token.Name.Builtin),
+
+            (fr'''(?x)
+                \b(?<!\.)(
+                    {' | '.join(builtins)}
+                )\b''', token.Name.Builtin),
         ],
         'strings': [
             (r'''(?x)
-                (?P<Q>['"])
+                (?P<Q>(r?)['"])
                 (?:
                     (\\['"] | \n | .)*?
                 )
