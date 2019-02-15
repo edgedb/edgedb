@@ -22,8 +22,6 @@ import typing
 from edb.edgeql.parser.grammar import keywords as eql_keywords
 
 
-# NOTE: Please update the pygments lexer with any keyword changes made here
-
 keyword_types = range(1, 3)
 UNRESERVED_KEYWORD, RESERVED_KEYWORD = keyword_types
 
