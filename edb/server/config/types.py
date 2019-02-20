@@ -18,6 +18,8 @@
 
 
 import dataclasses
+import json
+import typing
 
 from edb import errors
 
@@ -47,16 +49,18 @@ class Port(ConfigType):
     database: str
     port: int
     concurrency: int
+    user: str
+    address: typing.Union[typing.List[str], str] = 'localhost'
 
     @classmethod
     def from_json(cls, s):
         return cls.from_pyvalue(s)
 
     def to_json(self):
-        return ';'.join(
-            f'{field}={str(getattr(self, field))}'
-            for field in type(self).__dataclass_fields__
-        )
+        dct = dataclasses.asdict(self)
+        if 'address' in dct and isinstance(dct['address'], frozenset):
+            dct['address'] = list(dct['address'])
+        return json.dumps(dct)
 
     def to_edgeql(self):
         return repr(self.to_json())
@@ -65,33 +69,58 @@ class Port(ConfigType):
     def from_pyvalue(cls, s):
         if not isinstance(s, str):
             raise errors.ConfigurationError(
-                '"ports" config requires std::str values')
+                'invalid "ports" config value: a std::str expected')
+
+        try:
+            data = json.loads(s)
+        except Exception:
+            raise errors.ConfigurationError(
+                'invalid "ports" config value: not a valid JSON string')
+
+        if not isinstance(data, dict):
+            raise errors.ConfigurationError(
+                'invalid "ports" config value: a JSON object expected')
+
+        fields = {f.name: f for f in dataclasses.fields(cls)}
+
+        if data.keys() - fields.keys():
+            inv_keys = ', '.join(repr(r) for r in data.keys() - fields.keys())
+            raise errors.ConfigurationError(
+                f'invalid "ports" config value: unknown fields: {inv_keys}')
 
         items = {}
+        for fieldname, value in data.items():
+            if fieldname == 'address':
+                is_valid = (
+                    isinstance(value, str) or
+                    isinstance(value, list) and
+                    all(isinstance(el, str) for el in value)
+                )
+                if not is_valid:
+                    raise errors.ConfigurationError(
+                        'invalid "ports" config value: '
+                        '"address" field must be a string or '
+                        'an array of strings')
+                if isinstance(value, list):
+                    value = frozenset(value)
+            else:
+                fieldtype = fields[fieldname].type
+                if not isinstance(value, fieldtype):
+                    raise errors.ConfigurationError(
+                        f'invalid "ports" config value: '
+                        f'"{fieldname}" field must be a {fieldtype.__name__}, '
+                        f'got {type(value).__name__} instead')
 
-        parts = s.split(';')
-        for part in parts:
-            left, _, right = part.partition('=')
-            if not left or not right:
+            items[fieldname] = value
+
+        for fieldname, field in fields.items():
+            if fieldname not in items and field.default is dataclasses.MISSING:
                 raise errors.ConfigurationError(
-                    'invalid key/value item for the "ports" config')
-
-            if left not in cls.__dataclass_fields__:
-                raise errors.ConfigurationError(
-                    f'{left!r} is not a valid config key for the '
-                    f'"ports" config')
-
-            try:
-                right = cls.__dataclass_fields__[left].type(right)
-            except (TypeError, ValueError):
-                raise errors.ConfigurationError(
-                    f'{left}={right!r} is not a valid config value for the '
-                    f'"ports" config')
-
-            items[left] = right
+                    f'invalid "ports" config value: '
+                    f'"{fieldname}" field is required')
 
         try:
             return cls(**items)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as ex:
             raise errors.ConfigurationError(
-                f'invalid "ports" config {s!r}')
+                f'invalid "ports" config value: {ex}')

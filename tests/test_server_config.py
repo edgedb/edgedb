@@ -29,6 +29,17 @@ from edb.server.config import spec
 from edb.server.config import types
 
 
+def make_port_json(*, protocol='http+graphql',
+                   database='testdb',
+                   user='test',
+                   concurrency=4,
+                   port=1000,
+                   **kwargs):
+    return json.dumps(dict(
+        protocol=protocol, user=user, database=database,
+        concurrency=concurrency, port=port, **kwargs))
+
+
 testspec1 = spec.Spec(
     spec.Setting(
         'int',
@@ -46,7 +57,7 @@ testspec1 = spec.Spec(
     spec.Setting(
         'port',
         type=types.Port,
-        default=types.Port('http+graphql', 'foo', 8080, 4)),
+        default=types.Port.from_pyvalue(make_port_json())),
 
     spec.Setting(
         'ints',
@@ -83,10 +94,8 @@ class TestServerConfigUtils(unittest.TestCase):
                 'int': [0, '0'],
                 'ints': [[], '{}'],
                 'port': [
-                    'protocol=http+graphql;database=foo;port=8080;' +
-                    'concurrency=4',
-                    '\'protocol=http+graphql;database=foo;port=8080;' +
-                    'concurrency=4\''
+                    testspec1['port'].default.to_json(),
+                    testspec1['port'].default.to_edgeql(),
                 ],
                 'ports': [[], '{}'],
                 'str': ['hello', "'hello'"],
@@ -106,7 +115,7 @@ class TestServerConfigUtils(unittest.TestCase):
             ops.OpCode.CONFIG_ADD,
             ops.OpLevel.SYSTEM,
             'ports',
-            'protocol=http+edgeql;database=f1;port=8080;concurrency=4'
+            make_port_json(database='f1')
         )
         storage1 = op.apply(testspec1, storage)
 
@@ -114,15 +123,15 @@ class TestServerConfigUtils(unittest.TestCase):
             ops.OpCode.CONFIG_ADD,
             ops.OpLevel.SYSTEM,
             'ports',
-            'protocol=http+edgeql;database=f2;port=8080;concurrency=4'
+            make_port_json(database='f2')
         )
         storage2 = op.apply(testspec1, storage1)
 
         self.assertEqual(
             storage2['ports'],
             {
-                types.Port('http+edgeql', 'f1', 8080, 4),
-                types.Port('http+edgeql', 'f2', 8080, 4),
+                types.Port.from_pyvalue(make_port_json(database='f1')),
+                types.Port.from_pyvalue(make_port_json(database='f2')),
             })
 
         j = ops.to_json(testspec1, storage2)
@@ -133,21 +142,21 @@ class TestServerConfigUtils(unittest.TestCase):
             ops.OpCode.CONFIG_REM,
             ops.OpLevel.SYSTEM,
             'ports',
-            'protocol=http+edgeql;database=f1;port=8080;concurrency=4'
+            make_port_json(database='f1')
         )
         storage3 = op.apply(testspec1, storage2)
 
         self.assertEqual(
             storage3['ports'],
             {
-                types.Port('http+edgeql', 'f2', 8080, 4),
+                types.Port.from_pyvalue(make_port_json(database='f2')),
             })
 
         op = ops.Operation(
             ops.OpCode.CONFIG_REM,
             ops.OpLevel.SYSTEM,
             'ports',
-            'protocol=http+edgeql;database=f1;port=8080;concurrency=4'
+            make_port_json(database='f1')
         )
         storage4 = op.apply(testspec1, storage3)
         self.assertEqual(storage3, storage4)
@@ -159,20 +168,49 @@ class TestServerConfigUtils(unittest.TestCase):
             ops.OpCode.CONFIG_ADD,
             ops.OpLevel.SYSTEM,
             'ports',
-            'protocl=http+edgeql;database'
+            make_port_json(zzzzzzz='zzzzz')
         )
-        with self.assertRaisesRegex(errors.ConfigurationError, "'protocl"):
+        with self.assertRaisesRegex(errors.ConfigurationError,
+                                    "unknown fields: 'zzz"):
+            op.apply(testspec1, storage)
+
+        op = ops.Operation(
+            ops.OpCode.CONFIG_ADD,
+            ops.OpLevel.SYSTEM,
+            'ports',
+            make_port_json(concurrency='a')
+        )
+        with self.assertRaisesRegex(errors.ConfigurationError,
+                                    '"concurrency" field must be a int'):
             op.apply(testspec1, storage)
 
         op = ops.Operation(
             ops.OpCode.CONFIG_ADD,
             ops.OpLevel.SYSTEM,
             'por',
-            'protocl=http+edgeql;database'
+            make_port_json(concurrency='a')
         )
         with self.assertRaisesRegex(errors.ConfigurationError,
                                     "unknown setting"):
             op.apply(testspec1, storage)
+
+        op = ops.Operation(
+            ops.OpCode.CONFIG_ADD,
+            ops.OpLevel.SYSTEM,
+            'ports',
+            make_port_json(address=["aaa", 123])
+        )
+        with self.assertRaisesRegex(errors.ConfigurationError,
+                                    "string or an array of strings"):
+            op.apply(testspec1, storage)
+
+        op = ops.Operation(
+            ops.OpCode.CONFIG_ADD,
+            ops.OpLevel.SYSTEM,
+            'ports',
+            make_port_json(address="aaa")
+        )
+        op.apply(testspec1, storage)
 
     def test_server_config_04(self):
         storage = immutables.Map()
