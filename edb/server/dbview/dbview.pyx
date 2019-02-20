@@ -218,9 +218,6 @@ cdef class DatabaseConnectionView:
         if not self._in_tx and query_unit.has_ddl:
             self._db._signal_ddl()
 
-        if query_unit.config_ops is not None:
-            self.apply_config_ops(query_unit.config_ops)
-
         if query_unit.modaliases is not None:
             self._modaliases = query_unit.modaliases
 
@@ -242,10 +239,10 @@ cdef class DatabaseConnectionView:
             # is executed outside of a tx.
             self._reset_tx_state()
 
-    cdef apply_config_ops(self, ops):
+    async def apply_config_ops(self, ops):
         for op in ops:
             if op.level is config.OpLevel.SYSTEM:
-                self._db._index.apply_system_config_op(op)
+                await self._db._index.apply_system_config_op(op)
             else:
                 self.set_session_config(
                     op.apply(
@@ -261,10 +258,10 @@ cdef class DatabaseConnectionView:
 
 cdef class DatabaseIndex:
 
-    def __init__(self, data_dir):
+    def __init__(self, server):
         self._dbs = {}
 
-        self._data_dir = data_dir
+        self._server = server
 
         self._sys_config = immutables.Map()
         self._sys_config_ver = time.monotonic_ns()
@@ -277,11 +274,23 @@ cdef class DatabaseIndex:
             self._dbs[dbname] = db
         return db
 
-    cdef apply_system_config_op(self, op):
-        self._sys_config = op.apply(
-            config.settings, self._sys_config)
+    async def apply_system_config_op(self, op):
+        op_value = op.coerce_value(op.get_setting(config.settings))
 
-        with open(os.path.join(self._data_dir, 'config_sys.json'), 'wt') as f:
+        if op.opcode is config.OpCode.CONFIG_ADD:
+            await self._server._on_system_config_add(op.setting_name, op_value)
+        elif op.opcode is config.OpCode.CONFIG_REM:
+            await self._server._on_sysyem_config_rem(op.setting_name, op_value)
+        elif op.opcode is config.OpCode.CONFIG_SET:
+            await self._server._on_system_config_set(op.setting_name, op_value)
+        else:
+            raise errors.UnsupportedFeatureError(
+                f'unsupported config operation: {op.opcode}')
+
+        self._sys_config = op.apply(config.settings, self._sys_config)
+
+        fn = os.path.join(self._server.get_datadir(), 'config_sys.json')
+        with open(fn, 'wt') as f:
             f.write(config.to_json(config.settings, self._sys_config))
 
         self._sys_config_ver = time.monotonic_ns()

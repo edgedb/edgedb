@@ -38,12 +38,13 @@ class Server:
         self._pg_addr = self._get_pgaddr()
         self._pg_data_dir = self._cluster.get_data_dir()
 
-        self._dbindex = dbview.DatabaseIndex(self._pg_data_dir)
+        self._dbindex = dbview.DatabaseIndex(self)
 
         self._runstate_dir = runstate_dir
         self._max_backend_connections = max_backend_connections
 
         self._ports = []
+        self._ports_index = {}
 
     def _get_pgaddr(self):
         pg_con_spec = self._cluster.get_connection_spec()
@@ -57,6 +58,21 @@ class Server:
             port = pg_con_spec.get("port")
 
         return os.path.join(host, f'.s.PGSQL.{port}')
+
+    async def _on_system_config_add(self, setting_name, value):
+        # SET SYSTEM CONFIG setting_name += value;
+        pass
+
+    async def _on_system_config_rem(self, setting_name, value):
+        # SET SYSTEM CONFIG setting_name -= value;
+        pass
+
+    async def _on_system_config_set(self, setting_name, value):
+        # SET SYSTEM CONFIG setting_name := value;
+        pass
+
+    def get_datadir(self):
+        return self._pg_data_dir
 
     def add_port(self, portcls, **kwargs):
         if self._serving:

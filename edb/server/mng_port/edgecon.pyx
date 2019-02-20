@@ -321,21 +321,23 @@ cdef class EdgeConnection:
             raise errors.TransactionError(
                 'GraphQL queries cannot run in a transaction block')
 
-        compiled = await self.backend.compiler.call(
+        query_unit = await self.backend.compiler.call(
             'compile_graphql',
             self.dbview.dbver,
             gql,
             self.dbview.modaliases,
             self.dbview.get_session_config())
 
-        self.dbview.start(compiled)
+        self.dbview.start(query_unit)
         try:
             res = await self.backend.pgcon.simple_query(
-                b';'.join(compiled.sql), ignore_data=False)
+                b';'.join(query_unit.sql), ignore_data=False)
+            if query_unit.config_ops is not None:
+                await self.dbview.apply_config_ops(query_unit.config_ops)
         except ConnectionAbortedError:
             raise
         except Exception as ex:
-            self.dbview.on_error(compiled)
+            self.dbview.on_error(query_unit)
             if not self.backend.pgcon.in_tx() and self.dbview.in_tx():
                 # COMMIT command can fail, in which case the
                 # transaction is aborted.  This check workarounds
@@ -344,7 +346,7 @@ cdef class EdgeConnection:
                 await self.recover_current_tx_info()
             raise
         else:
-            self.dbview.on_success(compiled)
+            self.dbview.on_success(query_unit)
 
         if res is not None:
             if len(res) > 1:
@@ -370,18 +372,18 @@ cdef class EdgeConnection:
     async def _recover_script_error(self, eql):
         assert self.dbview.in_tx_error()
 
-        compiled, num_remain = await self._compile_rollback(eql)
+        query_unit, num_remain = await self._compile_rollback(eql)
         await self.backend.pgcon.simple_query(
-            b';'.join(compiled.sql), ignore_data=True)
+            b';'.join(query_unit.sql), ignore_data=True)
 
-        if compiled.tx_savepoint_rollback:
+        if query_unit.tx_savepoint_rollback:
             if self.debug:
                 self.debug_print(f'== RECOVERY: ROLLBACK TO SP')
             await self.recover_current_tx_info()
         else:
             if self.debug:
                 self.debug_print('== RECOVERY: ROLLBACK')
-            assert compiled.tx_rollback
+            assert query_unit.tx_rollback
             self.dbview.abort_tx()
 
         if num_remain:
@@ -416,15 +418,17 @@ cdef class EdgeConnection:
 
         units = await self._compile(eql, False, stmt_mode)
 
-        for unit in units:
-            self.dbview.start(unit)
+        for query_unit in units:
+            self.dbview.start(query_unit)
             try:
                 await self.backend.pgcon.simple_query(
-                    b';'.join(unit.sql), ignore_data=True)
+                    b';'.join(query_unit.sql), ignore_data=True)
+                if query_unit.config_ops is not None:
+                    await self.dbview.apply_config_ops(query_unit.config_ops)
             except ConnectionAbortedError:
                 raise
             except Exception:
-                self.dbview.on_error(unit)
+                self.dbview.on_error(query_unit)
                 if not self.backend.pgcon.in_tx() and self.dbview.in_tx():
                     # COMMIT command can fail, in which case the
                     # transaction is aborted.  This check workarounds
@@ -433,7 +437,7 @@ cdef class EdgeConnection:
                     await self.recover_current_tx_info()
                 raise
             else:
-                self.dbview.on_success(unit)
+                self.dbview.on_success(query_unit)
 
         packet = WriteBuffer.new()
         packet.write_buffer(WriteBuffer.new_message(b'C').end_message())
@@ -445,9 +449,9 @@ cdef class EdgeConnection:
         if self.debug:
             self.debug_print('PARSE', eql)
 
-        compiled = self.dbview.lookup_compiled_query(eql, json_mode)
+        query_unit = self.dbview.lookup_compiled_query(eql, json_mode)
         cached = True
-        if compiled is None:
+        if query_unit is None:
             # Cache miss; need to compile this query.
             cached = False
 
@@ -455,45 +459,45 @@ cdef class EdgeConnection:
                 # The current transaction is aborted; only
                 # ROLLBACK or ROLLBACK TO TRANSACTION could be parsed;
                 # try doing just that.
-                compiled, num_remain = await self._compile_rollback(eql)
+                query_unit, num_remain = await self._compile_rollback(eql)
                 if num_remain:
                     # Raise an error if there were more than just a
                     # ROLLBACK in that 'eql' string.
                     self.dbview.raise_in_tx_error()
             else:
-                compiled = await self._compile(eql, json_mode, 'single')
-                compiled = compiled[0]
+                query_unit = await self._compile(eql, json_mode, 'single')
+                query_unit = query_unit[0]
         elif self.dbview.in_tx_error():
             # We have a cached QueryUnit for this 'eql', but the current
             # transaction is aborted.  We can only complete this Parse
             # command if the cached QueryUnit is a 'ROLLBACK' or
             # 'ROLLBACK TO SAVEPOINT' command.
-            if not (compiled.tx_rollback or compiled.tx_savepoint_rollback):
+            if not (query_unit.tx_rollback or query_unit.tx_savepoint_rollback):
                 self.dbview.raise_in_tx_error()
 
         await self.backend.pgcon.parse_execute(
             1,          # =parse
             0,          # =execute
-            compiled,   # =query
+            query_unit,   # =query
             self,       # =edgecon
             None,       # =bind_data
             0,          # =send_sync
             0,          # =use_prep_stmt
         )
 
-        if not cached and compiled.cacheable:
-            self.dbview.cache_compiled_query(eql, json_mode, compiled)
+        if not cached and query_unit.cacheable:
+            self.dbview.cache_compiled_query(eql, json_mode, query_unit)
 
-        self._last_anon_compiled = compiled
-        return compiled
+        self._last_anon_compiled = query_unit
+        return query_unit
 
-    cdef int32_t compute_parse_flags(self, compiled) except -1:
+    cdef int32_t compute_parse_flags(self, query_unit) except -1:
         cdef:
             int32_t flags = 0
 
-        if compiled.has_result:
+        if query_unit.has_result:
             flags |= EdgeParseFlags.PARSE_HAS_RESULT
-        if compiled.singleton_result:
+        if query_unit.singleton_result:
             flags |= EdgeParseFlags.PARSE_SINGLETON_RESULT
 
         return flags
@@ -527,33 +531,33 @@ cdef class EdgeConnection:
         if not eql:
             raise errors.BinaryProtocolError('empty query')
 
-        compiled = await self._parse(eql, json_mode)
+        query_unit = await self._parse(eql, json_mode)
 
         buf = WriteBuffer.new_message(b'1')  # ParseComplete
-        buf.write_int32(self.compute_parse_flags(compiled))
-        buf.write_bytes(compiled.in_type_id)
-        buf.write_bytes(compiled.out_type_id)
+        buf.write_int32(self.compute_parse_flags(query_unit))
+        buf.write_bytes(query_unit.in_type_id)
+        buf.write_bytes(query_unit.out_type_id)
         buf.end_message()
 
         self.write(buf)
 
     #############
 
-    cdef make_describe_response(self, compiled):
+    cdef make_describe_response(self, query_unit):
         cdef:
             WriteBuffer msg
 
         msg = WriteBuffer.new_message(b'T')
 
-        msg.write_int32(self.compute_parse_flags(compiled))
+        msg.write_int32(self.compute_parse_flags(query_unit))
 
-        in_data = compiled.in_type_data
-        msg.write_bytes(compiled.in_type_id)
+        in_data = query_unit.in_type_data
+        msg.write_bytes(query_unit.in_type_id)
         msg.write_int16(len(in_data))
         msg.write_bytes(in_data)
 
-        out_data = compiled.out_type_data
-        msg.write_bytes(compiled.out_type_id)
+        out_data = query_unit.out_type_data
+        msg.write_bytes(query_unit.out_type_id)
         msg.write_int16(len(out_data))
         msg.write_bytes(out_data)
 
@@ -585,19 +589,19 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError(
                 f'unsupported "describe" message mode {chr(rtype)!r}')
 
-    async def _execute(self, compiled, bind_args,
+    async def _execute(self, query_unit, bind_args,
                        bint parse, bint use_prep_stmt):
         if self.dbview.in_tx_error():
-            if not (compiled.tx_savepoint_rollback or compiled.tx_rollback):
+            if not (query_unit.tx_savepoint_rollback or query_unit.tx_rollback):
                 self.dbview.raise_in_tx_error()
 
             await self.backend.pgcon.simple_query(
-                b';'.join(compiled.sql), ignore_data=True)
+                b';'.join(query_unit.sql), ignore_data=True)
 
-            if compiled.tx_savepoint_rollback:
+            if query_unit.tx_savepoint_rollback:
                 await self.recover_current_tx_info()
             else:
-                assert compiled.tx_rollback
+                assert query_unit.tx_rollback
                 self.dbview.abort_tx()
 
             self.write(WriteBuffer.new_message(b'C').end_message())
@@ -612,21 +616,23 @@ cdef class EdgeConnection:
             process_sync = True
 
         try:
-            self.dbview.start(compiled)
+            self.dbview.start(query_unit)
             try:
                 await self.backend.pgcon.parse_execute(
                     parse,              # =parse
                     1,                  # =execute
-                    compiled,           # =query
+                    query_unit,         # =query
                     self,               # =edgecon
                     bound_args_buf,     # =bind_data
                     process_sync,       # =send_sync
                     use_prep_stmt,      # =use_prep_stmt
                 )
+                if query_unit.config_ops is not None:
+                    await self.dbview.apply_config_ops(query_unit.config_ops)
             except ConnectionAbortedError:
                 raise
             except Exception:
-                self.dbview.on_error(compiled)
+                self.dbview.on_error(query_unit)
                 if not self.backend.pgcon.in_tx() and self.dbview.in_tx():
                     # COMMIT command can fail, in which case the
                     # transaction is finished.  This check workarounds
@@ -635,7 +641,7 @@ cdef class EdgeConnection:
                     await self.recover_current_tx_info()
                 raise
             else:
-                self.dbview.on_success(compiled)
+                self.dbview.on_success(query_unit)
 
             self.write(WriteBuffer.new_message(b'C').end_message())
 
@@ -657,7 +663,7 @@ cdef class EdgeConnection:
 
         stmt_name = self.buffer.read_utf8()
         bind_args = self.buffer.consume_message()
-        compiled = None
+        query_unit = None
 
         if self.debug:
             self.debug_print('EXECUTE')
@@ -670,9 +676,9 @@ cdef class EdgeConnection:
                 raise errors.BinaryProtocolError(
                     'no prepared anonymous statement found')
 
-            compiled = self._last_anon_compiled
+            query_unit = self._last_anon_compiled
 
-        await self._execute(compiled, bind_args, False, False)
+        await self._execute(query_unit, bind_args, False, False)
 
     async def opportunistic_execute(self):
         cdef:
@@ -693,31 +699,31 @@ cdef class EdgeConnection:
         if not query:
             raise errors.BinaryProtocolError('empty query')
 
-        compiled = self.dbview.lookup_compiled_query(query, json_mode)
-        if compiled is None:
+        query_unit = self.dbview.lookup_compiled_query(query, json_mode)
+        if query_unit is None:
             if self.debug:
                 self.debug_print('OPPORTUNISTIC EXECUTE /REPARSE', query)
 
-            compiled = await self._parse(query, json_mode)
+            query_unit = await self._parse(query, json_mode)
 
         expected_singleton_result = bool(
             parse_flags & EdgeParseFlags.PARSE_SINGLETON_RESULT)
 
-        if (compiled.in_type_id != in_tid or
-                compiled.out_type_id != out_tid or
-                bool(compiled.singleton_result) != expected_singleton_result):
+        if (query_unit.in_type_id != in_tid or
+                query_unit.out_type_id != out_tid or
+                bool(query_unit.singleton_result) != expected_singleton_result):
             # The client has outdated information about type specs.
             if self.debug:
                 self.debug_print('OPPORTUNISTIC EXECUTE /MISMATCH', query)
 
-            self.write(self.make_describe_response(compiled))
+            self.write(self.make_describe_response(query_unit))
             return
 
         if self.debug:
             self.debug_print('OPPORTUNISTIC EXECUTE', query)
 
         await self._execute(
-            compiled, bind_args, True, bool(compiled.sql_hash))
+            query_unit, bind_args, True, bool(query_unit.sql_hash))
 
     async def sync(self):
         cdef:
