@@ -60,5 +60,5 @@ settings = Spec(
     Setting(
         '__internal_testvalue',
         type=int, default=0,
-        internal=True),
+        internal=True, system=True),
 )

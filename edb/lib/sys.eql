@@ -21,11 +21,14 @@ CREATE MODULE sys;
 
 
 CREATE TYPE sys::Config {
-    CREATE PROPERTY sys::name -> std::str;
-    CREATE PROPERTY sys::value -> std::str;
-    CREATE PROPERTY sys::source -> std::str;
-    CREATE PROPERTY sys::internal -> std::bool;
-    CREATE PROPERTY sys::system -> std::bool;
+    CREATE REQUIRED PROPERTY sys::name -> std::str {
+        CREATE CONSTRAINT std::exclusive;
+    };
+
+    CREATE REQUIRED PROPERTY sys::value -> std::str;
+    CREATE REQUIRED PROPERTY sys::source -> std::str;
+    CREATE REQUIRED PROPERTY sys::internal -> std::bool;
+    CREATE REQUIRED PROPERTY sys::system -> std::bool;
 };
 
 

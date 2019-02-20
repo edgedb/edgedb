@@ -562,8 +562,8 @@ class Compiler:
                 if item.system:
                     if not current_tx.is_implicit():
                         raise errors.QueryError(
-                            'SET SYSTEM commands must not be executed in '
-                            'a transaction')
+                            'SET SYSTEM CONFIG cannot be executed in a '
+                            'transaction block')
                     has_system_settings = True
 
                 name = item.alias
@@ -574,12 +574,12 @@ class Compiler:
                         f'invalid SET expression: '
                         f'unknown CONFIG setting {name!r}')
 
-                if item.system and setting.internal:
-                    raise errors.QueryError(
+                if item.system and not setting.system:
+                    raise errors.ConfigurationError(
                         f'{name!r} is not a system-level config setting; '
                         f'use "SET CONFIG {name}" command')
                 if not item.system and setting.system:
-                    raise errors.QueryError(
+                    raise errors.ConfigurationError(
                         f'{name!r} is a system-level config setting; '
                         f'use "SET SYSTEM CONFIG {name}" command')
 
@@ -589,7 +589,7 @@ class Compiler:
                     config_val = ireval.evaluate_to_python_val(
                         val_ir.expr, schema=self._std_schema)
                 except ireval.StaticEvaluationError:
-                    raise errors.QueryError(
+                    raise errors.ConfigurationError(
                         f'invalid CONFIG value for the {name!r} setting')
 
                 opcode = None

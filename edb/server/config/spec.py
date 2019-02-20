@@ -42,11 +42,6 @@ class Setting:
                 f'type is expected to be either one of {{str, int, bool}} '
                 f'or an edb.server.config.types.ConfigType subclass')
 
-        if self.internal and self.system:
-            raise ValueError(
-                f'invalid config setting {self.name!r}: cannot be both '
-                f'"system" and "internal"')
-
         if self.set_of:
             if not isinstance(self.default, frozenset):
                 raise ValueError(

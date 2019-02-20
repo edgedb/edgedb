@@ -390,6 +390,89 @@ class TestServerProto(tb.QueryTestCase):
                 'non-existent function: foo::min'):
             await self.con.fetch('SELECT foo::min({3})')
 
+    async def test_server_proto_set_config_01(self):
+        with self.assertRaisesRegex(
+                edgedb.EdgeQLSyntaxError,
+                'SET supports at most one SET SYSTEM'):
+
+            await self.con.execute('''
+                SET ALIAS foo AS MODULE std,
+                    SYSTEM CONFIG __internal_testvalue := 1;
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.ConfigurationError,
+                'is not a system-level'):
+            await self.con.execute('''
+                SET SYSTEM CONFIG __internal_no_const_folding := true;
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.ConfigurationError,
+                'invalid value type'):
+            await self.con.execute('''
+                SET CONFIG __internal_no_const_folding := 1;
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'cannot be executed in a transaction block'):
+            await self.con.execute('''
+                SET CONFIG __internal_no_const_folding := false;
+                SET SYSTEM CONFIG __internal_testvalue := 1;
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'cannot be executed in a transaction block'):
+            await self.con.execute('''
+                SET SYSTEM CONFIG __internal_testvalue := 1;
+                SET CONFIG __internal_no_const_folding := false;
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'cannot be executed in a transaction block'):
+            async with self.con.transaction():
+                await self.con.fetch('''
+                    SET SYSTEM CONFIG __internal_testvalue := 1;
+                ''')
+
+    async def test_server_proto_set_config_02(self):
+        conf = await self.con.fetch_value('''
+            SELECT sys::Config {
+                name,
+                value,
+                source,
+                internal,
+                system,
+                type: { name },
+                typemod,
+            }
+            FILTER .name = "__internal_testvalue"
+        ''')
+        self.assertEqual(conf.value, '0')
+        self.assertEqual(conf.source, 'default')
+        self.assertEqual(conf.type.name, 'std::int64')
+        self.assertEqual(conf.typemod, 'SINGLETON')
+        self.assertTrue(conf.system)
+        self.assertTrue(conf.internal)
+
+        await self.con.fetch('''
+            SET SYSTEM CONFIG __internal_testvalue := 1;
+        ''')
+
+        conf = await self.con.fetch_value('''
+            SELECT sys::Config {
+                name,
+                value,
+                source,
+            }
+            FILTER .name = "__internal_testvalue"
+        ''')
+        self.assertEqual(conf.value, '1')
+        self.assertEqual(conf.source, 'system override')
+
     async def test_server_proto_basic_datatypes_01(self):
         for _ in range(10):
             self.assertEqual(
