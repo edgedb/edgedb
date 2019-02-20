@@ -627,10 +627,9 @@ class Compiler:
                 config_ops.append(op)
 
                 if not item.system:
-                    session_config = config.apply(
+                    session_config = op.apply(
                         config.settings,
-                        session_config,
-                        op)
+                        session_config)
 
                 if not self._bootstrap_mode and not item.system:
                     # We only want to persist session-level config

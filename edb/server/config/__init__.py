@@ -17,7 +17,7 @@
 #
 
 
-from .ops import OpLevel, OpCode, Operation, apply, lookup
+from .ops import OpLevel, OpCode, Operation, lookup
 from .ops import spec_to_json, to_json, from_json
 from .ops import value_to_json_edgeql, value_to_json_edgeql_value
 from .ops import value_to_json, value_from_json
@@ -27,7 +27,7 @@ from .types import ConfigType, Port
 
 __all__ = (
     'settings',
-    'apply', 'lookup',
+    'lookup',
     'Spec', 'Setting',
     'spec_to_json', 'to_json', 'from_json',
     'value_to_json_edgeql', 'value_to_json_edgeql_value',

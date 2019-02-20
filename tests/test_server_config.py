@@ -102,27 +102,21 @@ class TestServerConfigUtils(unittest.TestCase):
     def test_server_config_02(self):
         storage = immutables.Map()
 
-        storage1 = ops.apply(
-            testspec1,
-            storage,
-            ops.Operation(
-                ops.OpCode.CONFIG_ADD,
-                ops.OpLevel.SYSTEM,
-                'ports',
-                'protocol=http+edgeql;database=f1;port=8080;concurrency=4'
-            )
+        op = ops.Operation(
+            ops.OpCode.CONFIG_ADD,
+            ops.OpLevel.SYSTEM,
+            'ports',
+            'protocol=http+edgeql;database=f1;port=8080;concurrency=4'
         )
+        storage1 = op.apply(testspec1, storage)
 
-        storage2 = ops.apply(
-            testspec1,
-            storage1,
-            ops.Operation(
-                ops.OpCode.CONFIG_ADD,
-                ops.OpLevel.SYSTEM,
-                'ports',
-                'protocol=http+edgeql;database=f2;port=8080;concurrency=4'
-            )
+        op = ops.Operation(
+            ops.OpCode.CONFIG_ADD,
+            ops.OpLevel.SYSTEM,
+            'ports',
+            'protocol=http+edgeql;database=f2;port=8080;concurrency=4'
         )
+        storage2 = op.apply(testspec1, storage1)
 
         self.assertEqual(
             storage2['ports'],
@@ -135,16 +129,13 @@ class TestServerConfigUtils(unittest.TestCase):
         storage3 = ops.from_json(testspec1, j)
         self.assertEqual(storage3, storage2)
 
-        storage3 = ops.apply(
-            testspec1,
-            storage2,
-            ops.Operation(
-                ops.OpCode.CONFIG_REM,
-                ops.OpLevel.SYSTEM,
-                'ports',
-                'protocol=http+edgeql;database=f1;port=8080;concurrency=4'
-            )
+        op = ops.Operation(
+            ops.OpCode.CONFIG_REM,
+            ops.OpLevel.SYSTEM,
+            'ports',
+            'protocol=http+edgeql;database=f1;port=8080;concurrency=4'
         )
+        storage3 = op.apply(testspec1, storage2)
 
         self.assertEqual(
             storage3['ports'],
@@ -152,104 +143,83 @@ class TestServerConfigUtils(unittest.TestCase):
                 types.Port('http+edgeql', 'f2', 8080, 4),
             })
 
-        storage4 = ops.apply(
-            testspec1,
-            storage3,
-            ops.Operation(
-                ops.OpCode.CONFIG_REM,
-                ops.OpLevel.SYSTEM,
-                'ports',
-                'protocol=http+edgeql;database=f1;port=8080;concurrency=4'
-            )
+        op = ops.Operation(
+            ops.OpCode.CONFIG_REM,
+            ops.OpLevel.SYSTEM,
+            'ports',
+            'protocol=http+edgeql;database=f1;port=8080;concurrency=4'
         )
+        storage4 = op.apply(testspec1, storage3)
         self.assertEqual(storage3, storage4)
 
     def test_server_config_03(self):
         storage = immutables.Map()
 
+        op = ops.Operation(
+            ops.OpCode.CONFIG_ADD,
+            ops.OpLevel.SYSTEM,
+            'ports',
+            'protocl=http+edgeql;database'
+        )
         with self.assertRaisesRegex(errors.ConfigurationError, "'protocl"):
-            ops.apply(
-                testspec1,
-                storage,
-                ops.Operation(
-                    ops.OpCode.CONFIG_ADD,
-                    ops.OpLevel.SYSTEM,
-                    'ports',
-                    'protocl=http+edgeql;database'
-                )
-            )
+            op.apply(testspec1, storage)
 
+        op = ops.Operation(
+            ops.OpCode.CONFIG_ADD,
+            ops.OpLevel.SYSTEM,
+            'por',
+            'protocl=http+edgeql;database'
+        )
         with self.assertRaisesRegex(errors.ConfigurationError,
                                     "unknown setting"):
-            ops.apply(
-                testspec1,
-                storage,
-                ops.Operation(
-                    ops.OpCode.CONFIG_ADD,
-                    ops.OpLevel.SYSTEM,
-                    'por',
-                    'protocl=http+edgeql;database'
-                )
-            )
+            op.apply(testspec1, storage)
 
     def test_server_config_04(self):
         storage = immutables.Map()
 
-        storage1 = ops.apply(
-            testspec1,
-            storage,
-            ops.Operation(
-                ops.OpCode.CONFIG_SET,
-                ops.OpLevel.SESSION,
-                'int',
-                11
-            )
+        op = ops.Operation(
+            ops.OpCode.CONFIG_SET,
+            ops.OpLevel.SESSION,
+            'int',
+            11
         )
+        storage1 = op.apply(testspec1, storage)
         self.assertEqual(storage1['int'], 11)
 
+        op = ops.Operation(
+            ops.OpCode.CONFIG_SET,
+            ops.OpLevel.SESSION,
+            'int',
+            '42'
+        )
         with self.assertRaisesRegex(errors.ConfigurationError,
                                     "invalid value type for the 'int'"):
-            ops.apply(
-                testspec1,
-                storage1,
-                ops.Operation(
-                    ops.OpCode.CONFIG_SET,
-                    ops.OpLevel.SESSION,
-                    'int',
-                    '42'
-                )
-            )
+            op.apply(testspec1, storage1)
 
-        storage2 = ops.apply(
-            testspec1,
-            storage1,
-            ops.Operation(
-                ops.OpCode.CONFIG_SET,
-                ops.OpLevel.SESSION,
-                'int',
-                42
-            )
+        op = ops.Operation(
+            ops.OpCode.CONFIG_SET,
+            ops.OpLevel.SESSION,
+            'int',
+            42
         )
-        storage2 = ops.apply(
-            testspec1,
-            storage2,
-            ops.Operation(
-                ops.OpCode.CONFIG_ADD,
-                ops.OpLevel.SESSION,
-                'ints',
-                42
-            )
+        storage2 = op.apply(testspec1, storage1)
+
+        op = ops.Operation(
+            ops.OpCode.CONFIG_ADD,
+            ops.OpLevel.SESSION,
+            'ints',
+            42
         )
-        storage2 = ops.apply(
-            testspec1,
-            storage2,
-            ops.Operation(
-                ops.OpCode.CONFIG_ADD,
-                ops.OpLevel.SESSION,
-                'ints',
-                43
-            )
+        storage2 = op.apply(testspec1, storage2)
+
+        op = ops.Operation(
+            ops.OpCode.CONFIG_ADD,
+            ops.OpLevel.SESSION,
+            'ints',
+            43
         )
+        storage2 = op.apply(testspec1, storage2)
+
         self.assertEqual(storage1['int'], 11)
         self.assertEqual(storage2['int'], 42)
         self.assertEqual(storage2['ints'], {42, 43})

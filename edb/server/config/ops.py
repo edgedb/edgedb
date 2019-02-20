@@ -49,51 +49,50 @@ class Operation(typing.NamedTuple):
     setting_name: str
     value: typing.Union[str, int, bool]
 
-
-def _validate_value(setting: spec.Setting, value: object):
-    if issubclass(setting.type, types.ConfigType):
+    def get_setting(self, spec: spec.Spec):
         try:
-            return setting.type.from_pyvalue(value)
-        except (ValueError, TypeError):
+            return spec[self.setting_name]
+        except KeyError:
             raise errors.ConfigurationError(
-                f'invalid value type for the {setting.name!r} setting')
-    else:
-        if isinstance(value, setting.type):
-            return value
+                f'unknown setting {self.setting_name!r}') from None
+
+    def coerce_value(self, setting: spec.Setting):
+        if issubclass(setting.type, types.ConfigType):
+            try:
+                return setting.type.from_pyvalue(self.value)
+            except (ValueError, TypeError):
+                raise errors.ConfigurationError(
+                    f'invalid value type for the {setting.name!r} setting')
         else:
-            raise errors.ConfigurationError(
-                f'invalid value type for the {setting.name!r} setting')
+            if isinstance(self.value, setting.type):
+                return self.value
+            else:
+                raise errors.ConfigurationError(
+                    f'invalid value type for the {setting.name!r} setting')
 
+    def apply(self, spec: spec.Spec,
+              storage: typing.Mapping) -> typing.Mapping:
 
-def apply(spec: spec.Spec,
-          storage: typing.Mapping,
-          op: Operation) -> typing.Mapping:
+        setting = self.get_setting(spec)
+        value = self.coerce_value(setting)
 
-    try:
-        setting = spec[op.setting_name]
-    except KeyError:
-        raise errors.ConfigurationError(
-            f'unknown setting {op.setting_name!r}')
+        if self.opcode is OpCode.CONFIG_SET:
+            assert not setting.set_of
+            storage = storage.set(self.setting_name, value)
 
-    value = _validate_value(setting, op.value)
+        elif self.opcode is OpCode.CONFIG_ADD:
+            assert setting.set_of
+            exist_value = storage.get(self.setting_name, setting.default)
+            new_value = exist_value | {value}
+            storage = storage.set(self.setting_name, new_value)
 
-    if op.opcode is OpCode.CONFIG_SET:
-        assert not setting.set_of
-        storage = storage.set(op.setting_name, value)
+        elif self.opcode is OpCode.CONFIG_REM:
+            assert setting.set_of
+            exist_value = storage.get(self.setting_name, setting.default)
+            new_value = exist_value - {value}
+            storage = storage.set(self.setting_name, new_value)
 
-    elif op.opcode is OpCode.CONFIG_ADD:
-        assert setting.set_of
-        exist_value = storage.get(op.setting_name, setting.default)
-        new_value = exist_value | {value}
-        storage = storage.set(op.setting_name, new_value)
-
-    elif op.opcode is OpCode.CONFIG_REM:
-        assert setting.set_of
-        exist_value = storage.get(op.setting_name, setting.default)
-        new_value = exist_value - {value}
-        storage = storage.set(op.setting_name, new_value)
-
-    return storage
+        return storage
 
 
 def spec_to_json(spec: spec.Spec):

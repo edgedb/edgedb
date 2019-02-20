@@ -248,10 +248,9 @@ cdef class DatabaseConnectionView:
                 self._db._index.apply_system_config_op(op)
             else:
                 self.set_session_config(
-                    config.apply(
+                    op.apply(
                         config.settings,
-                        self.get_session_config(),
-                        op))
+                        self.get_session_config()))
 
     @staticmethod
     def raise_in_tx_error():
@@ -279,8 +278,8 @@ cdef class DatabaseIndex:
         return db
 
     cdef apply_system_config_op(self, op):
-        self._sys_config = config.apply(
-            config.settings, self._sys_config, op)
+        self._sys_config = op.apply(
+            config.settings, self._sys_config)
 
         with open(os.path.join(self._data_dir, 'config_sys.json'), 'wt') as f:
             f.write(config.to_json(config.settings, self._sys_config))
