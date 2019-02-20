@@ -502,11 +502,15 @@ class BaseQueryTestCase(DatabaseTestCase):
                 # the keys in the dict indicate the fields that
                 # actually must be sorted
                 for key, val in sort.items():
-                    if isinstance(results, list):
-                        for r in results:
-                            self._sort_results(r[key], val)
+                    # '.' is a special key referring to the base object
+                    if key == '.':
+                        self._sort_results(results, val)
                     else:
-                        self._sort_results(results[key], val)
+                        if isinstance(results, list):
+                            for r in results:
+                                self._sort_results(r[key], val)
+                        else:
+                            self._sort_results(results[key], val)
 
             else:
                 results.sort(key=sort)
