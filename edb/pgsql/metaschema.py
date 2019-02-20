@@ -1401,6 +1401,10 @@ class SysConfigFunction(dbops.Function):
                     (SELECT setting AS dir FROM pg_settings
                      WHERE name = 'data_directory'),
 
+                config_type AS
+                    (SELECT id FROM edgedb.Object
+                     WHERE name = 'sys::Config'),
+
                 config_spec AS
                     (SELECT
                         s.key AS name,
@@ -1459,9 +1463,7 @@ class SysConfigFunction(dbops.Function):
                     '{CONFIG_ID_NAMESPACE}'::uuid,
                     q.name
                 ) AS id,
-                (SELECT id FROM edgedb.Object
-                     WHERE name = 'sys::Config'
-                ) AS __type__,
+                (SELECT config_type.id FROM config_type) AS __type__,
                 q.name,
                 q.value,
                 q.source,
